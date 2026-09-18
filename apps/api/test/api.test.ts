@@ -125,6 +125,13 @@ test('accounts degrade and validate without claude-swap', async () => {
   assert.equal((await app.inject('/api/accounts/autoswitch')).json().intervalSec, 30);
 });
 
+test('planner drafts are listed and fetched by run', async () => {
+  assert.deepEqual((await app.inject('/api/orchestrations/plans')).json(), []);
+  // No such planner run: a clear 4xx rather than a hang
+  assert.equal((await app.inject('/api/orchestrations/plans/nope')).statusCode, 404);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/plan/start', ...json({}) })).statusCode, 400);
+});
+
 test('runs, orchestrations and plugins reject bad requests', async () => {
   assert.equal((await app.inject({ method: 'POST', url: '/api/runs', ...json({ prompt: '  ' }) })).statusCode, 400);
   assert.equal((await app.inject('/api/runs/ghost')).statusCode, 404);

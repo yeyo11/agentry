@@ -1646,6 +1646,37 @@
       "objective"
     ]
   },
+  "PlanDraftSummary": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "objective": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "taskCount": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "runId",
+      "createdAt",
+      "name",
+      "objective",
+      "taskCount"
+    ],
+    "description": "A planner run's draft, kept so a plan is never lost with the response that carried it."
+  },
   "SettingsDoc": {
     "type": "object",
     "properties": {

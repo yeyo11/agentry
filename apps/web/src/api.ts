@@ -28,6 +28,7 @@ import type {
   Orchestration,
   OrchestrationSpec,
   Overview,
+  PlanDraftSummary,
   PlanRequest,
   PluginActionRequest,
   PluginsOverview,
@@ -62,13 +63,29 @@ export class ApiRequestError extends Error {
   }
 }
 
-async function request<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+/**
+ * Long enough for the slowest honest call (a plugin install shelling out to the CLI), short enough
+ * that a response which will never arrive surfaces as an error instead of a spinner that turns for
+ * ever. Nothing here should hold a request open for minutes — long work returns a run to stream.
+ */
+const REQUEST_TIMEOUT_MS = 120_000;
+
+async function request<T>(path: string, init: { method?: string; body?: unknown; timeoutMs?: number } = {}): Promise<T> {
   const hasBody = init.body !== undefined;
-  const res = await fetch(`${BASE}${path}`, {
-    method: init.method ?? 'GET',
-    headers: hasBody ? { 'content-type': 'application/json' } : undefined,
-    body: hasBody ? JSON.stringify(init.body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method: init.method ?? 'GET',
+      headers: hasBody ? { 'content-type': 'application/json' } : undefined,
+      body: hasBody ? JSON.stringify(init.body) : undefined,
+      signal: AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      throw new ApiRequestError('The server did not answer in time. It may still be working — reload to see the current state.', 408);
+    }
+    throw err;
+  }
   const text = await res.text();
   let json: unknown = null;
   try {
@@ -135,7 +152,10 @@ export const api = {
   createOrchestration: (spec: OrchestrationSpec) =>
     request<Orchestration>('/orchestrations', { method: 'POST', body: spec }),
   planOrchestration: (req: PlanRequest) =>
-    request<OrchestrationSpec>('/orchestrations/plan', { method: 'POST', body: req }),
+    request<OrchestrationSpec>('/orchestrations/plan', { method: 'POST', body: req, timeoutMs: 10 * 60_000 }),
+  startPlan: (req: PlanRequest) => request<RunSummary>('/orchestrations/plan/start', { method: 'POST', body: req }),
+  planDrafts: () => request<PlanDraftSummary[]>('/orchestrations/plans'),
+  planDraft: (runId: string) => request<OrchestrationSpec>(`/orchestrations/plans/${enc(runId)}`),
   stopOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/stop`, { method: 'POST' }),
   getSettings: (scope: Scope, variant: ConfigFileVariant = 'shared') =>
     request<SettingsDoc>(`/config/settings${scoped(scope, variant)}`),
@@ -212,6 +232,7 @@ export const keys = {
   tasks: ['tasks'] as const,
   subagents: ['subagents'] as const,
   orchestrations: ['orchestrations'] as const,
+  planDrafts: ['orchestrations', 'plans'] as const,
   orchestration: (id: string) => ['orchestration', id] as const,
   settings: (scope: Scope, variant: ConfigFileVariant) =>
     ['config', 'settings', scope.projectId ?? 'user', variant] as const,

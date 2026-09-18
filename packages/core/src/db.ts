@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import type { AutoSwitchEvent, Orchestration, RunSummary } from '@agentry/shared';
+import type { AutoSwitchEvent, Orchestration, OrchestrationSpec, PlanDraftSummary, RunSummary } from '@agentry/shared';
 import type { CoreConfig } from './paths.ts';
 
 /**
@@ -42,6 +42,17 @@ const MIGRATIONS: readonly string[] = [
      json       TEXT NOT NULL
    );
    CREATE INDEX orchestrations_created_at ON orchestrations (created_at DESC);`,
+
+  // A planner run is expensive and leaves no transcript, so its draft is written down the moment
+  // it finishes. Without this the plan lived only in the HTTP response, and a dropped connection
+  // meant paying for it again.
+  `CREATE TABLE plan_drafts (
+     run_id     TEXT PRIMARY KEY,
+     created_at TEXT NOT NULL,
+     objective  TEXT,
+     json       TEXT NOT NULL
+   );
+   CREATE INDEX plan_drafts_created_at ON plan_drafts (created_at DESC);`,
 ];
 
 /** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
@@ -224,6 +235,55 @@ export class Db {
 
   loadOrchestrations(): Orchestration[] {
     return this.loadDocs<Orchestration>('orchestrations');
+  }
+
+  // ---------- planner drafts ----------
+
+  savePlanDraft(runId: string, draft: OrchestrationSpec): void {
+    this.db
+      .prepare(
+        `INSERT INTO plan_drafts (run_id, created_at, objective, json) VALUES (?, ?, ?, ?)
+         ON CONFLICT(run_id) DO UPDATE SET objective = excluded.objective, json = excluded.json`,
+      )
+      .run(runId, new Date().toISOString(), draft.objective ?? null, JSON.stringify(draft));
+  }
+
+  planDraft(runId: string): OrchestrationSpec | null {
+    const row = this.db.prepare('SELECT json FROM plan_drafts WHERE run_id = ?').get(runId) as { json: string } | undefined;
+    if (!row) return null;
+    try {
+      return JSON.parse(row.json) as OrchestrationSpec;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Newest first, for the picker that lets a lost plan be recovered instead of re-planned. */
+  planDrafts(limit = 20): PlanDraftSummary[] {
+    const rows = this.db
+      .prepare('SELECT run_id, created_at, objective, json FROM plan_drafts ORDER BY created_at DESC LIMIT ?')
+      .all(Math.min(Math.max(Math.trunc(limit), 1), 100)) as unknown as Array<{
+      run_id: string;
+      created_at: string;
+      objective: string | null;
+      json: string;
+    }>;
+    const out: PlanDraftSummary[] = [];
+    for (const row of rows) {
+      try {
+        const spec = JSON.parse(row.json) as OrchestrationSpec;
+        out.push({
+          runId: row.run_id,
+          createdAt: row.created_at,
+          name: spec.name,
+          objective: row.objective,
+          taskCount: spec.tasks.length,
+        });
+      } catch {
+        // a row we can no longer read is not worth failing the list over
+      }
+    }
+    return out;
   }
 
   close(): void {

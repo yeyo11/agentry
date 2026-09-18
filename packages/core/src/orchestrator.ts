@@ -6,13 +6,21 @@ import type {
   OrchestrationSpec,
   OrchestrationTaskSpec,
   OrchestrationTaskState,
+  PlanDraftSummary,
   PlanRequest,
+  RunSummary,
 } from '@agentry/shared';
 import type { Db } from './db.ts';
 import type { CoreConfig } from './paths.ts';
 import type { RunManager } from './runner.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
+/** The planner's own name, which is how a past planner run is recognised later. */
+export const PLANNER_RUN_NAME = 'orchestration-planner';
+// The objective is read back out of the prompt when recovering a draft, so both halves are built
+// from these constants: they cannot drift apart.
+const PROMPT_HEAD = 'Plan a multi-agent orchestration for this objective:\n\n';
+const PROMPT_TAIL = '\n\nSplit it into at most ';
 const MAX_DEP_CONTEXT = 6000;
 const now = () => new Date().toISOString();
 
@@ -303,27 +311,54 @@ export class Orchestrator {
     this.persist();
   }
 
-  /** Asks Claude (structured output) to split an objective into a task DAG. Returns an editable draft. */
-  async plan(req: PlanRequest): Promise<OrchestrationSpec> {
+  /**
+   * Starts the planner agent and returns its run without waiting. The caller streams it like any
+   * other run, which is what keeps a two-minute plan from living inside one HTTP request: a lost
+   * connection no longer loses the plan, because {@link draftFrom} can read it back afterwards.
+   */
+  startPlan(req: PlanRequest): RunSummary {
     if (!req.objective?.trim()) throw new Error('objective is required');
     const maxTasks = Math.min(Math.max(req.maxTasks ?? 6, 1), 12);
     const cwd = resolve(req.cwd ?? this.config.workspaceDir);
-    const run = this.runs.start({
+    return this.runs.start({
       prompt:
-        `Plan a multi-agent orchestration for this objective:\n\n${req.objective}\n\n` +
-        `Split it into at most ${maxTasks} tasks. Each task is executed by an independent Claude Code agent working in ${cwd}, ` +
+        `${PROMPT_HEAD}${req.objective}${PROMPT_TAIL}` +
+        `${maxTasks} tasks. Each task is executed by an independent Claude Code agent working in ${cwd}, ` +
         `so every prompt must be self-contained. Maximize parallelism: only add a dependency when a task truly needs another task's output ` +
         `(results of dependencies are passed along automatically). You may inspect the directory with read-only tools first. Do not perform the work itself.`,
       cwd,
       model: req.model,
       permissionMode: 'manual',
       allowedTools: ['Read', 'Glob', 'Grep'],
-      name: 'orchestration-planner',
+      name: PLANNER_RUN_NAME,
       keepAlive: false,
       internal: true,
       jsonSchema: PLAN_SCHEMA,
     });
-    const result = await this.runs.waitForResult(run.id);
+  }
+
+  /**
+   * Starts the planner and records its draft as soon as it finishes, whether or not anyone is
+   * still listening. This is what makes a plan survive a dropped response or a page reload.
+   */
+  startPlanAndRecord(req: PlanRequest): RunSummary {
+    const run = this.startPlan(req);
+    void this.draftFrom(run.id).catch(() => {
+      // A failed plan has nothing worth recording; the run itself carries the error.
+    });
+    return run;
+  }
+
+  /**
+   * The editable draft a planner run produced. Works on any finished planner run, so a plan whose
+   * HTTP response was lost — or that was generated before a reload — is recoverable instead of paid
+   * for twice.
+   */
+  private async draftFrom(runId: string): Promise<OrchestrationSpec> {
+    const run = this.runs.get(runId);
+    if (!run) throw new Error('run not found');
+    if (run.name !== PLANNER_RUN_NAME) throw new Error('that run is not a planner run');
+    const result = await this.runs.waitForResult(runId);
     if (result.isError) throw new Error(`planner failed: ${result.result}`);
 
     let draft = result.structuredOutput as { name?: string; tasks?: OrchestrationTaskSpec[] } | undefined;
@@ -334,14 +369,36 @@ export class Orchestrator {
     }
     if (!draft?.tasks) throw new Error('planner returned no tasks');
     validateTasks(draft.tasks);
-    return {
+    const head = run.prompt.indexOf(PROMPT_HEAD);
+    const tail = run.prompt.indexOf(PROMPT_TAIL);
+    const spec: OrchestrationSpec = {
       name: draft.name ?? 'orchestration',
-      objective: req.objective,
-      cwd,
-      model: req.model,
+      objective: head === 0 && tail > 0 ? run.prompt.slice(PROMPT_HEAD.length, tail) : undefined,
+      cwd: run.cwd,
+      model: run.model ?? undefined,
       concurrency: 3,
       synthesize: true,
       tasks: draft.tasks,
     };
+    this.db.savePlanDraft(runId, spec);
+    return spec;
+  }
+
+  /** A draft this planner run produced, from the live run or from the store once it is gone. */
+  async draft(runId: string): Promise<OrchestrationSpec> {
+    const stored = this.db.planDraft(runId);
+    if (stored) return stored;
+    return this.draftFrom(runId);
+  }
+
+  /** Plans that can still be launched, newest first. */
+  drafts(limit?: number): PlanDraftSummary[] {
+    return this.db.planDrafts(limit);
+  }
+
+  /** Plans and waits, for callers that want the draft in one call. */
+  async plan(req: PlanRequest): Promise<OrchestrationSpec> {
+    const run = this.startPlan(req);
+    return this.draftFrom(run.id);
   }
 }

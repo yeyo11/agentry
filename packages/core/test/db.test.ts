@@ -166,3 +166,36 @@ test('a pre-SQLite runs.json is carried into the store once', async () => {
   assert.equal(existsSync(`${legacy}.migrated`), true);
   db.close();
 });
+
+test('a planner draft outlives the response that was supposed to carry it', () => {
+  const config = tempConfig();
+  const first = new Db(config);
+  first.savePlanDraft('run-1', {
+    name: 'refactor-auth',
+    objective: 'Split the auth module',
+    tasks: [
+      { id: 'a', name: 'A', prompt: 'do a', dependsOn: [] },
+      { id: 'b', name: 'B', prompt: 'do b', dependsOn: ['a'] },
+    ],
+  });
+  first.close();
+
+  // A new process: the run itself is gone (planner runs are internal), the plan is not
+  const second = new Db(config);
+  const stored = second.planDraft('run-1');
+  assert.equal(stored?.name, 'refactor-auth');
+  assert.equal(stored?.tasks.length, 2);
+  assert.equal(second.planDraft('missing'), null);
+
+  const listed = second.planDrafts();
+  assert.deepEqual(
+    listed.map((d) => [d.runId, d.taskCount, d.objective]),
+    [['run-1', 2, 'Split the auth module']],
+  );
+
+  // Re-reading the same run replaces the row rather than duplicating it
+  second.savePlanDraft('run-1', { name: 'refactor-auth', tasks: [{ id: 'a', name: 'A', prompt: 'do a', dependsOn: [] }] });
+  assert.equal(second.planDrafts().length, 1);
+  assert.equal(second.planDrafts()[0]?.taskCount, 1);
+  second.close();
+});

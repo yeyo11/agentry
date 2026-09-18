@@ -326,6 +326,15 @@ export interface Orchestration {
   costUsd: number;
 }
 
+/** A planner run's draft, kept so a plan is never lost with the response that carried it. */
+export interface PlanDraftSummary {
+  runId: string;
+  createdAt: string;
+  name: string;
+  objective: string | null;
+  taskCount: number;
+}
+
 export interface PlanRequest {
   objective: string;
   cwd?: string;

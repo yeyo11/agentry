@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 import type { OrchestrationSpec, OrchestrationTaskSpec, PermissionMode } from '@agentry/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useOrchestrations, useProjects } from '../api';
 import { Card, Empty, ErrorBox, Field, Loading, ModelDatalist, PageHeader, PERMISSION_MODES, Segmented, StatusBadge } from '../components/ui';
@@ -107,23 +107,63 @@ function CreateForm({ onDone }: { onDone: () => void }) {
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [tasks, setTasks] = useState<OrchestrationTaskSpec[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
+  // The planner is a run like any other: it is started, then watched. Holding an HTTP request
+  // open for the couple of minutes it takes is what used to lose the plan on a dropped connection.
+  const [plannerRunId, setPlannerRunId] = useState<string | null>(null);
+  const [appliedRunId, setAppliedRunId] = useState<string | null>(null);
+
+  const applyDraft = (draft: OrchestrationSpec) => {
+    setTasks(draft.tasks.map((t) => ({ ...t, dependsOn: t.dependsOn ?? [] })));
+    if (draft.name) setName(draft.name);
+    if (draft.objective && !objective.trim()) setObjective(draft.objective);
+    if (draft.cwd && !cwd.trim()) setCwd(draft.cwd);
+    if (draft.concurrency) setConcurrency(draft.concurrency);
+    if (draft.synthesize != null) setSynthesize(draft.synthesize);
+  };
 
   const plan = useMutation({
     mutationFn: () =>
-      api.planOrchestration({
+      api.startPlan({
         objective: objective.trim(),
         cwd: cwd.trim() || undefined,
         model: model.trim() || undefined,
         maxTasks,
       }),
-    onSuccess: (draft) => {
-      setTasks(draft.tasks.map((t) => ({ ...t, dependsOn: t.dependsOn ?? [] })));
-      if (draft.name) setName(draft.name);
-      if (draft.objective && !objective.trim()) setObjective(draft.objective);
-      if (draft.concurrency) setConcurrency(draft.concurrency);
-      if (draft.synthesize != null) setSynthesize(draft.synthesize);
+    onSuccess: (run) => {
+      setPlannerRunId(run.id);
+      setAppliedRunId(null);
     },
   });
+
+  const plannerRun = useQuery({
+    queryKey: ['run', plannerRunId],
+    queryFn: () => api.run(plannerRunId ?? ''),
+    enabled: plannerRunId !== null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.run.status;
+      return status && ['completed', 'failed', 'stopped'].includes(status) ? false : 2000;
+    },
+  });
+  const plannerStatus = plannerRun.data?.run.status;
+  const planning = plannerRunId !== null && appliedRunId !== plannerRunId && plannerStatus !== 'failed' && plannerStatus !== 'stopped';
+
+  const draft = useMutation({
+    mutationFn: (runId: string) => api.planDraft(runId),
+    onSuccess: (spec, runId) => {
+      applyDraft(spec);
+      setAppliedRunId(runId);
+      void queryClient.invalidateQueries({ queryKey: keys.planDrafts });
+    },
+  });
+
+  // The draft is recorded server-side when the planner finishes, so this only fetches it.
+  useEffect(() => {
+    if (plannerRunId && plannerStatus === 'completed' && appliedRunId !== plannerRunId && !draft.isPending) {
+      draft.mutate(plannerRunId);
+    }
+  }, [plannerRunId, plannerStatus, appliedRunId, draft]);
+
+  const drafts = useQuery({ queryKey: keys.planDrafts, queryFn: api.planDrafts });
 
   const create = useMutation({
     mutationFn: (spec: OrchestrationSpec) => api.createOrchestration(spec),
@@ -224,15 +264,68 @@ function CreateForm({ onDone }: { onDone: () => void }) {
             <button
               type="button"
               className="btn btn-primary"
-              disabled={!objective.trim() || plan.isPending}
+              disabled={!objective.trim() || plan.isPending || planning}
               onClick={() => plan.mutate()}
             >
-              {plan.isPending ? 'Planning… (can take a couple of minutes)' : tasks.length ? 'Re-plan' : 'Generate plan'}
+              {planning ? 'Planning…' : tasks.length ? 'Re-plan' : 'Generate plan'}
             </button>
-            {plan.isPending && <span className="spinner" />}
+            {planning && <span className="spinner" />}
+            {plannerRunId && (
+              <span className="muted small">
+                {planning ? (
+                  <>
+                    {plannerRun.data?.run.turns ? `${plannerRun.data.run.turns} turns · ` : ''}
+                    planner running —{' '}
+                  </>
+                ) : plannerStatus === 'failed' || plannerStatus === 'stopped' ? (
+                  <>planner {plannerStatus} — </>
+                ) : (
+                  <>plan ready — </>
+                )}
+                <Link to={`/runs/${plannerRunId}`}>watch the agent</Link>
+                {draft.isPending && ' · loading the plan…'}
+              </span>
+            )}
           </div>
         )}
-        <ErrorBox error={plan.error} title="Planning failed" />
+        {/* The plan is stored server-side, so leaving this page never loses it. */}
+        {plannerRunId && !planning && plannerStatus !== 'completed' && (
+          <p className="muted small">
+            The planner {plannerStatus ?? 'ended'} without a plan. Its output is on the run page; you can re-plan or
+            write the tasks by hand.
+          </p>
+        )}
+        <ErrorBox error={plan.error} title="Could not start the planner" />
+        <ErrorBox error={draft.error} title="Could not load the plan" />
+
+        {mode === 'auto' && (drafts.data?.length ?? 0) > 0 && (
+          <div className="stack-sm">
+            <hr />
+            <div className="muted small">Plans already generated — load one instead of paying for a new run.</div>
+            <ul className="list">
+              {(drafts.data ?? []).slice(0, 5).map((d) => (
+                <li key={d.runId} className="list-row small">
+                  <span className="strong ellipsis">{d.name}</span>
+                  <span className="muted ellipsis">{d.objective ?? ''}</span>
+                  <span className="muted nowrap">
+                    {d.taskCount} task{d.taskCount === 1 ? '' : 's'} · {timeAgo(d.createdAt)}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-small"
+                    disabled={draft.isPending}
+                    onClick={() => {
+                      setPlannerRunId(d.runId);
+                      draft.mutate(d.runId);
+                    }}
+                  >
+                    Load
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {(mode === 'manual' || tasks.length > 0) && (
           <>
