@@ -12,19 +12,25 @@ A REST API, a web UI and multi-agent orchestration around the Claude Code CLI, i
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/yeyo11/agentry?style=flat&logo=github&color=8b5cf6)](https://github.com/yeyo11/agentry/stargazers)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522-5fa04e?logo=node.js&logoColor=white)](package.json)
-[![Docker](https://img.shields.io/badge/docker-ready-2496ed?logo=docker&logoColor=white)](docker-compose.yml)
+[![Image](https://img.shields.io/badge/ghcr.io-agentry-2496ed?logo=docker&logoColor=white)](https://github.com/yeyo11/agentry/pkgs/container/agentry)
 [![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-6ba539?logo=openapiinitiative&logoColor=white)](#rest-api)
 [![Buy me a coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/yeyo11)
 
-<img src="docs/media/dashboard.png" alt="The Agentry dashboard: live runs, sessions, projects and account usage" width="100%">
+<img src="docs/media/tour.gif" alt="A tour of Agentry: dashboard, command palette, session transcripts, orchestration and account rotation" width="100%">
 
 </div>
 
-Agentry detects the Claude Code CLI installed in the container, authenticates it with the account
-you configure, and exposes everything that is personal to that account (MCP servers, instructions,
-settings, agents, skills, commands) plus live control of sessions, background tasks, subagents and
-multi-agent orchestrations. Several accounts can be registered: it rotates to one with quota left
-when the active one runs out, and can pin a run to a given account.
+Claude Code lives in your terminal. One machine, one session at a time, and nothing to look at
+once you close the tab.
+
+Agentry puts it behind a REST API and a web UI: start and watch conversations from anywhere, run a
+graph of agents in parallel, browse every transcript the CLI has ever written, and rotate between
+accounts when one runs out of quota — without giving up a single thing the CLI can do, because
+Agentry drives it through the CLI and nothing else.
+
+```bash
+docker run -p 8787:8787 -v agentry:/data ghcr.io/yeyo11/agentry
+```
 
 ### What you get
 
@@ -38,10 +44,10 @@ when the active one runs out, and can pin a run to a given account.
   commands, output styles, memory, plugins and marketplaces, per user and per project.
 - **One container, one volume** — non-root, the CLI baked in, everything else on a data volume.
 
-> [!WARNING]
-> **There is no authentication on the API**, and runs default to `bypassPermissions` inside the
-> container. Anyone who reaches the port can run Claude Code on your account and read every
-> transcript on the machine. Bind it to localhost. See [SECURITY.md](SECURITY.md).
+> [!IMPORTANT]
+> **Run it on localhost for now.** API authentication is the next thing being built; until it
+> lands, anyone who reaches the port can start a run on your account and read every transcript on
+> the machine. [SECURITY.md](SECURITY.md) spells out exactly what is and is not protected.
 
 ### Several accounts, rotated before they run out
 
@@ -63,18 +69,42 @@ The wrapper drives Claude **only through the CLI** — no SDK, no terminal scrap
 | Orchestration planner | `--json-schema` structured output |
 | Multiple accounts | [claude-swap](https://github.com/realiti4/claude-swap): `cswap list / switch / auto --json`, and `cswap run` for a run pinned to one account |
 
-## Quick start (Docker)
+## Quick start
+
+On a machine where you are already logged in to Claude Code, mint a long-lived token:
 
 ```bash
-# 1. On a machine where you are logged in to Claude Code, create a long-lived token
 claude setup-token
+```
 
-# 2. Configure
+Then run the published image, pasting that token in:
+
+```bash
+docker run -d --init -p 8787:8787 \
+  -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-... \
+  -v agentry-config:/home/node/.claude \
+  -v agentry-data:/data \
+  -v agentry-accounts:/home/node/.local/share/claude-swap \
+  -v "$PWD/workspace:/workspace" \
+  ghcr.io/yeyo11/agentry
+```
+
+The UI and the API reference are on <http://localhost:8787> — the panel at `/`, the interactive
+OpenAPI docs at `/docs`. Everything else is configured from the UI.
+
+<details>
+<summary>Building it yourself instead</summary>
+
+```bash
+git clone https://github.com/yeyo11/agentry
+cd agentry
 cp .env.example .env        # paste the token into CLAUDE_CODE_OAUTH_TOKEN
-
-# 3. Run
 docker compose up --build
 ```
+
+`docker-compose.yml` pins the CLI version through `CLAUDE_CODE_VERSION` if you need a specific one.
+
+</details>
 
 Open <http://localhost:8787> for the UI; the API lives under `/api`.
 
