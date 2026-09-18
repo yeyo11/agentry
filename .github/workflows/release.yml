@@ -32,6 +32,11 @@ jobs:
   edge:
     needs: please
     if: needs.please.outputs.released != 'true'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/image.yml
     with:
       tags: |
@@ -42,6 +47,11 @@ jobs:
   release:
     needs: please
     if: needs.please.outputs.released == 'true'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/image.yml
     with:
       ref: ${{ needs.please.outputs.tag }}
