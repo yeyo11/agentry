@@ -199,3 +199,18 @@ test('a planner draft outlives the response that was supposed to carry it', () =
   assert.equal(second.planDrafts()[0]?.taskCount, 1);
   second.close();
 });
+
+test('an internal run survives a restart, because the planner is one', async () => {
+  const config = tempConfig();
+  const db = new Db(config);
+  // What the orchestration planner looks like in the store: internal, but real paid work
+  db.saveRuns([{ ...run('planner', '2026-09-18T20:57:00Z'), name: 'orchestration-planner', internal: true }], 200);
+
+  const manager = new RunManager(config, db);
+  await manager.restore(new SessionStore(config));
+  const restored = manager.list();
+  assert.equal(restored.length, 1);
+  assert.equal(restored[0]?.name, 'orchestration-planner');
+  assert.equal(restored[0]?.internal, true);
+  db.close();
+});

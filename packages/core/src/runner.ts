@@ -244,8 +244,11 @@ export class RunManager extends EventEmitter {
   }
 
   private persist(): void {
+    // Internal runs are persisted too. The flag means "housekeeping: no transcript, hidden from
+    // the session list", not "disposable": the orchestration planner is internal and costs real
+    // money, and dropping it on restart took the only record of that work with it. The other
+    // internal run, the auth check, removes itself as soon as it finishes.
     const summaries = this.list()
-      .filter((r) => !r.internal)
       .slice(0, MAX_PERSISTED_RUNS)
       .map((r) => ({ ...r, backgroundTasks: [], subagents: [] }));
     try {
