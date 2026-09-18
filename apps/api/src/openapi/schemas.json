@@ -1418,6 +1418,13 @@
         "type": "boolean",
         "description": "Each task gets its own git worktree and branch instead of sharing the checkout"
       },
+      "allowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Tools pre-authorised for every worker"
+      },
       "createdAt": {
         "type": "string"
       },
@@ -1454,6 +1461,7 @@
       "concurrency",
       "synthesize",
       "worktree",
+      "allowedTools",
       "createdAt",
       "endedAt",
       "tasks",
@@ -1605,6 +1613,13 @@
       "worktree": {
         "type": "boolean",
         "description": "Give every task its own git worktree and branch, so parallel workers never write over each other — and never edit the checkout the wrapper itself is running from."
+      },
+      "allowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Tools every worker may use without being asked. A worker has no one to ask — the CLI denies automatically — so anything it needs beyond editing files has to be pre-authorised here or through a permission mode that does not prompt."
       },
       "tasks": {
         "type": "array",

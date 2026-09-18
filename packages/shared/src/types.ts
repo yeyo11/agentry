@@ -297,6 +297,12 @@ export interface OrchestrationSpec {
    * other — and never edit the checkout the wrapper itself is running from.
    */
   worktree?: boolean;
+  /**
+   * Tools every worker may use without being asked. A worker has no one to ask — the CLI denies
+   * automatically — so anything it needs beyond editing files has to be pre-authorised here or
+   * through a permission mode that does not prompt.
+   */
+  allowedTools?: string[];
   tasks: OrchestrationTaskSpec[];
 }
 
@@ -330,6 +336,8 @@ export interface Orchestration {
   synthesize: boolean;
   /** Each task gets its own git worktree and branch instead of sharing the checkout */
   worktree: boolean;
+  /** Tools pre-authorised for every worker */
+  allowedTools: string[];
   createdAt: string;
   endedAt: string | null;
   tasks: OrchestrationTaskState[];

@@ -105,6 +105,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
   const [concurrency, setConcurrency] = useState(3);
   const [synthesize, setSynthesize] = useState(true);
   const [worktree, setWorktree] = useState(true);
+  const [allowedTools, setAllowedTools] = useState('Bash,Read,Write,Edit,Glob,Grep');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [tasks, setTasks] = useState<OrchestrationTaskSpec[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -210,6 +211,10 @@ function CreateForm({ onDone }: { onDone: () => void }) {
       concurrency,
       synthesize,
       worktree,
+      allowedTools: allowedTools
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean),
       tasks: tasks.map((t) => ({
         ...t,
         id: t.id.trim(),
@@ -358,6 +363,12 @@ function CreateForm({ onDone }: { onDone: () => void }) {
               <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} /> Give each task
               its own git worktree and branch
             </label>
+            <Field
+              label="Tools workers may use"
+              hint="A worker has nobody to ask, so the CLI denies anything not pre-authorised here. Leave empty to rely on the permission mode alone."
+            >
+              <input value={allowedTools} onChange={(e) => setAllowedTools(e.target.value)} placeholder="Bash,Read,Write,Edit" />
+            </Field>
             <p className="muted small">
               Workers then never write over each other, and never edit the checkout Agentry is running from — an
               orchestration that edits this repo restarts the wrapper and kills itself. Needs the directory to be a git

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import type { RunSummary } from '@agentry/shared';
 import { Db } from '../src/db.ts';
+import { Orchestrator } from '../src/orchestrator.ts';
 import { RunManager } from '../src/runner.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { tempConfig } from './helpers.ts';
@@ -212,5 +213,37 @@ test('an internal run survives a restart, because the planner is one', async () 
   assert.equal(restored.length, 1);
   assert.equal(restored[0]?.name, 'orchestration-planner');
   assert.equal(restored[0]?.internal, true);
+  db.close();
+});
+
+test('an orchestration stored before a field existed still schedules', () => {
+  const config = tempConfig();
+  const db = new Db(config);
+  // Exactly what was on disk: written before `worktree` and `allowedTools` were added
+  db.saveOrchestrations([
+    {
+      id: 'old-1',
+      name: 'legacy',
+      objective: null,
+      status: 'stopped',
+      cwd: '/tmp',
+      model: null,
+      permissionMode: 'acceptEdits',
+      concurrency: 3,
+      synthesize: false,
+      createdAt: '2026-09-18T21:21:39.941Z',
+      endedAt: '2026-09-18T21:34:05.149Z',
+      finalResult: null,
+      costUsd: 1.71,
+      tasks: [],
+    } as unknown as Parameters<Db['saveOrchestrations']>[0][number],
+  ]);
+
+  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+  const loaded = orchestrator.get('old-1');
+  // Reading `.length` off an absent array threw inside launch(), where a bare catch swallowed it
+  // and retried every three seconds for ever: the graph reported itself running with nothing running.
+  assert.deepEqual(loaded?.allowedTools, []);
+  assert.equal(loaded?.worktree, false);
   db.close();
 });

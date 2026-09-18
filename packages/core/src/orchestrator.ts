@@ -106,6 +106,10 @@ export class Orchestrator {
   private load(): void {
     this.importLegacy();
     for (const o of this.db.loadOrchestrations()) {
+      // Records written before a field existed come back without it; normalise on the way in so
+      // the rest of the code never has to ask whether an orchestration is old.
+      o.worktree ??= false;
+      o.allowedTools ??= [];
       // Workers do not survive a wrapper restart
       if (o.status === 'running') {
         o.status = 'stopped';
@@ -170,6 +174,7 @@ export class Orchestrator {
       concurrency: Math.min(Math.max(spec.concurrency ?? 3, 1), this.config.maxConcurrentRuns),
       synthesize: spec.synthesize ?? false,
       worktree: spec.worktree === true,
+      allowedTools: (spec.allowedTools ?? []).map(String).filter(Boolean),
       createdAt: now(),
       endedAt: null,
       finalResult: null,
@@ -336,6 +341,7 @@ export class Orchestrator {
           cwd,
           model: task.model ?? orch.model ?? undefined,
           permissionMode: orch.permissionMode,
+          ...(orch.allowedTools?.length ? { allowedTools: orch.allowedTools } : {}),
           name: `${orch.name}:${task.id}`.slice(0, 60),
           keepAlive: false,
         },
@@ -356,9 +362,19 @@ export class Orchestrator {
         this.schedule(orch);
       });
       return true;
-    } catch {
-      // Global run limit reached: leave it pending and retry shortly
-      setTimeout(() => this.schedule(orch), 3000).unref();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // The global run limit is the one transient failure: stay pending and try again shortly.
+      if (message.includes('Concurrent run limit')) {
+        setTimeout(() => this.schedule(orch), 3000).unref();
+        return false;
+      }
+      // Everything else used to be swallowed and retried for ever, which left a graph reporting
+      // itself as running with nothing running and no way to find out why. Fail it visibly.
+      task.status = 'failed';
+      task.error = `could not start the worker: ${message}`;
+      task.endedAt = now();
+      setTimeout(() => this.schedule(orch), 0).unref();
       return false;
     }
   }
