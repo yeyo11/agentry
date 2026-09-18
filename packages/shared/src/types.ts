@@ -164,6 +164,15 @@ export interface RunOptions {
   worktree?: string;
   /** Hard ceiling on what this run may spend, enforced by the CLI (`--max-budget-usd`) */
   maxBudgetUsd?: number;
+  /**
+   * Who answers permission prompts. `none` (the default here, though the CLI's own default is
+   * `host`) denies anything that would prompt, which is the only safe choice while nothing is
+   * listening. `host` requires `permissionPromptTool`, or the run waits for an answer that never
+   * comes.
+   */
+  permissionPrompts?: 'host' | 'none';
+  /** MCP tool the CLI asks for approval, e.g. `mcp__agentry__approve` */
+  permissionPromptTool?: string;
   /** Keep the process alive after each turn so more messages can be sent (default true) */
   keepAlive?: boolean;
   /** JSON Schema for structured output */

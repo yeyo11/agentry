@@ -416,8 +416,6 @@ export class RunManager extends EventEmitter {
       '--output-format', 'stream-json',
       '--verbose',
       '--include-partial-messages',
-      // Nobody answers permission prompts in headless mode: anything that would prompt is denied
-      '--permission-prompts', 'none',
       '--permission-mode', run.permissionMode,
     ];
     if (resuming && run.sessionId) {
@@ -437,6 +435,11 @@ export class RunManager extends EventEmitter {
     if (typeof opts.maxBudgetUsd === 'number' && opts.maxBudgetUsd > 0) {
       args.push('--max-budget-usd', String(opts.maxBudgetUsd));
     }
+    // The CLI defaults to asking a host. Nothing is listening unless a prompt tool is named, and a
+    // run waiting on an answer that never comes is worse than one told plainly that it was denied.
+    const prompts = opts.permissionPromptTool ? (opts.permissionPrompts ?? 'host') : 'none';
+    args.push('--permission-prompts', prompts);
+    if (prompts === 'host' && opts.permissionPromptTool) args.push('--permission-prompt-tool', opts.permissionPromptTool);
     if (opts.jsonSchema) args.push('--json-schema', JSON.stringify(opts.jsonSchema));
     if (opts.internal) args.push('--no-session-persistence');
     return args;

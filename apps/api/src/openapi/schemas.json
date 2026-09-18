@@ -1159,6 +1159,18 @@
         "type": "number",
         "description": "Hard ceiling on what this run may spend, enforced by the CLI (`--max-budget-usd`)"
       },
+      "permissionPrompts": {
+        "type": "string",
+        "enum": [
+          "host",
+          "none"
+        ],
+        "description": "Who answers permission prompts. `none` (the default here, though the CLI's own default is `host`) denies anything that would prompt, which is the only safe choice while nothing is listening. `host` requires `permissionPromptTool`, or the run waits for an answer that never comes."
+      },
+      "permissionPromptTool": {
+        "type": "string",
+        "description": "MCP tool the CLI asks for approval, e.g. `mcp__agentry__approve`"
+      },
       "keepAlive": {
         "type": "boolean",
         "description": "Keep the process alive after each turn so more messages can be sent (default true)"
