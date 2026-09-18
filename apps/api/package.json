@@ -1,0 +1,26 @@
+{
+  "name": "@agentry/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test test/*.test.ts",
+    "openapi:schemas": "tsx scripts/generate-schemas.ts"
+  },
+  "dependencies": {
+    "@agentry/core": "workspace:*",
+    "@agentry/shared": "workspace:*",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/static": "^10.1.4",
+    "@fastify/swagger": "^9.8.1",
+    "@scalar/fastify-api-reference": "^1.69.0",
+    "fastify": "^5.12.5",
+    "tsx": "^4.23.13"
+  },
+  "devDependencies": {
+    "ts-json-schema-generator": "^2.9.0"
+  }
+}

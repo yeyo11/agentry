@@ -1,0 +1,24 @@
+services:
+  agentry:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-latest}
+        CLAUDE_SWAP_VERSION: ${CLAUDE_SWAP_VERSION:-}
+    image: agentry:dev
+    init: true # reaps the claude child processes
+    env_file: .env
+    ports:
+      - "${PORT:-8787}:8787"
+    volumes:
+      - claude-config:/home/node/.claude # account config: settings, MCP servers, CLAUDE.md, sessions
+      - wrapper-data:/data # wrapper state (orchestrations, auto-rotation settings)
+      - claude-swap:/home/node/.local/share/claude-swap # credentials of every registered account
+      - ./workspace:/workspace # projects Claude works on
+    restart: unless-stopped
+
+volumes:
+  claude-config:
+  wrapper-data:
+  claude-swap:

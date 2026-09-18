@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: OpenAPI schemas are up to date with the shared types
+        run: |
+          pnpm --filter @agentry/api openapi:schemas
+          git diff --exit-code -- apps/api/src/openapi/schemas.json
+
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+      # The e2e suite needs the CLI binary (plugins, MCP) but no login: it runs on empty temp dirs
+      - name: Install Claude Code
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: End-to-end (headless Chrome)
+        run: pnpm e2e
+        env:
+          E2E_SHOTS: e2e-shots
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-screenshots
+          path: e2e-shots
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -f docker/Dockerfile -t agentry:ci .
+      - name: Container reports a detected CLI
+        run: |
+          docker run -d --name agentry --init -p 8787:8787 agentry:ci
+          for i in $(seq 1 30); do curl -fsS localhost:8787/api/system && break; sleep 1; done
+          curl -fsS localhost:8787/api/system | grep -q '"installed":true'
+          curl -fsS -o /dev/null localhost:8787/docs/

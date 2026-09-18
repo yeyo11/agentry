@@ -1,0 +1,2405 @@
+{
+  "ApiError": {
+    "type": "object",
+    "properties": {
+      "error": {
+        "type": "string"
+      },
+      "detail": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "error"
+    ]
+  },
+  "SystemInfo": {
+    "type": "object",
+    "properties": {
+      "cli": {
+        "$ref": "#/components/schemas/CliInfo"
+      },
+      "auth": {
+        "$ref": "#/components/schemas/AuthStatus"
+      },
+      "configDir": {
+        "type": "string"
+      },
+      "workspaceDir": {
+        "type": "string"
+      },
+      "defaultPermissionMode": {
+        "$ref": "#/components/schemas/PermissionMode"
+      },
+      "wrapperVersion": {
+        "type": "string"
+      },
+      "uptimeSec": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "cli",
+      "auth",
+      "configDir",
+      "workspaceDir",
+      "defaultPermissionMode",
+      "wrapperVersion",
+      "uptimeSec"
+    ]
+  },
+  "CliInfo": {
+    "type": "object",
+    "properties": {
+      "installed": {
+        "type": "boolean"
+      },
+      "version": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "path": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "error": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "installed",
+      "version",
+      "path"
+    ]
+  },
+  "AuthStatus": {
+    "type": "object",
+    "properties": {
+      "loggedIn": {
+        "type": "boolean"
+      },
+      "authMethod": {
+        "type": "string"
+      },
+      "apiProvider": {
+        "type": "string"
+      },
+      "email": {
+        "type": "string"
+      },
+      "orgName": {
+        "type": "string"
+      },
+      "subscriptionType": {
+        "type": "string"
+      },
+      "tokenSource": {
+        "$ref": "#/components/schemas/TokenSource"
+      },
+      "error": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "loggedIn",
+      "tokenSource"
+    ]
+  },
+  "TokenSource": {
+    "type": "string",
+    "enum": [
+      "wrapper-oauth-token",
+      "wrapper-api-key",
+      "env-oauth-token",
+      "env-api-key",
+      "credentials-file",
+      "cswap",
+      "none"
+    ],
+    "description": "`wrapper-*`: configured through the API; `env-*`: passed through the container environment; `cswap`: claude-swap owns the credential file and the wrapper injects nothing."
+  },
+  "PermissionMode": {
+    "type": "string",
+    "enum": [
+      "acceptEdits",
+      "auto",
+      "bypassPermissions",
+      "manual",
+      "dontAsk",
+      "plan"
+    ]
+  },
+  "Overview": {
+    "type": "object",
+    "properties": {
+      "system": {
+        "$ref": "#/components/schemas/SystemInfo"
+      },
+      "rateLimit": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/RateLimitInfo"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "accounts": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountsSnapshot"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null when claude-swap is not installed"
+      },
+      "counts": {
+        "type": "object",
+        "properties": {
+          "projects": {
+            "type": "number"
+          },
+          "sessions": {
+            "type": "number"
+          },
+          "activeRuns": {
+            "type": "number"
+          },
+          "activeCliSessions": {
+            "type": "number"
+          },
+          "backgroundTasks": {
+            "type": "number"
+          },
+          "subagents": {
+            "type": "number"
+          },
+          "orchestrationsRunning": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "projects",
+          "sessions",
+          "activeRuns",
+          "activeCliSessions",
+          "backgroundTasks",
+          "subagents",
+          "orchestrationsRunning"
+        ]
+      },
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RunSummary"
+        }
+      },
+      "recentSessions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SessionSummary"
+        }
+      }
+    },
+    "required": [
+      "system",
+      "rateLimit",
+      "accounts",
+      "counts",
+      "runs",
+      "recentSessions"
+    ]
+  },
+  "RateLimitInfo": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "type": "string"
+      },
+      "rateLimitType": {
+        "type": "string"
+      },
+      "resetsAt": {
+        "type": "number"
+      },
+      "windows": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/RateLimitWindow"
+        }
+      },
+      "observedAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "status",
+      "windows",
+      "observedAt"
+    ]
+  },
+  "RateLimitWindow": {
+    "type": "object",
+    "properties": {
+      "utilization": {
+        "type": "number"
+      },
+      "resetsAt": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "utilization",
+      "resetsAt"
+    ]
+  },
+  "AccountsSnapshot": {
+    "type": "object",
+    "properties": {
+      "installed": {
+        "type": "boolean"
+      },
+      "total": {
+        "type": "number"
+      },
+      "active": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountSummary"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "autoSwitchRunning": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "installed",
+      "total",
+      "active",
+      "autoSwitchRunning"
+    ],
+    "description": "What the dashboard needs about accounts, without the full list."
+  },
+  "AccountSummary": {
+    "type": "object",
+    "properties": {
+      "number": {
+        "type": "number",
+        "description": "Slot number: the identifier every action accepts, alongside the email and the alias"
+      },
+      "email": {
+        "type": "string"
+      },
+      "organizationName": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "alias": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "active": {
+        "type": "boolean"
+      },
+      "disabled": {
+        "type": "boolean",
+        "description": "Held out of the auto-rotation"
+      },
+      "usageStatus": {
+        "type": "string",
+        "description": "`ok`, `token_expired`, `unavailable`… as reported by claude-swap"
+      },
+      "usage": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountUsage"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "usageFetchedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "headroomPct": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Quota left in the binding window (0-100); null when the usage is unknown"
+      }
+    },
+    "required": [
+      "number",
+      "email",
+      "organizationName",
+      "alias",
+      "active",
+      "disabled",
+      "usageStatus",
+      "usage",
+      "usageFetchedAt",
+      "headroomPct"
+    ]
+  },
+  "AccountUsage": {
+    "type": "object",
+    "properties": {
+      "fiveHour": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountUsageWindow"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "sevenDay": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountUsageWindow"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "scoped": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AccountUsageWindow"
+        },
+        "description": "Per-model weekly windows (Fable, Opus…) when the account reports them"
+      }
+    },
+    "required": [
+      "fiveHour",
+      "sevenDay",
+      "scoped"
+    ]
+  },
+  "AccountUsageWindow": {
+    "type": "object",
+    "properties": {
+      "pct": {
+        "type": "number",
+        "description": "Share of the window already consumed (0-100)"
+      },
+      "resetsAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "countdown": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Human countdown to the reset, e.g. `3h 4m`"
+      },
+      "name": {
+        "type": "string",
+        "description": "Per-model windows carry the model name"
+      }
+    },
+    "required": [
+      "pct",
+      "resetsAt",
+      "countdown"
+    ],
+    "description": "One rate-limit window as claude-swap reports it."
+  },
+  "RunSummary": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "permissionMode": {
+        "$ref": "#/components/schemas/PermissionMode"
+      },
+      "status": {
+        "$ref": "#/components/schemas/RunStatus"
+      },
+      "pid": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "turns": {
+        "type": "number"
+      },
+      "costUsd": {
+        "type": "number"
+      },
+      "prompt": {
+        "type": "string"
+      },
+      "lastText": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "orchestrationTaskId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "internal": {
+        "type": "boolean"
+      },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "claude-swap account this run is pinned to, when it is not using the active one"
+      },
+      "backgroundTasks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/BackgroundTask"
+        }
+      },
+      "subagents": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/SubagentInfo"
+        }
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "sessionId",
+      "cwd",
+      "model",
+      "permissionMode",
+      "status",
+      "pid",
+      "createdAt",
+      "updatedAt",
+      "endedAt",
+      "turns",
+      "costUsd",
+      "prompt",
+      "lastText",
+      "error",
+      "orchestrationId",
+      "orchestrationTaskId",
+      "internal",
+      "account",
+      "backgroundTasks",
+      "subagents"
+    ]
+  },
+  "RunStatus": {
+    "type": "string",
+    "enum": [
+      "starting",
+      "busy",
+      "idle",
+      "completed",
+      "failed",
+      "stopped"
+    ]
+  },
+  "BackgroundTask": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "toolUseId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "summary": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "runId",
+      "runName",
+      "type",
+      "description",
+      "status",
+      "toolUseId",
+      "startedAt",
+      "endedAt",
+      "summary"
+    ]
+  },
+  "SubagentInfo": {
+    "type": "object",
+    "properties": {
+      "toolUseId": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "subagentType": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "running",
+          "completed",
+          "failed"
+        ]
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "toolUseId",
+      "runId",
+      "runName",
+      "subagentType",
+      "description",
+      "status",
+      "startedAt",
+      "endedAt"
+    ]
+  },
+  "SessionSummary": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "projectPath": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "firstPrompt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "messageCount": {
+        "type": "number"
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "gitBranch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "cliVersion": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "sizeBytes": {
+        "type": "number"
+      },
+      "live": {
+        "$ref": "#/components/schemas/SessionLive"
+      },
+      "origin": {
+        "$ref": "#/components/schemas/SessionOrigin"
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "projectPath",
+      "title",
+      "firstPrompt",
+      "messageCount",
+      "startedAt",
+      "updatedAt",
+      "model",
+      "gitBranch",
+      "cliVersion",
+      "sizeBytes",
+      "origin"
+    ]
+  },
+  "SessionLive": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "$ref": "#/components/schemas/SessionLiveSource"
+      },
+      "status": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "pid": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "source",
+      "status"
+    ]
+  },
+  "SessionLiveSource": {
+    "type": "string",
+    "enum": [
+      "wrapper",
+      "cli"
+    ]
+  },
+  "SessionOrigin": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/SessionOriginKind"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "orchestrationId": {
+        "type": "string"
+      },
+      "orchestrationName": {
+        "type": "string"
+      },
+      "taskId": {
+        "type": "string",
+        "description": "Task id inside the orchestration; `__synthesis__` for the final report"
+      },
+      "taskName": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "kind"
+    ]
+  },
+  "SessionOriginKind": {
+    "type": "string",
+    "enum": [
+      "cli",
+      "run",
+      "orchestration",
+      "internal"
+    ],
+    "description": "Who created a session, so the UI can group the wrapper's own sessions under their parent:   cli           started outside the wrapper (terminal, IDE…)   run           a run started from the wrapper (UI or API)   orchestration a worker (or the synthesis step) of an orchestration   internal      housekeeping runs of the wrapper itself (planner, auth check); hidden by default"
+  },
+  "AuthVerification": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "detail": {
+        "type": "string",
+        "description": "Model reply, or the CLI error"
+      },
+      "auth": {
+        "$ref": "#/components/schemas/AuthStatus"
+      }
+    },
+    "required": [
+      "ok",
+      "detail",
+      "auth"
+    ]
+  },
+  "SetCredentialsRequest": {
+    "type": "object",
+    "properties": {
+      "oauthToken": {
+        "type": "string",
+        "description": "Token from `claude setup-token`"
+      },
+      "apiKey": {
+        "type": "string"
+      }
+    }
+  },
+  "ActiveCliSession": {
+    "type": "object",
+    "properties": {
+      "pid": {
+        "type": "number"
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string"
+      },
+      "startedAt": {
+        "type": "number"
+      },
+      "sessionId": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "state": {
+        "type": "string",
+        "description": "What the CLI reports for a background agent: `done`, `blocked`…"
+      },
+      "live": {
+        "type": "boolean",
+        "description": "Whether this is a session actually open for work. A process the CLI reports as `done`, and a pre-warmed spare that never received a user turn, are both listed but not live: they still hold a pid worth seeing, yet counting them was what made the panel claim sessions nobody had."
+      },
+      "runId": {
+        "type": "string",
+        "description": "Set when it maps to a run managed by the wrapper"
+      }
+    },
+    "required": [
+      "pid",
+      "cwd",
+      "kind",
+      "startedAt",
+      "sessionId",
+      "name",
+      "status",
+      "live"
+    ],
+    "description": "CLI sessions alive on the machine/container (`claude agents --json`)"
+  },
+  "ProjectSummary": {
+    "type": "object",
+    "properties": {
+      "temporary": {
+        "type": "boolean",
+        "description": "Lives under the OS temp dir (scratch/test directories)"
+      },
+      "id": {
+        "type": "string",
+        "description": "Encoded directory name inside ~/.claude/projects"
+      },
+      "path": {
+        "type": "string",
+        "description": "Real project cwd"
+      },
+      "name": {
+        "type": "string"
+      },
+      "sessionCount": {
+        "type": "number"
+      },
+      "lastActivity": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "activeRuns": {
+        "type": "number",
+        "description": "Wrapper runs currently alive inside this project"
+      },
+      "exists": {
+        "type": "boolean",
+        "description": "The directory exists on disk"
+      }
+    },
+    "required": [
+      "temporary",
+      "id",
+      "path",
+      "name",
+      "sessionCount",
+      "lastActivity",
+      "activeRuns",
+      "exists"
+    ]
+  },
+  "CreateProjectRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "gitUrl": {
+        "type": "string",
+        "description": "Clone this repository instead of creating an empty directory"
+      }
+    },
+    "required": [
+      "name"
+    ]
+  },
+  "SessionDetail": {
+    "type": "object",
+    "properties": {
+      "summary": {
+        "$ref": "#/components/schemas/SessionSummary"
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TranscriptEntry"
+        }
+      }
+    },
+    "required": [
+      "summary",
+      "entries"
+    ]
+  },
+  "TranscriptEntry": {
+    "type": "object",
+    "properties": {
+      "uuid": {
+        "type": "string"
+      },
+      "role": {
+        "type": "string",
+        "enum": [
+          "user",
+          "assistant"
+        ]
+      },
+      "timestamp": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "isSidechain": {
+        "type": "boolean",
+        "description": "Belongs to a subagent"
+      },
+      "parentToolUseId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "blocks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ContentBlock"
+        }
+      }
+    },
+    "required": [
+      "uuid",
+      "role",
+      "timestamp",
+      "model",
+      "isSidechain",
+      "parentToolUseId",
+      "blocks"
+    ]
+  },
+  "ContentBlock": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "text"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "text"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "thinking"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "text"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "tool_use"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "input": {}
+        },
+        "required": [
+          "type",
+          "id",
+          "name",
+          "input"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "tool_result"
+          },
+          "toolUseId": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "isError": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "toolUseId",
+          "content",
+          "isError"
+        ]
+      }
+    ]
+  },
+  "RunOptions": {
+    "type": "object",
+    "properties": {
+      "prompt": {
+        "type": "string"
+      },
+      "cwd": {
+        "type": "string",
+        "description": "Working directory; defaults to the wrapper workspace"
+      },
+      "name": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string"
+      },
+      "effort": {
+        "type": "string"
+      },
+      "permissionMode": {
+        "$ref": "#/components/schemas/PermissionMode"
+      },
+      "resumeSessionId": {
+        "type": "string",
+        "description": "Resume an existing session"
+      },
+      "appendSystemPrompt": {
+        "type": "string"
+      },
+      "allowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "keepAlive": {
+        "type": "boolean",
+        "description": "Keep the process alive after each turn so more messages can be sent (default true)"
+      },
+      "jsonSchema": {
+        "description": "JSON Schema for structured output"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping run: no transcript is written (`--no-session-persistence`), so it cannot be resumed"
+      },
+      "account": {
+        "type": "string",
+        "description": "Pin the run to a claude-swap account (slot number, email or alias) instead of the active one. Runs through `cswap run`, which needs claude-swap installed."
+      }
+    },
+    "required": [
+      "prompt"
+    ]
+  },
+  "RunDetail": {
+    "type": "object",
+    "properties": {
+      "run": {
+        "$ref": "#/components/schemas/RunSummary"
+      },
+      "events": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RunEvent"
+        }
+      }
+    },
+    "required": [
+      "run",
+      "events"
+    ]
+  },
+  "RunEvent": {
+    "type": "object",
+    "properties": {
+      "seq": {
+        "type": "number"
+      },
+      "ts": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/RunEventKind"
+      },
+      "type": {
+        "type": "string",
+        "description": "Original type/subtype of the stream-json event"
+      },
+      "subtype": {
+        "type": "string"
+      },
+      "entry": {
+        "$ref": "#/components/schemas/TranscriptEntry"
+      },
+      "status": {
+        "$ref": "#/components/schemas/RunStatus"
+      },
+      "text": {
+        "type": "string"
+      },
+      "block": {
+        "type": "string",
+        "enum": [
+          "text",
+          "thinking"
+        ],
+        "description": "For `partial` events: which kind of block is streaming"
+      },
+      "data": {
+        "type": "object",
+        "additionalProperties": {}
+      }
+    },
+    "required": [
+      "seq",
+      "ts",
+      "kind",
+      "type"
+    ]
+  },
+  "RunEventKind": {
+    "type": "string",
+    "enum": [
+      "message",
+      "init",
+      "result",
+      "task",
+      "status",
+      "stderr",
+      "notice",
+      "other",
+      "partial"
+    ],
+    "description": "`partial` events are ephemeral: they carry the text generated so far for the block being streamed, reuse the seq of the last stored event, are never buffered or replayed, and are superseded by the next `message` event."
+  },
+  "EffectiveEnvironment": {
+    "type": "object",
+    "properties": {
+      "cwd": {
+        "type": "string"
+      },
+      "observedAt": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "cliVersion": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "permissionMode": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "outputStyle": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "tools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "mcpServers": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "status"
+          ]
+        }
+      },
+      "agents": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "skills": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "slashCommands": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "plugins": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        }
+      },
+      "memoryPaths": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "cwd",
+      "observedAt",
+      "runId",
+      "cliVersion",
+      "model",
+      "permissionMode",
+      "outputStyle",
+      "tools",
+      "mcpServers",
+      "agents",
+      "skills",
+      "slashCommands",
+      "plugins",
+      "memoryPaths"
+    ],
+    "description": "What Claude Code actually loaded for a directory, taken from the `init` event of the most recent wrapper run there (the CLI only reports it when a session starts)."
+  },
+  "Orchestration": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "objective": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "status": {
+        "$ref": "#/components/schemas/OrchestrationStatus"
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "permissionMode": {
+        "$ref": "#/components/schemas/PermissionMode"
+      },
+      "concurrency": {
+        "type": "number"
+      },
+      "synthesize": {
+        "type": "boolean"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "tasks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OrchestrationTaskState"
+        }
+      },
+      "finalResult": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "costUsd": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "objective",
+      "status",
+      "cwd",
+      "model",
+      "permissionMode",
+      "concurrency",
+      "synthesize",
+      "createdAt",
+      "endedAt",
+      "tasks",
+      "finalResult",
+      "costUsd"
+    ]
+  },
+  "OrchestrationStatus": {
+    "type": "string",
+    "enum": [
+      "running",
+      "completed",
+      "failed",
+      "stopped"
+    ]
+  },
+  "OrchestrationTaskState": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "prompt": {
+        "type": "string"
+      },
+      "dependsOn": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/OrchestrationTaskStatus"
+      },
+      "runId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "result": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "costUsd": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "costUsd",
+      "endedAt",
+      "error",
+      "id",
+      "name",
+      "prompt",
+      "result",
+      "runId",
+      "sessionId",
+      "startedAt",
+      "status"
+    ]
+  },
+  "OrchestrationTaskStatus": {
+    "type": "string",
+    "enum": [
+      "pending",
+      "running",
+      "completed",
+      "failed",
+      "skipped",
+      "stopped"
+    ]
+  },
+  "OrchestrationSpec": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "objective": {
+        "type": "string"
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string"
+      },
+      "permissionMode": {
+        "$ref": "#/components/schemas/PermissionMode"
+      },
+      "concurrency": {
+        "type": "number",
+        "description": "Max agents running in parallel (default 3)"
+      },
+      "synthesize": {
+        "type": "boolean",
+        "description": "Launch a final agent that synthesizes the results"
+      },
+      "tasks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OrchestrationTaskSpec"
+        }
+      }
+    },
+    "required": [
+      "name",
+      "tasks"
+    ]
+  },
+  "OrchestrationTaskSpec": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "prompt": {
+        "type": "string"
+      },
+      "dependsOn": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "prompt"
+    ]
+  },
+  "PlanRequest": {
+    "type": "object",
+    "properties": {
+      "objective": {
+        "type": "string"
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string"
+      },
+      "maxTasks": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "objective"
+    ]
+  },
+  "SettingsDoc": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "exists": {
+        "type": "boolean"
+      },
+      "settings": {
+        "type": "object",
+        "additionalProperties": {}
+      }
+    },
+    "required": [
+      "path",
+      "exists",
+      "settings"
+    ]
+  },
+  "InstructionsDoc": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "exists": {
+        "type": "boolean"
+      },
+      "content": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "exists",
+      "content"
+    ]
+  },
+  "McpServerEntry": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "scope": {
+        "$ref": "#/components/schemas/McpScope"
+      },
+      "config": {
+        "type": "object",
+        "additionalProperties": {}
+      }
+    },
+    "required": [
+      "name",
+      "scope",
+      "config"
+    ]
+  },
+  "McpScope": {
+    "type": "string",
+    "enum": [
+      "user",
+      "project",
+      "local"
+    ],
+    "description": "user: ~/.claude.json · project: <project>/.mcp.json · local: private to you within one project"
+  },
+  "McpServerHealth": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/McpHealthStatus"
+      },
+      "detail": {
+        "type": "string",
+        "description": "Raw status text printed by `claude mcp list`"
+      }
+    },
+    "required": [
+      "name",
+      "status",
+      "detail"
+    ]
+  },
+  "McpHealthStatus": {
+    "type": "string",
+    "enum": [
+      "connected",
+      "failed",
+      "needs-auth",
+      "pending",
+      "unknown"
+    ]
+  },
+  "MarkdownResource": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/ResourceKind"
+      },
+      "name": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "content": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "kind",
+      "name",
+      "path",
+      "description",
+      "content",
+      "updatedAt"
+    ]
+  },
+  "ResourceKind": {
+    "type": "string",
+    "enum": [
+      "agents",
+      "skills",
+      "commands",
+      "output-styles",
+      "rules"
+    ]
+  },
+  "ConfigFileRoot": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "'user' or a project id"
+      },
+      "label": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string",
+        "description": "Absolute directory: the Claude config dir, or <project>/.claude"
+      },
+      "exists": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "label",
+      "path",
+      "exists"
+    ]
+  },
+  "ConfigFileNode": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string",
+        "description": "Path relative to the root, '/'-separated"
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "file",
+          "dir"
+        ]
+      },
+      "size": {
+        "type": "number"
+      },
+      "updatedAt": {
+        "type": "string"
+      },
+      "children": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ConfigFileNode"
+        }
+      }
+    },
+    "required": [
+      "name",
+      "path",
+      "type"
+    ]
+  },
+  "ConfigFileContent": {
+    "type": "object",
+    "properties": {
+      "root": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "absolutePath": {
+        "type": "string"
+      },
+      "content": {
+        "type": "string"
+      },
+      "size": {
+        "type": "number"
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "executable": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "root",
+      "path",
+      "absolutePath",
+      "content",
+      "size",
+      "updatedAt",
+      "executable"
+    ]
+  },
+  "WriteConfigFileRequest": {
+    "type": "object",
+    "properties": {
+      "root": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "content": {
+        "type": "string"
+      },
+      "executable": {
+        "type": "boolean",
+        "description": "chmod +x (hook scripts)"
+      }
+    },
+    "required": [
+      "root",
+      "path",
+      "content"
+    ]
+  },
+  "MemoryFile": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string",
+        "description": "File name, e.g. `feedback-style.md`; `MEMORY.md` is the index loaded into every session"
+      },
+      "path": {
+        "type": "string"
+      },
+      "isIndex": {
+        "type": "boolean"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "type": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "`metadata.type` from the frontmatter: user | feedback | project | reference"
+      },
+      "content": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "projectId",
+      "name",
+      "path",
+      "isIndex",
+      "description",
+      "type",
+      "content",
+      "updatedAt"
+    ]
+  },
+  "MemoryProjectSummary": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "projectPath": {
+        "type": "string"
+      },
+      "projectName": {
+        "type": "string"
+      },
+      "fileCount": {
+        "type": "number"
+      },
+      "lastUpdated": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "projectId",
+      "projectPath",
+      "projectName",
+      "fileCount",
+      "lastUpdated"
+    ]
+  },
+  "PluginsOverview": {
+    "type": "object",
+    "properties": {
+      "installed": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/InstalledPlugin"
+        }
+      },
+      "marketplaces": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/PluginMarketplace"
+        }
+      }
+    },
+    "required": [
+      "installed",
+      "marketplaces"
+    ]
+  },
+  "InstalledPlugin": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "name@marketplace"
+      },
+      "name": {
+        "type": "string"
+      },
+      "marketplace": {
+        "type": "string"
+      },
+      "version": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "scope": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "installPath": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "installedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "lastUpdated": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "marketplace",
+      "version",
+      "scope",
+      "enabled",
+      "installPath",
+      "installedAt",
+      "lastUpdated"
+    ]
+  },
+  "PluginMarketplace": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "source": {
+        "type": "string"
+      },
+      "location": {
+        "type": "string",
+        "description": "repo, url or path depending on the source"
+      }
+    },
+    "required": [
+      "name",
+      "source",
+      "location"
+    ]
+  },
+  "AvailablePlugin": {
+    "type": "object",
+    "properties": {
+      "pluginId": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "marketplaceName": {
+        "type": "string"
+      },
+      "version": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "installed": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "pluginId",
+      "name",
+      "description",
+      "marketplaceName",
+      "version",
+      "installed"
+    ]
+  },
+  "PluginActionRequest": {
+    "type": "object",
+    "properties": {
+      "plugin": {
+        "type": "string"
+      },
+      "scope": {
+        "$ref": "#/components/schemas/PluginScope"
+      }
+    },
+    "required": [
+      "plugin"
+    ]
+  },
+  "PluginScope": {
+    "type": "string",
+    "enum": [
+      "user",
+      "project",
+      "local"
+    ]
+  },
+  "CliTextResult": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "output": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "ok",
+      "output"
+    ]
+  },
+  "AccountsOverview": {
+    "type": "object",
+    "properties": {
+      "cswap": {
+        "$ref": "#/components/schemas/CswapInfo"
+      },
+      "accounts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AccountSummary"
+        }
+      },
+      "activeNumber": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "autoSwitch": {
+        "$ref": "#/components/schemas/AutoSwitchSettings"
+      },
+      "autoSwitchRunning": {
+        "type": "boolean",
+        "description": "The `cswap auto` supervisor is alive"
+      },
+      "events": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AutoSwitchEvent"
+        },
+        "description": "Most recent rotation events, newest last"
+      }
+    },
+    "required": [
+      "cswap",
+      "accounts",
+      "activeNumber",
+      "autoSwitch",
+      "autoSwitchRunning",
+      "events"
+    ]
+  },
+  "CswapInfo": {
+    "type": "object",
+    "properties": {
+      "installed": {
+        "type": "boolean"
+      },
+      "version": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "path": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "error": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "installed",
+      "version",
+      "path"
+    ],
+    "description": "The `cswap` binary that owns the account credentials, when it is installed."
+  },
+  "AutoSwitchSettings": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "Run `cswap auto` in the background and rotate before the active account runs out"
+      },
+      "threshold": {
+        "type": "number",
+        "description": "Utilization that triggers a proactive switch (50-99.9)"
+      },
+      "strategy": {
+        "type": "string",
+        "enum": [
+          "best",
+          "consume-first"
+        ],
+        "description": "`best` stays until the limit; `consume-first` spends the soonest-resetting account first"
+      },
+      "models": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Per-model weekly windows to watch too, e.g. `['Fable']` or `['all']`"
+      },
+      "intervalSec": {
+        "type": "number",
+        "description": "Poll interval of the supervisor, in seconds (minimum 15)"
+      },
+      "rotateOnLimit": {
+        "type": "boolean",
+        "description": "Rotate and resume a run that dies against its rate limit"
+      }
+    },
+    "required": [
+      "enabled",
+      "threshold",
+      "strategy",
+      "models",
+      "intervalSec",
+      "rotateOnLimit"
+    ],
+    "description": "Settings of the supervised `cswap auto` process."
+  },
+  "AutoSwitchEvent": {
+    "type": "object",
+    "properties": {
+      "seq": {
+        "type": "number"
+      },
+      "ts": {
+        "type": "string"
+      },
+      "event": {
+        "type": "string",
+        "description": "`poll`, `switch`, `no-switch`, `account-quarantined`, `all-exhausted`, `error`, or `rotate` when the wrapper drove it"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "detail": {
+        "type": "string"
+      },
+      "from": {
+        "type": "string"
+      },
+      "to": {
+        "type": "string"
+      },
+      "data": {
+        "type": "object",
+        "additionalProperties": {},
+        "description": "The raw claude-swap payload"
+      }
+    },
+    "required": [
+      "seq",
+      "ts",
+      "event"
+    ],
+    "description": "One `cswap auto --json` line, plus the rotations the wrapper drives itself."
+  },
+  "SwitchAccountRequest": {
+    "type": "object",
+    "properties": {
+      "target": {
+        "type": "string",
+        "description": "Slot number, email or alias; omitted rotates to the next account"
+      },
+      "strategy": {
+        "$ref": "#/components/schemas/SwitchStrategy"
+      }
+    }
+  },
+  "SwitchStrategy": {
+    "type": "string",
+    "enum": [
+      "best",
+      "next-available"
+    ],
+    "description": "Target selection when no explicit account is given"
+  },
+  "SwitchResult": {
+    "type": "object",
+    "properties": {
+      "switched": {
+        "type": "boolean"
+      },
+      "from": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "to": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "switched",
+      "from",
+      "to",
+      "reason"
+    ]
+  },
+  "AddAccountTokenRequest": {
+    "type": "object",
+    "properties": {
+      "token": {
+        "type": "string",
+        "description": "Token from `claude setup-token`, or an API key"
+      },
+      "slot": {
+        "type": "number",
+        "description": "Slot to register it in; the next free one when omitted"
+      },
+      "email": {
+        "type": "string",
+        "description": "Label shown until claude-swap resolves the real email"
+      }
+    },
+    "required": [
+      "token"
+    ]
+  },
+  "SetAccountAliasRequest": {
+    "type": "object",
+    "properties": {
+      "alias": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Short name for the account; `null` removes it"
+      }
+    },
+    "required": [
+      "alias"
+    ]
+  }
+}

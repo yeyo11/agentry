@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest something Agentry should be able to do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that Agentry makes hard or impossible today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checked-roadmap
+    attributes:
+      label: Before you file
+      options:
+        - label: I checked ROADMAP.md and this is not already planned.
+          required: true
+        - label: This can be done through the Claude Code CLI (Agentry never bypasses it).

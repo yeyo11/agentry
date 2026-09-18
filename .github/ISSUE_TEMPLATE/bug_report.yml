@@ -1,0 +1,61 @@
+name: Bug report
+description: Something behaves differently from what the docs say.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Agentry drives the Claude Code CLI, so most reports need to say which CLI it was
+        talking to and how it was running. The fields below are what makes a report actionable.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start with `docker compose up`
+        2. POST /api/runs with …
+        3. The run stays `starting` forever
+    validations:
+      required: true
+
+  - type: dropdown
+    id: how-running
+    attributes:
+      label: How are you running it
+      options:
+        - Docker (docker compose)
+        - Local dev (pnpm dev)
+        - Docker image, custom compose
+    validations:
+      required: true
+
+  - type: input
+    id: cli-version
+    attributes:
+      label: Claude Code version
+      description: "`claude --version`, or the `cli.version` field of `GET /api/system`."
+    validations:
+      required: true
+
+  - type: input
+    id: agentry-version
+    attributes:
+      label: Agentry version or commit
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: API logs, or the run's events. Redact tokens before pasting.
+      render: shell

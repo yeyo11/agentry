@@ -1,0 +1,28 @@
+{
+  "name": "agentry",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Dockerized Claude Code wrapper: REST API + UI on top of the CLI",
+  "type": "module",
+  "packageManager": "pnpm@10.17.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @agentry/api --filter @agentry/web dev",
+    "dev:api": "pnpm --filter @agentry/api dev",
+    "dev:web": "pnpm --filter @agentry/web dev",
+    "build": "pnpm --filter @agentry/web build",
+    "start": "pnpm --filter @agentry/api start",
+    "typecheck": "pnpm -r typecheck",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "test": "pnpm --filter @agentry/core --filter @agentry/api test",
+    "e2e": "node e2e/run.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}
