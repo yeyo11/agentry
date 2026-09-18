@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.yeyo11.agentry</id>
+  <name>Agentry</name>
+  <summary>Desktop UI for Claude Code agents</summary>
+  <developer id="io.github.yeyo11">
+    <name>Jose Antonio Garrido</name>
+  </developer>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>
+      Agentry runs Claude Code as a service: a REST API, a web UI and multi-agent orchestration
+      around the Claude Code CLI. The desktop app bundles the API and the UI into one window.
+    </p>
+    <ul>
+      <li>Every conversation, from anywhere: start a run, stream the tokens, answer follow-up turns
+        and pick up any session the CLI has ever written on the machine</li>
+      <li>Orchestration: a graph of tasks, each with its own Claude worker, run in parallel with
+        dependency context and a synthesis step, drafted for you by an auto-planner</li>
+      <li>Multi-account rotation: usage per window and proactive switching before an account runs
+        out of quota</li>
+      <li>The whole configuration surface: settings, instructions, MCP servers, agents, skills,
+        commands, output styles, memory and plugins, per user and per project</li>
+    </ul>
+    <p>
+      Agentry drives Claude only through the CLI, so the Claude Code CLI must be installed and
+      signed in.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">agentry.desktop</launchable>
+  <icon type="stock">agentry</icon>
+
+  <url type="homepage">https://github.com/yeyo11/agentry</url>
+  <url type="bugtracker">https://github.com/yeyo11/agentry/issues</url>
+  <url type="vcs-browser">https://github.com/yeyo11/agentry</url>
+  <url type="donation">https://buymeacoffee.com/yeyo11</url>
+
+  <categories>
+    <category>Development</category>
+  </categories>
+
+  <keywords>
+    <keyword>Claude</keyword>
+    <keyword>Claude Code</keyword>
+    <keyword>AI</keyword>
+    <keyword>Agent</keyword>
+    <keyword>Orchestration</keyword>
+  </keywords>
+
+  <provides>
+    <binary>agentry</binary>
+  </provides>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>The accounts page: usage per window for each account and the auto-rotation policy</caption>
+      <image>https://raw.githubusercontent.com/yeyo11/agentry/main/docs/media/accounts.png</image>
+    </screenshot>
+  </screenshots>
+
+  <content_rating type="oars-1.1"/>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+</component>

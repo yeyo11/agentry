@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Agentry
+GenericName=Claude Code Control Panel
+Comment=Desktop UI for Claude Code agents: runs, sessions, orchestration and accounts
+Exec=agentry %U
+Icon=agentry
+Terminal=false
+Categories=Development;
+Keywords=claude;claude-code;ai;agent;orchestration;llm;
+StartupWMClass=Agentry
+StartupNotify=true

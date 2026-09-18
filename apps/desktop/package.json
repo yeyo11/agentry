@@ -1,0 +1,19 @@
+{
+  "name": "@agentry/desktop",
+  "productName": "Agentry",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Agentry desktop app: an Electron shell around the bundled API and UI",
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "pnpm --filter @agentry/web build && pnpm --filter @agentry/api bundle && node scripts/build.mjs && electron .",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "electron": "^41.0.0",
+    "esbuild": "^0.28.2"
+  }
+}
