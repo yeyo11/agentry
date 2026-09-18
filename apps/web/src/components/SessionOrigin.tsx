@@ -7,7 +7,7 @@ export type OriginKind = SessionSummary['origin']['kind'];
 
 export const ORIGIN_META: Record<OriginKind, { label: string; short: string; icon: LucideIcon; tone: string }> = {
   cli: { label: 'Claude Code CLI', short: 'CLI', icon: Terminal, tone: 'muted' },
-  run: { label: 'Wrapper run', short: 'Run', icon: Play, tone: 'active' },
+  run: { label: 'Agentry run', short: 'Run', icon: Play, tone: 'active' },
   orchestration: { label: 'Orchestration worker', short: 'Orchestration', icon: Network, tone: 'project' },
   internal: { label: 'Internal wrapper housekeeping', short: 'Internal', icon: Cog, tone: 'muted' },
 };

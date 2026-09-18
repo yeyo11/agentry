@@ -34,7 +34,7 @@ export function Agents() {
       />
       <ErrorBox error={runs.error ?? subagents.error ?? active.error} />
 
-      <Card title={`Wrapper runs — live (${live.length})`}>
+      <Card title={`Agentry runs — live (${live.length})`}>
         {runs.isLoading ? (
           <Loading />
         ) : live.length === 0 ? (

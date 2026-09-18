@@ -106,7 +106,7 @@ export function Dashboard() {
     <>
       <PageHeader
         title="Dashboard"
-        subtitle={`Wrapper v${system.wrapperVersion} · up ${formatDuration(system.uptimeSec * 1000)}`}
+        subtitle={`Agentry v${system.wrapperVersion} · up ${formatDuration(system.uptimeSec * 1000)}`}
       />
       <ErrorBox error={error} title="Last refresh failed" />
 

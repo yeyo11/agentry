@@ -32,14 +32,21 @@ export function BrandMark({ size = 26 }: { size?: number }) {
     <svg className="brand-mark" width={size} height={size} viewBox="0 0 28 28" aria-hidden>
       <defs>
         <linearGradient id={gradient} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#e58a63" />
-          <stop offset="55%" stopColor="#d97757" />
-          <stop offset="100%" stopColor="#c8527a" />
+          <stop offset="0%" stopColor="#a78bfa" />
+          <stop offset="100%" stopColor="#6d4fd0" />
         </linearGradient>
       </defs>
       <rect width="28" height="28" rx="8" fill={`url(#${gradient})`} />
-      <g stroke="#fff" strokeWidth="2.2" strokeLinecap="round">
-        <path d="M14 6.5v15M6.5 14h15M8.7 8.7l10.6 10.6M19.3 8.7L8.7 19.3" />
+      <g stroke="#fff" strokeWidth="1.6" strokeLinecap="round" fill="none">
+        <path d="M8.3 14h4" />
+        <path d="M12.3 14c3.9 0 3.5-6.6 7.4-6.6" />
+        <path d="M12.3 14c3.9 0 3.5 6.6 7.4 6.6" />
+      </g>
+      <g fill="#fff">
+        <circle cx="7.4" cy="14" r="2.4" />
+        <circle cx="20.1" cy="7.4" r="2" />
+        <circle cx="20.1" cy="14" r="2" />
+        <circle cx="20.1" cy="20.6" r="2" />
       </g>
     </svg>
   );

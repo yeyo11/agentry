@@ -14,6 +14,9 @@ A REST API, a web UI and multi-agent orchestration around the Claude Code CLI, i
 [![Node](https://img.shields.io/badge/node-%E2%89%A522-5fa04e?logo=node.js&logoColor=white)](package.json)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ed?logo=docker&logoColor=white)](docker-compose.yml)
 [![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-6ba539?logo=openapiinitiative&logoColor=white)](#rest-api)
+[![Buy me a coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/yeyo11)
+
+<img src="docs/media/dashboard.png" alt="The Agentry dashboard: live runs, sessions, projects and account usage" width="100%">
 
 </div>
 
@@ -39,6 +42,10 @@ when the active one runs out, and can pin a run to a given account.
 > **There is no authentication on the API**, and runs default to `bypassPermissions` inside the
 > container. Anyone who reaches the port can run Claude Code on your account and read every
 > transcript on the machine. Bind it to localhost. See [SECURITY.md](SECURITY.md).
+
+### Several accounts, rotated before they run out
+
+<img src="docs/media/accounts.png" alt="The accounts page: usage per window for each account, and the auto-rotation policy" width="100%">
 
 ## How it talks to Claude
 
@@ -383,6 +390,11 @@ setup, the checks CI runs and the one architectural rule worth knowing before yo
 Agentry reaches Claude Code only through its CLI.
 
 Vulnerabilities go through [private advisories](SECURITY.md), not public issues.
+
+## Support
+
+If Agentry saves you time, you can [buy me a coffee](https://buymeacoffee.com/yeyo11). Starring the
+repo helps just as much.
 
 ## License
 

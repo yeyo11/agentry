@@ -15,7 +15,7 @@ type View = 'grouped' | 'flat';
 type Sort = 'activity' | 'started' | 'messages';
 
 const FILTERABLE_ORIGINS: OriginKind[] = ['cli', 'run', 'orchestration'];
-const ORIGIN_CHIP_LABEL: Record<string, string> = { cli: 'CLI', run: 'Wrapper runs', orchestration: 'Orchestrations' };
+const ORIGIN_CHIP_LABEL: Record<string, string> = { cli: 'CLI', run: 'Agentry runs', orchestration: 'Orchestrations' };
 const COLLAPSE_KEY = 'cw:sessions-collapsed';
 const SYNTHESIS = '__synthesis__';
 
