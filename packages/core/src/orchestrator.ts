@@ -475,6 +475,42 @@ export class Orchestrator {
     return this.draftFrom(runId);
   }
 
+  /**
+   * Removes the worktrees a graph created, once its branches have been reviewed. `claude rm` would
+   * do this but only for background jobs, and these workers are --print runs.
+   *
+   * The branch is always kept, so anything committed survives. Without `force` a worktree holding
+   * uncommitted changes is left alone and reported: losing a worker's unfinished work to a cleanup
+   * is exactly what nobody asks for.
+   */
+  pruneWorktrees(id: string, opts: { force?: boolean } = {}): Array<{ task: string; removed: boolean; detail: string }> {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    if (orch.status === 'running') throw new Error('stop the orchestration before removing its worktrees');
+    const out: Array<{ task: string; removed: boolean; detail: string }> = [];
+    for (const task of orch.tasks) {
+      if (!task.worktree || !existsSync(task.worktree)) continue;
+      try {
+        // The CLI locks them so a stray prune cannot take them; unlocking may fail harmlessly
+        try {
+          execFileSync('git', ['-C', orch.cwd, 'worktree', 'unlock', task.worktree], { stdio: 'pipe', timeout: 30_000 });
+        } catch {
+          /* not locked */
+        }
+        const args = ['-C', orch.cwd, 'worktree', 'remove', task.worktree];
+        if (opts.force) args.push('--force');
+        execFileSync('git', args, { stdio: 'pipe', timeout: 60_000 });
+        task.worktree = null;
+        out.push({ task: task.id, removed: true, detail: `branch ${task.branch ?? '?'} kept` });
+      } catch (err) {
+        const detail = err instanceof Error ? err.message.split('\n')[0] ?? err.message : String(err);
+        out.push({ task: task.id, removed: false, detail });
+      }
+    }
+    this.persist();
+    return out;
+  }
+
   /** Plans that can still be launched, newest first. */
   drafts(limit?: number): PlanDraftSummary[] {
     return this.db.planDrafts(limit);

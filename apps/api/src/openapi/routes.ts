@@ -108,6 +108,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /orchestrations/plans/:runId': d('Orchestration', 'The draft a planner run produced', { ok: ref('OrchestrationSpec') }),
   'GET /orchestrations/:id': d('Orchestration', 'State of every task, results and cost', { ok: ref('Orchestration') }),
   'POST /orchestrations/:id/resume': d('Orchestration', 'Resume a stopped orchestration', { description: 'Re-runs every task that did not complete — stopped, failed, or skipped behind a blocked dependency — and keeps the results of the ones that did. Workers do not survive a wrapper restart, so this is how a graph interrupted by one is picked back up.', ok: ref('Orchestration') }),
+  'POST /orchestrations/:id/worktrees/prune': d('Orchestration', "Remove the graph's worktrees", { description: 'Branches are always kept, so committed work survives. A worktree with uncommitted changes is left alone and reported unless `force` is set.', body: obj({ force: str('Remove even with uncommitted changes') }), ok: obj({ results: str('One entry per task: removed, and why not when it was kept') }) }),
   'POST /orchestrations/:id/stop': d('Orchestration', 'Stop all workers', { ok: ref('Orchestration') }),
 
   // ---- Configuration
