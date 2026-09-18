@@ -1,11 +1,11 @@
-import { readFileSync } from 'node:fs';
 import swagger from '@fastify/swagger';
 import scalar from '@scalar/fastify-api-reference';
 import type { FastifyInstance } from 'fastify';
 import { routeSchema, TAGS } from './routes.ts';
+// Imported rather than read from disk so the document survives bundling into a single file
+import schemas from './schemas.json' with { type: 'json' };
 
 const API_PREFIX = '/api';
-const schemas = JSON.parse(readFileSync(new URL('./schemas.json', import.meta.url), 'utf8')) as Record<string, unknown>;
 
 /**
  * OpenAPI 3.1 document + Scalar reference UI. Must be registered before the routes so the
