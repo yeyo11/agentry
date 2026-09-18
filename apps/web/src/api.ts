@@ -157,6 +157,7 @@ export const api = {
   planDrafts: () => request<PlanDraftSummary[]>('/orchestrations/plans'),
   planDraft: (runId: string) => request<OrchestrationSpec>(`/orchestrations/plans/${enc(runId)}`),
   stopOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/stop`, { method: 'POST' }),
+  resumeOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/resume`, { method: 'POST' }),
   getSettings: (scope: Scope, variant: ConfigFileVariant = 'shared') =>
     request<SettingsDoc>(`/config/settings${scoped(scope, variant)}`),
   putSettings: (scope: Scope, variant: ConfigFileVariant, settings: Record<string, unknown>) =>

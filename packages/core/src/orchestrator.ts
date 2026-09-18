@@ -193,6 +193,37 @@ export class Orchestrator {
     return orch;
   }
 
+  /**
+   * Relaunches a graph that is no longer running. Workers do not survive a wrapper restart, and
+   * until now that left the whole orchestration dead with no way back — a restart in the middle
+   * threw away every task still in flight and every one waiting behind it.
+   *
+   * Completed tasks and their results are kept, so the work already paid for is not repeated and
+   * dependants still receive their context. Everything else — stopped, failed, or skipped because
+   * a dependency never completed — goes back to pending and is attempted again.
+   */
+  resume(id: string): Orchestration {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    if (orch.status === 'running') return orch;
+    const unfinished = orch.tasks.filter((t) => t.status !== 'completed');
+    if (unfinished.length === 0) throw new Error('every task already completed');
+    for (const task of unfinished) {
+      task.status = 'pending';
+      task.runId = null;
+      task.sessionId = null;
+      task.result = null;
+      task.error = null;
+      task.startedAt = null;
+      task.endedAt = null;
+    }
+    orch.status = 'running';
+    orch.endedAt = null;
+    orch.finalResult = null;
+    this.schedule(orch); // persists
+    return orch;
+  }
+
   private buildPrompt(orch: Orchestration, task: OrchestrationTaskState): string {
     const parts: string[] = [];
     if (orch.objective) parts.push(`You are one worker in a multi-agent orchestration.\nOverall objective: ${orch.objective}`);

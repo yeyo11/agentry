@@ -125,6 +125,10 @@ test('accounts degrade and validate without claude-swap', async () => {
   assert.equal((await app.inject('/api/accounts/autoswitch')).json().intervalSec, 30);
 });
 
+test('resuming an orchestration that does not exist is a 404, not a hang', async () => {
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/nope/resume' })).statusCode, 404);
+});
+
 test('planner drafts are listed and fetched by run', async () => {
   assert.deepEqual((await app.inject('/api/orchestrations/plans')).json(), []);
   // No such planner run: a clear 4xx rather than a hang

@@ -1,6 +1,6 @@
 import type { OrchestrationTaskState } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ChevronRight, Combine, CornerDownRight, Square, Target } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Combine, CornerDownRight, Play, Square, Target } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { api, keys, useOrchestration } from '../api';
 import { ICON, ICON_SM } from '../components/icons';
@@ -101,11 +101,17 @@ export function OrchestrationDetail() {
     mutationFn: () => api.stopOrchestration(id),
     onSuccess: (next) => queryClient.setQueryData(keys.orchestration(id), next),
   });
+  const resume = useMutation({
+    mutationFn: () => api.resumeOrchestration(id),
+    onSuccess: (next) => queryClient.setQueryData(keys.orchestration(id), next),
+  });
 
   if (isLoading) return <Loading />;
   if (!orch) return <ErrorBox error={error ?? new Error('Orchestration not found')} />;
 
   const layers = layerTasks(orch.tasks);
+  // Workers die with the wrapper, so an interrupted graph can be picked up from where it stopped.
+  const unfinished = orch.tasks.filter((t) => t.status !== 'completed').length;
   const counts = orch.tasks.reduce<Record<string, number>>((acc, t) => {
     acc[t.status] = (acc[t.status] ?? 0) + 1;
     return acc;
@@ -136,14 +142,20 @@ export function OrchestrationDetail() {
           </span>
         }
         actions={
-          orch.status === 'running' && (
+          orch.status === 'running' ? (
             <button className="btn btn-danger" disabled={stop.isPending} onClick={() => stop.mutate()}>
               <Square {...ICON_SM} /> Stop orchestration
             </button>
+          ) : (
+            unfinished > 0 && (
+              <button className="btn btn-primary" disabled={resume.isPending} onClick={() => resume.mutate()}>
+                <Play {...ICON_SM} /> {resume.isPending ? 'Resuming…' : `Resume ${unfinished} task${unfinished === 1 ? '' : 's'}`}
+              </button>
+            )
           )
         }
       />
-      <ErrorBox error={error ?? stop.error} />
+      <ErrorBox error={error ?? stop.error ?? resume.error} />
 
       {orch.objective && (
         <Card
