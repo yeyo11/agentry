@@ -104,6 +104,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
   const [maxTasks, setMaxTasks] = useState(5);
   const [concurrency, setConcurrency] = useState(3);
   const [synthesize, setSynthesize] = useState(true);
+  const [worktree, setWorktree] = useState(true);
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [tasks, setTasks] = useState<OrchestrationTaskSpec[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -208,6 +209,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
       permissionMode: permissionMode || undefined,
       concurrency,
       synthesize,
+      worktree,
       tasks: tasks.map((t) => ({
         ...t,
         id: t.id.trim(),
@@ -352,6 +354,15 @@ function CreateForm({ onDone }: { onDone: () => void }) {
               <input type="checkbox" checked={synthesize} onChange={(e) => setSynthesize(e.target.checked)} /> Run a final
               agent that synthesizes all task results
             </label>
+            <label className="check">
+              <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} /> Give each task
+              its own git worktree and branch
+            </label>
+            <p className="muted small">
+              Workers then never write over each other, and never edit the checkout Agentry is running from — an
+              orchestration that edits this repo restarts the wrapper and kills itself. Needs the directory to be a git
+              repository.
+            </p>
 
             <div className="card-head">
               <h2>Tasks ({tasks.length})</h2>

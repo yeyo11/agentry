@@ -292,6 +292,11 @@ export interface OrchestrationSpec {
   concurrency?: number;
   /** Launch a final agent that synthesizes the results */
   synthesize?: boolean;
+  /**
+   * Give every task its own git worktree and branch, so parallel workers never write over each
+   * other — and never edit the checkout the wrapper itself is running from.
+   */
+  worktree?: boolean;
   tasks: OrchestrationTaskSpec[];
 }
 
@@ -300,6 +305,10 @@ export type OrchestrationStatus = 'running' | 'completed' | 'failed' | 'stopped'
 
 export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   status: OrchestrationTaskStatus;
+  /** Git worktree this task works in, when the orchestration isolates its workers */
+  worktree?: string | null;
+  /** Branch created for that worktree */
+  branch?: string | null;
   runId: string | null;
   sessionId: string | null;
   result: string | null;
@@ -319,6 +328,8 @@ export interface Orchestration {
   permissionMode: PermissionMode;
   concurrency: number;
   synthesize: boolean;
+  /** Each task gets its own git worktree and branch instead of sharing the checkout */
+  worktree: boolean;
   createdAt: string;
   endedAt: string | null;
   tasks: OrchestrationTaskState[];

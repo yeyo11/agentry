@@ -88,6 +88,12 @@ function TaskCard({ task }: { task: OrchestrationTaskState }) {
         {task.sessionId && <Link to={`/sessions/${task.sessionId}`}>session</Link>}
         {task.model && <span>{task.model}</span>}
         {task.costUsd > 0 && <span>{formatCost(task.costUsd)}</span>}
+        {/* The branch is how the work is found afterwards, so it is worth the space */}
+        {task.branch && (
+          <span className="mono" title={task.worktree ?? undefined}>
+            {task.branch}
+          </span>
+        )}
       </div>
     </motion.div>
   );
@@ -136,6 +142,7 @@ export function OrchestrationDetail() {
             <span>{orch.model ?? 'default model'}</span>
             <span>{orch.permissionMode}</span>
             <span>concurrency {orch.concurrency}</span>
+            {orch.worktree && <span>worktree per task</span>}
             <span>total {formatCost(orch.costUsd)}</span>
             <span>{durationBetween(orch.createdAt, orch.endedAt)}</span>
             <span>created {formatDateTime(orch.createdAt)}</span>

@@ -1414,6 +1414,10 @@
       "synthesize": {
         "type": "boolean"
       },
+      "worktree": {
+        "type": "boolean",
+        "description": "Each task gets its own git worktree and branch instead of sharing the checkout"
+      },
       "createdAt": {
         "type": "string"
       },
@@ -1449,6 +1453,7 @@
       "permissionMode",
       "concurrency",
       "synthesize",
+      "worktree",
       "createdAt",
       "endedAt",
       "tasks",
@@ -1491,6 +1496,20 @@
       },
       "status": {
         "$ref": "#/components/schemas/OrchestrationTaskStatus"
+      },
+      "worktree": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Git worktree this task works in, when the orchestration isolates its workers"
+      },
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Branch created for that worktree"
       },
       "runId": {
         "type": [
@@ -1582,6 +1601,10 @@
       "synthesize": {
         "type": "boolean",
         "description": "Launch a final agent that synthesizes the results"
+      },
+      "worktree": {
+        "type": "boolean",
+        "description": "Give every task its own git worktree and branch, so parallel workers never write over each other — and never edit the checkout the wrapper itself is running from."
       },
       "tasks": {
         "type": "array",

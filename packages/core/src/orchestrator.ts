@@ -1,5 +1,6 @@
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, renameSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type {
   Orchestration,
@@ -23,6 +24,15 @@ const PROMPT_HEAD = 'Plan a multi-agent orchestration for this objective:\n\n';
 const PROMPT_TAIL = '\n\nSplit it into at most ';
 const MAX_DEP_CONTEXT = 6000;
 const now = () => new Date().toISOString();
+
+function isGitRepo(dir: string): boolean {
+  try {
+    execFileSync('git', ['-C', dir, 'rev-parse', '--git-dir'], { stdio: 'pipe', timeout: 10_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const PLAN_SCHEMA = {
   type: 'object',
@@ -143,6 +153,12 @@ export class Orchestrator {
 
   create(spec: OrchestrationSpec): Orchestration {
     validateTasks(spec.tasks);
+    const root = resolve(spec.cwd ?? this.config.workspaceDir);
+    // Fail here rather than per task: half a graph isolated and half of it not is worse than
+    // refusing outright.
+    if (spec.worktree === true && !isGitRepo(root)) {
+      throw new Error(`per-task worktrees need a git repository, and ${root} is not one`);
+    }
     const orch: Orchestration = {
       id: randomUUID(),
       name: spec.name?.trim() || 'orchestration',
@@ -153,6 +169,7 @@ export class Orchestrator {
       permissionMode: spec.permissionMode ?? this.config.defaultPermissionMode,
       concurrency: Math.min(Math.max(spec.concurrency ?? 3, 1), this.config.maxConcurrentRuns),
       synthesize: spec.synthesize ?? false,
+      worktree: spec.worktree === true,
       createdAt: now(),
       endedAt: null,
       finalResult: null,
@@ -234,6 +251,13 @@ export class Orchestrator {
           deps.map((d) => `<task id="${d.id}" name="${d.name}">\n${(d.result ?? '').slice(0, MAX_DEP_CONTEXT)}\n</task>`).join('\n'),
       );
     }
+    if (task.worktree && task.branch) {
+      parts.push(
+        `You are working in a git worktree of your own at ${task.worktree}, checked out on branch ${task.branch}. ` +
+          'Every other worker has its own, so nothing you write there collides with theirs. Work only inside it, ' +
+          'commit your work on that branch, and do not push or merge: the branches are reviewed together afterwards.',
+      );
+    }
     parts.push(`Your task (${task.name}):\n${task.prompt}`);
     parts.push('Finish with a concise report of what you did and found; it is handed to the next workers.');
     return parts.join('\n\n');
@@ -271,12 +295,45 @@ export class Orchestrator {
     this.persist();
   }
 
+  /**
+   * A git worktree of its own for one task. It lives in the data dir rather than beside the
+   * checkout, because a worker writing inside the tree the wrapper is running from restarts the
+   * dev server that hosts it — an orchestration editing this repo used to kill itself that way.
+   * An existing worktree is reused, so resuming does not start from a fresh branch.
+   */
+  private worktreeFor(orch: Orchestration, task: OrchestrationTaskState): string {
+    if (task.worktree && existsSync(task.worktree)) return task.worktree;
+    const path = join(this.config.dataDir, 'worktrees', orch.id, task.id);
+    const branch = `agentry/${orch.id.slice(0, 8)}/${task.id}`;
+    rmSync(path, { recursive: true, force: true });
+    // -B resets the branch if a previous attempt left it behind
+    execFileSync('git', ['-C', orch.cwd, 'worktree', 'add', '--force', '-B', branch, path, 'HEAD'], {
+      stdio: 'pipe',
+      timeout: 120_000,
+    });
+    task.worktree = path;
+    task.branch = branch;
+    return path;
+  }
+
   private launch(orch: Orchestration, task: OrchestrationTaskState): boolean {
+    let cwd = task.cwd ?? orch.cwd;
+    if (orch.worktree && !task.cwd) {
+      try {
+        cwd = this.worktreeFor(orch, task);
+      } catch (err) {
+        task.status = 'failed';
+        task.error = `could not create a worktree: ${err instanceof Error ? err.message : String(err)}`;
+        task.endedAt = now();
+        this.schedule(orch);
+        return false;
+      }
+    }
     try {
       const run = this.runs.start(
         {
           prompt: this.buildPrompt(orch, task),
-          cwd: task.cwd ?? orch.cwd,
+          cwd,
           model: task.model ?? orch.model ?? undefined,
           permissionMode: orch.permissionMode,
           name: `${orch.name}:${task.id}`.slice(0, 60),
