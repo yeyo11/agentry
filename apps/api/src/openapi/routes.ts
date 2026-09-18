@@ -71,8 +71,11 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'PUT /accounts/autoswitch': d('Accounts', 'Change the auto-rotation settings', { description: 'Enabling it supervises a `cswap auto --json` process that rotates before the active account reaches `threshold`. `rotateOnLimit` also rotates and resumes a run that died against its limit.', body: ref('AutoSwitchSettings'), ok: ref('AutoSwitchSettings') }),
 
   // ---- Projects & sessions
+  'GET /active/:id/logs': d('System', "A background session's recent terminal output", { description: 'From `claude logs`: the process output, which the transcripts do not contain.', ok: obj({ logs: str('Raw terminal output') }) }),
+  'POST /active/:id/stop': d('System', 'Stop a background CLI session', { description: 'Goes through `claude stop`, so the conversation stays resumable and no pid is signalled directly.', ok: obj({ detail: str('What the CLI reported') }) }),
   'GET /projects': d('Projects & sessions', 'Workspace directories and directories with history', { ok: list('ProjectSummary') }),
   'POST /projects': d('Projects & sessions', 'Create a project in the workspace', { description: 'Creates an empty directory, or clones `gitUrl` into it.', body: ref('CreateProjectRequest'), ok: ref('ProjectSummary'), created: true }),
+  'DELETE /projects/:id/state': d('Projects & sessions', 'Purge everything Claude Code keeps about a project', { description: 'Transcripts, tasks, file history and the config entry, through `claude project purge`. Irreversible.', ok: obj({ detail: str('What the CLI reported') }) }),
   'GET /projects/:id/sessions': d('Projects & sessions', 'Sessions of one project', { ok: list('SessionSummary') }),
   'GET /sessions': d('Projects & sessions', 'All sessions, newest first', { description: 'Sessions are flagged `live` when a wrapper run or a CLI process currently owns them.', querystring: obj({ limit: str('Max sessions to return') }), ok: list('SessionSummary') }),
   'GET /sessions/:id': d('Projects & sessions', 'Full transcript', { querystring: obj({ sidechains: str('`1` includes subagent messages') }), ok: ref('SessionDetail') }),

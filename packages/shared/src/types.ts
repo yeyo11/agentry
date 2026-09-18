@@ -162,6 +162,8 @@ export interface RunOptions {
   allowedTools?: string[];
   /** Run inside a new git worktree of this name, created and managed by the CLI (`--worktree`) */
   worktree?: string;
+  /** Hard ceiling on what this run may spend, enforced by the CLI (`--max-budget-usd`) */
+  maxBudgetUsd?: number;
   /** Keep the process alive after each turn so more messages can be sent (default true) */
   keepAlive?: boolean;
   /** JSON Schema for structured output */

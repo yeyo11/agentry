@@ -85,6 +85,26 @@ export function isLiveCliSession(agent: { state?: string }, summary: { firstProm
   return summary === null || summary.firstPrompt !== null;
 }
 
+/**
+ * Recent terminal output of a background session. Only the CLI has it: it is the process's own
+ * output, not the transcript the wrapper reads from disk.
+ */
+export async function backgroundLogs(config: CoreConfig, id: string): Promise<string> {
+  const res = await execCli(config, ['logs', id]);
+  if (res.code !== 0) throw new Error(res.stderr.trim() || `claude logs ${id} failed`);
+  return res.stdout;
+}
+
+/**
+ * Stops a background session through the CLI, which keeps its conversation resumable. Signalling
+ * the pid ourselves would race with pid reuse and lose that guarantee.
+ */
+export async function stopBackgroundSession(config: CoreConfig, id: string): Promise<string> {
+  const res = await execCli(config, ['stop', id]);
+  if (res.code !== 0) throw new Error(res.stderr.trim() || `claude stop ${id} failed`);
+  return res.stdout.trim();
+}
+
 /** Live CLI sessions (interactive and background) as reported by `claude agents --json`. */
 export async function listActiveCliSessions(config: CoreConfig): Promise<Array<Omit<ActiveCliSession, 'live'>>> {
   const res = await execCli(config, ['agents', '--json']);

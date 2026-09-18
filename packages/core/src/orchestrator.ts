@@ -25,6 +25,11 @@ const PROMPT_TAIL = '\n\nSplit it into at most ';
 const MAX_DEP_CONTEXT = 6000;
 const now = () => new Date().toISOString();
 
+/** Unique per orchestration: two graphs sharing a task id would otherwise collide on one worktree. */
+function worktreeName(orch: Orchestration, task: OrchestrationTaskState): string {
+  return `${orch.id.slice(0, 8)}-${task.id}`.slice(0, 60);
+}
+
 function isGitRepo(dir: string): boolean {
   try {
     execFileSync('git', ['-C', dir, 'rev-parse', '--git-dir'], { stdio: 'pipe', timeout: 10_000 });
@@ -307,7 +312,7 @@ export class Orchestrator {
           prompt: this.buildPrompt(orch, task),
           cwd: task.cwd ?? orch.cwd,
           // The CLI creates the worktree, names its branch and locks it; we only choose the name
-          ...(orch.worktree && !task.cwd ? { worktree: task.id } : {}),
+          ...(orch.worktree && !task.cwd ? { worktree: worktreeName(orch, task) } : {}),
           model: task.model ?? orch.model ?? undefined,
           permissionMode: orch.permissionMode,
           ...(orch.allowedTools?.length ? { allowedTools: orch.allowedTools } : {}),
@@ -320,8 +325,9 @@ export class Orchestrator {
       task.runId = run.id;
       if (orch.worktree && !task.cwd) {
         // Mirrors the CLI's own layout, which is how the work is found and merged afterwards
-        task.worktree = join(orch.cwd, '.claude', 'worktrees', task.id);
-        task.branch = `worktree-${task.id}`;
+        const name = worktreeName(orch, task);
+        task.worktree = join(orch.cwd, '.claude', 'worktrees', name);
+        task.branch = `worktree-${name}`;
       }
       task.sessionId = run.sessionId;
       task.startedAt = now();

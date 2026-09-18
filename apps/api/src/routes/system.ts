@@ -19,4 +19,10 @@ export const systemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { co
   app.post('/auth/verify', () => core.verifyAuth());
 
   app.get('/active', () => core.activeCliSessions());
+
+  // Terminal output of a background session, which the CLI keeps and the transcripts do not.
+  app.get<{ Params: { id: string } }>('/active/:id/logs', async (req) => ({ logs: await core.backgroundLogs(req.params.id) }));
+
+  // Stops it through the CLI so the conversation stays resumable, instead of signalling a pid.
+  app.post<{ Params: { id: string } }>('/active/:id/stop', (req) => core.stopBackgroundSession(req.params.id));
 };

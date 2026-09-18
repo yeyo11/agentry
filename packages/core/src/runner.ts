@@ -432,6 +432,11 @@ export class RunManager extends EventEmitter {
     if (opts.allowedTools?.length) args.push(`--allowedTools=${opts.allowedTools.join(',')}`);
     // The CLI creates, names and locks the worktree itself, and works in it for the session
     if (opts.worktree) args.push('--worktree', opts.worktree);
+    // The CLI stops the run itself once the ceiling is reached, which no amount of watching from
+    // out here could do reliably
+    if (typeof opts.maxBudgetUsd === 'number' && opts.maxBudgetUsd > 0) {
+      args.push('--max-budget-usd', String(opts.maxBudgetUsd));
+    }
     if (opts.jsonSchema) args.push('--json-schema', JSON.stringify(opts.jsonSchema));
     if (opts.internal) args.push('--no-session-persistence');
     return args;

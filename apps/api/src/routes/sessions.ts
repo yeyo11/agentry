@@ -14,6 +14,14 @@ export const sessionRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
 
   app.get<{ Params: { id: string } }>('/projects/:id/sessions', (req) => core.sessionsWithLive(req.params.id));
 
+  // Everything Claude Code keeps about a project: transcripts, tasks, file history, config entry.
+  // The CLI owns that layout, so `claude project purge` does the deleting.
+  app.delete<{ Params: { id: string } }>('/projects/:id/state', async (req) => {
+    const project = (await core.projects()).find((p) => p.id === req.params.id);
+    if (!project) throw new Error('project not found');
+    return core.purgeProject(project.path);
+  });
+
   app.get<{ Querystring: { limit?: string } }>('/sessions', async (req) => {
     const sessions = await core.sessionsWithLive();
     const limit = Number(req.query.limit);

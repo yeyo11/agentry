@@ -1151,6 +1151,14 @@
           "type": "string"
         }
       },
+      "worktree": {
+        "type": "string",
+        "description": "Run inside a new git worktree of this name, created and managed by the CLI (`--worktree`)"
+      },
+      "maxBudgetUsd": {
+        "type": "number",
+        "description": "Hard ceiling on what this run may spend, enforced by the CLI (`--max-budget-usd`)"
+      },
       "keepAlive": {
         "type": "boolean",
         "description": "Keep the process alive after each turn so more messages can be sent (default true)"

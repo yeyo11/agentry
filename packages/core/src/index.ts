@@ -14,7 +14,7 @@ import type {
   SystemInfo,
 } from '@agentry/shared';
 import { AccountManager } from './accounts.ts';
-import { detectCli, getAuthStatus, isLiveCliSession, listActiveCliSessions } from './cli.ts';
+import { backgroundLogs, detectCli, execCli, getAuthStatus, isLiveCliSession, listActiveCliSessions, stopBackgroundSession } from './cli.ts';
 import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
@@ -150,6 +150,32 @@ export class Core {
       };
     }
     return { ...this.systemCache.value, uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+  }
+
+  /** Recent terminal output of a background CLI session, which only the CLI itself keeps. */
+  backgroundLogs(id: string): Promise<string> {
+    return backgroundLogs(this.config, id);
+  }
+
+  /**
+   * Stops a background CLI session through the CLI, so its conversation stays resumable. Doing it
+   * by signalling the pid would race with pid reuse and could hit an unrelated process.
+   */
+  async stopBackgroundSession(id: string): Promise<{ detail: string }> {
+    const detail = await stopBackgroundSession(this.config, id);
+    this.activeCache = null;
+    return { detail };
+  }
+
+  /**
+   * Deletes every trace Claude Code keeps of a project: transcripts, tasks, file history and its
+   * config entry. The CLI owns that layout, so it does the deleting.
+   */
+  async purgeProject(path: string): Promise<{ detail: string }> {
+    const res = await execCli(this.config, ['project', 'purge', path, '--yes'], { timeoutMs: 60_000 });
+    if (res.code !== 0) throw new Error(res.stderr.trim() || 'claude project purge failed');
+    this.sessions.invalidate();
+    return { detail: res.stdout.trim() };
   }
 
   /**

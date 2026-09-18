@@ -155,6 +155,11 @@ export class SessionStore {
     return null;
   }
 
+  /** Drops the cache after something outside this store changed the transcripts on disk. */
+  invalidate(): void {
+    this.cache.clear();
+  }
+
   /** The cached summary of one session, without reading its transcript. */
   async summary(sessionId: string): Promise<SessionSummary | null> {
     const found = await this.findFile(sessionId);
