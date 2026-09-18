@@ -1,9 +1,10 @@
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Play, Radio, Trash2 } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, useSession } from '../api';
 import { ICON_SM } from '../components/icons';
+import { ScrollJump } from '../components/ScrollJump';
 import { useDeleteSession } from '../components/SessionDelete';
 import { OriginBadge, OriginTrail } from '../components/SessionOrigin';
 import { Transcript } from '../components/Transcript';
@@ -33,6 +34,17 @@ export function SessionView() {
       }),
     onSuccess: (run) => navigate(`/runs/${run.id}`),
   });
+
+  // Opening a conversation lands on its latest message, the way any chat client does: a few
+  // hundred messages otherwise leave you at the oldest one, a long drag away from what you came for.
+  const entryCount = data?.entries.length ?? 0;
+  const landedOn = useRef<string | null>(null);
+  useEffect(() => {
+    if (!entryCount || landedOn.current === id) return;
+    landedOn.current = id;
+    const main = document.querySelector<HTMLElement>('.main');
+    requestAnimationFrame(() => main?.scrollTo({ top: main.scrollHeight }));
+  }, [id, entryCount]);
 
   if (isLoading) return <Loading label="Loading transcript…" />;
   if (!data) return <ErrorBox error={error ?? new Error('Session not found')} />;
@@ -111,7 +123,14 @@ export function SessionView() {
         </Card>
       )}
 
-      {entries.length === 0 ? <Empty title="Empty transcript" /> : <Transcript entries={entries} />}
+      {entries.length === 0 ? (
+        <Empty title="Empty transcript" />
+      ) : (
+        <>
+          <Transcript entries={entries} />
+          <ScrollJump label="transcript" />
+        </>
+      )}
     </>
   );
 }

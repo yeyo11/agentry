@@ -3802,3 +3802,26 @@ button.tree-row-on:hover {
     display: none;
   }
 }
+
+/* Floating jump-to-ends control for long scrollers (session transcripts, run logs). */
+.scroll-jump {
+  position: sticky;
+  bottom: 18px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  /* Sits in the flow but must not take space from it, or it would push the content up. */
+  height: 0;
+  margin-left: auto;
+  pointer-events: none;
+}
+
+.scroll-jump .icon-btn {
+  pointer-events: auto;
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.28);
+  backdrop-filter: blur(6px);
+}
