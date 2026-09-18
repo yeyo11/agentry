@@ -363,9 +363,26 @@ export class RunManager extends EventEmitter {
   }
 
   /** Resolves with the first `result` after the call, or when the process exits. */
+  /** The result of a run that is already over, or null while it can still produce one. */
+  private static settled(run: Run): RunResult | null {
+    if (run.lastResult) return run.lastResult;
+    if (!['completed', 'failed', 'stopped'].includes(run.status)) return null;
+    return {
+      isError: true,
+      result: run.error ?? `The process ended (${run.status}) without a result`,
+      structuredOutput: undefined,
+      costUsd: run.costUsd,
+    };
+  }
+
   waitForResult(id: string): Promise<RunResult> {
     const run = this.runs.get(id);
     if (!run) return Promise.reject(new Error('run not found'));
+    // A run that has already ended emits nothing further, so subscribing alone would wait for an
+    // event that never comes. Anything awaiting it — the planner holds an HTTP request open —
+    // would hang until the process dies.
+    const ended = RunManager.settled(run);
+    if (ended) return Promise.resolve(ended);
     return new Promise((resolvePromise) => {
       const onEvent = (event: RunEvent) => {
         if (event.kind === 'result' && run.lastResult) finish(run.lastResult);
