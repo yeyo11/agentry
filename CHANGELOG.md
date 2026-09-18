@@ -3,6 +3,14 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.1.1](https://github.com/yeyo11/agentry/compare/v0.1.0...v0.1.1) (2026-09-18)
+
+
+### Build and packaging
+
+* automate releases with release-please ([85f4d4b](https://github.com/yeyo11/agentry/commit/85f4d4b10e66cff545112b9a25e9ecdf2b1e539d))
+* grant the image permissions on the calling jobs ([a213867](https://github.com/yeyo11/agentry/commit/a213867d8f60b416854cec3d125bc227e8fc2fbf))
+
 ## 0.1.0 (2026-09-18)
 
 ### Features
