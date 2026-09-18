@@ -7,6 +7,7 @@ import type {
   ConfigFileRoot,
   MemoryProjectSummary,
   Overview,
+  PermissionRequest,
   ProjectSummary,
   RunSummary,
   SessionOrigin,
@@ -19,6 +20,7 @@ import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
 import { Db } from './db.ts';
+import { PermissionBroker } from './permissions.ts';
 import { McpConfig } from './config/mcp.ts';
 import { MarkdownResources } from './config/resources.ts';
 import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
@@ -46,6 +48,7 @@ const ACTIVE_TTL_MS = 1_500;
 export class Core {
   readonly config: CoreConfig;
   readonly db: Db;
+  readonly permissions: PermissionBroker;
   readonly runs: RunManager;
   readonly sessions: SessionStore;
   readonly orchestrator: Orchestrator;
@@ -65,10 +68,19 @@ export class Core {
   constructor(config: CoreConfig = loadConfig()) {
     this.config = config;
     this.db = new Db(config);
+    // Listening before any run starts: a prompt that arrives first would otherwise be denied
+    this.permissions = new PermissionBroker(config.dataDir);
+    this.permissions.listen();
     // Must run before anything spawns the CLI: it injects stored credentials into process.env
     this.credentials = new CredentialStore(config);
     this.workspace = new Workspace(config);
     this.runs = new RunManager(config, this.db);
+    this.runs.permissionSocket = this.permissions.socketPath;
+    this.runs.on('run-ended', (runId: string) => this.permissions.denyAllFor(runId));
+    // The UI watches a run's event stream, so the prompt has to arrive on it
+    this.permissions.on('requested', (request: PermissionRequest) => {
+      this.runs.notice(request.runId, `Permission requested for ${request.toolName}`, { permission: request });
+    });
     this.sessions = new SessionStore(config);
     this.orchestrator = new Orchestrator(config, this.runs, this.db);
     this.files = new SettingsFiles();
@@ -388,6 +400,7 @@ export class Core {
   }
 
   shutdown(): void {
+    this.permissions.close();
     this.accounts.shutdown();
     this.runs.stopAll();
     this.db.close();

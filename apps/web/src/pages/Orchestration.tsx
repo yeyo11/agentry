@@ -106,6 +106,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
   const [synthesize, setSynthesize] = useState(true);
   const [worktree, setWorktree] = useState(true);
   const [allowedTools, setAllowedTools] = useState('Bash,Read,Write,Edit,Glob,Grep');
+  const [askPermissions, setAskPermissions] = useState(false);
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [tasks, setTasks] = useState<OrchestrationTaskSpec[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -215,6 +216,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         .split(',')
         .map((t) => t.trim())
         .filter(Boolean),
+      permissionPrompts: askPermissions ? ('host' as const) : ('none' as const),
       tasks: tasks.map((t) => ({
         ...t,
         id: t.id.trim(),
@@ -363,6 +365,14 @@ function CreateForm({ onDone }: { onDone: () => void }) {
               <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} /> Give each task
               its own git worktree and branch
             </label>
+            <label className="check">
+              <input type="checkbox" checked={askPermissions} onChange={(e) => setAskPermissions(e.target.checked)} /> Ask
+              me when a worker needs permission
+            </label>
+            <p className="muted small">
+              Prompts appear on the worker's run page for you to allow or deny. Without this a worker has nobody to ask,
+              so anything not listed below is denied automatically.
+            </p>
             <Field
               label="Tools workers may use"
               hint="A worker has nobody to ask, so the CLI denies anything not pre-authorised here. Leave empty to rely on the permission mode alone."

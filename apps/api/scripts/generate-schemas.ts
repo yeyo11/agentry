@@ -14,7 +14,7 @@ const ROOT_TYPES = [
   'ApiError', 'SystemInfo', 'Overview', 'AuthStatus', 'AuthVerification', 'SetCredentialsRequest', 'ActiveCliSession',
   'ProjectSummary', 'CreateProjectRequest', 'SessionSummary', 'SessionDetail',
   'RunOptions', 'RunSummary', 'RunDetail', 'RunEvent', 'EffectiveEnvironment', 'BackgroundTask', 'SubagentInfo',
-  'Orchestration', 'OrchestrationSpec', 'PlanRequest', 'PlanDraftSummary',
+  'Orchestration', 'OrchestrationSpec', 'PlanRequest', 'PlanDraftSummary', 'PermissionRequest', 'PermissionDecision',
   'SettingsDoc', 'InstructionsDoc', 'McpServerEntry', 'McpServerHealth', 'MarkdownResource',
   'ConfigFileRoot', 'ConfigFileNode', 'ConfigFileContent', 'WriteConfigFileRequest',
   'MemoryFile', 'MemoryProjectSummary', 'PluginsOverview', 'AvailablePlugin', 'PluginActionRequest', 'CliTextResult',

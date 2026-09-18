@@ -3825,3 +3825,56 @@ button.tree-row-on:hover {
   box-shadow: 0 6px 18px rgb(0 0 0 / 0.28);
   backdrop-filter: blur(6px);
 }
+
+/* Tool calls a run is holding until someone decides. */
+.permission-list {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 12px;
+}
+
+.permission-list ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.permission {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+}
+
+.permission-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.permission-input {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--surface-2, var(--bg));
+  border-radius: calc(var(--radius) - 3px);
+}
+
+.permission-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.permission-reason {
+  flex: 1;
+  min-width: 200px;
+}

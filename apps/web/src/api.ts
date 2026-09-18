@@ -28,6 +28,8 @@ import type {
   Orchestration,
   OrchestrationSpec,
   Overview,
+  PermissionDecision,
+  PermissionRequest,
   PlanDraftSummary,
   PlanRequest,
   PluginActionRequest,
@@ -155,6 +157,9 @@ export const api = {
     request<OrchestrationSpec>('/orchestrations/plan', { method: 'POST', body: req, timeoutMs: 10 * 60_000 }),
   startPlan: (req: PlanRequest) => request<RunSummary>('/orchestrations/plan/start', { method: 'POST', body: req }),
   planDrafts: () => request<PlanDraftSummary[]>('/orchestrations/plans'),
+  runPermissions: (runId: string) => request<PermissionRequest[]>(`/runs/${enc(runId)}/permissions`),
+  answerPermission: (runId: string, requestId: string, decision: PermissionDecision) =>
+    request<PermissionRequest>(`/runs/${enc(runId)}/permissions/${enc(requestId)}`, { method: 'POST', body: decision }),
   planDraft: (runId: string) => request<OrchestrationSpec>(`/orchestrations/plans/${enc(runId)}`),
   stopOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/stop`, { method: 'POST' }),
   resumeOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/resume`, { method: 'POST' }),
@@ -234,6 +239,7 @@ export const keys = {
   subagents: ['subagents'] as const,
   orchestrations: ['orchestrations'] as const,
   planDrafts: ['orchestrations', 'plans'] as const,
+  runPermissions: (id: string) => ['runs', id, 'permissions'] as const,
   orchestration: (id: string) => ['orchestration', id] as const,
   settings: (scope: Scope, variant: ConfigFileVariant) =>
     ['config', 'settings', scope.projectId ?? 'user', variant] as const,

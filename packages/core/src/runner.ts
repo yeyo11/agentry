@@ -1,9 +1,10 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
-import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
+import { fileURLToPath } from 'node:url';
 import {
   entryText,
   normalizeMessage,
@@ -22,6 +23,8 @@ import type { Db } from './db.ts';
 import type { CoreConfig } from './paths.ts';
 import type { SessionStore } from './sessions.ts';
 
+/** Server key in the generated MCP config; the tool is addressed as mcp__<key>__approve. */
+const PERMISSION_SERVER = 'agentry_permissions';
 const MAX_EVENTS_PER_RUN = 5000;
 const MAX_PERSISTED_RUNS = 200;
 const PARTIAL_THROTTLE_MS = 50;
@@ -100,6 +103,8 @@ class Run {
   idleTimer: NodeJS.Timeout | null = null;
   partial: { block: 'text' | 'thinking'; text: string } | null = null;
   partialTimer: NodeJS.Timeout | null = null;
+  /** Generated MCP config for this run's permission prompts, removed when it ends */
+  mcpConfigFile: string | null = null;
   /** Last turn written to stdin, so it can be replayed after an account rotation */
   lastUserText: string | null = null;
   /** The turn died against the account's rate limit */
@@ -230,6 +235,8 @@ export class RunManager extends EventEmitter {
   lastRateLimit: RateLimitInfo | null = null;
   /** Set when claude-swap manages the accounts; null leaves runs on the active credential */
   accounts: AccountResolver | null = null;
+  /** Unix socket a run's permission prompts are forwarded to; null means nothing is listening */
+  permissionSocket: string | null = null;
   /** Latest `init` snapshot per working directory */
   readonly environments = new Map<string, EffectiveEnvironment>();
 
@@ -437,9 +444,29 @@ export class RunManager extends EventEmitter {
     }
     // The CLI defaults to asking a host. Nothing is listening unless a prompt tool is named, and a
     // run waiting on an answer that never comes is worse than one told plainly that it was denied.
-    const prompts = opts.permissionPromptTool ? (opts.permissionPrompts ?? 'host') : 'none';
-    args.push('--permission-prompts', prompts);
-    if (prompts === 'host' && opts.permissionPromptTool) args.push('--permission-prompt-tool', opts.permissionPromptTool);
+    // Prompts go to a host only when something is listening: a run waiting on an answer that never
+    // comes is worse than one told plainly that it was denied.
+    const socket = opts.permissionPrompts === 'host' ? this.permissionSocket : undefined;
+    if (socket) {
+      const config = join(this.config.dataDir, 'mcp', `${run.id}.json`);
+      mkdirSync(dirname(config), { recursive: true });
+      writeFileSync(
+        config,
+        JSON.stringify({
+          mcpServers: {
+            [PERMISSION_SERVER]: {
+              command: process.execPath,
+              args: [fileURLToPath(new URL('./permission-mcp.mjs', import.meta.url))],
+              env: { AGENTRY_PERMISSION_SOCKET: socket, AGENTRY_RUN_ID: run.id },
+            },
+          },
+        }),
+      );
+      run.mcpConfigFile = config;
+      args.push('--permission-prompts', 'host', '--mcp-config', config, '--permission-prompt-tool', `mcp__${PERMISSION_SERVER}__approve`);
+    } else {
+      args.push('--permission-prompts', 'none');
+    }
     if (opts.jsonSchema) args.push('--json-schema', JSON.stringify(opts.jsonSchema));
     if (opts.internal) args.push('--no-session-persistence');
     return args;
@@ -520,6 +547,12 @@ export class RunManager extends EventEmitter {
     if (run.endedAt) return;
     if (run.idleTimer) clearTimeout(run.idleTimer);
     run.endedAt = now();
+    // A prompt still waiting belongs to a process that is gone: nobody can act on the answer.
+    if (run.mcpConfigFile) {
+      this.emit('run-ended', run.id);
+      rmSync(run.mcpConfigFile, { force: true });
+      run.mcpConfigFile = null;
+    }
     for (const task of run.tasks.values()) {
       if (task.status === 'running') Object.assign(task, { status: 'stopped', endedAt: run.endedAt });
     }
@@ -544,8 +577,8 @@ export class RunManager extends EventEmitter {
   }
 
   /** A wrapper-generated line in the transcript (account rotations, retries). */
-  notice(id: string, text: string): void {
-    this.runs.get(id)?.push({ kind: 'notice', type: 'notice', text });
+  notice(id: string, text: string, data?: Record<string, unknown>): void {
+    this.runs.get(id)?.push({ kind: 'notice', type: 'notice', text, ...(data ? { data } : {}) });
   }
 
   /**

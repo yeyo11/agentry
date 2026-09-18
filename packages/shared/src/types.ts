@@ -311,11 +311,13 @@ export interface OrchestrationSpec {
    */
   worktree?: boolean;
   /**
-   * Tools every worker may use without being asked. A worker has no one to ask — the CLI denies
-   * automatically — so anything it needs beyond editing files has to be pre-authorised here or
-   * through a permission mode that does not prompt.
+   * Tools every worker may use without being asked. A worker has no one to ask unless
+   * `permissionPrompts` sends its prompts to the panel, so anything it needs beyond editing files
+   * has to be pre-authorised here or approved there.
    */
   allowedTools?: string[];
+  /** `host` routes each worker's permission prompts to the panel for a person to answer */
+  permissionPrompts?: 'host' | 'none';
   tasks: OrchestrationTaskSpec[];
 }
 
@@ -351,6 +353,8 @@ export interface Orchestration {
   worktree: boolean;
   /** Tools pre-authorised for every worker */
   allowedTools: string[];
+  /** Where a worker's permission prompts go */
+  permissionPrompts: 'host' | 'none';
   createdAt: string;
   endedAt: string | null;
   tasks: OrchestrationTaskState[];
@@ -365,6 +369,26 @@ export interface PlanDraftSummary {
   name: string;
   objective: string | null;
   taskCount: number;
+}
+
+/** A tool call the CLI is holding until someone approves it. */
+export interface PermissionRequest {
+  id: string;
+  runId: string;
+  toolName: string;
+  /** The CLI's id for the tool call this decides */
+  toolUseId: string;
+  /** Arguments the tool would be called with, e.g. the shell command */
+  input: Record<string, unknown>;
+  requestedAt: string;
+}
+
+export interface PermissionDecision {
+  behavior: 'allow' | 'deny';
+  /** Shown to the model when denying, so it can adapt instead of guessing */
+  message?: string;
+  /** Lets the approver edit the arguments before allowing them */
+  updatedInput?: Record<string, unknown>;
 }
 
 export interface PlanRequest {

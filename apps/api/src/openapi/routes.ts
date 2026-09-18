@@ -97,6 +97,8 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'DELETE /runs/:id': d('Runs', 'Forget an ended run', { ok: OK }),
   'GET /environments': d('Runs', 'What Claude actually loaded, per directory', { description: 'Tools, MCP server status, agents, skills, plugins, slash commands and memory paths, captured from the `init` event of the latest run in each directory.', querystring: obj({ cwd: str('Absolute directory to filter by') }), ok: list('EffectiveEnvironment') }),
   'GET /tasks': d('Runs', 'Background tasks across runs', { ok: list('BackgroundTask') }),
+  'GET /runs/:id/permissions': d('Runs', 'Tool calls waiting for approval', { description: 'Populated only when the run was started with `permissionPrompts: "host"`. A notice on the run\'s event stream announces each one.', ok: list('PermissionRequest') }),
+  'POST /runs/:id/permissions/:requestId': d('Runs', 'Answer a permission request', { description: 'Allow, optionally with edited arguments, or deny with a message the model can read and adapt to. A request nobody answers is denied after ten minutes.', body: ref('PermissionDecision'), ok: ref('PermissionRequest') }),
   'GET /subagents': d('Runs', 'Subagents across runs', { ok: list('SubagentInfo') }),
 
   // ---- Orchestration

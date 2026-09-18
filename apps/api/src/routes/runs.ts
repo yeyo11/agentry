@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
-import type { RunDetail, RunEvent, RunOptions } from '@agentry/shared';
+import type { PermissionDecision, RunDetail, RunEvent, RunOptions } from '@agentry/shared';
 
 const HEARTBEAT_MS = 15_000;
 
@@ -70,6 +70,19 @@ export const runRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core 
       .list()
       .flatMap((r) => r.backgroundTasks)
       .sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running') || b.startedAt.localeCompare(a.startedAt)),
+  );
+
+  // Tool calls the CLI is holding until someone decides. The run's event stream carries a notice
+  // when one arrives, so the UI does not have to poll to notice it.
+  app.get<{ Params: { id: string } }>('/runs/:id/permissions', (req) => core.permissions.list(req.params.id));
+
+  app.post<{ Params: { id: string; requestId: string }; Body: PermissionDecision }>(
+    '/runs/:id/permissions/:requestId',
+    (req) => {
+      const { behavior, message, updatedInput } = req.body ?? ({} as PermissionDecision);
+      if (behavior !== 'allow' && behavior !== 'deny') throw new Error("behavior must be 'allow' or 'deny'");
+      return core.permissions.answer(req.params.requestId, { behavior, message, updatedInput });
+    },
   );
 
   app.get('/subagents', () =>

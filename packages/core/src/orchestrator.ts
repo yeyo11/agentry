@@ -115,6 +115,7 @@ export class Orchestrator {
       // the rest of the code never has to ask whether an orchestration is old.
       o.worktree ??= false;
       o.allowedTools ??= [];
+      o.permissionPrompts ??= 'none';
       // Workers do not survive a wrapper restart
       if (o.status === 'running') {
         o.status = 'stopped';
@@ -180,6 +181,7 @@ export class Orchestrator {
       synthesize: spec.synthesize ?? false,
       worktree: spec.worktree === true,
       allowedTools: (spec.allowedTools ?? []).map(String).filter(Boolean),
+      permissionPrompts: spec.permissionPrompts === 'host' ? 'host' : 'none',
       createdAt: now(),
       endedAt: null,
       finalResult: null,
@@ -316,6 +318,7 @@ export class Orchestrator {
           model: task.model ?? orch.model ?? undefined,
           permissionMode: orch.permissionMode,
           ...(orch.allowedTools?.length ? { allowedTools: orch.allowedTools } : {}),
+          ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
           name: `${orch.name}:${task.id}`.slice(0, 60),
           keepAlive: false,
         },

@@ -1445,6 +1445,14 @@
         },
         "description": "Tools pre-authorised for every worker"
       },
+      "permissionPrompts": {
+        "type": "string",
+        "enum": [
+          "host",
+          "none"
+        ],
+        "description": "Where a worker's permission prompts go"
+      },
       "createdAt": {
         "type": "string"
       },
@@ -1482,6 +1490,7 @@
       "synthesize",
       "worktree",
       "allowedTools",
+      "permissionPrompts",
       "createdAt",
       "endedAt",
       "tasks",
@@ -1639,7 +1648,15 @@
         "items": {
           "type": "string"
         },
-        "description": "Tools every worker may use without being asked. A worker has no one to ask — the CLI denies automatically — so anything it needs beyond editing files has to be pre-authorised here or through a permission mode that does not prompt."
+        "description": "Tools every worker may use without being asked. A worker has no one to ask unless `permissionPrompts` sends its prompts to the panel, so anything it needs beyond editing files has to be pre-authorised here or approved there."
+      },
+      "permissionPrompts": {
+        "type": "string",
+        "enum": [
+          "host",
+          "none"
+        ],
+        "description": "`host` routes each worker's permission prompts to the panel for a person to answer"
       },
       "tasks": {
         "type": "array",
@@ -1734,6 +1751,65 @@
       "taskCount"
     ],
     "description": "A planner run's draft, kept so a plan is never lost with the response that carried it."
+  },
+  "PermissionRequest": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "toolName": {
+        "type": "string"
+      },
+      "toolUseId": {
+        "type": "string",
+        "description": "The CLI's id for the tool call this decides"
+      },
+      "input": {
+        "type": "object",
+        "additionalProperties": {},
+        "description": "Arguments the tool would be called with, e.g. the shell command"
+      },
+      "requestedAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "runId",
+      "toolName",
+      "toolUseId",
+      "input",
+      "requestedAt"
+    ],
+    "description": "A tool call the CLI is holding until someone approves it."
+  },
+  "PermissionDecision": {
+    "type": "object",
+    "properties": {
+      "behavior": {
+        "type": "string",
+        "enum": [
+          "allow",
+          "deny"
+        ]
+      },
+      "message": {
+        "type": "string",
+        "description": "Shown to the model when denying, so it can adapt instead of guessing"
+      },
+      "updatedInput": {
+        "type": "object",
+        "additionalProperties": {},
+        "description": "Lets the approver edit the arguments before allowing them"
+      }
+    },
+    "required": [
+      "behavior"
+    ]
   },
   "SettingsDoc": {
     "type": "object",

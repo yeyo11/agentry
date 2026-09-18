@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, keys, useRuns, useRunStream } from '../api';
 import { EnvironmentPanel } from '../components/EnvironmentPanel';
+import { PermissionPrompts } from '../components/PermissionPrompts';
 import { isRunLive } from '../components/RunCard';
 import { ICON, ICON_SM } from '../components/icons';
 import { AnimatePresence, motion, StatusDot, ThinkingDots } from '../components/motion';
@@ -126,6 +127,8 @@ export function RunView() {
           }}
         >
           {visible.length === 0 ? <Loading label="Waiting for events…" /> : <RunTimeline events={visible} />}
+          {/* Pinned under the transcript: a run waiting on a decision is stuck until it gets one */}
+          {run && <PermissionPrompts runId={id} live={isRunLive(run)} />}
           {partial && partial.text ? (
             <StreamingEntry block={partial.block} text={partial.text} />
           ) : (
