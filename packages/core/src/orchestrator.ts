@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type {
   Orchestration,
@@ -300,45 +300,14 @@ export class Orchestrator {
     this.persist();
   }
 
-  /**
-   * A git worktree of its own for one task. It lives in the data dir rather than beside the
-   * checkout, because a worker writing inside the tree the wrapper is running from restarts the
-   * dev server that hosts it — an orchestration editing this repo used to kill itself that way.
-   * An existing worktree is reused, so resuming does not start from a fresh branch.
-   */
-  private worktreeFor(orch: Orchestration, task: OrchestrationTaskState): string {
-    if (task.worktree && existsSync(task.worktree)) return task.worktree;
-    const path = join(this.config.dataDir, 'worktrees', orch.id, task.id);
-    const branch = `agentry/${orch.id.slice(0, 8)}/${task.id}`;
-    rmSync(path, { recursive: true, force: true });
-    // -B resets the branch if a previous attempt left it behind
-    execFileSync('git', ['-C', orch.cwd, 'worktree', 'add', '--force', '-B', branch, path, 'HEAD'], {
-      stdio: 'pipe',
-      timeout: 120_000,
-    });
-    task.worktree = path;
-    task.branch = branch;
-    return path;
-  }
-
   private launch(orch: Orchestration, task: OrchestrationTaskState): boolean {
-    let cwd = task.cwd ?? orch.cwd;
-    if (orch.worktree && !task.cwd) {
-      try {
-        cwd = this.worktreeFor(orch, task);
-      } catch (err) {
-        task.status = 'failed';
-        task.error = `could not create a worktree: ${err instanceof Error ? err.message : String(err)}`;
-        task.endedAt = now();
-        this.schedule(orch);
-        return false;
-      }
-    }
     try {
       const run = this.runs.start(
         {
           prompt: this.buildPrompt(orch, task),
-          cwd,
+          cwd: task.cwd ?? orch.cwd,
+          // The CLI creates the worktree, names its branch and locks it; we only choose the name
+          ...(orch.worktree && !task.cwd ? { worktree: task.id } : {}),
           model: task.model ?? orch.model ?? undefined,
           permissionMode: orch.permissionMode,
           ...(orch.allowedTools?.length ? { allowedTools: orch.allowedTools } : {}),
@@ -349,6 +318,11 @@ export class Orchestrator {
       );
       task.status = 'running';
       task.runId = run.id;
+      if (orch.worktree && !task.cwd) {
+        // Mirrors the CLI's own layout, which is how the work is found and merged afterwards
+        task.worktree = join(orch.cwd, '.claude', 'worktrees', task.id);
+        task.branch = `worktree-${task.id}`;
+      }
       task.sessionId = run.sessionId;
       task.startedAt = now();
       void this.runs.waitForResult(run.id).then((result) => {

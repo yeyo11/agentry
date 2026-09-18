@@ -430,6 +430,8 @@ export class RunManager extends EventEmitter {
     if (opts.effort) args.push('--effort', opts.effort);
     if (opts.appendSystemPrompt) args.push('--append-system-prompt', opts.appendSystemPrompt);
     if (opts.allowedTools?.length) args.push(`--allowedTools=${opts.allowedTools.join(',')}`);
+    // The CLI creates, names and locks the worktree itself, and works in it for the session
+    if (opts.worktree) args.push('--worktree', opts.worktree);
     if (opts.jsonSchema) args.push('--json-schema', JSON.stringify(opts.jsonSchema));
     if (opts.internal) args.push('--no-session-persistence');
     return args;

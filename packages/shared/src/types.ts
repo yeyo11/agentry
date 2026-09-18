@@ -160,6 +160,8 @@ export interface RunOptions {
   resumeSessionId?: string;
   appendSystemPrompt?: string;
   allowedTools?: string[];
+  /** Run inside a new git worktree of this name, created and managed by the CLI (`--worktree`) */
+  worktree?: string;
   /** Keep the process alive after each turn so more messages can be sent (default true) */
   keepAlive?: boolean;
   /** JSON Schema for structured output */
