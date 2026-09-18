@@ -50,6 +50,9 @@ jobs:
             type=semver,pattern={{major}}
             type=edge,branch=main
             type=sha,format=short
+            # Until the first release exists, `latest` has to resolve to something, or the
+            # `docker run ghcr.io/…/agentry` in the README 404s. Tags override it with semver.
+            type=raw,value=latest,enable={{is_default_branch}}
           labels: |
             org.opencontainers.image.title=Agentry
             org.opencontainers.image.description=Run Claude Code as a service: REST API, web UI and multi-agent orchestration in one container
