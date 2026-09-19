@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.10.0](https://github.com/yeyo11/agentry/compare/v0.9.0...v0.10.0) (2026-09-19)
+
+
+### Features
+
+* **orchestration:** run a graph as a Claude Code workflow ([#44](https://github.com/yeyo11/agentry/issues/44)) ([63442bc](https://github.com/yeyo11/agentry/commit/63442bcfa19c560563c837cad2765a131d1c9394))
+
 ## [0.9.0](https://github.com/yeyo11/agentry/compare/v0.8.0...v0.9.0) (2026-09-19)
 
 
