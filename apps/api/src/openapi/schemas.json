@@ -555,6 +555,18 @@
             "type": "null"
           }
         ]
+      },
+      "permissionPrompts": {
+        "type": "string",
+        "enum": [
+          "host",
+          "none"
+        ],
+        "description": "Where its prompts go; kept so a resumed run asks the same way"
+      },
+      "pendingPrompts": {
+        "type": "number",
+        "description": "Prompts waiting for someone right now: the run is stuck until they are answered"
       }
     },
     "required": [
@@ -1498,11 +1510,7 @@
           "host",
           "none"
         ],
-        "description": "Who answers permission prompts. `none` (the default here, though the CLI's own default is `host`) denies anything that would prompt, which is the only safe choice while nothing is listening. `host` requires `permissionPromptTool`, or the run waits for an answer that never comes."
-      },
-      "permissionPromptTool": {
-        "type": "string",
-        "description": "MCP tool the CLI asks for approval, e.g. `mcp__agentry__approve`"
+        "description": "Who answers what the CLI would ask a person: tool permissions, `AskUserQuestion`, plan approval. `host` sends them to the panel (`GET /runs/:id/permissions`); `none`, the default, denies them, which is the only safe choice for a client that is not going to answer."
       },
       "keepAlive": {
         "type": "boolean",
@@ -2258,6 +2266,21 @@
       },
       "requestedAt": {
         "type": "string"
+      },
+      "description": {
+        "type": "string",
+        "description": "The CLI's own one-line description of the call"
+      },
+      "suggestions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/PermissionUpdate"
+        },
+        "description": "Rules the CLI offers to remember, e.g. switching to acceptEdits; send them back to accept"
+      },
+      "requiresUserInteraction": {
+        "type": "boolean",
+        "description": "Waits on a person by design (a question), rather than on an approval"
       }
     },
     "required": [
@@ -2268,7 +2291,20 @@
       "input",
       "requestedAt"
     ],
-    "description": "A tool call the CLI is holding until someone approves it."
+    "description": "A tool call the CLI is holding until someone decides. Questions (`AskUserQuestion`) and plan approval (`ExitPlanMode`) arrive this way too: they are answered by allowing them, with the answers in `updatedInput`."
+  },
+  "PermissionUpdate": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "type"
+    ],
+    "additionalProperties": {},
+    "description": "A permission rule or mode change, exactly as the CLI proposes it."
   },
   "PermissionDecision": {
     "type": "object",
@@ -2287,12 +2323,31 @@
       "updatedInput": {
         "type": "object",
         "additionalProperties": {},
-        "description": "Lets the approver edit the arguments before allowing them"
+        "description": "Lets the approver edit the arguments before allowing them, or carries a question's answers"
+      },
+      "updatedPermissions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/PermissionUpdate"
+        },
+        "description": "Suggestions from the request to apply when allowing (\"always allow\")"
       }
     },
     "required": [
       "behavior"
     ]
+  },
+  "RunSettingsUpdate": {
+    "type": "object",
+    "properties": {
+      "permissionMode": {
+        "$ref": "#/components/schemas/PermissionMode"
+      },
+      "model": {
+        "type": "string"
+      }
+    },
+    "description": "What can be changed on a run without restarting it. A live process takes it at once."
   },
   "ResumeOrchestrationRequest": {
     "type": "object",

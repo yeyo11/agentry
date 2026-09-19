@@ -140,6 +140,13 @@ test('runs, orchestrations and plugins reject bad requests', async () => {
   assert.equal((await app.inject({ method: 'POST', url: '/api/runs', ...json({ prompt: '  ' }) })).statusCode, 400);
   assert.equal((await app.inject('/api/runs/ghost')).statusCode, 404);
   assert.equal((await app.inject({ method: 'POST', url: '/api/runs/ghost/messages', ...json({ text: 'hi' }) })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/runs/ghost/interrupt' })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'PATCH', url: '/api/runs/ghost', ...json({ model: 'opus' }) })).statusCode, 404);
+  const badMode = await app.inject({ method: 'PATCH', url: '/api/runs/ghost', ...json({ permissionMode: 'yolo' }) });
+  assert.equal(badMode.statusCode, 400);
+  assert.match(badMode.json().error, /permissionMode must be one of/);
+  const badRules = await app.inject({ method: 'POST', url: '/api/runs/ghost/permissions/p1', ...json({ behavior: 'allow', updatedPermissions: 'all' }) });
+  assert.equal(badRules.statusCode, 400);
   const cycle = { name: 'x', tasks: [{ id: 'a', name: 'a', prompt: 'p', dependsOn: ['b'] }, { id: 'b', name: 'b', prompt: 'p', dependsOn: ['a'] }] };
   assert.match((await app.inject({ method: 'POST', url: '/api/orchestrations', ...json(cycle) })).json().error, /cycle/);
   assert.equal((await app.inject({ method: 'POST', url: '/api/plugins/install', ...json({ plugin: '--help' }) })).statusCode, 400);
