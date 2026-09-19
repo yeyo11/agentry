@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Play, Radio, TerminalSquare, Trash2 } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, useSessionTranscript } from '../api';
 import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
@@ -15,6 +16,7 @@ import { Card, Empty, ErrorBox, Loading, PageHeader, StatusBadge } from '../comp
 import { formatBytes, formatDateTime } from '../lib/format';
 
 export function SessionView() {
+  const { t } = useTranslation('work');
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [sidechains, setSidechains] = useState(false);
@@ -86,8 +88,8 @@ export function SessionView() {
     };
   }, [landing, entryCount, id]);
 
-  if (isLoading) return <Loading label="Loading transcript…" />;
-  if (!data) return <ErrorBox error={error ?? new Error('Session not found')} />;
+  if (isLoading) return <Loading label={t('sessionView.loading')} />;
+  if (!data) return <ErrorBox error={error ?? new Error(t('sessionView.notFound'))} />;
   const { summary } = data;
   const entries = transcript.items;
 
@@ -101,63 +103,58 @@ export function SessionView() {
             <OriginBadge session={summary} />
             <OriginTrail session={summary} />
             <Link to={`/sessions?show=all&project=${encodeURIComponent(summary.projectId)}`}>{summary.projectPath}</Link>
-            <span>{summary.messageCount} messages</span>
+            <span>{t('sessionView.messages', { count: summary.messageCount })}</span>
             <span>{formatBytes(summary.sizeBytes)}</span>
             {summary.model && <span>{summary.model}</span>}
-            {summary.cliVersion && <span>CLI {summary.cliVersion}</span>}
-            <span>updated {formatDateTime(summary.updatedAt)}</span>
+            {summary.cliVersion && <span>{t('shared.cliVersion', { version: summary.cliVersion })}</span>}
+            <span>{t('sessionView.updated', { date: formatDateTime(summary.updatedAt) })}</span>
           </span>
         }
         actions={
           <>
-            {live && <StatusBadge status={live.status} title={`live via ${live.source}`} />}
+            {live && <StatusBadge status={live.status} title={t('shared.liveVia', { source: live.source })} />}
             <FindButton find={find} />
             {live?.runId && (
               <Link to={`/runs/${live.runId}`} className="btn">
-                <Radio {...ICON_SM} /> Open live run
+                <Radio {...ICON_SM} /> {t('sessionView.openLiveRun')}
               </Link>
             )}
             <Switch checked={sidechains} onChange={setSidechains}>
-              Subagent sidechains
+              {t('sessionView.sidechains')}
             </Switch>
             {/* The wrapper keeps the tooltip reachable while the button is disabled */}
-            <Tooltip content={live ? 'Live sessions cannot be deleted' : 'Delete the transcript'}>
+            <Tooltip content={live ? t('shared.liveCannotDelete') : t('sessionView.deleteTranscript')}>
               <span className="tooltip-anchor">
                 <button className="btn btn-danger" disabled={Boolean(live) || remove.isPending} onClick={() => remove.requestDelete(summary)}>
                   <Trash2 {...ICON_SM} />
-                  {remove.isPending ? 'Deleting…' : 'Delete'}
+                  {remove.isPending ? t('sessionView.deleting') : t('sessionView.delete')}
                 </button>
               </span>
             </Tooltip>
             {/* A session a run already drives is continued in that run */}
             {!live?.runId && (
               <button className="btn btn-primary" onClick={() => setResumeOpen((v) => !v)}>
-                <Play {...ICON_SM} /> Continue in Agentry
+                <Play {...ICON_SM} /> {t('shared.continueInAgentry')}
               </button>
             )}
           </>
         }
       />
-      <div className="mono small muted">session {summary.id}</div>
+      <div className="mono small muted">{t('sessionView.sessionId', { id: summary.id })}</div>
       <FindBar find={find} />
 
       {resumeOpen && !live?.runId && (
-        <Card title="Continue in Agentry">
-          <p className="muted small">
-            Starts a run that picks this conversation up with its whole history. From then on you answer its questions and
-            permissions, interrupt it and change its mode or model from the panel.
-          </p>
+        <Card title={t('shared.continueInAgentry')}>
+          <p className="muted small">{t('sessionView.resumeIntro')}</p>
           {openElsewhere && (
             <div className="alert alert-warn" role="alert">
               <TerminalSquare {...ICON_SM} className="alert-icon" />
               <div className="alert-body stack-tight">
                 <span>
-                  This session is still open in a terminal. To hand it over, close it there first (<code>/exit</code>) and
-                  continue it as is. Otherwise continue in a copy: a new session with the same history that leaves the
-                  terminal&apos;s untouched.
+                  <Trans t={t} i18nKey="sessionView.openElsewhere" components={{ code: <code /> }} />
                 </span>
                 <Switch checked={asCopy} onChange={setAsCopy}>
-                  Continue in a copy
+                  {t('sessionView.continueCopy')}
                 </Switch>
               </div>
             </div>
@@ -173,7 +170,7 @@ export function SessionView() {
             <textarea
               autoFocus
               rows={3}
-              placeholder="Next message for Claude… (drop or paste files to attach them)"
+              placeholder={t('sessionView.placeholder')}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               onPaste={files.onPaste}
@@ -185,22 +182,30 @@ export function SessionView() {
             <ErrorBox error={resume.error} />
             <div className="form-actions">
               <button type="submit" className="btn btn-primary" disabled={!ready || resume.isPending}>
-                {resume.isPending ? 'Starting…' : files.uploading ? 'Uploading…' : fork ? 'Continue in a copy' : 'Continue'}
+                {resume.isPending
+                  ? t('shared.starting')
+                  : files.uploading
+                    ? t('shared.uploading')
+                    : fork
+                      ? t('sessionView.continueCopy')
+                      : t('sessionView.continue')}
               </button>
-              <span className="muted small">Runs in {summary.projectPath || 'the wrapper workspace'}</span>
+              <span className="muted small">
+                {t('sessionView.runsIn', { path: summary.projectPath || t('sessionView.wrapperWorkspace') })}
+              </span>
             </div>
           </form>
         </Card>
       )}
 
       {entries.length === 0 ? (
-        <Empty title="Empty transcript" />
+        <Empty title={t('sessionView.empty')} />
       ) : (
         <>
           {transcript.more && (
             <div className="transcript-earlier">
               <button type="button" className="btn btn-small" onClick={transcript.loadEarlier} disabled={transcript.loadingMore}>
-                {transcript.loadingMore ? 'Loading…' : `Load earlier messages (${transcript.from} above)`}
+                {transcript.loadingMore ? t('shared.loading') : t('sessionView.loadEarlier', { n: transcript.from })}
               </button>
             </div>
           )}

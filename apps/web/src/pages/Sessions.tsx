@@ -1,6 +1,7 @@
 import type { ProjectSummary, SessionSummary } from '@agentry/shared';
 import { ArrowUpRight, ChevronRight, GitBranch, History, Network, Play, Radio, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjects, useSessions } from '../api';
 import { Checkbox, Select, Tooltip } from '../components/controls';
@@ -14,14 +15,14 @@ import { formatBytes, formatDateTime, shortPath, timeAgo } from '../lib/format';
 type Show = 'active' | 'all';
 type View = 'grouped' | 'flat';
 type Sort = 'activity' | 'started' | 'messages';
-const SORT_OPTIONS: ReadonlyArray<{ value: Sort; label: string }> = [
-  { value: 'activity', label: 'Recent activity' },
-  { value: 'started', label: 'Recently started' },
-  { value: 'messages', label: 'Most messages' },
-];
+const SORTS: readonly Sort[] = ['activity', 'started', 'messages'];
 
 const FILTERABLE_ORIGINS: OriginKind[] = ['cli', 'run', 'orchestration'];
-const ORIGIN_CHIP_LABEL: Record<string, string> = { cli: 'CLI', run: 'Agentry runs', orchestration: 'Orchestrations' };
+const ORIGIN_CHIP_LABEL: Partial<Record<OriginKind, `sessions.origin.${'cli' | 'run' | 'orchestration'}`>> = {
+  cli: 'sessions.origin.cli',
+  run: 'sessions.origin.run',
+  orchestration: 'sessions.origin.orchestration',
+};
 const COLLAPSE_KEY = 'cw:sessions-collapsed';
 const SYNTHESIS = '__synthesis__';
 
@@ -67,6 +68,7 @@ function SessionItem({
   onDelete: (session: SessionSummary) => void;
   deleting: boolean;
 }) {
+  const { t } = useTranslation('work');
   const navigate = useNavigate();
   const origin = originOf(session);
   const liveRunId = session.live?.source === 'wrapper' ? (session.live.runId ?? origin.runId) : undefined;
@@ -76,7 +78,7 @@ function SessionItem({
     <div className={`srow ${session.live ? 'is-live' : ''}`}>
       <Link to={`/sessions/${session.id}`} className="srow-link">
         <span className="srow-status">
-          {session.live ? <StatusDot tone="active" live title={`live via ${session.live.source}`} /> : <StatusDot tone="muted" />}
+          {session.live ? <StatusDot tone="active" live title={t('shared.liveVia', { source: session.live.source })} /> : <StatusDot tone="muted" />}
         </span>
         <span className="srow-main">
           <span className="srow-title">
@@ -96,7 +98,7 @@ function SessionItem({
               </span>
             )}
             {session.model && <span className="chip chip-static mono">{session.model}</span>}
-            <span>{session.messageCount} msgs</span>
+            <span>{t('shared.msgs', { count: session.messageCount })}</span>
             <span>{formatBytes(session.sizeBytes)}</span>
           </span>
         </span>
@@ -105,28 +107,28 @@ function SessionItem({
         </span>
       </Link>
       <div className="srow-actions">
-        <Tooltip content="Open transcript">
+        <Tooltip content={t('sessions.openTranscript')}>
           <Link to={`/sessions/${session.id}`} className="btn btn-small">
-            Open <ArrowUpRight {...ICON_SM} />
+            {t('sessions.open')} <ArrowUpRight {...ICON_SM} />
           </Link>
         </Tooltip>
         {liveRunId ? (
           <Link to={`/runs/${liveRunId}`} className="btn btn-small btn-primary">
-            <Radio {...ICON_SM} /> Open run
+            <Radio {...ICON_SM} /> {t('sessions.openRun')}
           </Link>
         ) : (
-          <Tooltip content="Pick this conversation up in a run you control from the panel">
+          <Tooltip content={t('sessions.continueHint')}>
             <button className="btn btn-small" onClick={() => navigate(`/sessions/${session.id}?resume=1`)}>
-              <Play {...ICON_SM} /> Continue in Agentry
+              <Play {...ICON_SM} /> {t('shared.continueInAgentry')}
             </button>
           </Tooltip>
         )}
         {/* The wrapper keeps the tooltip working while the button is disabled */}
-        <Tooltip content={session.live ? 'Live sessions cannot be deleted' : 'Delete session'}>
+        <Tooltip content={session.live ? t('shared.liveCannotDelete') : t('sessions.deleteSession')}>
           <span className="tooltip-anchor">
             <button
               className="icon-btn"
-              aria-label={`Delete session ${session.title}`}
+              aria-label={t('sessions.deleteSessionNamed', { title: session.title })}
               disabled={Boolean(session.live) || deleting}
               onClick={() => onDelete(session)}
             >
@@ -148,7 +150,7 @@ interface OrchestrationGroup {
 type SectionItem = { kind: 'session'; session: SessionSummary } | { kind: 'orchestration'; group: OrchestrationGroup };
 
 /** Standalone sessions stay rows; orchestration workers collapse under one parent per orchestration. */
-function buildItems(sessions: SessionSummary[]): SectionItem[] {
+function buildItems(sessions: SessionSummary[], fallbackName: string): SectionItem[] {
   const groups = new Map<string, OrchestrationGroup>();
   const items: SectionItem[] = [];
   for (const session of sessions) {
@@ -156,7 +158,7 @@ function buildItems(sessions: SessionSummary[]): SectionItem[] {
     if (origin.kind === 'orchestration' && origin.orchestrationId) {
       let group = groups.get(origin.orchestrationId);
       if (!group) {
-        group = { id: origin.orchestrationId, name: origin.orchestrationName ?? 'orchestration', sessions: [] };
+        group = { id: origin.orchestrationId, name: origin.orchestrationName ?? fallbackName, sessions: [] };
         groups.set(group.id, group);
         items.push({ kind: 'orchestration', group }); // positioned where its best-ranked worker sorts
       }
@@ -188,6 +190,7 @@ function OrchestrationRow({
   onDelete: (session: SessionSummary) => void;
   pendingId?: string;
 }) {
+  const { t } = useTranslation('work');
   const liveCount = group.sessions.filter((s) => s.live).length;
   const last = group.sessions.map((s) => s.updatedAt ?? '').sort().at(-1) ?? null;
   return (
@@ -199,21 +202,21 @@ function OrchestrationRow({
             <Network {...ICON_SM} />
           </span>
           <span className="sorch-title ellipsis">
-            <span className="muted">Orchestration ·</span> {group.name}
+            <span className="muted">{t('sessions.orchestrationPrefix')}</span> {group.name}
           </span>
-          <span className="count">{group.sessions.length} workers</span>
+          <span className="count">{t('sessions.workers', { count: group.sessions.length })}</span>
           {liveCount > 0 && (
             <span className="badge badge-active">
-              <StatusDot tone="active" live /> {liveCount} live
+              <StatusDot tone="active" live /> {t('shared.liveCount', { count: liveCount })}
             </span>
           )}
         </button>
         <span className="muted small nowrap" title={formatDateTime(last)}>
           {timeAgo(last)}
         </span>
-        <Tooltip content="Open the orchestration board">
+        <Tooltip content={t('sessions.openBoard')}>
           <Link to={`/orchestration/${group.id}`} className="btn btn-small">
-            Board <ArrowUpRight {...ICON_SM} />
+            {t('sessions.board')} <ArrowUpRight {...ICON_SM} />
           </Link>
         </Tooltip>
       </div>
@@ -225,7 +228,7 @@ function OrchestrationRow({
               <SessionItem
                 key={session.id}
                 session={session}
-                label={origin.taskId === SYNTHESIS ? 'Synthesis' : (origin.taskName ?? origin.taskId)}
+                label={origin.taskId === SYNTHESIS ? t('sessions.synthesis') : (origin.taskName ?? origin.taskId)}
                 onDelete={onDelete}
                 deleting={pendingId === session.id}
               />
@@ -238,6 +241,7 @@ function OrchestrationRow({
 }
 
 export function Sessions() {
+  const { t } = useTranslation('work');
   const [params, setParams] = useSearchParams();
   const projects = useProjects();
   const sessions = useSessions();
@@ -331,12 +335,10 @@ export function Sessions() {
   return (
     <>
       <PageHeader
-        title="Sessions"
+        title={t('sessions.title')}
         subtitle={
           <span className="meta">
-            <span>
-              {visible.length} of {all.length} sessions
-            </span>
+            <span>{t('sessions.count', { visible: visible.length, total: all.length })}</span>
             {filtersActive && (
               <button
                 type="button"
@@ -346,7 +348,7 @@ export function Sessions() {
                   setParams(show === 'all' ? { show: 'all' } : {}, { replace: true });
                 }}
               >
-                <RotateCcw size={11} strokeWidth={2} aria-hidden /> Reset filters
+                <RotateCcw size={11} strokeWidth={2} aria-hidden /> {t('sessions.resetFilters')}
               </button>
             )}
           </span>
@@ -354,21 +356,21 @@ export function Sessions() {
         actions={
           <>
             <Segmented
-              label="Which sessions to show"
+              label={t('sessions.showLabel')}
               value={show}
               onChange={(v) => patch({ show: v === 'all' ? 'all' : null })}
               options={[
-                { value: 'active', label: 'Active', title: 'Sessions with a live process right now' },
-                { value: 'all', label: 'All' },
+                { value: 'active', label: t('sessions.active'), title: t('sessions.activeTitle') },
+                { value: 'all', label: t('sessions.all') },
               ]}
             />
             <Segmented
-              label="Layout"
+              label={t('sessions.layout')}
               value={view}
               onChange={(v) => patch({ view: v === 'flat' ? 'flat' : null })}
               options={[
-                { value: 'grouped', label: 'Grouped', title: 'By project, orchestration workers nested' },
-                { value: 'flat', label: 'Flat' },
+                { value: 'grouped', label: t('sessions.grouped'), title: t('sessions.groupedTitle') },
+                { value: 'flat', label: t('sessions.flat') },
               ]}
             />
           </>
@@ -380,32 +382,33 @@ export function Sessions() {
           <Search {...ICON_SM} />
           <input
             type="search"
-            placeholder="Search title, first prompt, project, id…"
-            aria-label="Search sessions"
+            placeholder={t('sessions.searchPlaceholder')}
+            aria-label={t('sessions.searchLabel')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Select
-          aria-label="Project"
+          aria-label={t('shared.project')}
           value={projectId}
           onChange={(v) => patch({ project: v || null })}
           options={[
-            { value: '', label: 'All projects' },
+            { value: '', label: t('sessions.allProjects') },
             ...(projects.data ?? [])
               .filter((p) => showTemporary || !p.temporary || p.id === projectId)
               .map((p) => ({ value: p.id, label: `${p.name} (${p.sessionCount})` })),
           ]}
         />
         <Select<Sort>
-          aria-label="Sort by"
+          aria-label={t('sessions.sortBy')}
           value={sort}
           onChange={(v) => patch({ sort: v === 'activity' ? null : v })}
-          options={SORT_OPTIONS}
+          options={SORTS.map((value) => ({ value, label: t(`sessions.sort.${value}` as const) }))}
         />
-        <div className="chips" role="group" aria-label="Origin">
+        <div className="chips" role="group" aria-label={t('sessions.originLabel')}>
           {FILTERABLE_ORIGINS.map((kind) => {
             const Icon = ORIGIN_META[kind].icon;
+            const label = ORIGIN_CHIP_LABEL[kind];
             return (
               <button
                 key={kind}
@@ -414,7 +417,7 @@ export function Sessions() {
                 aria-pressed={origins.has(kind)}
                 onClick={() => toggleOrigin(kind)}
               >
-                <Icon size={12} strokeWidth={2} aria-hidden /> {ORIGIN_CHIP_LABEL[kind]}
+                <Icon size={12} strokeWidth={2} aria-hidden /> {label ? t(label) : kind}
               </button>
             );
           })}
@@ -422,16 +425,16 @@ export function Sessions() {
         <Checkbox
           checked={showTemporary}
           onChange={(on) => patch({ temp: on ? '1' : null })}
-          tooltip="Sessions of projects under the OS temp directory"
+          tooltip={t('sessions.temporaryTooltip')}
         >
-          Temporary projects
+          {t('sessions.temporaryProjects')}
         </Checkbox>
         <Checkbox
           checked={showInternal}
           onChange={(on) => patch({ internal: on ? '1' : null })}
-          tooltip="Housekeeping sessions of the wrapper itself (planner, auth check)"
+          tooltip={t('sessions.internalTooltip')}
         >
-          Internal
+          {t('sessions.internal')}
         </Checkbox>
       </div>
 
@@ -446,20 +449,20 @@ export function Sessions() {
           {show === 'active' ? (
             <Empty
               icon={Radio}
-              title="No active sessions"
+              title={t('sessions.noActive')}
               action={
                 withoutShowFilter.length > 0 && (
                   <button className="btn btn-primary" onClick={() => patch({ show: 'all' })}>
-                    Show all sessions ({withoutShowFilter.length})
+                    {t('sessions.showAll', { n: withoutShowFilter.length })}
                   </button>
                 )
               }
             >
-              Nothing is running right now. Past sessions are one click away, or start a <Link to="/runs/new">new run</Link>.
+              <Trans t={t} i18nKey="sessions.noActiveHint" components={{ link: <Link to="/runs/new" /> }} />
             </Empty>
           ) : (
-            <Empty icon={History} title="No sessions match">
-              {filtersActive ? 'Try resetting the filters.' : 'Sessions appear here once Claude Code has run in a project.'}
+            <Empty icon={History} title={t('sessions.noMatch')}>
+              {filtersActive ? t('sessions.tryReset') : t('sessions.noSessionsHint')}
             </Empty>
           )}
         </Card>
@@ -483,7 +486,7 @@ export function Sessions() {
                     <span className="ssection-text">
                       <span className="ssection-name ellipsis">
                         {section.name}
-                        {section.temporary && <span className="badge">temporary</span>}
+                        {section.temporary && <span className="badge">{t('shared.temporary')}</span>}
                       </span>
                       <span className="mono small muted ellipsis" title={section.path}>
                         {shortPath(section.path, 64)}
@@ -492,7 +495,7 @@ export function Sessions() {
                   </button>
                   {section.live > 0 && (
                     <span className="badge badge-active">
-                      <StatusDot tone="active" live /> {section.live} live
+                      <StatusDot tone="active" live /> {t('shared.liveCount', { count: section.live })}
                     </span>
                   )}
                   <span className="count">{section.sessions.length}</span>
@@ -502,7 +505,7 @@ export function Sessions() {
                 </div>
                 <Collapse open={open}>
                   <div className="ssection-body">
-                    {buildItems(section.sessions).map((item) =>
+                    {buildItems(section.sessions, t('sessions.orchestrationFallback')).map((item) =>
                       item.kind === 'session' ? (
                         <SessionItem
                           key={item.session.id}
