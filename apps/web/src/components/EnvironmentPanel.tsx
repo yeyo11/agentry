@@ -3,17 +3,22 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { timeAgo } from '../lib/format';
+import { Collapsible } from './controls/Collapsible';
 import { ErrorBox, Skeleton, Tag } from './ui';
 
 const MCP_TONE: Record<string, string> = { connected: 'ok', failed: 'bad', 'needs-auth': 'warn', pending: 'muted' };
 
 function ChipGroup({ label, items, mono = true }: { label: string; items: string[]; mono?: boolean }) {
   return (
-    <details className="env-group">
-      <summary>
-        <span>{label}</span>
-        <span className={`count ${items.length > 0 ? 'count-on' : ''}`}>{items.length}</span>
-      </summary>
+    <Collapsible
+      className="env-group"
+      title={
+        <>
+          <span>{label}</span>
+          <span className={`count ${items.length > 0 ? 'count-on' : ''}`}>{items.length}</span>
+        </>
+      }
+    >
       {items.length === 0 ? (
         <div className="small muted">None loaded</div>
       ) : (
@@ -25,7 +30,7 @@ function ChipGroup({ label, items, mono = true }: { label: string; items: string
           ))}
         </div>
       )}
-    </details>
+    </Collapsible>
   );
 }
 
@@ -41,11 +46,16 @@ function EnvironmentBody({ env }: { env: EffectiveEnvironment }) {
         {env.outputStyle && <span>style: {env.outputStyle}</span>}
         <Link to={`/runs/${env.runId}`}>source run</Link>
       </div>
-      <details className="env-group" open={env.mcpServers.some((s) => s.status !== 'connected')}>
-        <summary>
-          <span>MCP servers</span>
-          <span className={`count ${env.mcpServers.length > 0 ? 'count-on' : ''}`}>{env.mcpServers.length}</span>
-        </summary>
+      <Collapsible
+        className="env-group"
+        defaultOpen={env.mcpServers.some((s) => s.status !== 'connected')}
+        title={
+          <>
+            <span>MCP servers</span>
+            <span className={`count ${env.mcpServers.length > 0 ? 'count-on' : ''}`}>{env.mcpServers.length}</span>
+          </>
+        }
+      >
         {env.mcpServers.length === 0 ? (
           <div className="small muted">None loaded</div>
         ) : (
@@ -57,17 +67,21 @@ function EnvironmentBody({ env }: { env: EffectiveEnvironment }) {
             ))}
           </div>
         )}
-      </details>
+      </Collapsible>
       <ChipGroup label="Tools" items={env.tools} />
       <ChipGroup label="Agents" items={env.agents} />
       <ChipGroup label="Skills" items={env.skills} />
       <ChipGroup label="Slash commands" items={env.slashCommands.map((c) => (c.startsWith('/') ? c : `/${c}`))} />
       <ChipGroup label="Plugins" items={env.plugins.map((p) => p.name)} />
-      <details className="env-group">
-        <summary>
-          <span>Memory paths</span>
-          <span className={`count ${memory.length > 0 ? 'count-on' : ''}`}>{memory.length}</span>
-        </summary>
+      <Collapsible
+        className="env-group"
+        title={
+          <>
+            <span>Memory paths</span>
+            <span className={`count ${memory.length > 0 ? 'count-on' : ''}`}>{memory.length}</span>
+          </>
+        }
+      >
         {memory.length === 0 ? (
           <div className="small muted">None reported</div>
         ) : (
@@ -80,7 +94,7 @@ function EnvironmentBody({ env }: { env: EffectiveEnvironment }) {
             ))}
           </dl>
         )}
-      </details>
+      </Collapsible>
     </div>
   );
 }

@@ -420,6 +420,9 @@ Across the app:
 - **Editors**: CodeMirror (JSON, Markdown, YAML, JS/TS) with `Ctrl/⌘ S`, unsaved-change guards
   (tabs, scope switches, sidebar navigation, reload), confirmation dialogs for destructive actions
   and toasts for every mutation.
+- **Form controls**: selects, suggestion lists, switches, checkboxes, sliders, number steppers,
+  tooltips and collapsible sections are built on Radix primitives and styled with the app's theme
+  tokens, so no control falls back to the operating system's look; all of them work from the keyboard.
 - **Motion**: page transitions, staggered lists, sliding tab indicators and animated status, all
   disabled under `prefers-reduced-motion`. Fonts (Inter, JetBrains Mono) and icons are bundled —
   the container needs no network access to render.

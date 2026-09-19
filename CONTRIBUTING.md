@@ -53,6 +53,14 @@ Every route must carry a summary and a tag — there is a test that enforces it.
 - **Persistence:** a settings-shaped document belongs in a JSON file; anything that is a stream
   (events, history, records that accumulate) belongs in the SQLite store in `packages/core/src/db.ts`.
   Rows, not blobs — two processes share one data dir.
+- **UI controls come from `apps/web/src/components/controls`** (Select, Combobox, Checkbox,
+  Switch, Slider, NumberInput, Tooltip, Collapsible), not from native `<select>`, `<datalist>`,
+  checkbox/range/number inputs, `<details>` or `title=` on interactive elements: the native ones
+  render with the operating system's look and ignore the theme. Plain text inputs and textareas
+  stay native. Use a Switch for a setting that turns something on or off and a Checkbox for filters
+  and multi-choice lists. In e2e specs, `page.select(trigger, optionText)` drives a Select.
+  Pages import from the `controls` barrel; modules loaded on first paint (App, Dialog, RunView…)
+  import the file they need, or the barrel pulls the lazy form controls into the initial bundle.
 - **Tests carry their reasoning.** Name a test after the behaviour it protects, not the function
   it calls.
 

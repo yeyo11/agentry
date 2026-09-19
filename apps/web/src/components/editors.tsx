@@ -1,5 +1,6 @@
 import { Eye, EyeOff, X } from 'lucide-react';
 import { useState, type KeyboardEvent } from 'react';
+import { Tooltip } from './controls/Tooltip';
 import { ICON_SM } from './icons';
 
 /** Chip list with an "add" input: permission rules, args, directories… */
@@ -118,14 +119,15 @@ export function KeyValueEditor({
         const shown = !maskValues || revealed.has(index);
         return (
           <div key={index} className="kv-editor-row">
-            <input
-              className={`mono ${duplicates.has(row.key.trim()) ? 'is-invalid' : ''}`}
-              value={row.key}
-              placeholder={keyPlaceholder}
-              aria-label="Name"
-              title={duplicates.has(row.key.trim()) ? 'Duplicate name: the last one wins' : undefined}
-              onChange={(e) => update(index, { key: e.target.value })}
-            />
+            <Tooltip content={duplicates.has(row.key.trim()) && 'Duplicate name: the last one wins'}>
+              <input
+                className={`mono ${duplicates.has(row.key.trim()) ? 'is-invalid' : ''}`}
+                value={row.key}
+                placeholder={keyPlaceholder}
+                aria-label="Name"
+                onChange={(e) => update(index, { key: e.target.value })}
+              />
+            </Tooltip>
             <input
               className="mono"
               type={shown ? 'text' : 'password'}
@@ -136,32 +138,34 @@ export function KeyValueEditor({
               onChange={(e) => update(index, { value: e.target.value })}
             />
             {maskValues && (
+              <Tooltip content={shown ? 'Hide value' : 'Reveal value'}>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label={shown ? 'Hide value' : 'Reveal value'}
+                  onClick={() =>
+                    setRevealed((current) => {
+                      const next = new Set(current);
+                      if (next.has(index)) next.delete(index);
+                      else next.add(index);
+                      return next;
+                    })
+                  }
+                >
+                  {shown ? <EyeOff {...ICON_SM} /> : <Eye {...ICON_SM} />}
+                </button>
+              </Tooltip>
+            )}
+            <Tooltip content="Remove">
               <button
                 type="button"
                 className="icon-btn"
-                aria-label={shown ? 'Hide value' : 'Reveal value'}
-                title={shown ? 'Hide value' : 'Reveal value'}
-                onClick={() =>
-                  setRevealed((current) => {
-                    const next = new Set(current);
-                    if (next.has(index)) next.delete(index);
-                    else next.add(index);
-                    return next;
-                  })
-                }
+                aria-label={`Remove ${row.key || 'row'}`}
+                onClick={() => onChange(rows.filter((_, i) => i !== index))}
               >
-                {shown ? <EyeOff {...ICON_SM} /> : <Eye {...ICON_SM} />}
+                <X {...ICON_SM} />
               </button>
-            )}
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label={`Remove ${row.key || 'row'}`}
-              title="Remove"
-              onClick={() => onChange(rows.filter((_, i) => i !== index))}
-            >
-              <X {...ICON_SM} />
-            </button>
+            </Tooltip>
           </div>
         );
       })}

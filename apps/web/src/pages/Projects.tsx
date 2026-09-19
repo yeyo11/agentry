@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, keys, useProjects } from '../api';
+import { Checkbox } from '../components/controls';
 import { Card, Empty, ErrorBox, Field, Loading, PageHeader, Tag } from '../components/ui';
 import { ICON_SM, Monogram } from '../components/icons';
 import { Stagger } from '../components/motion';
@@ -58,10 +59,9 @@ export function Projects() {
         actions={
           <>
             {temporaryCount > 0 && (
-              <label className="check" title="Projects under the OS temp directory">
-                <input type="checkbox" checked={showTemporary} onChange={(e) => setShowTemporary(e.target.checked)} /> Show temporary (
-                {temporaryCount})
-              </label>
+              <Checkbox checked={showTemporary} onChange={setShowTemporary} tooltip="Projects under the OS temp directory">
+                Show temporary ({temporaryCount})
+              </Checkbox>
             )}
             {!creating && (
             <button className="btn btn-primary" onClick={() => setCreating(true)}>

@@ -91,11 +91,19 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
       await this.waitFor(expression, { label: `click ${selector}${text ? ` "${text}"` : ''}` });
       await sleep(wait);
     },
-    /** Sets an input/textarea/select value the way React expects; waits for the element. */
+    /**
+     * Picks `optionText` in a themed Select: clicks its trigger, then the matching [role=option]
+     * in the portalled menu. A synthetic click takes Radix's touch path, which opens and selects.
+     */
+    async select(triggerSelector, optionText) {
+      await this.click(triggerSelector, undefined, 300);
+      await this.click('[role=listbox] [role=option]', optionText, 400);
+    },
+    /** Sets an input/textarea value the way React expects; waits for the element. */
     async fill(selector, value) {
       await this.waitFor(
         `const el=document.querySelector(${JSON.stringify(selector)});if(!el)return false;` +
-          `const proto=el.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:el.tagName==='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype;` +
+          `const proto=el.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;` +
           `Object.getOwnPropertyDescriptor(proto,'value').set.call(el,${JSON.stringify(value)});` +
           `el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return true;`,
         { label: `fill ${selector}` },
@@ -112,7 +120,7 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
     },
     /** modifiers: 1 Alt, 2 Ctrl, 4 Meta, 8 Shift */
     async key(key, modifiers = 0) {
-      const base = { key, code: key.length === 1 ? `Key${key.toUpperCase()}` : key, modifiers, windowsVirtualKeyCode: key.length === 1 ? key.toUpperCase().charCodeAt(0) : { Enter: 13, Escape: 27, Tab: 9 }[key] };
+      const base = { key, code: key.length === 1 ? `Key${key.toUpperCase()}` : key, modifiers, windowsVirtualKeyCode: key.length === 1 ? key.toUpperCase().charCodeAt(0) : { Enter: 13, Escape: 27, Tab: 9, ArrowUp: 38, ArrowDown: 40 }[key] };
       await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base });
       await send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
       await sleep(250);

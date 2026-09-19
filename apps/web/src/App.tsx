@@ -22,6 +22,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useOverview } from './api';
 import { CommandPalette, CommandPaletteTrigger } from './components/CommandPalette';
+import { Tooltip } from './components/controls/Tooltip';
 import { BrandMark, ICON } from './components/icons';
 import { AnimatePresence, motion, PageTransition, SlidingIndicator, StatusDot, useReducedMotion } from './components/motion';
 import { Empty, Skeleton } from './components/ui';
@@ -144,6 +145,9 @@ export function App() {
           ? 'Install it or set CLAUDE_BIN'
           : 'Add a credential in Config';
 
+  // In the icon rail the labels are hidden, so they move into tooltips
+  const railTip = (label: string) => (collapsed ? label : undefined);
+
   return (
     <div className={`shell ${collapsed ? 'shell-rail' : ''} ${mobileNav ? 'shell-nav-open' : ''}`}>
       <AnimatePresence>
@@ -161,19 +165,22 @@ export function App() {
 
       <aside className="sidebar" aria-label="Sidebar">
         <div className="sidebar-head">
-          <NavLink to="/" className="brand" title="Agentry">
-            <BrandMark />
-            <span className="brand-name">Agentry</span>
-          </NavLink>
-          <button
-            type="button"
-            className="icon-btn sidebar-collapse"
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            onClick={() => setCollapsed((v) => !v)}
-          >
-            {collapsed ? <PanelLeftOpen {...ICON} /> : <PanelLeftClose {...ICON} />}
-          </button>
+          <Tooltip content={railTip('Agentry')} side="right">
+            <NavLink to="/" className="brand" aria-label="Agentry">
+              <BrandMark />
+              <span className="brand-name">Agentry</span>
+            </NavLink>
+          </Tooltip>
+          <Tooltip content={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right">
+            <button
+              type="button"
+              className="icon-btn sidebar-collapse"
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              onClick={() => setCollapsed((v) => !v)}
+            >
+              {collapsed ? <PanelLeftOpen {...ICON} /> : <PanelLeftClose {...ICON} />}
+            </button>
+          </Tooltip>
           <button type="button" className="icon-btn sidebar-close" aria-label="Close navigation" onClick={() => setMobileNav(false)}>
             <X {...ICON} />
           </button>
@@ -187,46 +194,45 @@ export function App() {
                 const active = isActive(item, pathname);
                 const Icon = item.icon;
                 return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.to === '/'}
-                    className={`nav-link ${active ? 'is-active' : ''}`}
-                    title={item.label}
-                    data-tooltip={item.label}
-                  >
-                    {active && <SlidingIndicator layoutId="nav-pill" className="nav-pill" />}
-                    <span className="nav-icon">
-                      <Icon {...ICON} />
-                    </span>
-                    <span className="nav-label">{item.label}</span>
-                    {item.count ? (
-                      <span className="nav-count" aria-label={`${item.count} active`}>
-                        <span className="nav-count-ping" aria-hidden />
-                        {item.count}
+                  <Tooltip key={item.to} content={railTip(item.label)} side="right">
+                    <NavLink to={item.to} end={item.to === '/'} className={`nav-link ${active ? 'is-active' : ''}`}>
+                      {active && <SlidingIndicator layoutId="nav-pill" className="nav-pill" />}
+                      <span className="nav-icon">
+                        <Icon {...ICON} />
                       </span>
-                    ) : null}
-                  </NavLink>
+                      <span className="nav-label">{item.label}</span>
+                      {item.count ? (
+                        <span className="nav-count" aria-label={`${item.count} active`}>
+                          <span className="nav-count-ping" aria-hidden />
+                          {item.count}
+                        </span>
+                      ) : null}
+                    </NavLink>
+                  </Tooltip>
                 );
               })}
             </div>
           ))}
         </nav>
 
-        <a href="/docs" target="_blank" rel="noopener noreferrer" className="nav-link nav-link-ext" title="API reference" data-tooltip="API reference">
-          <span className="nav-icon">
-            <BookOpen {...ICON} />
-          </span>
-          <span className="nav-label">API reference</span>
-        </a>
+        <Tooltip content={railTip('API reference')} side="right">
+          <a href="/docs" target="_blank" rel="noopener noreferrer" className="nav-link nav-link-ext">
+            <span className="nav-icon">
+              <BookOpen {...ICON} />
+            </span>
+            <span className="nav-label">API reference</span>
+          </a>
+        </Tooltip>
 
-        <NavLink to="/config?tab=account" className="sidebar-foot" title={`${statusTitle}${statusDetail ? ` · ${statusDetail}` : ''}`}>
-          <StatusDot tone={statusTone} live={healthy} />
-          <span className="sidebar-foot-text">
-            <span className="sidebar-foot-title ellipsis">{statusTitle}</span>
-            {statusDetail && <span className="sidebar-foot-detail ellipsis">{statusDetail}</span>}
-          </span>
-        </NavLink>
+        <Tooltip content={`${statusTitle}${statusDetail ? ` · ${statusDetail}` : ''}`} side="right">
+          <NavLink to="/config?tab=account" className="sidebar-foot">
+            <StatusDot tone={statusTone} live={healthy} />
+            <span className="sidebar-foot-text">
+              <span className="sidebar-foot-title ellipsis">{statusTitle}</span>
+              {statusDetail && <span className="sidebar-foot-detail ellipsis">{statusDetail}</span>}
+            </span>
+          </NavLink>
+        </Tooltip>
       </aside>
 
       <div className="content">

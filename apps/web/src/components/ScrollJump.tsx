@@ -1,5 +1,6 @@
 import { ArrowDownToLine, ArrowUpToLine } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { Tooltip } from './controls/Tooltip';
 import { ICON_SM } from './icons';
 
 type Position = 'hidden' | 'top' | 'middle' | 'bottom';
@@ -59,14 +60,18 @@ export function ScrollJump({ screens = 2, label = 'transcript' }: { screens?: nu
       <span ref={anchor} hidden />
       <div className="scroll-jump" role="group" aria-label={`Jump within the ${label}`}>
         {position !== 'top' && (
-          <button type="button" className="icon-btn" onClick={() => jump('top')} title="Oldest (top)" aria-label={`Jump to the start of the ${label}`}>
-            <ArrowUpToLine {...ICON_SM} />
-          </button>
+          <Tooltip content="Oldest (top)">
+            <button type="button" className="icon-btn" onClick={() => jump('top')} aria-label={`Jump to the start of the ${label}`}>
+              <ArrowUpToLine {...ICON_SM} />
+            </button>
+          </Tooltip>
         )}
         {position !== 'bottom' && (
-          <button type="button" className="icon-btn" onClick={() => jump('bottom')} title="Newest (bottom)" aria-label={`Jump to the end of the ${label}`}>
-            <ArrowDownToLine {...ICON_SM} />
-          </button>
+          <Tooltip content="Newest (bottom)">
+            <button type="button" className="icon-btn" onClick={() => jump('bottom')} aria-label={`Jump to the end of the ${label}`}>
+              <ArrowDownToLine {...ICON_SM} />
+            </button>
+          </Tooltip>
         )}
       </div>
     </>

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
+import { Select } from '../../components/controls';
 import { useToast } from '../../components/Toast';
 import { Card, ErrorBox, Field, Skeleton, Tag } from '../../components/ui';
 
@@ -109,10 +110,14 @@ export function AccountTab() {
           }}
         >
           <Field label="Type">
-            <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
-              <option value="oauthToken">Subscription OAuth token (claude setup-token)</option>
-              <option value="apiKey">Anthropic API key</option>
-            </select>
+            <Select
+              value={kind}
+              onChange={setKind}
+              options={[
+                { value: 'oauthToken', label: 'Subscription OAuth token (claude setup-token)' },
+                { value: 'apiKey', label: 'Anthropic API key' },
+              ]}
+            />
           </Field>
           <Field
             label={kind === 'oauthToken' ? 'OAuth token' : 'API key'}

@@ -2,6 +2,7 @@ import type { ContentBlock, RunEvent, TranscriptEntry } from '@agentry/shared';
 import { Brain, CircleAlert, CornerDownRight, Flag, Info, Sparkles, TerminalSquare, User } from 'lucide-react';
 import { Fragment, memo, type ReactNode } from 'react';
 import { formatClock, formatCost, formatDuration, truncate } from '../lib/format';
+import { Collapsible } from './controls/Collapsible';
 import { BrandMark, ICON_SM, toolIcon } from './icons';
 import { RiseIn } from './motion';
 import { CopyButton, StatusBadge } from './ui';
@@ -106,41 +107,53 @@ function Block({ block }: { block: ContentBlock }) {
       return <RichText text={block.text} />;
     case 'thinking':
       return (
-        <details className="fold fold-thinking">
-          <summary>
-            <Brain {...ICON_SM} className="fold-icon" />
-            <span className="tool-name">Thinking</span>
-          </summary>
+        <Collapsible
+          className="fold fold-thinking"
+          title={
+            <>
+              <Brain {...ICON_SM} className="fold-icon" />
+              <span className="tool-name">Thinking</span>
+            </>
+          }
+        >
           <div className="prose muted fold-body">{block.text}</div>
-        </details>
+        </Collapsible>
       );
     case 'tool_use': {
       const ToolIcon = toolIcon(block.name);
       return (
-        <details className="fold fold-tool">
-          <summary>
-            <ToolIcon {...ICON_SM} className="fold-icon" />
-            <span className="tool-name">{block.name}</span>
-            <span className="tool-hint">{toolHint(block.input)}</span>
-          </summary>
+        <Collapsible
+          className="fold fold-tool"
+          title={
+            <>
+              <ToolIcon {...ICON_SM} className="fold-icon" />
+              <span className="tool-name">{block.name}</span>
+              <span className="tool-hint">{toolHint(block.input)}</span>
+            </>
+          }
+        >
           <CodeBlock code={JSON.stringify(block.input, null, 2)} lang="json" />
-        </details>
+        </Collapsible>
       );
     }
     case 'tool_result': {
       const long = block.content.length > RESULT_PREVIEW_CHARS;
       return (
-        <details className={`fold fold-result ${block.isError ? 'is-error' : ''}`}>
-          <summary>
-            {block.isError ? <CircleAlert {...ICON_SM} className="fold-icon" /> : <CornerDownRight {...ICON_SM} className="fold-icon" />}
-            <span className="tool-name">{block.isError ? 'Tool error' : 'Tool result'}</span>
-            <span className="tool-hint">{truncate(block.content.replace(/\s+/g, ' '), 110) || '(empty)'}</span>
-          </summary>
+        <Collapsible
+          className={`fold fold-result ${block.isError ? 'is-error' : ''}`}
+          title={
+            <>
+              {block.isError ? <CircleAlert {...ICON_SM} className="fold-icon" /> : <CornerDownRight {...ICON_SM} className="fold-icon" />}
+              <span className="tool-name">{block.isError ? 'Tool error' : 'Tool result'}</span>
+              <span className="tool-hint">{truncate(block.content.replace(/\s+/g, ' '), 110) || '(empty)'}</span>
+            </>
+          }
+        >
           <CodeBlock
             tone={block.isError ? 'error' : undefined}
             code={long ? `${block.content.slice(0, RESULT_PREVIEW_CHARS)}\n… [${block.content.length - RESULT_PREVIEW_CHARS} more chars]` : block.content}
           />
-        </details>
+        </Collapsible>
       );
     }
   }
@@ -259,10 +272,9 @@ function InlineEvent({ event }: { event: RunEvent }) {
           </span>
           {isError && event.text && <span className="evt-text">{truncate(event.text, 400)}</span>}
           {data.structured_output != null && (
-            <details className="fold">
-              <summary>Structured output</summary>
+            <Collapsible className="fold" title="Structured output">
               <CodeBlock code={JSON.stringify(data.structured_output, null, 2)} lang="json" />
-            </details>
+            </Collapsible>
           )}
         </div>
       );
@@ -299,13 +311,17 @@ function InlineEvent({ event }: { event: RunEvent }) {
       );
     default:
       return (
-        <details className="evt fold">
-          <summary>
-            <span className="evt-label">{event.subtype ? `${event.type}/${event.subtype}` : event.type}</span>
-            {event.text && <span className="evt-text">{truncate(event.text, 200)}</span>}
-          </summary>
+        <Collapsible
+          className="evt fold"
+          title={
+            <>
+              <span className="evt-label">{event.subtype ? `${event.type}/${event.subtype}` : event.type}</span>
+              {event.text && <span className="evt-text">{truncate(event.text, 200)}</span>}
+            </>
+          }
+        >
           {event.data && <CodeBlock code={JSON.stringify(event.data, null, 2)} lang="json" />}
-        </details>
+        </Collapsible>
       );
   }
 }

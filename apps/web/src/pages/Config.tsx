@@ -1,5 +1,6 @@
 import type { ResourceKind } from '@agentry/shared';
 import { useSearchParams } from 'react-router-dom';
+import { Collapsible } from '../components/controls';
 import { EnvironmentPanel } from '../components/EnvironmentPanel';
 import { PageHeader, PathLabel, Tabs } from '../components/ui';
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
@@ -85,13 +86,17 @@ function ConfigInner() {
       )}
 
       {state.project && (
-        <details className="card fold-card">
-          <summary>
-            <h2>Effective environment</h2>
-            <span className="small muted">what Claude actually loaded in the last run here</span>
-          </summary>
+        <Collapsible
+          className="card fold-card"
+          title={
+            <>
+              <span className="fold-card-title">Effective environment</span>
+              <span className="small muted">what Claude actually loaded in the last run here</span>
+            </>
+          }
+        >
           <EnvironmentPanel cwd={state.project.path} />
-        </details>
+        </Collapsible>
       )}
 
       <Tabs

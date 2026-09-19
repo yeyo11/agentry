@@ -18,7 +18,7 @@
 - **API reference** — OpenAPI 3.1 generated from the shared types, served with Scalar at `/docs`;
   a test enforces that every route is documented.
 - **UI** — command palette (⌘K), light/dark/system themes, CodeMirror editors, unsaved-change
-  guards, toasts and confirmation dialogs, responsive layout.
+  guards, toasts and confirmation dialogs, themed form controls (Radix), responsive layout.
 - **Tests** — unit (core), API integration (Fastify inject) and an in-repo browser suite (`e2e/`,
   headless Chrome over CDP against an isolated wrapper).
 - **Docker** — single image (non-root, CLI baked in), one volume for the whole account setup.

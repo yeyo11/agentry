@@ -21,7 +21,7 @@ function seedSession(configDir, projectId, sessionId, { cwd, title, at }) {
 const toggle = (page, text) =>
   page.waitFor(
     `const l=[...document.querySelectorAll('label')].find(e=>e.textContent.trim().startsWith(${JSON.stringify(text)}));` +
-      `const i=l?.querySelector('input[type=checkbox]');if(!i)return false;i.click();return true;`,
+      `const i=l?.querySelector('[role=checkbox]');if(!i)return false;i.click();return true;`,
     { label: `toggle ${text}` },
   );
 
@@ -62,5 +62,13 @@ export default async ({ page, api, check }) => {
   await page.click('[aria-label="Layout"] button', 'Flat');
   await page.waitFor(`return document.querySelectorAll('.ssection').length === 0 && !!document.querySelector('.scard')`, { label: 'flat layout' });
   check((await page.text('main')).includes('2 of 3 sessions'), 'reset keeps the All view and default noise filters');
+
+  // The sort Select is a themed listbox: picking an option updates the URL and the order
+  await page.select('[aria-label="Sort by"]', 'Most messages');
+  await page.waitFor(`return location.search.includes('sort=messages')`, { label: 'sort in the URL' });
+  check((await page.text('[aria-label="Sort by"]')).includes('Most messages'), 'the trigger shows the picked sort');
+  await page.select('[aria-label="Sort by"]', 'Recent activity');
+  await page.waitFor(`return !location.search.includes('sort=')`, { label: 'default sort drops the param' });
+  check((await page.text('.scard')).includes('Add dark mode'), 'recent activity puts the newest session first');
   await page.shot('sessions-grouped');
 };

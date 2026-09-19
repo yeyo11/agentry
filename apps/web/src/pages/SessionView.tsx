@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Play, Radio, Trash2 } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, useSession } from '../api';
+import { Switch, Tooltip } from '../components/controls';
 import { ICON_SM } from '../components/icons';
 import { ScrollJump } from '../components/ScrollJump';
 import { useDeleteSession } from '../components/SessionDelete';
@@ -75,19 +76,18 @@ export function SessionView() {
                 <Radio {...ICON_SM} /> Open live run
               </Link>
             )}
-            <label className="check">
-              <input type="checkbox" checked={sidechains} onChange={(e) => setSidechains(e.target.checked)} /> Subagent
-              sidechains
-            </label>
-            <button
-              className="btn btn-danger"
-              disabled={Boolean(live) || remove.isPending}
-              title={live ? 'Live sessions cannot be deleted' : 'Delete the transcript'}
-              onClick={() => remove.requestDelete(summary)}
-            >
-              <Trash2 {...ICON_SM} />
-              {remove.isPending ? 'Deleting…' : 'Delete'}
-            </button>
+            <Switch checked={sidechains} onChange={setSidechains}>
+              Subagent sidechains
+            </Switch>
+            {/* The wrapper keeps the tooltip reachable while the button is disabled */}
+            <Tooltip content={live ? 'Live sessions cannot be deleted' : 'Delete the transcript'}>
+              <span className="tooltip-anchor">
+                <button className="btn btn-danger" disabled={Boolean(live) || remove.isPending} onClick={() => remove.requestDelete(summary)}>
+                  <Trash2 {...ICON_SM} />
+                  {remove.isPending ? 'Deleting…' : 'Delete'}
+                </button>
+              </span>
+            </Tooltip>
             <button className="btn btn-primary" onClick={() => setResumeOpen((v) => !v)}>
               <Play {...ICON_SM} /> Resume in a run
             </button>

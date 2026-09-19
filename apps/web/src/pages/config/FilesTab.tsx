@@ -4,6 +4,7 @@ import { ChevronRight, Folder, FolderOpen, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiRequestError, keys, type Scope } from '../../api';
 import { CodeEditor, languageForPath } from '../../components/CodeEditor';
+import { Select, Switch, Tooltip } from '../../components/controls';
 import { Dialog, useConfirm } from '../../components/Dialog';
 import { fileIcon, ICON_SM } from '../../components/icons';
 import { Collapse } from '../../components/motion';
@@ -100,16 +101,17 @@ function TreeNode({
         {!isDir && node.size !== undefined && <span className="small muted tree-size">{formatBytes(node.size)}</span>}
       </button>
       {isDir && (
-        <button
-          type="button"
-          className="icon-btn tree-delete"
-          aria-label={`Delete folder ${node.path}`}
-          title="Delete folder"
-          onClick={() => onDeleteDir(node.path)}
-        >
-          <Trash2 {...ICON_SM} />
-          <span className="sr-only">Delete folder</span>
-        </button>
+        <Tooltip content="Delete folder">
+          <button
+            type="button"
+            className="icon-btn tree-delete"
+            aria-label={`Delete folder ${node.path}`}
+            onClick={() => onDeleteDir(node.path)}
+          >
+            <Trash2 {...ICON_SM} />
+            <span className="sr-only">Delete folder</span>
+          </button>
+        </Tooltip>
       )}
       </div>
       {isDir && (
@@ -176,20 +178,15 @@ function NewFileDialog({
     >
       <div className="form">
         <Field label="Template">
-          <select
+          <Select
             value={templateId}
-            onChange={(e) => {
-              const next = TEMPLATES.find((t) => t.id === e.target.value) ?? TEMPLATES[0];
+            onChange={(value) => {
+              const next = TEMPLATES.find((t) => t.id === value) ?? TEMPLATES[0];
               setTemplateId(next.id);
               if (next.path) setPath(next.path);
             }}
-          >
-            {TEMPLATES.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+            options={TEMPLATES.map((t) => ({ value: t.id, label: t.label }))}
+          />
         </Field>
         <Field label="Path" hint="Relative to the root shown above. Missing directories are created on save.">
           <input
@@ -449,14 +446,13 @@ export function FilesTab({ scope }: { scope: Scope }) {
                 >
                   Discard
                 </button>
-                <label className="check" title="chmod +x — required for hook scripts run directly">
-                  <input
-                    type="checkbox"
-                    checked={file.executable}
-                    onChange={(e) => setFile((f) => (f ? { ...f, executable: e.target.checked } : f))}
-                  />
+                <Switch
+                  checked={file.executable}
+                  onChange={(executable) => setFile((f) => (f ? { ...f, executable } : f))}
+                  tooltip="chmod +x — required for hook scripts run directly"
+                >
                   Executable
-                </label>
+                </Switch>
                 {!file.isNew && selectedNode && (
                   <button
                     className="btn btn-danger push-right"
