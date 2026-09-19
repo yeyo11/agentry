@@ -17,8 +17,9 @@ export function ScrollJump({ screens = 2, label = 'transcript' }: { screens?: nu
 
   useEffect(() => {
     // The page's scroll container, found from where we are rendered rather than by a global
-    // selector, so this keeps working if the shell is restructured.
-    const el = anchor.current?.closest<HTMLElement>('.main') ?? null;
+    // selector, so this keeps working if the shell is restructured. A panel that scrolls on its
+    // own (it is portalled out of the page) marks its scroller instead.
+    const el = anchor.current?.closest<HTMLElement>('[data-scroll-root], .main') ?? null;
     scroller.current = el;
     if (!el) return;
 

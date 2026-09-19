@@ -485,10 +485,10 @@ Delegated to `claude plugin`; actions return the CLI output as `{ ok, output }` 
 | Page | What it covers |
 | --- | --- |
 | Dashboard | CLI detection, auth status, subscription usage limits, live runs, recent sessions |
-| Agents | Runs in progress, their subagents, and every live CLI session on the machine |
+| Agents | Runs in progress, their subagents, and every live CLI session on the machine. A subagent's **Details** opens a side panel (also from a run's side card and a workflow's agents): its prompt, status, duration, tokens, full transcript, result and the background tasks it launched, updating while it runs |
 | Run view | Live chat over SSE: messages, thinking, tool calls/results, background tasks, subagents, what Claude loaded |
 | Sessions | Full history across projects, transcripts (with subagent sidechains), resume into a run, delete |
-| Background tasks | Tasks started by any run, with status and duration |
+| Background tasks | Tasks started by any run or session, with status and duration; those launched by a subagent are tagged. **Output** opens a side panel that follows the command's output while it runs. Panels are addressable (`?detail=…`), so a reload or a link brings them back |
 | Projects | Workspace directories and directories with history; create or clone a project |
 | Orchestration | Auto-planned or manual task DAG, live board by stage, per-task results, synthesis |
 | Accounts | Registered accounts with 5h/7d (and per-model) usage, manual switch, add/remove, enable/disable, auto-rotation settings and the rotation log |

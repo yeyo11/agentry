@@ -23,6 +23,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useOverview } from './api';
 import { CommandPalette, CommandPaletteTrigger } from './components/CommandPalette';
+import { DetailHost } from './components/DetailHost';
 import { Tooltip } from './components/controls/Tooltip';
 import { BrandMark, ICON } from './components/icons';
 import { AnimatePresence, motion, PageTransition, SlidingIndicator, StatusDot, useReducedMotion } from './components/motion';
@@ -300,6 +301,7 @@ export function App() {
       </div>
 
       <CommandPalette />
+      <DetailHost />
     </div>
   );
 }
