@@ -15,6 +15,11 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
+// Core lists the CLI's own sessions with this; without an answer it waits for stdin to close
+if (args[0] === 'agents') {
+  process.stdout.write('[]\n');
+  process.exit(0);
+}
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const out = (msg) => process.stdout.write(`${JSON.stringify(msg)}\n`);
 // Like the CLI, a fork resumes the history under a new id

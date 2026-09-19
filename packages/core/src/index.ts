@@ -334,7 +334,18 @@ export class Core {
         {
           if (source.kind === 'stream') {
             const location = this.locate(source.run.workingDir ?? source.run.cwd);
-            return source.run.backgroundTasks.map((t) => ({ ...t, source: 'run' as const, location }));
+            const sessionId = source.run.sessionId;
+            const owners = sessionId && source.run.backgroundTasks.some((t) => t.fromSubagent && !t.ownerAgentId) ? await this.sessions.taskOwners(sessionId) : null;
+            return source.run.backgroundTasks.map((t) => {
+              const ownerAgentId = t.ownerAgentId ?? (t.fromSubagent ? owners?.get(t.id) : undefined);
+              return {
+                ...t,
+                source: 'run' as const,
+                location,
+                ...(!t.sessionId && sessionId ? { sessionId } : {}),
+                ...(ownerAgentId ? { ownerAgentId } : {}),
+              };
+            });
           }
           const location = await this.locateSession(source.sessionId);
           return (await this.sessions.backgroundTasks(source.sessionId, source.live).catch(() => [])).map((t) => ({

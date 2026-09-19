@@ -682,6 +682,17 @@
         "type": "boolean",
         "description": "Sent to the background by the person at the terminal rather than by the model"
       },
+      "fromSubagent": {
+        "type": "boolean",
+        "description": "Launched by a subagent rather than by the main agent (`owned_by_subagent` on the stream event)"
+      },
+      "ownerAgentId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The subagent that launched it, when known. The stream event only says a subagent did, so this comes from the subagent's own transcript, where the launch result is recorded."
+      },
       "location": {
         "anyOf": [
           {
@@ -1974,23 +1985,233 @@
         "type": "string"
       },
       "output": {
-        "type": "string"
+        "type": "string",
+        "description": "Without `offset`, the tail of the file (at most 64 KiB); with it, up to 64 KiB of what follows that byte, so a longer gap takes several reads (`offset` < `bytes` means more is waiting)"
       },
       "truncated": {
         "type": "boolean",
-        "description": "Only the end of a long output is returned"
+        "description": "`output` is the tail of a longer file, not its start. Never set on a read that resumed from `offset`."
       },
       "bytes": {
-        "type": "number"
+        "type": "number",
+        "description": "Size of the output file in bytes"
+      },
+      "offset": {
+        "type": "number",
+        "description": "Byte position just after `output`: pass it back as `?offset=` to read only what came since"
+      },
+      "reset": {
+        "type": "boolean",
+        "description": "The requested `offset` was past the end of the file (it was replaced), so `output` restarts from the tail"
       }
     },
     "required": [
       "taskId",
       "output",
       "truncated",
-      "bytes"
+      "bytes",
+      "offset"
     ],
     "description": "Captured output of a background task, as the CLI wrote it."
+  },
+  "AgentTranscript": {
+    "type": "object",
+    "properties": {
+      "agentId": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "subagent",
+          "workflow"
+        ]
+      },
+      "workflowRunId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The workflow run (`wf_…`) a workflow agent belongs to"
+      },
+      "toolUseId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The Agent tool call that spawned it; workflow agents have none"
+      },
+      "subagentType": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The CLI's `agentType` (`Explore`, `general-purpose`, `workflow-subagent`…)"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The description given at launch; a workflow agent's is its label"
+      },
+      "workflowPhase": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "prompt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Its first message: the prompt it was given"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "running",
+          "completed",
+          "failed",
+          "stopped"
+        ],
+        "description": "`stopped` when its session ended before the agent reported back"
+      },
+      "background": {
+        "type": "boolean"
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "durationMs": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "lastActivityAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "usage": {
+        "$ref": "#/components/schemas/AgentTokenUsage"
+      },
+      "toolCalls": {
+        "type": "number"
+      },
+      "cwd": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "result": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Text of the agent's last assistant message: what it reported back"
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TranscriptEntry"
+        },
+        "description": "Entries of the transcript, from index `from` on (all of it unless `?after=` asked for a tail)"
+      },
+      "from": {
+        "type": "number",
+        "description": "Index of the first entry returned"
+      },
+      "total": {
+        "type": "number",
+        "description": "Entries in the whole transcript: pass it back as `?after=` to read only what was appended"
+      },
+      "tasks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/BackgroundTask"
+        },
+        "description": "Background tasks this agent launched, where the transcripts say so (subagents only)"
+      }
+    },
+    "required": [
+      "agentId",
+      "sessionId",
+      "kind",
+      "workflowRunId",
+      "toolUseId",
+      "subagentType",
+      "description",
+      "workflowPhase",
+      "prompt",
+      "status",
+      "background",
+      "startedAt",
+      "endedAt",
+      "durationMs",
+      "lastActivityAt",
+      "model",
+      "usage",
+      "toolCalls",
+      "cwd",
+      "result",
+      "entries",
+      "from",
+      "total",
+      "tasks"
+    ],
+    "description": "Everything one subagent or workflow agent did, from the transcript and meta the CLI keeps for it beside the session's transcript: what it was asked, how it went, and its whole conversation."
+  },
+  "AgentTokenUsage": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "number"
+      },
+      "output": {
+        "type": "number"
+      },
+      "cacheRead": {
+        "type": "number"
+      },
+      "cacheCreation": {
+        "type": "number"
+      },
+      "total": {
+        "type": "number",
+        "description": "`input + output + cacheRead + cacheCreation`"
+      }
+    },
+    "required": [
+      "input",
+      "output",
+      "cacheRead",
+      "cacheCreation",
+      "total"
+    ],
+    "description": "Token usage summed over an agent's assistant messages."
   },
   "WorkflowDefinition": {
     "type": "object",

@@ -295,7 +295,9 @@ transcript to the shared config dir, so sessions and history behave as usual.
 | DELETE | `/sessions/:id` | Delete a transcript (refused while the session is live) |
 | GET | `/sessions/:id/subagents` | Background agents a session spawned, read from its files |
 | GET | `/sessions/:id/tasks` | Shell commands a session sent to the background |
-| GET | `/sessions/:id/tasks/:taskId/output` | What one of them printed (the last 64 KiB) |
+| GET | `/sessions/:id/tasks/:taskId/output` | What one of them printed: the last 64 KiB, or with `?offset=` only what came after that byte |
+| GET | `/sessions/:id/subagents/:agentId` | One subagent: prompt, outcome, token usage and full transcript (`?after=` to append) |
+| GET | `/sessions/:id/workflows/:runId/agents/:agentId` | The same for an agent a workflow launched |
 | DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible |
 
 ### Runs

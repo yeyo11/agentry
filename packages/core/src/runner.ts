@@ -1030,6 +1030,7 @@ export class RunManager extends EventEmitter {
         });
         return;
       }
+      const sessionId = typeof raw.session_id === 'string' ? raw.session_id : run.sessionId;
       const task: BackgroundTask = {
         id: taskId,
         runId: run.id,
@@ -1041,6 +1042,11 @@ export class RunManager extends EventEmitter {
         startedAt: now(),
         endedAt: null,
         summary: null,
+        // The output file is found by session id, and a task read from the live stream is the one
+        // the Output button needs it on: the event carries it, and the run knows it from `init`.
+        ...(sessionId ? { sessionId } : {}),
+        // Only says a subagent launched it, not which one; Core resolves that from the transcripts
+        ...(raw.owned_by_subagent === true ? { fromSubagent: true } : {}),
       };
       if (raw.is_backgrounded === false) run.foregroundTasks.set(taskId, task);
       else run.tasks.set(taskId, task);
