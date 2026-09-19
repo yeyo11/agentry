@@ -49,7 +49,7 @@ linux:
   description: >-
     Agentry is a control panel for the Claude Code CLI: a web UI and multi-agent orchestration
     around Claude Code, without giving up anything the CLI can do.
-  maintainer: Jose Antonio Garrido <josegarrido@digio.es>
+  maintainer: Jose Antonio Garrido <yeyochico@gmail.com>
   # Keep in step with build/linux/agentry.desktop, the template for the launcher entry
   desktop:
     entry:
