@@ -85,7 +85,7 @@ function WorktreeRow({ worktree }: { worktree: ProjectSummary }) {
 export function Projects() {
   const [creating, setCreating] = useState(false);
   const [showTemporary, setShowTemporary] = useState(false);
-  const { data, error, isLoading } = useProjects(5000);
+  const { data, error, isLoading } = useProjects();
   const allProjects = data ?? [];
   const temporaryCount = allProjects.filter((p) => p.temporary).length;
   const visible = showTemporary ? allProjects : allProjects.filter((p) => !p.temporary);

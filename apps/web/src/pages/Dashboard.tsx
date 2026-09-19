@@ -70,7 +70,7 @@ export function SessionRow({ session, action }: { session: SessionSummary; actio
 
 export function Dashboard() {
   const { data, error, isLoading } = useOverview();
-  const projects = useProjects(30_000);
+  const projects = useProjects();
 
   if (isLoading) {
     return (

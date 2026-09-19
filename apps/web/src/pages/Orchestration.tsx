@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useOrchestrations, useProjects } from '../api';
 import { Combobox, NumberInput, Select, Switch } from '../components/controls';
 import { Card, Empty, ErrorBox, Field, Loading, MODEL_OPTIONS, PageHeader, PERMISSION_MODES, Segmented, StatusBadge, Tag } from '../components/ui';
+import { useFallbackInterval } from '../lib/feed';
 import { formatCost, timeAgo, truncate } from '../lib/format';
 
 type Mode = 'auto' | 'manual';
@@ -143,13 +144,14 @@ function CreateForm({ onDone }: { onDone: () => void }) {
     },
   });
 
+  const fallback = useFallbackInterval();
   const plannerRun = useQuery({
     queryKey: ['run', plannerRunId],
     queryFn: () => api.run(plannerRunId ?? ''),
     enabled: plannerRunId !== null,
     refetchInterval: (query) => {
       const status = query.state.data?.run.status;
-      return status && ['completed', 'failed', 'stopped'].includes(status) ? false : 2000;
+      return status && ['completed', 'failed', 'stopped'].includes(status) ? false : fallback;
     },
   });
   const plannerStatus = plannerRun.data?.run.status;
