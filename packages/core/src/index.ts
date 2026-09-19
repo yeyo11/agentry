@@ -22,6 +22,7 @@ import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
 import { Db } from './db.ts';
+import { UploadStore } from './uploads.ts';
 import { PermissionBroker } from './permissions.ts';
 import { McpConfig } from './config/mcp.ts';
 import { MarkdownResources } from './config/resources.ts';
@@ -68,6 +69,7 @@ export class Core {
   readonly credentials: CredentialStore;
   readonly accounts: AccountManager;
   readonly workspace: Workspace;
+  readonly uploads: UploadStore;
   private readonly startedAt = Date.now();
   private systemCache: { at: number; value: Omit<SystemInfo, 'uptimeSec'> } | null = null;
   private activeCache: { at: number; value: ActiveCliSession[] } | null = null;
@@ -81,8 +83,10 @@ export class Core {
     // Must run before anything spawns the CLI: it injects stored credentials into process.env
     this.credentials = new CredentialStore(config);
     this.workspace = new Workspace(config);
+    this.uploads = new UploadStore(config.dataDir);
     this.runs = new RunManager(config, this.db);
     this.runs.permissionSocket = this.permissions.socketPath;
+    this.runs.uploads = this.uploads;
     this.runs.on('run-ended', (runId: string) => this.permissions.denyAllFor(runId));
     // The UI watches a run's event stream, so the prompt has to arrive on it
     this.permissions.on('requested', (request: PermissionRequest) => {

@@ -147,3 +147,41 @@ test('runs, orchestrations and plugins reject bad requests', async () => {
   assert.equal((await app.inject({ method: 'PUT', url: '/api/auth/credentials', ...json({}) })).statusCode, 400);
   assert.equal((await app.inject('/api/nope')).statusCode, 404);
 });
+
+test('a file uploads as the raw body and comes back with its type read from the bytes', async () => {
+  const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+  const upload = (name: string, body: Buffer) =>
+    app.inject({ method: 'POST', url: `/api/uploads?name=${encodeURIComponent(name)}`, payload: body, headers: { 'content-type': 'application/octet-stream' } });
+
+  // Named .txt, but the bytes are a PNG: the bytes win, or Claude would reject the image block
+  const res = await upload('../../etc/shot.txt', png);
+  assert.equal(res.statusCode, 201);
+  const attachment = res.json();
+  assert.equal(attachment.mediaType, 'image/png');
+  assert.equal(attachment.kind, 'image');
+  assert.equal(attachment.name, 'shot.txt'); // no directories survive
+  assert.equal((await app.inject(`/api/uploads/${attachment.id}`)).json().sizeBytes, png.length);
+
+  const content = await app.inject(`/api/uploads/${attachment.id}/content`);
+  assert.equal(content.headers['content-type'], 'image/png');
+  assert.match(String(content.headers['content-disposition']), /^inline/);
+  assert.deepEqual(content.rawPayload, png);
+
+  // Markup is downloaded, never rendered on the API's origin
+  const html = (await upload('page.html', Buffer.from('<script>alert(1)</script>'))).json();
+  const served = await app.inject(`/api/uploads/${html.id}/content`);
+  assert.equal(served.headers['content-type'], 'application/octet-stream');
+  assert.match(String(served.headers['content-disposition']), /^attachment/);
+
+  assert.equal((await upload('empty.bin', Buffer.alloc(0))).statusCode, 400);
+  assert.equal((await app.inject('/api/uploads/not-an-id')).statusCode, 404);
+  // An image over the 5 MB a content block allows is refused up front, not by the model
+  const big = Buffer.concat([png, Buffer.alloc(5 * 1024 * 1024)]);
+  assert.match((await upload('big.png', big)).json().error, /at most 5 MB/);
+});
+
+test('a message may carry attachments, and an unknown one fails the request', async () => {
+  const res = await app.inject({ method: 'POST', url: '/api/runs', ...json({ prompt: 'hi', attachments: ['00000000-0000-0000-0000-000000000000'] }) });
+  assert.equal(res.statusCode, 404);
+  assert.match(res.json().error, /upload not found/);
+});

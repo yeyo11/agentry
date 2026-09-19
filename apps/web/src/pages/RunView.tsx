@@ -7,6 +7,7 @@ import { api, keys, useRuns, useRunStream } from '../api';
 import { Collapsible } from '../components/controls/Collapsible';
 import { Switch } from '../components/controls/Toggle';
 import { Tooltip } from '../components/controls/Tooltip';
+import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
 import { EnvironmentPanel } from '../components/EnvironmentPanel';
 import { PermissionPrompts } from '../components/PermissionPrompts';
 import { isRunLive } from '../components/RunCard';
@@ -26,6 +27,7 @@ export function RunView() {
   const notFound = runs.isSuccess && !run;
   const { events, connected, partial } = useRunStream(id, !notFound);
   const [text, setText] = useState('');
+  const files = useAttachments();
   const [showNoise, setShowNoise] = useState(false);
   const [follow, setFollow] = useState(true);
   const scroller = useRef<HTMLDivElement>(null);
@@ -33,9 +35,10 @@ export function RunView() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: keys.runs });
   const send = useMutation({
-    mutationFn: (message: string) => api.sendMessage(id, message),
+    mutationFn: (message: string) => api.sendMessage(id, message, files.ids),
     onSuccess: () => {
       setText('');
+      files.clear();
       setFollow(true);
       void invalidate();
     },
@@ -87,7 +90,8 @@ export function RunView() {
   const visible = showNoise ? events : events.filter((e) => e.kind !== 'other' && e.kind !== 'task');
   const submit = () => {
     const message = text.trim();
-    if (message && !send.isPending) send.mutate(message);
+    // A file on its own is a message too; one still uploading is not sent without it
+    if ((message || files.ids.length) && !files.uploading && !send.isPending) send.mutate(message);
   };
 
   return (
@@ -162,6 +166,8 @@ export function RunView() {
         </AnimatePresence>
         </div>
 
+        <div {...files.dropProps}>
+        <AttachmentTray state={files} />
         <form
           className="composer"
           onSubmit={(e) => {
@@ -169,7 +175,9 @@ export function RunView() {
             submit();
           }}
         >
+          <AttachButton state={files} compact disabled={send.isPending} />
           <textarea
+            onPaste={files.onPaste}
             ref={composer}
             rows={1}
             placeholder={
@@ -188,11 +196,16 @@ export function RunView() {
               }
             }}
           />
-          <button type="submit" className="btn btn-primary" disabled={!text.trim() || send.isPending}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={(!text.trim() && files.ids.length === 0) || files.uploading || send.isPending}
+          >
             {live ? <SendHorizontal {...ICON_SM} /> : <Play {...ICON_SM} />}
-            {send.isPending ? 'Sending…' : live ? 'Send' : 'Resume'}
+            {send.isPending ? 'Sending…' : files.uploading ? 'Uploading…' : live ? 'Send' : 'Resume'}
           </button>
         </form>
+        </div>
         <ErrorBox error={send.error} title="Message not sent" />
       </section>
 

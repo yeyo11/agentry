@@ -2,6 +2,7 @@ import type { ContentBlock, RunEvent, TranscriptEntry } from '@agentry/shared';
 import { Brain, CircleAlert, CornerDownRight, Flag, Info, Sparkles, TerminalSquare, User } from 'lucide-react';
 import { Fragment, memo, type ReactNode } from 'react';
 import { formatClock, formatCost, formatDuration, truncate } from '../lib/format';
+import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
 import { Collapsible } from './controls/Collapsible';
 import { BrandMark, ICON_SM, toolIcon } from './icons';
 import { RiseIn } from './motion';
@@ -103,8 +104,18 @@ function toolHint(input: unknown): string {
 
 function Block({ block }: { block: ContentBlock }) {
   switch (block.type) {
-    case 'text':
-      return <RichText text={block.text} />;
+    case 'text': {
+      const { text, files } = splitAttached(block.text);
+      return (
+        <>
+          {text.trim() && <RichText text={text} />}
+          <AttachedFiles files={files} />
+        </>
+      );
+    }
+    case 'image':
+    case 'document':
+      return <MediaBlock kind={block.type} mediaType={block.mediaType} name={block.name} uploadId={block.uploadId} />;
     case 'thinking':
       return (
         <Collapsible
@@ -159,6 +170,15 @@ function Block({ block }: { block: ContentBlock }) {
   }
 }
 
+/**
+ * A message sent through the wrapper names its files in a list, which shows each one; the image and
+ * PDF blocks it also carries would show them twice.
+ */
+function withoutListedMedia(blocks: ContentBlock[]): ContentBlock[] {
+  const listed = blocks.some((b) => b.type === 'text' && b.text.includes('<attached-files>'));
+  return listed ? blocks.filter((b) => b.type !== 'image' && b.type !== 'document') : blocks;
+}
+
 export const EntryView = memo(function EntryView({ entry }: { entry: TranscriptEntry }) {
   const onlyToolResults = entry.role === 'user' && entry.blocks.every((b) => b.type === 'tool_result');
   const role = onlyToolResults ? 'tool' : entry.role;
@@ -174,7 +194,7 @@ export const EntryView = memo(function EntryView({ entry }: { entry: TranscriptE
             <span className="muted small msg-time">{formatClock(entry.timestamp)}</span>
           </header>
         )}
-        {entry.blocks.map((block, i) => (
+        {withoutListedMedia(entry.blocks).map((block, i) => (
           <Block key={i} block={block} />
         ))}
       </div>

@@ -126,8 +126,26 @@ export interface SessionSummary {
 export type ContentBlock =
   | { type: 'text'; text: string }
   | { type: 'thinking'; text: string }
+  /** Metadata only: the bytes stay in the transcript or the upload store, never in a response */
+  | { type: 'image'; mediaType: string; name?: string; uploadId?: string }
+  | { type: 'document'; mediaType: string; name?: string; uploadId?: string }
   | { type: 'tool_use'; id: string; name: string; input: unknown }
   | { type: 'tool_result'; toolUseId: string; content: string; isError: boolean };
+
+/**
+ * A file uploaded to attach to a message. Images and PDFs reach Claude as content blocks; any other
+ * file by its path, which every run can read.
+ */
+export interface Attachment {
+  id: string;
+  name: string;
+  mediaType: string;
+  kind: 'image' | 'pdf' | 'file';
+  sizeBytes: number;
+  /** Absolute path on the machine the wrapper runs on */
+  path: string;
+  createdAt: string;
+}
 
 export interface TranscriptEntry {
   uuid: string;
@@ -153,6 +171,8 @@ export type RunStatus = 'starting' | 'busy' | 'idle' | 'completed' | 'failed' | 
 
 export interface RunOptions {
   prompt: string;
+  /** Uploads (`POST /uploads`) attached to the first message */
+  attachments?: string[];
   /** Working directory; defaults to the wrapper workspace */
   cwd?: string;
   name?: string;

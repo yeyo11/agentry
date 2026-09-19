@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, useAccounts, useOverview, useProjects } from '../api';
+import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
 import { Combobox, Select, Switch } from '../components/controls';
 import { Card, ErrorBox, Field, MODEL_OPTIONS, PageHeader, PERMISSION_MODES } from '../components/ui';
 
@@ -12,6 +13,8 @@ export function NewRun() {
   const projects = useProjects(false);
   const overview = useOverview();
   const [prompt, setPrompt] = useState('');
+  const files = useAttachments();
+  const ready = (prompt.trim() || files.ids.length > 0) && !files.uploading;
   const [cwd, setCwd] = useState(params.get('cwd') ?? '');
   const [model, setModel] = useState('');
   const [name, setName] = useState('');
@@ -24,6 +27,7 @@ export function NewRun() {
   const start = useMutation({
     mutationFn: () => {
       const opts: RunOptions = { prompt: prompt.trim(), keepAlive };
+      if (files.ids.length) opts.attachments = files.ids;
       if (cwd.trim()) opts.cwd = cwd.trim();
       if (model.trim()) opts.model = model.trim();
       if (name.trim()) opts.name = name.trim();
@@ -45,22 +49,28 @@ export function NewRun() {
           className="form"
           onSubmit={(e) => {
             e.preventDefault();
-            if (prompt.trim()) start.mutate();
+            if (ready) start.mutate();
           }}
         >
-          <Field label="Prompt">
-            <textarea
-              autoFocus
-              required
-              rows={7}
-              placeholder="What should Claude do?"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && prompt.trim()) start.mutate();
-              }}
-            />
+          <Field label="Prompt" hint="Drop or paste files onto the prompt to attach them.">
+            <div {...files.dropProps}>
+              <textarea
+                autoFocus
+                rows={7}
+                placeholder="What should Claude do?"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onPaste={files.onPaste}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && ready) start.mutate();
+                }}
+              />
+            </div>
           </Field>
+          <div className="attach-row">
+            <AttachButton state={files} disabled={start.isPending} />
+            <AttachmentTray state={files} />
+          </div>
           <div className="form-grid">
             <Field label="Working directory" hint={`Default: ${system?.workspaceDir ?? 'wrapper workspace'}`}>
               <Combobox
@@ -111,8 +121,8 @@ export function NewRun() {
           </Switch>
           <ErrorBox error={start.error} title="Could not start the run" />
           <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={!prompt.trim() || start.isPending}>
-              {start.isPending ? 'Starting…' : 'Start run'}
+            <button type="submit" className="btn btn-primary" disabled={!ready || start.isPending}>
+              {start.isPending ? 'Starting…' : files.uploading ? 'Uploading…' : 'Start run'}
             </button>
             <span className="muted small">Ctrl/⌘ + Enter</span>
           </div>
