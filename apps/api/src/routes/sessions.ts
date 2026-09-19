@@ -44,5 +44,16 @@ export const sessionRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
 
   // Background agents this session spawned, from its files on disk — works whether it was started
   // from Agentry or from a terminal.
-  app.get<{ Params: { id: string } }>('/sessions/:id/subagents', (req) => core.sessions.subagents(req.params.id));
+  app.get<{ Params: { id: string } }>('/sessions/:id/subagents', async (req) =>
+    core.sessions.subagents(req.params.id, await core.isSessionLive(req.params.id)),
+  );
+
+  // Shell commands the session sent to the background, and what each one printed.
+  app.get<{ Params: { id: string } }>('/sessions/:id/tasks', async (req) =>
+    core.sessions.backgroundTasks(req.params.id, await core.isSessionLive(req.params.id)),
+  );
+
+  app.get<{ Params: { id: string; taskId: string } }>('/sessions/:id/tasks/:taskId/output', (req) =>
+    core.sessions.taskOutput(req.params.id, req.params.taskId),
+  );
 };

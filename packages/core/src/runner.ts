@@ -248,6 +248,7 @@ export class RunManager extends EventEmitter {
   ) {
     super();
     this.file = join(config.dataDir, 'runs.json');
+    for (const env of db.loadEnvironments()) this.environments.set(env.cwd, env);
   }
 
   private persist(): void {
@@ -654,7 +655,13 @@ export class RunManager extends EventEmitter {
     if (type === 'system' && subtype === 'init') {
       if (typeof raw.session_id === 'string') run.sessionId = raw.session_id;
       if (typeof raw.model === 'string') run.model = raw.model;
-      this.environments.set(run.cwd, toEnvironment(run.cwd, run.id, raw));
+      const environment = toEnvironment(run.cwd, run.id, raw);
+      this.environments.set(run.cwd, environment);
+      try {
+        this.db.saveEnvironment(environment);
+      } catch {
+        // the panel only loses this directory until its next run
+      }
       run.push({
         kind: 'init',
         type,

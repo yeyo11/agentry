@@ -4,6 +4,7 @@ import type {
   AccountsOverview,
   ActiveCliSession,
   AuthVerification,
+  BackgroundTask,
   ConfigFileRoot,
   MemoryProjectSummary,
   Overview,
@@ -44,6 +45,11 @@ export { Db } from './db.ts';
 const AGENTRY_VERSION = '0.5.0'; // x-release-please-version
 const SYSTEM_TTL_MS = 30_000;
 const ACTIVE_TTL_MS = 1_500;
+/** Ended runs whose background work is still listed; each costs a stat per poll. */
+const RECENT_ENDED_RUNS = 30;
+
+const byRunningThenNewest = (a: { status: string; startedAt: string }, b: { status: string; startedAt: string }) =>
+  Number(b.status === 'running') - Number(a.status === 'running') || b.startedAt.localeCompare(a.startedAt);
 
 /** Facade wiring every core service together; the API layer only talks to this. */
 export class Core {
@@ -166,18 +172,69 @@ export class Core {
   }
 
   /**
-   * Subagents of the CLI sessions that are live right now, read from their files on disk. A run's
-   * subagents come from its live stream; a session started from a terminal has no stream the
-   * wrapper can see, so without this its agents are simply invisible.
+   * Where background work is read from, one entry per session. A run that is alive reports from its
+   * live stream: freshest, and the only source for a run whose transcript is not kept. Everything
+   * else comes from disk — the CLI sessions live right now, whose stream the wrapper never sees,
+   * and runs that have ended, whose in-memory lists a restart empties. Every list and every count
+   * reads through here, so no screen can show work another one misses.
    */
-  async cliSubagents(): Promise<SubagentInfo[]> {
-    const live = (await this.activeCliSessions()).filter((a) => a.live && !a.runId);
+  private async activitySources(): Promise<
+    Array<{ kind: 'stream'; run: RunSummary } | { kind: 'disk'; sessionId: string; runId: string; runName: string; live: boolean }>
+  > {
+    const runs = this.runs.list();
+    const ownedByRun = new Set(runs.map((r) => r.sessionId).filter((id): id is string => Boolean(id)));
+    const sources: Awaited<ReturnType<Core['activitySources']>> = [];
+    for (const run of runs) {
+      if (run.pid !== null) sources.push({ kind: 'stream', run });
+    }
+    // Ended runs, most recent first and bounded: every one costs a stat on each poll
+    for (const run of runs.filter((r) => r.pid === null && r.sessionId && !r.internal).slice(0, RECENT_ENDED_RUNS)) {
+      sources.push({ kind: 'disk', sessionId: run.sessionId as string, runId: run.id, runName: run.name, live: false });
+    }
+    for (const agent of await this.activeCliSessions()) {
+      if (agent.live && !ownedByRun.has(agent.sessionId)) {
+        sources.push({ kind: 'disk', sessionId: agent.sessionId, runId: '', runName: agent.name, live: true });
+      }
+    }
+    return sources;
+  }
+
+  /** Whether something is still running in a session: a live run or a live CLI process. */
+  async isSessionLive(sessionId: string): Promise<boolean> {
+    if (this.runs.list().some((r) => r.sessionId === sessionId && r.pid !== null)) return true;
+    return (await this.activeCliSessions()).some((a) => a.sessionId === sessionId && a.live);
+  }
+
+  /** Subagents from every source, running ones first. */
+  async allSubagents(): Promise<SubagentInfo[]> {
     const lists = await Promise.all(
-      live.map(async (agent) =>
-        (await this.sessions.subagents(agent.sessionId).catch(() => [])).map((s) => ({ ...s, runName: agent.name })),
+      (await this.activitySources()).map(async (source) =>
+        source.kind === 'stream'
+          ? source.run.subagents.map((s) => ({ ...s, source: 'run' as const }))
+          : (await this.sessions.subagents(source.sessionId, source.live).catch(() => [])).map((s) => ({
+              ...s,
+              runId: source.runId,
+              runName: source.runName,
+            })),
       ),
     );
-    return lists.flat();
+    return lists.flat().sort(byRunningThenNewest);
+  }
+
+  /** Backgrounded shell commands from every source, running ones first. */
+  async allBackgroundTasks(): Promise<BackgroundTask[]> {
+    const lists = await Promise.all(
+      (await this.activitySources()).map(async (source) =>
+        source.kind === 'stream'
+          ? source.run.backgroundTasks.map((t) => ({ ...t, source: 'run' as const }))
+          : (await this.sessions.backgroundTasks(source.sessionId, source.live).catch(() => [])).map((t) => ({
+              ...t,
+              runId: source.runId,
+              runName: source.runName,
+            })),
+      ),
+    );
+    return lists.flat().sort(byRunningThenNewest);
   }
 
   /** Recent terminal output of a background CLI session, which only the CLI itself keeps. */
@@ -379,7 +436,13 @@ export class Core {
       projects.push({ id: encodeProjectId(path), path, name: basename(path), sessionCount: 0, lastActivity: null, activeRuns: 0, exists: true, temporary: isTemporaryPath(path) });
     }
     const liveRuns = this.runs.list().filter((r) => r.pid !== null);
-    return projects.map((p) => ({ ...p, activeRuns: liveRuns.filter((r) => r.cwd === p.path).length }));
+    // A project someone is working in from a terminal is active too, not only one with a run
+    const liveCli = (await this.activeCliSessions()).filter((a) => a.live && !a.runId);
+    return projects.map((p) => ({
+      ...p,
+      activeRuns: liveRuns.filter((r) => r.cwd === p.path).length,
+      activeSessions: liveCli.filter((a) => a.cwd === p.path).length,
+    }));
   }
 
   async overview(): Promise<Overview> {
@@ -390,6 +453,8 @@ export class Core {
       this.activeCliSessions(),
     ]);
     const runs = this.runs.list();
+    // The same lists the screens show, so a count can never disagree with the page it links to
+    const [tasks, subagents] = await Promise.all([this.allBackgroundTasks(), this.allSubagents()]);
     return {
       system,
       rateLimit: this.runs.lastRateLimit,
@@ -399,8 +464,8 @@ export class Core {
         sessions: sessions.length,
         activeRuns: runs.filter((r) => r.pid !== null).length,
         activeCliSessions: active.filter((a) => a.live).length,
-        backgroundTasks: runs.flatMap((r) => r.backgroundTasks).filter((t) => t.status === 'running').length,
-        subagents: runs.flatMap((r) => r.subagents).filter((s) => s.status === 'running').length,
+        backgroundTasks: tasks.filter((t) => t.status === 'running').length,
+        subagents: subagents.filter((s) => s.status === 'running').length,
         orchestrationsRunning: this.orchestrator.runningCount(),
       },
       runs: runs.slice(0, 20),

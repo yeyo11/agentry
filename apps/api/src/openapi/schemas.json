@@ -578,7 +578,8 @@
         "type": "string"
       },
       "runId": {
-        "type": "string"
+        "type": "string",
+        "description": "Empty when the task belongs to a CLI session rather than a run"
       },
       "runName": {
         "type": "string"
@@ -612,6 +613,29 @@
           "string",
           "null"
         ]
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "run",
+          "disk"
+        ],
+        "description": "`run` when read from a run's live stream, `disk` when read from its session's files"
+      },
+      "sessionId": {
+        "type": "string",
+        "description": "Session that launched it"
+      },
+      "command": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The shell command, when it is a backgrounded Bash call"
+      },
+      "backgroundedByUser": {
+        "type": "boolean",
+        "description": "Sent to the background by the person at the terminal rather than by the model"
       }
     },
     "required": [
@@ -651,8 +675,10 @@
         "enum": [
           "running",
           "completed",
-          "failed"
-        ]
+          "failed",
+          "stopped"
+        ],
+        "description": "`stopped` when its session ended before the agent reported back"
       },
       "startedAt": {
         "type": "string"
@@ -957,6 +983,10 @@
       "activeRuns": {
         "type": "number",
         "description": "Wrapper runs currently alive inside this project"
+      },
+      "activeSessions": {
+        "type": "number",
+        "description": "CLI sessions live in this directory that no run owns — work started from a terminal"
       },
       "exists": {
         "type": "boolean",
@@ -1422,6 +1452,31 @@
       "memoryPaths"
     ],
     "description": "What Claude Code actually loaded for a directory, taken from the `init` event of the most recent wrapper run there (the CLI only reports it when a session starts)."
+  },
+  "BackgroundTaskOutput": {
+    "type": "object",
+    "properties": {
+      "taskId": {
+        "type": "string"
+      },
+      "output": {
+        "type": "string"
+      },
+      "truncated": {
+        "type": "boolean",
+        "description": "Only the end of a long output is returned"
+      },
+      "bytes": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "taskId",
+      "output",
+      "truncated",
+      "bytes"
+    ],
+    "description": "Captured output of a background task, as the CLI wrote it."
   },
   "Orchestration": {
     "type": "object",

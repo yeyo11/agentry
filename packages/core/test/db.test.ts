@@ -247,3 +247,31 @@ test('an orchestration stored before a field existed still schedules', () => {
   assert.equal(loaded?.worktree, false);
   db.close();
 });
+
+test('what Claude loaded in a directory survives a restart', () => {
+  const config = tempConfig();
+  const first = new Db(config);
+  first.saveEnvironment({
+    cwd: '/work/app',
+    observedAt: '2026-01-01T10:00:00Z',
+    runId: 'r1',
+    cliVersion: '2.1.277',
+    model: 'claude-opus-5',
+    permissionMode: 'acceptEdits',
+    outputStyle: null,
+    tools: ['Bash', 'Edit'],
+    mcpServers: [{ name: 'docs', status: 'connected' }],
+    agents: [],
+    skills: [],
+    plugins: [],
+    slashCommands: [],
+    memoryPaths: {},
+  } as unknown as Parameters<Db['saveEnvironment']>[0]);
+  first.close();
+
+  // The init event that carried this is gone after a restart, and the transcript never had it
+  const loaded = new Db(config).loadEnvironments();
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0]?.cwd, '/work/app');
+  assert.deepEqual(loaded[0]?.tools, ['Bash', 'Edit']);
+});

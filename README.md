@@ -264,6 +264,9 @@ transcript to the shared config dir, so sessions and history behave as usual.
 | GET | `/sessions?limit=N` | All sessions, newest first, flagged when live |
 | GET | `/sessions/:id?sidechains=1` | Full transcript (optionally with subagent messages) |
 | DELETE | `/sessions/:id` | Delete a transcript (refused while the session is live) |
+| GET | `/sessions/:id/subagents` | Background agents a session spawned, read from its files |
+| GET | `/sessions/:id/tasks` | Shell commands a session sent to the background |
+| GET | `/sessions/:id/tasks/:taskId/output` | What one of them printed (the last 64 KiB) |
 | DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible |
 
 ### Runs
@@ -282,8 +285,8 @@ A run is a live conversation backed by a `claude -p` process.
 | POST | `/runs/:id/permissions/:requestId` | `{ behavior: "allow" \| "deny", message?, updatedInput? }` — answer one. Unanswered requests are denied after ten minutes |
 | DELETE | `/runs/:id` | Forget an ended run |
 | GET | `/environments?cwd=` | What Claude actually loaded (tools, MCP status, agents, skills, plugins, commands, memory paths) per directory, from the latest run there |
-| GET | `/tasks` | Background tasks across runs |
-| GET | `/subagents` | Subagents across runs |
+| GET | `/tasks` | Commands sent to the background, by runs and by sessions started from a terminal. Survives a restart |
+| GET | `/subagents` | Subagents of runs and of live CLI sessions. Survives a restart |
 
 ```bash
 curl -X POST localhost:8787/api/runs -H 'content-type: application/json' \
@@ -432,8 +435,12 @@ the effective environment — is available to any run.
 
 - No API authentication, no TLS, no per-user isolation (by design for now).
 - Run metadata is persisted and conversations are rebuilt from the session transcripts after a
-  restart, but live-only details (background task and subagent lists, stderr) are not. Workers do
-  not survive a restart either: an orchestration caught by one stops, and resumes on request.
+  restart, and so are background tasks and subagents, which are read back from the files the CLI
+  writes. What exists only in a run's live stream is lost: its stderr, and the rate-limit notice.
+  Workers do not survive a restart either: an orchestration caught by one stops, and resumes on
+  request.
+- A background task's output lives in the CLI's temp dir, which a reboot clears. Its command,
+  status and summary stay in the transcript.
 - Running the API with a file watcher (`pnpm dev`) while an orchestration edits this same repo
   restarts it mid-flight. Use `worktree: true`, or serve with `pnpm start`.
 - Secrets inside MCP `env`/headers are returned as-is by `GET /config/mcp`.

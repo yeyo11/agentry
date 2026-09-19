@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { isLiveCliSession } from '../src/cli.ts';
@@ -135,4 +136,84 @@ test('a CLI session\'s background agents are read from its files, with their rea
   assert.equal(byId.done?.source, 'cli');
   assert.equal(byId.done?.sessionId, sid);
   assert.deepEqual(await new SessionStore(config).subagents('no-such-session'), []);
+});
+
+test('background commands are read from the transcript, including ones stopped on request', async () => {
+  const config = tempConfig();
+  const projectId = '-work-tasks';
+  const project = join(config.projectsDir, projectId);
+  mkdirSync(project, { recursive: true });
+  const sid = 'dddd-4444';
+
+  const bash = (id: string, command: string, description: string) =>
+    line({ type: 'assistant', uuid: `u-${id}`, message: { role: 'assistant', content: [{ type: 'tool_use', id: `toolu_${id}`, name: 'Bash', input: { command, description } }] } });
+  const launched = (id: string, at: string, byUser = false) =>
+    line({
+      type: 'user',
+      uuid: `r-${id}`,
+      timestamp: at,
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: `toolu_${id}`, content: '' }] },
+      toolUseResult: { backgroundTaskId: id, backgroundedByUser: byUser },
+    });
+
+  writeFileSync(
+    join(project, `${sid}.jsonl`),
+    [
+      line({ type: 'user', uuid: 'u0', timestamp: '2026-01-01T09:00:00Z', message: { role: 'user', content: 'Build it' } }),
+      bash('build', 'pnpm build', 'Build the app'),
+      launched('build', '2026-01-01T09:00:01Z', true),
+      bash('serve', 'pnpm dev', 'Start the dev server'),
+      launched('serve', '2026-01-01T09:00:02Z'),
+      bash('watch', 'pnpm test --watch', 'Watch the tests'),
+      launched('watch', '2026-01-01T09:00:03Z'),
+      line({
+        type: 'user',
+        uuid: 'n1',
+        timestamp: '2026-01-01T09:02:00Z',
+        message: { role: 'user', content: '<task-notification>\n<task-id>build</task-id>\n<status>completed</status>\n<summary>Build done</summary>\n</task-notification>' },
+      }),
+      // TaskStop leaves only its own result behind, never a notification
+      line({ type: 'user', uuid: 's1', timestamp: '2026-01-01T09:03:00Z', toolUseResult: { message: 'Successfully stopped task: serve (pnpm dev)', task_id: 'serve', task_type: 'local_bash' } }),
+    ].join('\n'),
+  );
+
+  const store = new SessionStore(config);
+  const byId = Object.fromEntries((await store.backgroundTasks(sid, true)).map((t) => [t.id, t]));
+  assert.equal(byId.build?.status, 'completed');
+  assert.equal(byId.build?.summary, 'Build done');
+  assert.equal(byId.build?.command, 'pnpm build');
+  assert.equal(byId.build?.backgroundedByUser, true);
+  // Without this it read as running for as long as the session lived
+  assert.equal(byId.serve?.status, 'stopped');
+  assert.equal(byId.watch?.status, 'running');
+
+  // The same command, with its session gone, cannot still be running
+  const ended = Object.fromEntries((await store.backgroundTasks(sid, false)).map((t) => [t.id, t]));
+  assert.equal(ended.watch?.status, 'stopped');
+});
+
+test('a task output is read from the CLI temp dir and never from a path found in a transcript', async () => {
+  const config = tempConfig();
+  const projectId = '-work-output';
+  mkdirSync(join(config.projectsDir, projectId), { recursive: true });
+  const sid = `eeee-${String(process.pid)}`;
+  writeFileSync(join(config.projectsDir, projectId, `${sid}.jsonl`), line({ type: 'user', uuid: 'u', timestamp: '2026-01-01T09:00:00Z', message: { role: 'user', content: 'go' } }));
+
+  const dir = join(tmpdir(), `claude-${String(process.getuid?.() ?? 0)}`, projectId, sid, 'tasks');
+  mkdirSync(dir, { recursive: true });
+  try {
+    writeFileSync(join(dir, 'job.output'), `${'x'.repeat(70 * 1024)}\nall 6 spec file(s) passed\n`);
+    const store = new SessionStore(config);
+    const out = await store.taskOutput(sid, 'job');
+    // Only the end of a long output: the part that says how it finished
+    assert.equal(out.truncated, true);
+    assert.match(out.output, /all 6 spec file\(s\) passed/);
+
+    for (const bad of ['../../etc/passwd', 'a/b', '..']) {
+      await assert.rejects(store.taskOutput(sid, bad), /invalid task id/);
+    }
+    await assert.rejects(store.taskOutput(sid, 'missing'), /no output was kept/);
+  } finally {
+    rmSync(join(tmpdir(), `claude-${String(process.getuid?.() ?? 0)}`, projectId), { recursive: true, force: true });
+  }
 });
