@@ -1,20 +1,22 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import { fileURLToPath } from 'node:url';
 import {
   entryText,
   normalizeMessage,
   type Attachment,
   type BackgroundTask,
   type EffectiveEnvironment,
+  type PermissionDecision,
   type PermissionMode,
+  type PermissionUpdate,
   type RateLimitInfo,
   type RunEvent,
   type RunOptions,
+  type RunSettingsUpdate,
   type RunStatus,
   type RunSummary,
   type SubagentInfo,
@@ -22,11 +24,12 @@ import {
 import { authFreeEnv } from './accounts.ts';
 import type { Db } from './db.ts';
 import type { CoreConfig } from './paths.ts';
+import type { PermissionBroker } from './permissions.ts';
 import type { SessionStore } from './sessions.ts';
 import { composeContent, type UploadStore } from './uploads.ts';
 
-/** Server key in the generated MCP config; the tool is addressed as mcp__<key>__approve. */
-const PERMISSION_SERVER = 'agentry_permissions';
+/** A control request the CLI has not answered by then is not going to be answered */
+const CONTROL_TIMEOUT_MS = 15_000;
 const MAX_EVENTS_PER_RUN = 5000;
 const MAX_PERSISTED_RUNS = 200;
 const PARTIAL_THROTTLE_MS = 50;
@@ -39,6 +42,19 @@ const RATE_LIMIT_RE = /usage limit|rate limit|session limit|out of (?:usage|quot
 /** One rotate-and-resume per run: a second failure is a real one, not a quota one */
 const MAX_ROTATION_RETRIES = 1;
 const MAX_ATTACHMENTS = 20;
+
+/** The CLI takes `manual` on the command line but reports that same mode as `default`. */
+const reportedMode = (mode: string): PermissionMode => (mode === 'default' ? 'manual' : (mode as PermissionMode));
+
+/** A person's decision in the shape `can_use_tool` expects; allowing always carries the input. */
+function toControlDecision(decision: PermissionDecision, input: Record<string, unknown>): Record<string, unknown> {
+  if (decision.behavior === 'deny') return { behavior: 'deny', message: decision.message ?? 'denied' };
+  return {
+    behavior: 'allow',
+    updatedInput: decision.updatedInput ?? input,
+    ...(decision.updatedPermissions?.length ? { updatedPermissions: decision.updatedPermissions } : {}),
+  };
+}
 
 export interface RunResult {
   isError: boolean;
@@ -108,9 +124,13 @@ class Run {
   idleTimer: NodeJS.Timeout | null = null;
   partial: { block: 'text' | 'thinking'; text: string } | null = null;
   partialTimer: NodeJS.Timeout | null = null;
-  /** Generated MCP config for this run's permission prompts, removed when it ends */
-  mcpConfigFile: string | null = null;
-  /** Last turn written to stdin, so it can be replayed after an account rotation */
+  /** Control requests sent to the CLI, by request_id, waiting for its control_response */
+  readonly controls = new Map<string, { resolve: (response: Record<string, unknown>) => void; reject: (err: Error) => void }>();
+  controlSeq = 0;
+  /** Prompts the CLI is holding for a person */
+  pendingPrompts = 0;
+  /** The turn is ending because someone interrupted it, not because it failed */
+  interruptRequested = false;
   /** The last turn sent, files included, so a turn lost to a rate limit is replayed whole */
   lastUserTurn: { text: string; attachments: string[] } | null = null;
   /** The turn died against the account's rate limit */
@@ -143,6 +163,7 @@ class Run {
         permissionMode: saved.permissionMode,
         internal: saved.internal,
         account: saved.account ?? undefined,
+        permissionPrompts: saved.permissionPrompts,
       },
       { orchestrationId: saved.orchestrationId ?? undefined, orchestrationTaskId: saved.orchestrationTaskId ?? undefined },
       config,
@@ -191,6 +212,8 @@ class Run {
       backgroundTasks: [...this.tasks.values()],
       subagents: [...this.subagents.values()],
       workingDir: this.workingDir ?? (this.opts.worktree ? join(this.cwd, '.claude', 'worktrees', this.opts.worktree) : this.cwd),
+      permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
+      pendingPrompts: this.pendingPrompts,
     };
   }
 
@@ -243,8 +266,8 @@ export class RunManager extends EventEmitter {
   lastRateLimit: RateLimitInfo | null = null;
   /** Set when claude-swap manages the accounts; null leaves runs on the active credential */
   accounts: AccountResolver | null = null;
-  /** Unix socket a run's permission prompts are forwarded to; null means nothing is listening */
-  permissionSocket: string | null = null;
+  /** Where runs with `permissionPrompts: 'host'` send what they ask; null means nobody answers */
+  permissions: PermissionBroker | null = null;
   /** Files attached to messages; every run may read them */
   uploads: UploadStore | null = null;
   /** Latest `init` snapshot per working directory */
@@ -381,6 +404,115 @@ export class RunManager extends EventEmitter {
     return run.summary();
   }
 
+  /**
+   * Ends the current turn and keeps the process: the CLI withdraws any prompt it was holding and
+   * waits for the next message, unlike `stop`, which takes the process down.
+   */
+  async interrupt(id: string): Promise<RunSummary> {
+    const run = this.runs.get(id);
+    if (!run) throw new Error('run not found');
+    if (!run.alive) throw new Error('the run has no live process to interrupt');
+    if (run.status !== 'busy' && run.status !== 'starting') return run.summary();
+    run.interruptRequested = true;
+    try {
+      await this.control(run, { subtype: 'interrupt' });
+    } catch (err) {
+      run.interruptRequested = false;
+      throw err;
+    }
+    return run.summary();
+  }
+
+  /**
+   * Changes the permission mode or the model. A live process switches at once; one that has
+   * exited gets them when the next message resumes it.
+   */
+  async updateSettings(id: string, update: RunSettingsUpdate): Promise<RunSummary> {
+    const run = this.runs.get(id);
+    if (!run) throw new Error('run not found');
+    const { permissionMode, model } = update;
+    if (permissionMode !== undefined) {
+      if (run.alive) await this.control(run, { subtype: 'set_permission_mode', mode: permissionMode });
+      run.permissionMode = permissionMode;
+    }
+    if (model !== undefined) {
+      const next = model.trim();
+      if (!next) throw new Error('model must not be empty');
+      if (run.alive) await this.control(run, { subtype: 'set_model', model: next });
+      run.opts.model = next;
+      run.model = next;
+    }
+    this.persist();
+    return run.summary();
+  }
+
+  /** Sends a control request down the run's stdin and resolves with the CLI's response. */
+  private control(run: Run, request: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const requestId = `agentry-${String(++run.controlSeq)}`;
+    return new Promise((resolvePromise, reject) => {
+      const timer = setTimeout(() => {
+        run.controls.delete(requestId);
+        reject(new Error(`the CLI did not answer ${String(request.subtype)} in time`));
+      }, CONTROL_TIMEOUT_MS);
+      timer.unref();
+      run.controls.set(requestId, {
+        resolve: (response) => {
+          clearTimeout(timer);
+          resolvePromise(response);
+        },
+        reject: (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      });
+      this.write(run, { type: 'control_request', request_id: requestId, request });
+    });
+  }
+
+  private write(run: Run, message: unknown): void {
+    run.proc?.stdin.write(`${JSON.stringify(message)}\n`);
+  }
+
+  /** The CLI asks the host something: a tool permission, a question, a plan to approve. */
+  private handleControlRequest(run: Run, requestId: string, request: Record<string, unknown>): void {
+    const reply = (response: Record<string, unknown>) =>
+      this.write(run, { type: 'control_response', response: { subtype: 'success', request_id: requestId, response } });
+    if (request.subtype !== 'can_use_tool') {
+      // Hooks and SDK MCP servers are never registered, so nothing else should arrive; an answer
+      // still has to, or the CLI waits for it
+      this.write(run, {
+        type: 'control_response',
+        response: { subtype: 'error', request_id: requestId, error: `Agentry does not handle ${String(request.subtype)}` },
+      });
+      return;
+    }
+    const input = (request.input ?? {}) as Record<string, unknown>;
+    const broker = this.permissions;
+    if (!broker || run.opts.permissionPrompts !== 'host') {
+      reply({ behavior: 'deny', message: 'Nobody is answering permission prompts for this run' });
+      return;
+    }
+    run.pendingPrompts++;
+    void broker
+      .ask({
+        id: requestId,
+        runId: run.id,
+        toolName: String(request.tool_name ?? 'unknown'),
+        toolUseId: typeof request.tool_use_id === 'string' ? request.tool_use_id : '',
+        input,
+        requestedAt: now(),
+        ...(typeof request.description === 'string' ? { description: request.description } : {}),
+        ...(Array.isArray(request.permission_suggestions) ? { suggestions: request.permission_suggestions as PermissionUpdate[] } : {}),
+        ...(request.requires_user_interaction === true ? { requiresUserInteraction: true } : {}),
+      })
+      .then((decision) => {
+        run.pendingPrompts = Math.max(0, run.pendingPrompts - 1);
+        // Withdrawn by the CLI, or the process is gone: nobody is waiting for an answer
+        if (!decision || !run.alive) return;
+        reply(toControlDecision(decision, input));
+      });
+  }
+
   remove(id: string): boolean {
     const run = this.runs.get(id);
     if (!run || run.alive) return false;
@@ -467,31 +599,10 @@ export class RunManager extends EventEmitter {
       args.push('--max-budget-usd', String(opts.maxBudgetUsd));
     }
     // Prompts go to a host only when something is listening: a run waiting on an answer that never
-    // comes is worse than one told plainly that it was denied.
-    const socket = opts.permissionPrompts === 'host' ? this.permissionSocket : undefined;
-    if (socket) {
-      const config = join(this.config.dataDir, 'mcp', `${run.id}.json`);
-      mkdirSync(dirname(config), { recursive: true });
-      writeFileSync(
-        config,
-        JSON.stringify({
-          mcpServers: {
-            [PERMISSION_SERVER]: {
-              command: process.execPath,
-              args: [fileURLToPath(new URL('./permission-mcp.mjs', import.meta.url))],
-              env: {
-                AGENTRY_PERMISSION_SOCKET: socket,
-                AGENTRY_RUN_ID: run.id,
-                // The desktop runs this server on Electron's Node: without this flag the CLI would start
-                // process.execPath as a second Electron app instead of a plain script
-                ...(process.env.ELECTRON_RUN_AS_NODE ? { ELECTRON_RUN_AS_NODE: process.env.ELECTRON_RUN_AS_NODE } : {}),
-              },
-            },
-          },
-        }),
-      );
-      run.mcpConfigFile = config;
-      args.push('--permission-prompts', 'host', '--mcp-config', config, '--permission-prompt-tool', `mcp__${PERMISSION_SERVER}__approve`);
+    // comes is worse than one told plainly that it was denied. `stdio` makes the CLI ask on its own
+    // stdout as control requests, the same channel the Agent SDK uses, and read the answer on stdin.
+    if (opts.permissionPrompts === 'host' && this.permissions) {
+      args.push('--permission-prompts', 'host', '--permission-prompt-tool', 'stdio');
     } else {
       args.push('--permission-prompts', 'none');
     }
@@ -583,11 +694,9 @@ export class RunManager extends EventEmitter {
     if (run.idleTimer) clearTimeout(run.idleTimer);
     run.endedAt = now();
     // A prompt still waiting belongs to a process that is gone: nobody can act on the answer.
-    if (run.mcpConfigFile) {
-      this.emit('run-ended', run.id);
-      rmSync(run.mcpConfigFile, { force: true });
-      run.mcpConfigFile = null;
-    }
+    this.permissions?.denyAllFor(run.id);
+    for (const control of run.controls.values()) control.reject(new Error('the run ended before the CLI answered'));
+    run.controls.clear();
     for (const task of run.tasks.values()) {
       if (task.status === 'running') Object.assign(task, { status: 'stopped', endedAt: run.endedAt });
     }
@@ -648,6 +757,31 @@ export class RunManager extends EventEmitter {
     const subtype = typeof raw.subtype === 'string' ? raw.subtype : undefined;
     if (subtype && IGNORED_SUBTYPES.has(subtype)) return;
 
+    if (type === 'control_request') {
+      if (typeof raw.request_id === 'string') this.handleControlRequest(run, raw.request_id, (raw.request ?? {}) as Record<string, unknown>);
+      return;
+    }
+    if (type === 'control_cancel_request') {
+      if (typeof raw.request_id === 'string') this.permissions?.withdraw(raw.request_id);
+      return;
+    }
+    if (type === 'control_response') {
+      const response = (raw.response ?? {}) as Record<string, unknown>;
+      const control = typeof response.request_id === 'string' ? run.controls.get(response.request_id) : undefined;
+      if (!control || typeof response.request_id !== 'string') return;
+      run.controls.delete(response.request_id);
+      if (response.subtype === 'error') control.reject(new Error(String(response.error ?? 'the CLI refused the request')));
+      else control.resolve((response.response ?? {}) as Record<string, unknown>);
+      return;
+    }
+
+    // The mode changes under the run's feet: set from the panel, or by the model leaving plan mode
+    if (type === 'system' && subtype === 'status' && typeof raw.permissionMode === 'string') {
+      run.permissionMode = reportedMode(raw.permissionMode);
+      run.updatedAt = now();
+      return;
+    }
+
     if (type === 'stream_event') {
       // Token-level deltas of the main agent; the full block follows as a regular `assistant` event
       if (raw.parent_tool_use_id != null) return;
@@ -688,6 +822,7 @@ export class RunManager extends EventEmitter {
 
     if (type === 'system' && subtype === 'init') {
       if (typeof raw.session_id === 'string') run.sessionId = raw.session_id;
+      if (typeof raw.permissionMode === 'string') run.permissionMode = reportedMode(raw.permissionMode);
       if (typeof raw.model === 'string') run.model = raw.model;
       if (typeof raw.cwd === 'string') run.workingDir = raw.cwd;
       const environment = toEnvironment(run.cwd, run.id, raw);
@@ -734,8 +869,10 @@ export class RunManager extends EventEmitter {
       const result = typeof raw.result === 'string' ? raw.result : '';
       if (isError && (raw.api_error_status === 429 || RATE_LIMIT_RE.test(result))) run.rateLimited = true;
       run.lastResult = { isError, result, structuredOutput: raw.structured_output, costUsd: run.costUsd };
+      // An interrupted turn ends as an error by the CLI's account, but nothing went wrong
+      if (isError && !run.interruptRequested) run.error = result || String(subtype ?? 'error');
+      run.interruptRequested = false;
       this.persist();
-      if (isError) run.error = result || String(subtype ?? 'error');
       run.push({
         kind: 'result',
         type,

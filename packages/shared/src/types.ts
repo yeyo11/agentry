@@ -210,14 +210,11 @@ export interface RunOptions {
   /** Hard ceiling on what this run may spend, enforced by the CLI (`--max-budget-usd`) */
   maxBudgetUsd?: number;
   /**
-   * Who answers permission prompts. `none` (the default here, though the CLI's own default is
-   * `host`) denies anything that would prompt, which is the only safe choice while nothing is
-   * listening. `host` requires `permissionPromptTool`, or the run waits for an answer that never
-   * comes.
+   * Who answers what the CLI would ask a person: tool permissions, `AskUserQuestion`, plan
+   * approval. `host` sends them to the panel (`GET /runs/:id/permissions`); `none`, the default,
+   * denies them, which is the only safe choice for a client that is not going to answer.
    */
   permissionPrompts?: 'host' | 'none';
-  /** MCP tool the CLI asks for approval, e.g. `mcp__agentry__approve` */
-  permissionPromptTool?: string;
   /** Keep the process alive after each turn so more messages can be sent (default true) */
   keepAlive?: boolean;
   /** JSON Schema for structured output */
@@ -314,6 +311,16 @@ export interface RunSummary {
   /** Directory the CLI actually works in, which differs from `cwd` when it runs in a worktree */
   workingDir?: string | null;
   location?: WorkLocation | null;
+  /** Where its prompts go; kept so a resumed run asks the same way */
+  permissionPrompts?: 'host' | 'none';
+  /** Prompts waiting for someone right now: the run is stuck until they are answered */
+  pendingPrompts?: number;
+}
+
+/** What can be changed on a run without restarting it. A live process takes it at once. */
+export interface RunSettingsUpdate {
+  permissionMode?: PermissionMode;
+  model?: string;
 }
 
 /**
@@ -485,7 +492,11 @@ export interface PlanDraftSummary {
   taskCount: number;
 }
 
-/** A tool call the CLI is holding until someone approves it. */
+/**
+ * A tool call the CLI is holding until someone decides. Questions (`AskUserQuestion`) and plan
+ * approval (`ExitPlanMode`) arrive this way too: they are answered by allowing them, with the
+ * answers in `updatedInput`.
+ */
 export interface PermissionRequest {
   id: string;
   runId: string;
@@ -495,14 +506,28 @@ export interface PermissionRequest {
   /** Arguments the tool would be called with, e.g. the shell command */
   input: Record<string, unknown>;
   requestedAt: string;
+  /** The CLI's own one-line description of the call */
+  description?: string;
+  /** Rules the CLI offers to remember, e.g. switching to acceptEdits; send them back to accept */
+  suggestions?: PermissionUpdate[];
+  /** Waits on a person by design (a question), rather than on an approval */
+  requiresUserInteraction?: boolean;
+}
+
+/** A permission rule or mode change, exactly as the CLI proposes it. */
+export interface PermissionUpdate {
+  type: string;
+  [key: string]: unknown;
 }
 
 export interface PermissionDecision {
   behavior: 'allow' | 'deny';
   /** Shown to the model when denying, so it can adapt instead of guessing */
   message?: string;
-  /** Lets the approver edit the arguments before allowing them */
+  /** Lets the approver edit the arguments before allowing them, or carries a question's answers */
   updatedInput?: Record<string, unknown>;
+  /** Suggestions from the request to apply when allowing ("always allow") */
+  updatedPermissions?: PermissionUpdate[];
 }
 
 /**
