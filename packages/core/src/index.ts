@@ -17,6 +17,7 @@ import type {
   SystemInfo,
   WorkLocation,
 } from '@agentry/shared';
+import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { backgroundLogs, detectCli, execCli, getAuthStatus, isLiveCliSession, listActiveCliSessions, stopBackgroundSession } from './cli.ts';
 import { ConfigExplorer } from './config/explorer.ts';
@@ -45,7 +46,9 @@ export type { RunResult } from './runner.ts';
 export { DEFAULT_AUTO_SWITCH } from './accounts.ts';
 export { Db } from './db.ts';
 
-const AGENTRY_VERSION = '0.7.0'; // x-release-please-version
+// Read from the package rather than written into this file: the release tooling then only edits
+// package.json files, and never has to rewrite source to bump a version.
+const AGENTRY_VERSION = pkg.version;
 const SYSTEM_TTL_MS = 30_000;
 const ACTIVE_TTL_MS = 1_500;
 /** Ended runs whose background work is still listed; each costs a stat per poll. */
