@@ -176,6 +176,10 @@
           "activeCliSessions": {
             "type": "number"
           },
+          "liveSessions": {
+            "type": "number",
+            "description": "Sessions with a live process, from either source: what the Sessions page lists as active"
+          },
           "backgroundTasks": {
             "type": "number"
           },
@@ -191,6 +195,7 @@
           "sessions",
           "activeRuns",
           "activeCliSessions",
+          "liveSessions",
           "backgroundTasks",
           "subagents",
           "orchestrationsRunning"

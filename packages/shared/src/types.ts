@@ -794,6 +794,8 @@ export interface Overview {
     sessions: number;
     activeRuns: number;
     activeCliSessions: number;
+    /** Sessions with a live process, from either source: what the Sessions page lists as active */
+    liveSessions: number;
     backgroundTasks: number;
     subagents: number;
     orchestrationsRunning: number;
