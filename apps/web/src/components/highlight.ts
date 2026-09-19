@@ -76,27 +76,19 @@ function withReturns(out: Highlighted, code: string): Highlighted {
   const lines = code.split('\n').map((line, i) => {
     const runs = out.lines[i] ?? [];
     if (!line.includes('\r')) return runs;
-    // Where each return sits once the ones before it are gone: an offset into the painted line
-    const returns: number[] = [];
-    for (let k = 0; k < line.length; k++) if (line[k] === '\r') returns.push(k - returns.length);
+    // A line of returns alone has no run to put them in
+    if (runs.length === 0) return [line];
+    // Each run takes as much of the line as holds its characters, returns in between included
     let at = 0;
-    const kept: Segment[] = [];
-    for (const run of runs) {
+    return runs.map((run, k) => {
       const content = typeof run === 'string' ? run : run.content;
-      let text = '';
-      for (let k = 0; k <= content.length; k++) {
-        while (returns.length > 0 && returns[0] === at + k && (k < content.length || run === runs[runs.length - 1])) {
-          text += '\r';
-          returns.shift();
-        }
-        if (k < content.length) text += content[k];
-      }
-      at += content.length;
-      kept.push(typeof run === 'string' ? text : { ...run, content: text });
-    }
-    // A line of nothing but returns has no run to put them in
-    if (returns.length > 0) kept.push('\r'.repeat(returns.length));
-    return kept;
+      let end = at;
+      for (let taken = 0; taken < content.length; end++) if (line[end] !== '\r') taken++;
+      if (k === runs.length - 1) end = line.length;
+      const text = line.slice(at, end);
+      at = end;
+      return typeof run === 'string' ? text : { ...run, content: text };
+    });
   });
   return { ...out, lines };
 }
