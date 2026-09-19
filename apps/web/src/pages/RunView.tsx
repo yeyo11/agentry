@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ChevronLeft, CircleSlash, Play, SendHorizontal, Square, Trash2 } from 'lucide-react';
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, keys, useRuns, useRunStream } from '../api';
 // Direct imports: this page is in the shell bundle, and the barrel would pull the lazy form controls into it
@@ -22,6 +22,87 @@ import { durationBetween, formatCost, formatDateTime } from '../lib/format';
 // Its Select and Combobox are Radix controls kept out of the shell bundle this page lives in
 const RunSettings = lazy(() => import('../components/RunSettings'));
 
+/**
+ * The message box, with its own text state: the transcript above it can be thousands of nodes, and
+ * re-rendering the page on every character typed here is enough to lock the tab up.
+ */
+function Composer({ runId, live, busy, onSent }: { runId: string; live: boolean; busy: boolean; onSent: () => void }) {
+  const queryClient = useQueryClient();
+  const [text, setText] = useState('');
+  const files = useAttachments();
+  const box = useRef<HTMLTextAreaElement>(null);
+
+  const send = useMutation({
+    mutationFn: (message: string) => api.sendMessage(runId, message, files.ids),
+    onSuccess: () => {
+      setText('');
+      files.clear();
+      onSent();
+      void queryClient.invalidateQueries({ queryKey: keys.runs });
+    },
+  });
+
+  // Auto-growing composer
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+  }, [text]);
+
+  const submit = () => {
+    const message = text.trim();
+    // A file on its own is a message too; one still uploading is not sent without it
+    if ((message || files.ids.length) && !files.uploading && !send.isPending) send.mutate(message);
+  };
+
+  return (
+    <>
+      <div {...files.dropProps}>
+        <AttachmentTray state={files} />
+        <form
+          className="composer"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <AttachButton state={files} compact disabled={send.isPending} />
+          <textarea
+            onPaste={files.onPaste}
+            ref={box}
+            rows={1}
+            placeholder={
+              live
+                ? busy
+                  ? 'Send a message (queued until the current turn ends)…'
+                  : 'Send a follow-up message…'
+                : 'Send a message — the session will be resumed…'
+            }
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={(!text.trim() && files.ids.length === 0) || files.uploading || send.isPending}
+          >
+            {live ? <SendHorizontal {...ICON_SM} /> : <Play {...ICON_SM} />}
+            {send.isPending ? 'Sending…' : files.uploading ? 'Uploading…' : live ? 'Send' : 'Resume'}
+          </button>
+        </form>
+      </div>
+      <ErrorBox error={send.error} title="Message not sent" />
+    </>
+  );
+}
+
 export function RunView() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -32,23 +113,11 @@ export function RunView() {
   const notFound = runs.isSuccess && !run;
   const { events, connected, partial } = useRunStream(id, !notFound);
   const { open: openDetail } = useDetailPanel();
-  const [text, setText] = useState('');
-  const files = useAttachments();
   const [showNoise, setShowNoise] = useState(false);
   const [follow, setFollow] = useState(true);
   const scroller = useRef<HTMLDivElement>(null);
-  const composer = useRef<HTMLTextAreaElement>(null);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: keys.runs });
-  const send = useMutation({
-    mutationFn: (message: string) => api.sendMessage(id, message, files.ids),
-    onSuccess: () => {
-      setText('');
-      files.clear();
-      setFollow(true);
-      void invalidate();
-    },
-  });
   const stop = useMutation({ mutationFn: () => api.stopRun(id), onSuccess: invalidate });
   const interrupt = useMutation({ mutationFn: () => api.interruptRun(id), onSuccess: invalidate });
   const remove = useMutation({
@@ -65,13 +134,10 @@ export function RunView() {
     if (follow && el) el.scrollTop = el.scrollHeight;
   }, [events, partial, follow]);
 
-  // Auto-growing composer
-  useLayoutEffect(() => {
-    const el = composer.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
-  }, [text]);
+  const visible = useMemo(
+    () => (showNoise ? events : events.filter((e) => e.kind !== 'other' && e.kind !== 'task')),
+    [events, showNoise],
+  );
 
   const jumpToLatest = () => {
     const el = scroller.current;
@@ -94,12 +160,6 @@ export function RunView() {
 
   const live = isRunLive(run);
   const busy = run.status === 'busy' || run.status === 'starting';
-  const visible = showNoise ? events : events.filter((e) => e.kind !== 'other' && e.kind !== 'task');
-  const submit = () => {
-    const message = text.trim();
-    // A file on its own is a message too; one still uploading is not sent without it
-    if ((message || files.ids.length) && !files.uploading && !send.isPending) send.mutate(message);
-  };
 
   return (
     <div className="run-layout">
@@ -181,47 +241,7 @@ export function RunView() {
         </AnimatePresence>
         </div>
 
-        <div {...files.dropProps}>
-        <AttachmentTray state={files} />
-        <form
-          className="composer"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
-          }}
-        >
-          <AttachButton state={files} compact disabled={send.isPending} />
-          <textarea
-            onPaste={files.onPaste}
-            ref={composer}
-            rows={1}
-            placeholder={
-              live
-                ? busy
-                  ? 'Send a message (queued until the current turn ends)…'
-                  : 'Send a follow-up message…'
-                : 'Send a message — the session will be resumed…'
-            }
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                submit();
-              }
-            }}
-          />
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={(!text.trim() && files.ids.length === 0) || files.uploading || send.isPending}
-          >
-            {live ? <SendHorizontal {...ICON_SM} /> : <Play {...ICON_SM} />}
-            {send.isPending ? 'Sending…' : files.uploading ? 'Uploading…' : live ? 'Send' : 'Resume'}
-          </button>
-        </form>
-        </div>
-        <ErrorBox error={send.error} title="Message not sent" />
+        <Composer runId={id} live={live} busy={busy} onSent={() => setFollow(true)} />
       </section>
 
       <aside className="run-side">

@@ -1,6 +1,6 @@
 import type { ContentBlock, RunEvent, TranscriptEntry } from '@agentry/shared';
 import { Brain, CircleAlert, CornerDownRight, Flag, Info, Sparkles, TerminalSquare, User } from 'lucide-react';
-import { Fragment, lazy, memo, Suspense } from 'react';
+import { lazy, memo, Suspense } from 'react';
 import { formatClock, formatCost, formatDuration, truncate } from '../lib/format';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
 import { CodeBlock } from './CodeBlock';
@@ -279,20 +279,27 @@ function InlineEvent({ event }: { event: RunEvent }) {
   }
 }
 
-export function RunTimeline({ events }: { events: RunEvent[] }) {
+/** One row, memoised: appending an event must not re-render the rows already on screen. */
+const TimelineRow = memo(function TimelineRow({ event }: { event: RunEvent }) {
+  return event.kind === 'message' && event.entry ? (
+    <RiseIn>
+      <EntryView entry={event.entry} />
+    </RiseIn>
+  ) : (
+    <InlineEvent event={event} />
+  );
+});
+
+/**
+ * Memoised on the event list: the page around it re-renders on every streamed partial and every
+ * keystroke in the composer, and a long transcript is far too much work to redo that often.
+ */
+export const RunTimeline = memo(function RunTimeline({ events }: { events: RunEvent[] }) {
   return (
     <div className="transcript">
       {events.map((event) => (
-        <Fragment key={event.seq}>
-          {event.kind === 'message' && event.entry ? (
-            <RiseIn>
-              <EntryView entry={event.entry} />
-            </RiseIn>
-          ) : (
-            <InlineEvent event={event} />
-          )}
-        </Fragment>
+        <TimelineRow key={event.seq} event={event} />
       ))}
     </div>
   );
-}
+});
