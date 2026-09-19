@@ -1,4 +1,4 @@
-import { createReadStream, existsSync } from 'node:fs';
+import { createReadStream, existsSync, type Stats } from 'node:fs';
 import { open, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -20,15 +20,83 @@ import {
 } from '@agentry/shared';
 import { AGENT_ID_RE, WORKFLOW_RUN_ID_RE, emptyAgentRead, readAgentFile } from './agents.ts';
 import type { CoreConfig } from './paths.ts';
+import { EntryIndex, fingerprint, parseLine, readLines, scanLines, type JsonLine } from './transcript-index.ts';
 import { readSessionWorkflows, readWorkflowAgent } from './workflows.ts';
 
 /** The slash command inside a synthetic user message, e.g. `<command-name>/resume</command-name>`. */
 const COMMAND_RE = /<command-name>\s*([^<]+)<\/command-name>/;
 
-interface CacheItem {
-  mtimeMs: number;
-  size: number;
+/** A summary over the lines read so far, before what only the end of the file decides. */
+interface SummaryFold {
   summary: SessionSummary;
+  customTitle: string | null;
+  command: string | undefined;
+}
+
+function foldLine(fold: SummaryFold, o: JsonLine, entry: TranscriptEntry | null): void {
+  const { summary } = fold;
+  if (typeof o.timestamp === 'string') {
+    summary.startedAt ??= o.timestamp;
+    summary.updatedAt = o.timestamp;
+  }
+  if (!summary.projectPath && typeof o.cwd === 'string') summary.projectPath = o.cwd;
+  if (typeof o.gitBranch === 'string') summary.gitBranch = o.gitBranch;
+  if (typeof o.version === 'string') summary.cliVersion = o.version;
+  if (o.type === 'summary' && typeof o.summary === 'string') fold.customTitle = o.summary;
+  if (o.type === 'custom-title' && typeof o.customTitle === 'string') fold.customTitle = o.customTitle;
+  // Written when the CLI starts a session in a worktree it created: which one, and whose
+  if (o.type === 'worktree-state' && !summary.worktree) {
+    const w = o.worktreeSession as Record<string, unknown> | null | undefined;
+    if (w && typeof w.worktreePath === 'string' && typeof w.originalCwd === 'string') {
+      summary.worktree = {
+        path: w.worktreePath,
+        parentPath: w.originalCwd,
+        name: typeof w.worktreeName === 'string' ? w.worktreeName : null,
+        branch: typeof w.worktreeBranch === 'string' ? w.worktreeBranch : null,
+      };
+    }
+  }
+
+  if (!entry || entry.isSidechain) return;
+  summary.messageCount++;
+  if (entry.model) summary.model = entry.model;
+  if (!summary.firstPrompt && entry.role === 'user') {
+    const text = entryText(entry).trim();
+    // Skip synthetic messages (<command-name>, <system-reminder>, …)
+    if (text && !text.startsWith('<')) summary.firstPrompt = text.slice(0, 300);
+    // …but remember the command, the only readable thing a session nobody typed in ever has
+    else fold.command ??= COMMAND_RE.exec(text)?.[1]?.trim();
+  }
+}
+
+function finishSummary(fold: SummaryFold, info: Stats): SessionSummary | null {
+  const summary = { ...fold.summary, sizeBytes: info.size };
+  if (summary.messageCount === 0) return null;
+  // A session with no user turn (the spare `claude attach` pre-warms) would otherwise be
+  // titled with its own uuid, which reads like an id and tells nobody what it is.
+  summary.title = fold.customTitle ?? summary.firstPrompt?.split('\n')[0]?.slice(0, 100) ?? fold.command ?? summary.id;
+  summary.updatedAt ??= info.mtime.toISOString();
+  return summary;
+}
+
+/**
+ * What one pass over a transcript learned, kept so the next request only reads what was appended
+ * since: a live session grows by a line at a time, and re-reading tens of megabytes for each one is
+ * what made a long session slow to list and to open.
+ */
+interface TranscriptState {
+  ino: number;
+  size: number;
+  mtimeMs: number;
+  /** Offset just past the last complete line: everything before it is final */
+  end: number;
+  /** The bytes just before `end`, which a file that only grew still has */
+  fingerprint: Buffer;
+  /** Over the complete lines only, so the next pass can go on from `end` */
+  fold: SummaryFold;
+  entries: EntryIndex;
+  /** At this size, a half-written last line included if it already parses */
+  summary: SessionSummary | null;
 }
 
 /** A line's text whether the CLI stored it as a plain string or as content blocks. */
@@ -171,7 +239,8 @@ export function isTemporaryPath(path: string): boolean {
 
 /** Reads projects and sessions from ~/.claude/projects (.jsonl transcripts written by the CLI). */
 export class SessionStore {
-  private readonly cache = new Map<string, CacheItem>();
+  /** Transcript file → what reading it last left, pending while a read is under way */
+  private readonly transcripts = new Map<string, Promise<TranscriptState | null>>();
   /** Subagent transcript → its working dir; written once at its start, so never re-read */
   private readonly cwdCache = new Map<string, string | null>();
   private readonly activityCache = new Map<string, { mtimeMs: number; size: number; activity: SessionActivity }>();
@@ -185,71 +254,86 @@ export class SessionStore {
   }
 
   private async summarize(projectId: string, file: string): Promise<SessionSummary | null> {
-    const info = await stat(file).catch(() => null);
-    if (!info) return null;
-    const cached = this.cache.get(file);
-    if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) return cached.summary;
+    return (await this.transcript(projectId, file))?.summary ?? null;
+  }
 
-    const summary: SessionSummary = {
-      id: basename(file, '.jsonl'),
-      projectId,
-      projectPath: '',
-      title: '',
-      firstPrompt: null,
-      messageCount: 0,
-      startedAt: null,
-      updatedAt: null,
-      model: null,
-      gitBranch: null,
-      cliVersion: null,
-      sizeBytes: info.size,
-      origin: { kind: 'cli' }, // refined by Core, which knows the wrapper's runs
-    };
-    let customTitle: string | null = null;
-    let command: string | undefined;
+  /**
+   * The state of a transcript as it is on disk now. Requests for one file queue behind each other,
+   * so two of them never extend the same state at once.
+   */
+  private transcript(projectId: string, file: string, reindex = false): Promise<TranscriptState | null> {
+    const previous = reindex ? undefined : this.transcripts.get(file);
+    const next = (previous ?? Promise.resolve(null)).catch(() => null).then((old) => this.readTranscript(projectId, file, old));
+    this.transcripts.set(file, next);
+    return next;
+  }
 
-    for await (const o of readJsonl(file)) {
-      if (typeof o.timestamp === 'string') {
-        summary.startedAt ??= o.timestamp;
-        summary.updatedAt = o.timestamp;
-      }
-      if (!summary.projectPath && typeof o.cwd === 'string') summary.projectPath = o.cwd;
-      if (typeof o.gitBranch === 'string') summary.gitBranch = o.gitBranch;
-      if (typeof o.version === 'string') summary.cliVersion = o.version;
-      if (o.type === 'summary' && typeof o.summary === 'string') customTitle = o.summary;
-      if (o.type === 'custom-title' && typeof o.customTitle === 'string') customTitle = o.customTitle;
-      // Written when the CLI starts a session in a worktree it created: which one, and whose
-      if (o.type === 'worktree-state' && !summary.worktree) {
-        const w = o.worktreeSession as Record<string, unknown> | null | undefined;
-        if (w && typeof w.worktreePath === 'string' && typeof w.originalCwd === 'string') {
-          summary.worktree = {
-            path: w.worktreePath,
-            parentPath: w.originalCwd,
-            name: typeof w.worktreeName === 'string' ? w.worktreeName : null,
-            branch: typeof w.worktreeBranch === 'string' ? w.worktreeBranch : null,
+  private async readTranscript(projectId: string, file: string, old: TranscriptState | null): Promise<TranscriptState | null> {
+    const handle = await open(file, 'r').catch(() => null);
+    if (!handle) return null;
+    try {
+      const info = await handle.stat();
+      if (old && old.ino === info.ino && old.size === info.size && old.mtimeMs === info.mtimeMs) return old;
+      // Only a file that grew, and still has what was read before where it was, is read on from
+      // where the last pass stopped; one that shrank or was replaced is read again from the start.
+      const grew =
+        old !== null && old.ino === info.ino && info.size > old.size && (await fingerprint(handle, old.end)).equals(old.fingerprint);
+      const base = grew ? old : null;
+      const fold: SummaryFold = base
+        ? structuredClone(base.fold)
+        : {
+            summary: {
+              id: basename(file, '.jsonl'),
+              projectId,
+              projectPath: '',
+              title: '',
+              firstPrompt: null,
+              messageCount: 0,
+              startedAt: null,
+              updatedAt: null,
+              model: null,
+              gitBranch: null,
+              cliVersion: null,
+              sizeBytes: 0,
+              origin: { kind: 'cli' }, // refined by Core, which knows the wrapper's runs
+            },
+            customTitle: null,
+            command: undefined,
           };
-        }
-      }
+      const added: [number, number, boolean][] = [];
+      const { end, tail } = await scanLines(handle, base?.end ?? 0, info.size, (o, start, lineEnd) => {
+        const entry = normalizeMessage(o);
+        foldLine(fold, o, entry);
+        if (entry) added.push([start, lineEnd, entry.isSidechain]);
+      });
 
-      const entry = normalizeMessage(o);
-      if (!entry || entry.isSidechain) continue;
-      summary.messageCount++;
-      if (entry.model) summary.model = entry.model;
-      if (!summary.firstPrompt && entry.role === 'user') {
-        const text = entryText(entry).trim();
-        // Skip synthetic messages (<command-name>, <system-reminder>, …)
-        if (text && !text.startsWith('<')) summary.firstPrompt = text.slice(0, 300);
-        // …but remember the command, the only readable thing a session nobody typed in ever has
-        else command ??= COMMAND_RE.exec(text)?.[1]?.trim();
-      }
+      // A last line without its newline yet counts if it parses, as it did when read line by line,
+      // but stays out of the fold: the next pass reads it again once it is finished.
+      const tailLine = parseLine(tail);
+      const tailEntry = tailLine ? normalizeMessage(tailLine) : null;
+      let summary: SessionSummary | null;
+      if (tailLine) {
+        const withTail = structuredClone(fold);
+        foldLine(withTail, tailLine, tailEntry);
+        summary = finishSummary(withTail, info);
+      } else summary = finishSummary(fold, info);
+
+      const entries = base?.entries ?? new EntryIndex();
+      for (const [start, lineEnd, sidechain] of added) entries.add(start, lineEnd, sidechain);
+      entries.setTail(tailEntry ? { start: end, end: end + tail.length, sidechain: tailEntry.isSidechain } : null);
+      return {
+        ino: info.ino,
+        size: info.size,
+        mtimeMs: info.mtimeMs,
+        end,
+        fingerprint: await fingerprint(handle, end),
+        fold,
+        entries,
+        summary,
+      };
+    } finally {
+      await handle.close();
     }
-    if (summary.messageCount === 0) return null;
-    // A session with no user turn (the spare `claude attach` pre-warms) would otherwise be
-    // titled with its own uuid, which reads like an id and tells nobody what it is.
-    summary.title = customTitle ?? summary.firstPrompt?.split('\n')[0]?.slice(0, 100) ?? command ?? summary.id;
-    summary.updatedAt ??= info.mtime.toISOString();
-    this.cache.set(file, { mtimeMs: info.mtimeMs, size: info.size, summary });
-    return summary;
   }
 
   async listSessions(projectId?: string): Promise<SessionSummary[]> {
@@ -304,7 +388,7 @@ export class SessionStore {
 
   /** Drops the cache after something outside this store changed the transcripts on disk. */
   invalidate(): void {
-    this.cache.clear();
+    this.transcripts.clear();
   }
 
   /** The cached summary of one session, without reading its transcript. */
@@ -649,17 +733,16 @@ export class SessionStore {
     if (!found) throw new Error('session not found');
     await rm(found.file);
     await rm(found.file.slice(0, -'.jsonl'.length), { recursive: true, force: true });
-    this.cache.delete(found.file);
+    this.transcripts.delete(found.file);
   }
 
   /**
    * A window of a session's transcript: the newest `limit` entries, or the ones just before
    * `before` (an index from a previous page) to read further back.
    *
-   * The file is walked once but only the window is held: a long conversation runs to tens of
-   * megabytes, and materialising all of it to hand back the last screenful is what made opening
-   * one slow. Counting the entries still costs a pass over the file — an index of the line offsets
-   * would remove that, and is the next thing to do if opening a session ever feels slow again.
+   * A long conversation runs to tens of megabytes, and reading all of it to hand back the last
+   * screenful is what made opening one slow. The byte offsets of its entries are indexed once and
+   * extended as the session grows, so a page reads the bytes of its own lines and no others.
    */
   async getSession(
     sessionId: string,
@@ -667,37 +750,36 @@ export class SessionStore {
   ): Promise<SessionDetail | null> {
     const found = await this.findFile(sessionId);
     if (!found) return null;
-    const summary = await this.summarize(found.projectId, found.file);
-    if (!summary) return null;
-
     const limit = pageSize(opts.limit);
     const before = opts.before !== undefined && Number.isFinite(opts.before) ? Math.max(0, Math.trunc(opts.before)) : null;
-    // The tail is kept in a ring so a transcript of any length costs the window and no more
-    const ring: TranscriptEntry[] = [];
-    const earlier: TranscriptEntry[] = [];
-    let at = 0;
-    let total = 0;
-    let firstKept = -1;
+    const sidechains = opts.includeSidechains === true;
 
-    for await (const o of readJsonl(found.file)) {
-      const entry = normalizeMessage(o);
-      if (!entry) continue;
-      if (entry.isSidechain && !opts.includeSidechains) continue;
-      const index = total++;
-      if (before === null) {
-        if (ring.length < limit) ring.push(entry);
-        else {
-          ring[at] = entry;
-          at = (at + 1) % limit;
-        }
-      } else if (index < before && index >= before - limit) {
-        if (firstKept < 0) firstKept = index;
-        earlier.push(entry);
+    for (let attempt = 0; ; attempt++) {
+      const state = await this.transcript(found.projectId, found.file, attempt > 0);
+      if (!state?.summary) return null;
+      const total = state.entries.count(sidechains);
+      const to = before === null ? total : Math.min(before, total);
+      const from = before === null ? Math.max(0, total - limit) : Math.max(0, before - limit);
+      // A `before` at the start or past the end has nothing before it in range
+      if (from >= to) return { summary: state.summary, entries: [], from: total, total };
+
+      const ranges = state.entries.ranges(from, to, sidechains);
+      const handle = await open(found.file, 'r').catch(() => null);
+      if (!handle) return null;
+      let lines: (JsonLine | null)[];
+      try {
+        lines = await readLines(handle, ranges);
+      } finally {
+        await handle.close();
       }
+      const entries: TranscriptEntry[] = [];
+      for (const line of lines) {
+        const entry = line ? normalizeMessage(line) : null;
+        if (entry) entries.push(entry);
+      }
+      if (entries.length === ranges.length) return { summary: state.summary, entries, from, total };
+      // The file was rewritten between indexing it and reading the page: index it again, once
+      if (attempt > 0) return { summary: state.summary, entries, from, total };
     }
-
-    if (before !== null) return { summary, entries: earlier, from: firstKept < 0 ? total : firstKept, total };
-    const entries = [...ring.slice(at), ...ring.slice(0, at)];
-    return { summary, entries, from: total - entries.length, total };
   }
 }
