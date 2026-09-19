@@ -85,10 +85,12 @@ export const runRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core 
     },
   );
 
-  app.get('/subagents', () =>
-    core.runs
-      .list()
-      .flatMap((r) => r.subagents)
-      .sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running') || b.startedAt.localeCompare(a.startedAt)),
+  // Runs report their subagents from their live stream; sessions started from a terminal only from
+  // their files on disk. Both belong on the same list: where a session was started from should not
+  // decide whether its agents can be seen.
+  app.get('/subagents', async () =>
+    [...core.runs.list().flatMap((r) => r.subagents.map((s) => ({ ...s, source: 'run' as const }))), ...(await core.cliSubagents())].sort(
+      (a, b) => Number(b.status === 'running') - Number(a.status === 'running') || b.startedAt.localeCompare(a.startedAt),
+    ),
   );
 };

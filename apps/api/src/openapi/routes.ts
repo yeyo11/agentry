@@ -79,6 +79,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /projects/:id/sessions': d('Projects & sessions', 'Sessions of one project', { ok: list('SessionSummary') }),
   'GET /sessions': d('Projects & sessions', 'All sessions, newest first', { description: 'Sessions are flagged `live` when a wrapper run or a CLI process currently owns them.', querystring: obj({ limit: str('Max sessions to return') }), ok: list('SessionSummary') }),
   'GET /sessions/:id': d('Projects & sessions', 'Full transcript', { querystring: obj({ sidechains: str('`1` includes subagent messages') }), ok: ref('SessionDetail') }),
+  'GET /sessions/:id/subagents': d('Projects & sessions', 'Background agents a session spawned', { description: 'Read from what the CLI writes beside the transcript, so it covers sessions started from a terminal as well as runs. An agent is running until it stops, and again whenever it writes after stopping — the CLI can resume one.', ok: list('SubagentInfo') }),
   'DELETE /sessions/:id': d('Projects & sessions', 'Delete a transcript', { description: 'Refused with 400 while the session is live.', ok: OK }),
 
   // ---- Runs
@@ -99,7 +100,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /tasks': d('Runs', 'Background tasks across runs', { ok: list('BackgroundTask') }),
   'GET /runs/:id/permissions': d('Runs', 'Tool calls waiting for approval', { description: 'Populated only when the run was started with `permissionPrompts: "host"`. A notice on the run\'s event stream announces each one.', ok: list('PermissionRequest') }),
   'POST /runs/:id/permissions/:requestId': d('Runs', 'Answer a permission request', { description: 'Allow, optionally with edited arguments, or deny with a message the model can read and adapt to. A request nobody answers is denied after ten minutes.', body: ref('PermissionDecision'), ok: ref('PermissionRequest') }),
-  'GET /subagents': d('Runs', 'Subagents across runs', { ok: list('SubagentInfo') }),
+  'GET /subagents': d('Runs', 'Subagents across runs and live CLI sessions', { description: 'A run reports its subagents from its live stream; a session started from a terminal only from its files on disk. `source` tells them apart and, for `cli`, `sessionId` says which session spawned it.', ok: list('SubagentInfo') }),
 
   // ---- Orchestration
   'GET /orchestrations': d('Orchestration', 'List orchestrations', { ok: list('Orchestration') }),
