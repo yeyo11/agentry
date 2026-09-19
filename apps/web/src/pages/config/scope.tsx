@@ -1,8 +1,10 @@
 import type { ProjectSummary } from '@agentry/shared';
+import * as Popover from '@radix-ui/react-popover';
 import { ChevronsUpDown } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { useProjects, type Scope } from '../../api';
 import { Checkbox } from '../../components/controls';
+import { LAYER_ATTR } from '../../components/controls/layer';
 import { shortPath } from '../../lib/format';
 
 export interface ScopeState {
@@ -38,21 +40,11 @@ export function ScopePicker({
   state: ScopeState;
   onSelect: (projectId: string | undefined) => void;
 }) {
+  const listId = useId();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
+  const [active, setActive] = useState(0);
   const [showTemporary, setShowTemporary] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    inputRef.current?.focus();
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [open]);
 
   const needle = filter.trim().toLowerCase();
   // Temporary projects (under the OS temp dir) stay out of the way unless one is already selected
@@ -62,81 +54,86 @@ export function ScopePicker({
     (p) => !needle || p.name.toLowerCase().includes(needle) || p.path.toLowerCase().includes(needle),
   );
   const showUser = !needle || 'user'.includes(needle);
+  // One list for the keyboard: `undefined` is the user scope
+  const options: Array<ProjectSummary | undefined> = [...(showUser ? [undefined] : []), ...matches];
+  const highlighted = Math.min(active, options.length - 1);
 
-  const choose = (projectId: string | undefined) => {
-    setOpen(false);
+  const openChange = (next: boolean) => {
+    setOpen(next);
     setFilter('');
+    setActive(0);
+  };
+  const choose = (projectId: string | undefined) => {
+    openChange(false);
     onSelect(projectId);
   };
+  const optionProps = (projectId: string | undefined, index: number) => ({
+    id: `${listId}-${index}`,
+    role: 'option',
+    'aria-selected': projectId === state.scope.projectId,
+    'data-highlighted': index === highlighted ? '' : undefined,
+    className: `popover-item ${projectId === state.scope.projectId ? 'popover-item-on' : ''}`,
+    onMouseEnter: () => setActive(index),
+    onClick: () => choose(projectId),
+  });
 
   return (
-    <div className="scope-picker" ref={rootRef}>
-      <button
-        type="button"
-        className="btn scope-picker-button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
+    <Popover.Root open={open} onOpenChange={openChange}>
+      <Popover.Trigger className="btn scope-picker-button" aria-haspopup="listbox">
         <span className="muted">Scope</span>
         <strong className="ellipsis">{state.project ? state.project.name : state.scope.projectId ? 'Unknown project' : 'User'}</strong>
         <ChevronsUpDown size={14} strokeWidth={1.75} aria-hidden className="muted" />
-      </button>
-      {open && (
-        <div className="popover" role="listbox" aria-label="Configuration scope">
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content {...LAYER_ATTR} className="popover" align="end" sideOffset={8} collisionPadding={8}>
           <input
-            ref={inputRef}
+            role="combobox"
+            aria-label="Search projects"
+            aria-expanded
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={options.length ? `${listId}-${highlighted}` : undefined}
             value={filter}
             placeholder="Search projects…"
-            aria-label="Search projects"
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e) => {
+              setFilter(e.target.value);
+              setActive(0);
+            }}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') setOpen(false);
-              if (e.key === 'Enter') {
-                if (showUser && !needle) choose(undefined);
-                else if (matches[0]) choose(matches[0].id);
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (options.length) setActive((highlighted + (e.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length);
+              } else if (e.key === 'Enter' && options.length) {
+                e.preventDefault();
+                choose(options[highlighted]?.id);
               }
             }}
           />
-          <div className="popover-list">
+          <div className="popover-list" id={listId} role="listbox" aria-label="Configuration scope">
             {showUser && (
-              <button
-                type="button"
-                role="option"
-                aria-selected={!state.scope.projectId}
-                className={`popover-item ${!state.scope.projectId ? 'popover-item-on' : ''}`}
-                onClick={() => choose(undefined)}
-              >
+              <div {...optionProps(undefined, 0)}>
                 <strong>User</strong>
                 <span className="small muted">Applies to every project of this account</span>
-              </button>
+              </div>
             )}
-            {matches.map((project) => (
-              <button
-                key={project.id}
-                type="button"
-                role="option"
-                aria-selected={project.id === state.scope.projectId}
-                className={`popover-item ${project.id === state.scope.projectId ? 'popover-item-on' : ''}`}
-                title={project.path}
-                onClick={() => choose(project.id)}
-              >
+            {matches.map((project, i) => (
+              <div key={project.id} {...optionProps(project.id, i + (showUser ? 1 : 0))} title={project.path}>
                 <strong className="ellipsis">
                   {project.name}
                   {project.temporary && <span className="badge popover-badge">temporary</span>}
                 </strong>
                 <span className="small muted mono ellipsis">{shortPath(project.path, 44)}</span>
-              </button>
+              </div>
             ))}
-            {!showUser && matches.length === 0 && <div className="small muted popover-empty">No project matches</div>}
+            {options.length === 0 && <div className="small muted popover-empty">No project matches</div>}
           </div>
           {(hiddenTemporary > 0 || showTemporary) && (
             <Checkbox className="check small popover-foot" checked={showTemporary} onChange={setShowTemporary}>
               Show temporary projects{hiddenTemporary > 0 ? ` (${hiddenTemporary})` : ''}
             </Checkbox>
           )}
-        </div>
-      )}
-    </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

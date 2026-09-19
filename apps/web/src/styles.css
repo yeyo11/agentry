@@ -2870,18 +2870,12 @@ a.list-row:hover {
   align-items: center;
 }
 
-.scope-picker {
-  position: relative;
-}
 .scope-picker-button {
   max-width: 320px;
 }
 .popover {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  z-index: 30;
-  width: min(380px, 86vw);
+  z-index: 1100;
+  width: min(380px, calc(100vw - 16px));
   padding: 8px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
@@ -2890,7 +2884,7 @@ a.list-row:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  transform-origin: top right;
+  transform-origin: var(--radix-popover-content-transform-origin);
   animation: pop-in var(--dur-base) var(--ease-out);
 }
 .popover-list {
@@ -2915,7 +2909,7 @@ a.list-row:hover {
   cursor: pointer;
   transition: background var(--dur-fast);
 }
-.popover-item:hover {
+.popover-item[data-highlighted] {
   background: var(--bg-hover);
 }
 .popover-item-on {
@@ -3597,11 +3591,6 @@ button.tree-row-on:hover {
   }
   .hook-hint {
     display: none;
-  }
-  .popover {
-    right: auto;
-    left: 0;
-    transform-origin: top left;
   }
   .grid-2,
   .form-grid,
