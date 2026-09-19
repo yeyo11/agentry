@@ -25,6 +25,30 @@ export function isGitRepo(dir: string): boolean {
   }
 }
 
+/** The checkout `dir` belongs to, which is where the CLI keeps its worktrees whatever subdirectory it runs in. */
+export function topLevel(dir: string): string {
+  return git(dir, ['rev-parse', '--show-toplevel'], 10_000);
+}
+
+/** Whether git ignores `path`, relative to the top level of `repo`, or anything above it. */
+export function isIgnored(repo: string, path: string): boolean {
+  try {
+    git(repo, ['check-ignore', '-q', path], 10_000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Locks a worktree so `git worktree prune` leaves it alone, as the CLI does with the ones it runs in. */
+export function lockWorktree(repo: string, path: string, reason: string): void {
+  try {
+    git(repo, ['worktree', 'lock', '--reason', reason, path], 10_000);
+  } catch {
+    /* already locked */
+  }
+}
+
 export function headCommit(dir: string): string {
   return git(dir, ['rev-parse', 'HEAD']);
 }

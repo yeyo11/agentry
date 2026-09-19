@@ -15,9 +15,11 @@ import { createInterface } from 'node:readline';
 const args = process.argv.slice(2);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const worktree = flag('--worktree');
-// Like the CLI, adopt the worktree of that name; unlike it, refuse to create one, so a test fails
-// if the wrapper did not prepare it
-const dir = worktree ? join(process.cwd(), '.claude', 'worktrees', worktree) : process.cwd();
+// Like the CLI, adopt the worktree of that name, which lives under the repository's top level
+// whichever subdirectory it is started in, and work at its root; unlike it, refuse to create one,
+// so a test fails if the wrapper did not prepare it where the CLI looks
+const topLevel = () => execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+const dir = worktree ? join(topLevel(), '.claude', 'worktrees', worktree) : process.cwd();
 if (!existsSync(dir)) {
   process.stderr.write(`fake-claude: worktree ${dir} was not prepared\n`);
   process.exit(1);

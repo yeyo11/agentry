@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -189,6 +189,105 @@ test('dependent tasks build on their dependencies and the graph ends on one bran
   // The synthesis ran on the integrated branch and can be answered
   assert.ok(orch.synthesisRunId);
   assert.match(orch.finalResult ?? '', new RegExp(`cwd=${integration?.worktree}`));
+  db.close();
+});
+
+test('a graph in a subdirectory gets its worktrees where the CLI looks, and works in that subdirectory', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  mkdirSync(join(repo, 'app'));
+  writeFileSync(join(repo, 'app', 'main.txt'), 'main\n');
+  execFileSync('git', ['-C', repo, 'add', '-A']);
+  execFileSync('git', ['-C', repo, 'commit', '-q', '-m', 'app']);
+  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+
+  const started = orchestrator.create({
+    name: 'in app',
+    cwd: join(repo, 'app'),
+    worktree: true,
+    synthesize: true,
+    tasks: [
+      { id: 'api', name: 'API', prompt: 'FAKE-WRITE api.txt server' },
+      { id: 'shell', name: 'Shell', prompt: 'FAKE-WRITE shell.txt electron', dependsOn: ['api'] },
+    ],
+  });
+  const orch = await settle(orchestrator, started.id);
+
+  assert.equal(orch.status, 'completed', orch.tasks.map((t) => t.error).join('; '));
+  for (const t of orch.tasks) {
+    assert.equal(t.worktree, join(repo, '.claude', 'worktrees', `${orch.id.slice(0, 8)}-${t.id}`));
+    // In the same subdirectory it would have had in the checkout, with its dependency's work
+    assert.match(t.result ?? '', new RegExp(`^cwd=${join(t.worktree ?? '', 'app')} `));
+  }
+  assert.match(orch.tasks.find((t) => t.id === 'shell')?.result ?? '', /files=api\.txt,main\.txt,shell\.txt/);
+  const integration = orch.integration;
+  assert.equal(integration?.status, 'merged', String(integration?.error));
+  assert.equal(integration?.worktree, join(repo, '.claude', 'worktrees', `${orch.id.slice(0, 8)}-integration`));
+  assert.equal(show(repo, `${integration?.branch}:app/api.txt`), 'server');
+  assert.equal(show(repo, `${integration?.branch}:app/shell.txt`), 'electron');
+  assert.match(orch.finalResult ?? '', new RegExp(`cwd=${join(integration?.worktree ?? '', 'app')} `));
+  // Nothing was created under the subdirectory itself
+  assert.equal(existsSync(join(repo, 'app', '.claude')), false);
+  db.close();
+});
+
+test('a graph in an ignored subdirectory works at the top of its worktrees, where its work is kept', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  // Like the wrapper's own workspace/, the default cwd, inside this repository
+  writeFileSync(join(repo, '.gitignore'), 'workspace/\n');
+  execFileSync('git', ['-C', repo, 'add', '-A']);
+  execFileSync('git', ['-C', repo, 'commit', '-q', '-m', 'ignore']);
+  mkdirSync(join(repo, 'workspace'));
+  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+
+  const started = orchestrator.create({
+    name: 'in workspace',
+    cwd: join(repo, 'workspace'),
+    worktree: true,
+    tasks: [{ id: 'api', name: 'API', prompt: 'FAKE-WRITE api.txt server' }],
+  });
+  const orch = await settle(orchestrator, started.id);
+
+  assert.equal(orch.status, 'completed', orch.tasks.map((t) => t.error).join('; '));
+  const api = orch.tasks[0];
+  assert.equal(api?.worktree, join(repo, '.claude', 'worktrees', `${orch.id.slice(0, 8)}-api`));
+  assert.match(api?.result ?? '', new RegExp(`^cwd=${api?.worktree} `));
+  assert.equal(show(repo, `${orch.integration?.branch}:api.txt`), 'server');
+  db.close();
+});
+
+test('resuming a graph whose worktrees were put in its subdirectory moves them where the CLI looks', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  mkdirSync(join(repo, 'app'));
+  writeFileSync(join(repo, 'app', 'main.txt'), 'main\n');
+  execFileSync('git', ['-C', repo, 'add', '-A']);
+  execFileSync('git', ['-C', repo, 'commit', '-q', '-m', 'app']);
+  // What the bug left: the worktree under the subdirectory, and a worker that failed before starting
+  const stale = join(repo, 'app', '.claude', 'worktrees', 'graph-1-api');
+  execFileSync('git', ['-C', repo, 'worktree', 'add', '-q', '-b', 'worktree-graph-1-api', stale]);
+  const failed = stoppedGraph(join(repo, 'app')).tasks[0] as OrchestrationTaskState;
+  db.saveOrchestrations([
+    stoppedGraph(join(repo, 'app'), {
+      status: 'failed',
+      worktree: true,
+      baseCommit: execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+      tasks: [{ ...failed, prompt: 'FAKE-WRITE api.txt server', status: 'failed', worktree: stale, branch: 'worktree-graph-1-api' }],
+    }),
+  ]);
+  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+
+  orchestrator.resume('graph-1', {});
+  const orch = await settle(orchestrator, 'graph-1');
+
+  assert.equal(orch.status, 'completed', orch.tasks.map((t) => t.error).join('; '));
+  assert.equal(orch.tasks[0]?.worktree, join(repo, '.claude', 'worktrees', 'graph-1-api'));
+  assert.equal(existsSync(stale), false);
+  assert.equal(show(repo, `${orch.integration?.branch}:app/api.txt`), 'server');
   db.close();
 });
 

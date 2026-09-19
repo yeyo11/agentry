@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import type {
   Orchestration,
   OrchestrationEngine,
@@ -30,9 +30,12 @@ import {
   git,
   headCommit,
   isGitRepo,
+  isIgnored,
+  lockWorktree,
   merge,
   mergeInProgress,
   removeWorktree,
+  topLevel,
 } from './git.ts';
 import type { CoreConfig } from './paths.ts';
 import type { RunManager } from './runner.ts';
@@ -53,8 +56,26 @@ function worktreeName(orch: Orchestration, task: OrchestrationTaskState): string
   return `${orch.id.slice(0, 8)}-${task.id}`.slice(0, 60);
 }
 
-/** Where the CLI keeps the worktree of that name, so a pre-created one is the one it picks up. */
-const worktreePath = (orch: Orchestration, name: string) => join(orch.cwd, '.claude', 'worktrees', name);
+/**
+ * Where the CLI keeps the worktree of that name, so a pre-created one is the one it picks up. It
+ * resolves them from the repository's top level, not from the directory it is started in.
+ */
+const worktreePath = (root: string, name: string) => join(root, '.claude', 'worktrees', name);
+
+/** A graph's repository: its top level, and the subdirectory of it the graph works in ('' for the top). */
+interface Checkout {
+  root: string;
+  subdir: string;
+}
+
+function checkoutOf(cwd: string): Checkout {
+  const root = topLevel(cwd);
+  // git answers with the real path, so a symlinked cwd would otherwise look like it is outside
+  const subdir = relative(root, realpathSync(cwd));
+  // An ignored directory is missing from a fresh worktree, and whatever a worker writes there never
+  // reaches its branch: in one of those, working at the top is the only way the work survives.
+  return { root, subdir: subdir && !isIgnored(root, subdir) ? subdir : '' };
+}
 
 /** `agentry/<name>-<id>`: readable in a branch list, and never shared by two graphs. */
 function integrationBranch(orch: Orchestration): string {
@@ -99,6 +120,18 @@ interface PendingMerge {
   branch: string;
   paths: string[];
   remaining: string[];
+}
+
+/** A task's worktree, ready for the CLI. */
+interface PreparedWorktree {
+  /** Where the worker is started */
+  cwd: string;
+  /**
+   * Whether the CLI is handed the worktree by name. It always works at a worktree's top, so a
+   * graph in a subdirectory starts its worker inside the worktree instead.
+   */
+  adopt: boolean;
+  pendingMerge: PendingMerge | null;
 }
 
 const PLAN_SCHEMA = {
@@ -471,39 +504,59 @@ export class Orchestrator {
    * started from nothing its dependencies had done and rebuilt it. The CLI adopts an existing
    * worktree of the name it is given, so it still locks it and records it as its own.
    */
-  private prepareWorktree(orch: Orchestration, task: OrchestrationTaskState, name: string): PendingMerge | null {
-    const path = worktreePath(orch, name);
+  private prepareWorktree(orch: Orchestration, task: OrchestrationTaskState, name: string): PreparedWorktree {
+    const { root, subdir } = checkoutOf(orch.cwd);
+    const path = worktreePath(root, name);
     const branch = `worktree-${name}`;
+    // Before worktrees were resolved from the top level, a graph in a subdirectory put them where
+    // the CLI never looked, and every worker failed there before doing anything. Its branch cannot
+    // be checked out twice, so that worktree goes; git refuses if it holds anything.
+    const old = task.worktree;
+    if (old && existsSync(old) && (!existsSync(path) || realpathSync(old) !== realpathSync(path))) removeWorktree(root, old);
     task.worktree = path;
     task.branch = branch;
-    if (existsSync(path)) return null; // a resumed task continues where its first attempt stopped
-    const deps = orch.tasks
-      .filter((t) => task.dependsOn?.includes(t.id) && t.branch && branchExists(orch.cwd, t.branch))
-      .map((t) => t.branch as string);
-    const base = deps[0] ?? orch.baseCommit ?? 'HEAD';
-    addWorktree(orch.cwd, path, branch, base);
-    const rest = deps.slice(1);
-    for (const [i, dep] of rest.entries()) {
-      if (contains(path, dep)) continue;
-      const paths = merge(path, dep, `Merge ${dep} into ${branch}`);
-      // A conflict between two dependencies is the worker's to resolve, as the first thing it does:
-      // it has the context to, and starting it on half the code would be worse.
-      if (paths) return { branch: dep, paths, remaining: rest.slice(i + 1) };
+    // Handed a name, the CLI finds the worktree from the top level and works at the worktree's top
+    const prepared: PreparedWorktree = subdir
+      ? { cwd: join(path, subdir), adopt: false, pendingMerge: null }
+      : { cwd: root, adopt: true, pendingMerge: null };
+    // A resumed task continues where its first attempt stopped
+    if (!existsSync(path)) {
+      const deps = orch.tasks
+        .filter((t) => task.dependsOn?.includes(t.id) && t.branch && branchExists(root, t.branch))
+        .map((t) => t.branch as string);
+      const base = deps[0] ?? orch.baseCommit ?? 'HEAD';
+      addWorktree(root, path, branch, base);
+      const rest = deps.slice(1);
+      for (const [i, dep] of rest.entries()) {
+        if (contains(path, dep)) continue;
+        const paths = merge(path, dep, `Merge ${dep} into ${branch}`);
+        // A conflict between two dependencies is the worker's to resolve, as the first thing it does:
+        // it has the context to, and starting it on half the code would be worse.
+        if (paths) {
+          prepared.pendingMerge = { branch: dep, paths, remaining: rest.slice(i + 1) };
+          break;
+        }
+      }
     }
-    return null;
+    if (!prepared.adopt) {
+      // A directory holding only untracked files in the checkout does not exist in the worktree
+      mkdirSync(prepared.cwd, { recursive: true });
+      lockWorktree(root, path, `agentry orchestration ${orch.id.slice(0, 8)}`);
+    }
+    return prepared;
   }
 
   private launch(orch: Orchestration, task: OrchestrationTaskState): boolean {
     try {
       const isolated = orch.worktree && !task.cwd;
       const name = worktreeName(orch, task);
-      const pendingMerge = isolated ? this.prepareWorktree(orch, task, name) : null;
+      const prepared = isolated ? this.prepareWorktree(orch, task, name) : null;
       const run = this.runs.start(
         {
-          prompt: this.buildPrompt(orch, task, pendingMerge),
-          cwd: task.cwd ?? orch.cwd,
+          prompt: this.buildPrompt(orch, task, prepared?.pendingMerge ?? null),
+          cwd: prepared?.cwd ?? task.cwd ?? orch.cwd,
           // The CLI adopts the worktree prepared above, locks it and works in it
-          ...(isolated ? { worktree: name } : {}),
+          ...(prepared?.adopt ? { worktree: name } : {}),
           model: task.model ?? orch.model ?? undefined,
           permissionMode: orch.permissionMode,
           ...(orch.allowedTools?.length ? { allowedTools: orch.allowedTools } : {}),
@@ -573,7 +626,13 @@ export class Orchestrator {
     const tasks = topological(orch.tasks).filter((t) => t.status === 'completed' && t.branch);
     if (tasks.length === 0) return;
     const branch = orch.integration?.branch ?? integrationBranch(orch);
-    const path = worktreePath(orch, `${orch.id.slice(0, 8)}-integration`);
+    let root: string;
+    try {
+      root = checkoutOf(orch.cwd).root;
+    } catch {
+      root = orch.cwd; // no longer a repository: adding the worktree below says so on the record
+    }
+    const path = worktreePath(root, `${orch.id.slice(0, 8)}-integration`);
     const state: OrchestrationIntegration = (orch.integration = {
       branch,
       worktree: path,
@@ -589,13 +648,13 @@ export class Orchestrator {
     try {
       // Graphs from before tasks were committed on completion still have their work loose
       for (const task of tasks) this.commitTask(orch, task);
-      addWorktree(orch.cwd, path, branch, orch.baseCommit ?? 'HEAD');
+      addWorktree(root, path, branch, orch.baseCommit ?? 'HEAD');
       if (mergeInProgress(path)) abortMerge(path); // a previous attempt stopped half way
 
       const unmerged: OrchestrationTaskState[] = [];
       for (const task of tasks) {
         const taskBranch = task.branch as string;
-        if (!branchExists(orch.cwd, taskBranch)) continue; // the CLI removes a worktree that changed nothing
+        if (!branchExists(root, taskBranch)) continue; // the CLI removes a worktree that changed nothing
         if (contains(path, taskBranch)) {
           state.merged.push(task.id);
           continue;
@@ -611,14 +670,14 @@ export class Orchestrator {
       }
       if (unmerged.length > 0) await this.resolveConflicts(orch, state, unmerged);
 
-      const left = tasks.filter((t) => t.branch && branchExists(orch.cwd, t.branch) && !contains(path, t.branch));
+      const left = tasks.filter((t) => t.branch && branchExists(root, t.branch) && !contains(path, t.branch));
       if (left.length > 0 || mergeInProgress(path) || conflictedPaths(path).length > 0) {
         state.status = 'conflicted';
         state.error = left.length
           ? `not merged: ${left.map((t) => t.id).join(', ')}`
           : 'the integration branch has an unfinished merge';
       } else {
-        state.merged = tasks.filter((t) => t.branch && branchExists(orch.cwd, t.branch)).map((t) => t.id);
+        state.merged = tasks.filter((t) => t.branch && branchExists(root, t.branch)).map((t) => t.id);
         state.status = 'merged';
       }
       state.commit = headCommit(path);
@@ -696,7 +755,7 @@ export class Orchestrator {
             orch.tasks
               .map((t) => `<task id="${t.id}" name="${t.name}" status="${t.status}">\n${(t.result ?? t.error ?? '').slice(0, MAX_DEP_CONTEXT)}\n</task>`)
               .join('\n'),
-          cwd: onBranch ? (integration.worktree as string) : orch.cwd,
+          cwd: onBranch ? this.integratedDir(orch, integration.worktree as string) : orch.cwd,
           model: orch.model ?? undefined,
           permissionMode: orch.permissionMode,
           name: `${orch.name}:synthesis`.slice(0, 60),
@@ -713,6 +772,12 @@ export class Orchestrator {
     } catch (err) {
       orch.finalResult = `Synthesis failed: ${(err as Error).message}`;
     }
+  }
+
+  /** The graph's subdirectory inside the integration worktree, where the workers worked too. */
+  private integratedDir(orch: Orchestration, worktree: string): string {
+    const dir = join(worktree, checkoutOf(orch.cwd).subdir);
+    return existsSync(dir) ? dir : worktree;
   }
 
   /** Integrates a finished graph again: after resolving by hand, or one from before this existed. */
