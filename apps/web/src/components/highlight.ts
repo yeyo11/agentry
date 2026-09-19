@@ -20,7 +20,9 @@
 //                         (`*defaults`), merge keys and `---`.
 //   Markdown              a fenced shell block after a `\` continuation: shiki colours the same
 //                         line one way on its own and another inside a fence, and we follow the
-//                         standalone bash it reads that block as.
+//                         standalone bash it reads that block as. A reference definition's title
+//                         (`[ref]: url "Title"`) stays plain, a quoted word in prose being the
+//                         same text.
 //   shell                 `$1` inside single quotes, brace expansion (`{a,b,c}`) and `find`'s `{}`.
 //   Python                a raw string, which the grammar reads as a regular expression and
 //                         colours inside, and a class's bases (`class A(Base, metaclass=M)`).

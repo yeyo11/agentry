@@ -20,7 +20,7 @@ const FLOORS: Record<(typeof PARITY_LANGS)[number], number> = {
   json: 0.999,
   css: 0.981,
   yaml: 0.987,
-  markdown: 0.987,
+  markdown: 0.989,
   // Both take shiki's own path for the fixtures that TanStack misreads, so their floor is its answer
   bash: 0.995,
   dockerfile: 0.999,
