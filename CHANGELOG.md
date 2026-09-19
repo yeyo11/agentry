@@ -3,6 +3,14 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.5.1](https://github.com/yeyo11/agentry/compare/v0.5.0...v0.5.1) (2026-09-19)
+
+
+### Bug fixes
+
+* read background work from disk so no screen depends on the live stream ([df9ae76](https://github.com/yeyo11/agentry/commit/df9ae76bf47319822897f0a179603613a3e6cd83))
+* read background work from disk so no screen depends on the live stream ([56a203c](https://github.com/yeyo11/agentry/commit/56a203cb08d2ba2405c304984405dd97bdcf7fe8))
+
 ## [0.5.0](https://github.com/yeyo11/agentry/compare/v0.4.1...v0.5.0) (2026-09-19)
 
 
