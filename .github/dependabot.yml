@@ -21,3 +21,7 @@ updates:
     directory: /docker
     schedule:
       interval: monthly
+    ignore:
+      # Odd Node majors never become LTS; stay on LTS images only
+      - dependency-name: node
+        versions: ["23.x", "25.x", "27.x", "29.x"]
