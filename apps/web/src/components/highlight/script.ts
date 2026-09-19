@@ -37,6 +37,9 @@ const LANGUAGE_NAMES = new Set(['this', 'super', 'arguments']);
 const SOFT_KEYWORDS = new Set(['as', 'asserts', 'async', 'declare', 'from', 'get', 'infer', 'is', 'keyof', 'module', 'namespace', 'of', 'override', 'package', 'private', 'protected', 'public', 'readonly', 'satisfies', 'set', 'static', 'type', 'using']);
 const FOLLOWS_VALUE = new Set([')', ']', '}', ',', ';', '.', '?.', '=>', '=', '?', '===', '!==', '==', '!=', '+', '-', '*', '/', '%', '&&', '||', '??', '<', '>', '<=', '>=', '|', '&', '+=', '-=', '++', '--']);
 
+/** Deeper nesting than this is not tracked */
+const MAX_DEPTH = 256;
+
 const UPPER = /^#?[A-Z][\dA-Z_$]*$/;
 const NAME = /^#?[A-Za-z_$][\w$]*$/;
 
@@ -114,7 +117,30 @@ export function* paintScript(tokens: HighlightToken[], lang: string): Generator<
   const jsx = lang === 'tsx' || lang === 'jsx';
   const stack: Frame[] = [frame('block')];
   const top = () => stack[stack.length - 1]!;
-  const inTemplate = () => stack.some((f) => f.kind === 'template');
+  // Nesting is unbounded in the input and every rule looks at the frame on top, so past a depth no
+  // real code reaches the extra frames are only counted: what they would have held is not painted.
+  let overflow = 0;
+  let templates = 0;
+  const push = (f: Frame) => {
+    if (stack.length >= MAX_DEPTH) {
+      overflow++;
+      return;
+    }
+    if (f.kind === 'template') templates++;
+    stack.push(f);
+  };
+  /** The frame a closing bracket ends; the outermost frame is never popped */
+  const pop = (): Frame => {
+    if (overflow > 0) {
+      overflow--;
+      return top();
+    }
+    if (stack.length <= 1) return top();
+    const f = stack.pop()!;
+    if (f.kind === 'template') templates--;
+    return f;
+  };
+  const inTemplate = () => templates > 0;
 
   /** The next lexeme that carries meaning, `steps` of them ahead (or behind, with -1) */
   const sig = (from: number, step: 1 | -1 = 1, steps = 1): Lex | undefined => {
@@ -251,8 +277,8 @@ export function* paintScript(tokens: HighlightToken[], lang: string): Generator<
     // the themes colour what is inside them apart.
     if (cls === 'string' || cls === 'operator') {
       if (cls === 'operator') {
-        if (text === '${') stack.push(frame('template'));
-        else if (stack.length > 1) stack.pop();
+        if (text === '${') push(frame('template'));
+        else pop();
       }
       yield* pieces(text, ESCAPE, () => 'keyword', 'string');
       continue;
@@ -302,7 +328,7 @@ export function* paintScript(tokens: HighlightToken[], lang: string): Generator<
       // TanStack only makes tag tokens of JSX, so one right after `<` settles it
       const closing = next?.text === '/' && (lexes[i + 2]?.cls === 'tag' || lexes[i + 2]?.text === '>');
       if (next?.cls === 'tag' || closing || (next?.text === '>' && (frameNow.kind === 'jsxChildren' || startsExpression(i)))) {
-        stack.push({ ...frame('jsxTag'), closing });
+        push({ ...frame('jsxTag'), closing });
         return null;
       }
       return undefined;
@@ -315,11 +341,11 @@ export function* paintScript(tokens: HighlightToken[], lang: string): Generator<
       // `<Select<Mode> …>`: type arguments, read by the code rules
       if (text === '<' && isTypeArgs(i)) return undefined;
       if (text === '>') {
-        stack.pop();
+        pop();
         // `</a>` ends the children it closes, `<a>` opens them, `<a />` neither
         if (frameNow.closing) {
-          if (top().kind === 'jsxChildren') stack.pop();
-        } else if (sig(i, -1)?.text !== '/') stack.push(frame('jsxChildren'));
+          if (top().kind === 'jsxChildren') pop();
+        } else if (sig(i, -1)?.text !== '/') push(frame('jsxChildren'));
         return null;
       }
       // Attribute names, dashes and namespaces included, whether TanStack caught them or not
@@ -466,23 +492,23 @@ export function* paintScript(tokens: HighlightToken[], lang: string): Generator<
     switch (text) {
       case '{': {
         if (frameNow.kind === 'jsxChildren' || frameNow.kind === 'jsxTag') {
-          stack.push(frame('paren'));
+          push(frame('paren'));
           return 'keyword';
         }
         if (frameNow.type) {
           // `): Result {` opens a body, `: { a: string }` a type
           const body = before !== undefined && before.cls !== 'keyword' && (before.text === ')' || before.text === '>' || before.text === ']' || before.text === '}' || NAME.test(before.text));
           frameNow.type = body ? false : frameNow.type;
-          stack.push(frame(body ? 'block' : 'members', !body));
+          push(frame(body ? 'block' : 'members', !body));
         }
-        else if (frameNow.binding) stack.push(frame(frameNow.kind === 'params' || frameNow.kind === 'members' ? 'params' : 'object', false, true, frameNow.constant));
+        else if (frameNow.binding) push(frame(frameNow.kind === 'params' || frameNow.kind === 'members' ? 'params' : 'object', false, true, frameNow.constant));
         else if (frameNow.importing) {
           const inner = frame('block');
           inner.importing = true;
-          stack.push(inner);
-        } else if (frameNow.heading || (before?.cls === 'keyword' && DECLARES_TYPE.has(before.text)) || afterTypeName(i)) stack.push(frame('members'));
-        else if (before && (OPENS_OBJECT.has(before.text) || (before.cls === 'keyword' && KEYWORDS_BEFORE_OBJECT.has(before.text)) || (before.text === '{' && frameNow.kind === 'paren'))) stack.push(frame('object'));
-        else stack.push(frame('block'));
+          push(inner);
+        } else if (frameNow.heading || (before?.cls === 'keyword' && DECLARES_TYPE.has(before.text)) || afterTypeName(i)) push(frame('members'));
+        else if (before && (OPENS_OBJECT.has(before.text) || (before.cls === 'keyword' && KEYWORDS_BEFORE_OBJECT.has(before.text)) || (before.text === '{' && frameNow.kind === 'paren'))) push(frame('object'));
+        else push(frame('block'));
         frameNow.heading = false;
         const opened = top();
         // The body of what is exported ends the theme's `export default` scope; a pattern does not
@@ -490,7 +516,7 @@ export function* paintScript(tokens: HighlightToken[], lang: string): Generator<
         return frameNow.exported && opened.kind !== 'block' ? 'entity' : null;
       }
       case '}': {
-        const closing = stack.length > 1 ? stack.pop()! : frameNow;
+        const closing = pop();
         const parent = top();
         if (closing.exported) return 'entity';
         if (closing.kind === 'block') parent.exported = false;
@@ -500,29 +526,29 @@ export function* paintScript(tokens: HighlightToken[], lang: string): Generator<
       case '(': {
         const params = frameNow.kind === 'members' && frameNow.binding ? false : isParams(i, frameNow, before);
         // A function type's parameters: its `=>` is followed by the return type, not by a body
-        stack.push({ ...(params ? frame('params', false, true) : frame('paren')), signature: params && frameNow.type, exported: frameNow.exported });
+        push({ ...(params ? frame('params', false, true) : frame('paren')), signature: params && frameNow.type, exported: frameNow.exported });
         return frameNow.exported ? 'entity' : null;
       }
       case ')':
       case ']': {
-        const closed = stack.length > 1 ? stack.pop() : undefined;
-        if (text === ')' && closed?.kind === 'params') top().arrowType = closed.signature;
-        return closed?.exported ? 'entity' : null;
+        const closed = pop();
+        if (text === ')' && closed.kind === 'params') top().arrowType = closed.signature;
+        return closed.exported ? 'entity' : null;
       }
       case '[': {
-        if (frameNow.binding && frameNow.kind !== 'members') stack.push(frame(frameNow.kind === 'params' ? 'params' : 'array', frameNow.type, true, frameNow.constant));
-        else stack.push(frame(frameNow.kind === 'members' && startsMember(i) ? 'params' : 'array', frameNow.type, frameNow.kind === 'members' && startsMember(i)));
+        if (frameNow.binding && frameNow.kind !== 'members') push(frame(frameNow.kind === 'params' ? 'params' : 'array', frameNow.type, true, frameNow.constant));
+        else push(frame(frameNow.kind === 'members' && startsMember(i) ? 'params' : 'array', frameNow.type, frameNow.kind === 'members' && startsMember(i)));
         return null;
       }
       case '<':
         if (isTypeArgs(i)) {
-          stack.push(frame('typeArgs', true));
+          push(frame('typeArgs', true));
           return null;
         }
         return 'keyword';
       case '>':
         if (frameNow.kind === 'typeArgs') {
-          stack.pop();
+          pop();
           return null;
         }
         return frameNow.kind === 'jsxTag' ? null : 'keyword';
