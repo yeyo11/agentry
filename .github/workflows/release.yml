@@ -4,15 +4,21 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Rebuild and publish an existing release tag (e.g. v0.4.0) instead of running release-please
+        required: false
+        default: ''
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.ref }}-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
   # Keeps a release pull request open, with the changelog and every version already bumped.
   # Merging it tags the commit and publishes the GitHub release.
   please:
+    if: inputs.tag == ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -31,7 +37,7 @@ jobs:
   # Between releases, main publishes `edge` only: `latest` belongs to the newest release.
   edge:
     needs: please
-    if: needs.please.outputs.released != 'true'
+    if: inputs.tag == '' && needs.please.outputs.released != 'true'
     permissions:
       contents: read
       packages: write
@@ -43,10 +49,12 @@ jobs:
         type=edge,branch=main
         type=sha,format=short
 
-  # A release just landed: build it for arm64 as well and move `latest` onto it.
+  # A release just landed, or one is being republished by hand: build it for arm64 as well and move
+  # `latest` onto it. The version is passed as `value` because metadata-action otherwise reads it
+  # from the triggering event — a push to main, which carries no tag — and silently publishes none.
   release:
     needs: please
-    if: needs.please.outputs.released == 'true'
+    if: always() && (inputs.tag != '' || needs.please.outputs.released == 'true')
     permissions:
       contents: read
       packages: write
@@ -54,10 +62,10 @@ jobs:
       attestations: write
     uses: ./.github/workflows/image.yml
     with:
-      ref: ${{ needs.please.outputs.tag }}
+      ref: ${{ inputs.tag || needs.please.outputs.tag }}
       platforms: linux/amd64,linux/arm64
       tags: |
-        type=semver,pattern={{version}}
-        type=semver,pattern={{major}}.{{minor}}
-        type=semver,pattern={{major}}
+        type=semver,pattern={{version}},value=${{ inputs.tag || needs.please.outputs.tag }}
+        type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag || needs.please.outputs.tag }}
+        type=semver,pattern={{major}},value=${{ inputs.tag || needs.please.outputs.tag }}
         type=raw,value=latest
