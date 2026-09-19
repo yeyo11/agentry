@@ -1,0 +1,425 @@
+/* Form controls built on Radix primitives (components/controls). Uses the tokens from styles.css. */
+
+/* ---------- Floating menus (Select, Combobox) ---------- */
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 35px;
+  padding: 6px 9px 6px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-base), background var(--dur-fast);
+}
+.select-trigger:hover:not(:disabled) {
+  border-color: var(--text-faint);
+}
+.select-trigger:focus-visible,
+.select-trigger[data-state='open'] {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.select-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.select-trigger.is-invalid {
+  border-color: var(--bad);
+}
+.select-trigger[data-placeholder] .select-value {
+  color: var(--text-faint);
+}
+.select-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.select-chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-faint);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.select-trigger[data-state='open'] .select-chevron {
+  transform: rotate(180deg);
+}
+.toolbar .select-trigger,
+.filter-bar .select-trigger {
+  width: auto;
+  max-width: 260px;
+}
+
+.menu {
+  z-index: 1100;
+  min-width: var(--radix-select-trigger-width, var(--radix-popover-trigger-width, 180px));
+  max-width: min(420px, calc(100vw - 16px));
+  max-height: min(340px, var(--radix-select-content-available-height, var(--radix-popover-content-available-height, 340px)));
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transform-origin: var(--radix-select-content-transform-origin, var(--radix-popover-content-transform-origin));
+  animation: menu-in var(--dur-base) var(--ease-out);
+}
+.menu-viewport {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  transition: background var(--dur-fast);
+}
+.menu-item[data-highlighted] {
+  background: var(--bg-hover);
+}
+.menu-item[data-state='checked'],
+.menu-item[aria-selected='true'] {
+  color: var(--accent);
+  font-weight: 550;
+}
+.menu-item[data-disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.menu-item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-item-hint {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.menu-item-check {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent);
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+/* ---------- Checkbox and switch ---------- */
+
+.check.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.checkbox {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--bg-sunken);
+  color: #fff;
+  cursor: pointer;
+  transition: background var(--dur-fast), border-color var(--dur-fast), box-shadow var(--dur-base);
+}
+.checkbox:hover:not(:disabled) {
+  border-color: var(--text-faint);
+}
+.checkbox[data-state='checked'] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.checkbox:focus-visible,
+.switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.checkbox:disabled,
+.switch:disabled {
+  cursor: not-allowed;
+}
+.checkbox-indicator {
+  display: inline-flex;
+  animation: check-in var(--dur-fast) var(--ease-out);
+}
+@keyframes check-in {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+}
+
+.switch {
+  flex: none;
+  position: relative;
+  width: 30px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  cursor: pointer;
+  transition: background var(--dur-base) var(--ease-out), border-color var(--dur-base);
+}
+.switch[data-state='checked'] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.switch-thumb {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--text-muted);
+  box-shadow: var(--shadow-sm);
+  transform: translateX(2px);
+  transition: transform var(--dur-base) var(--ease-out), background var(--dur-base);
+}
+.switch[data-state='checked'] .switch-thumb {
+  background: #fff;
+  transform: translateX(14px);
+}
+
+/* ---------- Slider ---------- */
+
+.slider {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 22px;
+  touch-action: none;
+  user-select: none;
+}
+.slider-track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  overflow: hidden;
+}
+.slider-range {
+  position: absolute;
+  height: 100%;
+  background: var(--accent);
+}
+.slider-thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-sm);
+  cursor: grab;
+  transition: box-shadow var(--dur-base), transform var(--dur-fast);
+}
+.slider-thumb:hover {
+  transform: scale(1.1);
+}
+.slider-thumb:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--ring);
+}
+.slider[data-disabled] {
+  opacity: 0.55;
+}
+
+/* ---------- Number input ---------- */
+
+.number-input {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-base);
+}
+.number-input:hover {
+  border-color: var(--text-faint);
+}
+.number-input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.number-input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.number-input input:focus {
+  box-shadow: none;
+}
+.number-input input::-webkit-outer-spin-button,
+.number-input input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.number-step {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--dur-fast), background var(--dur-fast);
+}
+.number-step:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+.number-step:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.number-step:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+.number-step:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.number-input-compact input {
+  padding: 5px 4px;
+}
+.number-input-compact .number-step {
+  width: 24px;
+}
+
+/* ---------- Tooltip ---------- */
+
+.tooltip {
+  z-index: 1200;
+  max-width: 320px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.4;
+  box-shadow: var(--shadow-sm);
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+  animation: tooltip-in var(--dur-fast) var(--ease-out);
+}
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* ---------- Collapsible ---------- */
+
+.collapsible-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+}
+.collapsible-chevron {
+  flex: none;
+  color: var(--text-faint);
+  transition: transform var(--dur-base) var(--ease-out), color var(--dur-fast);
+}
+.collapsible-trigger:hover .collapsible-chevron {
+  color: var(--text);
+}
+.collapsible-trigger[data-state='open'] .collapsible-chevron {
+  transform: rotate(90deg);
+}
+.collapsible-content {
+  overflow: hidden;
+}
+.collapsible-content[data-state='open'] {
+  animation: collapsible-down var(--dur-base) var(--ease-out);
+}
+.collapsible-content[data-state='closed'] {
+  animation: collapsible-up var(--dur-base) var(--ease-out);
+}
+@keyframes collapsible-down {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+}
+@keyframes collapsible-up {
+  from {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu,
+  .tooltip,
+  .checkbox-indicator,
+  .collapsible-content[data-state] {
+    animation: none;
+  }
+}

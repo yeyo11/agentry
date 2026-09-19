@@ -3,12 +3,14 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { App } from './App';
+import { TooltipProvider } from './components/controls';
 import { ConfirmProvider } from './components/Dialog';
 import { ToastProvider } from './components/Toast';
 import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
 import './lib/theme'; // applies the stored theme before the first paint
 import './styles.css';
+import './controls.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,11 +24,13 @@ const router = createBrowserRouter([
   {
     path: '*',
     element: (
-      <ToastProvider>
-        <ConfirmProvider>
-          <App />
-        </ConfirmProvider>
-      </ToastProvider>
+      <TooltipProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <App />
+          </ConfirmProvider>
+        </ToastProvider>
+      </TooltipProvider>
     ),
   },
 ]);

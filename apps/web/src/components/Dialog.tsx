@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { hasOpenLayer } from './controls';
 import { ICON } from './icons';
 import { EASE_OUT, motion, useReducedMotion } from './motion';
 
@@ -49,6 +50,8 @@ export function Dialog({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        // An open select menu or suggestion list inside the dialog takes Escape first
+        if (hasOpenLayer()) return;
         event.stopPropagation();
         onClose();
         return;
