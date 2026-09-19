@@ -46,6 +46,12 @@ export const sessionRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     return summary?.live ? { ...detail, summary: { ...detail.summary, live: summary.live } } : detail;
   });
 
+  app.get<{ Params: { id: string }; Querystring: { q?: string; sidechains?: string } }>('/sessions/:id/search', async (req) => {
+    const result = await core.sessions.searchSession(req.params.id, req.query.q ?? '', { includeSidechains: req.query.sidechains === '1' });
+    if (!result) throw new Error('session not found');
+    return result;
+  });
+
   // Background agents this session spawned, from its files on disk — works whether it was started
   // from Agentry or from a terminal.
   app.get<{ Params: { id: string } }>('/sessions/:id/subagents', async (req) =>

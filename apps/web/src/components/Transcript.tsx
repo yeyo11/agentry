@@ -178,10 +178,12 @@ export function Transcript({
   entries,
   pinToBottom = false,
   onReachTop,
+  focus,
 }: {
   entries: TranscriptEntry[];
   pinToBottom?: boolean;
   onReachTop?: () => void;
+  focus?: { item: TranscriptEntry } | null;
 }) {
   return (
     <VirtualList
@@ -190,6 +192,7 @@ export function Transcript({
       itemKey={(entry, i) => entry.uuid || String(i)}
       pinToBottom={pinToBottom}
       onReachTop={onReachTop}
+      focus={focus}
     >
       {(entry) => <EntryView entry={entry} />}
     </VirtualList>
@@ -314,10 +317,12 @@ export const RunTimeline = memo(function RunTimeline({
   events,
   follow = false,
   onReachTop,
+  focus,
 }: {
   events: RunEvent[];
   follow?: boolean;
   onReachTop?: () => void;
+  focus?: { item: RunEvent } | null;
 }) {
   const rows = useMemo(() => events.filter((event) => !isSilent(event)), [events]);
   // Rows re-mount as they scroll back into the window, and a message that slides in again every
@@ -330,7 +335,7 @@ export const RunTimeline = memo(function RunTimeline({
   }, [rows, known]);
 
   return (
-    <VirtualList className="transcript" items={rows} itemKey={(event) => String(event.seq)} pinToBottom={follow} onReachTop={onReachTop}>
+    <VirtualList className="transcript" items={rows} itemKey={(event) => String(event.seq)} pinToBottom={follow} onReachTop={onReachTop} focus={focus}>
       {(event) => <TimelineRow event={event} entrance={!known.has(event.seq)} />}
     </VirtualList>
   );

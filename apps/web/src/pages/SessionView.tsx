@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Play, Radio, TerminalSquare, Trash2 } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, useSessionTranscript } from '../api';
@@ -10,6 +10,7 @@ import { ScrollJump } from '../components/ScrollJump';
 import { useDeleteSession } from '../components/SessionDelete';
 import { OriginBadge, OriginTrail } from '../components/SessionOrigin';
 import { Transcript } from '../components/Transcript';
+import { FindBar, FindButton, useFindFocus, useFindHighlight, useTranscriptFind } from '../components/TranscriptSearch';
 import { Card, Empty, ErrorBox, Loading, PageHeader, StatusBadge } from '../components/ui';
 import { formatBytes, formatDateTime } from '../lib/format';
 
@@ -31,6 +32,14 @@ export function SessionView() {
   const openElsewhere = live?.source === 'cli';
   const [asCopy, setAsCopy] = useState(true);
   const fork = openElsewhere && asCopy;
+
+  const find = useTranscriptFind({
+    scope: ['session', id, sidechains],
+    search: useCallback((q: string) => api.searchSession(id, sidechains, q), [id, sidechains]),
+  });
+  const focus = useFindFocus(find.target, transcript.items, transcript.from, transcript.reach);
+  const transcriptBox = useRef<HTMLDivElement>(null);
+  useFindHighlight(transcriptBox, find);
 
   const files = useAttachments();
   const ready = (prompt.trim() || files.ids.length > 0) && !files.uploading;
@@ -56,6 +65,10 @@ export function SessionView() {
   useEffect(() => {
     setLanding(true);
   }, [id]);
+  // Jumping to a hit is the reader moving: the bottom must not pull them back
+  useEffect(() => {
+    if (find.target) setLanding(false);
+  }, [find.target]);
   useEffect(() => {
     if (!landing || !entryCount) return;
     const main = document.querySelector<HTMLElement>('.main');
@@ -98,6 +111,7 @@ export function SessionView() {
         actions={
           <>
             {live && <StatusBadge status={live.status} title={`live via ${live.source}`} />}
+            <FindButton find={find} />
             {live?.runId && (
               <Link to={`/runs/${live.runId}`} className="btn">
                 <Radio {...ICON_SM} /> Open live run
@@ -125,6 +139,7 @@ export function SessionView() {
         }
       />
       <div className="mono small muted">session {summary.id}</div>
+      <FindBar find={find} />
 
       {resumeOpen && !live?.runId && (
         <Card title="Continue in Agentry">
@@ -189,7 +204,9 @@ export function SessionView() {
               </button>
             </div>
           )}
-          <Transcript entries={entries} pinToBottom={landing} onReachTop={transcript.loadEarlier} />
+          <div ref={transcriptBox}>
+            <Transcript entries={entries} pinToBottom={landing} onReachTop={transcript.loadEarlier} focus={focus} />
+          </div>
           <ScrollJump label="transcript" />
         </>
       )}

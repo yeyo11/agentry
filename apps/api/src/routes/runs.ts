@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
-import type { PermissionDecision, PermissionMode, RunDetail, RunEvent, RunOptions, RunSettingsUpdate, RunWorkflowRequest } from '@agentry/shared';
+import type { PermissionDecision, PermissionMode, RunDetail, RunEvent, RunOptions, RunSettingsUpdate, RunWorkflowRequest, TranscriptSearchResult } from '@agentry/shared';
 
 const HEARTBEAT_MS = 15_000;
 const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'];
@@ -21,6 +21,12 @@ export const runRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core 
       ...(req.query.before !== undefined ? { before: Number(req.query.before) } : {}),
     });
     return { run, ...page };
+  });
+
+  app.get<{ Params: { id: string }; Querystring: { q?: string } }>('/runs/:id/search', (req): TranscriptSearchResult => {
+    const result = core.runs.searchEvents(req.params.id, req.query.q ?? '');
+    if (!result) throw new Error('run not found');
+    return result;
   });
 
   app.post<{ Params: { id: string }; Body: { text?: string; attachments?: string[] } }>('/runs/:id/messages', (req) =>

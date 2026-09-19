@@ -196,6 +196,33 @@ export interface SessionDetail {
   total: number;
 }
 
+/** The most hits one search returns; past it the newest ones are kept and `truncated` is set. */
+export const TRANSCRIPT_SEARCH_MAX_HITS = 500;
+
+/** One entry (or run event) whose text contains the query. */
+export interface TranscriptSearchHit {
+  /** Index of the entry or event, in the same index space as `from` and `total` of a page */
+  index: number;
+  /** The text around the first match, whitespace collapsed */
+  snippet: string;
+  /** Where the match starts within `snippet` */
+  start: number;
+  /** Length of the match within `snippet` */
+  length: number;
+  /** For a run, the kind of event the hit is in, so a view that hides some kinds can skip them */
+  kind?: RunEventKind;
+}
+
+export interface TranscriptSearchResult {
+  query: string;
+  /** Hits in transcript order, oldest first: one per entry, however many times it matches */
+  hits: TranscriptSearchHit[];
+  /** Entries (or events) searched, the same `total` a page of the transcript reports */
+  total: number;
+  /** More entries matched than `hits` carries; the oldest ones were left out */
+  truncated: boolean;
+}
+
 // ---------- Runs (`claude -p` processes managed by the wrapper) ----------
 
 export type PermissionMode = 'acceptEdits' | 'auto' | 'bypassPermissions' | 'manual' | 'dontAsk' | 'plan';

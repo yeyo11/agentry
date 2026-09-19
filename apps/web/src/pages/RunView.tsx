@@ -1,6 +1,7 @@
+import type { TranscriptSearchHit } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ChevronLeft, CircleSlash, Play, SendHorizontal, Square, Trash2 } from 'lucide-react';
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, keys, useRuns, useRunStream } from '../api';
 // Direct imports: this page is in the shell bundle, and the barrel would pull the lazy form controls into it
@@ -14,6 +15,7 @@ import { isRunLive } from '../components/RunCard';
 import { ICON, ICON_SM } from '../components/icons';
 import { AnimatePresence, motion, StatusDot, ThinkingDots } from '../components/motion';
 import { RunTimeline, StreamingEntry } from '../components/Transcript';
+import { FindBar, FindButton, useFindFocus, useFindHighlight, useTranscriptFind } from '../components/TranscriptSearch';
 import { WorkflowCard } from '../components/WorkflowCard';
 import { Card, Empty, ErrorBox, Loading, StatusBadge, Tag, usePageTitle } from '../components/ui';
 import { useDetailPanel } from '../lib/detail';
@@ -111,11 +113,23 @@ export function RunView() {
   const run = runs.data?.find((r) => r.id === id);
   usePageTitle(run ? `${run.name} · run` : 'Run');
   const notFound = runs.isSuccess && !run;
-  const { events, connected, partial, from, more, loadingMore, loadEarlier } = useRunStream(id, !notFound);
+  const { events, connected, partial, from, more, loadingMore, loadEarlier, reach } = useRunStream(id, !notFound);
   const { open: openDetail } = useDetailPanel();
   const [showNoise, setShowNoise] = useState(false);
   const [follow, setFollow] = useState(true);
   const scroller = useRef<HTMLDivElement>(null);
+
+  const find = useTranscriptFind({
+    scope: ['run', id],
+    search: useCallback((q: string) => api.searchRun(id, q), [id]),
+    keep: useCallback((hit: TranscriptSearchHit) => showNoise || (hit.kind !== 'other' && hit.kind !== 'task'), [showNoise]),
+  });
+  const focus = useFindFocus(find.target, events, from, reach);
+  useFindHighlight(scroller, find);
+  // Jumping to a hit is the reader moving: the bottom must not pull them back
+  useEffect(() => {
+    if (find.target) setFollow(false);
+  }, [find.target]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: keys.runs });
   const stop = useMutation({ mutationFn: () => api.stopRun(id), onSuccess: invalidate });
@@ -176,6 +190,7 @@ export function RunView() {
             <StatusDot tone={connected ? 'ok' : 'warn'} live={connected && live} title={connected ? 'Stream connected' : 'Stream reconnecting…'} />
           </div>
           <div className="page-actions">
+            <FindButton find={find} />
             <Switch checked={showNoise} onChange={setShowNoise}>
               All events
             </Switch>
@@ -201,6 +216,7 @@ export function RunView() {
           </div>
         </header>
         <ErrorBox error={stop.error ?? interrupt.error ?? remove.error} />
+        <FindBar find={find} />
 
         <div className="run-stage">
         <div
@@ -222,7 +238,7 @@ export function RunView() {
           {visible.length === 0 ? (
             <Loading label="Waiting for events…" />
           ) : (
-            <RunTimeline events={visible} follow={follow} onReachTop={loadEarlier} />
+            <RunTimeline events={visible} follow={follow} onReachTop={loadEarlier} focus={focus} />
           )}
           {/* Pinned under the transcript: a run waiting on a decision is stuck until it gets one */}
           {run && <PermissionPrompts runId={id} live={isRunLive(run)} />}
