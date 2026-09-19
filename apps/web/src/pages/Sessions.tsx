@@ -3,6 +3,7 @@ import { ArrowUpRight, ChevronRight, History, Network, Play, Radio, RotateCcw, S
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjects, useSessions } from '../api';
+import { Checkbox, Select, Tooltip } from '../components/controls';
 import { ICON_SM, Monogram } from '../components/icons';
 import { Collapse, StatusDot } from '../components/motion';
 import { useDeleteSession } from '../components/SessionDelete';
@@ -13,6 +14,11 @@ import { formatBytes, formatDateTime, shortPath, timeAgo } from '../lib/format';
 type Show = 'active' | 'all';
 type View = 'grouped' | 'flat';
 type Sort = 'activity' | 'started' | 'messages';
+const SORT_OPTIONS: ReadonlyArray<{ value: Sort; label: string }> = [
+  { value: 'activity', label: 'Recent activity' },
+  { value: 'started', label: 'Recently started' },
+  { value: 'messages', label: 'Most messages' },
+];
 
 const FILTERABLE_ORIGINS: OriginKind[] = ['cli', 'run', 'orchestration'];
 const ORIGIN_CHIP_LABEL: Record<string, string> = { cli: 'CLI', run: 'Agentry runs', orchestration: 'Orchestrations' };
@@ -91,9 +97,11 @@ function SessionItem({
         </span>
       </Link>
       <div className="srow-actions">
-        <Link to={`/sessions/${session.id}`} className="btn btn-small" title="Open transcript">
-          Open <ArrowUpRight {...ICON_SM} />
-        </Link>
+        <Tooltip content="Open transcript">
+          <Link to={`/sessions/${session.id}`} className="btn btn-small">
+            Open <ArrowUpRight {...ICON_SM} />
+          </Link>
+        </Tooltip>
         {liveRunId ? (
           <Link to={`/runs/${liveRunId}`} className="btn btn-small btn-primary">
             <Radio {...ICON_SM} /> Open run
@@ -103,15 +111,19 @@ function SessionItem({
             <Play {...ICON_SM} /> Resume in a run
           </button>
         )}
-        <button
-          className="icon-btn"
-          aria-label={`Delete session ${session.title}`}
-          title={session.live ? 'Live sessions cannot be deleted' : 'Delete session'}
-          disabled={Boolean(session.live) || deleting}
-          onClick={() => onDelete(session)}
-        >
-          {deleting ? <span className="spinner" /> : <Trash2 {...ICON_SM} />}
-        </button>
+        {/* The wrapper keeps the tooltip working while the button is disabled */}
+        <Tooltip content={session.live ? 'Live sessions cannot be deleted' : 'Delete session'}>
+          <span className="tooltip-anchor">
+            <button
+              className="icon-btn"
+              aria-label={`Delete session ${session.title}`}
+              disabled={Boolean(session.live) || deleting}
+              onClick={() => onDelete(session)}
+            >
+              {deleting ? <span className="spinner" /> : <Trash2 {...ICON_SM} />}
+            </button>
+          </span>
+        </Tooltip>
       </div>
     </div>
   );
@@ -189,9 +201,11 @@ function OrchestrationRow({
         <span className="muted small nowrap" title={formatDateTime(last)}>
           {timeAgo(last)}
         </span>
-        <Link to={`/orchestration/${group.id}`} className="btn btn-small" title="Open the orchestration board">
-          Board <ArrowUpRight {...ICON_SM} />
-        </Link>
+        <Tooltip content="Open the orchestration board">
+          <Link to={`/orchestration/${group.id}`} className="btn btn-small">
+            Board <ArrowUpRight {...ICON_SM} />
+          </Link>
+        </Tooltip>
       </div>
       <Collapse open={open}>
         <div className="sorch-children">
@@ -358,21 +372,23 @@ export function Sessions() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select aria-label="Project" value={projectId} onChange={(e) => patch({ project: e.target.value || null })}>
-          <option value="">All projects</option>
-          {(projects.data ?? [])
-            .filter((p) => showTemporary || !p.temporary || p.id === projectId)
-            .map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.sessionCount})
-              </option>
-            ))}
-        </select>
-        <select aria-label="Sort by" value={sort} onChange={(e) => patch({ sort: e.target.value === 'activity' ? null : e.target.value })}>
-          <option value="activity">Recent activity</option>
-          <option value="started">Recently started</option>
-          <option value="messages">Most messages</option>
-        </select>
+        <Select
+          aria-label="Project"
+          value={projectId}
+          onChange={(v) => patch({ project: v || null })}
+          options={[
+            { value: '', label: 'All projects' },
+            ...(projects.data ?? [])
+              .filter((p) => showTemporary || !p.temporary || p.id === projectId)
+              .map((p) => ({ value: p.id, label: `${p.name} (${p.sessionCount})` })),
+          ]}
+        />
+        <Select<Sort>
+          aria-label="Sort by"
+          value={sort}
+          onChange={(v) => patch({ sort: v === 'activity' ? null : v })}
+          options={SORT_OPTIONS}
+        />
         <div className="chips" role="group" aria-label="Origin">
           {FILTERABLE_ORIGINS.map((kind) => {
             const Icon = ORIGIN_META[kind].icon;
@@ -389,12 +405,20 @@ export function Sessions() {
             );
           })}
         </div>
-        <label className="check" title="Sessions of projects under the OS temp directory">
-          <input type="checkbox" checked={showTemporary} onChange={(e) => patch({ temp: e.target.checked ? '1' : null })} /> Temporary projects
-        </label>
-        <label className="check" title="Housekeeping sessions of the wrapper itself (planner, auth check)">
-          <input type="checkbox" checked={showInternal} onChange={(e) => patch({ internal: e.target.checked ? '1' : null })} /> Internal
-        </label>
+        <Checkbox
+          checked={showTemporary}
+          onChange={(on) => patch({ temp: on ? '1' : null })}
+          tooltip="Sessions of projects under the OS temp directory"
+        >
+          Temporary projects
+        </Checkbox>
+        <Checkbox
+          checked={showInternal}
+          onChange={(on) => patch({ internal: on ? '1' : null })}
+          tooltip="Housekeeping sessions of the wrapper itself (planner, auth check)"
+        >
+          Internal
+        </Checkbox>
       </div>
 
       <ErrorBox error={sessions.error} />

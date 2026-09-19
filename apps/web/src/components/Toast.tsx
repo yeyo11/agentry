@@ -1,6 +1,7 @@
 import { CircleAlert, CircleCheck, Info, X } from 'lucide-react';
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { errorMessage } from '../lib/format';
+import { Collapsible } from './controls';
 import { ICON, ICON_SM } from './icons';
 import { AnimatePresence, motion, SPRING, useReducedMotion } from './motion';
 
@@ -74,10 +75,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <div className="toast-title">{toast.title}</div>
               {toast.detail &&
                 (toast.detail.length > 140 || toast.detail.includes('\n') ? (
-                  <details>
-                    <summary className="small muted">Show output</summary>
+                  <Collapsible title="Show output" triggerClassName="small muted">
                     <pre className="toast-detail">{toast.detail}</pre>
-                  </details>
+                  </Collapsible>
                 ) : (
                   <div className="small muted break">{toast.detail}</div>
                 ))}

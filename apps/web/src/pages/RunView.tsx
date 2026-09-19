@@ -3,6 +3,7 @@ import { ArrowDown, ChevronLeft, Play, SendHorizontal, Square, Trash2 } from 'lu
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, keys, useRuns, useRunStream } from '../api';
+import { Collapsible, Switch, Tooltip } from '../components/controls';
 import { EnvironmentPanel } from '../components/EnvironmentPanel';
 import { PermissionPrompts } from '../components/PermissionPrompts';
 import { isRunLive } from '../components/RunCard';
@@ -91,17 +92,19 @@ export function RunView() {
       <section className="run-main">
         <header className="run-head">
           <div className="run-title">
-            <Link to="/agents" className="icon-btn" aria-label="Back to agents" title="Back to agents">
-              <ChevronLeft {...ICON} />
-            </Link>
+            <Tooltip content="Back to agents">
+              <Link to="/agents" className="icon-btn" aria-label="Back to agents">
+                <ChevronLeft {...ICON} />
+              </Link>
+            </Tooltip>
             <h1 className="ellipsis">{run.name}</h1>
             <StatusBadge status={run.status} />
             <StatusDot tone={connected ? 'ok' : 'warn'} live={connected && live} title={connected ? 'Stream connected' : 'Stream reconnecting…'} />
           </div>
           <div className="page-actions">
-            <label className="check">
-              <input type="checkbox" checked={showNoise} onChange={(e) => setShowNoise(e.target.checked)} /> All events
-            </label>
+            <Switch checked={showNoise} onChange={setShowNoise}>
+              All events
+            </Switch>
             {live ? (
               <button className="btn btn-danger" disabled={stop.isPending} onClick={() => stop.mutate()}>
                 <Square {...ICON_SM} />
@@ -266,13 +269,17 @@ export function RunView() {
           )}
         </Card>
 
-        <details className="card fold-card">
-          <summary>
-            <h2>Loaded by Claude</h2>
-            <span className="small muted">tools, MCP servers, agents, skills…</span>
-          </summary>
+        <Collapsible
+          className="card fold-card"
+          title={
+            <>
+              <span className="fold-card-title">Loaded by Claude</span>
+              <span className="small muted">tools, MCP servers, agents, skills…</span>
+            </>
+          }
+        >
           <EnvironmentPanel cwd={run.cwd} live={isRunLive(run)} />
-        </details>
+        </Collapsible>
       </aside>
     </div>
   );

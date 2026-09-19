@@ -4,6 +4,7 @@ import { ArrowUpRight, Square, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { durationBetween, formatCost, shortPath, timeAgo, truncate } from '../lib/format';
+import { Tooltip } from './controls';
 import { ICON_SM } from './icons';
 import { ErrorBox, StatusBadge } from './ui';
 
@@ -32,9 +33,11 @@ export function RunCard({ run, compact = false }: { run: RunSummary; compact?: b
             </Link>
           )}
           {run.account && (
-            <Link to="/accounts" className="badge badge-info" title="Pinned to a claude-swap account">
-              {run.account}
-            </Link>
+            <Tooltip content="Pinned to a claude-swap account">
+              <Link to="/accounts" className="badge badge-info">
+                {run.account}
+              </Link>
+            </Tooltip>
           )}
           {runningSubagents > 0 && <span className="badge badge-active">{runningSubagents} subagents</span>}
           {runningTasks > 0 && <span className="badge badge-active">{runningTasks} bg tasks</span>}

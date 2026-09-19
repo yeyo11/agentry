@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useOrchestrations, useProjects } from '../api';
-import { Card, Empty, ErrorBox, Field, Loading, ModelDatalist, PageHeader, PERMISSION_MODES, Segmented, StatusBadge } from '../components/ui';
+import { Combobox, NumberInput, Select, Switch } from '../components/controls';
+import { Card, Empty, ErrorBox, Field, Loading, MODEL_OPTIONS, PageHeader, PERMISSION_MODES, Segmented, StatusBadge } from '../components/ui';
 import { formatCost, timeAgo, truncate } from '../lib/format';
 
 type Mode = 'auto' | 'manual';
@@ -56,11 +57,12 @@ function TaskEditor({
           <input value={task.name} placeholder="Short label" onChange={(e) => onChange({ name: e.target.value })} />
         </Field>
         <Field label="Model (optional)">
-          <input
-            list="orch-model-options"
+          <Combobox
+            aria-label="Model"
             value={task.model ?? ''}
             placeholder="inherit"
-            onChange={(e) => onChange({ model: e.target.value || undefined })}
+            onChange={(model) => onChange({ model: model || undefined })}
+            options={MODEL_OPTIONS}
           />
         </Field>
       </div>
@@ -72,16 +74,15 @@ function TaskEditor({
           <span className="field-label">Depends on</span>
           {others.length === 0 && <span className="muted small">no other tasks</span>}
           {others.map((id) => (
-            <label key={id} className={`chip ${deps.includes(id) ? 'chip-on' : ''}`}>
-              <input
-                type="checkbox"
-                checked={deps.includes(id)}
-                onChange={(e) =>
-                  onChange({ dependsOn: e.target.checked ? [...deps, id] : deps.filter((d) => d !== id) })
-                }
-              />
+            <button
+              key={id}
+              type="button"
+              className={`chip ${deps.includes(id) ? 'chip-on' : ''}`}
+              aria-pressed={deps.includes(id)}
+              onClick={() => onChange({ dependsOn: deps.includes(id) ? deps.filter((d) => d !== id) : [...deps, id] })}
+            >
               {id}
-            </label>
+            </button>
           ))}
         </div>
         <button type="button" className="btn btn-small btn-danger" onClick={onRemove}>
@@ -242,12 +243,6 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         />
       }
     >
-      <ModelDatalist id="orch-model-options" />
-      <datalist id="orch-cwd-options">
-        {(projects.data ?? []).filter((p) => p.exists).map((p) => (
-          <option key={p.id} value={p.path} />
-        ))}
-      </datalist>
       <div className="form">
         <Field
           label="Objective"
@@ -257,14 +252,20 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         </Field>
         <div className="form-grid form-grid-3">
           <Field label="Working directory">
-            <input list="orch-cwd-options" placeholder="wrapper workspace" value={cwd} onChange={(e) => setCwd(e.target.value)} />
+            <Combobox
+              aria-label="Working directory"
+              placeholder="wrapper workspace"
+              value={cwd}
+              onChange={setCwd}
+              options={(projects.data ?? []).filter((p) => p.exists).map((p) => ({ value: p.path, label: p.name, hint: p.path }))}
+            />
           </Field>
           <Field label="Model">
-            <input list="orch-model-options" placeholder="default" value={model} onChange={(e) => setModel(e.target.value)} />
+            <Combobox aria-label="Model" placeholder="default" value={model} onChange={setModel} options={MODEL_OPTIONS} />
           </Field>
           {mode === 'auto' && (
             <Field label="Max tasks">
-              <input type="number" min={1} max={12} value={maxTasks} onChange={(e) => setMaxTasks(Number(e.target.value) || 1)} />
+              <NumberInput min={1} max={12} value={maxTasks} onChange={(v) => setMaxTasks(v || 1)} />
             </Field>
           )}
         </div>
@@ -344,31 +345,25 @@ function CreateForm({ onDone }: { onDone: () => void }) {
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Refactor auth module" />
               </Field>
               <Field label="Concurrency" hint="Agents in parallel">
-                <input type="number" min={1} max={8} value={concurrency} onChange={(e) => setConcurrency(Number(e.target.value) || 1)} />
+                <NumberInput min={1} max={8} value={concurrency} onChange={(v) => setConcurrency(v || 1)} />
               </Field>
               <Field label="Permission mode">
-                <select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value as PermissionMode | '')}>
-                  <option value="">Default</option>
-                  {PERMISSION_MODES.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                <Select<PermissionMode | ''>
+                  value={permissionMode}
+                  onChange={setPermissionMode}
+                  options={[{ value: '', label: 'Default' }, ...PERMISSION_MODES.map((m) => ({ value: m, label: m }))]}
+                />
               </Field>
             </div>
-            <label className="check">
-              <input type="checkbox" checked={synthesize} onChange={(e) => setSynthesize(e.target.checked)} /> Run a final
-              agent that synthesizes all task results
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={worktree} onChange={(e) => setWorktree(e.target.checked)} /> Give each task
-              its own git worktree and branch
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={askPermissions} onChange={(e) => setAskPermissions(e.target.checked)} /> Ask
-              me when a worker needs permission
-            </label>
+            <Switch checked={synthesize} onChange={setSynthesize}>
+              Run a final agent that synthesizes all task results
+            </Switch>
+            <Switch checked={worktree} onChange={setWorktree}>
+              Give each task its own git worktree and branch
+            </Switch>
+            <Switch checked={askPermissions} onChange={setAskPermissions}>
+              Ask me when a worker needs permission
+            </Switch>
             <p className="muted small">
               Prompts appear on the worker's run page for you to allow or deny. Without this a worker has nobody to ask,
               so anything not listed below is denied automatically.

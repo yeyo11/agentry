@@ -3,6 +3,7 @@
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useSyncExternalStore } from 'react';
+import { Tooltip } from '../components/controls';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type EffectiveTheme = 'light' | 'dark';
@@ -73,25 +74,26 @@ export function ThemeToggle() {
   const next = ORDER[(ORDER.indexOf(current) + 1) % ORDER.length] ?? 'system';
   const Icon = ICON[current];
   return (
-    <button
-      type="button"
-      className="theme-toggle"
-      onClick={() => setThemePreference(next)}
-      aria-label={`${LABEL[current]} — switch to ${LABEL[next].toLowerCase()}`}
-      title={`${LABEL[current]} · click for ${LABEL[next].toLowerCase()}`}
-    >
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.span
-          key={current}
-          className="theme-toggle-icon"
-          initial={reduced ? false : { opacity: 0, rotate: -60, scale: 0.6 }}
-          animate={{ opacity: 1, rotate: 0, scale: 1 }}
-          exit={reduced ? { opacity: 0 } : { opacity: 0, rotate: 60, scale: 0.6 }}
-          transition={{ duration: 0.16 }}
-        >
-          <Icon size={16} strokeWidth={1.75} aria-hidden />
-        </motion.span>
-      </AnimatePresence>
-    </button>
+    <Tooltip content={`${LABEL[current]} · click for ${LABEL[next].toLowerCase()}`}>
+      <button
+        type="button"
+        className="theme-toggle"
+        onClick={() => setThemePreference(next)}
+        aria-label={`${LABEL[current]} — switch to ${LABEL[next].toLowerCase()}`}
+      >
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span
+            key={current}
+            className="theme-toggle-icon"
+            initial={reduced ? false : { opacity: 0, rotate: -60, scale: 0.6 }}
+            animate={{ opacity: 1, rotate: 0, scale: 1 }}
+            exit={reduced ? { opacity: 0 } : { opacity: 0, rotate: 60, scale: 0.6 }}
+            transition={{ duration: 0.16 }}
+          >
+            <Icon size={16} strokeWidth={1.75} aria-hidden />
+          </motion.span>
+        </AnimatePresence>
+      </button>
+    </Tooltip>
   );
 }

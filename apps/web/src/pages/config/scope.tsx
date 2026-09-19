@@ -2,6 +2,7 @@ import type { ProjectSummary } from '@agentry/shared';
 import { ChevronsUpDown } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useProjects, type Scope } from '../../api';
+import { Checkbox } from '../../components/controls';
 import { shortPath } from '../../lib/format';
 
 export interface ScopeState {
@@ -130,10 +131,9 @@ export function ScopePicker({
             {!showUser && matches.length === 0 && <div className="small muted popover-empty">No project matches</div>}
           </div>
           {(hiddenTemporary > 0 || showTemporary) && (
-            <label className="check small popover-foot">
-              <input type="checkbox" checked={showTemporary} onChange={(e) => setShowTemporary(e.target.checked)} /> Show temporary
-              projects{hiddenTemporary > 0 ? ` (${hiddenTemporary})` : ''}
-            </label>
+            <Checkbox className="check small popover-foot" checked={showTemporary} onChange={setShowTemporary}>
+              Show temporary projects{hiddenTemporary > 0 ? ` (${hiddenTemporary})` : ''}
+            </Checkbox>
           )}
         </div>
       )}

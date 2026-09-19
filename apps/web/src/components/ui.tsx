@@ -1,6 +1,7 @@
 import { Check, CircleAlert, Copy, Inbox, type LucideIcon } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { errorMessage } from '../lib/format';
+import { Tooltip } from './controls';
 import { ICON, ICON_SM } from './icons';
 import { AnimatePresence, motion, SlidingIndicator, StatusDot, useIndicatorId, type DotTone } from './motion';
 
@@ -90,31 +91,32 @@ export function usePageTitle(title: string | undefined): void {
 export function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <button
-      type="button"
-      className="icon-btn"
-      title={copied ? 'Copied' : label}
-      aria-label={label}
-      onClick={() => {
-        void navigator.clipboard?.writeText(text).then(() => {
-          setCopied(true);
-          window.setTimeout(() => setCopied(false), 1500);
-        });
-      }}
-    >
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.span
-          key={copied ? 'done' : 'copy'}
-          className={`icon-swap ${copied ? 'text-ok' : ''}`}
-          initial={{ scale: 0.5, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.5, opacity: 0 }}
-          transition={{ duration: 0.12 }}
-        >
-          {copied ? <Check {...ICON_SM} /> : <Copy {...ICON_SM} />}
-        </motion.span>
-      </AnimatePresence>
-    </button>
+    <Tooltip content={copied ? 'Copied' : label}>
+      <button
+        type="button"
+        className="icon-btn"
+        aria-label={label}
+        onClick={() => {
+          void navigator.clipboard?.writeText(text).then(() => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1500);
+          });
+        }}
+      >
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span
+            key={copied ? 'done' : 'copy'}
+            className={`icon-swap ${copied ? 'text-ok' : ''}`}
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.5, opacity: 0 }}
+            transition={{ duration: 0.12 }}
+          >
+            {copied ? <Check {...ICON_SM} /> : <Copy {...ICON_SM} />}
+          </motion.span>
+        </AnimatePresence>
+      </button>
+    </Tooltip>
   );
 }
 
@@ -145,18 +147,18 @@ export function Segmented<T extends string>({
   return (
     <div className="segmented" role="radiogroup" aria-label={label}>
       {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={option.value === value}
-          title={option.title}
-          className={`segment ${option.value === value ? 'segment-on' : ''}`}
-          onClick={() => option.value !== value && onChange(option.value)}
-        >
-          {option.value === value && <SlidingIndicator layoutId={indicator} className="segment-thumb" />}
-          <span className="segment-label">{option.label}</span>
-        </button>
+        <Tooltip key={option.value} content={option.title}>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={option.value === value}
+            className={`segment ${option.value === value ? 'segment-on' : ''}`}
+            onClick={() => option.value !== value && onChange(option.value)}
+          >
+            {option.value === value && <SlidingIndicator layoutId={indicator} className="segment-thumb" />}
+            <span className="segment-label">{option.label}</span>
+          </button>
+        </Tooltip>
       ))}
     </div>
   );
@@ -273,13 +275,5 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
 
 export const PERMISSION_MODES = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'] as const;
 export const MODEL_SUGGESTIONS = ['fable', 'opus', 'sonnet', 'haiku'] as const;
-
-export function ModelDatalist({ id }: { id: string }) {
-  return (
-    <datalist id={id}>
-      {MODEL_SUGGESTIONS.map((m) => (
-        <option key={m} value={m} />
-      ))}
-    </datalist>
-  );
-}
+/** Suggestions for a model <Combobox> */
+export const MODEL_OPTIONS = MODEL_SUGGESTIONS.map((value) => ({ value }));

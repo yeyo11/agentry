@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ChevronRight, Combine, CornerDownRight, Play, Square, Target } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { api, keys, useOrchestration } from '../api';
+import { Collapsible } from '../components/controls';
 import { ICON, ICON_SM } from '../components/icons';
 import { motion, ProgressRing, useReducedMotion } from '../components/motion';
 import { RichText } from '../components/Transcript';
@@ -72,16 +73,14 @@ function TaskCard({ task }: { task: OrchestrationTaskState }) {
           <CornerDownRight size={12} strokeWidth={1.75} aria-hidden /> after {task.dependsOn?.join(', ')}
         </div>
       )}
-      <details className="fold">
-        <summary>Prompt</summary>
+      <Collapsible className="fold" title="Prompt">
         <div className="prose small">{task.prompt}</div>
-      </details>
+      </Collapsible>
       {task.error && <div className="alert alert-bad small">{task.error}</div>}
       {task.result && (
-        <details className="fold">
-          <summary>Result</summary>
+        <Collapsible className="fold" title="Result">
           <RichText text={task.result} />
-        </details>
+        </Collapsible>
       )}
       <div className="meta">
         {task.runId && <Link to={`/runs/${task.runId}`}>run</Link>}

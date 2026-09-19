@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, keys, type Scope } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
+import { Select, Switch } from '../../components/controls';
 import { useConfirm } from '../../components/Dialog';
 import { KeyValueEditor, recordToRows, rowsToRecord, StringListEditor, type KeyValueRow } from '../../components/editors';
 import { useToast } from '../../components/Toast';
@@ -149,9 +150,9 @@ function ServerEditor({
     <Card
       title={isNew ? 'New MCP server' : `Edit “${initial.name}”`}
       actions={
-        <label className="check">
-          <input type="checkbox" checked={advanced} onChange={toggleAdvanced} /> Advanced JSON
-        </label>
+        <Switch checked={advanced} onChange={toggleAdvanced}>
+          Advanced JSON
+        </Switch>
       }
     >
       <form
@@ -173,11 +174,19 @@ function ServerEditor({
             {clash && <span className="field-hint text-err">A server with this name already exists in the {form.scope} scope.</span>}
           </Field>
           <Field label="Scope" hint={SCOPE_INFO[form.scope].hint}>
-            <select value={form.scope} disabled={!isNew} onChange={(e) => patch({ scope: e.target.value as McpScope })}>
-              {!scope.projectId && <option value="user">user</option>}
-              {scope.projectId && <option value="project">project (.mcp.json)</option>}
-              {scope.projectId && <option value="local">local (only me, this project)</option>}
-            </select>
+            <Select<McpScope>
+              value={form.scope}
+              disabled={!isNew}
+              onChange={(value) => patch({ scope: value })}
+              options={
+                scope.projectId
+                  ? [
+                      { value: 'project', label: 'project (.mcp.json)' },
+                      { value: 'local', label: 'local (only me, this project)' },
+                    ]
+                  : [{ value: 'user', label: 'user' }]
+              }
+            />
           </Field>
         </div>
 

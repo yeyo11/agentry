@@ -55,8 +55,7 @@
 .select-trigger[data-state='open'] .select-chevron {
   transform: rotate(180deg);
 }
-.toolbar .select-trigger,
-.filter-bar .select-trigger {
+.toolbar .select-trigger {
   width: auto;
   max-width: 260px;
 }
@@ -335,6 +334,11 @@
 }
 
 /* ---------- Tooltip ---------- */
+
+/* Wraps a disabled button so its tooltip still gets pointer events */
+.tooltip-anchor {
+  display: inline-flex;
+}
 
 .tooltip {
   z-index: 1200;

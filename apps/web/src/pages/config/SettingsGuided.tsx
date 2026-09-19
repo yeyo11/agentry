@@ -2,9 +2,10 @@ import { ArrowDown, ArrowUp, X, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { KeyValueEditor, recordToRows, rowsToRecord, StringListEditor, type KeyValueRow } from '../../components/editors';
+import { Collapsible, Combobox, NumberInput, Select, Tooltip } from '../../components/controls';
 import { ICON_SM } from '../../components/icons';
 import { StatusDot } from '../../components/motion';
-import { Field, ModelDatalist, Tag } from '../../components/ui';
+import { Field, MODEL_OPTIONS, Tag } from '../../components/ui';
 import {
   getIn,
   GUIDED_KEYS,
@@ -33,28 +34,34 @@ function Section({
   defaultOpen?: boolean;
 }) {
   return (
-    <details className="section" open={defaultOpen}>
-      <summary>
-        <span className="section-title">{title}</span>
-        {summary && <span className="section-summary">{summary}</span>}
-      </summary>
+    <Collapsible
+      className="section"
+      defaultOpen={defaultOpen}
+      title={
+        <>
+          <span className="section-title">{title}</span>
+          {summary && <span className="section-summary">{summary}</span>}
+        </>
+      }
+    >
       <div className="section-body">{children}</div>
-    </details>
+    </Collapsible>
   );
 }
 
 /** true / false / "not set" — an unset key is different from false because lower scopes can still set it. */
 function TriState({ value, onChange, label }: { value: unknown; onChange: (v: boolean | undefined) => void; label: string }) {
   return (
-    <select
+    <Select
       aria-label={label}
       value={value === true ? 'true' : value === false ? 'false' : ''}
-      onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value === 'true')}
-    >
-      <option value="">Not set (inherit)</option>
-      <option value="true">Yes</option>
-      <option value="false">No</option>
-    </select>
+      onChange={(v) => onChange(v === '' ? undefined : v === 'true')}
+      options={[
+        { value: '', label: 'Not set (inherit)' },
+        { value: 'true', label: 'Yes' },
+        { value: 'false', label: 'No' },
+      ]}
+    />
   );
 }
 
@@ -98,12 +105,18 @@ function HooksEditor({ settings, set, filesHref }: { settings: Json; set: SetFn;
           update(event, next);
         };
         return (
-          <details key={event} className="hook-event" open={groups.length > 0}>
-            <summary>
-              <span className="mono strong">{event}</span>
-              {groups.length > 0 && <Tag tone="active">{groups.reduce((n, g) => n + g.hooks.length, 0)} commands</Tag>}
-              <span className="small muted hook-hint">{hint}</span>
-            </summary>
+          <Collapsible
+            key={event}
+            className="hook-event"
+            defaultOpen={groups.length > 0}
+            title={
+              <>
+                <span className="mono strong">{event}</span>
+                {groups.length > 0 && <Tag tone="active">{groups.reduce((n, g) => n + g.hooks.length, 0)} commands</Tag>}
+                <span className="small muted hook-hint">{hint}</span>
+              </>
+            }
+          >
             <div className="stack-tight hook-body">
               {groups.map((group, gi) => (
                 <div key={gi} className="hook-group">
@@ -117,28 +130,32 @@ function HooksEditor({ settings, set, filesHref }: { settings: Json; set: SetFn;
                       />
                     </Field>
                     <div className="row-actions">
-                      <button type="button" className="icon-btn" aria-label="Move group up" title="Move up" disabled={gi === 0} onClick={() => move(gi, -1)}>
-                        <ArrowUp {...ICON_SM} />
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        aria-label="Move group down"
-                        title="Move down"
-                        disabled={gi === groups.length - 1}
-                        onClick={() => move(gi, 1)}
-                      >
-                        <ArrowDown {...ICON_SM} />
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        aria-label="Remove matcher group"
-                        title="Remove group"
-                        onClick={() => update(event, groups.filter((_, i) => i !== gi))}
-                      >
-                        <X {...ICON_SM} />
-                      </button>
+                      <Tooltip content="Move up">
+                        <button type="button" className="icon-btn" aria-label="Move group up" disabled={gi === 0} onClick={() => move(gi, -1)}>
+                          <ArrowUp {...ICON_SM} />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Move down">
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label="Move group down"
+                          disabled={gi === groups.length - 1}
+                          onClick={() => move(gi, 1)}
+                        >
+                          <ArrowDown {...ICON_SM} />
+                        </button>
+                      </Tooltip>
+                      <Tooltip content="Remove group">
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label="Remove matcher group"
+                          onClick={() => update(event, groups.filter((_, i) => i !== gi))}
+                        >
+                          <X {...ICON_SM} />
+                        </button>
+                      </Tooltip>
                     </div>
                   </div>
                   {group.hooks.map((command, ci) => (
@@ -150,24 +167,24 @@ function HooksEditor({ settings, set, filesHref }: { settings: Json; set: SetFn;
                         placeholder='e.g. "$CLAUDE_PROJECT_DIR"/.claude/hooks/check.sh'
                         onChange={(e) => patchCommand(gi, ci, { command: e.target.value })}
                       />
-                      <input
-                        type="number"
+                      <NumberInput
+                        compact
                         min={1}
-                        aria-label="Timeout in seconds"
-                        title="Timeout in seconds (optional)"
+                        aria-label="Timeout in seconds (optional)"
                         placeholder="timeout s"
-                        value={typeof command.timeout === 'number' ? command.timeout : ''}
-                        onChange={(e) => patchCommand(gi, ci, { timeout: e.target.value ? Number(e.target.value) : undefined })}
+                        value={typeof command.timeout === 'number' ? command.timeout : undefined}
+                        onChange={(timeout) => patchCommand(gi, ci, { timeout })}
                       />
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        aria-label="Remove command"
-                        title="Remove command"
-                        onClick={() => patchGroup(gi, { hooks: group.hooks.filter((_, i) => i !== ci) })}
-                      >
-                        <X {...ICON_SM} />
-                      </button>
+                      <Tooltip content="Remove command">
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label="Remove command"
+                          onClick={() => patchGroup(gi, { hooks: group.hooks.filter((_, i) => i !== ci) })}
+                        >
+                          <X {...ICON_SM} />
+                        </button>
+                      </Tooltip>
                     </div>
                   ))}
                   <div>
@@ -193,7 +210,7 @@ function HooksEditor({ settings, set, filesHref }: { settings: Json; set: SetFn;
                 </button>
               </div>
             </div>
-          </details>
+          </Collapsible>
         );
       })}
     </div>
@@ -217,6 +234,7 @@ export function SettingsGuided({
   const preserved = Object.keys(settings).filter((key) => !GUIDED_KEYS.has(key));
   const hookCount = HOOK_EVENTS.reduce((n, e) => n + hookGroups(settings, e.id).reduce((m, g) => m + g.hooks.length, 0), 0);
   const ruleCount = permissions('allow').length + permissions('ask').length + permissions('deny').length;
+  const defaultMode = text(getIn(settings, ['permissions', 'defaultMode']));
   const enabledPlugins = isObject(settings.enabledPlugins) ? Object.entries(settings.enabledPlugins) : [];
   const marketplaces = isObject(settings.extraKnownMarketplaces) ? Object.keys(settings.extraKnownMarketplaces) : [];
 
@@ -225,24 +243,17 @@ export function SettingsGuided({
       <Section title="General" defaultOpen summary={text(settings.model) || undefined}>
         <div className="form-grid">
           <Field label="Model" hint="Alias (fable, opus, sonnet, haiku) or a full model id. Empty uses the default.">
-            <input
-              list="settings-models"
-              value={text(settings.model)}
-              placeholder="default"
-              onChange={(e) => set(['model'], e.target.value)}
-            />
-            <ModelDatalist id="settings-models" />
+            <Combobox value={text(settings.model)} placeholder="default" options={MODEL_OPTIONS} onChange={(v) => set(['model'], v)} />
           </Field>
           <Field label="Output style" hint="Name of a built-in or custom output style.">
             <input value={text(settings.outputStyle)} placeholder="default" onChange={(e) => set(['outputStyle'], e.target.value)} />
           </Field>
           <Field label="Transcript retention (days)" hint="cleanupPeriodDays: local transcripts older than this are deleted.">
-            <input
-              type="number"
+            <NumberInput
               min={0}
-              value={typeof settings.cleanupPeriodDays === 'number' ? settings.cleanupPeriodDays : ''}
+              value={typeof settings.cleanupPeriodDays === 'number' ? settings.cleanupPeriodDays : undefined}
               placeholder="30"
-              onChange={(e) => set(['cleanupPeriodDays'], e.target.value === '' ? undefined : Number(e.target.value))}
+              onChange={(v) => set(['cleanupPeriodDays'], v)}
             />
           </Field>
           <Field label="Co-authored-by in commits" hint="includeCoAuthoredBy">
@@ -272,17 +283,16 @@ export function SettingsGuided({
       <Section title="Permissions" summary={ruleCount > 0 ? `${ruleCount} rules` : undefined}>
         <div className="form">
           <Field label="Default mode" hint="permissions.defaultMode: how tool calls are handled when no rule matches.">
-            <select
-              value={text(getIn(settings, ['permissions', 'defaultMode']))}
-              onChange={(e) => set(['permissions', 'defaultMode'], e.target.value)}
-            >
-              <option value="">Not set (inherit)</option>
-              {DEFAULT_MODES.map((mode) => (
-                <option key={mode} value={mode}>
-                  {mode}
-                </option>
-              ))}
-            </select>
+            <Select
+              value={defaultMode}
+              onChange={(v) => set(['permissions', 'defaultMode'], v)}
+              options={[
+                { value: '', label: 'Not set (inherit)' },
+                ...DEFAULT_MODES.map((mode) => ({ value: mode, label: mode })),
+                // Keep a value this form does not know about selectable instead of showing it blank
+                ...(defaultMode && !(DEFAULT_MODES as readonly string[]).includes(defaultMode) ? [{ value: defaultMode, label: defaultMode }] : []),
+              ]}
+            />
           </Field>
           <p className="small muted">
             Rule syntax: <span className="mono">Tool</span> or <span className="mono">Tool(specifier)</span>, e.g.{' '}

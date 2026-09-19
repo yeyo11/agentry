@@ -3,10 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, keys } from '../api';
+import { Collapsible, Select } from '../components/controls';
 import { Dialog, useConfirm } from '../components/Dialog';
 import { useToast } from '../components/Toast';
 import { Card, Empty, ErrorBox, PageHeader, Skeleton, Tabs, Tag } from '../components/ui';
 import { timeAgo } from '../lib/format';
+
+const SCOPES: PluginScope[] = ['user', 'project', 'local'];
 
 const TABS = [
   { id: 'installed', label: 'Installed' },
@@ -43,12 +46,16 @@ function usePluginAction() {
 function OutputPanel({ output }: { output: { title: string; result: CliTextResult } | null }) {
   if (!output?.result.output.trim()) return null;
   return (
-    <details className="fold">
-      <summary>
-        Last CLI output · <span className="mono">{output.title}</span> {output.result.ok ? <Tag tone="ok">ok</Tag> : <Tag tone="bad">failed</Tag>}
-      </summary>
+    <Collapsible
+      className="fold"
+      title={
+        <span>
+          Last CLI output · <span className="mono">{output.title}</span> {output.result.ok ? <Tag tone="ok">ok</Tag> : <Tag tone="bad">failed</Tag>}
+        </span>
+      }
+    >
       <pre className="code">{output.result.output}</pre>
-    </details>
+    </Collapsible>
   );
 }
 
@@ -203,11 +210,7 @@ function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> })
           <label className="small muted" htmlFor="install-scope">
             Install scope
           </label>
-          <select id="install-scope" value={scope} onChange={(e) => setScope(e.target.value as PluginScope)}>
-            <option value="user">user</option>
-            <option value="project">project</option>
-            <option value="local">local</option>
-          </select>
+          <Select<PluginScope> id="install-scope" value={scope} onChange={setScope} options={SCOPES.map((s) => ({ value: s, label: s }))} />
         </div>
       }
     >

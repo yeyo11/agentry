@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CirclePause, CirclePlay, KeyRound, RefreshCw, Trash2, Users } from 'lucide-react';
 import { useState } from 'react';
 import { api, keys, useAccountEvents, useAccounts } from '../api';
+import { NumberInput, Select, Slider, Switch, Tooltip } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
 import { ICON_SM } from '../components/icons';
 import { useToast } from '../components/Toast';
@@ -66,12 +67,22 @@ function AccountCard({
               <CirclePlay {...ICON_SM} /> Use
             </button>
           )}
-          <button type="button" className="btn btn-small" onClick={onToggle} disabled={busy} title={account.disabled ? 'Return to the rotation' : 'Hold out of the rotation'}>
-            {account.disabled ? <CircleCheck {...ICON_SM} /> : <CirclePause {...ICON_SM} />}
-          </button>
-          <button type="button" className="btn btn-small btn-danger" onClick={onRemove} disabled={busy} title="Remove the account">
-            <Trash2 {...ICON_SM} />
-          </button>
+          <Tooltip content={account.disabled ? 'Return to the rotation' : 'Hold out of the rotation'}>
+            <button
+              type="button"
+              className="btn btn-small"
+              onClick={onToggle}
+              disabled={busy}
+              aria-label={account.disabled ? 'Return to the rotation' : 'Hold out of the rotation'}
+            >
+              {account.disabled ? <CircleCheck {...ICON_SM} /> : <CirclePause {...ICON_SM} />}
+            </button>
+          </Tooltip>
+          <Tooltip content="Remove the account">
+            <button type="button" className="btn btn-small btn-danger" onClick={onRemove} disabled={busy} aria-label="Remove the account">
+              <Trash2 {...ICON_SM} />
+            </button>
+          </Tooltip>
         </span>
       }
     >
@@ -167,41 +178,36 @@ function AutoSwitchPanel({ settings, running }: { settings: AutoSwitchSettings; 
           mutation.mutate(draft);
         }}
       >
-        <label className="check">
-          <input type="checkbox" checked={draft.enabled} onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })} />
+        <Switch checked={draft.enabled} onChange={(enabled) => setDraft({ ...draft, enabled })}>
           Rotate before the active account runs out (`cswap auto`)
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={draft.rotateOnLimit} onChange={(e) => setDraft({ ...draft, rotateOnLimit: e.target.checked })} />
+        </Switch>
+        <Switch checked={draft.rotateOnLimit} onChange={(rotateOnLimit) => setDraft({ ...draft, rotateOnLimit })}>
           Rotate and resume a run that dies against its limit
-        </label>
+        </Switch>
         <div className="form-grid">
           <Field label={`Threshold · ${draft.threshold}%`} hint="Utilization of the binding 5h/7d window that triggers a switch.">
-            <input
-              type="range"
+            <Slider
+              aria-label="Threshold"
               min={50}
               max={99}
-              step={1}
               value={draft.threshold}
-              onChange={(e) => setDraft({ ...draft, threshold: Number(e.target.value) })}
+              onChange={(threshold) => setDraft({ ...draft, threshold })}
             />
           </Field>
           <Field label="Strategy" hint="`best` stays until the limit; `consume-first` spends the soonest-resetting account first.">
-            <select value={draft.strategy} onChange={(e) => setDraft({ ...draft, strategy: e.target.value as AutoSwitchSettings['strategy'] })}>
-              {STRATEGIES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+            <Select<AutoSwitchSettings['strategy']>
+              value={draft.strategy}
+              onChange={(strategy) => setDraft({ ...draft, strategy })}
+              options={STRATEGIES.map((s) => ({ value: s, label: s }))}
+            />
           </Field>
           <Field label="Poll interval (s)" hint="Minimum 15.">
-            <input
-              type="number"
+            <NumberInput
               min={15}
               max={3600}
+              step={15}
               value={draft.intervalSec}
-              onChange={(e) => setDraft({ ...draft, intervalSec: Number(e.target.value) })}
+              onChange={(intervalSec) => setDraft({ ...draft, intervalSec: intervalSec ?? 0 })}
             />
           </Field>
           <Field label="Per-model windows" hint="Comma-separated display names (Fable, Opus…) or `all`. Empty watches only the account-wide windows.">
