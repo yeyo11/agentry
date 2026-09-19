@@ -29,7 +29,7 @@ accounts when one runs out of quota — without giving up a single thing the CLI
 Agentry drives it through the CLI and nothing else.
 
 ```bash
-docker run -p 8787:8787 -v agentry:/data ghcr.io/yeyo11/agentry
+docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
 ```
 
 ### What you get
@@ -88,7 +88,7 @@ claude setup-token
 Then run the published image, pasting that token in:
 
 ```bash
-docker run -d --init -p 8787:8787 \
+docker run -d --init -p 127.0.0.1:8787:8787 \
   -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-... \
   -v agentry-config:/home/node/.claude \
   -v agentry-data:/data \
@@ -100,6 +100,9 @@ docker run -d --init -p 8787:8787 \
 The UI and the API reference are on <http://localhost:8787> — the panel at `/`, the interactive
 OpenAPI docs at `/docs`. Everything else is configured from the UI.
 
+The port is published on `127.0.0.1` only: the API has no authentication yet (see
+[SECURITY.md](SECURITY.md)), so do not drop that prefix unless you put real access control in front.
+
 <details>
 <summary>Building it yourself instead</summary>
 
@@ -110,7 +113,8 @@ cp .env.example .env        # paste the token into CLAUDE_CODE_OAUTH_TOKEN
 docker compose up --build
 ```
 
-`docker-compose.yml` pins the CLI version through `CLAUDE_CODE_VERSION` if you need a specific one.
+`docker-compose.yml` pins the CLI version through `CLAUDE_CODE_VERSION` if you need a specific one,
+and publishes the port on `127.0.0.1` like the command above.
 
 </details>
 
@@ -118,12 +122,15 @@ Open <http://localhost:8787> for the UI; the API lives under `/api`.
 
 Volumes:
 
-| Mount | Purpose |
-| --- | --- |
-| `claude-config` → `/home/node/.claude` | The whole account setup: `settings.json`, `.claude.json` (MCP servers), `CLAUDE.md`, agents, skills, commands and session transcripts |
-| `./workspace` → `/workspace` | Projects Claude works on (default `cwd` for runs) |
-| `wrapper-data` → `/data` | Wrapper state (orchestrations, auto-rotation settings) |
-| `claude-swap` → `/home/node/.local/share/claude-swap` | Credentials of every registered account |
+| Volume (`docker run` / compose) | Mount | Purpose |
+| --- | --- | --- |
+| `agentry-config` / `claude-config` | `/home/node/.claude` | The whole account setup: `settings.json`, `.claude.json` (MCP servers), `CLAUDE.md`, agents, skills, commands and session transcripts |
+| `./workspace` | `/workspace` | Projects Claude works on (default `cwd` for runs) |
+| `agentry-data` / `wrapper-data` | `/data` | Wrapper state: the SQLite store (`wrapper.db`: runs, orchestrations, plans, rotation log), `accounts.json` (auto-rotation settings), `credentials.json` (the runtime credential, mode 600) and `uploads/` (attachments) |
+| `agentry-accounts` / `claude-swap` | `/home/node/.local/share/claude-swap` | Credentials of every registered account |
+
+The compose file keeps its original volume names so an existing setup keeps its data; `docker compose`
+prefixes them with the project name (`agentry_wrapper-data`…).
 
 ## Desktop app (Linux)
 
@@ -197,6 +204,8 @@ build step except for the UI.
 | `AGENTRY_CORS_ORIGIN` | – (CORS off) | Comma-separated origins (or `*`) for external browser clients. The bundled UI never needs it: in dev it uses the Vite `/api` proxy, in production it is same-origin |
 | `VITE_API_TARGET` | `http://localhost:8787` | Where the Vite dev server proxies `/api` |
 | `AGENTRY_IDLE_TIMEOUT_MS` | `600000` | Idle runs are closed after this (they resume transparently) |
+| `AGENTRY_WEB_DIST` | `apps/web/dist` | Built UI the API serves (the desktop app points it at its bundled copy) |
+| `LOG_LEVEL` | `info` | Fastify/pino log level (`trace` … `fatal`, or `silent`) |
 
 ## REST API
 
@@ -293,10 +302,10 @@ A run is a live conversation backed by a `claude -p` process.
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/runs` | All runs |
-| POST | `/runs` | Start a run. Body: `RunOptions` (`prompt` required; `cwd`, `model`, `permissionMode`, `resumeSessionId`, `name`, `effort`, `appendSystemPrompt`, `allowedTools`, `keepAlive`, `jsonSchema`, `maxBudgetUsd`, `worktree`, `permissionPrompts`) |
+| POST | `/runs` | Start a run. Body: `RunOptions` (`prompt` required; `cwd`, `model`, `permissionMode`, `resumeSessionId`, `name`, `effort`, `appendSystemPrompt`, `allowedTools`, `keepAlive`, `jsonSchema`, `maxBudgetUsd`, `worktree`, `permissionPrompts`, `attachments`) |
 | GET | `/runs/:id` | Run summary + buffered events |
 | GET | `/runs/:id/stream?since=SEQ` | Server-Sent Events, one `RunEvent` per message (honours `Last-Event-ID`). Includes ephemeral `partial` events with the text generated so far (token streaming); they are never replayed |
-| POST | `/runs/:id/messages` | `{ text }` — send another turn (resumes the session if the process ended) |
+| POST | `/runs/:id/messages` | `{ text, attachments? }` — send another turn (resumes the session if the process ended). `attachments` are upload ids from `POST /uploads` |
 | POST | `/runs/:id/stop` | Stop the process; the conversation is kept |
 | GET | `/runs/:id/permissions` | Tool calls waiting for approval (runs started with `permissionPrompts: "host"`) |
 | POST | `/runs/:id/permissions/:requestId` | `{ behavior: "allow" \| "deny", message?, updatedInput? }` — answer one. Unanswered requests are denied after ten minutes |
@@ -322,6 +331,11 @@ A worker runs with nobody at the keyboard, so set how it gets permission: `permi
 With neither, anything that would prompt is denied. `worktree: true` gives every task its own git
 worktree and branch through `claude --worktree`.
 
+A worktree graph delivers one branch: when it finishes, every completed task's branch is merged, in
+dependency order, into `agentry/<name>-<id>` from the commit the graph started on. A merge conflict
+is handed to an integrator agent in that branch's worktree, and its result is checked rather than
+trusted. Nothing is pushed until you ask for a pull request.
+
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/orchestrations` | List |
@@ -332,7 +346,10 @@ worktree and branch through `claude --worktree`.
 | POST | `/orchestrations/plan` | Same as `plan/start` but waits for the draft — holds the request open for minutes |
 | GET | `/orchestrations/:id` | State of every task, results, cost |
 | POST | `/orchestrations/:id/stop` | Stop all workers |
-| POST | `/orchestrations/:id/resume` | Re-run every task that did not complete, keeping the results of those that did |
+| POST | `/orchestrations/:id/resume` | Re-run every task that did not complete, keeping the results of those that did. Optional body `{ worktree?, permissionPrompts?, allowedTools?, permissionMode? }` corrects the settings the graph failed with |
+| DELETE | `/orchestrations/:id` | Delete a graph that is not running, with its worktrees; refused while a worktree holds uncommitted work |
+| POST | `/orchestrations/:id/integrate` | Merge the task branches into the integration branch again: after resolving by hand, or for a graph that predates integration |
+| POST | `/orchestrations/:id/pull-request` | Push the integration branch and open a pull request with `gh` → `{ branch, url, detail }` |
 | POST | `/orchestrations/:id/worktrees/prune` | `{ force? }` — remove the graph's worktrees; branches are always kept |
 
 ```json
@@ -350,6 +367,25 @@ worktree and branch through `claude --worktree`.
     { "id": "plan", "name": "Fix plan", "prompt": "Write a prioritized fix plan.", "dependsOn": ["deps", "tests"] }
   ]
 }
+```
+
+### Uploads
+
+Files attached to a run's first message (`RunOptions.attachments`) or to a later turn. The file is
+the request body as is, not multipart. Images are capped at 5 MB, PDFs at 32 MB, anything else at
+50 MB, and the files live in `uploads/` under the data directory.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| POST | `/uploads?name=` | Body: the raw file, `Content-Type: application/octet-stream` → `201` with the `Attachment` (`id`, `name`, `mediaType`, `kind`, `sizeBytes`…) |
+| GET | `/uploads/:id` | The `Attachment` metadata |
+| GET | `/uploads/:id/content` | The bytes. Images and PDFs are served inline, everything else as a download |
+
+```bash
+id=$(curl -s -X POST 'localhost:8787/api/uploads?name=diagram.png' \
+  -H 'content-type: application/octet-stream' --data-binary @diagram.png | jq -r .id)
+curl -X POST localhost:8787/api/runs -H 'content-type: application/json' \
+  -d "{\"prompt\":\"Explain this diagram\",\"attachments\":[\"$id\"]}"
 ```
 
 ### Configuration (user and project scope)
