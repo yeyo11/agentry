@@ -3,6 +3,16 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.7.1](https://github.com/yeyo11/agentry/compare/v0.7.0...v0.7.1) (2026-09-19)
+
+
+### Bug fixes
+
+* **core:** restore the Core facade the 0.7.0 release commit reverted ([b05b2ee](https://github.com/yeyo11/agentry/commit/b05b2ee76ebccf02b620280c010921e5a489ad5c))
+* **core:** restore the Core facade the 0.7.0 release commit reverted ([e357fdd](https://github.com/yeyo11/agentry/commit/e357fdda9814a1ff43514d70c465e4e85030494a))
+* **release:** stop the release PR from rewriting source to bump the version ([1b8a738](https://github.com/yeyo11/agentry/commit/1b8a738328db41446a467376ca47ec94e931a27b))
+* **release:** stop the release PR from rewriting source to bump the version ([0697b9d](https://github.com/yeyo11/agentry/commit/0697b9d503304e7d16e871c0ae4442f0836ac20f))
+
 ## [0.7.0](https://github.com/yeyo11/agentry/compare/v0.6.0...v0.7.0) (2026-09-19)
 
 
