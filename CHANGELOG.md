@@ -3,6 +3,22 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.4.0](https://github.com/yeyo11/agentry/compare/v0.3.0...v0.4.0) (2026-09-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api:** GET /api/system returns `version` instead of `wrapperVersion`.
+
+### Features
+
+* **api:** rename SystemInfo.wrapperVersion to version ([996289b](https://github.com/yeyo11/agentry/commit/996289b67d1bb1916989eed45023cb876e47cb9f))
+
+
+### Documentation
+
+* describe what landed since the first release ([0e17de3](https://github.com/yeyo11/agentry/commit/0e17de3bb83ba3f9750cc38c8710090cffb5ae0b))
+
 ## [0.3.0](https://github.com/yeyo11/agentry/compare/v0.2.0...v0.3.0) (2026-09-18)
 
 
