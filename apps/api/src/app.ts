@@ -39,7 +39,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
     void reply.status(status).send({ error: err.message });
   });
 
-  await registerOpenApi(app, (await core.system()).wrapperVersion);
+  await registerOpenApi(app, (await core.system()).version);
 
   await app.register(
     async (api) => {

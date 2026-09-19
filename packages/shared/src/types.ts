@@ -39,7 +39,8 @@ export interface SystemInfo {
   configDir: string;
   workspaceDir: string;
   defaultPermissionMode: PermissionMode;
-  wrapperVersion: string;
+  /** Agentry's own version */
+  version: string;
   uptimeSec: number;
 }
 

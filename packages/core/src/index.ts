@@ -157,7 +157,7 @@ export class Core {
           configDir: this.config.configDir,
           workspaceDir: this.config.workspaceDir,
           defaultPermissionMode: this.config.defaultPermissionMode,
-          wrapperVersion: AGENTRY_VERSION,
+          version: AGENTRY_VERSION,
         },
       };
     }
