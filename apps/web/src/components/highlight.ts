@@ -4,7 +4,10 @@
 // languages). Every language is a chunk of its own, fetched the first time a block in that language
 // appears, so a transcript without code never pays for any of it, and one with only TypeScript
 // never downloads shiki.
+import { PALETTE, type Painter, type Role } from './highlight/paint';
 import type { HighlightToken, LanguageDefinition } from '@tanstack/highlight/core';
+
+export { PALETTE };
 
 /** Past this, tokenizing costs more than colour is worth: the block stays plain */
 const MAX_CHARS = 60_000;
@@ -132,23 +135,7 @@ async function highlightShiki(code: string, id: string): Promise<Highlighted | n
 // ---------------------------------------------------------------------------------------------
 // TanStack: a class per token, painted with the colours the GitHub themes give the same scopes
 
-/**
- * The github-light-default / github-dark-default colours shiki paints with, by the scope family
- * that gets them. A test holds these against the themes themselves.
- */
-export const PALETTE = {
-  fg: ['#1f2328', '#e6edf3'], // the theme's foreground
-  comment: ['#6e7781', '#8b949e'], // comment
-  keyword: ['#cf222e', '#ff7b72'], // keyword, storage, keyword.operator
-  constant: ['#0550ae', '#79c0ff'], // constant, support, variable.language, entity.other.attribute-name
-  entity: ['#953800', '#ffa657'], // entity.name (types), variable in css/markdown lists
-  function: ['#8250df', '#d2a8ff'], // entity.name.function
-  tag: ['#116329', '#7ee787'], // entity.name.tag, support.type.property-name.json, markup.inserted
-  string: ['#0a3069', '#a5d6ff'], // string
-  deleted: ['#82071e', '#ffa198'], // markup.deleted
-} as const;
-type Role = keyof typeof PALETTE;
-
+/** The palette as the CSS variables a run carries, one pair of colours per role */
 const STYLES = {} as Record<Role, Record<string, string>>;
 for (const role of Object.keys(PALETTE) as Role[]) STYLES[role] = { '--shiki-light': PALETTE[role][0], '--shiki-dark': PALETTE[role][1] };
 
@@ -237,281 +224,20 @@ async function tanstackTokens(code: string, name: string): Promise<HighlightToke
 }
 
 async function highlightTanstack(code: string, name: string): Promise<Highlighted> {
-  const tokens = await tanstackTokens(code, name);
+  const [tokens, paint] = await Promise.all([tanstackTokens(code, name), PAINTERS[TANSTACK[name]!.family]()]);
   const runs = new Runs(STYLES.fg);
-  for (const [text, role] of PAINTERS[TANSTACK[name]!.family](tokens, name)) runs.push(text, role ? STYLES[role] : null);
+  for (const [text, role] of paint(tokens, name)) runs.push(text, role ? STYLES[role] : null);
   return { lines: runs.lines, base: STYLES.fg };
 }
 
-/**
- * What each TanStack class is in the GitHub themes. The painters below correct it where a TextMate
- * grammar tells apart what TanStack lumps into one class, and colour the operators and names it
- * leaves unclassed. They look at a token and its neighbours, never at a parse.
- *
- * No clean equivalent: `meta` (markdown fences, shell shebangs: the themes leave them in the
- * foreground), `link` (the themes colour the link text, not the URL: split below), `property`
- * (a JSON/YAML key is a tag, a CSS property a constant, a JS member plain or a call).
- */
-const CLASS_ROLE: Record<string, Role | null> = {
-  attr: 'constant',
-  'code-inline': 'constant',
-  command: 'entity',
-  comment: 'comment',
-  deleted: 'deleted',
-  function: 'function',
-  heading: 'constant',
-  inserted: 'tag',
-  keyword: 'keyword',
-  link: 'string',
-  literal: 'constant',
-  meta: null,
-  number: 'constant',
-  operator: 'keyword',
-  property: 'constant',
-  selector: 'constant',
-  string: 'string',
-  tag: 'tag',
-  type: 'entity',
-  variable: 'entity',
+/** One painter per family, each in its own chunk: a TypeScript block never fetches the rest */
+const PAINTERS: Record<Family, () => Promise<Painter>> = {
+  script: () => import('./highlight/script').then((m) => m.paintScript),
+  python: () => import('./highlight/python').then((m) => m.paintPython),
+  css: () => import('./highlight/css').then((m) => m.paintCss),
+  json: () => import('./highlight/data').then((m) => m.paintData),
+  yaml: () => import('./highlight/data').then((m) => m.paintData),
+  markdown: () => import('./highlight/markdown').then((m) => m.paintMarkdown),
+  shell: () => import('./highlight/shell').then((m) => m.paintShell),
+  other: () => import('./highlight/other').then((m) => m.paintOther),
 };
-
-type Piece = [text: string, role: Role | null];
-type Painter = (tokens: HighlightToken[], lang: string) => Generator<Piece>;
-
-const roleOf = (token: HighlightToken): Role | null => (token.className ? (CLASS_ROLE[token.className] ?? null) : null);
-
-const PRIMITIVES = new Set(['string', 'number', 'boolean', 'bigint', 'symbol', 'object', 'void', 'unknown', 'any', 'never', 'undefined', 'null']);
-
-/** Operators and JSX expression braces: TanStack leaves both in the plain text between tokens */
-const SCRIPT_PLAIN = /=>|\.\.\.|[=!]==?|[<>]=|&&=?|\|\|=?|\?\?=?|[-+*%]=?|\?(?!\.)|!|\||&|=|(?<=\s)[<>/](?=\s)|[{}:]/g;
-
-function* paintScript(tokens: HighlightToken[], lang: string): Generator<Piece> {
-  const jsx = lang === 'tsx' || lang === 'jsx';
-  // For each `{` still open: whether it opened a JSX expression, whose braces the themes colour
-  const braces: boolean[] = [];
-  // Between `import` and its source the names are bindings, in the foreground
-  let importing = false;
-  for (const [i, token] of tokens.entries()) {
-    const { value, className } = token;
-    const prev = tokens[i - 1];
-    if (!className) {
-      yield* pieces(value, SCRIPT_PLAIN, (op, at) => {
-        if (op === '{') {
-          const before = value.slice(0, at).trimEnd();
-          const open = jsx && ((before === '=' && prev?.className === 'attr') || (/>$/.test(before) && !/=>$/.test(before)));
-          braces.push(open);
-          return open ? 'keyword' : null;
-        }
-        if (op === '}') return braces.pop() ? 'keyword' : null;
-        // A type annotation or a ternary; an object key's colon stays plain
-        if (op === ':') return value[at - 1] === ' ' || (tokens[i + 1]?.className === 'type' && !value.slice(at + 1).trim()) ? 'keyword' : null;
-        return 'keyword';
-      });
-      continue;
-    }
-    const after = tokens[i + 1]?.value ?? '';
-    let role = roleOf(token);
-    if (className === 'keyword' && (value === 'import' || value === 'from')) importing = value === 'import';
-    else if (className === 'string') importing = false;
-    if (className === 'keyword' && (value === 'this' || value === 'super')) role = 'constant';
-    // TanStack takes any capitalised name for a type: the grammar knows better where it is a value
-    else if (className === 'type' && (importing || after.startsWith('.'))) role = null;
-    else if (className === 'type' && after.startsWith('(')) role = 'function';
-    else if (className === 'type' && (PRIMITIVES.has(value) || /^[A-Z][A-Z\d_]+$/.test(value))) role = 'constant';
-    // A member is plain unless it is called
-    else if (className === 'property') role = after.startsWith('(') ? 'function' : null;
-    // `${` and `}` of a template literal
-    else if (className === 'operator') role = 'string';
-    yield [value, role];
-  }
-}
-
-const PYTHON_BUILTINS =
-  'abs all any ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex delattr dict dir divmod enumerate eval exec filter float format frozenset getattr globals hasattr hash hex id input int isinstance issubclass iter len list locals map max memoryview min next object oct open ord pow print property range repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip self cls';
-const PYTHON_PLAIN = new RegExp(`(?<![.\\w])(?:${PYTHON_BUILTINS.split(' ').join('|')})\\b|[=!<>]=|\\*\\*=?|//=?|->|[-+*/%@&|^]=?|=|[<>]`, 'g');
-
-function* paintPython(tokens: HighlightToken[]): Generator<Piece> {
-  for (const token of tokens) {
-    if (!token.className) yield* pieces(token.value, PYTHON_PLAIN, (m) => (/\w/.test(m) ? 'constant' : 'keyword'));
-    // Builtin types (`str`, `int`) are support.type in the grammar
-    else yield [token.value, token.className === 'type' ? 'constant' : roleOf(token)];
-  }
-}
-
-function* paintCss(tokens: HighlightToken[]): Generator<Piece> {
-  for (const [i, token] of tokens.entries()) {
-    const { value, className } = token;
-    if (!className) {
-      // Unclassed words in a declaration are keyword values (`flex`, `solid`); `%` is a unit TanStack leaves out of the number
-      const afterNumber = tokens[i - 1]?.className === 'number';
-      yield* pieces(value, /(?<![\w-])[a-z][\w-]*|!important|^%/gi, (m) => (/^[a-z]/i.test(m) ? 'constant' : m === '%' && !afterNumber ? null : 'keyword'));
-    } else if (className === 'number') {
-      const unit = /[a-z%]+$/i.exec(value);
-      if (unit && unit.index > 0) yield* [[value.slice(0, unit.index), 'constant'], [unit[0], 'keyword']] as Piece[];
-      else yield [value, 'constant'];
-    } else if (className === 'selector') {
-      // The whole prelude is one token: classes, ids and pseudos are attribute names, bare words tags
-      yield* pieces(value, /[.#]-?[\w-]+|::?[\w-]+|\[[^\]]*\]|(?<![\w-])[a-z][\w-]*|[>+~*]/gi, (m) =>
-        /^[>+~]$/.test(m) ? 'keyword' : /^[a-z*]/i.test(m) ? 'tag' : 'constant',
-      );
-    } else yield [value, className === 'function' ? 'constant' : roleOf(token)];
-  }
-}
-
-function* paintData(tokens: HighlightToken[], lang: string): Generator<Piece> {
-  for (const token of tokens) {
-    const { value, className } = token;
-    if (className === 'property') yield [value, 'tag'];
-    // Block scalar indicators
-    else if (className === 'string' && /^[|>][-+]?$/.test(value)) yield [value, 'keyword'];
-    // An unquoted YAML scalar is a string to the themes, and TanStack leaves it plain
-    else if (!className && lang === 'yaml') yield* pieces(value, /[^\s:\-[\]{},#][^\n]*?(?=\s*$)/gm, () => 'string');
-    else yield [value, roleOf(token)];
-  }
-}
-
-function* paintMarkdown(tokens: HighlightToken[]): Generator<Piece> {
-  for (const token of tokens) {
-    const { value, className } = token;
-    if (className === 'link') {
-      const m = /^(!?\[)(.*)(\][\s\S]*)$/.exec(value);
-      yield* (m ? [[m[1]!, null], [m[2]!, 'string'], [m[3]!, null]] : [[value, null]]) as Piece[];
-    } else if (className === 'meta') yield [value, /^\s*([-*+]|\d+[.)])\s*$/.test(value) ? 'entity' : null];
-    // The unclassed rest of a fenced block is the block's own foreground, unlike inline code
-    else if (className === 'code-inline') yield [value, value.startsWith('`') ? 'constant' : null];
-    else yield [value, roleOf(token)];
-  }
-}
-
-const SHELL_BUILTINS = new Set(
-  '. alias bg bind break builtin caller cd command compgen complete continue declare dirs disown echo enable eval exec exit export false fc fg getopts hash help history jobs kill let local logout mapfile popd printf pushd pwd read readarray readonly return set shift shopt source suspend test times trap true type typeset ulimit umask unalias unset wait'.split(' '),
-);
-const SHELL_WORD = /\\\n|\d*>>?&?\d*|&>|\|\||&&|;;|[|;&(){}\n=]|\$\(|\$\{?[\w*@#?$!-]+\}?|[^\s|;&(){}<>"'$=]+|[<>]/g;
-const SHELL_EXPANSION = /\$\{?[\d*@#?$!]\}?|\$\{?[A-Za-z_]\w*\}?/g;
-/** After these a command may start */
-const SHELL_SEPARATORS = new Set(['\n', ';', '|', '||', '&&', '&', '$(', '{', '(']);
-const expansion = (word: string): Role | null => (/^\$\{?[A-Za-z_]/.test(word) ? null : 'constant');
-
-/**
- * TanStack marks commands only at the start of a line and leaves arguments, options and most
- * operators unclassed, where the shell grammar colours all three. Enough of a shell's shape to
- * tell them apart: whether a word stands where a command goes, or where a case pattern does.
- */
-function* paintShell(tokens: HighlightToken[]): Generator<Piece> {
-  let command = true;
-  let pattern = false;
-  let assigned = false;
-  for (const token of tokens) {
-    const text = token.value;
-    switch (token.className) {
-      case 'keyword':
-        pattern = text === 'in' ? pattern : false;
-        if (text === 'case') pattern = true;
-        command = text !== 'in' && text !== 'case';
-        yield [text, 'keyword'];
-        break;
-      case 'command':
-        // The `1` of `2>&1` comes out as a command
-        yield [text, /^\d+$/.test(text) ? 'keyword' : SHELL_BUILTINS.has(text) ? 'constant' : 'entity'];
-        command = false;
-        break;
-      case 'variable':
-        // An assignment's name, in the foreground like every variable
-        yield [text, null];
-        break;
-      case 'string':
-        yield* pieces(text, SHELL_EXPANSION, expansion, 'string');
-        command = false;
-        assigned = false;
-        break;
-      case undefined:
-        yield* pieces(text, SHELL_WORD, (word, at) => {
-          if (word === '=') {
-            assigned = true;
-            return 'keyword';
-          }
-          if (word === ';;') {
-            pattern = true;
-            return null;
-          }
-          if (SHELL_SEPARATORS.has(word)) {
-            command = !pattern;
-            assigned = false;
-            return word === '||' || (word === '|' && !pattern) ? 'keyword' : null;
-          }
-          // A line continuation
-          if (word === '\\\n') return 'keyword';
-          if (word === ')') {
-            if (!pattern) return null;
-            pattern = false;
-            command = true;
-            return 'keyword';
-          }
-          if (/^\d*[<>]|^&>/.test(word)) return 'keyword';
-          if (word === '}' || word === ']' || word === ']]') return null;
-          if (word.startsWith('$')) return expansion(word);
-          if (pattern) return 'string';
-          if (assigned) {
-            assigned = false;
-            return /^\d+$/.test(word) ? 'constant' : 'string';
-          }
-          if (command) {
-            // `NAME=value` before a command
-            if (text[at + word.length] === '=') return null;
-            command = false;
-            if (word === '[' || word === '[[') return null;
-            if (text.startsWith('()', at + word.length)) return 'function';
-            // A command given by path is an unquoted string to the grammar
-            return SHELL_BUILTINS.has(word) ? 'constant' : word.includes('/') ? 'string' : 'entity';
-          }
-          return /^--?[A-Za-z\d]/.test(word) || /^\d+$/.test(word) ? 'constant' : 'string';
-        });
-        break;
-      default:
-        yield [text, roleOf(token)];
-    }
-  }
-}
-
-function* paintOther(tokens: HighlightToken[], lang: string): Generator<Piece> {
-  for (const token of tokens) {
-    const { value, className } = token;
-    if (lang === 'diff' && className === 'meta') {
-      // A diff's headers: TanStack has one class for all of them, the grammar one colour each
-      const range = /^@@[^@]*@@/.exec(value)?.[0];
-      if (range) yield* [[range, 'function'], [value.slice(range.length), null]] as Piece[];
-      else yield [value, value.startsWith('---') ? 'deleted' : value.startsWith('+++') ? 'tag' : value.startsWith('diff ') ? 'constant' : null];
-    }
-    // The Dockerfile grammar leaves the commands of a RUN in the foreground
-    else if (lang === 'dockerfile' && className === 'command') yield [value, null];
-    else yield [value, roleOf(token)];
-  }
-}
-
-const PAINTERS: Record<Family, Painter> = {
-  script: paintScript,
-  python: paintPython,
-  css: paintCss,
-  json: paintData,
-  yaml: paintData,
-  markdown: paintMarkdown,
-  shell: paintShell,
-  other: paintOther,
-};
-
-/** `value` cut at each match of `pattern`, every match in the role `role` gives it and the rest in `rest` */
-function* pieces(
-  value: string,
-  pattern: RegExp,
-  role: (match: string, at: number) => Role | null,
-  rest: Role | null = null,
-): Generator<Piece> {
-  let at = 0;
-  for (const m of value.matchAll(pattern)) {
-    if (!m[0]) continue;
-    if (m.index > at) yield [value.slice(at, m.index), rest];
-    yield [m[0], role(m[0], m.index)];
-    at = m.index + m[0].length;
-  }
-  if (at < value.length) yield [value.slice(at), rest];
-}

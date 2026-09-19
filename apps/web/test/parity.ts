@@ -21,6 +21,8 @@ export interface Difference {
   theirs: Colour;
   /** shiki's innermost scope for the run: why the grammar colours it the way it does */
   scope: string;
+  /** The line the run starts on */
+  line: string;
 }
 
 export interface Parity {
@@ -128,7 +130,7 @@ export async function parity(code: string, lang: string): Promise<Parity> {
     }
     const last = differences.at(-1);
     if (last && last.ours === o && last.theirs === t && last.scope === scope && /^\s*$/.test(code.slice(end, i))) last.text += code.slice(end, i + 1);
-    else differences.push({ text: code[i]!, ours: o, theirs: t, scope });
+    else differences.push({ text: code[i]!, ours: o, theirs: t, scope, line: code.slice(code.lastIndexOf('\n', i) + 1, (code.indexOf('\n', i) + 1 || code.length + 1) - 1) });
     end = i + 1;
   }
   return { chars, same, differences };
