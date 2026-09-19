@@ -28,6 +28,10 @@
 - **Notifications** — a notification center in the top bar fed by that feed: runs waiting for an
   answer first, then finished or failed runs and orchestrations, conflicts, rate limits and
   rotations, and finished tasks and subagents; toasts, and opt-in browser notifications for a hidden tab.
+- **Execution detail** — side panels for a subagent, a background task and a workflow agent: prompt,
+  status, duration, tokens, the full transcript, the result and the tasks a subagent launched, read from
+  the files the CLI writes and updated live from the feed. Every task can show its output, followed while
+  it runs, and tasks launched by a subagent are tagged.
 - **API reference** — OpenAPI 3.1 generated from the shared types, served with Scalar at `/docs`;
   a test enforces that every route is documented.
 - **UI** — command palette (⌘K), light/dark/system themes, CodeMirror editors, unsaved-change

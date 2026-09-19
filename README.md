@@ -485,10 +485,10 @@ Delegated to `claude plugin`; actions return the CLI output as `{ ok, output }` 
 | Page | What it covers |
 | --- | --- |
 | Dashboard | CLI detection, auth status, subscription usage limits, live runs, recent sessions |
-| Agents | Runs in progress, their subagents, and every live CLI session on the machine |
+| Agents | Runs in progress, their subagents, and every live CLI session on the machine. A subagent's **Details** opens a side panel (also from a run's side card and a workflow's agents): its prompt, status, duration, tokens, full transcript, result and the background tasks it launched, updating while it runs |
 | Run view | Live chat over SSE: messages, thinking, tool calls/results, background tasks, subagents, what Claude loaded |
 | Sessions | Full history across projects, transcripts (with subagent sidechains), resume into a run, delete |
-| Background tasks | Tasks started by any run, with status and duration |
+| Background tasks | Tasks started by any run or session, with status and duration; those launched by a subagent are tagged. **Output** opens a side panel that follows the command's output while it runs. Panels are addressable (`?detail=…`), so a reload or a link brings them back |
 | Projects | Workspace directories and directories with history; create or clone a project |
 | Orchestration | Auto-planned or manual task DAG, live board by stage, per-task results, synthesis |
 | Accounts | Registered accounts with 5h/7d (and per-model) usage, manual switch, add/remove, enable/disable, auto-rotation settings and the rotation log |
@@ -512,7 +512,13 @@ Across the app:
   account rotation, and finished background tasks, subagents and workflows. All but those last
   ones also pop up as a toast (questions stay until you act); browser notifications are
   opt-in, ask for permission only when you turn them on, and appear only while the tab is hidden.
-  The list, read state and preferences are kept per browser.
+  The list, read state and preferences are kept per browser. A finished task or subagent links straight
+  to its side panel.
+- **Execution detail**: a subagent, a background task or a workflow agent opens in a side panel — prompt,
+  type, status, duration, tokens, the full transcript, the result and, for a subagent, the tasks it
+  launched — from the Agents and Background tasks pages, a run's side card and a workflow's agents. It
+  follows the agent or the command's output while it runs, and it is part of the URL (`?detail=…`), so a
+  reload or a link brings it back.
 - **Editors**: CodeMirror (JSON, Markdown, YAML, JS/TS) with `Ctrl/⌘ S`, unsaved-change guards
   (tabs, scope switches, sidebar navigation, reload), confirmation dialogs for destructive actions
   and toasts for every mutation.

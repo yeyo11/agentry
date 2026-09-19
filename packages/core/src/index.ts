@@ -307,7 +307,9 @@ export class Core {
         {
           if (source.kind === 'stream') {
             const location = this.locate(source.run.workingDir ?? source.run.cwd);
-            return source.run.subagents.map((s) => ({ ...s, source: 'run' as const, location }));
+            // The session is what a subagent's transcript is looked up by
+            const sessionId = source.run.sessionId;
+            return source.run.subagents.map((s) => ({ ...s, source: 'run' as const, location, ...(sessionId ? { sessionId } : {}) }));
           }
           const location = await this.locateSession(source.sessionId);
           return (await this.sessions.subagents(source.sessionId, source.live).catch(() => [])).map((s) => ({
@@ -329,7 +331,8 @@ export class Core {
       (await this.activitySources()).map(async (source) => {
         if (source.kind === 'stream') {
           const location = this.locate(source.run.workingDir ?? source.run.cwd);
-          return (source.run.workflows ?? []).map((w) => ({ ...w, location }));
+          const sessionId = source.run.sessionId;
+          return (source.run.workflows ?? []).map((w) => ({ ...w, location, ...(sessionId ? { sessionId } : {}) }));
         }
         const location = await this.locateSession(source.sessionId);
         return (await this.sessions.workflows(source.sessionId, source.live).catch(() => [])).map((w) => ({

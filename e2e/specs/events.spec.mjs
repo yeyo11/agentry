@@ -2,6 +2,14 @@
 // page's back shows up without a reload, well inside the 30 s the fallback poll would take.
 
 export default async ({ page, api, check }) => {
+  // The feed itself: an event stream that opens with its hello, and is dropped once we are done
+  const controller = new AbortController();
+  const res = await fetch(`${api.baseUrl}/api/events`, { signal: controller.signal });
+  check(res.status === 200 && (res.headers.get('content-type') ?? '').startsWith('text/event-stream'), `GET /api/events is an event stream (${res.status})`);
+  const first = new TextDecoder().decode((await res.body.getReader().read()).value);
+  check(first.includes('event: stream.hello'), 'the feed opens with stream.hello');
+  controller.abort();
+
   await page.goto('/agents', 1000);
   await page.waitFor(`return document.querySelector('main')?.innerText.trim().length > 10`, { label: 'agents page' });
   const footer = await page.eval(`return document.querySelector('.sidebar-foot')?.innerText ?? ''`);
@@ -16,6 +24,10 @@ export default async ({ page, api, check }) => {
     label: 'the new run to appear without a reload',
   });
   check(appeared, 'the run appears on the open Agents page');
+
+  // The background tasks page reads from the same feed and renders without a run
+  await page.goto('/tasks', 1000);
+  await page.waitFor(`return document.querySelector('main')?.innerText.trim().length > 5`, { label: 'tasks page' });
 
   // Housekeeping so the next spec starts from the same state
   await api.post(`/runs/${created.body.id}/stop`);

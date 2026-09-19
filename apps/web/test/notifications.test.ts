@@ -187,8 +187,10 @@ test('finished tasks and subagents stay low priority unless they failed', () => 
     description: 'find things',
     status: 'completed',
   };
-  // A terminal session has no run to link to: the session is the next best place
-  assert.equal(notificationsFor(sub)[0]?.href, '/sessions/s9');
+  // The side panel is the most specific place; it works for a terminal session too
+  assert.equal(notificationsFor(sub)[0]?.href, '/agents?detail=subagent%3As9%3Aa1');
+  // Without the agent's id there is no panel to open: the session is the next best place
+  assert.equal(notificationsFor({ ...sub, agentId: null })[0]?.href, '/sessions/s9');
 });
 
 test('the same news inside the window is dropped, and comes back once the window has passed', () => {
