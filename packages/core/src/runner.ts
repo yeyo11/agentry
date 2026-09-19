@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs';
@@ -32,6 +32,7 @@ import { RunEventPublisher } from './event-sources.ts';
 import type { EventBus } from './events.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
+import { drivesSession, streamJsonProcesses } from './processes.ts';
 import { pageSize, type SessionStore } from './sessions.ts';
 import { composeContent, type UploadStore } from './uploads.ts';
 import { readProgress, workflowStatus } from './workflows.ts';
@@ -77,6 +78,9 @@ export interface RunMeta {
 }
 
 const now = () => new Date().toISOString();
+
+/** Started (a failed spawn has no pid) and not exited yet */
+const processUp = (proc: ChildProcess): boolean => proc.pid !== undefined && proc.exitCode === null && proc.signalCode === null;
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
 const named = (v: unknown): Array<Record<string, unknown>> =>
@@ -142,8 +146,12 @@ class Run {
   pendingPrompts = 0;
   /** The turn is ending because someone interrupted it, not because it failed */
   interruptRequested = false;
-  /** A message is waiting for the exiting process to be replaced: its exit is not the run's end */
-  respawnQueued = false;
+  /**
+   * Messages that arrived while the process was on its way out (stopped, or its stdin closed and it
+   * finishing background work): one process replaces it when it exits and gets all of them. Each
+   * used to schedule a replacement of its own, and three messages made three processes.
+   */
+  queued: Array<{ text: string; attachments: Attachment[] }> = [];
   /** Resume into a copy until the CLI reports the copy's own session id */
   forkPending = false;
   /** The last turn sent, files included, so a turn lost to a rate limit is replayed whole */
@@ -199,8 +207,17 @@ class Run {
     return run;
   }
 
+  /** A message waits for the exiting process to be replaced: its exit is not the run's end */
+  get respawnQueued(): boolean {
+    return this.queued.length > 0;
+  }
+
+  /**
+   * Until it has exited. `killed` only says a signal was delivered: a stopped process can take
+   * seconds to go, and counting it gone let a resume start a second process beside it.
+   */
   get alive(): boolean {
-    return this.proc !== null && this.proc.exitCode === null && !this.proc.killed;
+    return this.proc !== null && processUp(this.proc);
   }
 
   summary(): RunSummary {
@@ -296,6 +313,13 @@ export class RunManager extends EventEmitter {
 
   private readonly file: string;
 
+  /**
+   * CLI processes found at start still working on a restored run's session, by run id: a previous
+   * wrapper went away without them (a crash, or `tsx watch` killing it mid-shutdown). Nothing here
+   * can write to their stdin, so the run cannot attach to them; it must not resume beside them.
+   */
+  private readonly leftovers = new Map<string, { sessionId: string; recordedPid: number | null; pids: number[] }>();
+
   constructor(
     private readonly config: CoreConfig,
     private readonly db: Db,
@@ -341,15 +365,63 @@ export class RunManager extends EventEmitter {
    */
   async restore(sessions: SessionStore): Promise<void> {
     this.importLegacy();
-    for (const summary of this.db.loadRuns()) {
-      if (this.runs.has(summary.id)) continue;
+    const summaries = this.db.loadRuns().filter((summary) => !this.runs.has(summary.id));
+    // Before the first await, so whoever starts the wrapper can report them as soon as Core exists
+    const processes = streamJsonProcesses();
+    for (const summary of summaries) {
+      const { sessionId } = summary;
+      if (!sessionId) continue;
+      const pids = processes.filter((p) => drivesSession(p.argv, sessionId, p.pid === summary.pid)).map((p) => p.pid);
+      if (pids.length) this.leftovers.set(summary.id, { sessionId, recordedPid: summary.pid, pids });
+    }
+    for (const summary of summaries) {
       const run = Run.restore(summary, this.config);
       this.runs.set(run.id, run);
       const detail = run.sessionId ? await sessions.getSession(run.sessionId, { includeSidechains: true }).catch(() => null) : null;
       for (const entry of detail?.entries ?? []) run.push({ kind: 'message', type: entry.role, entry });
+      const left = this.leftovers.get(run.id);
+      if (left) {
+        run.push({
+          kind: 'notice',
+          type: 'notice',
+          text:
+            `A CLI process a previous wrapper started for this session is still running (pid ${left.pids.join(', ')}). ` +
+            'It is not tracked here, so the run cannot be resumed beside it: wait for it to finish, or stop the run to end it.',
+          data: { pids: left.pids },
+        });
+      }
       run.updatedAt = summary.updatedAt; // push() bumped it
       this.watch(run);
     }
+  }
+
+  /** Processes found at start working on a restored run's session that are still up. */
+  strays(): Array<{ runId: string; sessionId: string; pid: number }> {
+    if (this.leftovers.size === 0) return [];
+    const processes = streamJsonProcesses();
+    return [...this.leftovers].flatMap(([runId, { sessionId, recordedPid, pids }]) =>
+      pids
+        .filter((pid) => processes.some((p) => p.pid === pid && drivesSession(p.argv, sessionId, pid === recordedPid)))
+        .map((pid) => ({ runId, sessionId, pid })),
+    );
+  }
+
+  /**
+   * What would share the session with a process started for this run now: any CLI process on it,
+   * this wrapper's (another run on the same session) or not, and whatever a previous wrapper left.
+   */
+  private sessionHolders(run: Run): number[] {
+    const left = this.leftovers.get(run.id);
+    const sessionId = run.forkPending ? null : run.sessionId;
+    if (!sessionId && !left) return [];
+    const processes = streamJsonProcesses();
+    return processes
+      .filter(
+        (p) =>
+          (sessionId !== null && drivesSession(p.argv, sessionId)) ||
+          (left?.pids.includes(p.pid) === true && drivesSession(p.argv, left.sessionId, p.pid === left.recordedPid)),
+      )
+      .map((p) => p.pid);
   }
 
   /** Announces what changes in the run from here on; `created` also announces the run itself. */
@@ -422,32 +494,64 @@ export class RunManager extends EventEmitter {
     const run = new Run(opts, meta, this.config);
     if (!existsSync(run.cwd)) mkdirSync(run.cwd, { recursive: true });
     this.runs.set(run.id, run);
-    this.spawnProcess(run, opts.prompt, attachments);
+    try {
+      this.spawnProcess(run, opts.prompt, attachments);
+    } catch (err) {
+      // Refused before any process started (the session is already running elsewhere): no run
+      this.runs.delete(run.id);
+      throw err;
+    }
     // After the spawn, so the announcement carries the session id and status the process started with
     this.watch(run, true);
     return run.summary();
   }
 
-  /** Sends a new turn. If the process is gone, the session is resumed with --resume. */
+  /**
+   * Sends a new turn. A run has at most one process: a live one gets the message, one on its way
+   * out hands it to the single process that replaces it, and only a run with none resumes the
+   * session with --resume.
+   */
   send(id: string, text: string, attachmentIds: string[] = []): RunSummary {
     const run = this.runs.get(id);
     if (!run) throw new Error('run not found');
     const attachments = this.resolveAttachments(attachmentIds);
     if (!text.trim() && attachments.length === 0) throw new Error('text is required');
-    const closing = run.alive && run.proc?.stdin.writableEnded === true;
-    if (run.alive && !closing) {
-      this.writeUserMessage(run, text, attachments);
-    } else if (closing && run.proc) {
-      // Its turn is over and it is on its way out: a message written now would never be read, so
-      // it goes to the process that replaces it
-      if (!run.sessionId) throw new Error('The run ended without a sessionId; it cannot be resumed');
-      run.respawnQueued = true;
-      run.proc.once('exit', () => this.spawnProcess(run, text, attachments));
-    } else {
+    if (!run.alive) {
       if (!run.sessionId) throw new Error('The run ended without a sessionId; it cannot be resumed');
       this.spawnProcess(run, text, attachments);
+    } else if (run.stopRequested || run.proc?.stdin.writableEnded === true || run.respawnQueued) {
+      // A message written now would never be read: it waits for the replacement, behind any
+      // message already waiting, so the order they were sent in is the order they arrive in
+      if (!run.sessionId) throw new Error('The run ended without a sessionId; it cannot be resumed');
+      run.queued.push({ text, attachments });
+    } else {
+      this.writeUserMessage(run, text, attachments);
     }
     return run.summary();
+  }
+
+  /** The process has exited: one process takes every message that waited for it. */
+  private drainQueue(run: Run): void {
+    const queued = run.queued;
+    run.queued = [];
+    const [next, ...rest] = queued;
+    if (!next) return;
+    // Something that heard the run end may have resumed it already: then that process gets them all
+    if (run.alive) {
+      for (const message of queued) this.writeUserMessage(run, message.text, message.attachments);
+      return;
+    }
+    try {
+      this.spawnProcess(run, next.text, next.attachments);
+    } catch (err) {
+      run.error = err instanceof Error ? err.message : String(err);
+      // The exit ended the run while a message was waiting; that message is lost, and anyone
+      // waiting for its result has to hear so
+      run.endedAt = null;
+      this.finalize(run, 'failed');
+      return;
+    }
+    for (const message of rest) this.writeUserMessage(run, message.text, message.attachments);
   }
 
   /** Looks the uploads up before anything starts, so a bad id fails the request, not the turn. */
@@ -463,7 +567,19 @@ export class RunManager extends EventEmitter {
     const run = this.runs.get(id);
     if (!run) throw new Error('run not found');
     run.stopRequested = true;
+    // Stopping means none of them is wanted any more
+    run.queued = [];
     const proc = run.proc;
+    if (!run.alive) {
+      // Nothing of this wrapper's: what is left is a process a previous one started on this run
+      for (const pid of this.strays().filter((s) => s.runId === id).map((s) => s.pid)) {
+        try {
+          process.kill(pid, 'SIGTERM');
+        } catch {
+          // gone in between
+        }
+      }
+    }
     if (run.alive && proc) {
       proc.kill('SIGTERM');
       // The process being stopped, not whatever `run.proc` is by then: a run resumed within these
@@ -519,6 +635,7 @@ export class RunManager extends EventEmitter {
 
   /** Sends a control request down the run's stdin and resolves with the CLI's response. */
   private control(run: Run, request: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const proc = run.proc;
     const requestId = `agentry-${String(++run.controlSeq)}`;
     return new Promise((resolvePromise, reject) => {
       const timer = setTimeout(() => {
@@ -536,22 +653,23 @@ export class RunManager extends EventEmitter {
           reject(err);
         },
       });
-      this.write(run, { type: 'control_request', request_id: requestId, request });
+      this.write(proc, { type: 'control_request', request_id: requestId, request });
     });
   }
 
-  private write(run: Run, message: unknown): void {
-    run.proc?.stdin.write(`${JSON.stringify(message)}\n`);
+  private write(proc: ChildProcessWithoutNullStreams | null, message: unknown): void {
+    proc?.stdin.write(`${JSON.stringify(message)}\n`);
   }
 
   /** The CLI asks the host something: a tool permission, a question, a plan to approve. */
-  private handleControlRequest(run: Run, requestId: string, request: Record<string, unknown>): void {
+  private handleControlRequest(run: Run, proc: ChildProcessWithoutNullStreams, requestId: string, request: Record<string, unknown>): void {
+    // The answer goes to the process that asked, which is not always the run's by the time it comes
     const reply = (response: Record<string, unknown>) =>
-      this.write(run, { type: 'control_response', response: { subtype: 'success', request_id: requestId, response } });
+      this.write(proc, { type: 'control_response', response: { subtype: 'success', request_id: requestId, response } });
     if (request.subtype !== 'can_use_tool') {
       // Hooks and SDK MCP servers are never registered, so nothing else should arrive; an answer
       // still has to, or the CLI waits for it
-      this.write(run, {
+      this.write(proc, {
         type: 'control_response',
         response: { subtype: 'error', request_id: requestId, error: `Agentry does not handle ${String(request.subtype)}` },
       });
@@ -579,7 +697,7 @@ export class RunManager extends EventEmitter {
       .then((decision) => {
         run.pendingPrompts = Math.max(0, run.pendingPrompts - 1);
         // Withdrawn by the CLI, or the process is gone: nobody is waiting for an answer
-        if (!decision || !run.alive) return;
+        if (!decision || !processUp(proc)) return;
         reply(toControlDecision(decision, input));
       });
   }
@@ -614,8 +732,8 @@ export class RunManager extends EventEmitter {
 
   /** Resolves once the run has no process: at once when it has none, or when the one it has exits. */
   async exited(id: string): Promise<void> {
-    const proc = this.runs.get(id)?.proc;
-    if (proc && proc.exitCode === null && !proc.killed) await once(proc, 'exit');
+    const run = this.runs.get(id);
+    if (run?.alive && run.proc) await once(run.proc, 'exit');
   }
 
   /**
@@ -736,10 +854,21 @@ export class RunManager extends EventEmitter {
     return [this.config.cswapBin, ['run', account, '--share-history', '--', ...args]];
   }
 
+  /**
+   * The only place a CLI process starts, and it becomes the run's at once: every process is tracked
+   * by the run it works for, and a run never has two.
+   */
   private spawnProcess(run: Run, prompt: string, attachments: Attachment[] = []): void {
+    if (run.alive) throw new Error('the run already has a live process');
+    const holders = this.sessionHolders(run);
+    if (holders.length) {
+      throw new Error(
+        `session ${run.sessionId ?? ''} is still running in process ${holders.join(', ')}, which this run does not track; ` +
+          'a second process would carry on the same conversation beside it. Wait for it to finish, or stop it first.',
+      );
+    }
     const resuming = run.sessionId !== null;
     const args = this.buildArgs(run, resuming);
-    run.respawnQueued = false;
     run.stopRequested = false;
     run.endedAt = null;
     run.error = null;
@@ -750,27 +879,37 @@ export class RunManager extends EventEmitter {
     // A pinned run must never inherit a token from the environment: it would override the account
     const proc = spawn(bin, argv, { cwd: run.cwd, env: run.opts.account ? authFreeEnv() : process.env, stdio: 'pipe' });
     run.proc = proc;
+    // The run's status follows the process it tracks and no other: an earlier process ending late
+    // used to mark the run failed while its current one was still working
+    const current = () => run.proc === proc;
 
-    createInterface({ input: proc.stdout }).on('line', (line) => this.handleLine(run, line));
+    createInterface({ input: proc.stdout }).on('line', (line) => {
+      if (current()) this.handleLine(run, proc, line);
+    });
     createInterface({ input: proc.stderr }).on('line', (line) => {
-      if (!line.trim()) return;
+      if (!line.trim() || !current()) return;
       if (RATE_LIMIT_RE.test(line)) run.rateLimited = true;
       run.push({ kind: 'stderr', type: 'stderr', text: line });
     });
     proc.stdin.on('error', () => {});
     proc.on('error', (err) => {
+      if (!current()) return;
       run.error = err.message;
       this.finalize(run, 'failed');
     });
     proc.on('exit', (code) => {
+      if (!current()) return;
       if (run.stopRequested) this.finalize(run, 'stopped');
       else if (code === 0) this.finalize(run, 'completed');
       else {
         run.error ??= run.events.filter((e) => e.kind === 'stderr').slice(-3).map((e) => e.text).join('\n') || `exit code ${code}`;
         this.finalize(run, 'failed');
       }
+      this.drainQueue(run);
     });
 
+    // Recorded at once, so the next wrapper can tell this process from one it started itself
+    this.persist();
     this.writeUserMessage(run, prompt, attachments);
   }
 
@@ -861,7 +1000,7 @@ export class RunManager extends EventEmitter {
     return true;
   }
 
-  private handleLine(run: Run, line: string): void {
+  private handleLine(run: Run, proc: ChildProcessWithoutNullStreams, line: string): void {
     let raw: Record<string, unknown>;
     try {
       raw = JSON.parse(line) as Record<string, unknown>;
@@ -874,7 +1013,7 @@ export class RunManager extends EventEmitter {
     if (subtype && IGNORED_SUBTYPES.has(subtype)) return;
 
     if (type === 'control_request') {
-      if (typeof raw.request_id === 'string') this.handleControlRequest(run, raw.request_id, (raw.request ?? {}) as Record<string, unknown>);
+      if (typeof raw.request_id === 'string') this.handleControlRequest(run, proc, raw.request_id, (raw.request ?? {}) as Record<string, unknown>);
       return;
     }
     if (type === 'control_cancel_request') {
