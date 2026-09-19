@@ -466,8 +466,6 @@ export class RunManager extends EventEmitter {
     if (typeof opts.maxBudgetUsd === 'number' && opts.maxBudgetUsd > 0) {
       args.push('--max-budget-usd', String(opts.maxBudgetUsd));
     }
-    // The CLI defaults to asking a host. Nothing is listening unless a prompt tool is named, and a
-    // run waiting on an answer that never comes is worse than one told plainly that it was denied.
     // Prompts go to a host only when something is listening: a run waiting on an answer that never
     // comes is worse than one told plainly that it was denied.
     const socket = opts.permissionPrompts === 'host' ? this.permissionSocket : undefined;
