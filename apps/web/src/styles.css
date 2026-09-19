@@ -3762,7 +3762,12 @@ button.tree-row-on:hover {
     grid-template-columns: minmax(0, 1fr);
     height: auto;
   }
+  /* The layout above is as tall as its content now, and against that a zero flex basis resolves to
+     the content height and wins over `height`: the stage would grow with the log, `.run-scroll`
+     would never scroll (`.main` would), and the windowed log would measure a viewport as tall as
+     itself and never move its window. */
   .run-stage {
+    flex: none;
     height: 62vh;
   }
   .split {
