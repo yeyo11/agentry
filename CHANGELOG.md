@@ -3,6 +3,28 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.7.0](https://github.com/yeyo11/agentry/compare/v0.6.0...v0.7.0) (2026-09-19)
+
+
+### Features
+
+* **desktop:** Linux desktop app (AppImage and .deb) ([41ab148](https://github.com/yeyo11/agentry/commit/41ab14872c2ec5b9327903475cf542756218f727))
+* **desktop:** one-line installer ([5255811](https://github.com/yeyo11/agentry/commit/52558115ad93252076cea9879f55abdd5c0ee0ae))
+* **desktop:** package an AppImage and a .deb and publish them on release ([87ccdd3](https://github.com/yeyo11/agentry/commit/87ccdd3ead0ebb4ecb2b11ebe17201a4d35fba10))
+* **orchestration:** deliver one integrated branch ([4d09c4b](https://github.com/yeyo11/agentry/commit/4d09c4b876d2ea25607c28d7bb6f8e4b60a04921))
+* **orchestration:** deliver one integrated branch ([0d20cf1](https://github.com/yeyo11/agentry/commit/0d20cf17965f35fc593b58419895011df25aa7d8))
+
+
+### Bug fixes
+
+* **desktop:** show the app icon on the running window ([22123ea](https://github.com/yeyo11/agentry/commit/22123eae5c07cac9158f9f1607b7115ef52f2986))
+* **web:** count live sessions on the Sessions nav item ([c51923e](https://github.com/yeyo11/agentry/commit/c51923e6918b0b042011ed323996546b2b54d13c))
+
+
+### Documentation
+
+* **desktop:** document the Linux desktop app ([8f99700](https://github.com/yeyo11/agentry/commit/8f9970014ca0b26d1b749e3d446d58daf73892fa))
+
 ## [0.6.0](https://github.com/yeyo11/agentry/compare/v0.5.1...v0.6.0) (2026-09-19)
 
 
