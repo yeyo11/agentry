@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "id": "run_01HZX3",
+  "title": "Explain \"this\" diagram\n\tplease",
+  "unicode": "caf\u00e9 — ✓",
+  "count": 42,
+  "ratio": -0.125,
+  "big": 1.5e+10,
+  "ok": true,
+  "failed": false,
+  "parent": null,
+  "tags": ["one", "two", "three"],
+  "matrix": [[1, 2], [3, 4], []],
+  "nested": {
+    "empty": {},
+    "path": "C:\\Users\\agent\\workspace",
+    "url": "https://example.com/api/runs?limit=20&offset=40",
+    "deep": { "a": { "b": { "c": [true, null, 0] } } }
+  },
+  "events": [
+    { "type": "assistant", "message": { "content": [{ "type": "text", "text": "Hello" }] } },
+    { "type": "result", "subtype": "success", "cost_usd": 0.0123, "duration_ms": 5321 }
+  ]
+}

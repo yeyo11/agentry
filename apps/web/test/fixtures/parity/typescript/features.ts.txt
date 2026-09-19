@@ -1,0 +1,126 @@
+import type { Run, RunStatus } from '@agentry/shared';
+import * as path from 'node:path';
+import fs, { promises as fsp } from 'node:fs';
+export * from './events';
+export { default as Store, type StoreOptions } from './store';
+
+declare global {
+  interface Window {
+    __AGENTRY__?: { version: string };
+  }
+}
+
+export enum Level {
+  Debug = 0,
+  Info,
+  Warn = 'warn',
+}
+
+export const enum Flags {
+  None = 0,
+  All = ~0,
+}
+
+type Handler<T extends object = {}> = (event: T, ...rest: unknown[]) => Promise<void> | void;
+type Keys = keyof typeof DEFAULTS;
+type Mapped<T> = { readonly [K in keyof T]?: T[K] extends Function ? never : T[K] };
+type Status = `run:${RunStatus}`;
+
+export interface Options extends Partial<Record<Keys, number>> {
+  readonly id: string;
+  label?: string;
+  onEvent?(event: Run): void;
+  [key: `x-${string}`]: unknown;
+}
+
+const DEFAULTS = { retries: 3, timeoutMs: 30_000, backoff: 1.5 } as const satisfies Record<string, number>;
+let counter = 0n;
+var legacy = void 0;
+
+function assert(condition: unknown, message?: string): asserts condition {
+  if (!condition) throw new Error(message ?? 'assertion failed');
+}
+
+function isRun(value: unknown): value is Run {
+  return typeof value === 'object' && value !== null && 'id' in value;
+}
+
+export abstract class Base<T> implements Disposable {
+  static #instances = 0;
+  protected abstract readonly kind: string;
+  private cache = new WeakMap<object, T>();
+  declare meta: Record<string, string>;
+
+  constructor(
+    public readonly name: string,
+    private options: Options = { id: 'default' },
+  ) {
+    Base.#instances++;
+  }
+
+  get size(): number {
+    return this.cache instanceof WeakMap ? -1 : 0;
+  }
+
+  set label(value: string) {
+    this.options.label = value.trim();
+  }
+
+  async *entries(): AsyncGenerator<[string, T]> {
+    for await (const line of readLines(this.name)) {
+      yield [line, JSON.parse(line) as T];
+    }
+  }
+
+  [Symbol.dispose](): void {
+    this.cache = new WeakMap();
+  }
+
+  @logged
+  override toString(): string {
+    return `${this.kind}(${this.name})`;
+  }
+}
+
+export default class RunStore extends Base<Run> {
+  protected readonly kind = 'runs';
+}
+
+export async function retry<T>(fn: () => Promise<T>, { retries = DEFAULTS.retries }: Partial<typeof DEFAULTS> = {}): Promise<T> {
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      await new Promise((resolve) => setTimeout(resolve, 2 ** attempt * 100));
+    } finally {
+      counter += 1n;
+    }
+  }
+  throw lastError;
+}
+
+const pattern = /^(?<name>[\w-]+)=(?<value>.*)$/gimu;
+const parsed = 'a=1'.match(pattern)?.groups?.name ?? '';
+const total = [1, 2, 3].reduce((sum, n) => sum + n, 0) / 3 >> 1;
+const { a, b: renamed, ...others } = DEFAULTS as Record<string, number>;
+const [first, , third = 3] = [1, 2];
+label: for (const key in others) {
+  if (Object.hasOwn(others, key)) continue label;
+  switch (key) {
+    case 'retries':
+      break;
+    default:
+      debugger;
+  }
+}
+namespace Legacy {
+  export const x = 1;
+}
+const el = document.querySelector<HTMLDivElement>('#root')!;
+el.addEventListener('click', function (this: HTMLElement, e) {
+  e.preventDefault();
+  delete (window as any).__AGENTRY__;
+});
+export const lazy = () => import('./heavy').then((m) => m.default);

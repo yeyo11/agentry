@@ -1,0 +1,34 @@
+pnpm install
+pnpm --filter @agentry/web build
+cd apps/web && pnpm test -- --watch
+git status --short
+git log --oneline -10 --author="Jose"
+git diff HEAD~1 -- apps/web/src/components/highlight.ts
+git commit -m "fix(web): colour shell arguments"
+npm run build 2>&1 | tail -20
+ls -la ~/.claude/projects/ | grep -v '^total'
+find . -name '*.ts' -not -path './node_modules/*' -exec wc -l {} + | sort -n | tail -5
+grep -rn "TODO" src/ --include='*.ts' | wc -l
+curl -s -X POST localhost:8787/api/runs \
+  -H 'content-type: application/json' \
+  -d '{"prompt":"Summarize this repo","cwd":"/workspace"}' | jq .
+docker run --rm -it -v "$PWD:/workspace" -e CLAUDE_CODE_OAUTH_TOKEN ghcr.io/example/agentry:latest
+export PATH="$HOME/.local/bin:$PATH"
+echo $HOME $USER ${PWD} $? $# $$ $1
+ps aux | grep '[n]ode' | awk '{print $2}' | xargs -r kill
+tar -czf backup.tgz --exclude=node_modules .
+ssh user@host 'cd /srv && ./deploy.sh' < /dev/null
+sudo systemctl restart nginx; sudo journalctl -u nginx -n 50 --no-pager
+python3 -m http.server 8000 &
+kill %1
+test -d dist && rm -rf dist
+mkdir -p out/{a,b,c}
+cp -r src/ dist/ && chmod +x dist/*.sh
+FOO=bar BAZ=1 node script.js --flag=value
+sed -i 's/foo/bar/g' file.txt
+awk -F: '$3 >= 1000 { print $1 }' /etc/passwd
+xargs -n1 -P4 echo < list.txt
+time (sleep 1; echo done)
+source ~/.bashrc
+. ./env.sh
+wait

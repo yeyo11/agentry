@@ -1,0 +1,51 @@
+@import url("fonts.css") layer(base);
+@layer base, components;
+
+:root {
+  --accent: #0969da;
+  --radius: 6px;
+  --shadow: 0 1px 3px rgb(0 0 0 / 12%);
+}
+
+@font-face {
+  font-family: "Inter Variable";
+  src: url(/fonts/inter.woff2) format("woff2");
+  font-weight: 100 900;
+}
+
+html, body { height: 100%; }
+
+.card:hover > .title,
+.card:focus-within .title::after,
+a[href^="https"]:not(.plain) {
+  color: var(--accent, blue);
+  transition: color 120ms ease-in-out, transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+  transform: translateY(-1px) rotate(2deg);
+}
+
+#main > ul li:nth-child(2n + 1) {
+  margin: 0 auto !important;
+  padding: calc(var(--radius) * 2) 1rem;
+  width: min(100%, 72ch);
+  background: linear-gradient(to right, #fff 0%, rgba(255, 255, 255, 0.5) 100%);
+  font: 500 14px/1.4 "Inter Variable", system-ui, sans-serif;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+}
+
+@media (prefers-color-scheme: dark) and (min-width: 768px) {
+  :root { --accent: #58a6ff; }
+}
+
+@supports (display: grid) {
+  .grid { display: grid; gap: 8px 12px; }
+}
+
+@keyframes pulse {
+  from { opacity: 1; }
+  50% { opacity: 0.4; }
+  to { opacity: 1; }
+}
+
+.spinner { animation: pulse 1.2s infinite linear; z-index: 10; }
+.card { &:hover { outline: 2px solid currentColor; } }
+input::placeholder { color: GrayText; }

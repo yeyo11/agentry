@@ -1,0 +1,54 @@
+'use strict';
+const http = require('node:http');
+const { readFile } = require('node:fs/promises');
+const EventEmitter = require('events');
+
+const PORT = Number(process.env.PORT) || 3000;
+const cache = new Map();
+
+class Bus extends EventEmitter {
+  constructor() {
+    super();
+    this.count = 0;
+  }
+
+  publish(topic, payload) {
+    this.count++;
+    this.emit(topic, { ...payload, at: Date.now() });
+  }
+}
+
+const bus = new Bus();
+
+async function handler(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  if (req.method === 'GET' && url.pathname === '/') {
+    let body = cache.get('index');
+    if (!body) {
+      body = await readFile(__dirname + '/index.html', 'utf8');
+      cache.set('index', body);
+    }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    return res.end(body);
+  }
+  bus.publish('miss', { path: url.pathname });
+  res.statusCode = 404;
+  res.end(JSON.stringify({ error: 'not found', path: url.pathname }));
+}
+
+const server = http.createServer((req, res) => {
+  handler(req, res).catch((err) => {
+    console.error(err);
+    res.statusCode = 500;
+    res.end();
+  });
+});
+
+server.listen(PORT, () => console.log(`listening on :${PORT}`));
+
+process.on('SIGTERM', () => server.close(() => process.exit(0)));
+
+module.exports = { server, bus, handler };
+exports.version = '1.0.0';
+var self = this, args = arguments, nothing = undefined, nan = NaN, inf = Infinity;
+typeof window !== 'undefined' && (window.onload = function () { document.title += ' ✓'; });

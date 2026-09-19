@@ -1,0 +1,61 @@
+commit cc5d947918f6e8711c52aac568b55936d8458d42
+Author: Jose Antonio Garrido <yeyochico@gmail.com>
+Date:   Sat Sep 19 18:38:39 2026 +0200
+
+    fix(web): give shiki's first call the time to compile its grammar
+    
+    shiki stops tokenizing a line after 500 ms and returns the rest of it as
+    one uncoloured token. The first call in a language compiles its grammar
+    inside that budget, and on a busy machine a heavy grammar overran it: the
+    first code block on screen came out without colours, and the highlight
+    test failed whenever the full suite ran alongside other work.
+    
+    The budget is now 2 s per line: still a guard against a pathological line,
+    no longer tripped by the grammar's own start-up. With twelve busy loops on
+    the CPU, a C++ block came back as a single plain run in 3 of 3 runs at
+    500 ms and fully coloured in 3 of 3 at 2 s. The new test covers it.
+
+diff --git a/apps/web/src/components/highlight.ts b/apps/web/src/components/highlight.ts
+index 2e590e6..325d441 100644
+--- a/apps/web/src/components/highlight.ts
++++ b/apps/web/src/components/highlight.ts
+@@ -75,6 +75,9 @@ const THEMES = { light: 'github-light-default', dark: 'github-dark-default' } as
+ type Shiki = typeof import('shiki/core');
+ type Langs = typeof import('shiki/langs');
+ type HighlighterCore = Awaited<ReturnType<Shiki['createHighlighterCore']>>;
++
++/** Per line, for the grammars shiki handles; see where it is passed. */
++const TOKENIZE_BUDGET_MS = 2000;
+ type Loader = Langs['bundledLanguages'][keyof Langs['bundledLanguages']];
+ 
+ let shiki: Promise<{ h: HighlighterCore; langs: Langs }> | null = null;
+@@ -112,7 +115,11 @@ async function highlightShiki(code: string, id: string): Promise<Highlighted | n
+     }
+     await pending;
+   }
+-  const { tokens } = h.codeToTokens(code, { lang: id, themes: THEMES, defaultColor: false });
++  // shiki gives up on a line after 500 ms by default and returns the rest of it uncoloured. The
++  // first call in a language compiles its grammar within that budget, which a busy machine
++  // overruns, so the first block on screen lost its colours. A wider budget keeps the guard
++  // against a pathological line without tripping over the grammar's own start-up.
++  const { tokens } = h.codeToTokens(code, { lang: id, themes: THEMES, defaultColor: false, tokenizeTimeLimit: TOKENIZE_BUDGET_MS });
+   const base = { '--shiki-light': h.getTheme(THEMES.light).fg, '--shiki-dark': h.getTheme(THEMES.dark).fg };
+   const runs = new Runs(base);
+   tokens.forEach((line, i) => {
+diff --git a/apps/web/test/highlight.test.ts b/apps/web/test/highlight.test.ts
+index bbc277e..8925513 100644
+--- a/apps/web/test/highlight.test.ts
++++ b/apps/web/test/highlight.test.ts
+@@ -211,3 +211,12 @@ test('a shell line tells commands from their arguments', async () => {
+ test('an unknown language is left plain', async () => {
+   assert.equal(await highlight('whatever', 'not-a-language'), null);
+ });
++
++test('the first block in a grammar shiki compiles on the spot is still coloured', async () => {
++  // C++ is not one of the languages the lighter highlighter covers, so it takes shiki's path,
++  // where the first call compiles the grammar inside the per-line time budget.
++  const out = await highlight('template <typename T> auto twice(const T& x) -> T { return x + x; } int main() { return twice(21); }', 'cpp');
++  assert.ok(out);
++  const styled = out.lines.flat().filter((run) => typeof run !== 'string');
++  assert.ok(styled.length >= 3, `expected keywords, types and literals coloured, got ${styled.length} runs`);
++});
