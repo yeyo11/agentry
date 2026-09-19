@@ -1,4 +1,4 @@
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 /** Row height assumed for a row that has never been on screen, until a real one is measured. */
@@ -68,6 +68,21 @@ export function VirtualList<T>({
     followOnAppend: pinToBottom,
   });
 
+  // The default only compensates a row measured for the first time when it starts above the scroll
+  // offset. Loading earlier messages while the header above the list is in view breaks that: the
+  // jump lands with freshly prepended rows inside the viewport, just above the row being read, and
+  // each one that turns out shorter or taller than its estimate would drag that row with it.
+  useLayoutEffect(() => {
+    rows.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
+      const offset = (instance.scrollOffset ?? 0) + instance.scrollAdjustments;
+      const measured = (key: VirtualItem['key']) => instance.itemSizeCache.has(key);
+      if (measured(item.key)) return item.end <= offset && instance.scrollDirection !== 'backward';
+      if (item.start < offset) return true;
+      const bottom = offset + (instance.scrollRect?.height ?? 0);
+      return instance.getVirtualItems().some((v) => v.index > item.index && v.start < bottom && v.end > offset && measured(v.key));
+    };
+  }, [rows]);
+
   const visible = rows.getVirtualItems();
   const first = visible[0];
   const last = visible[visible.length - 1];
@@ -84,9 +99,12 @@ export function VirtualList<T>({
     if (pinToBottom && items.length > 0) rows.scrollToEnd();
   }, [pinToBottom, items.length, total, rows]);
 
+  // Pinned, the window only starts at the first row because nothing has been scrolled yet: a list
+  // mounts at its top before it is taken to its end. Loading on that would fetch pages nobody
+  // asked for, twice over, since `onReachTop` changes as soon as the first of them lands.
   useEffect(() => {
-    if (first?.index === 0) onReachTop?.();
-  }, [first?.index, onReachTop]);
+    if (first?.index === 0 && !pinToBottom) onReachTop?.();
+  }, [first?.index, onReachTop, pinToBottom]);
 
   return (
     <div ref={host} className={className} style={{ paddingTop: before, paddingBottom: after }}>
