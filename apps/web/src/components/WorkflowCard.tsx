@@ -1,14 +1,22 @@
 import type { WorkflowAgentState, WorkflowRun } from '@agentry/shared';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import i18n from '../i18n';
 import { useDetailPanel } from '../lib/detail';
-import { durationBetween, formatDuration, truncate } from '../lib/format';
+import { durationBetween, formatDuration, formatNumber, truncate } from '../lib/format';
 import { CodeBlock } from './CodeBlock';
 // Direct import: the run view that renders this is in the shell bundle
 import { Collapsible } from './controls/Collapsible';
 import { Location } from './Location';
 import { StatusBadge } from './ui';
 
-const tokens = (n: number | null) => (n === null ? null : n >= 1000 ? `${(n / 1000).toFixed(1)}k tokens` : `${n} tokens`);
+// Ungrouped, as before: 1234.5k tokens, never 1,234.5k
+const tokens = (n: number | null) =>
+  n === null
+    ? null
+    : n >= 1000
+      ? i18n.t('components:workflowCard.tokensThousands', { n: formatNumber(n / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }) })
+      : i18n.t('components:workflowCard.tokens', { n: formatNumber(n, { useGrouping: false }) });
 
 /** The CLI's agent states, in the tones the rest of the panel uses. */
 const tone = (state: string) => (state === 'done' ? 'ok' : state === 'error' ? 'bad' : 'active');
@@ -53,6 +61,7 @@ function byPhase(workflow: WorkflowRun): Array<[string | null, WorkflowAgentStat
  * `compact` drops who started it, for places that already say so, like the run's own page.
  */
 export function WorkflowCard({ workflow, compact = false, sessionId }: { workflow: WorkflowRun; compact?: boolean; sessionId?: string }) {
+  const { t } = useTranslation('components');
   const { open } = useDetailPanel();
   // A run's workflows carry no session of their own; the page that knows the run passes it
   const session = workflow.sessionId ?? sessionId;
@@ -63,7 +72,7 @@ export function WorkflowCard({ workflow, compact = false, sessionId }: { workflo
     <article className="wf-card">
       <header className="wf-head">
         <StatusBadge status={workflow.status} />
-        <strong className="wf-name">{workflow.name ?? 'workflow'}</strong>
+        <strong className="wf-name">{workflow.name ?? t('workflowCard.workflow')}</strong>
         <span className="muted small ellipsis">{workflow.description !== workflow.name ? workflow.description : ''}</span>
       </header>
       <div className="meta">
@@ -71,12 +80,10 @@ export function WorkflowCard({ workflow, compact = false, sessionId }: { workflo
           (workflow.runId ? (
             <Link to={`/runs/${workflow.runId}`}>{workflow.runName}</Link>
           ) : (
-            <Link to={`/sessions/${workflow.sessionId ?? ''}`}>{workflow.runName || 'CLI session'}</Link>
+            <Link to={`/sessions/${workflow.sessionId ?? ''}`}>{workflow.runName || t('workflowCard.cliSession')}</Link>
           ))}
         {!compact && <Location location={workflow.location} />}
-        <span>
-          {done}/{total} agents done
-        </span>
+        <span>{t('workflowCard.agentsDone', { done, total })}</span>
         <span>{durationBetween(workflow.startedAt, workflow.endedAt)}</span>
         {workflow.totalTokens !== null && <span>{tokens(workflow.totalTokens)}</span>}
       </div>
@@ -106,12 +113,12 @@ export function WorkflowCard({ workflow, compact = false, sessionId }: { workflo
       {(workflow.script || hasResult) && (
         <div className="wf-details">
           {hasResult && (
-            <Collapsible className="fold" title={<span className="tool-name">Result</span>}>
+            <Collapsible className="fold" title={<span className="tool-name">{t('workflowCard.result')}</span>}>
               <CodeBlock code={typeof workflow.result === 'string' ? workflow.result : JSON.stringify(workflow.result, null, 2)} lang={typeof workflow.result === 'string' ? undefined : 'json'} />
             </Collapsible>
           )}
           {workflow.script && (
-            <Collapsible className="fold" title={<span className="tool-name">Script</span>}>
+            <Collapsible className="fold" title={<span className="tool-name">{t('workflowCard.script')}</span>}>
               <CodeBlock code={workflow.script.trim()} lang="js" />
             </Collapsible>
           )}

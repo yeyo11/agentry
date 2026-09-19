@@ -1,13 +1,13 @@
 import * as Popover from '@radix-ui/react-popover';
 import { CircleAlert, CircleCheck, CircleHelp, Gauge, GitMerge, Timer, type LucideIcon } from 'lucide-react';
 import { useEffect, useState, type KeyboardEvent, type RefObject } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { timeAgo } from '../lib/format';
 import {
   browserPermission,
   clearNotifications,
   enableBrowserNotifications,
-  KIND_LABEL,
   KINDS,
   markAllRead,
   markRead,
@@ -16,7 +16,6 @@ import {
   useNotificationPrefs,
   useNotifications,
   type AppNotification,
-  type BrowserPermission,
 } from '../lib/notifications';
 import { Collapsible } from './controls/Collapsible';
 import { LAYER_ATTR } from './controls/layer';
@@ -38,14 +37,8 @@ function iconFor(n: AppNotification): LucideIcon {
   }
 }
 
-const BROWSER_HINT: Record<BrowserPermission, string> = {
-  granted: 'Shown only while this tab is hidden.',
-  default: 'Shown only while this tab is hidden. The browser will ask for permission.',
-  denied: 'Blocked for this site: allow notifications in your browser settings, then turn this on.',
-  unsupported: 'This browser does not support notifications.',
-};
-
 function Preferences() {
+  const { t } = useTranslation('components');
   const prefs = useNotificationPrefs();
   const [permission, setPermission] = useState(browserPermission);
 
@@ -56,21 +49,21 @@ function Preferences() {
   };
 
   return (
-    <Collapsible title="Preferences" className="notif-prefs" triggerClassName="small muted">
+    <Collapsible title={t('notificationPanel.preferences')} className="notif-prefs" triggerClassName="small muted">
       <div className="notif-prefs-body">
         <Switch checked={prefs.toasts} onChange={(toasts) => setPrefs((p) => ({ ...p, toasts }))}>
-          Pop-up toasts
+          {t('notificationPanel.popupToasts')}
         </Switch>
         <div>
           <Switch checked={prefs.browser && permission === 'granted'} disabled={permission === 'unsupported'} onChange={toggleBrowser}>
-            Browser notifications
+            {t('notificationPanel.browserNotifications')}
           </Switch>
-          <div className="field-hint">{BROWSER_HINT[permission]}</div>
+          <div className="field-hint">{t(`notificationPanel.browserHint.${permission}`)}</div>
         </div>
-        <div className="notif-prefs-group">Notify me when</div>
+        <div className="notif-prefs-group">{t('notificationPanel.notifyMeWhen')}</div>
         {KINDS.map((kind) => (
           <Switch key={kind} checked={prefs.kinds[kind]} onChange={(on) => setPrefs((p) => ({ ...p, kinds: { ...p.kinds, [kind]: on } }))}>
-            {KIND_LABEL[kind]}
+            {t(`notificationPanel.kinds.${kind}`)}
           </Switch>
         ))}
       </div>
@@ -79,6 +72,7 @@ function Preferences() {
 }
 
 export function NotificationPanel({ id, anchor, onClose }: { id: string; anchor: RefObject<HTMLButtonElement | null>; onClose: () => void }) {
+  const { t } = useTranslation('components');
   const items = useNotifications();
   const navigate = useNavigate();
   const unread = unreadCount(items);
@@ -114,7 +108,7 @@ export function NotificationPanel({ id, anchor, onClose }: { id: string; anchor:
           {...LAYER_ATTR}
           id={id}
           role="dialog"
-          aria-label="Notifications"
+          aria-label={t('notificationPanel.title')}
           className="popover notif-panel"
           align="end"
           sideOffset={8}
@@ -124,19 +118,19 @@ export function NotificationPanel({ id, anchor, onClose }: { id: string; anchor:
           onInteractOutside={(e) => anchor.current?.contains(e.target as Node) && e.preventDefault()}
         >
           <div className="notif-head">
-            <strong>Notifications</strong>
+            <strong>{t('notificationPanel.title')}</strong>
             <span className="notif-head-actions">
               <button type="button" className="btn btn-small" disabled={unread === 0} onClick={markAllRead}>
-                Mark all read
+                {t('notificationPanel.markAllRead')}
               </button>
               <button type="button" className="btn btn-small" disabled={items.length === 0} onClick={clearNotifications}>
-                Clear
+                {t('notificationPanel.clear')}
               </button>
             </span>
           </div>
 
           {items.length === 0 ? (
-            <p className="muted small notif-empty">Nothing yet. Runs that need you, and what finishes, will show up here.</p>
+            <p className="muted small notif-empty">{t('notificationPanel.empty')}</p>
           ) : (
             <ul className="notif-list" onKeyDown={onListKey}>
               {items.map((n) => {
@@ -156,8 +150,8 @@ export function NotificationPanel({ id, anchor, onClose }: { id: string; anchor:
                         {n.body && <span className="notif-body">{n.body}</span>}
                         <span className="notif-meta">
                           {timeAgo(n.at)}
-                          {n.kind === 'waiting' && n.resolved && ' · answered'}
-                          {!n.read && <span className="sr-only"> · unread</span>}
+                          {n.kind === 'waiting' && n.resolved && ` · ${t('notificationPanel.answered')}`}
+                          {!n.read && <span className="sr-only"> · {t('notificationPanel.unread')}</span>}
                         </span>
                       </span>
                       {!n.read && <span className="notif-dot" aria-hidden />}

@@ -1,5 +1,6 @@
 import { Bell } from 'lucide-react';
 import { lazy, Suspense, useCallback, useId, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAgentryEvents } from '../lib/events';
 import { getPrefs, hasUrgent, ingest, isRedundant, markRead, showBrowserNotification, unreadCount, useNotifications } from '../lib/notifications';
@@ -19,11 +20,12 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const panelId = useId();
-  const label = unread > 0 ? `Notifications, ${unread} unread` : 'Notifications';
+  const { t } = useTranslation('components');
+  const label = unread > 0 ? t('notifications.bellUnread', { count: unread }) : t('notifications.bell');
 
   return (
     <>
-      <Tooltip content="Notifications">
+      <Tooltip content={t('notifications.bell')}>
         <button
           ref={button}
           type="button"
@@ -58,6 +60,7 @@ export function NotificationBell() {
  */
 export function NotificationHost() {
   const toast = useToast();
+  const { t } = useTranslation('components');
   const navigate = useNavigate();
   const { pathname } = useLocation();
   // Read at event time: the person may have moved since the last render
@@ -83,7 +86,7 @@ export function NotificationHost() {
           urgent: n.priority === 'high',
           action: n.href
             ? {
-                label: n.kind === 'waiting' ? 'Answer' : 'Open',
+                label: n.kind === 'waiting' ? t('notifications.answer') : t('notifications.open'),
                 onClick: () => {
                   markRead(n.id);
                   open(n.href);

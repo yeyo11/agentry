@@ -139,25 +139,25 @@ export function App() {
 
   const statusTone = overview.isError ? 'bad' : healthy && !feedDown ? 'ok' : 'warn';
   const statusTitle = overview.isError
-    ? 'API unreachable'
+    ? t('shell.apiUnreachable')
     : !overview.data
-      ? 'Connecting…'
+      ? t('shell.connecting')
       : healthy
-        ? `Claude Code ${cli?.version ?? ''}`
+        ? t('shell.claudeCode', { version: cli?.version ?? '' })
         : !cli?.installed
-          ? 'CLI not detected'
-          : 'Not logged in';
+          ? t('shell.cliNotDetected')
+          : t('shell.notLoggedIn');
   const statusDetail = healthy
     ? feedDown
-      ? 'Live updates paused, retrying'
-      : [auth?.subscriptionType ?? auth?.authMethod, auth?.email].filter(Boolean).join(' · ') || 'logged in'
+      ? t('shell.liveUpdatesPaused')
+      : [auth?.subscriptionType ?? auth?.authMethod, auth?.email].filter(Boolean).join(' · ') || t('shell.loggedIn')
     : overview.isError
-      ? 'Check that the wrapper is running'
+      ? t('shell.checkWrapper')
       : !overview.data
         ? ''
         : !cli?.installed
-          ? 'Install it or set CLAUDE_BIN'
-          : 'Add a credential in Config';
+          ? t('shell.installCli')
+          : t('shell.addCredential');
 
   // In the icon rail the labels are hidden, so they move into tooltips
   const railTip = (label: string) => (collapsed ? label : undefined);
@@ -177,7 +177,7 @@ export function App() {
         )}
       </AnimatePresence>
 
-      <aside className="sidebar" aria-label="Sidebar">
+      <aside className="sidebar" aria-label={t('shell.sidebar')}>
         <div className="sidebar-head">
           <Tooltip content={railTip('Agentry')} side="right">
             <NavLink to="/" className="brand" aria-label="Agentry">
@@ -185,22 +185,22 @@ export function App() {
               <span className="brand-name">Agentry</span>
             </NavLink>
           </Tooltip>
-          <Tooltip content={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right">
+          <Tooltip content={collapsed ? t('shell.expandSidebar') : t('shell.collapseSidebar')} side="right">
             <button
               type="button"
               className="icon-btn sidebar-collapse"
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label={collapsed ? t('shell.expandSidebar') : t('shell.collapseSidebar')}
               onClick={() => setCollapsed((v) => !v)}
             >
               {collapsed ? <PanelLeftOpen {...ICON} /> : <PanelLeftClose {...ICON} />}
             </button>
           </Tooltip>
-          <button type="button" className="icon-btn sidebar-close" aria-label="Close navigation" onClick={() => setMobileNav(false)}>
+          <button type="button" className="icon-btn sidebar-close" aria-label={t('shell.closeNavigation')} onClick={() => setMobileNav(false)}>
             <X {...ICON} />
           </button>
         </div>
 
-        <nav className="nav" aria-label="Main">
+        <nav className="nav" aria-label={t('shell.mainNavigation')}>
           {groups.map((group) => (
             <div key={group.label} className="nav-group">
               <div className="nav-group-label">{group.label}</div>
@@ -251,10 +251,10 @@ export function App() {
 
       <div className="content">
         <header className="topbar">
-          <button type="button" className="icon-btn topbar-menu" aria-label="Open navigation" onClick={() => setMobileNav(true)}>
+          <button type="button" className="icon-btn topbar-menu" aria-label={t('shell.openNavigation')} onClick={() => setMobileNav(true)}>
             <Menu {...ICON} />
           </button>
-          <div className="crumbs" aria-label="Breadcrumb">
+          <div className="crumbs" aria-label={t('shell.breadcrumb')}>
             {current ? (
               <>
                 <span className="crumb-group">{current.group}</span>
@@ -274,7 +274,7 @@ export function App() {
             <ThemeToggle />
             <button className="btn btn-primary topbar-new" onClick={() => navigate('/runs/new')}>
               <Plus {...ICON} />
-              <span className="topbar-new-label">New run</span>
+              <span className="topbar-new-label">{t('shell.newRun')}</span>
             </button>
           </div>
         </header>
@@ -299,7 +299,7 @@ export function App() {
               <Route path="/memory" element={<Memory />} />
               <Route path="/plugins" element={<Plugins />} />
               <Route path="/config" element={<Config />} />
-              <Route path="*" element={<Empty icon={SearchX} title="Page not found" />} />
+              <Route path="*" element={<Empty icon={SearchX} title={t('shell.pageNotFound')} />} />
             </Routes>
             </Suspense>
           </PageTransition>
