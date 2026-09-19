@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.3.0](https://github.com/yeyo11/agentry/compare/v0.2.0...v0.3.0) (2026-09-18)
+
+
+### Features
+
+* answer a run's permission prompts from the panel ([e641538](https://github.com/yeyo11/agentry/commit/e6415382f6d3e6b6274a2f2bcab664ad6411ae58))
+
 ## [0.2.0](https://github.com/yeyo11/agentry/compare/v0.1.1...v0.2.0) (2026-09-18)
 
 
