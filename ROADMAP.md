@@ -22,6 +22,8 @@
 - **Tests** — unit (core), API integration (Fastify inject) and an in-repo browser suite (`e2e/`,
   headless Chrome over CDP against an isolated wrapper).
 - **Docker** — single image (non-root, CLI baked in), one volume for the whole account setup.
+- **Linux desktop app** — Electron shell running the bundled API, packaged as AppImage and `.deb`
+  and attached to every release. See [docs/desktop.md](docs/desktop.md).
 
 ## Next
 

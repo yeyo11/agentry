@@ -125,6 +125,19 @@ Volumes:
 | `wrapper-data` → `/data` | Wrapper state (orchestrations, auto-rotation settings) |
 | `claude-swap` → `/home/node/.local/share/claude-swap` | Credentials of every registered account |
 
+## Desktop app (Linux)
+
+Prefer a window to a container? Every [release](https://github.com/yeyo11/agentry/releases) also
+carries an AppImage and a `.deb`:
+
+```bash
+sudo apt install ./Agentry-<version>-amd64.deb   # or: chmod +x the AppImage and run it
+```
+
+It runs on your machine with your own Claude Code CLI and `~/.claude` login, so nothing is
+sandboxed and runs default to `acceptEdits` instead of `bypassPermissions`. Requirements, data
+locations, CLI detection and building from source are in [docs/desktop.md](docs/desktop.md).
+
 ## Local development
 
 Requires Node 22+, pnpm 10 and a logged-in `claude` CLI in your `PATH`.
@@ -156,6 +169,7 @@ packages/core     CLI communication: detection, auth, run manager, session store
                   orchestrator, accounts (claude-swap), config managers
 apps/api          Fastify REST API + SSE; serves the built UI in production
 apps/web          React + Vite UI
+apps/desktop      Electron shell: runs the API as a child process, packaged as AppImage and .deb
 e2e/              Browser suite (headless Chrome over CDP, no dependencies)
 docker/           Dockerfile
 ```
