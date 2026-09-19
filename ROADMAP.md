@@ -25,6 +25,9 @@
   waiting for a person, tasks, subagents, workflows, orchestrations, account rotation and sessions on
   disk, with `Last-Event-ID` resume; the UI keeps its caches fresh from it and only polls, slowly,
   while the stream is down.
+- **Notifications** — a notification center in the top bar fed by that feed: runs waiting for an
+  answer first, then finished or failed runs and orchestrations, conflicts, rate limits and
+  rotations, and finished tasks and subagents; toasts, and opt-in browser notifications for a hidden tab.
 - **API reference** — OpenAPI 3.1 generated from the shared types, served with Scalar at `/docs`;
   a test enforces that every route is documented.
 - **UI** — command palette (⌘K), light/dark/system themes, CodeMirror editors, unsaved-change
