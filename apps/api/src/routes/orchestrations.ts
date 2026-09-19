@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
-import type { OrchestrationSpec, PlanRequest, ResumeOrchestrationRequest } from '@agentry/shared';
+import type { OrchestrationSpec, PlanRequest, ResumeOrchestrationRequest, SaveOrchestrationWorkflowRequest } from '@agentry/shared';
 
 export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.get('/orchestrations', () => core.orchestrator.list());
@@ -52,6 +52,13 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
 
   // The one step that leaves the machine, so it only ever happens on request
   app.post<{ Params: { id: string } }>('/orchestrations/:id/pull-request', (req) => core.orchestrator.pullRequest(req.params.id));
+
+  // The workflow script the graph runs as, or would: generated from the graph, never hand-written
+  app.get<{ Params: { id: string } }>('/orchestrations/:id/workflow', (req) => core.orchestrator.workflowScript(req.params.id));
+
+  app.post<{ Params: { id: string }; Body: SaveOrchestrationWorkflowRequest }>('/orchestrations/:id/workflow/save', (req, reply) =>
+    reply.status(201).send(core.orchestrator.saveWorkflow(req.params.id, req.body ?? {})),
+  );
 
   app.post<{ Params: { id: string }; Body: { force?: boolean } }>('/orchestrations/:id/worktrees/prune', (req) => ({
     results: core.orchestrator.pruneWorktrees(req.params.id, { force: req.body?.force === true }),

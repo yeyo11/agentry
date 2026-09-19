@@ -56,6 +56,7 @@ import type {
   WorkflowRun,
   SystemInfo,
   WriteConfigFileRequest,
+  SaveOrchestrationWorkflowRequest,
 } from '@agentry/shared';
 
 const BASE = '/api';
@@ -194,6 +195,9 @@ export const api = {
     request<Orchestration>(`/orchestrations/${enc(id)}/resume`, { method: 'POST', body: changes }),
   deleteOrchestration: (id: string) => request<{ ok: true }>(`/orchestrations/${enc(id)}`, { method: 'DELETE' }),
   integrateOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/integrate`, { method: 'POST' }),
+  orchestrationWorkflow: (id: string) => request<{ path: string; script: string }>(`/orchestrations/${enc(id)}/workflow`),
+  saveOrchestrationWorkflow: (id: string, req: SaveOrchestrationWorkflowRequest) =>
+    request<WorkflowDefinition>(`/orchestrations/${enc(id)}/workflow/save`, { method: 'POST', body: req }),
   orchestrationPullRequest: (id: string) =>
     request<{ branch: string; url: string | null; detail: string }>(`/orchestrations/${enc(id)}/pull-request`, {
       method: 'POST',

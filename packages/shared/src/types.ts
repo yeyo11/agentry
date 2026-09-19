@@ -468,9 +468,23 @@ export interface OrchestrationTaskSpec {
   model?: string;
 }
 
+/**
+ * How a graph runs:
+ *   graph     every task is its own `claude -p` process, optionally in its own worktree and branch,
+ *             merged into one integration branch at the end
+ *   workflow  every task is a subagent of one Claude Code session, driven by a workflow script
+ *             Agentry generates from the graph: cheaper and resumable from cache, but in the
+ *             project directory, so for work that does not change files in parallel
+ */
+export type OrchestrationEngine = 'graph' | 'workflow';
+
 export interface OrchestrationSpec {
   name: string;
   objective?: string;
+  /** Default `graph` */
+  engine?: OrchestrationEngine;
+  /** Why the planner chose the engine, shown next to it in the draft */
+  engineReason?: string;
   cwd?: string;
   model?: string;
   permissionMode?: PermissionMode;
@@ -541,6 +555,27 @@ export interface Orchestration {
   integration?: OrchestrationIntegration | null;
   /** The synthesis run, so its report can be continued like any other conversation */
   synthesisRunId?: string | null;
+  engine?: OrchestrationEngine;
+  engineReason?: string | null;
+  /** The workflow engine's run and script, when the graph runs as a workflow */
+  workflow?: OrchestrationWorkflow | null;
+}
+
+export interface OrchestrationWorkflow {
+  /** Script generated from the graph, in the wrapper's data directory */
+  scriptPath: string;
+  /** The run whose session runs the workflow; a resume continues it */
+  runId: string | null;
+  /** The CLI's workflow run id (`wf_…`), which a resume replays from cache */
+  workflowRunId: string | null;
+}
+
+/** Copies the script a workflow graph ran into the project's `.claude/workflows/`. */
+export interface SaveOrchestrationWorkflowRequest {
+  /** File and workflow name; defaults to one derived from the graph's */
+  name?: string;
+  /** Replace a saved workflow of the same name */
+  overwrite?: boolean;
 }
 
 /**
