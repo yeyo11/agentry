@@ -4,8 +4,13 @@ import type { HighlightToken } from '@tanstack/highlight/core';
 /**
  * What TanStack leaves unclassed that the grammar colours: HTML comments, and the text of a
  * reference link (`[title][ref]`, `[ref]: url`), a shortcut link (`[x]`) or an alert (`[!NOTE]`).
+ * Both are bounded: a `[` or a `<!--` that never closes would otherwise be scanned to the end of
+ * the block from every one of them, which a page of them alone makes quadratic.
  */
-const MD_PLAIN = /<!--[\s\S]*?-->|(?<=(?:^|[^\\!\]])\[)[^\][\n]+(?=\])/g;
+const MD_PLAIN = /<!--[\s\S]{0,2000}?-->|(?<=(?:^|[^\\!\]])\[)[^\][\n]{1,200}(?=\])/g;
+
+/** The same inside a blockquote, where bold and italic keep the foreground the quote does not */
+const MD_QUOTED = new RegExp(`${MD_PLAIN.source}|\\*\\*[^*\\n]{1,200}\\*\\*|(?<![*\\w])\\*[^*\\n]{1,200}\\*`, 'g');
 
 export function* paintMarkdown(tokens: HighlightToken[]): Generator<Piece> {
   /** After a blockquote's `>`: the themes colour the quote's text, to the end of its line */
@@ -14,7 +19,7 @@ export function* paintMarkdown(tokens: HighlightToken[]): Generator<Piece> {
     const { value, className } = token;
     if (!className) {
       const end: number = quote ? value.indexOf('\n') + 1 || value.length : 0;
-      if (end) yield* pieces(value.slice(0, end), MD_PLAIN, (m) => (m.startsWith('<!--') ? 'comment' : 'string'), 'tag');
+      if (end) yield* pieces(value.slice(0, end), MD_QUOTED, (m) => (m.startsWith('<!--') ? 'comment' : m.startsWith('*') ? null : 'string'), 'tag');
       yield* pieces(value.slice(end), MD_PLAIN, (m) => (m.startsWith('<!--') ? 'comment' : 'string'));
       quote = quote && end === value.length && !value.endsWith('\n');
       continue;

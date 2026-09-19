@@ -130,7 +130,7 @@ function* paintString(value: string): Generator<Piece> {
 }
 
 /** A replacement field of an f-string, one level of nested braces deep (`{x:{width}}`) */
-const FIELD = /\{\{|\}\}|\{((?:[^{}]|\{[^{}]*\})*)\}/g;
+const FIELD = /\{\{|\}\}|\{((?:[^{}]|\{[^{}]{0,200}\}){0,400})\}/g;
 
 /**
  * `f"…{expr!r:>{width}}…"`: TanStack reads it as one string, the grammar reads the fields as code.

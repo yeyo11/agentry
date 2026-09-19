@@ -6,9 +6,14 @@ const YAML_CONSTANT = /^(?:true|false|yes|no|null|~|[-+]?(?:\d[\d_]*(?:\.\d*)?|\
 
 /**
  * What TanStack leaves unclassed in YAML: a flow mapping's keys (`{ max-size: 10m }`), and plain
- * scalars, which are strings to the themes unless they read as a constant.
+ * scalars, which are strings to the themes unless they read as a constant. A scalar runs to the
+ * end of its line; the key is bounded so that a line of thousands of `-` cannot make the scan
+ * quadratic by backtracking over every start.
  */
-const YAML_PLAIN = /[^\s:[\]{},#'"][^\s:[\]{},]*(?=:\s)|[^\s:\-[\]{},#][^\n]*?(?=\s*$|,|\s*[\]}])/gm;
+const YAML_PLAIN = /[^\s:[\]{},#'"][^\s:[\]{},]{0,120}(?=:\s)|[^\s:\-[\]{},#][^\n]*/gm;
+
+/** The same inside a flow sequence (`[a, b]`), where an item ends at its comma or bracket */
+const FLOW_ITEM = /[^\s:\-[\]{},#][^\n,\]}]*/gm;
 
 /** `\n`, `\u00e9`: the themes colour an escape like a keyword */
 const ESCAPE = /\\(?:u[\da-fA-F]{4}|[\s\S])/g;
@@ -38,7 +43,7 @@ export function* paintData(tokens: HighlightToken[], lang: string): Generator<Pi
     // An anchor names what follows it; an alias only refers to one, and stays plain
     else if (className === 'string' && /^&\S+$/.test(value)) yield [value, 'entity'];
     // `[a, b]`: TanStack takes a flow sequence for one string, the grammar colours its items
-    else if (className === 'string' && value.startsWith('[')) yield* pieces(value, YAML_PLAIN, (m) => (YAML_CONSTANT.test(m) ? 'constant' : 'string'));
+    else if (className === 'string' && value.startsWith('[')) yield* pieces(value, FLOW_ITEM, (m) => (YAML_CONSTANT.test(m) ? 'constant' : 'string'));
     else if (!className) yield* pieces(value, YAML_PLAIN, (m, at) => (/^:\s/.test(value.slice(at + m.length, at + m.length + 2)) ? 'tag' : YAML_CONSTANT.test(m) ? 'constant' : 'string'));
     else yield [value, roleOf(token)];
   }

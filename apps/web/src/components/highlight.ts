@@ -4,6 +4,28 @@
 // languages). Every language is a chunk of its own, fetched the first time a block in that language
 // appears, so a transcript without code never pays for any of it, and one with only TypeScript
 // never downloads shiki.
+// What still differs from shiki, once the painters have done their work (the share of visible
+// characters that match is in test/parity.test.ts, the differences themselves in
+// `pnpm --filter @agentry/web parity <language> --context`):
+//
+//   TypeScript, TSX, JSX  a name's kind where only a type-checker knows it: an enum's members, a
+//                         type alias used as a value, a module-level constant assigned once, the
+//                         support objects `Symbol` and `module.exports`, a class a JSX component
+//                         extends. TanStack classes a lexeme by its looks, and these read alike.
+//   CSS                   the grammar's own word lists: the property values it knows (`grid`,
+//                         `color`), the media features it knows (`max-width` but not
+//                         `prefers-color-scheme`), and `background` in a `transition`, which it
+//                         paints as a deprecated system colour — shiki against itself, not us.
+//   YAML                  `on:` as a key, which the grammar reads as YAML 1.1's boolean, aliases
+//                         (`*defaults`), merge keys and `---`.
+//   Markdown              a fenced shell block after a `\` continuation: shiki colours the same
+//                         line one way on its own and another inside a fence, and we follow the
+//                         standalone bash it reads that block as.
+//   shell                 `$1` inside single quotes, brace expansion (`{a,b,c}`) and `find`'s `{}`.
+//   Python                a raw string, which the grammar reads as a regular expression and
+//                         colours inside, and a class's bases (`class A(Base, metaclass=M)`).
+//   diff                  formats other than unified: SVN's `====` separators and normal diffs
+//                         (`3c3`, `<`, `>`). Over this repository's last 40 commits, 99.98%.
 import { PALETTE, type Painter, type Role } from './highlight/paint';
 import type { HighlightToken, LanguageDefinition } from '@tanstack/highlight/core';
 
@@ -28,16 +50,67 @@ export interface Highlighted {
  */
 export async function highlight(code: string, lang: string): Promise<Highlighted | null> {
   if (code.length > MAX_CHARS) return null;
+  // A carriage return is no part of a language, and TanStack's CSS rules take cubic time over one:
+  // 8 000 characters of CRLF took a minute. The tokenizers read the text without them, and they go
+  // back into the coloured runs afterwards, so what comes out is what came in.
+  const source = code.includes('\r') ? code.replace(/\r/g, '') : code;
+  const out = await highlightSource(source, lang);
+  return out && source !== code ? withReturns(out, code) : out;
+}
+
+async function highlightSource(code: string, lang: string): Promise<Highlighted | null> {
+  const cost = lineCost(code);
   const id = lang.toLowerCase();
   const tanstack = TANSTACK_IDS[id];
-  if (tanstack) {
+  if (tanstack && cost <= TANSTACK_BUDGET && !TANSTACK[tanstack]!.unfit?.(code)) {
     if (runaway(code, TANSTACK[tanstack]!.family)) return null;
     const out = await highlightTanstack(code, tanstack);
     // Only a block TanStack read wrongly is worth shiki's time; one it choked on is not code
     if (out !== 'shiki') return out;
   }
-  return highlightShiki(code, id);
+  return cost > SHIKI_BUDGET ? null : highlightShiki(code, id);
 }
+
+/** The carriage returns of `code` put back into runs painted from the text without them */
+function withReturns(out: Highlighted, code: string): Highlighted {
+  const lines = code.split('\n').map((line, i) => {
+    const runs = out.lines[i] ?? [];
+    if (!line.includes('\r')) return runs;
+    // Where each return sits once the ones before it are gone: an offset into the painted line
+    const returns: number[] = [];
+    for (let k = 0; k < line.length; k++) if (line[k] === '\r') returns.push(k - returns.length);
+    let at = 0;
+    const kept: Segment[] = [];
+    for (const run of runs) {
+      const content = typeof run === 'string' ? run : run.content;
+      let text = '';
+      for (let k = 0; k <= content.length; k++) {
+        while (returns.length > 0 && returns[0] === at + k && (k < content.length || run === runs[runs.length - 1])) {
+          text += '\r';
+          returns.shift();
+        }
+        if (k < content.length) text += content[k];
+      }
+      at += content.length;
+      kept.push(typeof run === 'string' ? text : { ...run, content: text });
+    }
+    // A line of nothing but returns has no run to put them in
+    if (returns.length > 0) kept.push('\r'.repeat(returns.length));
+    return kept;
+  });
+  return { ...out, lines };
+}
+
+/**
+ * Both tokenizers are quadratic in the length of a line: 59 000 characters on one line took
+ * TanStack fifteen seconds and shiki over a minute, and shiki's own per-line time limit does not
+ * stop it. The sum of the squares of the line lengths is what their cost follows, so it is what
+ * they are budgeted by — past the budget the block stays plain. Prose and code a reader could
+ * follow are orders of magnitude below it; a minified line is not.
+ */
+const lineCost = (code: string) => code.split('\n').reduce((cost, line) => cost + line.length ** 2, 0);
+const TANSTACK_BUDGET = 2e8;
+const SHIKI_BUDGET = 5e7;
 
 /**
  * Openers TanStack looks for a closer of all the way to the end of the block. A few hundred of
@@ -169,7 +242,16 @@ interface TanstackLanguage {
   embeds?: string[];
   /** Tokens TanStack got wrong, where the block goes to shiki instead */
   misread?: (tokens: HighlightToken[]) => boolean;
+  /** Text its tokenizer cannot take at all, read before it is handed any: shiki's, then */
+  unfit?: (code: string) => boolean;
 }
+
+/**
+ * TanStack's CSS rules take cubic time over a run of whitespace with no rule in it: 500 characters
+ * of it cost 0.2 s, 2 000 cost 4 s and 4 000 cost 30 s, where shiki reads the same in one. No
+ * stylesheet holds a gap that wide, and the ones that do are shiki's.
+ */
+const WIDE_GAP = (code: string) => /\s{200,}/.test(code);
 
 /**
  * TanStack ends a double-quoted string at the first quote inside a `$(…)` or `${…}` it holds, so
@@ -185,6 +267,14 @@ const count = (text: string, pattern: RegExp) => text.match(pattern)?.length ?? 
  * stay on shiki: C++ (a quarter of it coloured differently), Dockerfile (a sixth: quoted
  * arguments plain, image names and variables coloured, where shiki takes 0.6 ms for a whole file
  * anyway) and those nobody measured yet (go, sql, toml, php, vue, svelte, nginx…).
+ *
+ * `@tanstack/highlight` is pinned to the exact version its tokens were read against: a new one
+ * moves classes around, and the painters are written to what each class means. On an upgrade, run
+ * `pnpm --filter @agentry/web parity`, hold the numbers against the floors in test/parity.test.ts,
+ * and re-read three things the painters lean on: which lexemes come out unclassed (each painter
+ * cuts that text itself), whether `misread` still describes a real misreading, and whether the
+ * tokenizer still recurses per nested `${` or JSX element, which `runaway` and the catch around
+ * `tokenize` are there for.
  */
 const TANSTACK: Record<string, TanstackLanguage> = {
   ts: { load: () => import('@tanstack/highlight/languages/ts').then((m) => m.ts), family: 'script' },
@@ -192,7 +282,7 @@ const TANSTACK: Record<string, TanstackLanguage> = {
   js: { load: () => import('@tanstack/highlight/languages/js').then((m) => m.js), family: 'script' },
   jsx: { load: () => import('@tanstack/highlight/languages/jsx').then((m) => m.jsx), family: 'script' },
   json: { load: () => import('@tanstack/highlight/languages/json').then((m) => m.json), family: 'json' },
-  css: { load: () => import('@tanstack/highlight/languages/css').then((m) => m.css), family: 'css' },
+  css: { load: () => import('@tanstack/highlight/languages/css').then((m) => m.css), family: 'css', unfit: WIDE_GAP },
   yaml: { load: () => import('@tanstack/highlight/languages/yaml').then((m) => m.yaml), family: 'yaml' },
   markdown: { load: () => import('@tanstack/highlight/languages/markdown').then((m) => m.markdown), family: 'markdown' },
   shell: { load: () => import('@tanstack/highlight/languages/shell').then((m) => m.shell), family: 'shell', misread: unclosedSubstitution },
