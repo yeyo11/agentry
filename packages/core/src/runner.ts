@@ -20,6 +20,7 @@ import {
   type RunStatus,
   type RunSummary,
   type SubagentInfo,
+  type WorkflowRun,
 } from '@agentry/shared';
 import { authFreeEnv } from './accounts.ts';
 import type { Db } from './db.ts';
@@ -27,6 +28,7 @@ import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import type { SessionStore } from './sessions.ts';
 import { composeContent, type UploadStore } from './uploads.ts';
+import { readProgress, workflowStatus } from './workflows.ts';
 
 /** A control request the CLI has not answered by then is not going to be answered */
 const CONTROL_TIMEOUT_MS = 15_000;
@@ -101,7 +103,10 @@ class Run {
   readonly emitter = new EventEmitter();
   readonly events: RunEvent[] = [];
   readonly tasks = new Map<string, BackgroundTask>();
+  /** Long commands the CLI reports as tasks while they run in the foreground; listed once sent to the background */
+  readonly foregroundTasks = new Map<string, BackgroundTask>();
   readonly subagents = new Map<string, SubagentInfo>();
+  readonly workflows = new Map<string, WorkflowRun>();
   proc: ChildProcessWithoutNullStreams | null = null;
   seq = 0;
   status: RunStatus = 'starting';
@@ -211,6 +216,7 @@ class Run {
       account: this.opts.account ?? null,
       backgroundTasks: [...this.tasks.values()],
       subagents: [...this.subagents.values()],
+      workflows: [...this.workflows.values()],
       workingDir: this.workingDir ?? (this.opts.worktree ? join(this.cwd, '.claude', 'worktrees', this.opts.worktree) : this.cwd),
       permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
       pendingPrompts: this.pendingPrompts,
@@ -291,7 +297,7 @@ export class RunManager extends EventEmitter {
     // internal run, the auth check, removes itself as soon as it finishes.
     const summaries = this.list()
       .slice(0, MAX_PERSISTED_RUNS)
-      .map((r) => ({ ...r, backgroundTasks: [], subagents: [] }));
+      .map((r) => ({ ...r, backgroundTasks: [], subagents: [], workflows: [] }));
     try {
       this.db.saveRuns(summaries, MAX_PERSISTED_RUNS);
     } catch {
@@ -578,6 +584,9 @@ export class RunManager extends EventEmitter {
       '--verbose',
       '--include-partial-messages',
       '--permission-mode', run.permissionMode,
+      // Makes bypassPermissions a mode the run can be switched to later, without starting in it: the
+      // CLI refuses the switch otherwise. Starting a run in that mode is already open to the same caller.
+      '--allow-dangerously-skip-permissions',
     ];
     if (resuming && run.sessionId) {
       args.push('--resume', run.sessionId);
@@ -702,6 +711,9 @@ export class RunManager extends EventEmitter {
     }
     for (const sub of run.subagents.values()) {
       if (sub.status === 'running') Object.assign(sub, { status: 'failed', endedAt: run.endedAt });
+    }
+    for (const workflow of run.workflows.values()) {
+      if (workflow.status === 'running') Object.assign(workflow, { status: 'stopped', endedAt: run.endedAt });
     }
     run.setStatus(status);
     this.persist();
@@ -918,7 +930,8 @@ export class RunManager extends EventEmitter {
         });
       } else if (block.type === 'tool_result') {
         const sub = run.subagents.get(block.toolUseId);
-        if (sub && sub.status === 'running') {
+        // A background agent's tool result only says it was launched; its task notification ends it
+        if (sub && sub.status === 'running' && !sub.background) {
           sub.status = block.isError ? 'failed' : 'completed';
           sub.endedAt = now();
         }
@@ -926,28 +939,76 @@ export class RunManager extends EventEmitter {
     }
   }
 
+  /**
+   * Everything the CLI delegates is a task to it, told apart by `task_type`: shell commands
+   * (`local_bash`, reported even while they run in the foreground), subagents (`local_agent`) and
+   * workflows (`local_workflow`) each go to their own list. Anything else it runs in the background
+   * (monitors, remote agents…) is listed as a background task under its own type.
+   */
   private trackTask(run: Run, subtype: string, raw: Record<string, unknown>): void {
     const taskId = typeof raw.task_id === 'string' ? raw.task_id : null;
     if (!taskId) return;
     if (subtype === 'task_started') {
-      run.tasks.set(taskId, {
+      const type = String(raw.task_type ?? 'unknown');
+      if (type === 'local_agent') return this.startAgentTask(run, taskId, raw);
+      if (type === 'local_workflow') {
+        run.workflows.set(taskId, {
+          id: taskId,
+          taskId,
+          name: typeof raw.workflow_name === 'string' ? raw.workflow_name : null,
+          description: String(raw.description ?? raw.workflow_name ?? taskId),
+          status: 'running',
+          startedAt: now(),
+          endedAt: null,
+          runId: run.id,
+          runName: run.name,
+          source: 'run',
+          ...(run.sessionId ? { sessionId: run.sessionId } : {}),
+          phases: [],
+          agents: [],
+          summary: null,
+          totalTokens: null,
+          script: typeof raw.prompt === 'string' ? raw.prompt : null,
+        });
+        return;
+      }
+      const task: BackgroundTask = {
         id: taskId,
         runId: run.id,
         runName: run.name,
-        type: String(raw.task_type ?? 'unknown'),
+        type,
         description: String(raw.description ?? ''),
         status: 'running',
         toolUseId: typeof raw.tool_use_id === 'string' ? raw.tool_use_id : null,
         startedAt: now(),
         endedAt: null,
         summary: null,
-      });
+      };
+      if (raw.is_backgrounded === false) run.foregroundTasks.set(taskId, task);
+      else run.tasks.set(taskId, task);
       return;
+    }
+
+    const workflow = run.workflows.get(taskId);
+    if (workflow) return this.updateWorkflow(workflow, subtype, raw);
+    const agent = [...run.subagents.values()].find((s) => s.agentId === taskId);
+    if (agent) return this.updateAgentTask(agent, subtype, raw);
+
+    const patch = (raw.patch ?? {}) as Record<string, unknown>;
+    const waiting = run.foregroundTasks.get(taskId);
+    if (waiting) {
+      // Sent to the background mid-run (by the model or the person): from now on it is one
+      if (subtype === 'task_updated' && patch.is_backgrounded === true) {
+        run.foregroundTasks.delete(taskId);
+        run.tasks.set(taskId, waiting);
+      } else {
+        if (subtype === 'task_notification') run.foregroundTasks.delete(taskId);
+        return;
+      }
     }
     const task = run.tasks.get(taskId);
     if (!task) return;
     if (subtype === 'task_updated') {
-      const patch = (raw.patch ?? {}) as Record<string, unknown>;
       if (typeof patch.status === 'string') task.status = patch.status;
       if (patch.end_time != null) task.endedAt = now();
     } else if (subtype === 'task_notification') {
@@ -955,5 +1016,54 @@ export class RunManager extends EventEmitter {
       if (typeof raw.summary === 'string') task.summary = raw.summary;
       task.endedAt ??= now();
     }
+  }
+
+  /** The Agent tool call it belongs to was seen first; the task adds its id and whether it runs in the background. */
+  private startAgentTask(run: Run, taskId: string, raw: Record<string, unknown>): void {
+    const toolUseId = typeof raw.tool_use_id === 'string' ? raw.tool_use_id : '';
+    const background = raw.is_backgrounded === true;
+    const known = run.subagents.get(toolUseId);
+    if (known) {
+      Object.assign(known, { agentId: taskId, background });
+      if (typeof raw.subagent_type === 'string') known.subagentType = raw.subagent_type;
+      // Its launch result may have closed it already; a background agent is only done when it says so
+      if (background && known.status !== 'running') Object.assign(known, { status: 'running', endedAt: null });
+      return;
+    }
+    // Spawned by a subagent rather than the main agent: no tool call of its own reached the stream
+    run.subagents.set(toolUseId || taskId, {
+      toolUseId,
+      runId: run.id,
+      runName: run.name,
+      subagentType: String(raw.subagent_type ?? 'general-purpose'),
+      description: String(raw.description ?? '').slice(0, 200),
+      status: 'running',
+      startedAt: now(),
+      endedAt: null,
+      agentId: taskId,
+      background,
+    });
+  }
+
+  private updateAgentTask(agent: SubagentInfo, subtype: string, raw: Record<string, unknown>): void {
+    const patch = (raw.patch ?? {}) as Record<string, unknown>;
+    const status = subtype === 'task_notification' ? raw.status : subtype === 'task_updated' ? patch.status : undefined;
+    if (status === 'completed') Object.assign(agent, { status: 'completed', endedAt: agent.endedAt ?? now() });
+    else if (status === 'failed' || status === 'killed') Object.assign(agent, { status: status === 'killed' ? 'stopped' : 'failed', endedAt: agent.endedAt ?? now() });
+  }
+
+  private updateWorkflow(workflow: WorkflowRun, subtype: string, raw: Record<string, unknown>): void {
+    const usage = (raw.usage ?? {}) as Record<string, unknown>;
+    if (typeof usage.total_tokens === 'number') workflow.totalTokens = usage.total_tokens;
+    if (subtype === 'task_progress') {
+      // Some progress events only carry usage; the agent list comes with the others
+      if (Array.isArray(raw.workflow_progress)) Object.assign(workflow, readProgress(raw.workflow_progress));
+      return;
+    }
+    const patch = (raw.patch ?? {}) as Record<string, unknown>;
+    const status = subtype === 'task_notification' ? raw.status : patch.status;
+    if (typeof status === 'string') workflow.status = workflowStatus(status);
+    if (workflow.status !== 'running') workflow.endedAt ??= now();
+    if (subtype === 'task_notification' && typeof raw.summary === 'string') workflow.summary = raw.summary;
   }
 }

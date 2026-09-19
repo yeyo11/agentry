@@ -316,8 +316,11 @@ A run is a live conversation backed by a `claude -p` process.
 | POST | `/runs/:id/permissions/:requestId` | `{ behavior: "allow" \| "deny", message?, updatedInput?, updatedPermissions? }` — answer one. A question is answered by allowing it with `updatedInput.answers` (question → chosen labels); `updatedPermissions` takes the request's `suggestions` to remember them. Unanswered requests are denied after ten minutes |
 | DELETE | `/runs/:id` | Forget an ended run |
 | GET | `/environments?cwd=` | What Claude actually loaded (tools, MCP status, agents, skills, plugins, commands, memory paths) per directory, from the latest run there |
-| GET | `/tasks` | Commands sent to the background, by runs and by sessions started from a terminal. Survives a restart |
-| GET | `/subagents` | Subagents of runs and of live CLI sessions. Survives a restart |
+| GET | `/tasks` | Work sent to the background (commands, monitors, remote agents) by runs and by terminal sessions, live or ended in the last day. Survives a restart |
+| GET | `/subagents` | Agents spawned with the Agent tool, foreground or background, by runs and by terminal sessions. Survives a restart |
+| GET | `/workflows` | Claude Code workflows (the Workflow tool) with the progress of every agent they launched, from runs and terminal sessions |
+| GET | `/workflows/saved?cwd=` | Saved workflows in the project's `.claude/workflows/` and the user's |
+| POST | `/workflows/saved/run` | `{ name, cwd?, args?, model? }` — start a run that runs a saved workflow |
 
 ```bash
 curl -X POST localhost:8787/api/runs -H 'content-type: application/json' \

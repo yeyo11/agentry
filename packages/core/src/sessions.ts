@@ -13,8 +13,10 @@ import {
   type SessionSummary,
   type SubagentInfo,
   type TranscriptEntry,
+  type WorkflowRun,
 } from '@agentry/shared';
 import type { CoreConfig } from './paths.ts';
+import { readSessionWorkflows } from './workflows.ts';
 
 /** The slash command inside a synthetic user message, e.g. `<command-name>/resume</command-name>`. */
 const COMMAND_RE = /<command-name>\s*([^<]+)<\/command-name>/;
@@ -343,7 +345,7 @@ export class SessionStore {
     for (const name of names) {
       if (!name.endsWith('.meta.json')) continue;
       const agentId = name.slice('agent-'.length, -'.meta.json'.length);
-      let meta: { agentType?: string; description?: string; toolUseId?: string };
+      let meta: { agentType?: string; description?: string; toolUseId?: string; requestShape?: string };
       try {
         meta = JSON.parse(await readFile(join(dir, name), 'utf8')) as typeof meta;
       } catch {
@@ -375,9 +377,16 @@ export class SessionStore {
         agentId,
         lastActivityAt,
         cwd: cwd ?? null,
+        background: meta.requestShape === 'background',
       });
     }
     return out.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  }
+
+  /** Claude Code workflows a session ran, from the records and journals beside its transcript. */
+  async workflows(sessionId: string, live = true): Promise<WorkflowRun[]> {
+    const found = await this.findFile(sessionId);
+    return found ? readSessionWorkflows(found.file, sessionId, live) : [];
   }
 
   /**

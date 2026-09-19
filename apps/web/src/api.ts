@@ -51,6 +51,9 @@ import type {
   SwitchResult,
   SettingsDoc,
   SubagentInfo,
+  RunWorkflowRequest,
+  WorkflowDefinition,
+  WorkflowRun,
   SystemInfo,
   WriteConfigFileRequest,
 } from '@agentry/shared';
@@ -171,6 +174,9 @@ export const api = {
   taskOutput: (sessionId: string, taskId: string) =>
     request<BackgroundTaskOutput>(`/sessions/${enc(sessionId)}/tasks/${enc(taskId)}/output`),
   subagents: () => request<SubagentInfo[]>('/subagents'),
+  workflows: () => request<WorkflowRun[]>('/workflows'),
+  savedWorkflows: (cwd?: string) => request<WorkflowDefinition[]>(`/workflows/saved${qs({ cwd })}`),
+  runWorkflow: (req: RunWorkflowRequest) => request<RunSummary>('/workflows/saved/run', { method: 'POST', body: req }),
   orchestrations: () => request<Orchestration[]>('/orchestrations'),
   orchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}`),
   createOrchestration: (spec: OrchestrationSpec) =>
@@ -272,6 +278,8 @@ export const keys = {
   runs: ['runs'] as const,
   tasks: ['tasks'] as const,
   subagents: ['subagents'] as const,
+  workflows: ['workflows'] as const,
+  savedWorkflows: (cwd: string) => ['workflows', 'saved', cwd] as const,
   orchestrations: ['orchestrations'] as const,
   planDrafts: ['orchestrations', 'plans'] as const,
   runPermissions: (id: string) => ['runs', id, 'permissions'] as const,
@@ -331,6 +339,8 @@ export const useTasks = () => useQuery({ queryKey: keys.tasks, queryFn: api.task
 
 export const useSubagents = () =>
   useQuery({ queryKey: keys.subagents, queryFn: api.subagents, refetchInterval: 2000 });
+
+export const useWorkflows = () => useQuery({ queryKey: keys.workflows, queryFn: api.workflows, refetchInterval: 2000 });
 
 export const useOrchestrations = () =>
   useQuery({ queryKey: keys.orchestrations, queryFn: api.orchestrations, refetchInterval: 3000 });

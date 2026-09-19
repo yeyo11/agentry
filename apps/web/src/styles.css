@@ -4164,6 +4164,121 @@ button.tree-row-on:hover {
   background: var(--bg-sunken);
 }
 
+/* A Claude Code workflow: its phases and where each agent is. */
+.wf-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+.wf-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+.wf-name {
+  flex: none;
+}
+.wf-progress {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+}
+.wf-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--gradient-accent);
+  transition: width var(--dur-base) var(--ease-out);
+}
+.wf-phase-title {
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.wf-agents {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wf-agent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+  min-width: 0;
+  font-size: 13px;
+}
+.wf-agent-label {
+  font-weight: 550;
+}
+.wf-agent-preview {
+  flex: 1 1 100%;
+  padding-left: 16px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.wf-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  translate: 0 -1px;
+}
+.wf-dot-ok {
+  background: var(--ok);
+}
+.wf-dot-bad {
+  background: var(--bad);
+}
+.wf-dot-active {
+  background: var(--accent);
+  animation: caret-blink 1.2s steps(2, start) infinite;
+}
+.wf-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wf-saved {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.wf-saved-item {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.wf-saved-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+.wf-saved-head .ellipsis {
+  flex: 1;
+}
+.wf-run-form {
+  margin-top: 10px;
+}
+
 /* A background command's output, expanded under its row. */
 .task-output {
   max-height: 420px;

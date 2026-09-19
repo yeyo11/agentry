@@ -52,7 +52,8 @@ export function Agents() {
       <Card title={`Subagents (${subs.length})`}>
         {subs.length === 0 ? (
           <Empty title="No subagents">
-            Subagents spawned by runs, or by CLI sessions that are live right now, are tracked here.
+            Agents spawned with the Agent tool — by a run, or by a terminal session that is live or ended in the last
+            day — are tracked here. The ones a workflow launched are listed under Workflows.
           </Empty>
         ) : (
           <div className="table-wrap">
@@ -73,7 +74,15 @@ export function Agents() {
                     <td>
                       <StatusBadge status={sub.status} />
                     </td>
-                    <td className="nowrap">{sub.subagentType}</td>
+                    <td className="nowrap">
+                      {sub.subagentType}
+                      {sub.background && (
+                        <>
+                          {' '}
+                          <Tag tone="muted">background</Tag>
+                        </>
+                      )}
+                    </td>
                     <td>{sub.description || '—'}</td>
                     <td className="cell-clip">
                       <Location location={sub.location} />

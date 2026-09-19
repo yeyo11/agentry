@@ -11,10 +11,13 @@ import type {
   PermissionRequest,
   ProjectSummary,
   RunSummary,
+  RunWorkflowRequest,
   SessionOrigin,
   SessionSummary,
   SubagentInfo,
   SystemInfo,
+  WorkflowDefinition,
+  WorkflowRun,
   WorkLocation,
 } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
@@ -36,6 +39,7 @@ import { Orchestrator } from './orchestrator.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { RunManager } from './runner.ts';
 import { isTemporaryPath, SessionStore } from './sessions.ts';
+import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
@@ -53,6 +57,12 @@ const SYSTEM_TTL_MS = 30_000;
 const ACTIVE_TTL_MS = 1_500;
 /** Ended runs whose background work is still listed; each costs a stat per poll. */
 const RECENT_ENDED_RUNS = 30;
+/**
+ * Terminal sessions that ended, listed alongside the live ones: what they delegated is still worth
+ * seeing afterwards, the same way an ended run's is. Bounded like the runs, and only recent ones.
+ */
+const RECENT_ENDED_CLI_SESSIONS = 20;
+const RECENT_ENDED_CLI_WINDOW_MS = 24 * 3_600_000;
 
 const byRunningThenNewest = (a: { status: string; startedAt: string }, b: { status: string; startedAt: string }) =>
   Number(b.status === 'running') - Number(a.status === 'running') || b.startedAt.localeCompare(a.startedAt);
@@ -220,10 +230,19 @@ export class Core {
     for (const run of runs.filter((r) => r.pid === null && r.sessionId && !r.internal).slice(0, RECENT_ENDED_RUNS)) {
       sources.push({ kind: 'disk', sessionId: run.sessionId as string, runId: run.id, runName: run.name, live: false });
     }
+    const liveCli = new Set<string>();
     for (const agent of await this.activeCliSessions()) {
       if (agent.live && !ownedByRun.has(agent.sessionId)) {
+        liveCli.add(agent.sessionId);
         sources.push({ kind: 'disk', sessionId: agent.sessionId, runId: '', runName: agent.name, live: true });
       }
+    }
+    const since = new Date(Date.now() - RECENT_ENDED_CLI_WINDOW_MS).toISOString();
+    const ended = (await this.sessions.listSessions())
+      .filter((s) => !ownedByRun.has(s.id) && !liveCli.has(s.id) && (s.updatedAt ?? '') >= since)
+      .slice(0, RECENT_ENDED_CLI_SESSIONS);
+    for (const session of ended) {
+      sources.push({ kind: 'disk', sessionId: session.id, runId: '', runName: session.title, live: false });
     }
     return sources;
   }
@@ -255,6 +274,56 @@ export class Core {
       ),
     );
     return lists.flat().sort(byRunningThenNewest);
+  }
+
+  /** Claude Code workflows from every source, running ones first. */
+  async allWorkflows(): Promise<WorkflowRun[]> {
+    const lists = await Promise.all(
+      (await this.activitySources()).map(async (source) => {
+        if (source.kind === 'stream') {
+          const location = this.locate(source.run.workingDir ?? source.run.cwd);
+          return (source.run.workflows ?? []).map((w) => ({ ...w, location }));
+        }
+        const location = await this.locateSession(source.sessionId);
+        return (await this.sessions.workflows(source.sessionId, source.live).catch(() => [])).map((w) => ({
+          ...w,
+          runId: source.runId,
+          runName: source.runName,
+          location,
+        }));
+      }),
+    );
+    return lists.flat().sort(byRunningThenNewest);
+  }
+
+  /** Saved workflows the Workflow tool can run by name, for a project directory and the user. */
+  workflowDefinitions(cwd?: string): Promise<WorkflowDefinition[]> {
+    return listWorkflowDefinitions(this.config.configDir, cwd);
+  }
+
+  /**
+   * Starts a run that runs a saved workflow. The CLI has no command for it: a workflow only runs
+   * through the Workflow tool, inside a session, so the run is asked to call it, and asking in
+   * the user's own words is what the tool requires before it launches one.
+   */
+  async runWorkflow(request: RunWorkflowRequest): Promise<RunSummary> {
+    const name = request.name?.trim();
+    if (!name) throw new Error('name is required');
+    const known = await this.workflowDefinitions(request.cwd);
+    if (!known.some((w) => w.name === name)) throw new Error(`workflow "${name}" not found in .claude/workflows/`);
+    const args = request.args?.trim();
+    const prompt = [
+      `Run the saved workflow "${name}" with the Workflow tool (pass name: "${name}"${args ? ' and the args below' : ''}).`,
+      'Wait for it to finish, then report its result.',
+      ...(args ? ['', 'Args:', args] : []),
+    ].join('\n');
+    return this.runs.start({
+      prompt,
+      name: `workflow-${name}`,
+      permissionPrompts: 'host',
+      ...(request.cwd ? { cwd: request.cwd } : {}),
+      ...(request.model ? { model: request.model } : {}),
+    });
   }
 
   /** Backgrounded shell commands from every source, running ones first. */
@@ -573,7 +642,7 @@ export class Core {
     ]);
     const runs = this.runs.list();
     // The same lists the screens show, so a count can never disagree with the page it links to
-    const [tasks, subagents] = await Promise.all([this.allBackgroundTasks(), this.allSubagents()]);
+    const [tasks, subagents, workflows] = await Promise.all([this.allBackgroundTasks(), this.allSubagents(), this.allWorkflows()]);
     return {
       system,
       rateLimit: this.runs.lastRateLimit,
@@ -586,6 +655,7 @@ export class Core {
         liveSessions: sessions.filter((s) => s.live).length,
         backgroundTasks: tasks.filter((t) => t.status === 'running').length,
         subagents: subagents.filter((s) => s.status === 'running').length,
+        workflows: workflows.filter((w) => w.status === 'running').length,
         orchestrationsRunning: this.orchestrator.runningCount(),
       },
       runs: runs.slice(0, 20),

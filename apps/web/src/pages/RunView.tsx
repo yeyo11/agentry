@@ -14,6 +14,7 @@ import { isRunLive } from '../components/RunCard';
 import { ICON, ICON_SM } from '../components/icons';
 import { AnimatePresence, motion, StatusDot, ThinkingDots } from '../components/motion';
 import { RunTimeline, StreamingEntry } from '../components/Transcript';
+import { WorkflowCard } from '../components/WorkflowCard';
 import { Card, Empty, ErrorBox, Loading, StatusBadge, usePageTitle } from '../components/ui';
 import { durationBetween, formatCost, formatDateTime } from '../lib/format';
 
@@ -297,7 +298,8 @@ export function RunView() {
                   <div className="side-item-head">
                     <StatusBadge status={sub.status} />
                     <span className="muted small">
-                      {sub.subagentType} · {durationBetween(sub.startedAt, sub.endedAt)}
+                      {sub.subagentType}
+                      {sub.background ? ' · background' : ''} · {durationBetween(sub.startedAt, sub.endedAt)}
                     </span>
                   </div>
                   <div className="small">{sub.description || '—'}</div>
@@ -306,6 +308,16 @@ export function RunView() {
             </div>
           )}
         </Card>
+
+        {(run.workflows?.length ?? 0) > 0 && (
+          <Card title={`Workflows (${run.workflows?.length ?? 0})`}>
+            <div className="stack-tight">
+              {(run.workflows ?? []).map((workflow) => (
+                <WorkflowCard key={workflow.id} workflow={workflow} compact />
+              ))}
+            </div>
+          </Card>
+        )}
 
         <Collapsible
           className="card fold-card"

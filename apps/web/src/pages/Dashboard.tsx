@@ -12,6 +12,7 @@ import {
   SquareTerminal,
   Timer,
   TriangleAlert,
+  Waypoints,
   Workflow,
   type LucideIcon,
 } from 'lucide-react';
@@ -96,6 +97,7 @@ export function Dashboard() {
     { label: 'Subagents', value: counts.subagents, to: '/agents', icon: Bot, live: true },
     { label: 'Live CLI sessions', value: counts.activeCliSessions, to: '/agents', icon: SquareTerminal, live: true },
     { label: 'Background tasks', value: counts.backgroundTasks, to: '/tasks', icon: Timer, live: true },
+    { label: 'Workflows running', value: counts.workflows ?? 0, to: '/workflows', icon: Waypoints, live: true },
     { label: 'Orchestrations running', value: counts.orchestrationsRunning, to: '/orchestration', icon: Workflow, live: true },
     { label: 'Projects', value: counts.projects, to: '/projects', icon: FolderGit2 },
     { label: 'Sessions', value: counts.sessions, to: '/sessions', icon: History },

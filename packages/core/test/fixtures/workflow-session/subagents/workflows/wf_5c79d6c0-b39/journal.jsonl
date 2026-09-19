@@ -1,0 +1,5 @@
+{"type":"launched"}
+{"type":"started","key":"v2:f49e04f77c6ae2a31b00bb555bca444dd076bcba353bd50a8a5c04b882812929","agentId":"a4fdeef8a7b5856b5","label":"one","phase":"Say"}
+{"type":"started","key":"v2:b6a7c1e9921ade836b93178fea1f9461c44a6254c6096bc1523f06904bc2a23d","agentId":"a6d120918f0c2d6c5","label":"two","phase":"Say"}
+{"type":"result","key":"v2:f49e04f77c6ae2a31b00bb555bca444dd076bcba353bd50a8a5c04b882812929","agentId":"a4fdeef8a7b5856b5","result":"red"}
+{"type":"result","key":"v2:b6a7c1e9921ade836b93178fea1f9461c44a6254c6096bc1523f06904bc2a23d","agentId":"a6d120918f0c2d6c5","result":"blue"}

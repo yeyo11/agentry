@@ -186,6 +186,10 @@
           "subagents": {
             "type": "number"
           },
+          "workflows": {
+            "type": "number",
+            "description": "Claude Code workflows running right now"
+          },
           "orchestrationsRunning": {
             "type": "number"
           }
@@ -539,6 +543,13 @@
           "$ref": "#/components/schemas/SubagentInfo"
         }
       },
+      "workflows": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkflowRun"
+        },
+        "description": "Claude Code workflows it ran (the Workflow tool), with each agent's progress"
+      },
       "workingDir": {
         "type": [
           "string",
@@ -693,7 +704,8 @@
       "startedAt",
       "endedAt",
       "summary"
-    ]
+    ],
+    "description": "Work the CLI runs in the background: a Bash command sent there (by the model or by the person at the terminal), a monitor, a remote agent. The CLI calls every delegated piece of work a task, and reports foreground commands that way too; those are left out, and so are subagents and workflows, which have lists of their own."
   },
   "WorkLocation": {
     "type": "object",
@@ -831,6 +843,10 @@
             "type": "null"
           }
         ]
+      },
+      "background": {
+        "type": "boolean",
+        "description": "Launched to run in the background, rather than awaited by its parent"
       }
     },
     "required": [
@@ -842,7 +858,215 @@
       "status",
       "startedAt",
       "endedAt"
-    ]
+    ],
+    "description": "An agent a session spawned with the Agent tool, in the foreground or the background."
+  },
+  "WorkflowRun": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The CLI's workflow run id (`wf_…`) when known, the task id otherwise"
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "name": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The `name` in the script's meta"
+      },
+      "description": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "running",
+          "completed",
+          "failed",
+          "stopped"
+        ],
+        "description": "`stopped` when its session ended before the workflow reported back"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "runId": {
+        "type": "string",
+        "description": "Empty when the workflow belongs to a CLI session rather than a run"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "run",
+          "cli"
+        ],
+        "description": "`run` when read from a run's live stream, `cli` when read from a session's files on disk"
+      },
+      "sessionId": {
+        "type": "string"
+      },
+      "phases": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "agents": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkflowAgentState"
+        }
+      },
+      "result": {
+        "description": "What the script returned, once it finished"
+      },
+      "summary": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "totalTokens": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "script": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "location": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkLocation"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "taskId",
+      "name",
+      "description",
+      "status",
+      "startedAt",
+      "endedAt",
+      "runId",
+      "runName",
+      "source",
+      "phases",
+      "agents",
+      "summary",
+      "totalTokens",
+      "script"
+    ],
+    "description": "A run of a Claude Code workflow: a script started with the Workflow tool that orchestrates subagents inside one session. Read from a run's live stream (`local_workflow` tasks) or from the files the CLI keeps beside the session's transcript."
+  },
+  "WorkflowAgentState": {
+    "type": "object",
+    "properties": {
+      "index": {
+        "type": "number"
+      },
+      "label": {
+        "type": "string"
+      },
+      "state": {
+        "type": "string",
+        "description": "As the CLI reports it: `start`, `progress`, `done` or `error`"
+      },
+      "agentId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "phaseTitle": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "durationMs": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "tokens": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "toolCalls": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "promptPreview": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "resultPreview": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "index",
+      "label",
+      "state",
+      "agentId",
+      "phaseTitle",
+      "model",
+      "startedAt",
+      "durationMs",
+      "tokens",
+      "toolCalls",
+      "promptPreview",
+      "resultPreview"
+    ],
+    "description": "One agent a workflow launched, as its progress reports it."
   },
   "SessionSummary": {
     "type": "object",
@@ -1763,6 +1987,61 @@
       "bytes"
     ],
     "description": "Captured output of a background task, as the CLI wrote it."
+  },
+  "WorkflowDefinition": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "scope": {
+        "type": "string",
+        "enum": [
+          "project",
+          "user"
+        ],
+        "description": "`project` from the directory's `.claude/workflows/`, `user` from `~/.claude/workflows/`"
+      },
+      "path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "description",
+      "scope",
+      "path"
+    ],
+    "description": "A saved workflow the Workflow tool can run by name, from a `.claude/workflows/` directory."
+  },
+  "RunWorkflowRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "cwd": {
+        "type": "string",
+        "description": "Project to run it in; its `.claude/workflows/` must hold it unless it is a user workflow"
+      },
+      "args": {
+        "type": "string",
+        "description": "Handed to the script as its `args`"
+      },
+      "model": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "description": "Starts a run that runs a saved workflow."
   },
   "Orchestration": {
     "type": "object",
