@@ -23,7 +23,8 @@ on:
 jobs:
   linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # About 3x the slowest successful run (2.0 min over 8), rounded up to 5 minutes
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:

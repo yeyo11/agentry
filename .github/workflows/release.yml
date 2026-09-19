@@ -10,6 +10,9 @@ on:
         required: false
         default: ''
 
+# Runs queue rather than cancel: cancelling a release halfway leaves a tagged draft that no later push to
+# main rebuilds, since release-please has already released it. A hung job therefore holds up every run
+# behind it, which is why each job below, and in image.yml and desktop.yml, has a tight timeout.
 concurrency:
   group: release-${{ github.ref }}-${{ inputs.tag }}
   cancel-in-progress: false
@@ -22,6 +25,8 @@ jobs:
   please:
     if: inputs.tag == ''
     runs-on: ubuntu-latest
+    # Slowest successful run: 0.3 min over 49; 5 minutes is the floor for a job of API calls
+    timeout-minutes: 5
     permissions:
       contents: write
       pull-requests: write
@@ -98,6 +103,8 @@ jobs:
     needs: [please, release, desktop]
     if: always() && (inputs.tag != '' || needs.please.outputs.released == 'true') && needs.release.result == 'success' && needs.desktop.result == 'success'
     runs-on: ubuntu-latest
+    # About 3x the slowest successful run (1.4 min over 7), rounded up to 5 minutes
+    timeout-minutes: 5
     permissions:
       contents: write
     steps:

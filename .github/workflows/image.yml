@@ -28,7 +28,11 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # Every job's timeout is about 3x its slowest successful run, rounded up to 5 minutes. Here: amd64 alone
+    # took at most 2.2 min over 32 runs, amd64 + emulated arm64 at most 6.0 min over 17. The 0.11.1 release
+    # hung for 93 minutes in the arm64 `vite build`, which normally takes 3 s, and blocked the release queue
+    # behind it; failing fast leaves a draft to rebuild with the release workflow's `tag` input.
+    timeout-minutes: ${{ contains(inputs.platforms, 'arm64') && 20 || 10 }}
     permissions:
       contents: read
       packages: write
