@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Rebuild and publish an existing release tag (e.g. v0.4.0) instead of running release-please
+        description: Rebuild an existing release tag (e.g. v0.4.0) instead of running release-please; its packages can only be replaced while it is a draft
         required: false
         default: ''
 
@@ -16,7 +16,9 @@ concurrency:
 
 jobs:
   # Keeps a release pull request open, with the changelog and every version already bumped.
-  # Merging it tags the commit and publishes the GitHub release.
+  # Merging it tags the commit and creates the GitHub release as a draft: releases are immutable once
+  # published, so the packages are attached first and `publish` makes it public at the end. The tag is
+  # created right away (`force-tag-creation`), since a draft has none and the next release needs it.
   please:
     if: inputs.tag == ''
     runs-on: ubuntu-latest
@@ -78,8 +80,8 @@ jobs:
         type=semver,pattern={{major}},value=${{ inputs.tag || needs.please.outputs.tag }}
         type=raw,value=latest
 
-  # The Linux desktop app rides the same trigger as the image: AppImage and .deb are attached to the release
-  # that was just published, or replaced on it when a tag is republished by hand.
+  # The Linux desktop app rides the same trigger as the image: AppImage and .deb are attached to the draft
+  # release that was just created.
   desktop:
     needs: please
     if: always() && (inputs.tag != '' || needs.please.outputs.released == 'true')
@@ -88,3 +90,25 @@ jobs:
     uses: ./.github/workflows/desktop.yml
     with:
       tag: ${{ inputs.tag || needs.please.outputs.tag }}
+
+  # Last step of a release: the draft goes public, and immutable, only once the image is pushed and the
+  # packages are on it. A failure before this leaves a draft to fix and publish, never a public release
+  # missing its files.
+  publish:
+    needs: [please, release, desktop]
+    if: always() && (inputs.tag != '' || needs.please.outputs.released == 'true') && needs.release.result == 'success' && needs.desktop.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the draft release
+        run: |
+          if [ "$(gh release view "$TAG" --json isDraft -q .isDraft)" = "true" ]; then
+            gh release edit "$TAG" --draft=false --latest
+          else
+            echo "$TAG is already published"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag || needs.please.outputs.tag }}

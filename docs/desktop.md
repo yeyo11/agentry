@@ -148,10 +148,12 @@ needs network access. The packaging is configured in `apps/desktop/electron-buil
 
 ## How releases publish it
 
-[release-please](https://github.com/googleapis/release-please) publishes a GitHub release as
+[release-please](https://github.com/googleapis/release-please) creates a draft GitHub release as
 described in [CONTRIBUTING.md](../CONTRIBUTING.md#how-a-release-happens). The release workflow then
 calls `.github/workflows/desktop.yml`, which builds on Ubuntu with `pnpm desktop:dist` and attaches
-the AppImage and the `.deb` to that release. Re-running it for a tag replaces the files.
+the AppImage and the `.deb` to that draft before it is published. Re-running it for a tag replaces
+the files while the release is still a draft; a published release is immutable, so a rebuild of one
+only keeps the packages as a run artifact.
 
 You can also run the **Desktop** workflow by hand from the Actions tab. With no tag it only builds
 and keeps the packages as the `agentry-linux` run artifact, which is a way to try a change before a

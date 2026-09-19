@@ -101,11 +101,12 @@ it — the output of the command counts for more than a claim that it works.
 
 You do not tag anything by hand. [release-please](https://github.com/googleapis/release-please)
 reads the commits on `main` and keeps a pull request open with the next version's changelog and
-every version number already bumped — the six `package.json` files and the `AGENTRY_VERSION`
-constant in `packages/core/src/index.ts`, which is why that line carries an
-`x-release-please-version` comment.
+every version number already bumped in the six `package.json` files. The running version is read
+from `packages/core/package.json`, so no source file carries it.
 
-Merging that pull request tags the commit, publishes the GitHub release, builds the image for
-amd64 and arm64 as `X.Y.Z`, `X.Y`, `X` and `latest`, and attaches the Linux AppImage and `.deb`
-to the release. Between releases, every push to `main`
-publishes `edge` for amd64 only.
+Merging that pull request tags the commit and creates the GitHub release as a draft, builds the
+image for amd64 and arm64 as `X.Y.Z`, `X.Y`, `X` and `latest`, attaches the Linux AppImage and
+`.deb` to the draft, and only then publishes it. Releases are immutable once published, so nothing
+can be attached afterwards: if a step fails, the draft stays unpublished until it is fixed and the
+workflow is re-run for that tag. Between releases, every push to `main` publishes `edge` for amd64
+only.
