@@ -24,6 +24,10 @@ pnpm dev          # API on :8787, Vite on :5173
 The API serves the built UI too, so `pnpm build && pnpm start` gives you the production shape on
 `:8787` alone.
 
+For the Linux desktop app in `apps/desktop`, `pnpm desktop:dev` builds the UI and the API bundle and
+opens Electron, and `pnpm desktop:dist` produces the AppImage and `.deb` in `apps/desktop/release/`.
+See [docs/desktop.md](docs/desktop.md).
+
 ## Before you open a pull request
 
 ```bash
@@ -72,6 +76,7 @@ Every route must carry a summary and a tag — there is a test that enforces it.
 | `packages/core` | The CLI driver: runs, sessions, accounts, orchestration, config, storage |
 | `apps/api` | Fastify REST API and the OpenAPI document |
 | `apps/web` | React UI |
+| `apps/desktop` | Electron shell and packaging for the Linux desktop app |
 | `e2e/` | Browser suite driven over the Chrome DevTools Protocol |
 | `docker/` | The single image |
 
@@ -96,10 +101,11 @@ it — the output of the command counts for more than a claim that it works.
 
 You do not tag anything by hand. [release-please](https://github.com/googleapis/release-please)
 reads the commits on `main` and keeps a pull request open with the next version's changelog and
-every version number already bumped — the five `package.json` files and the `AGENTRY_VERSION`
+every version number already bumped — the six `package.json` files and the `AGENTRY_VERSION`
 constant in `packages/core/src/index.ts`, which is why that line carries an
 `x-release-please-version` comment.
 
-Merging that pull request tags the commit, publishes the GitHub release, and builds the image for
-amd64 and arm64 as `X.Y.Z`, `X.Y`, `X` and `latest`. Between releases, every push to `main`
+Merging that pull request tags the commit, publishes the GitHub release, builds the image for
+amd64 and arm64 as `X.Y.Z`, `X.Y`, `X` and `latest`, and attaches the Linux AppImage and `.deb`
+to the release. Between releases, every push to `main`
 publishes `edge` for amd64 only.
