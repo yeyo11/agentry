@@ -119,8 +119,8 @@ What happens when one fires:
 
 ## 4. Prevent it in the first place
 
-- **Worker prompts** tell workers to run long commands under `timeout` and to run the e2e suite one
-  spec at a time. The worker in the case above did so once it was told.
+- **Worker prompts** tell workers to run long commands under `timeout`, and leave the e2e suite to
+  the verification phase (section 5). The worker in the case above switched to `timeout` once told.
 - **The e2e harness protects itself**: a time limit per spec and per run, and Chrome closed on every
   exit path (signals included), so no headless browser outlives its run.
 - **Per-task time and cost limits** in an orchestration. The cost limit already exists per run
@@ -132,7 +132,8 @@ The same orchestration showed where the time goes: in the e2e suite, run by ever
 part of the change. A worker cannot see the whole: the one building notifications does not have
 the detail views, and the other way round. Its e2e failures are mostly not its own, and it chases
 them for minutes at a time, in parallel with other workers running the same suite on the same CPU.
-By the time stage 2 started, the workers had already run e2e commands 4, 2 and a dozen times.
+The two stage 2 workers had run 4 and 2 e2e commands within their first minutes, before they were
+told to leave the suite to the final task.
 
 Split the checks by what each step can actually judge:
 
