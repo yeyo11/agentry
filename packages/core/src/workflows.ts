@@ -189,6 +189,42 @@ export async function readSessionWorkflows(transcript: string, sessionId: string
 }
 
 /**
+ * One agent of a workflow run, as the run's record reports it, or — for a run without a record yet —
+ * whether its journal has a result for it. `agent` is null when neither knows it.
+ */
+export async function readWorkflowAgent(
+  transcript: string,
+  runId: string,
+  agentId: string,
+): Promise<{ agent: WorkflowAgentState | null; journalDone: boolean }> {
+  const base = transcript.slice(0, -'.jsonl'.length);
+  const record = await readJson(join(base, 'workflows', `${runId}.json`));
+  const fromRecord = record ? readProgress(record.workflowProgress).agents.find((a) => a.agentId === agentId) : undefined;
+  if (fromRecord) return { agent: fromRecord, journalDone: false };
+  const journal = await readLines(join(base, 'subagents', 'workflows', runId, 'journal.jsonl'));
+  const started = journal.find((e) => e.type === 'started' && e.agentId === agentId);
+  const journalDone = journal.some((e) => e.type === 'result' && e.agentId === agentId);
+  if (!started) return { agent: null, journalDone };
+  return {
+    agent: {
+      index: 0,
+      label: text(started.label) ?? agentId,
+      state: journalDone ? 'done' : 'progress',
+      agentId,
+      phaseTitle: text(started.phase),
+      model: null,
+      startedAt: null,
+      durationMs: null,
+      tokens: null,
+      toolCalls: null,
+      promptPreview: null,
+      resultPreview: null,
+    },
+    journalDone,
+  };
+}
+
+/**
  * Saved workflows the Workflow tool can run by name: the project's `.claude/workflows/` and the
  * user's. A project one shadows a user one of the same name, as the CLI resolves them.
  */

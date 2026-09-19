@@ -9,14 +9,16 @@ import {
   type ProjectSummary,
   type SessionDetail,
   type BackgroundTask,
+  type AgentTranscript,
   type BackgroundTaskOutput,
   type SessionSummary,
   type SubagentInfo,
   type TranscriptEntry,
   type WorkflowRun,
 } from '@agentry/shared';
+import { AGENT_ID_RE, WORKFLOW_RUN_ID_RE, emptyAgentRead, readAgentFile } from './agents.ts';
 import type { CoreConfig } from './paths.ts';
-import { readSessionWorkflows } from './workflows.ts';
+import { readSessionWorkflows, readWorkflowAgent } from './workflows.ts';
 
 /** The slash command inside a synthetic user message, e.g. `<command-name>/resume</command-name>`. */
 const COMMAND_RE = /<command-name>\s*([^<]+)<\/command-name>/;
@@ -91,12 +93,42 @@ function taskDir(projectId: string, sessionId: string): string {
   return join(tmpdir(), `claude-${String(process.getuid?.() ?? 0)}`, projectId, sessionId, 'tasks');
 }
 
+/**
+ * How many leading bytes of a buffer end on a character boundary. A read that stops mid-character
+ * (a chunk cap, a file still being written) would otherwise decode to a replacement character and
+ * make the next read, which starts at the same byte, print the rest of it as garbage.
+ */
+function completeUtf8(buffer: Buffer): number {
+  let i = buffer.length - 1;
+  for (let back = 0; i >= 0 && back < 3 && ((buffer[i] ?? 0) & 0xc0) === 0x80; back++) i--;
+  if (i < 0) return buffer.length;
+  const lead = buffer[i] ?? 0;
+  const need = lead >= 0xf0 ? 4 : lead >= 0xe0 ? 3 : lead >= 0xc0 ? 2 : 1;
+  return buffer.length - i < need ? i : buffer.length;
+}
+
 interface TaskLaunch {
   at: string;
   toolUseId: string | null;
   command: string | null;
   description: string | null;
   backgroundedByUser: boolean;
+  /** The subagent whose transcript recorded the launch */
+  ownerAgentId?: string;
+}
+
+interface AgentStop {
+  at: string;
+  status: string;
+  summary: string | null;
+}
+
+/** Where an agent stands, from the stop its parent was notified of and how recently it wrote. */
+function agentState(stop: AgentStop | undefined, mtime: Date | null, live: boolean): { status: SubagentInfo['status']; endedAt: string | null } {
+  const lastActivityAt = mtime ? mtime.toISOString() : null;
+  const resumed = stop && mtime ? mtime.getTime() > Date.parse(stop.at) + RESUMED_AFTER_MS : false;
+  if (!stop || resumed) return { status: live ? 'running' : 'stopped', endedAt: live ? null : lastActivityAt };
+  return { status: stop.status === 'completed' ? 'completed' : 'failed', endedAt: stop.at };
 }
 
 interface SessionActivity {
@@ -105,7 +137,7 @@ interface SessionActivity {
   /** backgroundTaskId → the call that sent it to the background */
   tasks: Map<string, TaskLaunch>;
   /** id → the latest time it stopped, for agents and tasks alike */
-  stops: Map<string, { at: string; status: string; summary: string | null }>;
+  stops: Map<string, AgentStop>;
 }
 
 async function* readJsonl(file: string): AsyncGenerator<Record<string, unknown>> {
@@ -360,18 +392,16 @@ export class SessionStore {
         if (cwd) this.cwdCache.set(transcriptFile, cwd);
       }
       const lastActivityAt = transcript ? transcript.mtime.toISOString() : null;
-      const stop = activity.stops.get(agentId);
-      const resumed = stop && transcript ? transcript.mtimeMs > Date.parse(stop.at) + RESUMED_AFTER_MS : false;
-      const running = !stop || resumed;
+      const state = agentState(activity.stops.get(agentId), transcript?.mtime ?? null, live);
       out.push({
         toolUseId: meta.toolUseId ?? '',
         runId: '',
         runName: '',
         subagentType: meta.agentType ?? 'agent',
         description: meta.description ?? agentId,
-        status: running ? (live ? 'running' : 'stopped') : stop?.status === 'completed' ? 'completed' : 'failed',
+        status: state.status,
         startedAt: activity.agents.get(agentId) ?? lastActivityAt ?? new Date(0).toISOString(),
-        endedAt: running ? (live ? null : lastActivityAt) : (stop?.at ?? null),
+        endedAt: state.endedAt,
         source: 'cli',
         sessionId,
         agentId,
@@ -398,9 +428,21 @@ export class SessionStore {
     const found = await this.findFile(sessionId);
     if (!found) return [];
     const activity = await this.activity(found.file);
+    const launches = new Map<string, TaskLaunch>(activity.tasks);
+    const stops = new Map(activity.stops);
+    // A task a subagent started is launched, and reported back, in that subagent's own transcript:
+    // the session's never mentions it. (Inferred from the CLI's transcript format; no real capture
+    // of a subagent-owned task was available to check it against.)
+    for (const { agentId, activity: own } of await this.subagentActivity(found.file)) {
+      for (const [id, launch] of own.tasks) if (!launches.has(id)) launches.set(id, { ...launch, ownerAgentId: agentId });
+      for (const [id, stop] of own.stops) {
+        const known = stops.get(id);
+        if (!known || stop.at > known.at) stops.set(id, stop);
+      }
+    }
     const out: BackgroundTask[] = [];
-    for (const [id, launch] of activity.tasks) {
-      const stop = activity.stops.get(id);
+    for (const [id, launch] of launches) {
+      const stop = stops.get(id);
       out.push({
         id,
         runId: '',
@@ -417,9 +459,38 @@ export class SessionStore {
         sessionId,
         command: launch.command,
         backgroundedByUser: launch.backgroundedByUser,
+        ...(launch.ownerAgentId ? { fromSubagent: true, ownerAgentId: launch.ownerAgentId } : {}),
       });
     }
     return out.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  }
+
+  /**
+   * Which subagent launched each background task, read from the subagents' transcripts. A run's
+   * live stream only says a task is `owned_by_subagent`, never by which one.
+   */
+  async taskOwners(sessionId: string): Promise<Map<string, string>> {
+    const found = await this.findFile(sessionId);
+    const owners = new Map<string, string>();
+    if (!found) return owners;
+    for (const { agentId, activity } of await this.subagentActivity(found.file)) {
+      for (const id of activity.tasks.keys()) owners.set(id, agentId);
+    }
+    return owners;
+  }
+
+  /** What each of a session's subagents launched and saw stop, from their own transcripts. */
+  private async subagentActivity(transcript: string): Promise<Array<{ agentId: string; activity: SessionActivity }>> {
+    const dir = join(transcript.slice(0, -'.jsonl'.length), 'subagents');
+    const names = await readdir(dir).catch(() => [] as string[]);
+    const out: Array<{ agentId: string; activity: SessionActivity }> = [];
+    for (const name of names) {
+      const agentId = /^agent-(.+)\.jsonl$/.exec(name)?.[1];
+      if (!agentId) continue;
+      const activity = await this.activity(join(dir, name)).catch(() => null);
+      if (activity) out.push({ agentId, activity });
+    }
+    return out;
   }
 
   /**
@@ -427,22 +498,118 @@ export class SessionStore {
    * always derived from the ids, never taken from the transcript: a notification is just text in a
    * message, and trusting a path found there would read whatever file someone typed into one.
    */
-  async taskOutput(sessionId: string, taskId: string): Promise<BackgroundTaskOutput> {
+  async taskOutput(sessionId: string, taskId: string, opts: { offset?: number } = {}): Promise<BackgroundTaskOutput> {
     if (!/^[\w-]+$/.test(taskId)) throw new Error('invalid task id');
     const found = await this.findFile(sessionId);
     if (!found) throw new Error('session not found');
     const file = join(taskDir(found.projectId, sessionId), `${taskId}.output`);
     const info = await stat(file).catch(() => null);
     if (!info) throw new Error('no output was kept for that task (it lives in the temp dir, which a reboot clears)');
-    const start = Math.max(0, info.size - MAX_TASK_OUTPUT);
+
+    // Following a running task: `offset` is where the last read ended. Past the end means the file
+    // was replaced under it, and the caller starts over from the tail.
+    const resumed = opts.offset !== undefined && opts.offset <= info.size;
+    const reset = opts.offset !== undefined && !resumed;
+    const start = resumed ? (opts.offset as number) : Math.max(0, info.size - MAX_TASK_OUTPUT);
     const handle = await open(file, 'r');
     try {
-      const buffer = Buffer.alloc(info.size - start);
-      await handle.read(buffer, 0, buffer.length, start);
-      return { taskId, output: buffer.toString('utf8'), truncated: start > 0, bytes: info.size };
+      const buffer = Buffer.alloc(Math.min(info.size - start, MAX_TASK_OUTPUT));
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, start);
+      const read = buffer.subarray(0, bytesRead);
+      const end = completeUtf8(read);
+      return {
+        taskId,
+        output: read.subarray(0, end).toString('utf8'),
+        truncated: !resumed && start > 0,
+        bytes: info.size,
+        offset: start + end,
+        ...(reset ? { reset } : {}),
+      };
     } finally {
       await handle.close();
     }
+  }
+
+  /**
+   * One subagent's, or with `runId` one workflow agent's, prompt, outcome and whole conversation.
+   * Ids go into file paths, so both are validated first. Null when the session or the agent is not
+   * there. `after` skips the entries the caller already has, so a live panel appends instead of
+   * re-reading a transcript that can run to megabytes on every update.
+   */
+  async agentTranscript(
+    sessionId: string,
+    agentId: string,
+    opts: { runId?: string; after?: number; live?: boolean } = {},
+  ): Promise<AgentTranscript | null> {
+    if (!AGENT_ID_RE.test(agentId)) throw new Error('invalid agent id');
+    if (opts.runId !== undefined && !WORKFLOW_RUN_ID_RE.test(opts.runId)) throw new Error('invalid workflow run id');
+    const found = await this.findFile(sessionId);
+    if (!found) return null;
+    const live = opts.live ?? true;
+    const base = found.file.slice(0, -'.jsonl'.length);
+    const dir = opts.runId ? join(base, 'subagents', 'workflows', opts.runId) : join(base, 'subagents');
+    const file = join(dir, `agent-${agentId}.jsonl`);
+    const info = await stat(file).catch(() => null);
+    let meta: { agentType?: string; description?: string; toolUseId?: string; requestShape?: string; workflowPhase?: string } | null;
+    try {
+      meta = JSON.parse(await readFile(join(dir, `agent-${agentId}.meta.json`), 'utf8')) as NonNullable<typeof meta>;
+    } catch {
+      meta = null;
+    }
+    if (!info && !meta) return null;
+    const read = info ? await readAgentFile(file) : emptyAgentRead();
+    const lastActivityAt = info?.mtime.toISOString() ?? null;
+
+    let status: AgentTranscript['status'];
+    let startedAt: string | null;
+    let endedAt: string | null;
+    let durationMs: number | null = null;
+    let description = meta?.description ?? null;
+    let workflowPhase = meta?.workflowPhase ?? null;
+    if (opts.runId) {
+      const { agent, journalDone } = await readWorkflowAgent(found.file, opts.runId, agentId);
+      status = agent?.state === 'done' || journalDone ? 'completed' : agent?.state === 'error' ? 'failed' : live ? 'running' : 'stopped';
+      startedAt = agent?.startedAt ?? read.firstAt;
+      const finished = status === 'completed' || status === 'failed';
+      durationMs = agent?.durationMs ?? null;
+      endedAt = !finished ? (live ? null : lastActivityAt) : startedAt && durationMs !== null ? new Date(Date.parse(startedAt) + durationMs).toISOString() : read.lastAt;
+      description ??= agent?.label ?? null;
+      workflowPhase ??= agent?.phaseTitle ?? null;
+    } else {
+      const activity = await this.activity(found.file);
+      ({ status, endedAt } = agentState(activity.stops.get(agentId), info?.mtime ?? null, live));
+      startedAt = activity.agents.get(agentId) ?? read.firstAt;
+    }
+    if (durationMs === null && startedAt && endedAt) durationMs = Math.max(0, Date.parse(endedAt) - Date.parse(startedAt));
+
+    const total = read.entries.length;
+    const from = opts.after !== undefined && opts.after <= total ? opts.after : 0;
+    return {
+      agentId,
+      sessionId,
+      kind: opts.runId ? 'workflow' : 'subagent',
+      workflowRunId: opts.runId ?? null,
+      toolUseId: meta?.toolUseId ?? null,
+      subagentType: meta?.agentType ?? null,
+      description,
+      workflowPhase,
+      prompt: read.prompt,
+      status,
+      background: meta?.requestShape === 'background',
+      startedAt,
+      endedAt,
+      durationMs,
+      lastActivityAt,
+      model: read.model,
+      usage: read.usage,
+      toolCalls: read.toolCalls,
+      cwd: read.cwd,
+      result: read.result,
+      entries: read.entries.slice(from),
+      from,
+      total,
+      tasks: opts.runId ? [] : (await this.backgroundTasks(sessionId, live)).filter((t) => t.ownerAgentId === agentId),
+    };
   }
 
   /** Deletes the transcript and the session's sidecar directory (subagent transcripts, tool results). */
