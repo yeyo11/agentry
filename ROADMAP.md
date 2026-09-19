@@ -48,6 +48,15 @@
 
 ## Next
 
+- **Agent observability (top priority)** — see what every agent really does and step in on time:
+  per-task progress, commits, changed files and diffs (and the files a plain run touched); links
+  that open a worktree or a changed line in VS Code (or another editor); stuck-agent detection
+  (hung or repeated commands, busy without progress, loops, tests bent to pass, silence, budgets)
+  shown as a health badge with notifications and one-click actions (cancel the command, send a
+  hint, interrupt); an e2e harness that times out and always closes Chrome; a verification phase
+  after integration (build and e2e once, with a fixer agent held to rules and a limit of attempts),
+  so workers only run typecheck and unit tests. Full plan in
+  [docs/plans/agent-observability.md](docs/plans/agent-observability.md).
 - **Security (required before exposing the port)** — API token / OIDC in front of every route,
   TLS guidance, secret redaction in `GET /config/mcp` (env and headers), audit log of writes,
   optional read-only mode.
