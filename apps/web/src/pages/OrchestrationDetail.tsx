@@ -1,6 +1,6 @@
 import type { Orchestration, OrchestrationTaskState, ResumeOrchestrationRequest } from '@agentry/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ChevronRight, Combine, CornerDownRight, ExternalLink, GitMerge, GitPullRequest, MessageSquare, Play, RotateCw, Square, Target, Trash2 } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, ChevronRight, Combine, CornerDownRight, ExternalLink, GitMerge, GitPullRequest, MessageSquare, Play, RotateCw, Save, Square, Target, Trash2, Waypoints } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, keys, useOrchestration } from '../api';
@@ -9,6 +9,7 @@ import { useConfirm } from '../components/Dialog';
 import { useToast } from '../components/Toast';
 import { ICON, ICON_SM } from '../components/icons';
 import { motion, ProgressRing, useReducedMotion } from '../components/motion';
+import { CodeBlock } from '../components/CodeBlock';
 import { RichText } from '../components/Transcript';
 import { Card, ErrorBox, Field, Loading, PageHeader, StatusBadge } from '../components/ui';
 import { durationBetween, formatCost, formatDateTime, shortPath } from '../lib/format';
@@ -244,6 +245,68 @@ const SAFE_TOOLS = 'Bash,Read,Write,Edit,Glob,Grep';
  * graph that stopped for lack of permissions or by editing the wrapper's own checkout would stop the
  * same way again. This offers to correct those first, with the settings that avoid both already on.
  */
+/**
+ * A graph on the workflow engine: the one run that runs it, and the script generated from it, which
+ * can be kept as a workflow of the project and run from then on by name.
+ */
+function WorkflowCard({ orch }: { orch: Orchestration }) {
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const script = useQuery({ queryKey: ['orchestrations', orch.id, 'workflow'], queryFn: () => api.orchestrationWorkflow(orch.id) });
+  const save = useMutation({
+    mutationFn: (overwrite: boolean) => api.saveOrchestrationWorkflow(orch.id, { ...(name.trim() ? { name: name.trim() } : {}), overwrite }),
+    onSuccess: (saved) => toast.success(`Saved as ${saved.name}`, saved.path),
+  });
+  return (
+    <Card
+      title={
+        <span className="title-icon">
+          <Waypoints {...ICON_SM} /> Workflow
+        </span>
+      }
+      actions={
+        orch.workflow?.runId ? (
+          <Link to={`/runs/${orch.workflow.runId}`} className="btn btn-small">
+            <ExternalLink {...ICON_SM} /> Open run
+          </Link>
+        ) : undefined
+      }
+    >
+      <p className="muted small">
+        Every task runs as a subagent of one Claude Code session, driven by a script generated from this graph.
+        {orch.workflow?.workflowRunId ? ` Claude Code run ${orch.workflow.workflowRunId}: a resume replays what had finished from its cache.` : ''}
+      </p>
+      {orch.engineReason && <p className="small">Planner: {orch.engineReason}</p>}
+      <Collapsible className="fold" title={<span className="tool-name">Script</span>}>
+        {script.data ? <CodeBlock code={script.data.script} lang="js" /> : <ErrorBox error={script.error} />}
+      </Collapsible>
+      <form
+        className="inline-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate(false);
+        }}
+      >
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (defaults to agentry-…)" aria-label="Workflow name" />
+        <button type="submit" className="btn btn-small" disabled={save.isPending}>
+          <Save {...ICON_SM} /> Save as project workflow
+        </button>
+      </form>
+      <p className="muted small">Copies it into the project&apos;s .claude/workflows/, where Claude Code runs it by name.</p>
+      {save.error && (
+        <div className="stack-tight">
+          <ErrorBox error={save.error} />
+          {String((save.error as Error).message).includes('already exists') && (
+            <button type="button" className="btn btn-small btn-danger" onClick={() => save.mutate(true)}>
+              Replace it
+            </button>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function ResumePanel({
   orch,
   unfinished,
@@ -260,25 +323,30 @@ function ResumePanel({
   const [worktree, setWorktree] = useState(true);
   const [askPermissions, setAskPermissions] = useState(true);
   const [tools, setTools] = useState(orch.allowedTools.length ? orch.allowedTools.join(',') : SAFE_TOOLS);
-  const risky = !orch.worktree || orch.permissionPrompts !== 'host';
+  const workflow = orch.engine === 'workflow';
+  // A workflow runs in the project directory by design: only its prompts can have stopped it
+  const risky = (!workflow && !orch.worktree) || orch.permissionPrompts !== 'host';
 
   return (
     <Card title={`Resume ${unfinished} unfinished task${unfinished === 1 ? '' : 's'}`}>
       <p className="muted small">
         The {orch.tasks.length - unfinished} completed task{orch.tasks.length - unfinished === 1 ? '' : 's'} and{' '}
         {orch.tasks.length - unfinished === 1 ? 'its' : 'their'} results are kept.
+        {workflow ? " It resumes in the same session, where Claude Code replays what had finished from its cache." : ''}
       </p>
       {risky && (
         <p className="alert alert-warn small">
-          This graph was started {!orch.worktree ? 'without worktrees' : ''}
-          {!orch.worktree && orch.permissionPrompts !== 'host' ? ' and ' : ''}
+          This graph was started {!workflow && !orch.worktree ? 'without worktrees' : ''}
+          {!workflow && !orch.worktree && orch.permissionPrompts !== 'host' ? ' and ' : ''}
           {orch.permissionPrompts !== 'host' ? 'with nobody to answer its permission prompts' : ''} — which is likely what
           stopped it. Resuming with the settings below avoids both.
         </p>
       )}
-      <Switch checked={worktree} onChange={setWorktree}>
-        Give each task its own git worktree and branch
-      </Switch>
+      {!workflow && (
+        <Switch checked={worktree} onChange={setWorktree}>
+          Give each task its own git worktree and branch
+        </Switch>
+      )}
       <Switch checked={askPermissions} onChange={setAskPermissions}>
         Ask me when a worker needs permission
       </Switch>
@@ -292,7 +360,7 @@ function ResumePanel({
           disabled={pending}
           onClick={() =>
             onResume({
-              worktree,
+              ...(workflow ? {} : { worktree }),
               permissionPrompts: askPermissions ? 'host' : 'none',
               allowedTools: tools
                 .split(',')
@@ -367,7 +435,7 @@ export function OrchestrationDetail() {
             <span>{orch.model ?? 'default model'}</span>
             <span>{orch.permissionMode}</span>
             <span>concurrency {orch.concurrency}</span>
-            {orch.worktree && <span>worktree per task</span>}
+            {orch.engine === 'workflow' ? <span>workflow engine</span> : orch.worktree && <span>worktree per task</span>}
             <span>total {formatCost(orch.costUsd)}</span>
             <span>{durationBetween(orch.createdAt, orch.endedAt)}</span>
             <span>created {formatDateTime(orch.createdAt)}</span>
@@ -472,7 +540,7 @@ export function OrchestrationDetail() {
         )}
       </div>
 
-      <IntegrationCard orch={orch} />
+      {orch.engine === 'workflow' ? <WorkflowCard orch={orch} /> : <IntegrationCard orch={orch} />}
 
       {orch.finalResult && (
         <Card

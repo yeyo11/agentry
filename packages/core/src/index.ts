@@ -107,6 +107,7 @@ export class Core {
     });
     this.sessions = new SessionStore(config);
     this.orchestrator = new Orchestrator(config, this.runs, this.db);
+    this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
     this.files = new SettingsFiles();
     this.explorer = new ConfigExplorer();
     this.plugins = new Plugins(config);

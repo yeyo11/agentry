@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import type { OrchestrationSpec, OrchestrationTaskSpec, PermissionMode } from '@agentry/shared';
+import type { OrchestrationEngine, OrchestrationSpec, OrchestrationTaskSpec, PermissionMode } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -106,6 +106,8 @@ function CreateForm({ onDone }: { onDone: () => void }) {
   const [concurrency, setConcurrency] = useState(3);
   const [synthesize, setSynthesize] = useState(true);
   const [worktree, setWorktree] = useState(true);
+  const [engine, setEngine] = useState<OrchestrationEngine>('graph');
+  const [engineReason, setEngineReason] = useState<string | null>(null);
   const [allowedTools, setAllowedTools] = useState('Bash,Read,Write,Edit,Glob,Grep');
   const [askPermissions, setAskPermissions] = useState(false);
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
@@ -123,6 +125,8 @@ function CreateForm({ onDone }: { onDone: () => void }) {
     if (draft.cwd && !cwd.trim()) setCwd(draft.cwd);
     if (draft.concurrency) setConcurrency(draft.concurrency);
     if (draft.synthesize != null) setSynthesize(draft.synthesize);
+    setEngine(draft.engine === 'workflow' ? 'workflow' : 'graph');
+    setEngineReason(draft.engineReason ?? null);
   };
 
   const plan = useMutation({
@@ -212,7 +216,10 @@ function CreateForm({ onDone }: { onDone: () => void }) {
       permissionMode: permissionMode || undefined,
       concurrency,
       synthesize,
-      worktree,
+      engine,
+      ...(engineReason ? { engineReason } : {}),
+      // A workflow runs every task in the project directory
+      worktree: engine === 'workflow' ? false : worktree,
       allowedTools: allowedTools
         .split(',')
         .map((t) => t.trim())
@@ -355,12 +362,30 @@ function CreateForm({ onDone }: { onDone: () => void }) {
                 />
               </Field>
             </div>
+            <Field label="Engine" hint={engineReason ? `Planner: ${engineReason}` : undefined}>
+              <Segmented<OrchestrationEngine>
+                label="Engine"
+                value={engine}
+                onChange={setEngine}
+                options={[
+                  { value: 'graph', label: 'Graph', title: 'One process per task, each able to get its own worktree and branch' },
+                  { value: 'workflow', label: 'Workflow', title: 'Every task a subagent of one Claude Code session' },
+                ]}
+              />
+            </Field>
+            <p className="muted small">
+              {engine === 'graph'
+                ? 'Every task runs as its own Claude Code process and can get its own worktree and branch, merged into one at the end. The choice for tasks that change code.'
+                : "Every task runs as a subagent of one Claude Code session, through a workflow script generated from these tasks: cheaper, and a resume replays what had finished from Claude Code's cache. All of them work in the project directory, with no worktrees: for tasks that read, analyse or review."}
+            </p>
             <Switch checked={synthesize} onChange={setSynthesize}>
               Run a final agent that synthesizes all task results
             </Switch>
-            <Switch checked={worktree} onChange={setWorktree}>
-              Give each task its own git worktree and branch
-            </Switch>
+            {engine === 'graph' && (
+              <Switch checked={worktree} onChange={setWorktree}>
+                Give each task its own git worktree and branch
+              </Switch>
+            )}
             <Switch checked={askPermissions} onChange={setAskPermissions}>
               Ask me when a worker needs permission
             </Switch>
@@ -374,11 +399,13 @@ function CreateForm({ onDone }: { onDone: () => void }) {
             >
               <input value={allowedTools} onChange={(e) => setAllowedTools(e.target.value)} placeholder="Bash,Read,Write,Edit" />
             </Field>
-            <p className="muted small">
-              Workers then never write over each other, and never edit the checkout Agentry is running from — an
-              orchestration that edits this repo restarts the wrapper and kills itself. Needs the directory to be a git
-              repository.
-            </p>
+            {engine === 'graph' && worktree && (
+              <p className="muted small">
+                Workers then never write over each other, and never edit the checkout Agentry is running from — an
+                orchestration that edits this repo restarts the wrapper and kills itself. Needs the directory to be a git
+                repository.
+              </p>
+            )}
 
             <div className="card-head">
               <h2>Tasks ({tasks.length})</h2>
@@ -469,6 +496,7 @@ export function Orchestration() {
                       </span>
                       {stopped > 0 && <span className="text-warn">{stopped} not run</span>}
                       {failed > 0 && <span className="text-bad">{failed} failed</span>}
+                      {orch.engine === 'workflow' && <Tag tone="info">workflow</Tag>}
                       {resumable && <Tag tone="active">can be resumed</Tag>}
                       <span>{formatCost(orch.costUsd)}</span>
                       <span>concurrency {orch.concurrency}</span>

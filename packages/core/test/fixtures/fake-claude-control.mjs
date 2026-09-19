@@ -6,9 +6,12 @@
 //
 //   ASK <tool>     asks permission for <tool> and ends the turn with the decision it got back
 //   REPLAY <file>  writes each JSON line of <file> to stdout, then ends the turn
+//   … scriptPath "<file>" …  runs that workflow script as the Workflow tool would, with agents that
+//                  answer "done:<label>" (or nothing, for a task whose prompt says FAIL-ONCE on a
+//                  first run), and writes its record to $FAKE_WORKFLOW_DIR/<session>.json
 //   (anything)     ends the turn at once
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
@@ -34,6 +37,16 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     const content = msg.message?.content;
     const prompt = typeof content === 'string' ? content : content.map((b) => b.text ?? '').join('\n');
     out({ type: 'system', subtype: 'init', session_id: sessionId, cwd: process.cwd(), model: 'fake', permissionMode: reported(mode), tools: [], argv: args });
+    const script = /scriptPath "([^"]+)"/.exec(prompt);
+    if (script) {
+      // As CLI 2.1 does in -p: the tool runs in the background, so the turn ends at once and a
+      // second one reports once the workflow's notification arrives
+      runWorkflow(script[1], /resumeFromRunId "([^"]+)"/.exec(prompt)?.[1] ?? null).then(
+        (text) => result(text),
+        (err) => result(`workflow failed: ${err.message}`),
+      );
+      return result('Workflow is running (Task ID: fake). Waiting for completion notification.');
+    }
     const replay = /^REPLAY (\S+)/.exec(prompt);
     if (replay) {
       for (const line of readFileSync(replay[1], 'utf8').split('\n')) if (line.trim()) process.stdout.write(`${line}\n`);
@@ -87,3 +100,35 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     }
   }
 });
+
+/** Runs a workflow script the way the Workflow tool does, reporting progress on the stream. */
+async function runWorkflow(path, resumeFrom) {
+  const source = readFileSync(path, 'utf8');
+  const body = source.replace(/export const meta =/, 'const meta =');
+  const taskId = `wf-task-${Math.floor(process.hrtime()[1] % 100000)}`;
+  const agents = [];
+  const progress = () => out({ type: 'system', subtype: 'task_progress', task_id: taskId, workflow_progress: agents.map((a) => ({ type: 'workflow_agent', ...a })) });
+  out({ type: 'system', subtype: 'task_started', task_id: taskId, task_type: 'local_workflow', workflow_name: 'fake', description: 'fake workflow' });
+  await new Promise((r) => setTimeout(r, 20)); // after the turn that launched it has ended
+  const agent = async (prompt, opts = {}) => {
+    const entry = { index: agents.length + 1, label: opts.label ?? `agent-${agents.length + 1}`, state: 'start', agentId: `ag${agents.length}`, model: opts.model ?? null };
+    agents.push(entry);
+    progress();
+    await new Promise((r) => setTimeout(r, 5));
+    if (prompt.includes('FAIL-ONCE') && !resumeFrom) {
+      entry.state = 'error';
+      progress();
+      return null;
+    }
+    entry.state = 'done';
+    entry.resultPreview = `done:${entry.label}`;
+    progress();
+    return `done:${entry.label}${opts.model ? ` (${opts.model})` : ''}`;
+  };
+  const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+  const returned = await new AsyncFunction('agent', 'phase', 'log', body)(agent, () => {}, () => {});
+  const runId = resumeFrom ?? 'wf_fake-001';
+  writeFileSync(`${process.env.FAKE_WORKFLOW_DIR}/${sessionId}.json`, JSON.stringify({ runId, taskId, status: 'completed', result: returned }));
+  out({ type: 'system', subtype: 'task_notification', task_id: taskId, status: 'completed', summary: 'fake workflow completed' });
+  return `workflow ${runId} completed; args=${args.join(' ')}`;
+}

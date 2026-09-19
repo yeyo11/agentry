@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, renameSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type {
   Orchestration,
+  OrchestrationEngine,
   OrchestrationIntegration,
   OrchestrationSpec,
   OrchestrationTaskSpec,
@@ -12,6 +13,9 @@ import type {
   PlanRequest,
   ResumeOrchestrationRequest,
   RunSummary,
+  SaveOrchestrationWorkflowRequest,
+  WorkflowDefinition,
+  WorkflowRun,
 } from '@agentry/shared';
 import type { Db } from './db.ts';
 import {
@@ -30,6 +34,7 @@ import {
 } from './git.ts';
 import type { CoreConfig } from './paths.ts';
 import type { RunManager } from './runner.ts';
+import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
 /** The planner's own name, which is how a past planner run is recognised later. */
@@ -96,10 +101,16 @@ interface PendingMerge {
 
 const PLAN_SCHEMA = {
   type: 'object',
-  required: ['name', 'tasks'],
+  required: ['name', 'engine', 'engineReason', 'tasks'],
   additionalProperties: false,
   properties: {
     name: { type: 'string', description: 'Short name for the orchestration' },
+    engine: {
+      type: 'string',
+      enum: ['graph', 'workflow'],
+      description: 'graph (the default): one process per task, each able to get its own git worktree; workflow: every task a subagent of one session',
+    },
+    engineReason: { type: 'string', description: 'One sentence on why that engine fits' },
     tasks: {
       type: 'array',
       minItems: 1,
@@ -153,6 +164,13 @@ export function validateTasks(tasks: OrchestrationTaskSpec[]): void {
 export class Orchestrator {
   private readonly items = new Map<string, Orchestration>();
   private readonly file: string;
+  /**
+   * Reads the workflows a session ran from the files beside its transcript, where the CLI records
+   * each one's result. Set by Core, which owns the session store.
+   */
+  workflowRecords: ((sessionId: string) => Promise<WorkflowRun[]>) | null = null;
+  /** Workflows the run already had before the current launch, so an old one is not taken for it */
+  private readonly workflowBaseline = new Map<string, number>();
 
   constructor(
     private readonly config: CoreConfig,
@@ -173,6 +191,9 @@ export class Orchestrator {
       o.permissionPrompts ??= 'none';
       o.integration ??= null;
       o.synthesisRunId ??= null;
+      o.engine ??= 'graph';
+      o.engineReason ??= null;
+      o.workflow ??= null;
       if (o.integration && ['merging', 'resolving'].includes(o.integration.status)) {
         o.integration.status = 'failed';
         o.integration.error = 'interrupted by a restart; integrate again to finish it';
@@ -227,6 +248,10 @@ export class Orchestrator {
     const root = resolve(spec.cwd ?? this.config.workspaceDir);
     // Fail here rather than per task: half a graph isolated and half of it not is worse than
     // refusing outright.
+    const engine: OrchestrationEngine = spec.engine === 'workflow' ? 'workflow' : 'graph';
+    if (engine === 'workflow' && spec.worktree === true) {
+      throw new Error('a workflow runs every task in the project directory; use the graph engine for per-task worktrees');
+    }
     if (spec.worktree === true && !isGitRepo(root)) {
       throw new Error(`per-task worktrees need a git repository, and ${root} is not one`);
     }
@@ -251,6 +276,9 @@ export class Orchestrator {
       baseCommit: spec.worktree === true ? baseOf(root) : null,
       integration: null,
       synthesisRunId: null,
+      engine,
+      engineReason: spec.engineReason?.trim() || null,
+      workflow: null,
       tasks: spec.tasks.map<OrchestrationTaskState>((t) => ({
         id: t.id,
         name: t.name?.trim() || t.id,
@@ -269,7 +297,8 @@ export class Orchestrator {
       })),
     };
     this.items.set(orch.id, orch);
-    this.schedule(orch);
+    if (engine === 'workflow') this.launchWorkflow(orch, null);
+    else this.schedule(orch);
     return orch;
   }
 
@@ -279,8 +308,10 @@ export class Orchestrator {
     if (orch.status !== 'running') return orch;
     orch.status = 'stopped';
     orch.endedAt = now();
+    // One process runs every task of a workflow
+    if (orch.workflow?.runId && this.runs.get(orch.workflow.runId)?.pid) this.runs.stop(orch.workflow.runId);
     for (const t of orch.tasks) {
-      if (t.status === 'running' && t.runId) this.runs.stop(t.runId);
+      if (t.status === 'running' && t.runId && orch.engine !== 'workflow') this.runs.stop(t.runId);
       if (t.status === 'pending' || t.status === 'running') t.status = 'stopped';
     }
     // The last steps run agents too, and stopping the graph has to stop them
@@ -312,6 +343,9 @@ export class Orchestrator {
     if (unfinished.length === 0) throw new Error('every task already completed');
     // A graph that died for lack of permissions, or by editing the checkout the wrapper runs from,
     // would only die the same way again: correct those before relaunching what is left.
+    if (changes.worktree === true && orch.engine === 'workflow') {
+      throw new Error('a workflow runs every task in the project directory; per-task worktrees need the graph engine');
+    }
     if (changes.worktree === true && !isGitRepo(orch.cwd)) {
       throw new Error(`per-task worktrees need a git repository, and ${orch.cwd} is not one`);
     }
@@ -337,13 +371,26 @@ export class Orchestrator {
     // Integrated again once the resumed tasks finish. The branch name is derived from the graph, so
     // that reuses the same branch, which already holds the earlier merges.
     orch.integration = null;
-    this.schedule(orch); // persists
+    // A workflow picks up in its own session, where the CLI replays the agents that already finished
+    // from its cache instead of running them again
+    if (orch.engine === 'workflow') this.launchWorkflow(orch, orch.workflow?.workflowRunId ?? null);
+    else this.schedule(orch); // persists
     return orch;
+  }
+
+  /** What every worker is told first; shared by both engines, so a task reads the same either way. */
+  private workerHead(orch: Orchestration): string {
+    return orch.objective ? `You are one worker in a multi-agent orchestration.\nOverall objective: ${orch.objective}` : '';
+  }
+
+  private workerTask(task: OrchestrationTaskState): string {
+    return `Your task (${task.name}):\n${task.prompt}\n\nFinish with a concise report of what you did and found; it is handed to the next workers.`;
   }
 
   private buildPrompt(orch: Orchestration, task: OrchestrationTaskState, pendingMerge: PendingMerge | null = null): string {
     const parts: string[] = [];
-    if (orch.objective) parts.push(`You are one worker in a multi-agent orchestration.\nOverall objective: ${orch.objective}`);
+    const head = this.workerHead(orch);
+    if (head) parts.push(head);
     const deps = orch.tasks.filter((t) => task.dependsOn?.includes(t.id));
     if (deps.length > 0) {
       parts.push(
@@ -370,8 +417,7 @@ export class Orchestrator {
             : ''),
       );
     }
-    parts.push(`Your task (${task.name}):\n${task.prompt}`);
-    parts.push('Finish with a concise report of what you did and found; it is handed to the next workers.');
+    parts.push(this.workerTask(task));
     return parts.join('\n\n');
   }
 
@@ -729,7 +775,11 @@ export class Orchestrator {
         `${PROMPT_HEAD}${req.objective}${PROMPT_TAIL}` +
         `${maxTasks} tasks. Each task is executed by an independent Claude Code agent working in ${cwd}, ` +
         `so every prompt must be self-contained. Maximize parallelism: only add a dependency when a task truly needs another task's output ` +
-        `(results of dependencies are passed along automatically). You may inspect the directory with read-only tools first. Do not perform the work itself.`,
+        `(results of dependencies are passed along automatically). You may inspect the directory with read-only tools first. Do not perform the work itself.\n\n` +
+        `Also choose how it runs. "graph" is the default: every task is a separate Claude Code process that can get a git worktree ` +
+        `and branch of its own, merged at the end; choose it whenever a task changes files. "workflow" runs every task as a subagent ` +
+        `of one Claude Code session in ${cwd} itself: cheaper and resumable, but with no isolation, so choose it only when it is ` +
+        `clearly better, meaning no task modifies the repository (analysis, review, research, audits). Say why in engineReason.`,
       cwd,
       model: req.model,
       permissionMode: 'manual',
@@ -765,7 +815,7 @@ export class Orchestrator {
     const result = await this.runs.waitForResult(runId);
     if (result.isError) throw new Error(`planner failed: ${result.result}`);
 
-    let draft = result.structuredOutput as { name?: string; tasks?: OrchestrationTaskSpec[] } | undefined;
+    let draft = result.structuredOutput as { name?: string; engine?: string; engineReason?: string; tasks?: OrchestrationTaskSpec[] } | undefined;
     if (!draft?.tasks) {
       // Older CLIs return the JSON as text
       const match = /\{[\s\S]*\}/.exec(result.result);
@@ -775,9 +825,16 @@ export class Orchestrator {
     validateTasks(draft.tasks);
     const head = run.prompt.indexOf(PROMPT_HEAD);
     const tail = run.prompt.indexOf(PROMPT_TAIL);
+    // The planner only knows what a workflow is; whether this CLI can run one, its own init told us
+    const engine: OrchestrationEngine = draft.engine === 'workflow' ? 'workflow' : 'graph';
+    const canRunWorkflows = this.workflowsAvailable(run.cwd);
     const spec: OrchestrationSpec = {
       name: draft.name ?? 'orchestration',
       objective: head === 0 && tail > 0 ? run.prompt.slice(PROMPT_HEAD.length, tail) : undefined,
+      engine: engine === 'workflow' && canRunWorkflows ? 'workflow' : 'graph',
+      ...(draft.engineReason
+        ? { engineReason: engine === 'workflow' && !canRunWorkflows ? `${draft.engineReason} (as a graph: this CLI has no Workflow tool)` : draft.engineReason }
+        : {}),
       cwd: run.cwd,
       model: run.model ?? undefined,
       concurrency: 3,
@@ -851,6 +908,241 @@ export class Orchestrator {
   /** Plans that can still be launched, newest first. */
   drafts(limit?: number): PlanDraftSummary[] {
     return this.db.planDrafts(limit);
+  }
+
+  // ---------- the workflow engine ----------
+
+  /** Whether the CLI in this directory can run workflows, from what the latest run there loaded. */
+  private workflowsAvailable(cwd: string): boolean {
+    const tools = this.runs.environments.get(cwd)?.tools;
+    // Unknown until a run has started there; the run that launches it will say so plainly if not
+    return tools === undefined || tools.includes('Workflow');
+  }
+
+  private scriptPath(orch: Orchestration): string {
+    return join(this.config.dataDir, 'workflows', `${orch.id}.js`);
+  }
+
+  /** The graph as a workflow script: the same prompts, dependencies, concurrency and synthesis. */
+  private compile(orch: Orchestration): string {
+    const head = this.workerHead(orch);
+    return compileWorkflow({
+      name: orch.name,
+      description: orch.objective ?? orch.name,
+      concurrency: orch.concurrency,
+      maxContext: MAX_DEP_CONTEXT,
+      tasks: orch.tasks.map((t) => ({
+        id: t.id,
+        name: t.name,
+        dependsOn: t.dependsOn ?? [],
+        ...(t.model ? { model: t.model } : {}),
+        before: head,
+        after: this.workerTask(t),
+      })),
+      synthesis: orch.synthesize
+        ? `Synthesize the results of a multi-agent orchestration into one final report.\nObjective: ${orch.objective ?? orch.name}`
+        : null,
+    });
+  }
+
+  /**
+   * Runs the graph as one workflow, or resumes one that stopped. The CLI has no command to start a
+   * workflow: the Workflow tool does it from inside a session, so a run is asked to call it with
+   * the generated script. A resume goes back to that same session, which is where the CLI keeps
+   * the cache that replays the agents that had already finished.
+   */
+  private launchWorkflow(orch: Orchestration, resumeFrom: string | null): void {
+    const scriptPath = this.scriptPath(orch);
+    try {
+      // A resume replays the script that ran: regenerating it could miss the cache
+      if (!resumeFrom || !existsSync(scriptPath)) {
+        mkdirSync(join(this.config.dataDir, 'workflows'), { recursive: true });
+        writeFileSync(scriptPath, this.compile(orch));
+      }
+      const prompt =
+        `Run the workflow Agentry generated for the orchestration "${orch.name}": call the Workflow tool with ` +
+        `scriptPath "${scriptPath}"${resumeFrom ? ` and resumeFromRunId "${resumeFrom}"` : ''}, exactly as given, without editing the script. ` +
+        'I explicitly ask you to run this workflow. Wait for it to finish, then reply with one line saying whether it completed.';
+      const previous = orch.workflow?.runId ? this.runs.get(orch.workflow.runId) : null;
+      if (resumeFrom && previous) {
+        orch.workflow = { scriptPath, runId: previous.id, workflowRunId: resumeFrom };
+        // Back to the session that holds the cache. Its last process may still be on its way out
+        // from the previous turn, and whatever is sent before it exits would be lost with it.
+        void this.runs.exited(previous.id).then(() => {
+          if (orch.status !== 'running') return;
+          this.workflowBaseline.set(orch.id, this.runs.get(previous.id)?.workflows?.length ?? 0);
+          this.runs.send(previous.id, prompt);
+          this.followWorkflow(orch, previous.id);
+        });
+      } else {
+        const run = this.runs.start(
+          {
+            prompt,
+            cwd: orch.cwd,
+            model: orch.model ?? undefined,
+            permissionMode: orch.permissionMode,
+            // Asked for by the person who launched the graph: nothing to confirm again
+            allowedTools: [...new Set([...orch.allowedTools, 'Workflow'])],
+            ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
+            name: `${orch.name}:workflow`.slice(0, 60),
+            keepAlive: false,
+          },
+          { orchestrationId: orch.id, orchestrationTaskId: '__workflow__' },
+        );
+        orch.workflow = { scriptPath, runId: run.id, workflowRunId: null };
+        this.workflowBaseline.set(orch.id, 0);
+        this.followWorkflow(orch, run.id);
+      }
+    } catch (err) {
+      orch.status = 'failed';
+      orch.endedAt = now();
+      for (const t of orch.tasks) {
+        if (t.status === 'pending' || t.status === 'running') {
+          t.status = 'failed';
+          t.error = `could not start the workflow: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }
+    }
+    this.persist();
+  }
+
+  /**
+   * Tracks the workflow until it ends. Its end is its own: in a `-p` session the Workflow tool
+   * runs in the background, so the turn that launched it ends at once ("Workflow is running…") and
+   * the process stays up until the workflow reports back with a task notification. A process that
+   * goes away before that took the workflow with it.
+   */
+  private followWorkflow(orch: Orchestration, runId: string): void {
+    const run = this.runs.get(runId);
+    for (const t of orch.tasks) {
+      t.runId = runId;
+      t.sessionId = run?.sessionId ?? null;
+    }
+    const watcher = setInterval(() => {
+      if (orch.status !== 'running') return clearInterval(watcher);
+      this.syncWorkflow(orch);
+      const workflow = this.currentWorkflow(orch);
+      const now = this.runs.get(runId);
+      const ended = workflow !== null && workflow.status !== 'running';
+      const gone = !now || (now.pid === null && ['completed', 'failed', 'stopped'].includes(now.status));
+      if (!ended && !gone) return;
+      clearInterval(watcher);
+      void this.finishWorkflow(orch, runId);
+    }, 1000);
+    watcher.unref();
+    this.persist();
+  }
+
+  /** The workflow this launch started, once the run has reported it. */
+  private currentWorkflow(orch: Orchestration): WorkflowRun | null {
+    const run = orch.workflow?.runId ? this.runs.get(orch.workflow.runId) : null;
+    const all = run?.workflows ?? [];
+    return all.length > (this.workflowBaseline.get(orch.id) ?? 0) ? (all.at(-1) ?? null) : null;
+  }
+
+  /** Mirrors the live progress of the workflow's agents onto the tasks they run: one agent per task, labelled with its id. */
+  private syncWorkflow(orch: Orchestration): void {
+    if (orch.status !== 'running') return;
+    const workflow = this.currentWorkflow(orch);
+    if (!workflow) return;
+    if (orch.workflow && !orch.workflow.workflowRunId) void this.learnWorkflowRunId(orch, workflow);
+    const byId = new Map(orch.tasks.map((t) => [t.id, t]));
+    let changed = false;
+    for (const agent of workflow.agents) {
+      const task = byId.get(agent.label);
+      if (!task || task.status === 'completed') continue;
+      const status = agent.state === 'done' ? 'completed' : agent.state === 'error' ? 'failed' : 'running';
+      if (task.status === status) continue;
+      task.status = status;
+      task.startedAt ??= agent.startedAt ?? now();
+      if (status !== 'running') task.endedAt = now();
+      // The preview is cut short; the full result arrives with the workflow's record
+      if (status === 'completed') task.result = agent.resultPreview;
+      changed = true;
+    }
+    if (changed) this.persist();
+  }
+
+  /**
+   * The CLI's id for the run (`wf_…`), which a resume needs. The live stream only carries the task
+   * id; the files do from the start, since the journal is written before the record, so a graph
+   * stopped half way can still be resumed from cache.
+   */
+  private async learnWorkflowRunId(orch: Orchestration, workflow: WorkflowRun): Promise<void> {
+    const run = orch.workflow?.runId ? this.runs.get(orch.workflow.runId) : null;
+    if (!run?.sessionId || !this.workflowRecords) return;
+    const records = await this.workflowRecords(run.sessionId).catch(() => []);
+    const match = records.find((r) => r.taskId === workflow.taskId) ?? records.find((r) => r.status === 'running');
+    if (match?.id.startsWith('wf_') && orch.workflow && !orch.workflow.workflowRunId) {
+      orch.workflow.workflowRunId = match.id;
+      this.persist();
+    }
+  }
+
+  private async finishWorkflow(orch: Orchestration, runId: string): Promise<void> {
+    if (orch.status !== 'running') return; // stopped meanwhile
+    this.syncWorkflow(orch);
+    const live = this.currentWorkflow(orch);
+    const run = this.runs.get(runId);
+    // The record is written as the workflow ends, around the notification: give it a moment
+    let record: WorkflowRun | null = null;
+    for (let attempt = 0; attempt < 10 && !record?.result; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
+      const records = run?.sessionId && this.workflowRecords ? await this.workflowRecords(run.sessionId).catch(() => []) : [];
+      record = (live?.taskId ? records.find((r) => r.taskId === live.taskId) : undefined) ?? records[0] ?? null;
+      if (live?.status !== 'completed') break; // nothing more is coming
+    }
+    if (orch.status !== 'running') return;
+    if (orch.workflow && record?.id.startsWith('wf_')) orch.workflow.workflowRunId = record.id;
+    const compiled = readCompiledResult(record?.result);
+
+    for (const task of orch.tasks) {
+      if (task.status !== 'pending' && task.status !== 'running' && !(compiled && task.status === 'completed')) continue;
+      const result = compiled?.results[task.id];
+      if (typeof result === 'string') {
+        task.status = 'completed';
+        task.result = result;
+        task.error = null;
+      } else if (compiled?.skipped.includes(task.id)) {
+        task.status = 'skipped';
+        task.error = 'a dependency did not complete';
+      } else if (task.status !== 'completed') {
+        task.status = 'failed';
+        task.error = compiled
+          ? 'the agent returned nothing'
+          : `the workflow did not finish: ${live?.summary ?? run?.error ?? run?.lastText ?? record?.status ?? 'no result'}`;
+      }
+      task.endedAt ??= now();
+    }
+    if (compiled?.synthesis) orch.finalResult = compiled.synthesis;
+    orch.costUsd = run?.costUsd ?? orch.costUsd;
+    orch.status = orch.tasks.every((t) => t.status === 'completed') ? 'completed' : 'failed';
+    orch.endedAt = now();
+    this.persist();
+  }
+
+  /** The script a workflow graph runs, as generated from it. */
+  workflowScript(id: string): { path: string; script: string } {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    const path = this.scriptPath(orch);
+    // A graph edited or never launched as a workflow still has one: the graph compiles either way
+    return { path, script: existsSync(path) ? readFileSync(path, 'utf8') : this.compile(orch) };
+  }
+
+  /** Keeps the graph as a workflow of the project, which the CLI can run by name from then on. */
+  saveWorkflow(id: string, req: SaveOrchestrationWorkflowRequest = {}): WorkflowDefinition {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    const name = req.name?.trim() || workflowName(orch.name);
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) throw new Error('name must be lower case letters, digits and dashes');
+    const dir = join(orch.cwd, '.claude', 'workflows');
+    const path = join(dir, `${name}.js`);
+    if (existsSync(path) && !req.overwrite) throw new Error(`a workflow named ${name} already exists in ${dir}`);
+    const script = this.workflowScript(id).script.replace(/(\bname:\s*)("[^"]*")/, `$1${JSON.stringify(name)}`);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path, script);
+    return { name, description: orch.objective ?? orch.name, scope: 'project', path };
   }
 
   /** Plans and waits, for callers that want the draft in one call. */

@@ -208,3 +208,34 @@ test('continuing in a copy forks once, then resumes the copy', async () => {
   runs.stopAll();
   db.close();
 });
+
+test('a message sent while the process is on its way out goes to the one that replaces it', async () => {
+  const { runs, db } = setup();
+  const run = runs.start({ prompt: 'first', keepAlive: false });
+  // The instant its turn ends, the process has closed its stdin but not exited yet
+  await runs.nextResult(run.id);
+  const next = runs.nextResult(run.id);
+  runs.send(run.id, 'second');
+  const result = await next;
+  assert.equal(result.isError, false);
+  assert.match(result.result, /--resume/);
+  runs.stopAll();
+  db.close();
+});
+
+test('a run resumed right after a stop keeps its new process', async () => {
+  const { runs, db } = setup();
+  const run = runs.start({ prompt: 'first' });
+  await idle(runs, run.id);
+  runs.stop(run.id);
+  await runs.exited(run.id);
+  runs.send(run.id, 'second');
+  await idle(runs, run.id);
+  const pid = runs.get(run.id)?.pid;
+  // Past the moment the stop would have forced its way out
+  await new Promise((r) => setTimeout(r, 5500));
+  assert.equal(runs.get(run.id)?.pid, pid);
+  assert.equal(runs.get(run.id)?.status, 'idle');
+  runs.stopAll();
+  db.close();
+});

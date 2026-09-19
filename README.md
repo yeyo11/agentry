@@ -344,6 +344,14 @@ dependency order, into `agentry/<name>-<id>` from the commit the graph started o
 is handed to an integrator agent in that branch's worktree, and its result is checked rather than
 trusted. Nothing is pushed until you ask for a pull request.
 
+The same graph runs on one of two engines (`engine`). `graph`, the default, is the one above: a
+process per task. `workflow` runs every task as a subagent of a single Claude Code session, through
+a workflow script (Claude Code's Workflow tool) Agentry generates from the graph — the same prompts, dependencies,
+concurrency and synthesis. It is cheaper, and a resume replays the tasks that had finished from the
+CLI's cache, but every task works in the project directory, so it cannot take `worktree`. The
+planner picks it only when no task changes the repository (analysis, review, research), and only
+when the CLI has the Workflow tool; the draft shows why it chose either, and you can switch.
+
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/orchestrations` | List |
@@ -358,6 +366,8 @@ trusted. Nothing is pushed until you ask for a pull request.
 | DELETE | `/orchestrations/:id` | Delete a graph that is not running, with its worktrees; refused while a worktree holds uncommitted work |
 | POST | `/orchestrations/:id/integrate` | Merge the task branches into the integration branch again: after resolving by hand, or for a graph that predates integration |
 | POST | `/orchestrations/:id/pull-request` | Push the integration branch and open a pull request with `gh` → `{ branch, url, detail }` |
+| GET | `/orchestrations/:id/workflow` | The graph as a workflow script → `{ path, script }` |
+| POST | `/orchestrations/:id/workflow/save` | `{ name?, overwrite? }` — copy that script into the project's `.claude/workflows/` |
 | POST | `/orchestrations/:id/worktrees/prune` | `{ force? }` — remove the graph's worktrees; branches are always kept |
 
 ```json

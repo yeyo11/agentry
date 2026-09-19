@@ -2047,6 +2047,20 @@
     ],
     "description": "Starts a run that runs a saved workflow."
   },
+  "SaveOrchestrationWorkflowRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "File and workflow name; defaults to one derived from the graph's"
+      },
+      "overwrite": {
+        "type": "boolean",
+        "description": "Replace a saved workflow of the same name"
+      }
+    },
+    "description": "Copies the script a workflow graph ran into the project's `.claude/workflows/`."
+  },
   "Orchestration": {
     "type": "object",
     "properties": {
@@ -2150,6 +2164,26 @@
           "null"
         ],
         "description": "The synthesis run, so its report can be continued like any other conversation"
+      },
+      "engine": {
+        "$ref": "#/components/schemas/OrchestrationEngine"
+      },
+      "engineReason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "workflow": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationWorkflow"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The workflow engine's run and script, when the graph runs as a workflow"
       }
     },
     "required": [
@@ -2387,6 +2421,42 @@
     ],
     "description": "- `merging`: task branches are being merged into the integration branch\n- `resolving`: a merge conflicted and an integrator agent is resolving it\n- `merged`: every completed task's work is on the branch\n- `conflicted`: the integrator could not finish; the branch is left for a person\n- `failed`: integration could not run at all"
   },
+  "OrchestrationEngine": {
+    "type": "string",
+    "enum": [
+      "graph",
+      "workflow"
+    ],
+    "description": "How a graph runs:   graph     every task is its own `claude -p` process, optionally in its own worktree and branch,             merged into one integration branch at the end   workflow  every task is a subagent of one Claude Code session, driven by a workflow script             Agentry generates from the graph: cheaper and resumable from cache, but in the             project directory, so for work that does not change files in parallel"
+  },
+  "OrchestrationWorkflow": {
+    "type": "object",
+    "properties": {
+      "scriptPath": {
+        "type": "string",
+        "description": "Script generated from the graph, in the wrapper's data directory"
+      },
+      "runId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The run whose session runs the workflow; a resume continues it"
+      },
+      "workflowRunId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The CLI's workflow run id (`wf_…`), which a resume replays from cache"
+      }
+    },
+    "required": [
+      "scriptPath",
+      "runId",
+      "workflowRunId"
+    ]
+  },
   "OrchestrationSpec": {
     "type": "object",
     "properties": {
@@ -2395,6 +2465,14 @@
       },
       "objective": {
         "type": "string"
+      },
+      "engine": {
+        "$ref": "#/components/schemas/OrchestrationEngine",
+        "description": "Default `graph`"
+      },
+      "engineReason": {
+        "type": "string",
+        "description": "Why the planner chose the engine, shown next to it in the draft"
       },
       "cwd": {
         "type": "string"

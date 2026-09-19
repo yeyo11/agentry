@@ -136,6 +136,8 @@ class Run {
   pendingPrompts = 0;
   /** The turn is ending because someone interrupted it, not because it failed */
   interruptRequested = false;
+  /** A message is waiting for the exiting process to be replaced: its exit is not the run's end */
+  respawnQueued = false;
   /** Resume into a copy until the CLI reports the copy's own session id */
   forkPending = false;
   /** The last turn sent, files included, so a turn lost to a rate limit is replayed whole */
@@ -385,8 +387,15 @@ export class RunManager extends EventEmitter {
     if (!run) throw new Error('run not found');
     const attachments = this.resolveAttachments(attachmentIds);
     if (!text.trim() && attachments.length === 0) throw new Error('text is required');
-    if (run.alive) {
+    const closing = run.alive && run.proc?.stdin.writableEnded === true;
+    if (run.alive && !closing) {
       this.writeUserMessage(run, text, attachments);
+    } else if (closing && run.proc) {
+      // Its turn is over and it is on its way out: a message written now would never be read, so
+      // it goes to the process that replaces it
+      if (!run.sessionId) throw new Error('The run ended without a sessionId; it cannot be resumed');
+      run.respawnQueued = true;
+      run.proc.once('exit', () => this.spawnProcess(run, text, attachments));
     } else {
       if (!run.sessionId) throw new Error('The run ended without a sessionId; it cannot be resumed');
       this.spawnProcess(run, text, attachments);
@@ -407,9 +416,14 @@ export class RunManager extends EventEmitter {
     const run = this.runs.get(id);
     if (!run) throw new Error('run not found');
     run.stopRequested = true;
-    if (run.alive) {
-      run.proc?.kill('SIGTERM');
-      setTimeout(() => run.alive && run.proc?.kill('SIGKILL'), 5000).unref();
+    const proc = run.proc;
+    if (run.alive && proc) {
+      proc.kill('SIGTERM');
+      // The process being stopped, not whatever `run.proc` is by then: a run resumed within these
+      // seconds has a new process, and this used to kill it
+      setTimeout(() => {
+        if (proc.exitCode === null && proc.signalCode === null) proc.kill('SIGKILL');
+      }, 5000).unref();
     }
     return run.summary();
   }
@@ -549,6 +563,40 @@ export class RunManager extends EventEmitter {
     };
   }
 
+  /** Resolves once the run has no process: at once when it has none, or when the one it has exits. */
+  async exited(id: string): Promise<void> {
+    const proc = this.runs.get(id)?.proc;
+    if (proc && proc.exitCode === null && !proc.killed) await once(proc, 'exit');
+  }
+
+  /**
+   * Resolves with the next result the run produces, ignoring one it already has: what a turn sent
+   * to a run that has answered before needs, where {@link waitForResult} would return the old one.
+   * Call it before sending the turn, so nothing is missed in between.
+   */
+  nextResult(id: string): Promise<RunResult> {
+    const run = this.runs.get(id);
+    if (!run) return Promise.reject(new Error('run not found'));
+    const before = run.lastResult;
+    return new Promise((resolvePromise) => {
+      const onEvent = (event: RunEvent) => {
+        if (event.kind === 'result' && run.lastResult && run.lastResult !== before) finish(run.lastResult);
+        else if (event.kind === 'status' && ['completed', 'failed', 'stopped'].includes(event.status ?? '') && !run.respawnQueued) {
+          finish(
+            run.lastResult && run.lastResult !== before
+              ? run.lastResult
+              : { isError: true, result: run.error ?? `The process ended (${event.status}) without a result`, structuredOutput: undefined, costUsd: run.costUsd },
+          );
+        }
+      };
+      const finish = (result: RunResult) => {
+        run.emitter.off('event', onEvent);
+        resolvePromise(result);
+      };
+      run.emitter.on('event', onEvent);
+    });
+  }
+
   waitForResult(id: string): Promise<RunResult> {
     const run = this.runs.get(id);
     if (!run) return Promise.reject(new Error('run not found'));
@@ -642,6 +690,7 @@ export class RunManager extends EventEmitter {
   private spawnProcess(run: Run, prompt: string, attachments: Attachment[] = []): void {
     const resuming = run.sessionId !== null;
     const args = this.buildArgs(run, resuming);
+    run.respawnQueued = false;
     run.stopRequested = false;
     run.endedAt = null;
     run.error = null;
