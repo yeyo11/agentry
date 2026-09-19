@@ -17,12 +17,13 @@ const Markdown = lazy(() => import('./Markdown'));
 /**
  * Markdown the way chat apps show it: GFM tables and task lists, highlighted code, safe links. The
  * renderer loads on first use; until then the text shows as typed, so nothing waits on it.
+ * `streaming` marks text that is still growing, so only its last block is parsed on every update.
  */
-export const RichText = memo(function RichText({ text, className = '' }: { text: string; className?: string }) {
+export const RichText = memo(function RichText({ text, className = '', streaming = false }: { text: string; className?: string; streaming?: boolean }) {
   return (
     <div className={`rich md ${className}`}>
       <Suspense fallback={<div className="prose">{text}</div>}>
-        <Markdown text={text} />
+        <Markdown text={text} streaming={streaming} />
       </Suspense>
     </div>
   );
@@ -167,7 +168,7 @@ export function StreamingEntry({ block, text }: { block: 'text' | 'thinking'; te
             <div className="prose muted">{text.length > 1200 ? `…${text.slice(-1200)}` : text}</div>
           </div>
         ) : (
-          <RichText text={text} className="streaming-text" />
+          <RichText text={text} className="streaming-text" streaming />
         )}
       </div>
     </article>
