@@ -109,10 +109,14 @@ function completeUtf8(buffer: Buffer): number {
 
 interface TaskLaunch {
   at: string;
+  /** `local_bash` for a backgrounded command, `monitor` for a Monitor watch */
+  type: string;
   toolUseId: string | null;
   command: string | null;
   description: string | null;
   backgroundedByUser: boolean;
+  /** When a monitor stops on its own if nothing else stopped it first; null for no limit */
+  expiresAt: string | null;
   /** The subagent whose transcript recorded the launch */
   ownerAgentId?: string;
 }
@@ -312,14 +316,17 @@ export class SessionStore {
     if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) return cached.activity;
 
     const activity: SessionActivity = { agents: new Map(), tasks: new Map(), stops: new Map() };
-    const bashInputs = new Map<string, Record<string, unknown>>();
+    // Inputs of the calls that can leave a task running: a backgrounded Bash command or a Monitor
+    const launchInputs = new Map<string, { tool: string; input: Record<string, unknown> }>();
     for await (const o of readJsonl(file)) {
       const at = typeof o.timestamp === 'string' ? o.timestamp : null;
       const message = o.message as { content?: unknown } | undefined;
       let resultFor: string | null = null;
       for (const block of Array.isArray(message?.content) ? message.content : []) {
         const b = block as { type?: string; name?: string; id?: unknown; input?: unknown; tool_use_id?: unknown };
-        if (b.type === 'tool_use' && b.name === 'Bash' && typeof b.id === 'string') bashInputs.set(b.id, (b.input ?? {}) as Record<string, unknown>);
+        if (b.type === 'tool_use' && (b.name === 'Bash' || b.name === 'Monitor') && typeof b.id === 'string') {
+          launchInputs.set(b.id, { tool: b.name, input: (b.input ?? {}) as Record<string, unknown> });
+        }
         if (b.type === 'tool_result' && typeof b.tool_use_id === 'string') resultFor = b.tool_use_id;
       }
       const result = o.toolUseResult as Record<string, unknown> | undefined;
@@ -330,14 +337,26 @@ export class SessionStore {
         if (typeof result.task_id === 'string' && typeof result.message === 'string' && /stopped/i.test(result.message)) {
           activity.stops.set(result.task_id, { at, status: 'stopped', summary: result.message });
         }
-        if (typeof result.backgroundTaskId === 'string' && !activity.tasks.has(result.backgroundTaskId)) {
-          const input = (resultFor ? bashInputs.get(resultFor) : undefined) ?? {};
-          activity.tasks.set(result.backgroundTaskId, {
+        const launch = resultFor ? launchInputs.get(resultFor) : undefined;
+        // A Monitor's result names its task `taskId`, not `backgroundTaskId` like a Bash call's
+        const taskId =
+          typeof result.backgroundTaskId === 'string'
+            ? result.backgroundTaskId
+            : launch?.tool === 'Monitor' && typeof result.taskId === 'string'
+              ? result.taskId
+              : null;
+        if (taskId && !activity.tasks.has(taskId)) {
+          const input = launch?.input ?? {};
+          const timeoutMs = launch?.tool === 'Monitor' && typeof result.timeoutMs === 'number' ? result.timeoutMs : 0;
+          activity.tasks.set(taskId, {
             at,
+            type: launch?.tool === 'Monitor' ? 'monitor' : 'local_bash',
             toolUseId: resultFor,
             command: typeof input.command === 'string' ? input.command : null,
             description: typeof input.description === 'string' ? input.description : null,
             backgroundedByUser: result.backgroundedByUser === true,
+            // A persistent monitor reports a timeout of 0: it runs until stopped or its session ends
+            expiresAt: timeoutMs > 0 && result.persistent !== true ? new Date(Date.parse(at) + timeoutMs).toISOString() : null,
           });
         }
       }
@@ -421,7 +440,7 @@ export class SessionStore {
 
   /**
    * Shell commands a session sent to the background — by the model or by the person at the
-   * terminal. Agents are background tasks to the CLI too, under the same ids; they are left to
+   * terminal — and the monitors it started. Agents are background tasks to the CLI too, under the same ids; they are left to
    * {@link subagents} so nothing is listed twice.
    */
   async backgroundTasks(sessionId: string, live = true): Promise<BackgroundTask[]> {
@@ -441,19 +460,23 @@ export class SessionStore {
       }
     }
     const out: BackgroundTask[] = [];
+    const nowIso = new Date().toISOString();
     for (const [id, launch] of launches) {
       const stop = stops.get(id);
+      // The CLI kills a monitor at its timeout; should that notice not have reached the transcript,
+      // the watch still cannot be running past it
+      const expired = !stop && launch.expiresAt !== null && launch.expiresAt <= nowIso;
       out.push({
         id,
         runId: '',
         runName: '',
-        type: 'local_bash',
+        type: launch.type,
         description: launch.description ?? launch.command ?? id,
         // A command whose session ended without reporting it back was taken down with it
-        status: stop ? stop.status : live ? 'running' : 'stopped',
+        status: stop ? stop.status : expired || !live ? 'stopped' : 'running',
         toolUseId: launch.toolUseId,
         startedAt: launch.at,
-        endedAt: stop?.at ?? null,
+        endedAt: stop?.at ?? (expired ? launch.expiresAt : null),
         summary: stop?.summary ?? null,
         source: 'disk',
         sessionId,

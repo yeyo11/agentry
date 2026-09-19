@@ -201,6 +201,63 @@ test('background commands are read from the transcript, including ones stopped o
   assert.equal(ended.watch?.status, 'stopped');
 });
 
+test('monitors are read from the transcript, which names their task differently', async () => {
+  const config = tempConfig();
+  const project = join(config.projectsDir, '-work-monitors');
+  mkdirSync(project, { recursive: true });
+  const sid = 'mmmm-7777';
+
+  const monitor = (id: string, input: object) =>
+    line({ type: 'assistant', uuid: `u-${id}`, message: { role: 'assistant', content: [{ type: 'tool_use', id: `toolu_${id}`, name: 'Monitor', input }] } });
+  // Shape captured from CLI 2.1.278: `taskId`, not the `backgroundTaskId` of a backgrounded Bash call
+  const started = (id: string, at: string, timeoutMs: number, persistent = false) =>
+    line({
+      type: 'user',
+      uuid: `r-${id}`,
+      timestamp: at,
+      message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: `toolu_${id}`, content: `Monitor started (task ${id})` }] },
+      toolUseResult: { taskId: id, timeoutMs, persistent },
+    });
+  const recent = new Date(Date.now() - 60_000).toISOString();
+
+  writeFileSync(
+    join(project, `${sid}.jsonl`),
+    [
+      line({ type: 'user', uuid: 'u0', timestamp: '2026-01-01T09:00:00Z', message: { role: 'user', content: 'Watch CI' } }),
+      monitor('ci', { command: 'gh pr checks 50 --watch', description: 'CI checks on PR #50' }),
+      started('ci', '2026-01-01T09:00:01Z', 1_800_000),
+      line({
+        type: 'user',
+        uuid: 'n1',
+        timestamp: '2026-01-01T09:05:00Z',
+        message: { role: 'user', content: '<task-notification>\n<task-id>ci</task-id>\n<status>completed</status>\n<summary>Monitor "CI checks on PR #50" ended</summary>\n</task-notification>' },
+      }),
+      monitor('logs', { command: 'tail -f app.log', description: 'App errors', persistent: true }),
+      started('logs', '2026-01-01T09:06:00Z', 0, true),
+      // Timed out long ago and nothing in the transcript says so
+      monitor('old', { command: 'watch-deploy', description: 'Deploy' }),
+      started('old', '2026-01-01T09:07:00Z', 300_000),
+      monitor('now', { command: 'watch-queue', description: 'Queue depth' }),
+      started('now', recent, 1_800_000),
+      // A result carrying `taskId` from some other tool is not a monitor launch
+      line({ type: 'user', uuid: 'x1', timestamp: '2026-01-01T09:08:00Z', toolUseResult: { taskId: 'other' } }),
+    ].join('\n'),
+  );
+
+  const store = new SessionStore(config);
+  const tasks = await store.backgroundTasks(sid, true);
+  const byId = Object.fromEntries(tasks.map((t) => [t.id, t]));
+  assert.deepEqual(Object.keys(byId).sort(), ['ci', 'logs', 'now', 'old']);
+  assert.equal(byId.ci?.type, 'monitor');
+  assert.equal(byId.ci?.status, 'completed');
+  assert.equal(byId.ci?.description, 'CI checks on PR #50');
+  assert.equal(byId.ci?.command, 'gh pr checks 50 --watch');
+  assert.equal(byId.logs?.status, 'running'); // persistent: no timeout to run out
+  assert.equal(byId.now?.status, 'running');
+  assert.equal(byId.old?.status, 'stopped');
+  assert.equal(byId.old?.endedAt, '2026-01-01T09:12:00.000Z');
+});
+
 test('a task output is read from the CLI temp dir and never from a path found in a transcript', async () => {
   const config = tempConfig();
   const projectId = '-work-output';
