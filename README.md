@@ -506,6 +506,13 @@ Across the app:
   runs, prompts waiting for you, background tasks, subagents, workflows, orchestrations, account
   rotation — instead of each screen polling. If the stream drops, the sidebar status says so and the
   pages fall back to a slow poll until it returns.
+- **Notifications**: a bell in the top bar collects what needs you or is worth knowing — a run waiting
+  for a permission, a question or a plan (always first, with a link to it, and settled once you
+  answer), a run or orchestration that finished or failed, an integration conflict, a rate limit or an
+  account rotation, and finished background tasks, subagents and workflows. All but those last
+  ones also pop up as a toast (questions stay until you act); browser notifications are
+  opt-in, ask for permission only when you turn them on, and appear only while the tab is hidden.
+  The list, read state and preferences are kept per browser.
 - **Editors**: CodeMirror (JSON, Markdown, YAML, JS/TS) with `Ctrl/⌘ S`, unsaved-change guards
   (tabs, scope switches, sidebar navigation, reload), confirmation dialogs for destructive actions
   and toasts for every mutation.
