@@ -249,6 +249,10 @@ export class Db {
     );
   }
 
+  deleteOrchestration(id: string): void {
+    this.db.prepare('DELETE FROM orchestrations WHERE id = ?').run(id);
+  }
+
   loadOrchestrations(): Orchestration[] {
     return this.loadDocs<Orchestration>('orchestrations');
   }

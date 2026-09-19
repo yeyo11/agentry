@@ -270,6 +270,10 @@ svg.lucide {
 .text-err {
   color: var(--bad);
 }
+
+.text-warn {
+  color: var(--warn);
+}
 .text-ok {
   color: var(--ok);
 }
