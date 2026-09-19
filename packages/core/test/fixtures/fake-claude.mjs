@@ -5,14 +5,20 @@
 //   FAKE-WRITE <file> <content>   writes a file and leaves it uncommitted, like most workers
 //   (integrator prompt)           merges the listed branches, taking the incoming side on conflict
 //
+//   FAKE_CLAUDE_SPAWNS=<file>     appends `<pid> <argv>` to <file> as it starts, so a test can count
+//                                 every process spawned, tracked or not
+//   FAKE_CLAUDE_LINGER_MS=<ms>    stays up that long after stdin closes, the way the CLI does while
+//                                 background work finishes
+//
 // It reports the files it could see and its working directory, which is what the tests check.
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
+if (process.env.FAKE_CLAUDE_SPAWNS) appendFileSync(process.env.FAKE_CLAUDE_SPAWNS, `${process.pid} ${args.join(' ')}\n`);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const worktree = flag('--worktree');
 // Like the CLI, adopt the worktree of that name, which lives under the main checkout's top level
@@ -54,4 +60,4 @@ lines.on('line', (line) => {
   const files = readdirSync(dir).filter((f) => !f.startsWith('.')).sort();
   out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: `cwd=${dir} files=${files.join(',')}` });
 });
-lines.on('close', () => process.exit(0));
+lines.on('close', () => setTimeout(() => process.exit(0), Number(process.env.FAKE_CLAUDE_LINGER_MS ?? 0)));
