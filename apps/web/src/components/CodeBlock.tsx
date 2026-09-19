@@ -43,17 +43,22 @@ export function CodeBlock({ code, lang, tone, header = false }: { code: string; 
         {(lang || header) && <span className="code-lang">{lang || 'text'}</span>}
         <CopyButton text={code} label="Copy code" />
       </div>
-      <pre className="code" data-lang={lang || undefined}>
+      {/* Highlighted, the block carries the foreground colour, which the bare runs inherit */}
+      <pre className="code" data-lang={lang || undefined} style={highlighted ? (highlighted.tokens.base as CSSProperties) : undefined}>
         {highlighted ? (
           <>
-            {highlighted.tokens.map((line, i) => (
+            {highlighted.tokens.lines.map((line, i) => (
               <Fragment key={i}>
                 {i > 0 && '\n'}
-                {line.map((token, j) => (
-                  <span key={j} style={token.htmlStyle as CSSProperties}>
-                    {token.content}
-                  </span>
-                ))}
+                {line.map((run, j) =>
+                  typeof run === 'string' ? (
+                    run
+                  ) : (
+                    <span key={j} style={run.style as CSSProperties}>
+                      {run.content}
+                    </span>
+                  ),
+                )}
               </Fragment>
             ))}
             {highlighted.rest}

@@ -2517,15 +2517,19 @@ a.list-row:hover {
   white-space: pre;
   overflow-wrap: normal;
 }
-/* Highlighted tokens carry both themes' colours; the theme in force picks one */
+/* Highlighted runs carry both themes' colours, and so does a highlighted block for the runs left
+   bare; the theme in force picks one */
+.code[style],
 .code span[style] {
   color: var(--shiki-dark);
 }
 @media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .code[style],
   :root:not([data-theme='dark']) .code span[style] {
     color: var(--shiki-light);
   }
 }
+:root[data-theme='light'] .code[style],
 :root[data-theme='light'] .code span[style] {
   color: var(--shiki-light);
 }
