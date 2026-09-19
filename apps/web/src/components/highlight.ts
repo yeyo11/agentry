@@ -75,6 +75,9 @@ const THEMES = { light: 'github-light-default', dark: 'github-dark-default' } as
 type Shiki = typeof import('shiki/core');
 type Langs = typeof import('shiki/langs');
 type HighlighterCore = Awaited<ReturnType<Shiki['createHighlighterCore']>>;
+
+/** Per line, for the grammars shiki handles; see where it is passed. */
+const TOKENIZE_BUDGET_MS = 2000;
 type Loader = Langs['bundledLanguages'][keyof Langs['bundledLanguages']];
 
 let shiki: Promise<{ h: HighlighterCore; langs: Langs }> | null = null;
@@ -112,7 +115,11 @@ async function highlightShiki(code: string, id: string): Promise<Highlighted | n
     }
     await pending;
   }
-  const { tokens } = h.codeToTokens(code, { lang: id, themes: THEMES, defaultColor: false });
+  // shiki gives up on a line after 500 ms by default and returns the rest of it uncoloured. The
+  // first call in a language compiles its grammar within that budget, which a busy machine
+  // overruns, so the first block on screen lost its colours. A wider budget keeps the guard
+  // against a pathological line without tripping over the grammar's own start-up.
+  const { tokens } = h.codeToTokens(code, { lang: id, themes: THEMES, defaultColor: false, tokenizeTimeLimit: TOKENIZE_BUDGET_MS });
   const base = { '--shiki-light': h.getTheme(THEMES.light).fg, '--shiki-dark': h.getTheme(THEMES.dark).fg };
   const runs = new Runs(base);
   tokens.forEach((line, i) => {

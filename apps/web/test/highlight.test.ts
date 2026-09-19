@@ -211,3 +211,12 @@ test('a shell line tells commands from their arguments', async () => {
 test('an unknown language is left plain', async () => {
   assert.equal(await highlight('whatever', 'not-a-language'), null);
 });
+
+test('the first block in a grammar shiki compiles on the spot is still coloured', async () => {
+  // C++ is not one of the languages the lighter highlighter covers, so it takes shiki's path,
+  // where the first call compiles the grammar inside the per-line time budget.
+  const out = await highlight('template <typename T> auto twice(const T& x) -> T { return x + x; } int main() { return twice(21); }', 'cpp');
+  assert.ok(out);
+  const styled = out.lines.flat().filter((run) => typeof run !== 'string');
+  assert.ok(styled.length >= 3, `expected keywords, types and literals coloured, got ${styled.length} runs`);
+});
