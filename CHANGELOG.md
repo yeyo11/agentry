@@ -3,6 +3,18 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.11.0](https://github.com/yeyo11/agentry/compare/v0.10.0...v0.11.0) (2026-09-19)
+
+
+### Features
+
+* live event feed, notifications and full execution detail ([#47](https://github.com/yeyo11/agentry/issues/47)) ([c772df7](https://github.com/yeyo11/agentry/commit/c772df751c21648b0f27df1fadc501e7ac0ebc20))
+
+
+### Documentation
+
+* plan agent observability and make it the top roadmap priority ([#46](https://github.com/yeyo11/agentry/issues/46)) ([c25acd3](https://github.com/yeyo11/agentry/commit/c25acd372206097210ca28151aa09cd3f285162d))
+
 ## [0.10.0](https://github.com/yeyo11/agentry/compare/v0.9.0...v0.10.0) (2026-09-19)
 
 
