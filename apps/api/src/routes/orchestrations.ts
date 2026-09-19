@@ -46,6 +46,13 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
     return { ok: true };
   });
 
+  // Merges the task branches into the graph's integration branch again: after resolving by hand, or
+  // for a graph that finished before orchestrations integrated their own work.
+  app.post<{ Params: { id: string } }>('/orchestrations/:id/integrate', (req) => core.orchestrator.retryIntegration(req.params.id));
+
+  // The one step that leaves the machine, so it only ever happens on request
+  app.post<{ Params: { id: string } }>('/orchestrations/:id/pull-request', (req) => core.orchestrator.pullRequest(req.params.id));
+
   app.post<{ Params: { id: string }; Body: { force?: boolean } }>('/orchestrations/:id/worktrees/prune', (req) => ({
     results: core.orchestrator.pruneWorktrees(req.params.id, { force: req.body?.force === true }),
   }));

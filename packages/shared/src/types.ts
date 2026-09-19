@@ -361,6 +361,8 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   worktree?: string | null;
   /** Branch created for that worktree */
   branch?: string | null;
+  /** Commit the wrapper made of work the worker left uncommitted, when there was any */
+  commit?: string | null;
   runId: string | null;
   sessionId: string | null;
   result: string | null;
@@ -391,6 +393,37 @@ export interface Orchestration {
   tasks: OrchestrationTaskState[];
   finalResult: string | null;
   costUsd: number;
+  /** Commit every worktree branches from, recorded when the graph starts */
+  baseCommit?: string | null;
+  /** The one branch a worktree graph delivers, built once its tasks finish */
+  integration?: OrchestrationIntegration | null;
+  /** The synthesis run, so its report can be continued like any other conversation */
+  synthesisRunId?: string | null;
+}
+
+/**
+ * - `merging`: task branches are being merged into the integration branch
+ * - `resolving`: a merge conflicted and an integrator agent is resolving it
+ * - `merged`: every completed task's work is on the branch
+ * - `conflicted`: the integrator could not finish; the branch is left for a person
+ * - `failed`: integration could not run at all
+ */
+export type IntegrationStatus = 'merging' | 'resolving' | 'merged' | 'conflicted' | 'failed';
+
+export interface OrchestrationIntegration {
+  branch: string;
+  /** Worktree the branch is checked out in, until the worktrees are removed */
+  worktree: string | null;
+  status: IntegrationStatus;
+  /** Tasks whose branch is contained in the integration branch */
+  merged: string[];
+  /** Merges that conflicted, with the paths that did */
+  conflicts: Array<{ taskId: string; paths: string[] }>;
+  /** Head of the integration branch once merged */
+  commit: string | null;
+  error: string | null;
+  integratorRunId: string | null;
+  pullRequestUrl?: string | null;
 }
 
 /** A planner run's draft, kept so a plan is never lost with the response that carried it. */

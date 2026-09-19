@@ -1,11 +1,12 @@
 import type { Orchestration, OrchestrationTaskState, ResumeOrchestrationRequest } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ChevronRight, Combine, CornerDownRight, Play, Square, Target, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Combine, CornerDownRight, ExternalLink, GitMerge, GitPullRequest, MessageSquare, Play, RotateCw, Square, Target, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, keys, useOrchestration } from '../api';
 import { Collapsible, Switch } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
+import { useToast } from '../components/Toast';
 import { ICON, ICON_SM } from '../components/icons';
 import { motion, ProgressRing, useReducedMotion } from '../components/motion';
 import { RichText } from '../components/Transcript';
@@ -97,6 +98,142 @@ function TaskCard({ task }: { task: OrchestrationTaskState }) {
         )}
       </div>
     </motion.div>
+  );
+}
+
+/**
+ * The one branch a worktree graph delivers. Built by itself when the graph finishes; this shows
+ * where it stands and offers the steps that stay a person's call: publishing it, and cleaning up.
+ */
+function IntegrationCard({ orch }: { orch: Orchestration }) {
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
+  const toast = useToast();
+  const integration = orch.integration ?? null;
+  const refresh = () => queryClient.invalidateQueries({ queryKey: keys.orchestration(orch.id) });
+  const integrate = useMutation({
+    mutationFn: () => api.integrateOrchestration(orch.id),
+    onSuccess: (next) => queryClient.setQueryData(keys.orchestration(orch.id), next),
+  });
+  const publish = useMutation({
+    mutationFn: () => api.orchestrationPullRequest(orch.id),
+    onSuccess: (res) => {
+      if (res.url) toast.success('Pull request opened', res.url);
+      else toast.info(`Pushed ${res.branch}`, res.detail);
+      void refresh();
+    },
+  });
+  const prune = useMutation({
+    mutationFn: () => api.pruneOrchestrationWorktrees(orch.id),
+    onSuccess: ({ results }) => {
+      const kept = results.filter((r) => !r.removed);
+      if (kept.length) toast.info(`${kept.length} worktree(s) kept`, kept.map((k) => `${k.task}: ${k.detail}`).join('\n'));
+      else toast.success('Worktrees removed', 'Every branch is kept.');
+      void refresh();
+    },
+  });
+
+  const branches = orch.tasks.filter((t) => t.branch && t.status === 'completed').length;
+  if (!integration && (orch.status === 'running' || branches === 0)) return null;
+  const busy = integration && ['merging', 'resolving'].includes(integration.status);
+  const idle = orch.status !== 'running' && !busy;
+  const hasWorktrees = orch.tasks.some((t) => t.worktree) || Boolean(integration?.worktree);
+
+  return (
+    <Card
+      title={
+        <span className="title-icon">
+          <GitMerge {...ICON_SM} /> Integration
+        </span>
+      }
+      actions={
+        idle && (
+          <>
+            {integration?.status === 'merged' &&
+              (integration.pullRequestUrl ? (
+                <a className="btn btn-small" href={integration.pullRequestUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink {...ICON_SM} /> Pull request
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-small btn-primary"
+                  disabled={publish.isPending}
+                  onClick={() =>
+                    void confirm({
+                      title: `Push ${integration.branch}?`,
+                      body: 'The branch is pushed to origin and a pull request is opened for it with gh.',
+                      confirmLabel: 'Push and open',
+                    }).then((ok) => {
+                      if (ok) publish.mutate();
+                    })
+                  }
+                >
+                  <GitPullRequest {...ICON_SM} /> {publish.isPending ? 'Pushing…' : 'Push & open PR'}
+                </button>
+              ))}
+            {integration?.status !== 'merged' && (
+              <button type="button" className="btn btn-small" disabled={integrate.isPending} onClick={() => integrate.mutate()}>
+                <RotateCw {...ICON_SM} /> {integration ? 'Integrate again' : 'Integrate branches'}
+              </button>
+            )}
+            {hasWorktrees && integration?.status === 'merged' && (
+              <button
+                type="button"
+                className="btn btn-small"
+                disabled={prune.isPending}
+                onClick={() =>
+                  void confirm({
+                    title: 'Remove the worktrees?',
+                    body: 'Their directories go; every branch, the integrated one included, is kept.',
+                    confirmLabel: 'Remove',
+                  }).then((ok) => {
+                    if (ok) prune.mutate();
+                  })
+                }
+              >
+                <Trash2 {...ICON_SM} /> Remove worktrees
+              </button>
+            )}
+          </>
+        )
+      }
+    >
+      {integration ? (
+        <>
+          <div className="meta">
+            <StatusBadge status={integration.status} />
+            <span className="mono" title={integration.worktree ?? undefined}>
+              {integration.branch}
+            </span>
+            {integration.commit && <span className="mono">{integration.commit.slice(0, 8)}</span>}
+            <span>
+              {integration.merged.length}/{branches} task branch{branches === 1 ? '' : 'es'} merged
+            </span>
+            {integration.integratorRunId && <Link to={`/runs/${integration.integratorRunId}`}>integrator run</Link>}
+          </div>
+          {integration.status === 'resolving' && (
+            <p className="muted small">Some branches conflicted; an integrator agent is merging them.</p>
+          )}
+          {integration.conflicts.length > 0 && (
+            <ul className="small">
+              {integration.conflicts.map((c) => (
+                <li key={c.taskId}>
+                  <span className="mono">{c.taskId}</span> conflicted in <span className="mono">{c.paths.join(', ')}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {integration.error && <div className="alert alert-warn small">{integration.error}</div>}
+        </>
+      ) : (
+        <p className="muted small">
+          This graph finished before orchestrations merged their own work. Its {branches} task branch{branches === 1 ? '' : 'es'} can
+          be integrated into one now; anything left uncommitted in a worktree is committed first.
+        </p>
+      )}
+      <ErrorBox error={integrate.error ?? publish.error ?? prune.error} />
+    </Card>
   );
 }
 
@@ -324,14 +461,31 @@ export function OrchestrationDetail() {
             </div>
             <div className={`board-task status-${orch.finalResult ? 'completed' : orch.status === 'running' ? 'pending' : 'skipped'}`}>
               <StatusBadge status={orch.finalResult ? 'completed' : orch.status === 'running' ? 'pending' : 'skipped'} />
-              <div className="small muted">Final agent that merges every task result.</div>
+              <div className="small muted">Final agent that reports on everything the tasks did.</div>
+              {orch.synthesisRunId && (
+                <div className="meta">
+                  <Link to={`/runs/${orch.synthesisRunId}`}>run</Link>
+                </div>
+              )}
             </div>
           </div>
         )}
       </div>
 
+      <IntegrationCard orch={orch} />
+
       {orch.finalResult && (
-        <Card title="Final result">
+        <Card
+          title="Final result"
+          actions={
+            // The report is a conversation: asking it to change or finish something continues it
+            orch.synthesisRunId && (
+              <Link className="btn btn-small" to={`/runs/${orch.synthesisRunId}`}>
+                <MessageSquare {...ICON_SM} /> Continue the conversation
+              </Link>
+            )
+          }
+        >
           <RichText text={orch.finalResult} />
         </Card>
       )}
