@@ -41,7 +41,7 @@ export type { RunResult } from './runner.ts';
 export { DEFAULT_AUTO_SWITCH } from './accounts.ts';
 export { Db } from './db.ts';
 
-const AGENTRY_VERSION = '0.4.1'; // x-release-please-version
+const AGENTRY_VERSION = '0.5.0'; // x-release-please-version
 const SYSTEM_TTL_MS = 30_000;
 const ACTIVE_TTL_MS = 1_500;
 
