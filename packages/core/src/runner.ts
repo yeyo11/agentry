@@ -1006,6 +1006,9 @@ export class RunManager extends EventEmitter {
           permission_denials: raw.permission_denials,
         },
       });
+      // Every result, where waitForResult only hands out the first: a run continued by hand keeps
+      // producing them, and whoever the run works for has to hear about each
+      this.emit('run-result', run.id, run.lastResult);
       if (run.opts.keepAlive === false) {
         run.proc?.stdin.end();
       } else {

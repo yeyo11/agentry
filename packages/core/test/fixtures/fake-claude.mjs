@@ -4,6 +4,8 @@
 //
 //   FAKE-WRITE <file> <content>   writes a file and leaves it uncommitted, like most workers
 //   (integrator prompt)           merges the listed branches, taking the incoming side on conflict
+//   FAKE-HANG                     never answers, like a worker someone has to stop
+//   FAKE-FAIL <message>           ends the turn with an error result
 //
 // It reports the files it could see and its working directory, which is what the tests check.
 import { execFileSync } from 'node:child_process';
@@ -49,6 +51,13 @@ lines.on('line', (line) => {
         git('commit', '--no-edit', '-q');
       }
     }
+  }
+
+  if (/^FAKE-HANG$/m.test(prompt)) return;
+  const failure = /^FAKE-FAIL (.*)$/m.exec(prompt);
+  if (failure) {
+    out({ type: 'result', subtype: 'error_during_execution', is_error: true, num_turns: 1, total_cost_usd: 0.01, result: failure[1] });
+    return;
   }
 
   const files = readdirSync(dir).filter((f) => !f.startsWith('.')).sort();
