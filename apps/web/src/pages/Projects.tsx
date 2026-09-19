@@ -83,7 +83,10 @@ export function Projects() {
       ) : (
         <Stagger className="cards">
           {projects.map((project) => (
-            <div key={project.id} className={`card card-interactive project-card ${project.activeRuns > 0 ? 'is-live' : ''}`}>
+            <div
+              key={project.id}
+              className={`card card-interactive project-card ${project.activeRuns + (project.activeSessions ?? 0) > 0 ? 'is-live' : ''}`}
+            >
               <div className="project-head">
                 <Monogram name={project.name} />
                 <div className="project-head-text">
@@ -95,7 +98,9 @@ export function Projects() {
                   </div>
                 </div>
                 {project.temporary && <Tag>temporary</Tag>}
-                {project.activeRuns > 0 && <Tag tone="active">{project.activeRuns} active</Tag>}
+                {project.activeRuns + (project.activeSessions ?? 0) > 0 && (
+                  <Tag tone="active">{project.activeRuns + (project.activeSessions ?? 0)} active</Tag>
+                )}
                 {!project.exists && <Tag tone="warn">missing on disk</Tag>}
               </div>
               <div className="meta">

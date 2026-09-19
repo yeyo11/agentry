@@ -71,6 +71,8 @@ export interface ProjectSummary {
   lastActivity: string | null;
   /** Wrapper runs currently alive inside this project */
   activeRuns: number;
+  /** CLI sessions live in this directory that no run owns — work started from a terminal */
+  activeSessions?: number;
   /** The directory exists on disk */
   exists: boolean;
 }
@@ -189,6 +191,7 @@ export interface RunOptions {
 
 export interface BackgroundTask {
   id: string;
+  /** Empty when the task belongs to a CLI session rather than a run */
   runId: string;
   runName: string;
   type: string;
@@ -198,6 +201,23 @@ export interface BackgroundTask {
   startedAt: string;
   endedAt: string | null;
   summary: string | null;
+  /** `run` when read from a run's live stream, `disk` when read from its session's files */
+  source?: 'run' | 'disk';
+  /** Session that launched it */
+  sessionId?: string;
+  /** The shell command, when it is a backgrounded Bash call */
+  command?: string | null;
+  /** Sent to the background by the person at the terminal rather than by the model */
+  backgroundedByUser?: boolean;
+}
+
+/** Captured output of a background task, as the CLI wrote it. */
+export interface BackgroundTaskOutput {
+  taskId: string;
+  output: string;
+  /** Only the end of a long output is returned */
+  truncated: boolean;
+  bytes: number;
 }
 
 export interface SubagentInfo {
@@ -207,7 +227,8 @@ export interface SubagentInfo {
   runName: string;
   subagentType: string;
   description: string;
-  status: 'running' | 'completed' | 'failed';
+  /** `stopped` when its session ended before the agent reported back */
+  status: 'running' | 'completed' | 'failed' | 'stopped';
   startedAt: string;
   endedAt: string | null;
   /** `run` when read from a run's live stream, `cli` when read from a session's files on disk */

@@ -1,6 +1,13 @@
 import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import type { AutoSwitchEvent, Orchestration, OrchestrationSpec, PlanDraftSummary, RunSummary } from '@agentry/shared';
+import type {
+  AutoSwitchEvent,
+  EffectiveEnvironment,
+  Orchestration,
+  OrchestrationSpec,
+  PlanDraftSummary,
+  RunSummary,
+} from '@agentry/shared';
 import type { CoreConfig } from './paths.ts';
 
 /**
@@ -53,6 +60,15 @@ const MIGRATIONS: readonly string[] = [
      json       TEXT NOT NULL
    );
    CREATE INDEX plan_drafts_created_at ON plan_drafts (created_at DESC);`,
+
+  // What Claude actually loaded in a directory — tools, MCP servers, agents, skills — arrives only
+  // in a run's init event. The transcript does not keep it, so without this the panel forgot it on
+  // every restart until the next run there.
+  `CREATE TABLE environments (
+     cwd         TEXT PRIMARY KEY,
+     observed_at TEXT NOT NULL,
+     json        TEXT NOT NULL
+   );`,
 ];
 
 /** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
@@ -235,6 +251,30 @@ export class Db {
 
   loadOrchestrations(): Orchestration[] {
     return this.loadDocs<Orchestration>('orchestrations');
+  }
+
+  // ---------- effective environments ----------
+
+  saveEnvironment(env: EffectiveEnvironment): void {
+    this.db
+      .prepare(
+        `INSERT INTO environments (cwd, observed_at, json) VALUES (?, ?, ?)
+         ON CONFLICT(cwd) DO UPDATE SET observed_at = excluded.observed_at, json = excluded.json`,
+      )
+      .run(env.cwd, env.observedAt, JSON.stringify(env));
+  }
+
+  loadEnvironments(): EffectiveEnvironment[] {
+    const rows = this.db.prepare('SELECT json FROM environments ORDER BY observed_at DESC').all() as unknown as Array<{ json: string }>;
+    const out: EffectiveEnvironment[] = [];
+    for (const row of rows) {
+      try {
+        out.push(JSON.parse(row.json) as EffectiveEnvironment);
+      } catch {
+        // an unreadable row just drops out of the panel
+      }
+    }
+    return out;
   }
 
   // ---------- planner drafts ----------

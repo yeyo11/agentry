@@ -65,12 +65,9 @@ export const runRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core 
     return req.query.cwd ? all.filter((e) => e.cwd === req.query.cwd) : all;
   });
 
-  app.get('/tasks', () =>
-    core.runs
-      .list()
-      .flatMap((r) => r.backgroundTasks)
-      .sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running') || b.startedAt.localeCompare(a.startedAt)),
-  );
+  // Runs report from their live stream; sessions started from a terminal, and runs that have ended,
+  // from their files on disk. Core decides which, so every screen reads the same list.
+  app.get('/tasks', () => core.allBackgroundTasks());
 
   // Tool calls the CLI is holding until someone decides. The run's event stream carries a notice
   // when one arrives, so the UI does not have to poll to notice it.
@@ -85,12 +82,5 @@ export const runRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core 
     },
   );
 
-  // Runs report their subagents from their live stream; sessions started from a terminal only from
-  // their files on disk. Both belong on the same list: where a session was started from should not
-  // decide whether its agents can be seen.
-  app.get('/subagents', async () =>
-    [...core.runs.list().flatMap((r) => r.subagents.map((s) => ({ ...s, source: 'run' as const }))), ...(await core.cliSubagents())].sort(
-      (a, b) => Number(b.status === 'running') - Number(a.status === 'running') || b.startedAt.localeCompare(a.startedAt),
-    ),
-  );
+  app.get('/subagents', () => core.allSubagents());
 };

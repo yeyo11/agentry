@@ -11,6 +11,7 @@ import type {
   AutoSwitchSettings,
   AvailablePlugin,
   BackgroundTask,
+  BackgroundTaskOutput,
   CliTextResult,
   ConfigFileContent,
   ConfigFileNode,
@@ -148,6 +149,8 @@ export const api = {
   stopRun: (id: string) => request<RunSummary>(`/runs/${enc(id)}/stop`, { method: 'POST' }),
   deleteRun: (id: string) => request<{ ok: true }>(`/runs/${enc(id)}`, { method: 'DELETE' }),
   tasks: () => request<BackgroundTask[]>('/tasks'),
+  taskOutput: (sessionId: string, taskId: string) =>
+    request<BackgroundTaskOutput>(`/sessions/${enc(sessionId)}/tasks/${enc(taskId)}/output`),
   subagents: () => request<SubagentInfo[]>('/subagents'),
   orchestrations: () => request<Orchestration[]>('/orchestrations'),
   orchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}`),
