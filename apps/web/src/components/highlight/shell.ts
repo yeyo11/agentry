@@ -19,6 +19,8 @@ export function* paintShell(tokens: HighlightToken[]): Generator<Piece> {
   let command = true;
   let pattern = false;
   let assigned = false;
+  /** Where an option's `=` or its value must start to belong to it: `--filter=x` is all one option */
+  let glued: number | null = null;
   for (const token of tokens) {
     const text = token.value;
     switch (token.className) {
@@ -44,10 +46,14 @@ export function* paintShell(tokens: HighlightToken[]): Generator<Piece> {
         break;
       case undefined:
         yield* pieces(text, SHELL_WORD, (word, at) => {
+          const continues = glued === at;
+          glued = continues ? at + word.length : null;
           if (word === '=') {
+            if (continues) return 'constant';
             assigned = true;
             return 'keyword';
           }
+          if (continues) return 'constant';
           if (word === ';;') {
             pattern = true;
             return null;
@@ -82,7 +88,9 @@ export function* paintShell(tokens: HighlightToken[]): Generator<Piece> {
             // A command given by path is an unquoted string to the grammar
             return SHELL_BUILTINS.has(word) ? 'constant' : word.includes('/') ? 'string' : 'entity';
           }
-          return /^--?[A-Za-z\d]/.test(word) || /^\d+$/.test(word) ? 'constant' : 'string';
+          const isOption = /^--?[A-Za-z\d]/.test(word);
+          glued = isOption ? at + word.length : null;
+          return isOption || /^\d+$/.test(word) ? 'constant' : 'string';
         });
         break;
       default:
