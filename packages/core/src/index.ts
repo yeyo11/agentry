@@ -8,6 +8,7 @@ import type {
   ConfigFileRoot,
   MemoryProjectSummary,
   Overview,
+  PermissionDecision,
   PermissionRequest,
   ProjectSummary,
   RunSummary,
@@ -15,6 +16,7 @@ import type {
   SessionOrigin,
   SessionSummary,
   SubagentInfo,
+  SwitchResult,
   SystemInfo,
   WorkflowDefinition,
   WorkflowRun,
@@ -27,6 +29,8 @@ import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
 import { Db } from './db.ts';
+import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
+import { EventBus } from './events.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
 import { McpConfig } from './config/mcp.ts';
@@ -49,6 +53,7 @@ export { loadConfig, type CoreConfig } from './paths.ts';
 export type { RunResult } from './runner.ts';
 export { DEFAULT_AUTO_SWITCH } from './accounts.ts';
 export { Db } from './db.ts';
+export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
 
 // Read from the package rather than written into this file: the release tooling then only edits
 // package.json files, and never has to rewrite source to bump a version.
@@ -71,6 +76,8 @@ const byRunningThenNewest = (a: { status: string; startedAt: string }, b: { stat
 export class Core {
   readonly config: CoreConfig;
   readonly db: Db;
+  /** Every change worth telling a client about; what `GET /api/events` streams */
+  readonly events = new EventBus();
   readonly permissions: PermissionBroker;
   readonly runs: RunManager;
   readonly sessions: SessionStore;
@@ -87,6 +94,7 @@ export class Core {
   readonly workspace: Workspace;
   readonly locator = new Locator();
   private readonly startedAt = Date.now();
+  private readonly sessionsWatcher: SessionsWatcher;
   private systemCache: { at: number; value: Omit<SystemInfo, 'uptimeSec'> } | null = null;
   private activeCache: { at: number; value: ActiveCliSession[] } | null = null;
 
@@ -100,13 +108,28 @@ export class Core {
     this.uploads = new UploadStore(config.dataDir);
     this.runs = new RunManager(config, this.db);
     this.runs.permissions = this.permissions;
+    this.runs.bus = this.events;
+    this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events);
     this.runs.uploads = this.uploads;
     // The UI watches a run's event stream, so the prompt has to arrive on it
     this.permissions.on('requested', (request: PermissionRequest) => {
       this.runs.notice(request.runId, `Permission requested for ${request.toolName}`, { permission: request });
+      for (const event of permissionEvents(request, this.runs.get(request.runId))) this.events.emit(event);
+    });
+    this.permissions.on('resolved', (request: PermissionRequest, decision: PermissionDecision | null) => {
+      const outcome = decision ? decision.behavior : 'withdrawn';
+      this.events.emit({
+        type: 'permission.resolved',
+        title: `${request.toolName} ${outcome === 'withdrawn' ? 'was withdrawn' : outcome === 'allow' ? 'allowed' : 'denied'}`,
+        ...runRefOr(request.runId, this.runs.get(request.runId)),
+        permissionId: request.id,
+        toolName: request.toolName,
+        outcome,
+      });
     });
     this.sessions = new SessionStore(config);
     this.orchestrator = new Orchestrator(config, this.runs, this.db);
+    this.orchestrator.bus = this.events;
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
     this.files = new SettingsFiles();
     this.explorer = new ConfigExplorer();
@@ -117,10 +140,20 @@ export class Core {
     this.resources = new MarkdownResources();
     this.accounts = new AccountManager(config, this.db);
     this.runs.accounts = this.accounts;
-    this.accounts.on('switched', () => {
+    this.accounts.on('switched', (result: SwitchResult) => {
       this.systemCache = null; // the active account (and its email) changed
+      this.events.emit({
+        type: 'account.switched',
+        title: `Switched account${result.to ? ` to ${result.to}` : ''}`,
+        from: result.from,
+        to: result.to,
+        reason: result.reason,
+      });
     });
-    this.runs.on('rate-limited', (run: RunSummary) => void this.rotateAndResume(run));
+    this.runs.on('rate-limited', (run: RunSummary) => {
+      this.events.emit({ type: 'run.rateLimited', title: `${run.name} hit its rate limit`, ...runRef(run) });
+      void this.rotateAndResume(run);
+    });
     void this.accounts.init().then(() => this.syncCredentialOwner());
   }
 
@@ -153,14 +186,27 @@ export class Core {
       // tasks that come after it, but replaying this turn would fight whoever is awaiting it.
       if (run.orchestrationId) {
         this.runs.notice(run.id, `Rate limit reached — switched to ${target}; the next tasks use it.`);
+        this.announceRotation(run, result, false);
         return;
       }
       this.runs.notice(run.id, `Rate limit reached — switched to ${target} and resuming.`);
       const replayed = await this.runs.replayLastTurn(run.id);
       if (!replayed) this.runs.notice(run.id, 'The turn could not be resumed automatically; send it again.');
+      this.announceRotation(run, result, replayed);
     } catch (error) {
       this.runs.notice(run.id, `Account rotation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  private announceRotation(run: RunSummary, result: SwitchResult, resumed: boolean): void {
+    this.events.emit({
+      type: 'run.accountRotated',
+      title: `${run.name} moved to ${result.to ?? 'another account'} after hitting its rate limit`,
+      ...runRef(run),
+      from: result.from,
+      to: result.to,
+      resumed,
+    });
   }
 
   async system(force = false): Promise<SystemInfo> {
@@ -672,6 +718,7 @@ export class Core {
   }
 
   shutdown(): void {
+    this.sessionsWatcher.close();
     this.permissions.close();
     this.accounts.shutdown();
     this.runs.stopAll();

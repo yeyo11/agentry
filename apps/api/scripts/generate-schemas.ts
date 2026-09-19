@@ -20,6 +20,7 @@ const ROOT_TYPES = [
   'MemoryFile', 'MemoryProjectSummary', 'PluginsOverview', 'AvailablePlugin', 'PluginActionRequest', 'CliTextResult',
   'Attachment', 'AccountsOverview', 'AccountSummary', 'SwitchAccountRequest', 'SwitchResult', 'AddAccountTokenRequest',
   'SetAccountAliasRequest', 'AutoSwitchSettings', 'AutoSwitchEvent',
+  'AgentryEvent', 'StreamHelloEvent', 'StreamResyncEvent',
 ];
 
 const generator = createGenerator({
