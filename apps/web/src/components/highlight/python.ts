@@ -120,9 +120,57 @@ function* paintString(value: string): Generator<Piece> {
   const prefix = /^[A-Za-z]{1,2}(?=['"])/.exec(value);
   if (prefix) yield [prefix[0], 'keyword'];
   const body = prefix ? value.slice(prefix[0].length) : value;
-  if (prefix && /r/i.test(prefix[0])) {
-    if (body) yield [body, 'string'];
+  const raw = prefix !== null && /r/i.test(prefix[0]);
+  if (prefix && /f/i.test(prefix[0])) {
+    yield* fstring(body, raw);
     return;
   }
-  if (body) yield* pieces(body, ESCAPE, () => 'keyword', 'string');
+  if (raw) yield [body, 'string'];
+  else if (body) yield* pieces(body, ESCAPE, () => 'keyword', 'string');
 }
+
+/** A replacement field of an f-string, one level of nested braces deep (`{x:{width}}`) */
+const FIELD = /\{\{|\}\}|\{((?:[^{}]|\{[^{}]*\})*)\}/g;
+
+/**
+ * `f"…{expr!r:>{width}}…"`: TanStack reads it as one string, the grammar reads the fields as code.
+ * The braces are keywords, the expression is painted like any other, and the conversion and format
+ * spec that follow it are keywords too.
+ */
+function* fstring(body: string, raw: boolean): Generator<Piece> {
+  let at = 0;
+  for (const m of body.matchAll(FIELD)) {
+    if (m[1] === undefined) continue;
+    if (m.index > at) yield* raw ? [[body.slice(at, m.index), 'string'] as Piece] : pieces(body.slice(at, m.index), ESCAPE, () => 'keyword', 'string');
+    const field = m[1];
+    const spec = specAt(field);
+    const expr = field.slice(0, spec);
+    yield ['{', 'keyword'];
+    yield* pieces(expr, FIELD_CODE, (word, at) => fieldRole(expr, word, at));
+    if (spec < field.length) yield [field.slice(spec), 'keyword'];
+    yield ['}', 'keyword'];
+    at = m.index + m[0].length;
+  }
+  if (at < body.length) yield* raw ? [[body.slice(at), 'string'] as Piece] : pieces(body.slice(at), ESCAPE, () => 'keyword', 'string');
+}
+
+/** Where a field's `!r` or `:spec` starts: the first `!`/`:` outside brackets and quotes */
+function specAt(field: string): number {
+  let depth = 0;
+  let quote = '';
+  for (let i = 0; i < field.length; i++) {
+    const c = field[i]!;
+    if (quote) {
+      if (c === quote) quote = '';
+    } else if (c === '"' || c === "'") quote = c;
+    else if ('([{'.includes(c)) depth++;
+    else if (')]}'.includes(c)) depth--;
+    else if (depth === 0 && ((c === '!' && field[i + 1] !== '=') || (c === ':' && field[i + 1] !== '='))) return i;
+  }
+  return field.length;
+}
+
+/** Inside a field: quoted strings, numbers, and whatever the plain text of code holds */
+const FIELD_CODE = new RegExp(`'[^']*'|"[^"]*"|\\b\\d+(?:\\.\\d+)?\\b|${PYTHON_PLAIN.source}`, 'g');
+
+const fieldRole = (expr: string, m: string, at: number) => (/^['"]/.test(m) ? 'string' : /^\d/.test(m) ? 'constant' : plainRole(expr, m, at));
