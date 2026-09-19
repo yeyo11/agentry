@@ -47,6 +47,10 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | output style | el output style |
 | thinking, extended thinking | el thinking, el extended thinking |
 | effort | el effort (the `--effort` level), its values untranslated |
+| matcher | el matcher (of a hook) |
+| commit | el commit; "hacer commit", "sin commit" |
+| pull request, PR | la pull request, la PR |
+| worker | el worker (a run an orchestration launches) |
 | compact | "compactar" is fine as a verb in prose; `/compact` stays literal |
 | wrapper | el wrapper (Agentry's server) |
 
@@ -110,6 +114,25 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | Attachment | Adjunto |
 | Branch | Rama |
 | Scope: user / project | Ámbito: usuario / proyecto |
+| Scope values `user`, `project`, `local` (MCP servers, plugins) | untranslated: they are the CLI's `--scope` values |
+| Files / File | Archivos / Archivo |
+| Folder / Directory | Carpeta / Directorio |
+| Path | Ruta |
+| Commands (the `commands/` resource) | Comandos |
+| Rules | Reglas |
+| Instructions | Instrucciones |
+| Credential / API key | Credencial / Clave de API |
+| Template | Plantilla |
+| Browse (plugins) | Explorar |
+| Installed | Instalado(s) |
+| Task (of an orchestration) | Tarea |
+| Planner | Planificador |
+| Engine: graph / workflow | Motor: grafo / workflow |
+| Stage | Etapa |
+| Integration, merge | Integración, fusionar |
+| Push (a branch) | Subir |
+| Auto-rotation | Rotación automática |
+| Threshold | Umbral |
 | Language | Idioma |
 | Theme: system / light / dark | Tema del sistema / claro / oscuro |
 

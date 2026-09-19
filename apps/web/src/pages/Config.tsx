@@ -16,16 +16,16 @@ import { SettingsTab } from './config/SettingsTab';
 const RESOURCE_TABS: ResourceKind[] = ['agents', 'skills', 'commands', 'output-styles', 'rules'];
 
 const TABS = [
-  { id: 'account', label: 'Account', userOnly: true },
-  { id: 'instructions', label: 'Instructions', userOnly: false },
-  { id: 'settings', label: 'Settings', userOnly: false },
-  { id: 'mcp', label: 'MCP servers', userOnly: false },
-  { id: 'agents', label: 'Agents', userOnly: false },
-  { id: 'skills', label: 'Skills', userOnly: false },
-  { id: 'commands', label: 'Commands', userOnly: false },
-  { id: 'output-styles', label: 'Output styles', userOnly: false },
-  { id: 'rules', label: 'Rules', userOnly: false },
-  { id: 'files', label: 'Files', userOnly: false },
+  { id: 'account', userOnly: true },
+  { id: 'instructions', userOnly: false },
+  { id: 'settings', userOnly: false },
+  { id: 'mcp', userOnly: false },
+  { id: 'agents', userOnly: false },
+  { id: 'skills', userOnly: false },
+  { id: 'commands', userOnly: false },
+  { id: 'output-styles', userOnly: false },
+  { id: 'rules', userOnly: false },
+  { id: 'files', userOnly: false },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -38,9 +38,9 @@ function ConfigInner() {
   const dirtyKeys = useDirtyKeys();
   const guard = useLeaveGuard();
 
-  const tabs = TABS.filter((t) => !t.userOnly || !projectId);
+  const tabs = TABS.filter((entry) => !entry.userOnly || !projectId);
   const requested = params.get('tab');
-  const tab: TabId = tabs.find((t) => t.id === requested)?.id ?? (projectId ? 'instructions' : 'account');
+  const tab: TabId = tabs.find((entry) => entry.id === requested)?.id ?? (projectId ? 'instructions' : 'account');
 
   const navigate = (next: { tab?: TabId; project?: string | null }) => {
     const query: Record<string, string> = {};
@@ -61,29 +61,29 @@ function ConfigInner() {
         subtitle={
           state.project ? (
             <span className="scope-subtitle">
-              Project scope · <PathLabel path={state.project.path} />
+              {t('config.projectScope')} · <PathLabel path={state.project.path} />
             </span>
           ) : (
-            'User scope · personal Claude Code configuration of this account'
+            t('config.userScope')
           )
         }
         actions={<ScopePicker state={state} onSelect={(id) => guarded({ project: id ?? null })} />}
       />
 
       <div className="precedence" role="note">
-        <span className="small muted">Precedence</span>
-        <span className={`precedence-step ${projectId ? 'precedence-on' : ''}`}>project local</span>
+        <span className="small muted">{t('config.precedence')}</span>
+        <span className={`precedence-step ${projectId ? 'precedence-on' : ''}`}>{t('config.projectLocal')}</span>
         <span aria-hidden>›</span>
-        <span className={`precedence-step ${projectId ? 'precedence-on' : ''}`}>project shared</span>
+        <span className={`precedence-step ${projectId ? 'precedence-on' : ''}`}>{t('config.projectShared')}</span>
         <span aria-hidden>›</span>
-        <span className={`precedence-step ${!projectId ? 'precedence-on' : ''}`}>user</span>
-        <span className="small muted">— the more specific file wins; permission rules and hooks are merged.</span>
+        <span className={`precedence-step ${!projectId ? 'precedence-on' : ''}`}>{t('config.user')}</span>
+        <span className="small muted">{t('config.precedenceNote')}</span>
       </div>
 
       {state.unknownProject && (
         <div className="alert alert-warn" role="alert">
-          <strong>Unknown project</strong>
-          <div>This project id is not known to the wrapper. Pick another scope.</div>
+          <strong>{t('config.unknownProject')}</strong>
+          <div>{t('config.unknownProjectHint')}</div>
         </div>
       )}
 
@@ -92,8 +92,8 @@ function ConfigInner() {
           className="card fold-card"
           title={
             <>
-              <span className="fold-card-title">Effective environment</span>
-              <span className="small muted">what Claude actually loaded in the last run here</span>
+              <span className="fold-card-title">{t('config.environment')}</span>
+              <span className="small muted">{t('config.environmentHint')}</span>
             </>
           }
         >
@@ -102,9 +102,9 @@ function ConfigInner() {
       )}
 
       <Tabs
-        label="Configuration sections"
+        label={t('config.sections')}
         value={tab}
-        tabs={tabs.map((t) => ({ id: t.id, label: t.label, dirty: dirtyKeys.has(t.id) }))}
+        tabs={tabs.map((entry) => ({ id: entry.id, label: t(`config.tabs.${entry.id}`), dirty: dirtyKeys.has(entry.id) }))}
         onChange={(id) => guarded({ tab: id })}
       />
 
