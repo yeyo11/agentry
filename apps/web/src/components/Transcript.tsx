@@ -2,7 +2,7 @@ import type { ContentBlock, RunEvent, TranscriptEntry } from '@agentry/shared';
 import { Brain, CircleAlert, CornerDownRight, Flag, Info, Sparkles, TerminalSquare, User } from 'lucide-react';
 import { Fragment, memo, type ReactNode } from 'react';
 import { formatClock, formatCost, formatDuration, truncate } from '../lib/format';
-import { Collapsible } from './controls';
+import { Collapsible } from './controls/Collapsible';
 import { BrandMark, ICON_SM, toolIcon } from './icons';
 import { RiseIn } from './motion';
 import { CopyButton, StatusBadge } from './ui';

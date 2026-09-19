@@ -1,7 +1,7 @@
 import { Check, CircleAlert, Copy, Inbox, type LucideIcon } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { errorMessage } from '../lib/format';
-import { Tooltip } from './controls';
+import { Tooltip } from './controls/Tooltip';
 import { ICON, ICON_SM } from './icons';
 import { AnimatePresence, motion, SlidingIndicator, StatusDot, useIndicatorId, type DotTone } from './motion';
 

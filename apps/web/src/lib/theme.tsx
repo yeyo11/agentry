@@ -3,7 +3,7 @@
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useSyncExternalStore } from 'react';
-import { Tooltip } from '../components/controls';
+import { Tooltip } from '../components/controls/Tooltip';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type EffectiveTheme = 'light' | 'dark';

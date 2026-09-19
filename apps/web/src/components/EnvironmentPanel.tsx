@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { timeAgo } from '../lib/format';
-import { Collapsible } from './controls';
+import { Collapsible } from './controls/Collapsible';
 import { ErrorBox, Skeleton, Tag } from './ui';
 
 const MCP_TONE: Record<string, string> = { connected: 'ok', failed: 'bad', 'needs-auth': 'warn', pending: 'muted' };

@@ -1,7 +1,7 @@
 import { CircleAlert, CircleCheck, Info, X } from 'lucide-react';
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { errorMessage } from '../lib/format';
-import { Collapsible } from './controls';
+import { Collapsible } from './controls/Collapsible';
 import { ICON, ICON_SM } from './icons';
 import { AnimatePresence, motion, SPRING, useReducedMotion } from './motion';
 

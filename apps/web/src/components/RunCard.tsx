@@ -4,7 +4,7 @@ import { ArrowUpRight, Square, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { durationBetween, formatCost, shortPath, timeAgo, truncate } from '../lib/format';
-import { Tooltip } from './controls';
+import { Tooltip } from './controls/Tooltip';
 import { ICON_SM } from './icons';
 import { ErrorBox, StatusBadge } from './ui';
 

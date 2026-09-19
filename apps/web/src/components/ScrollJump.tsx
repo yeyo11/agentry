@@ -1,6 +1,6 @@
 import { ArrowDownToLine, ArrowUpToLine } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Tooltip } from './controls';
+import { Tooltip } from './controls/Tooltip';
 import { ICON_SM } from './icons';
 
 type Position = 'hidden' | 'top' | 'middle' | 'bottom';

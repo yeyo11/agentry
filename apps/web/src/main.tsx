@@ -3,7 +3,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { App } from './App';
-import { TooltipProvider } from './components/controls';
+import { TooltipProvider } from './components/controls/Tooltip';
 import { ConfirmProvider } from './components/Dialog';
 import { ToastProvider } from './components/Toast';
 import '@fontsource-variable/inter';

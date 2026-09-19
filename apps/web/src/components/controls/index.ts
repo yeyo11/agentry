@@ -1,3 +1,5 @@
+// Pages import from here. Modules in the shell bundle (App, Dialog, RunView…) import the file they
+// need instead: the barrel would load the lazy form-controls chunk on first paint.
 export { Collapsible } from './Collapsible';
 export { Combobox, type ComboboxOption } from './Combobox';
 export { hasOpenLayer } from './layer';

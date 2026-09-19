@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { hasOpenLayer } from './controls';
+import { hasOpenLayer } from './controls/layer';
 import { ICON } from './icons';
 import { EASE_OUT, motion, useReducedMotion } from './motion';
 

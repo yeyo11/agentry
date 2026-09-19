@@ -3,7 +3,10 @@ import { ArrowDown, ChevronLeft, Play, SendHorizontal, Square, Trash2 } from 'lu
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, keys, useRuns, useRunStream } from '../api';
-import { Collapsible, Switch, Tooltip } from '../components/controls';
+// Direct imports: this page is in the shell bundle, and the barrel would pull the lazy form controls into it
+import { Collapsible } from '../components/controls/Collapsible';
+import { Switch } from '../components/controls/Toggle';
+import { Tooltip } from '../components/controls/Tooltip';
 import { EnvironmentPanel } from '../components/EnvironmentPanel';
 import { PermissionPrompts } from '../components/PermissionPrompts';
 import { isRunLive } from '../components/RunCard';
