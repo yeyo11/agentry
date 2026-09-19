@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Play, Radio, TerminalSquare, Trash2 } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api, useSession } from '../api';
+import { api, useSessionTranscript } from '../api';
 import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
 import { Switch, Tooltip } from '../components/controls';
 import { ICON_SM } from '../components/icons';
@@ -23,7 +23,8 @@ export function SessionView() {
   const [resumeOpen, setResumeOpen] = useState(searchParams.get('resume') === '1');
   const remove = useDeleteSession(() => navigate('/sessions'));
   const [wasLive, setWasLive] = useState(false);
-  const { data, error, isLoading } = useSession(id, sidechains, wasLive);
+  const transcript = useSessionTranscript(id, sidechains, wasLive);
+  const { data, error, isLoading } = transcript.query;
   const live = data?.summary.live;
   if (Boolean(live) !== wasLive) setWasLive(Boolean(live));
   // Still open in a terminal: taking it over would leave two processes writing one conversation
@@ -48,18 +49,34 @@ export function SessionView() {
 
   // Opening a conversation lands on its latest message, the way any chat client does: a few
   // hundred messages otherwise leave you at the oldest one, a long drag away from what you came for.
-  const entryCount = data?.entries.length ?? 0;
-  const landedOn = useRef<string | null>(null);
+  // The transcript is windowed, so the page keeps growing as rows are measured: hold the bottom
+  // until it settles, and let go the moment the reader moves.
+  const entryCount = transcript.items.length;
+  const [landing, setLanding] = useState(true);
   useEffect(() => {
-    if (!entryCount || landedOn.current === id) return;
-    landedOn.current = id;
+    setLanding(true);
+  }, [id]);
+  useEffect(() => {
+    if (!landing || !entryCount) return;
     const main = document.querySelector<HTMLElement>('.main');
-    requestAnimationFrame(() => main?.scrollTo({ top: main.scrollHeight }));
-  }, [id, entryCount]);
+    if (!main) return;
+    const release = () => setLanding(false);
+    const settled = setTimeout(release, 1500);
+    main.addEventListener('wheel', release, { passive: true, once: true });
+    main.addEventListener('touchmove', release, { passive: true, once: true });
+    window.addEventListener('keydown', release, { once: true });
+    return () => {
+      clearTimeout(settled);
+      main.removeEventListener('wheel', release);
+      main.removeEventListener('touchmove', release);
+      window.removeEventListener('keydown', release);
+    };
+  }, [landing, entryCount, id]);
 
   if (isLoading) return <Loading label="Loading transcript…" />;
   if (!data) return <ErrorBox error={error ?? new Error('Session not found')} />;
-  const { summary, entries } = data;
+  const { summary } = data;
+  const entries = transcript.items;
 
   return (
     <>
@@ -165,7 +182,14 @@ export function SessionView() {
         <Empty title="Empty transcript" />
       ) : (
         <>
-          <Transcript entries={entries} />
+          {transcript.more && (
+            <div className="transcript-earlier">
+              <button type="button" className="btn btn-small" onClick={transcript.loadEarlier} disabled={transcript.loadingMore}>
+                {transcript.loadingMore ? 'Loading…' : `Load earlier messages (${transcript.from} above)`}
+              </button>
+            </div>
+          )}
+          <Transcript entries={entries} pinToBottom={landing} onReachTop={transcript.loadEarlier} />
           <ScrollJump label="transcript" />
         </>
       )}

@@ -111,7 +111,7 @@ export function RunView() {
   const run = runs.data?.find((r) => r.id === id);
   usePageTitle(run ? `${run.name} · run` : 'Run');
   const notFound = runs.isSuccess && !run;
-  const { events, connected, partial } = useRunStream(id, !notFound);
+  const { events, connected, partial, from, more, loadingMore, loadEarlier } = useRunStream(id, !notFound);
   const { open: openDetail } = useDetailPanel();
   const [showNoise, setShowNoise] = useState(false);
   const [follow, setFollow] = useState(true);
@@ -205,13 +205,25 @@ export function RunView() {
         <div className="run-stage">
         <div
           className="run-scroll"
+          data-scroll-root
           ref={scroller}
           onScroll={(e) => {
             const el = e.currentTarget;
             setFollow(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
           }}
         >
-          {visible.length === 0 ? <Loading label="Waiting for events…" /> : <RunTimeline events={visible} />}
+          {more && (
+            <div className="transcript-earlier">
+              <button type="button" className="btn btn-small" onClick={loadEarlier} disabled={loadingMore}>
+                {loadingMore ? 'Loading…' : `Load earlier events (${from} above)`}
+              </button>
+            </div>
+          )}
+          {visible.length === 0 ? (
+            <Loading label="Waiting for events…" />
+          ) : (
+            <RunTimeline events={visible} follow={follow} onReachTop={loadEarlier} />
+          )}
           {/* Pinned under the transcript: a run waiting on a decision is stuck until it gets one */}
           {run && <PermissionPrompts runId={id} live={isRunLive(run)} />}
           {partial && partial.text ? (

@@ -28,7 +28,7 @@ import { RunEventPublisher } from './event-sources.ts';
 import type { EventBus } from './events.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
-import type { SessionStore } from './sessions.ts';
+import { pageSize, type SessionStore } from './sessions.ts';
 import { composeContent, type UploadStore } from './uploads.ts';
 import { readProgress, workflowStatus } from './workflows.ts';
 
@@ -368,6 +368,19 @@ export class RunManager extends EventEmitter {
 
   events(id: string, sinceSeq = 0): RunEvent[] {
     return this.runs.get(id)?.events.filter((e) => e.seq > sinceSeq) ?? [];
+  }
+
+  /**
+   * A window of what a run has emitted, oldest first: the newest `limit` events, or the ones just
+   * before `before` (an index from a previous page) to read further back. A run that has been
+   * going for a while holds thousands of events, and a page only ever shows the end of them.
+   */
+  eventPage(id: string, opts: { limit?: number; before?: number } = {}): { events: RunEvent[]; from: number; total: number } {
+    const all = this.runs.get(id)?.events ?? [];
+    const limit = pageSize(opts.limit);
+    const until = opts.before !== undefined && Number.isFinite(opts.before) ? Math.max(0, Math.min(Math.trunc(opts.before), all.length)) : all.length;
+    const from = Math.max(0, until - limit);
+    return { events: all.slice(from, until), from, total: all.length };
   }
 
   activeCount(): number {

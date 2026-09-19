@@ -6,6 +6,8 @@ import { createInterface } from 'node:readline';
 import {
   entryText,
   normalizeMessage,
+  TRANSCRIPT_PAGE,
+  TRANSCRIPT_PAGE_MAX,
   type ProjectSummary,
   type SessionDetail,
   type BackgroundTask,
@@ -154,6 +156,12 @@ async function* readJsonl(file: string): AsyncGenerator<Record<string, unknown>>
       // half-written line from a live session
     }
   }
+}
+
+/** What a caller's `limit` is allowed to be: a page, never the whole conversation by accident. */
+export function pageSize(limit: number | undefined): number {
+  if (limit === undefined || !Number.isFinite(limit)) return TRANSCRIPT_PAGE;
+  return Math.min(Math.max(1, Math.trunc(limit)), TRANSCRIPT_PAGE_MAX);
 }
 
 export function isTemporaryPath(path: string): boolean {
@@ -644,18 +652,52 @@ export class SessionStore {
     this.cache.delete(found.file);
   }
 
-  async getSession(sessionId: string, opts: { includeSidechains?: boolean } = {}): Promise<SessionDetail | null> {
+  /**
+   * A window of a session's transcript: the newest `limit` entries, or the ones just before
+   * `before` (an index from a previous page) to read further back.
+   *
+   * The file is walked once but only the window is held: a long conversation runs to tens of
+   * megabytes, and materialising all of it to hand back the last screenful is what made opening
+   * one slow. Counting the entries still costs a pass over the file — an index of the line offsets
+   * would remove that, and is the next thing to do if opening a session ever feels slow again.
+   */
+  async getSession(
+    sessionId: string,
+    opts: { includeSidechains?: boolean; limit?: number; before?: number } = {},
+  ): Promise<SessionDetail | null> {
     const found = await this.findFile(sessionId);
     if (!found) return null;
     const summary = await this.summarize(found.projectId, found.file);
     if (!summary) return null;
-    const entries: TranscriptEntry[] = [];
+
+    const limit = pageSize(opts.limit);
+    const before = opts.before !== undefined && Number.isFinite(opts.before) ? Math.max(0, Math.trunc(opts.before)) : null;
+    // The tail is kept in a ring so a transcript of any length costs the window and no more
+    const ring: TranscriptEntry[] = [];
+    const earlier: TranscriptEntry[] = [];
+    let at = 0;
+    let total = 0;
+    let firstKept = -1;
+
     for await (const o of readJsonl(found.file)) {
       const entry = normalizeMessage(o);
       if (!entry) continue;
       if (entry.isSidechain && !opts.includeSidechains) continue;
-      entries.push(entry);
+      const index = total++;
+      if (before === null) {
+        if (ring.length < limit) ring.push(entry);
+        else {
+          ring[at] = entry;
+          at = (at + 1) % limit;
+        }
+      } else if (index < before && index >= before - limit) {
+        if (firstKept < 0) firstKept = index;
+        earlier.push(entry);
+      }
     }
-    return { summary, entries };
+
+    if (before !== null) return { summary, entries: earlier, from: firstKept < 0 ? total : firstKept, total };
+    const entries = [...ring.slice(at), ...ring.slice(0, at)];
+    return { summary, entries, from: total - entries.length, total };
   }
 }

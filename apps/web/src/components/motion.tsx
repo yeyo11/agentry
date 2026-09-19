@@ -57,13 +57,17 @@ export function Stagger({
   );
 }
 
-/** Rise-in for items appended to a live list (chat messages); never re-animates on re-render. */
-export function RiseIn({ children, className }: { children: ReactNode; className?: string }) {
+/**
+ * Rise-in for items appended to a live list (chat messages); never re-animates on re-render.
+ * `entrance` off keeps the same element but skips the animation, for a row that is being restored
+ * rather than added — one scrolled back into a windowed list.
+ */
+export function RiseIn({ children, className, entrance = true }: { children: ReactNode; className?: string; entrance?: boolean }) {
   const reduced = useReducedMotion();
   return (
     <motion.div
       className={className}
-      initial={reduced ? false : { opacity: 0, y: 10 }}
+      initial={reduced || !entrance ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.24, ease: EASE_OUT }}
     >

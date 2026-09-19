@@ -2194,6 +2194,12 @@ a.list-row:hover {
   flex-direction: column;
   gap: 18px;
 }
+/* Above a windowed transcript: what is still unread further back */
+.transcript-earlier {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 10px;
+}
 .msg {
   display: flex;
   gap: 12px;

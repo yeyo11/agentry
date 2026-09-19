@@ -1,12 +1,13 @@
 import type { ContentBlock, RunEvent, TranscriptEntry } from '@agentry/shared';
 import { Brain, CircleAlert, CornerDownRight, Flag, Info, Sparkles, TerminalSquare, User } from 'lucide-react';
-import { lazy, memo, Suspense } from 'react';
+import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react';
 import { formatClock, formatCost, formatDuration, truncate } from '../lib/format';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
 import { CodeBlock } from './CodeBlock';
 import { Collapsible } from './controls/Collapsible';
 import { BrandMark, ICON_SM, toolIcon } from './icons';
 import { RiseIn } from './motion';
+import { VirtualList } from './VirtualList';
 import { StatusBadge } from './ui';
 
 const RESULT_PREVIEW_CHARS = 6000;
@@ -173,13 +174,25 @@ export function StreamingEntry({ block, text }: { block: 'text' | 'thinking'; te
   );
 }
 
-export function Transcript({ entries }: { entries: TranscriptEntry[] }) {
+export function Transcript({
+  entries,
+  pinToBottom = false,
+  onReachTop,
+}: {
+  entries: TranscriptEntry[];
+  pinToBottom?: boolean;
+  onReachTop?: () => void;
+}) {
   return (
-    <div className="transcript">
-      {entries.map((entry, i) => (
-        <EntryView key={entry.uuid || i} entry={entry} />
-      ))}
-    </div>
+    <VirtualList
+      className="transcript"
+      items={entries}
+      itemKey={(entry, i) => entry.uuid || String(i)}
+      pinToBottom={pinToBottom}
+      onReachTop={onReachTop}
+    >
+      {(entry) => <EntryView entry={entry} />}
+    </VirtualList>
   );
 }
 
@@ -280,9 +293,9 @@ function InlineEvent({ event }: { event: RunEvent }) {
 }
 
 /** One row, memoised: appending an event must not re-render the rows already on screen. */
-const TimelineRow = memo(function TimelineRow({ event }: { event: RunEvent }) {
+const TimelineRow = memo(function TimelineRow({ event, entrance }: { event: RunEvent; entrance: boolean }) {
   return event.kind === 'message' && event.entry ? (
-    <RiseIn>
+    <RiseIn entrance={entrance}>
       <EntryView entry={event.entry} />
     </RiseIn>
   ) : (
@@ -290,16 +303,35 @@ const TimelineRow = memo(function TimelineRow({ event }: { event: RunEvent }) {
   );
 });
 
+/** The one event that renders nothing, kept out of the window, which pairs rows with items by position. */
+const isSilent = (event: RunEvent) => event.kind === 'task' && event.subtype === 'background_tasks_changed';
+
 /**
  * Memoised on the event list: the page around it re-renders on every streamed partial and every
  * keystroke in the composer, and a long transcript is far too much work to redo that often.
  */
-export const RunTimeline = memo(function RunTimeline({ events }: { events: RunEvent[] }) {
+export const RunTimeline = memo(function RunTimeline({
+  events,
+  follow = false,
+  onReachTop,
+}: {
+  events: RunEvent[];
+  follow?: boolean;
+  onReachTop?: () => void;
+}) {
+  const rows = useMemo(() => events.filter((event) => !isSilent(event)), [events]);
+  // Rows re-mount as they scroll back into the window, and a message that slides in again every
+  // time you scroll past it is noise: only an event that arrived while the page was open animates.
+  const seen = useRef<Set<number> | null>(null);
+  if (seen.current === null) seen.current = new Set(rows.map((event) => event.seq));
+  const known = seen.current;
+  useEffect(() => {
+    for (const event of rows) known.add(event.seq);
+  }, [rows, known]);
+
   return (
-    <div className="transcript">
-      {events.map((event) => (
-        <TimelineRow key={event.seq} event={event} />
-      ))}
-    </div>
+    <VirtualList className="transcript" items={rows} itemKey={(event) => String(event.seq)} pinToBottom={follow} onReachTop={onReachTop}>
+      {(event) => <TimelineRow event={event} entrance={!known.has(event.seq)} />}
+    </VirtualList>
   );
 });

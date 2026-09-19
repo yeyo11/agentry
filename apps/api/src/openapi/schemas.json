@@ -1503,12 +1503,23 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/TranscriptEntry"
-        }
+        },
+        "description": "The window of the transcript this page carries, oldest first"
+      },
+      "from": {
+        "type": "number",
+        "description": "Index of the first entry in `entries` within the whole transcript"
+      },
+      "total": {
+        "type": "number",
+        "description": "Entries the transcript holds in total, so a caller knows what is still above `from`"
       }
     },
     "required": [
       "summary",
-      "entries"
+      "entries",
+      "from",
+      "total"
     ]
   },
   "TranscriptEntry": {
@@ -1781,12 +1792,23 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/RunEvent"
-        }
+        },
+        "description": "The window of the run's events this page carries, oldest first"
+      },
+      "from": {
+        "type": "number",
+        "description": "Index of the first event in `events` within everything the run has emitted"
+      },
+      "total": {
+        "type": "number",
+        "description": "Events the run has emitted in total"
       }
     },
     "required": [
       "run",
-      "events"
+      "events",
+      "from",
+      "total"
     ]
   },
   "RunEvent": {

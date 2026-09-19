@@ -33,8 +33,12 @@ export const sessionRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     return { ok: true };
   });
 
-  app.get<{ Params: { id: string }; Querystring: { sidechains?: string } }>('/sessions/:id', async (req) => {
-    const detail = await core.sessions.getSession(req.params.id, { includeSidechains: req.query.sidechains === '1' });
+  app.get<{ Params: { id: string }; Querystring: { sidechains?: string; limit?: string; before?: string } }>('/sessions/:id', async (req) => {
+    const detail = await core.sessions.getSession(req.params.id, {
+      includeSidechains: req.query.sidechains === '1',
+      ...(req.query.limit !== undefined ? { limit: Number(req.query.limit) } : {}),
+      ...(req.query.before !== undefined ? { before: Number(req.query.before) } : {}),
+    });
     if (!detail) throw new Error('session not found');
     // The list reported this session live while its own page did not: both now read the same
     // liveness, so opening a running session never shows it as idle.

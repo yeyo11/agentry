@@ -13,10 +13,14 @@ export const runRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core 
     return reply.status(201).send(run);
   });
 
-  app.get<{ Params: { id: string } }>('/runs/:id', (req): RunDetail => {
+  app.get<{ Params: { id: string }; Querystring: { limit?: string; before?: string } }>('/runs/:id', (req): RunDetail => {
     const run = core.runs.get(req.params.id);
     if (!run) throw new Error('run not found');
-    return { run, events: core.runs.events(run.id) };
+    const page = core.runs.eventPage(run.id, {
+      ...(req.query.limit !== undefined ? { limit: Number(req.query.limit) } : {}),
+      ...(req.query.before !== undefined ? { before: Number(req.query.before) } : {}),
+    });
+    return { run, ...page };
   });
 
   app.post<{ Params: { id: string }; Body: { text?: string; attachments?: string[] } }>('/runs/:id/messages', (req) =>

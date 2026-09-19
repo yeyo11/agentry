@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   Attachment,
   AccountsOverview,
@@ -132,6 +132,8 @@ export interface Scope {
   projectId?: string;
 }
 
+const num = (value: number | undefined) => (value === undefined ? undefined : String(value));
+
 function qs(params: Record<string, string | undefined>): string {
   const pairs = Object.entries(params).filter((e): e is [string, string] => e[1] !== undefined && e[1] !== '');
   return pairs.length ? `?${pairs.map(([k, v]) => `${k}=${enc(v)}`).join('&')}` : '';
@@ -152,8 +154,12 @@ export const api = {
   createProject: (req: CreateProjectRequest) => request<ProjectSummary>('/projects', { method: 'POST', body: req }),
   projectSessions: (id: string) => request<SessionSummary[]>(`/projects/${enc(id)}/sessions`),
   sessions: (limit = 500) => request<SessionSummary[]>(`/sessions?limit=${limit}`),
-  session: (id: string, sidechains: boolean) =>
-    request<SessionDetail>(`/sessions/${enc(id)}${sidechains ? '?sidechains=1' : ''}`),
+  session: (id: string, sidechains: boolean, page: { limit?: number; before?: number } = {}) =>
+    request<SessionDetail>(
+      `/sessions/${enc(id)}${qs({ sidechains: sidechains ? '1' : undefined, limit: num(page.limit), before: num(page.before) })}`,
+    ),
+  runDetail: (id: string, page: { limit?: number; before?: number } = {}) =>
+    request<RunDetail>(`/runs/${enc(id)}${qs({ limit: num(page.limit), before: num(page.before) })}`),
   deleteSession: (id: string) => request<{ ok: true }>(`/sessions/${enc(id)}`, { method: 'DELETE' }),
   active: () => request<ActiveCliSession[]>('/active'),
   environments: (cwd: string) => request<EffectiveEnvironment[]>(`/environments${qs({ cwd })}`),
@@ -346,6 +352,79 @@ export const useSession = (id: string, sidechains: boolean, live: boolean) => {
   });
 };
 
+export interface Paged<T> {
+  items: T[];
+  /** Index of the first item held, within the whole transcript */
+  from: number;
+  total: number;
+  /** Something is still above what is held */
+  more: boolean;
+  loadingMore: boolean;
+  loadEarlier: () => void;
+}
+
+/**
+ * Holds a contiguous run of a transcript, `[from, total)`, from the newest page back. The query
+ * fetches the newest page and keeps it current; pages read further back are kept here and spliced
+ * on, so following a live conversation never re-reads what is already held.
+ */
+function usePages<T>(
+  page: { items: T[]; from: number; total: number } | undefined,
+  fetchBefore: (before: number) => Promise<{ items: T[]; from: number; total: number }>,
+  reset: unknown,
+): Paged<T> {
+  const [earlier, setEarlier] = useState<{ items: T[]; from: number }>({ items: [], from: -1 });
+  const [loadingMore, setLoadingMore] = useState(false);
+  const busy = useRef(false);
+
+  useEffect(() => {
+    setEarlier({ items: [], from: -1 });
+    setLoadingMore(false);
+    busy.current = false;
+  }, [reset]);
+
+  const tail = page?.items ?? [];
+  const tailFrom = page?.from ?? 0;
+  // The newest page slid past what is held (the conversation grew faster than it was read): the
+  // pages no longer meet, and the honest thing is to show the newest run rather than a false one.
+  const joined = earlier.from >= 0 && earlier.from + earlier.items.length >= tailFrom;
+  const items = joined ? [...earlier.items.slice(0, tailFrom - earlier.from), ...tail] : tail;
+  const from = joined ? earlier.from : tailFrom;
+  const total = page?.total ?? 0;
+
+  const loadEarlier = useCallback(() => {
+    if (busy.current || from <= 0) return;
+    busy.current = true;
+    setLoadingMore(true);
+    void fetchBefore(from)
+      .then((older) => {
+        if (older.items.length === 0) return;
+        setEarlier((held) =>
+          held.from >= 0 && held.from <= older.from
+            ? held
+            : { items: [...older.items, ...(held.from >= 0 ? held.items : [])], from: older.from },
+        );
+      })
+      .finally(() => {
+        busy.current = false;
+        setLoadingMore(false);
+      });
+  }, [fetchBefore, from]);
+
+  return { items, from, total, more: from > 0, loadingMore, loadEarlier };
+}
+
+/** A session's transcript, newest page first, reading backwards on demand. */
+export const useSessionTranscript = (id: string, sidechains: boolean, live: boolean) => {
+  const query = useSession(id, sidechains, live);
+  const fetchBefore = useCallback(
+    (before: number) => api.session(id, sidechains, { before }).then((d) => ({ items: d.entries, from: d.from, total: d.total })),
+    [id, sidechains],
+  );
+  const page = query.data ? { items: query.data.entries, from: query.data.from, total: query.data.total } : undefined;
+  return { query, ...usePages(page, fetchBefore, `${id}:${sidechains}`) };
+};
+
 export const useActive = () => useQuery({ queryKey: keys.active, queryFn: api.active, refetchInterval: useFallbackInterval() });
 
 export const useRuns = () => useQuery({ queryKey: keys.runs, queryFn: api.runs, refetchInterval: useFallbackInterval() });
@@ -496,23 +575,62 @@ function endsPartial(event: RunEvent): boolean {
   return event.kind === 'status' && event.status !== 'busy';
 }
 
+/**
+ * A run's events: the newest page over REST, then the live stream from where that page ends, so
+ * opening a run that has been going for hours does not replay every event it ever emitted.
+ * `loadEarlier` reads the page before the one held.
+ */
 export function useRunStream(
   id: string | undefined,
   enabled = true,
-): { events: RunEvent[]; connected: boolean; partial: StreamingPartial | null } {
+): {
+  events: RunEvent[];
+  connected: boolean;
+  partial: StreamingPartial | null;
+  /** Events held back before the first one on screen */
+  from: number;
+  more: boolean;
+  loadingMore: boolean;
+  loadEarlier: () => void;
+} {
   const [events, setEvents] = useState<RunEvent[]>([]);
+  const [from, setFrom] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [connected, setConnected] = useState(false);
   const [partial, setPartial] = useState<StreamingPartial | null>(null);
   const buffer = useRef<RunEvent[]>([]);
+  const olderBusy = useRef(false);
   // Latest partial of the current frame; applied together with the stored events in flush()
   const pendingPartial = useRef<StreamingPartial | null | undefined>(undefined);
 
+  const loadEarlier = useCallback(() => {
+    if (!id || olderBusy.current || from <= 0) return;
+    olderBusy.current = true;
+    setLoadingMore(true);
+    void api
+      .runDetail(id, { before: from })
+      .then((older) => {
+        if (older.events.length === 0) return;
+        setEvents((held) => [...older.events, ...held]);
+        setFrom(older.from);
+      })
+      .catch(() => {
+        // the page stays as it is; the reader can ask again
+      })
+      .finally(() => {
+        olderBusy.current = false;
+        setLoadingMore(false);
+      });
+  }, [id, from]);
+
   useEffect(() => {
     setEvents([]);
+    setFrom(0);
     setConnected(false);
     setPartial(null);
     buffer.current = [];
     pendingPartial.current = undefined;
+    olderBusy.current = false;
     if (!id || !enabled) return;
 
     let lastSeq = 0;
@@ -560,7 +678,20 @@ export function useRunStream(
         if (!closed) retry = setTimeout(connect, 1500);
       };
     };
-    connect();
+    // The newest page first, then the stream from where it ends. If the page cannot be had, the
+    // stream still replays everything, which is slower but never leaves the run blank.
+    void api
+      .runDetail(id, {})
+      .then((page) => {
+        if (closed) return;
+        setEvents(page.events);
+        setFrom(page.from);
+        lastSeq = page.events.at(-1)?.seq ?? 0;
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!closed) connect();
+      });
 
     return () => {
       closed = true;
@@ -570,5 +701,5 @@ export function useRunStream(
     };
   }, [id, enabled]);
 
-  return { events, connected, partial };
+  return { events, connected, partial, from, more: from > 0, loadingMore, loadEarlier };
 }

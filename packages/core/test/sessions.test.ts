@@ -10,6 +10,42 @@ import { tempConfig } from './helpers.ts';
 
 const line = (o: object) => JSON.stringify(o);
 
+test('reads a transcript in windows, newest first, without gaps or overlap', async () => {
+  const config = tempConfig();
+  const dir = join(config.projectsDir, '-work-long');
+  mkdirSync(dir, { recursive: true });
+  const lines = Array.from({ length: 25 }, (_, i) =>
+    line({ type: 'user', uuid: `u${i}`, timestamp: '2026-01-01T10:00:00Z', cwd: '/work/long', message: { role: 'user', content: `message ${i}` } }),
+  );
+  writeFileSync(join(dir, 'bbbb-2222.jsonl'), lines.join('\n'));
+  const store = new SessionStore(config);
+
+  // No `before`: the newest page, and what is still above it
+  const tail = await store.getSession('bbbb-2222', { limit: 10 });
+  assert.equal(tail?.total, 25);
+  assert.equal(tail?.from, 15);
+  assert.deepEqual(tail?.entries.map((e) => e.uuid), Array.from({ length: 10 }, (_, i) => `u${15 + i}`));
+
+  // Reading backwards from a page's `from` gives exactly the entries before it
+  const middle = await store.getSession('bbbb-2222', { limit: 10, before: tail?.from });
+  assert.equal(middle?.from, 5);
+  assert.deepEqual(middle?.entries.map((e) => e.uuid), Array.from({ length: 10 }, (_, i) => `u${5 + i}`));
+
+  // A short first page stops at the start
+  const head = await store.getSession('bbbb-2222', { limit: 10, before: middle?.from });
+  assert.equal(head?.from, 0);
+  assert.equal(head?.entries.length, 5);
+
+  // The three pages together are the whole transcript, in order and read once each
+  const all = [...(head?.entries ?? []), ...(middle?.entries ?? []), ...(tail?.entries ?? [])];
+  assert.deepEqual(all.map((e) => e.uuid), lines.map((_, i) => `u${i}`));
+
+  // A limit beyond the end, and a `before` past it, stay in bounds
+  assert.equal((await store.getSession('bbbb-2222', { limit: 9999 }))?.entries.length, 25);
+  assert.equal((await store.getSession('bbbb-2222', { limit: 10, before: 0 }))?.entries.length, 0);
+  assert.equal((await store.getSession('bbbb-2222', { limit: 10, before: 999 }))?.total, 25);
+});
+
 test('summarizes sessions and reads transcripts', async () => {
   const config = tempConfig();
   const dir = join(config.projectsDir, '-work-demo');

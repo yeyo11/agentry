@@ -180,9 +180,20 @@ export interface TranscriptEntry {
   blocks: ContentBlock[];
 }
 
+/** How many transcript entries a window holds when the caller does not say. */
+export const TRANSCRIPT_PAGE = 200;
+
+/** The most a single page may carry, however large a `limit` asks for. */
+export const TRANSCRIPT_PAGE_MAX = 1000;
+
 export interface SessionDetail {
   summary: SessionSummary;
+  /** The window of the transcript this page carries, oldest first */
   entries: TranscriptEntry[];
+  /** Index of the first entry in `entries` within the whole transcript */
+  from: number;
+  /** Entries the transcript holds in total, so a caller knows what is still above `from` */
+  total: number;
 }
 
 // ---------- Runs (`claude -p` processes managed by the wrapper) ----------
@@ -500,7 +511,12 @@ export interface RunEvent {
 
 export interface RunDetail {
   run: RunSummary;
+  /** The window of the run's events this page carries, oldest first */
   events: RunEvent[];
+  /** Index of the first event in `events` within everything the run has emitted */
+  from: number;
+  /** Events the run has emitted in total */
+  total: number;
 }
 
 /** CLI sessions alive on the machine/container (`claude agents --json`) */
