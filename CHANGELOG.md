@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.5.0](https://github.com/yeyo11/agentry/compare/v0.4.1...v0.5.0) (2026-09-19)
+
+
+### Features
+
+* show the background agents of sessions started from a terminal ([243e8af](https://github.com/yeyo11/agentry/commit/243e8af76e335b9d71b8fbc59b18c2e6f41c56d5))
+
 ## [0.4.1](https://github.com/yeyo11/agentry/compare/v0.4.0...v0.4.1) (2026-09-19)
 
 
