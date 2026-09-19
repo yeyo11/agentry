@@ -146,6 +146,9 @@ test('runs, orchestrations and plugins reject bad requests', async () => {
   assert.equal(unknownWorkflow.statusCode, 404);
   assert.equal((await app.inject({ method: 'POST', url: '/api/workflows/saved/run', ...json({}) })).statusCode, 400);
   assert.equal((await app.inject({ method: 'POST', url: '/api/runs/ghost/interrupt' })).statusCode, 404);
+  const forkWithoutSession = await app.inject({ method: 'POST', url: '/api/runs', ...json({ prompt: 'hi', forkSession: true }) });
+  assert.equal(forkWithoutSession.statusCode, 400);
+  assert.match(forkWithoutSession.json().error, /needs resumeSessionId/);
   assert.equal((await app.inject({ method: 'PATCH', url: '/api/runs/ghost', ...json({ model: 'opus' }) })).statusCode, 404);
   const badMode = await app.inject({ method: 'PATCH', url: '/api/runs/ghost', ...json({ permissionMode: 'yolo' }) });
   assert.equal(badMode.statusCode, 400);

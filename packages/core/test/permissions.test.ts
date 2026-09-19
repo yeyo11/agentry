@@ -188,3 +188,23 @@ test('a run nobody answers for never asks', async () => {
   runs.stopAll();
   db.close();
 });
+
+test('continuing in a copy forks once, then resumes the copy', async () => {
+  const { runs, db } = setup();
+  assert.throws(() => runs.start({ prompt: 'hi', forkSession: true }), /needs resumeSessionId/);
+
+  const run = runs.start({ prompt: 'hi', resumeSessionId: 'terminal-session', forkSession: true });
+  await idle(runs, run.id);
+  assert.match(resultText(runs, run.id), /--resume terminal-session --fork-session/);
+  const copy = runs.get(run.id)?.sessionId;
+  assert.ok(copy && copy !== 'terminal-session');
+
+  runs.stop(run.id);
+  await until(() => runs.get(run.id)?.status === 'stopped', 'the stop');
+  runs.send(run.id, 'again');
+  await until(() => runs.get(run.id)?.status === 'idle' && resultText(runs, run.id).includes(`--resume ${copy}`), 'the resume of the copy');
+  assert.doesNotMatch(resultText(runs, run.id), /--fork-session/);
+  assert.equal(runs.get(run.id)?.sessionId, copy);
+  runs.stopAll();
+  db.close();
+});

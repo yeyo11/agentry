@@ -136,6 +136,8 @@ class Run {
   pendingPrompts = 0;
   /** The turn is ending because someone interrupted it, not because it failed */
   interruptRequested = false;
+  /** Resume into a copy until the CLI reports the copy's own session id */
+  forkPending = false;
   /** The last turn sent, files included, so a turn lost to a rate limit is replayed whole */
   lastUserTurn: { text: string; attachments: string[] } | null = null;
   /** The turn died against the account's rate limit */
@@ -153,6 +155,7 @@ class Run {
     this.permissionMode = opts.permissionMode ?? config.defaultPermissionMode;
     this.model = opts.model ?? null;
     this.sessionId = opts.resumeSessionId ?? null;
+    this.forkPending = opts.forkSession === true && Boolean(opts.resumeSessionId);
     this.name = opts.name ?? `${basename(this.cwd)}-${this.id.slice(0, 6)}`;
     this.emitter.setMaxListeners(100);
   }
@@ -361,6 +364,7 @@ export class RunManager extends EventEmitter {
 
   start(opts: RunOptions, meta: RunMeta = {}): RunSummary {
     if (!opts.prompt?.trim() && !opts.attachments?.length) throw new Error('prompt is required');
+    if (opts.forkSession && !opts.resumeSessionId) throw new Error('forkSession needs resumeSessionId');
     if (opts.account && !this.accounts?.managed) {
       throw new Error('no claude-swap account is registered: a run cannot be pinned to one');
     }
@@ -590,6 +594,8 @@ export class RunManager extends EventEmitter {
     ];
     if (resuming && run.sessionId) {
       args.push('--resume', run.sessionId);
+      // Only the first spawn copies: once the copy has its own id, later respawns resume the copy
+      if (run.forkPending) args.push('--fork-session');
     } else {
       run.sessionId = randomUUID();
       args.push('--session-id', run.sessionId, '--name', run.name);
@@ -833,7 +839,10 @@ export class RunManager extends EventEmitter {
     }
 
     if (type === 'system' && subtype === 'init') {
-      if (typeof raw.session_id === 'string') run.sessionId = raw.session_id;
+      if (typeof raw.session_id === 'string') {
+        if (run.forkPending && raw.session_id !== run.sessionId) run.forkPending = false;
+        run.sessionId = raw.session_id;
+      }
       if (typeof raw.permissionMode === 'string') run.permissionMode = reportedMode(raw.permissionMode);
       if (typeof raw.model === 'string') run.model = raw.model;
       if (typeof raw.cwd === 'string') run.workingDir = raw.cwd;
