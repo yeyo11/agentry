@@ -10,8 +10,9 @@
 - **Orchestration** — task DAG with parallelism, dependency context, synthesis and an auto-planner;
   per-task git worktrees merged into one integration branch (an integrator agent resolves
   conflicts), pull request on request, resume with corrected settings, delete.
-- **Run control** — interactive permission prompts answered from the UI (`--permission-prompt-tool`),
-  attachments (images, PDFs, files) in the composer, cost budgets (`--max-budget-usd`), per-run
+- **Run control** — the CLI's control protocol over stdio: permission prompts, `AskUserQuestion`
+  and plan approval answered from the UI, interrupting a turn, switching the permission mode and
+  the model mid-run; attachments (images, PDFs, files) in the composer, cost budgets (`--max-budget-usd`), per-run
   git worktrees.
 - **Configuration, user and project scope** — settings (guided + raw), instructions, MCP servers
   (user / project / local, connection checks), agents, skills, commands, output styles, rules, a

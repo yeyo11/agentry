@@ -1678,6 +1678,18 @@ a.badge:hover {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+.kv .kv-full {
+  grid-column: 1 / -1;
+}
+.inline-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.inline-form > :first-child {
+  flex: 1;
+  min-width: 0;
+}
 
 .meters {
   display: flex;
@@ -3813,7 +3825,13 @@ button.tree-row-on:hover {
   position: sticky;
   bottom: 0;
   z-index: 2;
+  flex-shrink: 0;
   margin-top: 12px;
+  /* Pinned, so it must never outgrow the transcript: a tall one scrolls inside instead of hiding its top */
+  max-height: 55dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius);
 }
 
 .permission-list ul {
@@ -3829,7 +3847,8 @@ button.tree-row-on:hover {
   padding: 12px 14px;
   border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+  /* Opaque: the transcript scrolls underneath */
+  background: color-mix(in srgb, var(--warn) 10%, var(--bg-elev));
 }
 
 .permission-head {
@@ -3845,7 +3864,7 @@ button.tree-row-on:hover {
   overflow-x: auto;
   font-family: var(--mono);
   font-size: 12.5px;
-  background: var(--surface-2, var(--bg));
+  background: var(--bg-sunken);
   border-radius: calc(var(--radius) - 3px);
 }
 
@@ -3859,6 +3878,118 @@ button.tree-row-on:hover {
 .permission-reason {
   flex: 1;
   min-width: 200px;
+}
+
+.permission-question .tabs {
+  margin: 0 -4px 10px;
+}
+
+.question-num {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--bg-sunken);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.question {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+  animation: fade-rise var(--dur-base) var(--ease-out);
+}
+
+.question-text {
+  margin: 0;
+  font-weight: 600;
+}
+
+.question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.question-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 3px);
+  background: var(--bg-elev);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+
+.question-option:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-sunken);
+}
+
+.question-option.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elev));
+}
+
+/* Radio for one answer, checkbox for several */
+.question-mark {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  color: #fff;
+}
+
+.question-option.is-multi .question-mark {
+  border-radius: 4px;
+}
+
+.question-option.is-on .question-mark {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.question-mark svg {
+  width: 11px;
+  height: 11px;
+}
+
+.question-label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.question-other {
+  width: 100%;
+}
+
+.question-spacer {
+  flex: 1;
+}
+
+/* A plan can run long: it scrolls inside the prompt so the buttons stay in reach */
+.permission-plan-body {
+  max-height: 340px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  overflow-y: auto;
+  border-radius: calc(var(--radius) - 3px);
+  background: var(--bg-sunken);
 }
 
 /* A background command's output, expanded under its row. */

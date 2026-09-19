@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 import { app } from 'electron';
 
 export interface Resources {
-  /** Bundled API server (single-file ESM); permission-mcp.mjs must sit next to it */
+  /** Bundled API server (single-file ESM) */
   serverEntry: string;
   /** Built UI served by the API */
   webDist: string;
@@ -35,7 +35,6 @@ export function resolveResources(): Resources {
 export function missingResources(res: Resources): string[] {
   const missing: string[] = [];
   if (!existsSync(res.serverEntry)) missing.push(res.serverEntry);
-  if (!existsSync(join(res.serverEntry, '..', 'permission-mcp.mjs'))) missing.push(join(res.serverEntry, '..', 'permission-mcp.mjs'));
   if (!existsSync(join(res.webDist, 'index.html'))) missing.push(join(res.webDist, 'index.html'));
   return missing;
 }

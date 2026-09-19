@@ -1,8 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
-import type { PermissionDecision, RunDetail, RunEvent, RunOptions } from '@agentry/shared';
+import type { PermissionDecision, PermissionMode, RunDetail, RunEvent, RunOptions, RunSettingsUpdate } from '@agentry/shared';
 
 const HEARTBEAT_MS = 15_000;
+const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'];
 
 export const runRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.get('/runs', () => core.runList());
@@ -23,6 +24,17 @@ export const runRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core 
   );
 
   app.post<{ Params: { id: string } }>('/runs/:id/stop', (req) => core.runs.stop(req.params.id));
+
+  app.post<{ Params: { id: string } }>('/runs/:id/interrupt', (req) => core.runs.interrupt(req.params.id));
+
+  app.patch<{ Params: { id: string }; Body: RunSettingsUpdate }>('/runs/:id', (req) => {
+    const { permissionMode, model } = req.body ?? {};
+    if (permissionMode !== undefined && !PERMISSION_MODES.includes(permissionMode)) {
+      throw new Error(`permissionMode must be one of ${PERMISSION_MODES.join(', ')}`);
+    }
+    if (model !== undefined && typeof model !== 'string') throw new Error('model must be a string');
+    return core.runs.updateSettings(req.params.id, { permissionMode, model });
+  });
 
   app.delete<{ Params: { id: string } }>('/runs/:id', (req) => {
     if (!core.runs.get(req.params.id)) throw new Error('run not found');
@@ -69,16 +81,17 @@ export const runRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core 
   // from their files on disk. Core decides which, so every screen reads the same list.
   app.get('/tasks', () => core.allBackgroundTasks());
 
-  // Tool calls the CLI is holding until someone decides. The run's event stream carries a notice
-  // when one arrives, so the UI does not have to poll to notice it.
+  // What the CLI is holding until someone decides: tool calls, questions, plans. The run's event
+  // stream carries a notice when one arrives, so the UI does not have to poll to notice it.
   app.get<{ Params: { id: string } }>('/runs/:id/permissions', (req) => core.permissions.list(req.params.id));
 
   app.post<{ Params: { id: string; requestId: string }; Body: PermissionDecision }>(
     '/runs/:id/permissions/:requestId',
     (req) => {
-      const { behavior, message, updatedInput } = req.body ?? ({} as PermissionDecision);
+      const { behavior, message, updatedInput, updatedPermissions } = req.body ?? ({} as PermissionDecision);
       if (behavior !== 'allow' && behavior !== 'deny') throw new Error("behavior must be 'allow' or 'deny'");
-      return core.permissions.answer(req.params.requestId, { behavior, message, updatedInput });
+      if (updatedPermissions !== undefined && !Array.isArray(updatedPermissions)) throw new Error('updatedPermissions must be an array');
+      return core.permissions.answer(req.params.requestId, { behavior, message, updatedInput, updatedPermissions });
     },
   );
 

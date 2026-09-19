@@ -24,14 +24,13 @@ files:
   - '!dist/**/*.map'
   - package.json
 
-# Paths the shell reads at runtime (src/resources.ts): <resources>/server/{server,permission-mcp}.mjs and
-# <resources>/web/index.html. The permission MCP must sit next to server.mjs.
+# Paths the shell reads at runtime (src/resources.ts): <resources>/server/server.mjs and
+# <resources>/web/index.html.
 extraResources:
   - from: ../api/dist
     to: server
     filter:
       - server.mjs
-      - permission-mcp.mjs
   - from: ../web/dist
     to: web
   # The window's own icon (src/resources.ts); without it the running window has no _NET_WM_ICON

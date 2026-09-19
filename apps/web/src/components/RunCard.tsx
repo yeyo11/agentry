@@ -40,6 +40,11 @@ export function RunCard({ run, compact = false }: { run: RunSummary; compact?: b
               </Link>
             </Tooltip>
           )}
+          {(run.pendingPrompts ?? 0) > 0 && (
+            <Link to={`/runs/${run.id}`} className="badge badge-warn">
+              waiting for you
+            </Link>
+          )}
           {runningSubagents > 0 && <span className="badge badge-active">{runningSubagents} subagents</span>}
           {runningTasks > 0 && <span className="badge badge-active">{runningTasks} bg tasks</span>}
         </div>

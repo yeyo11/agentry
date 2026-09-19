@@ -36,9 +36,12 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
 
 - **Every conversation, from anywhere** — start a run from the UI or the API, stream the tokens,
   answer follow-up turns, and pick up any session the CLI has ever written on that machine.
-- **Approve tool calls as they happen** — a headless run has nobody to ask, so it is normally
-  denied anything that needs permission. Agentry routes those prompts to the panel: you see the
-  exact command, allow it, or deny it with a reason the model reads and adapts to.
+- **Answer what Claude asks, as it asks** — a headless run has nobody to ask, so it is normally
+  denied anything that needs permission. Agentry speaks the CLI's control protocol
+  (`--permission-prompt-tool stdio`) and routes every prompt to the panel: tool calls with the exact
+  command (allow, allow always, or deny with a reason the model reads), questions from
+  `AskUserQuestion` with their options, and plans to approve or send back. From the same screen you
+  interrupt a turn without losing the session and switch the permission mode or the model mid-run.
 - **Orchestration** — a DAG of tasks, each with its own Claude worker, run in parallel with
   dependency context and a synthesis step. Every worker can get its own git worktree and branch,
   so parallel agents never write over each other. An auto-planner drafts the graph; plans are kept,
@@ -307,8 +310,10 @@ A run is a live conversation backed by a `claude -p` process.
 | GET | `/runs/:id/stream?since=SEQ` | Server-Sent Events, one `RunEvent` per message (honours `Last-Event-ID`). Includes ephemeral `partial` events with the text generated so far (token streaming); they are never replayed |
 | POST | `/runs/:id/messages` | `{ text, attachments? }` — send another turn (resumes the session if the process ended). `attachments` are upload ids from `POST /uploads` |
 | POST | `/runs/:id/stop` | Stop the process; the conversation is kept |
-| GET | `/runs/:id/permissions` | Tool calls waiting for approval (runs started with `permissionPrompts: "host"`) |
-| POST | `/runs/:id/permissions/:requestId` | `{ behavior: "allow" \| "deny", message?, updatedInput? }` — answer one. Unanswered requests are denied after ten minutes |
+| POST | `/runs/:id/interrupt` | End the turn in progress and keep the process, which waits for the next message |
+| PATCH | `/runs/:id` | `{ permissionMode?, model? }` — a live process switches at once; an ended one on its next message |
+| GET | `/runs/:id/permissions` | What the run is waiting on: tool calls, questions (`AskUserQuestion`) and plans (`ExitPlanMode`). Only for runs started with `permissionPrompts: "host"` |
+| POST | `/runs/:id/permissions/:requestId` | `{ behavior: "allow" \| "deny", message?, updatedInput?, updatedPermissions? }` — answer one. A question is answered by allowing it with `updatedInput.answers` (question → chosen labels); `updatedPermissions` takes the request's `suggestions` to remember them. Unanswered requests are denied after ten minutes |
 | DELETE | `/runs/:id` | Forget an ended run |
 | GET | `/environments?cwd=` | What Claude actually loaded (tools, MCP status, agents, skills, plugins, commands, memory paths) per directory, from the latest run there |
 | GET | `/tasks` | Commands sent to the background, by runs and by sessions started from a terminal. Survives a restart |

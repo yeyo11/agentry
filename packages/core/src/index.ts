@@ -83,17 +83,14 @@ export class Core {
   constructor(config: CoreConfig = loadConfig()) {
     this.config = config;
     this.db = new Db(config);
-    // Listening before any run starts: a prompt that arrives first would otherwise be denied
-    this.permissions = new PermissionBroker(config.dataDir);
-    this.permissions.listen();
+    this.permissions = new PermissionBroker();
     // Must run before anything spawns the CLI: it injects stored credentials into process.env
     this.credentials = new CredentialStore(config);
     this.workspace = new Workspace(config);
     this.uploads = new UploadStore(config.dataDir);
     this.runs = new RunManager(config, this.db);
-    this.runs.permissionSocket = this.permissions.socketPath;
+    this.runs.permissions = this.permissions;
     this.runs.uploads = this.uploads;
-    this.runs.on('run-ended', (runId: string) => this.permissions.denyAllFor(runId));
     // The UI watches a run's event stream, so the prompt has to arrive on it
     this.permissions.on('requested', (request: PermissionRequest) => {
       this.runs.notice(request.runId, `Permission requested for ${request.toolName}`, { permission: request });
