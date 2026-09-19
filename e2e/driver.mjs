@@ -120,7 +120,7 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
     },
     /** modifiers: 1 Alt, 2 Ctrl, 4 Meta, 8 Shift */
     async key(key, modifiers = 0) {
-      const base = { key, code: key.length === 1 ? `Key${key.toUpperCase()}` : key, modifiers, windowsVirtualKeyCode: key.length === 1 ? key.toUpperCase().charCodeAt(0) : { Enter: 13, Escape: 27, Tab: 9 }[key] };
+      const base = { key, code: key.length === 1 ? `Key${key.toUpperCase()}` : key, modifiers, windowsVirtualKeyCode: key.length === 1 ? key.toUpperCase().charCodeAt(0) : { Enter: 13, Escape: 27, Tab: 9, ArrowUp: 38, ArrowDown: 40 }[key] };
       await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...base });
       await send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
       await sleep(250);
