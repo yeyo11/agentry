@@ -1,0 +1,183 @@
+/* Notification center: the bell, its panel, and the toast additions it needs. Built on the shared tokens. */
+
+.bell {
+  position: relative;
+}
+.bell-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--bg);
+  pointer-events: none;
+}
+/* A question is waiting: the badge changes colour, so it reads apart from news */
+.bell-urgent {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
+}
+.bell-urgent .bell-badge {
+  background: var(--warn);
+  color: #1a1204;
+}
+
+.notif-panel {
+  width: min(420px, calc(100vw - 16px));
+  max-height: min(600px, var(--radix-popover-content-available-height, 600px));
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+.notif-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.notif-head-actions {
+  display: flex;
+  gap: 6px;
+}
+.notif-empty {
+  margin: 0;
+  padding: 22px 16px;
+  text-align: center;
+}
+.notif-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.notif-item {
+  --notif-tone: var(--info);
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.notif-item:hover,
+.notif-item:focus-visible {
+  background: var(--bg-hover);
+}
+.notif-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.notif-ok {
+  --notif-tone: var(--ok);
+}
+.notif-bad {
+  --notif-tone: var(--bad);
+}
+.notif-warn {
+  --notif-tone: var(--warn);
+}
+.notif-icon {
+  flex: none;
+  display: flex;
+  margin-top: 1px;
+  color: var(--notif-tone);
+}
+.notif-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.notif-title {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.is-unread .notif-title {
+  color: var(--text);
+  font-weight: 600;
+}
+.notif-body {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.notif-meta {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.notif-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+/* What needs the person carries the warning colour down the side, as the pinned prompt does */
+.notif-high {
+  background: var(--warn-soft);
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.notif-high .notif-dot {
+  background: var(--warn);
+}
+
+.notif-prefs {
+  flex: none;
+  border-top: 1px solid var(--border);
+  padding: 4px 8px;
+  background: var(--bg-sunken);
+}
+.notif-prefs-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 6px 4px 10px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.notif-prefs-group {
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* Toasts: the warning tone, and the action a toast can carry */
+.toast-warn {
+  --toast-tone: var(--warn);
+}
+.toast-action {
+  margin-top: 8px;
+}

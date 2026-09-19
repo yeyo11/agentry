@@ -295,8 +295,22 @@ transcript to the shared config dir, so sessions and history behave as usual.
 | DELETE | `/sessions/:id` | Delete a transcript (refused while the session is live) |
 | GET | `/sessions/:id/subagents` | Background agents a session spawned, read from its files |
 | GET | `/sessions/:id/tasks` | Shell commands a session sent to the background |
-| GET | `/sessions/:id/tasks/:taskId/output` | What one of them printed (the last 64 KiB) |
+| GET | `/sessions/:id/tasks/:taskId/output` | What one of them printed: the last 64 KiB, or with `?offset=` only what came after that byte |
+| GET | `/sessions/:id/subagents/:agentId` | One subagent: prompt, outcome, token usage and full transcript (`?after=` to append) |
+| GET | `/sessions/:id/workflows/:runId/agents/:agentId` | The same for an agent a workflow launched |
 | DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible |
+
+### Events
+
+One Server-Sent Events stream for the whole app, so a client never has to poll.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes; `sessions.changed`. Opens with `stream.hello`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
+
+```bash
+curl -N localhost:8787/api/events
+```
 
 ### Runs
 
@@ -471,10 +485,10 @@ Delegated to `claude plugin`; actions return the CLI output as `{ ok, output }` 
 | Page | What it covers |
 | --- | --- |
 | Dashboard | CLI detection, auth status, subscription usage limits, live runs, recent sessions |
-| Agents | Runs in progress, their subagents, and every live CLI session on the machine |
+| Agents | Runs in progress, their subagents, and every live CLI session on the machine. A subagent's **Details** opens a side panel (also from a run's side card and a workflow's agents): its prompt, status, duration, tokens, full transcript, result and the background tasks it launched, updating while it runs |
 | Run view | Live chat over SSE: messages, thinking, tool calls/results, background tasks, subagents, what Claude loaded |
 | Sessions | Full history across projects, transcripts (with subagent sidechains), resume into a run, delete |
-| Background tasks | Tasks started by any run, with status and duration |
+| Background tasks | Tasks started by any run or session, with status and duration; those launched by a subagent are tagged. **Output** opens a side panel that follows the command's output while it runs. Panels are addressable (`?detail=…`), so a reload or a link brings them back |
 | Projects | Workspace directories and directories with history; create or clone a project |
 | Orchestration | Auto-planned or manual task DAG, live board by stage, per-task results, synthesis |
 | Accounts | Registered accounts with 5h/7d (and per-model) usage, manual switch, add/remove, enable/disable, auto-rotation settings and the rotation log |
@@ -488,6 +502,23 @@ Across the app:
   recent sessions and actions (new run, theme, API reference…), with recents and full keyboard control.
 - **Themes**: light, dark or system, switchable from the top bar or the palette, applied before first paint.
 - **Live chat**: responses stream token by token; thinking, tool calls and results render as they arrive.
+- **Live updates**: one Server-Sent Events connection (`GET /api/events`) keeps every page current —
+  runs, prompts waiting for you, background tasks, subagents, workflows, orchestrations, account
+  rotation — instead of each screen polling. If the stream drops, the sidebar status says so and the
+  pages fall back to a slow poll until it returns.
+- **Notifications**: a bell in the top bar collects what needs you or is worth knowing — a run waiting
+  for a permission, a question or a plan (always first, with a link to it, and settled once you
+  answer), a run or orchestration that finished or failed, an integration conflict, a rate limit or an
+  account rotation, and finished background tasks, subagents and workflows. All but those last
+  ones also pop up as a toast (questions stay until you act); browser notifications are
+  opt-in, ask for permission only when you turn them on, and appear only while the tab is hidden.
+  The list, read state and preferences are kept per browser. A finished task or subagent links straight
+  to its side panel.
+- **Execution detail**: a subagent, a background task or a workflow agent opens in a side panel — prompt,
+  type, status, duration, tokens, the full transcript, the result and, for a subagent, the tasks it
+  launched — from the Agents and Background tasks pages, a run's side card and a workflow's agents. It
+  follows the agent or the command's output while it runs, and it is part of the URL (`?detail=…`), so a
+  reload or a link brings it back.
 - **Editors**: CodeMirror (JSON, Markdown, YAML, JS/TS) with `Ctrl/⌘ S`, unsaved-change guards
   (tabs, scope switches, sidebar navigation, reload), confirmation dialogs for destructive actions
   and toasts for every mutation.

@@ -13,13 +13,14 @@ const out = resolve(here, '../src/openapi/schemas.json');
 const ROOT_TYPES = [
   'ApiError', 'SystemInfo', 'Overview', 'AuthStatus', 'AuthVerification', 'SetCredentialsRequest', 'ActiveCliSession',
   'ProjectSummary', 'CreateProjectRequest', 'SessionSummary', 'SessionDetail',
-  'RunOptions', 'RunSummary', 'RunDetail', 'RunEvent', 'EffectiveEnvironment', 'BackgroundTask', 'BackgroundTaskOutput', 'SubagentInfo', 'WorkflowRun', 'WorkflowDefinition', 'RunWorkflowRequest', 'SaveOrchestrationWorkflowRequest',
+  'RunOptions', 'RunSummary', 'RunDetail', 'RunEvent', 'EffectiveEnvironment', 'BackgroundTask', 'BackgroundTaskOutput', 'SubagentInfo', 'AgentTranscript', 'WorkflowRun', 'WorkflowDefinition', 'RunWorkflowRequest', 'SaveOrchestrationWorkflowRequest',
   'Orchestration', 'OrchestrationSpec', 'PlanRequest', 'PlanDraftSummary', 'PermissionRequest', 'PermissionDecision', 'RunSettingsUpdate', 'ResumeOrchestrationRequest',
   'SettingsDoc', 'InstructionsDoc', 'McpServerEntry', 'McpServerHealth', 'MarkdownResource',
   'ConfigFileRoot', 'ConfigFileNode', 'ConfigFileContent', 'WriteConfigFileRequest',
   'MemoryFile', 'MemoryProjectSummary', 'PluginsOverview', 'AvailablePlugin', 'PluginActionRequest', 'CliTextResult',
   'Attachment', 'AccountsOverview', 'AccountSummary', 'SwitchAccountRequest', 'SwitchResult', 'AddAccountTokenRequest',
   'SetAccountAliasRequest', 'AutoSwitchSettings', 'AutoSwitchEvent',
+  'AgentryEvent', 'StreamHelloEvent', 'StreamResyncEvent',
 ];
 
 const generator = createGenerator({

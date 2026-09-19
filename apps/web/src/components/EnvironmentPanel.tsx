@@ -2,6 +2,7 @@ import type { EffectiveEnvironment } from '@agentry/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
+import { useFallbackInterval } from '../lib/feed';
 import { timeAgo } from '../lib/format';
 import { Collapsible } from './controls/Collapsible';
 import { ErrorBox, Skeleton, Tag } from './ui';
@@ -101,13 +102,15 @@ function EnvironmentBody({ env }: { env: EffectiveEnvironment }) {
 
 /**
  * What Claude actually loaded in the latest wrapper run in `cwd`: the ground truth that the
- * configuration files only describe. `live` keeps polling while a run is in progress.
+ * configuration files only describe. `live` keeps it refreshed while a run is in progress: the event
+ * feed does it, and a slow poll stands in while the feed is down.
  */
 export function EnvironmentPanel({ cwd, live = false }: { cwd: string; live?: boolean }) {
+  const fallback = useFallbackInterval();
   const { data, error, isLoading } = useQuery({
     queryKey: keys.environments(cwd),
     queryFn: () => api.environments(cwd),
-    refetchInterval: live ? 5000 : false,
+    refetchInterval: live ? fallback : false,
     enabled: Boolean(cwd),
   });
   const env = data?.[0];

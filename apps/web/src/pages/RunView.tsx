@@ -15,7 +15,8 @@ import { ICON, ICON_SM } from '../components/icons';
 import { AnimatePresence, motion, StatusDot, ThinkingDots } from '../components/motion';
 import { RunTimeline, StreamingEntry } from '../components/Transcript';
 import { WorkflowCard } from '../components/WorkflowCard';
-import { Card, Empty, ErrorBox, Loading, StatusBadge, usePageTitle } from '../components/ui';
+import { Card, Empty, ErrorBox, Loading, StatusBadge, Tag, usePageTitle } from '../components/ui';
+import { useDetailPanel } from '../lib/detail';
 import { durationBetween, formatCost, formatDateTime } from '../lib/format';
 
 // Its Select and Combobox are Radix controls kept out of the shell bundle this page lives in
@@ -25,11 +26,12 @@ export function RunView() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const runs = useRuns(1500);
+  const runs = useRuns();
   const run = runs.data?.find((r) => r.id === id);
   usePageTitle(run ? `${run.name} · run` : 'Run');
   const notFound = runs.isSuccess && !run;
   const { events, connected, partial } = useRunStream(id, !notFound);
+  const { open: openDetail } = useDetailPanel();
   const [text, setText] = useState('');
   const files = useAttachments();
   const [showNoise, setShowNoise] = useState(false);
@@ -280,7 +282,21 @@ export function RunView() {
                       {task.type} · {durationBetween(task.startedAt, task.endedAt)}
                     </span>
                   </div>
-                  <div className="mono small break">{task.description}</div>
+                  <div className="mono small break">
+                    {run.sessionId ? (
+                      <button type="button" className="link-btn detail-task-link" onClick={() => openDetail({ kind: 'task', sessionId: task.sessionId ?? run.sessionId ?? '', taskId: task.id })}>
+                        {task.description || task.id}
+                      </button>
+                    ) : (
+                      task.description
+                    )}
+                    {task.fromSubagent && (
+                      <>
+                        {' '}
+                        <Tag tone="info">from subagent</Tag>
+                      </>
+                    )}
+                  </div>
                   {task.summary && <div className="muted small">{task.summary}</div>}
                 </div>
               ))}
@@ -302,7 +318,20 @@ export function RunView() {
                       {sub.background ? ' · background' : ''} · {durationBetween(sub.startedAt, sub.endedAt)}
                     </span>
                   </div>
-                  <div className="small">{sub.description || '—'}</div>
+                  <div className="small">
+                    {/* The agent id arrives with its first task event, a moment after the tool call */}
+                    {run.sessionId && sub.agentId ? (
+                      <button
+                        type="button"
+                        className="link-btn detail-task-link"
+                        onClick={() => openDetail({ kind: 'subagent', sessionId: sub.sessionId ?? run.sessionId ?? '', agentId: sub.agentId ?? '' })}
+                      >
+                        {sub.description || sub.subagentType}
+                      </button>
+                    ) : (
+                      sub.description || '—'
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -313,7 +342,7 @@ export function RunView() {
           <Card title={`Workflows (${run.workflows?.length ?? 0})`}>
             <div className="stack-tight">
               {(run.workflows ?? []).map((workflow) => (
-                <WorkflowCard key={workflow.id} workflow={workflow} compact />
+                <WorkflowCard key={workflow.id} workflow={workflow} compact sessionId={run.sessionId ?? undefined} />
               ))}
             </div>
           </Card>

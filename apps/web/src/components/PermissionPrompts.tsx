@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCheck, ChevronLeft, ChevronRight, ClipboardList, MessageCircleQuestion, ShieldQuestion, X } from 'lucide-react';
 import { useState } from 'react';
 import { api, keys } from '../api';
+import { useFallbackInterval } from '../lib/feed';
 import { ICON_SM } from './icons';
 import { RichText } from './Transcript';
 import { ErrorBox, Tabs } from './ui';
@@ -311,15 +312,16 @@ function Prompt({ request }: { request: PermissionRequest }) {
 }
 
 /**
- * What the run is holding until someone decides: tool calls, questions, plans. Polled rather than
- * streamed: a request that arrives while the page is closed must still be waiting when it opens,
- * and the run's event stream only carries the notice that one appeared.
+ * What the run is holding until someone decides: tool calls, questions, plans. Fetched rather than
+ * pushed: a request that arrives while the page is closed must still be waiting when it opens. The
+ * event feed says when the list changes; a slow poll only covers the feed being down.
  */
 export function PermissionPrompts({ runId, live }: { runId: string; live: boolean }) {
+  const fallback = useFallbackInterval();
   const { data } = useQuery({
     queryKey: keys.runPermissions(runId),
     queryFn: () => api.runPermissions(runId),
-    refetchInterval: live ? 2000 : false,
+    refetchInterval: live ? fallback : false,
   });
   if (!data?.length) return null;
   return (

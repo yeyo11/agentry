@@ -18,6 +18,8 @@ import type {
   WorkflowRun,
 } from '@agentry/shared';
 import type { Db } from './db.ts';
+import { OrchestrationEventTracker } from './event-sources.ts';
+import type { EventBus } from './events.ts';
 import {
   abortMerge,
   addWorktree,
@@ -171,6 +173,9 @@ export class Orchestrator {
   workflowRecords: ((sessionId: string) => Promise<WorkflowRun[]>) | null = null;
   /** Workflows the run already had before the current launch, so an old one is not taken for it */
   private readonly workflowBaseline = new Map<string, number>();
+  /** Where status changes, task changes and merge conflicts are announced; set by Core */
+  bus: EventBus | null = null;
+  private readonly tracker = new OrchestrationEventTracker();
 
   constructor(
     private readonly config: CoreConfig,
@@ -179,6 +184,7 @@ export class Orchestrator {
   ) {
     this.file = join(config.dataDir, 'orchestrations.json');
     this.load();
+    this.tracker.baseline(this.list());
   }
 
   private load(): void {
@@ -223,7 +229,13 @@ export class Orchestrator {
     }
   }
 
+  /** Every state change ends in a save, so the save is where they are compared and announced. */
+  private announce(): void {
+    for (const event of this.tracker.observe([...this.items.values()])) this.bus?.emit(event);
+  }
+
   private persist(): void {
+    this.announce();
     try {
       this.db.saveOrchestrations([...this.items.values()]);
     } catch {
@@ -903,6 +915,7 @@ export class Orchestrator {
     }
     this.items.delete(id);
     this.db.deleteOrchestration(id);
+    this.announce();
   }
 
   /** Plans that can still be launched, newest first. */

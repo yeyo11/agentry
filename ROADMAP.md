@@ -21,6 +21,17 @@
   proactive rotation at a usage threshold, rotate-and-resume for a run that hits its limit, and
   per-run account pinning.
 - **Persistence** — runs survive wrapper restarts; orchestrations and credentials in the data volume.
+- **Live updates without polling** — one global SSE feed (`GET /api/events`) for runs, prompts
+  waiting for a person, tasks, subagents, workflows, orchestrations, account rotation and sessions on
+  disk, with `Last-Event-ID` resume; the UI keeps its caches fresh from it and only polls, slowly,
+  while the stream is down.
+- **Notifications** — a notification center in the top bar fed by that feed: runs waiting for an
+  answer first, then finished or failed runs and orchestrations, conflicts, rate limits and
+  rotations, and finished tasks and subagents; toasts, and opt-in browser notifications for a hidden tab.
+- **Execution detail** — side panels for a subagent, a background task and a workflow agent: prompt,
+  status, duration, tokens, the full transcript, the result and the tasks a subagent launched, read from
+  the files the CLI writes and updated live from the feed. Every task can show its output, followed while
+  it runs, and tasks launched by a subagent are tagged.
 - **API reference** — OpenAPI 3.1 generated from the shared types, served with Scalar at `/docs`;
   a test enforces that every route is documented.
 - **UI** — command palette (⌘K), light/dark/system themes, CodeMirror editors, unsaved-change
@@ -40,8 +51,6 @@
 - **Security (required before exposing the port)** — API token / OIDC in front of every route,
   TLS guidance, secret redaction in `GET /config/mcp` (env and headers), audit log of writes,
   optional read-only mode.
-- **Live updates without polling** — one global SSE feed for runs, tasks, orchestrations and
-  sessions; the UI currently polls every 2–3 s.
 - **Richer run control** — per-run MCP config and allowed-tools presets.
 - **Orchestration v2** — re-run a single task, edit and relaunch a finished graph, reusable
   templates.

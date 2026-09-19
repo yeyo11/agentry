@@ -24,6 +24,8 @@ import {
 } from '@agentry/shared';
 import { authFreeEnv } from './accounts.ts';
 import type { Db } from './db.ts';
+import { RunEventPublisher } from './event-sources.ts';
+import type { EventBus } from './events.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import type { SessionStore } from './sessions.ts';
@@ -281,8 +283,12 @@ export class RunManager extends EventEmitter {
   permissions: PermissionBroker | null = null;
   /** Files attached to messages; every run may read them */
   uploads: UploadStore | null = null;
+  /** Where changes to runs are announced; set by Core */
+  bus: EventBus | null = null;
   /** Latest `init` snapshot per working directory */
   readonly environments = new Map<string, EffectiveEnvironment>();
+
+  private readonly publisher = new RunEventPublisher((event) => this.bus?.emit(event));
 
   private readonly file: string;
 
@@ -338,7 +344,18 @@ export class RunManager extends EventEmitter {
       const detail = run.sessionId ? await sessions.getSession(run.sessionId, { includeSidechains: true }).catch(() => null) : null;
       for (const entry of detail?.entries ?? []) run.push({ kind: 'message', type: entry.role, entry });
       run.updatedAt = summary.updatedAt; // push() bumped it
+      this.watch(run);
     }
+  }
+
+  /** Announces what changes in the run from here on; `created` also announces the run itself. */
+  private watch(run: Run, created = false): void {
+    if (created) this.publisher.created(run.summary());
+    else this.publisher.baseline(run.summary());
+    run.emitter.on('event', (event: RunEvent) => {
+      // Partials only stream text and stderr changes nothing a list shows
+      if (event.kind !== 'partial' && event.kind !== 'stderr') this.publisher.observe(run.summary());
+    });
   }
 
   list(): RunSummary[] {
@@ -378,6 +395,8 @@ export class RunManager extends EventEmitter {
     if (!existsSync(run.cwd)) mkdirSync(run.cwd, { recursive: true });
     this.runs.set(run.id, run);
     this.spawnProcess(run, opts.prompt, attachments);
+    // After the spawn, so the announcement carries the session id and status the process started with
+    this.watch(run, true);
     return run.summary();
   }
 
@@ -541,6 +560,8 @@ export class RunManager extends EventEmitter {
     const run = this.runs.get(id);
     if (!run || run.alive) return false;
     this.runs.delete(id);
+    this.publisher.forget(id);
+    this.bus?.emit({ type: 'run.removed', title: `${run.name} removed`, runId: id });
     this.db.deleteRun(id);
     this.persist();
     return true;
@@ -1030,6 +1051,7 @@ export class RunManager extends EventEmitter {
         });
         return;
       }
+      const sessionId = typeof raw.session_id === 'string' ? raw.session_id : run.sessionId;
       const task: BackgroundTask = {
         id: taskId,
         runId: run.id,
@@ -1041,6 +1063,11 @@ export class RunManager extends EventEmitter {
         startedAt: now(),
         endedAt: null,
         summary: null,
+        // The output file is found by session id, and a task read from the live stream is the one
+        // the Output button needs it on: the event carries it, and the run knows it from `init`.
+        ...(sessionId ? { sessionId } : {}),
+        // Only says a subagent launched it, not which one; Core resolves that from the transcripts
+        ...(raw.owned_by_subagent === true ? { fromSubagent: true } : {}),
       };
       if (raw.is_backgrounded === false) run.foregroundTasks.set(taskId, task);
       else run.tasks.set(taskId, task);

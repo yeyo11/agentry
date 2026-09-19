@@ -260,16 +260,32 @@ export interface BackgroundTask {
   command?: string | null;
   /** Sent to the background by the person at the terminal rather than by the model */
   backgroundedByUser?: boolean;
+  /** Launched by a subagent rather than by the main agent (`owned_by_subagent` on the stream event) */
+  fromSubagent?: boolean;
+  /**
+   * The subagent that launched it, when known. The stream event only says a subagent did, so this
+   * comes from the subagent's own transcript, where the launch result is recorded.
+   */
+  ownerAgentId?: string | null;
   location?: WorkLocation | null;
 }
 
 /** Captured output of a background task, as the CLI wrote it. */
 export interface BackgroundTaskOutput {
   taskId: string;
+  /**
+   * Without `offset`, the tail of the file (at most 64 KiB); with it, up to 64 KiB of what follows
+   * that byte, so a longer gap takes several reads (`offset` < `bytes` means more is waiting)
+   */
   output: string;
-  /** Only the end of a long output is returned */
+  /** `output` is the tail of a longer file, not its start. Never set on a read that resumed from `offset`. */
   truncated: boolean;
+  /** Size of the output file in bytes */
   bytes: number;
+  /** Byte position just after `output`: pass it back as `?offset=` to read only what came since */
+  offset: number;
+  /** The requested `offset` was past the end of the file (it was replaced), so `output` restarts from the tail */
+  reset?: boolean;
 }
 
 /** An agent a session spawned with the Agent tool, in the foreground or the background. */
@@ -297,6 +313,58 @@ export interface SubagentInfo {
   location?: WorkLocation | null;
   /** Launched to run in the background, rather than awaited by its parent */
   background?: boolean;
+}
+
+/** Token usage summed over an agent's assistant messages. */
+export interface AgentTokenUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreation: number;
+  /** `input + output + cacheRead + cacheCreation` */
+  total: number;
+}
+
+/**
+ * Everything one subagent or workflow agent did, from the transcript and meta the CLI keeps for it
+ * beside the session's transcript: what it was asked, how it went, and its whole conversation.
+ */
+export interface AgentTranscript {
+  agentId: string;
+  sessionId: string;
+  kind: 'subagent' | 'workflow';
+  /** The workflow run (`wf_…`) a workflow agent belongs to */
+  workflowRunId: string | null;
+  /** The Agent tool call that spawned it; workflow agents have none */
+  toolUseId: string | null;
+  /** The CLI's `agentType` (`Explore`, `general-purpose`, `workflow-subagent`…) */
+  subagentType: string | null;
+  /** The description given at launch; a workflow agent's is its label */
+  description: string | null;
+  workflowPhase: string | null;
+  /** Its first message: the prompt it was given */
+  prompt: string | null;
+  /** `stopped` when its session ended before the agent reported back */
+  status: 'running' | 'completed' | 'failed' | 'stopped';
+  background: boolean;
+  startedAt: string | null;
+  endedAt: string | null;
+  durationMs: number | null;
+  lastActivityAt: string | null;
+  model: string | null;
+  usage: AgentTokenUsage;
+  toolCalls: number;
+  cwd: string | null;
+  /** Text of the agent's last assistant message: what it reported back */
+  result: string | null;
+  /** Entries of the transcript, from index `from` on (all of it unless `?after=` asked for a tail) */
+  entries: TranscriptEntry[];
+  /** Index of the first entry returned */
+  from: number;
+  /** Entries in the whole transcript: pass it back as `?after=` to read only what was appended */
+  total: number;
+  /** Background tasks this agent launched, where the transcripts say so (subagents only) */
+  tasks: BackgroundTask[];
 }
 
 /** One agent a workflow launched, as its progress reports it. */
@@ -1024,3 +1092,285 @@ export interface ApiError {
   error: string;
   detail?: string;
 }
+
+// ---- Live events (GET /api/events) ----
+
+/** Why a run is waiting for a person: a tool call to approve, a question to answer, a plan to approve. */
+export type RunWaitingReason = 'permission' | 'question' | 'plan';
+
+/** Fields every event on the feed carries. */
+export interface AgentryEventBase {
+  /** Monotonic per server process; what `Last-Event-ID` resumes from */
+  id: number;
+  at: string;
+  /** One line a notification can show as it is */
+  title: string;
+}
+
+/** What a run-scoped event says about the run it belongs to. */
+export interface RunEventRef {
+  runId: string;
+  runName: string;
+  /** Null until the CLI reports the session id */
+  sessionId: string | null;
+  /** Set for a worker of an orchestration */
+  orchestrationId: string | null;
+  /** Housekeeping runs (planner, auth check) that consumers usually leave out of notifications */
+  internal: boolean;
+}
+
+export type RunEndStatus = 'completed' | 'failed' | 'stopped';
+
+/** Where an event about work delegated inside a run belongs. `runId` is empty for a terminal session. */
+export interface ActivityEventRef {
+  runId: string;
+  runName: string;
+  sessionId: string | null;
+}
+
+export interface RunCreatedEvent extends AgentryEventBase, RunEventRef {
+  type: 'run.created';
+  status: RunStatus;
+}
+
+/**
+ * The run's status, turns, cost, last text, or pending prompts changed. A status change is sent as
+ * it happens (`previousStatus` says from what: busy → idle is a finished turn); other changes are
+ * coalesced to one event every ~250 ms per run.
+ */
+export interface RunUpdatedEvent extends AgentryEventBase, RunEventRef {
+  type: 'run.updated';
+  status: RunStatus;
+  previousStatus: RunStatus | null;
+  turns: number;
+  costUsd: number;
+  pendingPrompts: number;
+}
+
+/** The process ended for good (until a message resumes it). */
+export interface RunEndedEvent extends AgentryEventBase, RunEventRef {
+  type: 'run.ended';
+  status: RunEndStatus;
+  error: string | null;
+  turns: number;
+  costUsd: number;
+}
+
+export interface RunRemovedEvent extends AgentryEventBase {
+  type: 'run.removed';
+  runId: string;
+}
+
+/** The run cannot go on until a person answers; `permissionId` is the request to answer. */
+export interface RunWaitingEvent extends AgentryEventBase, RunEventRef {
+  type: 'run.waiting';
+  reason: RunWaitingReason;
+  permissionId: string;
+  toolName: string;
+}
+
+export interface PermissionRequestedEvent extends AgentryEventBase, RunEventRef {
+  type: 'permission.requested';
+  permissionId: string;
+  toolName: string;
+  reason: RunWaitingReason;
+  description: string | null;
+}
+
+export interface PermissionResolvedEvent extends AgentryEventBase, RunEventRef {
+  type: 'permission.resolved';
+  permissionId: string;
+  toolName: string;
+  /** `withdrawn` when the CLI took the question back; a timeout resolves as `deny` */
+  outcome: 'allow' | 'deny' | 'withdrawn';
+}
+
+/** A turn died against the account's rate limit. */
+export interface RunRateLimitedEvent extends AgentryEventBase, RunEventRef {
+  type: 'run.rateLimited';
+}
+
+/** Rotation moved the wrapper to another account after a run hit its limit. */
+export interface RunAccountRotatedEvent extends AgentryEventBase, RunEventRef {
+  type: 'run.accountRotated';
+  from: string | null;
+  to: string | null;
+  /** The interrupted turn was replayed on the new account */
+  resumed: boolean;
+}
+
+/** The active account changed, by whatever means (manual switch, `cswap auto`, rotation). */
+export interface AccountSwitchedEvent extends AgentryEventBase {
+  type: 'account.switched';
+  from: string | null;
+  to: string | null;
+  reason: string | null;
+}
+
+export interface TaskStartedEvent extends AgentryEventBase, ActivityEventRef {
+  type: 'task.started';
+  taskId: string;
+  taskType: string;
+  description: string;
+  toolUseId: string | null;
+  /** Launched by a subagent rather than the main agent, when the CLI said so */
+  fromSubagent: boolean;
+}
+
+export interface TaskEndedEvent extends AgentryEventBase, ActivityEventRef {
+  type: 'task.ended';
+  taskId: string;
+  taskType: string;
+  description: string;
+  /** As the CLI reports it: `completed`, `failed`, `killed`, `stopped`… */
+  status: string;
+  summary: string | null;
+  fromSubagent: boolean;
+}
+
+export interface SubagentStartedEvent extends AgentryEventBase, ActivityEventRef {
+  type: 'subagent.started';
+  toolUseId: string;
+  /** The CLI's id for the agent; may only arrive with `subagent.updated` */
+  agentId: string | null;
+  subagentType: string;
+  description: string;
+  background: boolean;
+}
+
+/** The agent got its CLI id (which names its transcript) or was sent to the background. */
+export interface SubagentUpdatedEvent extends AgentryEventBase, ActivityEventRef {
+  type: 'subagent.updated';
+  toolUseId: string;
+  agentId: string | null;
+  subagentType: string;
+  background: boolean;
+}
+
+export interface SubagentEndedEvent extends AgentryEventBase, ActivityEventRef {
+  type: 'subagent.ended';
+  toolUseId: string;
+  agentId: string | null;
+  subagentType: string;
+  description: string;
+  status: 'completed' | 'failed' | 'stopped';
+}
+
+/** A workflow's phases, agents or token count moved while it runs. */
+export interface WorkflowProgressEvent extends AgentryEventBase, ActivityEventRef {
+  type: 'workflow.progress';
+  /** The CLI's workflow run id (`wf_…`) when known, the task id otherwise */
+  workflowId: string;
+  taskId: string | null;
+  name: string | null;
+  agentsRunning: number;
+  agentsDone: number;
+  agentsTotal: number;
+  totalTokens: number | null;
+}
+
+export interface WorkflowEndedEvent extends AgentryEventBase, ActivityEventRef {
+  type: 'workflow.ended';
+  workflowId: string;
+  taskId: string | null;
+  name: string | null;
+  status: 'completed' | 'failed' | 'stopped';
+  summary: string | null;
+  totalTokens: number | null;
+}
+
+/** An orchestration was created, changed status, or its integration moved. */
+export interface OrchestrationUpdatedEvent extends AgentryEventBase {
+  type: 'orchestration.updated';
+  orchestrationId: string;
+  orchestrationName: string;
+  status: OrchestrationStatus;
+  previousStatus: OrchestrationStatus | null;
+  integrationStatus: IntegrationStatus | null;
+  costUsd: number;
+}
+
+export interface OrchestrationRemovedEvent extends AgentryEventBase {
+  type: 'orchestration.removed';
+  orchestrationId: string;
+}
+
+export interface OrchestrationTaskEvent extends AgentryEventBase {
+  type: 'orchestration.task';
+  orchestrationId: string;
+  orchestrationName: string;
+  taskId: string;
+  taskName: string;
+  status: OrchestrationTaskStatus;
+  previousStatus: OrchestrationTaskStatus | null;
+  runId: string | null;
+  error: string | null;
+}
+
+/** Merging the tasks' branches conflicted; `paths` are what could not be merged. */
+export interface OrchestrationConflictEvent extends AgentryEventBase {
+  type: 'orchestration.conflict';
+  orchestrationId: string;
+  orchestrationName: string;
+  integrationStatus: IntegrationStatus;
+  branch: string;
+  paths: string[];
+  /** An integrator agent is resolving it; false when the person has to */
+  resolving: boolean;
+}
+
+/** Files under the CLI's projects directory changed: a session was created, grew or ended. */
+export interface SessionsChangedEvent extends AgentryEventBase {
+  type: 'sessions.changed';
+}
+
+/** Everything the buffered feed carries, discriminated by `type`. */
+export type AgentryEvent =
+  | RunCreatedEvent
+  | RunUpdatedEvent
+  | RunEndedEvent
+  | RunRemovedEvent
+  | RunWaitingEvent
+  | PermissionRequestedEvent
+  | PermissionResolvedEvent
+  | RunRateLimitedEvent
+  | RunAccountRotatedEvent
+  | AccountSwitchedEvent
+  | TaskStartedEvent
+  | TaskEndedEvent
+  | SubagentStartedEvent
+  | SubagentUpdatedEvent
+  | SubagentEndedEvent
+  | WorkflowProgressEvent
+  | WorkflowEndedEvent
+  | OrchestrationUpdatedEvent
+  | OrchestrationRemovedEvent
+  | OrchestrationTaskEvent
+  | OrchestrationConflictEvent
+  | SessionsChangedEvent;
+
+export type AgentryEventType = AgentryEvent['type'];
+
+/** Sent first on every connection, without an SSE id: it is not part of the replay buffer. */
+export interface StreamHelloEvent {
+  type: 'stream.hello';
+  /** Id of the newest event the server has emitted */
+  lastEventId: number;
+  /** Changes on every server start; ids restart from 1 with it, so a new one means a full resync */
+  bootId: string;
+  serverTime: string;
+}
+
+/**
+ * Sent instead of a replay when the client's `Last-Event-ID` is not one this server can continue
+ * from (it fell out of the buffer, or is newer than anything emitted, as after a restart): whatever
+ * the client cached may be stale, so it must refetch everything live.
+ */
+export interface StreamResyncEvent {
+  type: 'stream.resync';
+  lastEventId: number;
+  reason: 'buffer-overflow' | 'server-restarted';
+}
+
+/** Names of the SSE `event:` lines the feed uses besides the ones of {@link AgentryEventType}. */
+export type StreamControlEventType = StreamHelloEvent['type'] | StreamResyncEvent['type'];

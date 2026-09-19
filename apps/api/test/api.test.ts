@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { request } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
@@ -10,13 +12,14 @@ import { buildApp } from '../src/app.ts';
 // Isolated dirs and a missing CLI binary: these tests cover routing, scoping, validation and
 // error mapping without ever spawning Claude or touching the real ~/.claude.
 let app: FastifyInstance;
+let core: Core;
 let projectId: string;
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
 before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-api-'));
-  const core = new Core(
+  core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CSWAP_BIN: '/nonexistent/cswap',
@@ -199,4 +202,66 @@ test('a message may carry attachments, and an unknown one fails the request', as
   const res = await app.inject({ method: 'POST', url: '/api/runs', ...json({ prompt: 'hi', attachments: ['00000000-0000-0000-0000-000000000000'] }) });
   assert.equal(res.statusCode, 404);
   assert.match(res.json().error, /upload not found/);
+});
+
+// ---------- the global event feed ----------
+
+/** Inject cannot follow a stream that never ends, so these talk to a real listening socket. */
+async function openFeed(headers: Record<string, string> = {}) {
+  const { port } = app.server.address() as AddressInfo;
+  let text = '';
+  let contentType = '';
+  const waiters: Array<() => void> = [];
+  const req = request({ host: '127.0.0.1', port, path: '/api/events', headers }, (res) => {
+    contentType = String(res.headers['content-type']);
+    res.setEncoding('utf8');
+    res.on('data', (chunk: string) => {
+      text += chunk;
+      for (const wake of waiters.splice(0)) wake();
+    });
+  });
+  req.end();
+  const until = async (pattern: RegExp) => {
+    const deadline = Date.now() + 3000;
+    while (!pattern.test(text)) {
+      if (Date.now() > deadline) throw new Error(`timed out waiting for ${pattern}; got:\n${text}`);
+      await new Promise<void>((resolve) => {
+        waiters.push(resolve);
+        setTimeout(resolve, 50);
+      });
+    }
+  };
+  return { until, text: () => text, contentType: () => contentType, close: () => req.destroy() };
+}
+
+const ping = (title: string) => core.events.emit({ type: 'sessions.changed', title });
+
+test('the event feed streams what happens, replays what a reconnecting client missed, and cleans up', async () => {
+  await app.listen({ port: 0, host: '127.0.0.1' });
+  const idle = core.events.subscribers;
+
+  const first = await openFeed();
+  await first.until(/event: stream\.hello\ndata: .*"bootId":"/);
+  assert.match(first.contentType(), /text\/event-stream/);
+  assert.equal(core.events.subscribers, idle + 1);
+
+  const seen = ping('live');
+  await first.until(new RegExp(`id: ${seen.id}\nevent: sessions\\.changed\ndata: .*"title":"live"`));
+  first.close();
+  // The subscription must go with the connection, or every closed tab leaks a listener
+  for (let i = 0; i < 50 && core.events.subscribers > idle; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(core.events.subscribers, idle);
+
+  const missed = [ping('missed 1'), ping('missed 2')];
+  const again = await openFeed({ 'last-event-id': String(seen.id) });
+  await again.until(/missed 2/);
+  assert.ok(!again.text().includes('"title":"live"'), 'what the client already had is not sent again');
+  const order = missed.map((e) => again.text().indexOf(`id: ${e.id}\n`));
+  assert.ok(order[0] !== undefined && order[0] > again.text().indexOf('stream.hello') && order[0] < (order[1] ?? -1), 'hello first, then the missed events in order');
+  again.close();
+
+  // An id from a server that no longer exists cannot be continued from
+  const stale = await openFeed({ 'last-event-id': '999999' });
+  await stale.until(/event: stream\.resync\ndata: .*"reason":"server-restarted"/);
+  stale.close();
 });

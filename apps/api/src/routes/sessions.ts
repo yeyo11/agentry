@@ -53,7 +53,39 @@ export const sessionRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     core.sessions.backgroundTasks(req.params.id, await core.isSessionLive(req.params.id)),
   );
 
-  app.get<{ Params: { id: string; taskId: string } }>('/sessions/:id/tasks/:taskId/output', (req) =>
-    core.sessions.taskOutput(req.params.id, req.params.taskId),
+  app.get<{ Params: { id: string; taskId: string }; Querystring: { offset?: string } }>('/sessions/:id/tasks/:taskId/output', (req) =>
+    core.sessions.taskOutput(req.params.id, req.params.taskId, { offset: count(req.query.offset, 'offset') }),
+  );
+
+  // A subagent's whole conversation, from the transcript the CLI keeps for it beside the session's.
+  app.get<{ Params: { id: string; agentId: string }; Querystring: { after?: string } }>('/sessions/:id/subagents/:agentId', async (req) => {
+    const detail = await core.sessions.agentTranscript(req.params.id, req.params.agentId, {
+      after: count(req.query.after, 'after'),
+      live: await core.isSessionLive(req.params.id),
+    });
+    if (!detail) throw new Error('subagent not found');
+    return detail;
+  });
+
+  // The same for an agent a workflow launched, which the CLI files under the workflow's run id.
+  app.get<{ Params: { id: string; runId: string; agentId: string }; Querystring: { after?: string } }>(
+    '/sessions/:id/workflows/:runId/agents/:agentId',
+    async (req) => {
+      const detail = await core.sessions.agentTranscript(req.params.id, req.params.agentId, {
+        runId: req.params.runId,
+        after: count(req.query.after, 'after'),
+        live: await core.isSessionLive(req.params.id),
+      });
+      if (!detail) throw new Error('workflow agent not found');
+      return detail;
+    },
   );
 };
+
+/** An optional non-negative integer query parameter. */
+function count(value: string | undefined, name: string): number | undefined {
+  if (value === undefined || value === '') return undefined;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0) throw new Error(`${name} must be a non-negative integer`);
+  return n;
+}
