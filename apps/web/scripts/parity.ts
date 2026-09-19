@@ -33,19 +33,19 @@ const GLOBS: Record<string, string[]> = {
 };
 
 /**
- * A file longer than highlight()'s own limit, cut into blocks. Only blank lines are cut on: a cut
- * inside a declaration would measure how each engine copes with a fragment, not how they colour
- * code. A stretch with no blank line at all is cut where the limit falls.
+ * A file longer than highlight()'s own limit, cut into blocks. Only a blank line before a top-level
+ * construct is cut on: a cut inside a declaration would measure how each engine copes with a
+ * fragment, not how they colour code. Past the last such line the file is left out (a long JSON
+ * document has none), rather than measured from the middle of something.
  */
 function chunks(code: string, want = 20_000, max = 55_000): string[] {
   const out: string[] = [];
   let rest = code;
   while (rest.length > max) {
-    // A cut lands where a top-level construct starts, so neither engine reads half of one
     const blank = rest.slice(0, max).search(new RegExp(`(?<=[\\s\\S]{${want}})\\n\\n(?=\\S)`));
-    const cut = blank >= 0 && blank < max ? blank : max;
-    out.push(rest.slice(0, cut));
-    rest = rest.slice(cut + 2);
+    if (blank < 0) return [...out, rest.slice(0, rest.lastIndexOf('\n', max))];
+    out.push(rest.slice(0, blank));
+    rest = rest.slice(blank + 2);
   }
   return rest ? [...out, rest] : out;
 }
