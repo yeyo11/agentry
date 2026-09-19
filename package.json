@@ -1,7 +1,7 @@
 {
   "name": "agentry",
   "private": true,
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Dockerized Claude Code wrapper: REST API + UI on top of the CLI",
   "type": "module",
   "packageManager": "pnpm@10.17.1",

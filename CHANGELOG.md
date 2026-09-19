@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.11.1](https://github.com/yeyo11/agentry/compare/v0.11.0...v0.11.1) (2026-09-19)
+
+
+### Bug fixes
+
+* **web:** stop the run view freezing while typing a message ([#50](https://github.com/yeyo11/agentry/issues/50)) ([0209347](https://github.com/yeyo11/agentry/commit/020934737f9c2ab98b70b5c5520e674f26fb2710))
+
 ## [0.11.0](https://github.com/yeyo11/agentry/compare/v0.10.0...v0.11.0) (2026-09-19)
 
 
