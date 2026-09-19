@@ -97,6 +97,8 @@ class Run {
   turns = 0;
   costUsd = 0;
   lastText: string | null = null;
+  /** Where the CLI says it works, from its init event: a worktree when it was given one */
+  workingDir: string | null = null;
   error: string | null = null;
   lastResult: RunResult | null = null;
   stopRequested = false;
@@ -152,6 +154,7 @@ class Run {
     run.costUsd = saved.costUsd;
     run.lastText = saved.lastText;
     run.error = saved.error;
+    run.workingDir = saved.workingDir ?? null;
     return run;
   }
 
@@ -183,6 +186,7 @@ class Run {
       account: this.opts.account ?? null,
       backgroundTasks: [...this.tasks.values()],
       subagents: [...this.subagents.values()],
+      workingDir: this.workingDir ?? (this.opts.worktree ? join(this.cwd, '.claude', 'worktrees', this.opts.worktree) : this.cwd),
     };
   }
 
@@ -661,6 +665,7 @@ export class RunManager extends EventEmitter {
     if (type === 'system' && subtype === 'init') {
       if (typeof raw.session_id === 'string') run.sessionId = raw.session_id;
       if (typeof raw.model === 'string') run.model = raw.model;
+      if (typeof raw.cwd === 'string') run.workingDir = raw.cwd;
       const environment = toEnvironment(run.cwd, run.id, raw);
       this.environments.set(run.cwd, environment);
       try {

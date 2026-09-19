@@ -45,6 +45,33 @@ function lineText(o: Record<string, unknown>): string {
  */
 const RESUMED_AFTER_MS = 2000;
 
+/** How much of a subagent's transcript is read for its working directory, which the first lines carry */
+const CWD_PROBE_BYTES = 64 * 1024;
+
+/**
+ * The directory an agent works in, from the first transcript line that records one. A subagent
+ * started with `isolation: worktree` works in its own worktree, not its parent's directory.
+ */
+async function firstCwd(file: string): Promise<string | null> {
+  const handle = await open(file, 'r').catch(() => null);
+  if (!handle) return null;
+  try {
+    const buffer = Buffer.alloc(CWD_PROBE_BYTES);
+    const { bytesRead } = await handle.read(buffer, 0, CWD_PROBE_BYTES, 0);
+    for (const raw of buffer.subarray(0, bytesRead).toString('utf8').split('\n')) {
+      try {
+        const cwd = (JSON.parse(raw) as { cwd?: unknown }).cwd;
+        if (typeof cwd === 'string' && cwd) return cwd;
+      } catch {
+        /* a line cut off by the probe */
+      }
+    }
+    return null;
+  } finally {
+    await handle.close();
+  }
+}
+
 /** Only the end of a long task output is returned: it is what says how the command finished. */
 const MAX_TASK_OUTPUT = 64 * 1024;
 
@@ -99,6 +126,8 @@ export function isTemporaryPath(path: string): boolean {
 /** Reads projects and sessions from ~/.claude/projects (.jsonl transcripts written by the CLI). */
 export class SessionStore {
   private readonly cache = new Map<string, CacheItem>();
+  /** Subagent transcript → its working dir; written once at its start, so never re-read */
+  private readonly cwdCache = new Map<string, string | null>();
   private readonly activityCache = new Map<string, { mtimeMs: number; size: number; activity: SessionActivity }>();
 
   constructor(private readonly config: CoreConfig) {}
@@ -143,6 +172,18 @@ export class SessionStore {
       if (typeof o.version === 'string') summary.cliVersion = o.version;
       if (o.type === 'summary' && typeof o.summary === 'string') customTitle = o.summary;
       if (o.type === 'custom-title' && typeof o.customTitle === 'string') customTitle = o.customTitle;
+      // Written when the CLI starts a session in a worktree it created: which one, and whose
+      if (o.type === 'worktree-state' && !summary.worktree) {
+        const w = o.worktreeSession as Record<string, unknown> | null | undefined;
+        if (w && typeof w.worktreePath === 'string' && typeof w.originalCwd === 'string') {
+          summary.worktree = {
+            path: w.worktreePath,
+            parentPath: w.originalCwd,
+            name: typeof w.worktreeName === 'string' ? w.worktreeName : null,
+            branch: typeof w.worktreeBranch === 'string' ? w.worktreeBranch : null,
+          };
+        }
+      }
 
       const entry = normalizeMessage(o);
       if (!entry || entry.isSidechain) continue;
@@ -190,7 +231,9 @@ export class SessionStore {
     const projects: ProjectSummary[] = [];
     for (const [id, list] of byProject) {
       const path = list.find((s) => s.projectPath)?.projectPath ?? id;
+      const worktree = list.find((s) => s.worktree?.path === path)?.worktree;
       projects.push({
+        ...(worktree ? { parentPath: worktree.parentPath, worktree: { name: worktree.name, branch: worktree.branch } } : {}),
         id,
         path,
         name: basename(path) || path,
@@ -306,7 +349,14 @@ export class SessionStore {
       } catch {
         continue;
       }
-      const transcript = await stat(join(dir, `agent-${agentId}.jsonl`)).catch(() => null);
+      const transcriptFile = join(dir, `agent-${agentId}.jsonl`);
+      const transcript = await stat(transcriptFile).catch(() => null);
+      let cwd = this.cwdCache.get(transcriptFile);
+      if (cwd === undefined && transcript) {
+        cwd = await firstCwd(transcriptFile);
+        // Only a found value is final: an agent that has not written a line yet will
+        if (cwd) this.cwdCache.set(transcriptFile, cwd);
+      }
       const lastActivityAt = transcript ? transcript.mtime.toISOString() : null;
       const stop = activity.stops.get(agentId);
       const resumed = stop && transcript ? transcript.mtimeMs > Date.parse(stop.at) + RESUMED_AFTER_MS : false;
@@ -324,6 +374,7 @@ export class SessionStore {
         sessionId,
         agentId,
         lastActivityAt,
+        cwd: cwd ?? null,
       });
     }
     return out.sort((a, b) => b.startedAt.localeCompare(a.startedAt));

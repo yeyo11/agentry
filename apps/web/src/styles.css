@@ -3247,6 +3247,91 @@ button.tree-row-on:hover {
   letter-spacing: -0.01em;
 }
 
+/* Where a piece of work happens: project, then worktree branch */
+.location {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+/* Names that can run long (branches, orchestration:task) must not take the table's width */
+.cell-clip {
+  max-width: 15rem;
+}
+.cell-clip > a,
+.cell-clip .location-project {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.location-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A card with its worktrees open must not stretch the rest of its row */
+.project-cards {
+  align-items: start;
+}
+
+/* Worktrees nested in their repository's card */
+.worktree-fold {
+  margin-top: 4px;
+}
+.worktree-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.worktree-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border-left: 2px solid var(--border);
+  min-width: 0;
+}
+.worktree-row.is-live {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+.worktree-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.worktree-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  min-width: 0;
+}
+.worktree-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 /* ---------- 12. Overlays ---------- */
 .overlay {
   position: fixed;

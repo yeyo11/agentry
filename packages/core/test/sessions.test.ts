@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { isLiveCliSession } from '../src/cli.ts';
+import { Locator } from '../src/locations.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -120,7 +121,9 @@ test('a CLI session\'s background agents are read from its files, with their rea
   ] as const) {
     writeFileSync(join(agents, `agent-${id}.meta.json`), JSON.stringify({ agentType: 'fork', description, toolUseId: `toolu_${id}` }));
     const file = join(agents, `agent-${id}.jsonl`);
-    writeFileSync(file, line({ type: 'assistant', uuid: `a-${id}`, message: { role: 'assistant', content: [] } }));
+    // `busy` was started with isolation: worktree, so it works in a worktree of its own
+    const cwd = id === 'busy' ? '/work/agents/.claude/worktrees/agent-busy' : '/work/agents';
+    writeFileSync(file, line({ type: 'assistant', uuid: `a-${id}`, cwd, message: { role: 'assistant', content: [] } }));
     const when = new Date(mtime);
     utimesSync(file, when, when);
   }
@@ -135,6 +138,12 @@ test('a CLI session\'s background agents are read from its files, with their rea
   assert.equal(byId.done?.startedAt, '2026-01-01T10:00:01Z');
   assert.equal(byId.done?.source, 'cli');
   assert.equal(byId.done?.sessionId, sid);
+  // Each agent's own directory, not its parent session's
+  assert.equal(byId.done?.cwd, '/work/agents');
+  assert.equal(byId.busy?.cwd, '/work/agents/.claude/worktrees/agent-busy');
+  const where = new Locator().locate(byId.busy?.cwd ?? '');
+  assert.equal(where.projectPath, '/work/agents');
+  assert.equal(where.worktree?.name, 'agent-busy');
   assert.deepEqual(await new SessionStore(config).subagents('no-such-session'), []);
 });
 

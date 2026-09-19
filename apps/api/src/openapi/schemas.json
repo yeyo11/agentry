@@ -538,6 +538,23 @@
         "items": {
           "$ref": "#/components/schemas/SubagentInfo"
         }
+      },
+      "workingDir": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Directory the CLI actually works in, which differs from `cwd` when it runs in a worktree"
+      },
+      "location": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkLocation"
+          },
+          {
+            "type": "null"
+          }
+        ]
       }
     },
     "required": [
@@ -641,6 +658,16 @@
       "backgroundedByUser": {
         "type": "boolean",
         "description": "Sent to the background by the person at the terminal rather than by the model"
+      },
+      "location": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkLocation"
+          },
+          {
+            "type": "null"
+          }
+        ]
       }
     },
     "required": [
@@ -655,6 +682,65 @@
       "endedAt",
       "summary"
     ]
+  },
+  "WorkLocation": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Directory the work happens in"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "projectName": {
+        "type": "string"
+      },
+      "projectPath": {
+        "type": "string"
+      },
+      "worktree": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "branch": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "branch",
+              "path"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when `path` is inside a git worktree of that project"
+      }
+    },
+    "required": [
+      "path",
+      "projectId",
+      "projectName",
+      "projectPath",
+      "worktree"
+    ],
+    "description": "Where a piece of work happens, resolved to the project it belongs to. A worktree resolves to its repository, so work spread across worktrees still reads as one project."
   },
   "SubagentInfo": {
     "type": "object",
@@ -716,6 +802,23 @@
           "null"
         ],
         "description": "Last time the agent wrote to its transcript"
+      },
+      "cwd": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Directory the agent works in, from its own transcript: a worktree when started with isolation"
+      },
+      "location": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkLocation"
+          },
+          {
+            "type": "null"
+          }
+        ]
       }
     },
     "required": [
@@ -791,6 +894,43 @@
       },
       "origin": {
         "$ref": "#/components/schemas/SessionOrigin"
+      },
+      "worktree": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "branch": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "path": {
+                "type": "string"
+              },
+              "parentPath": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "branch",
+              "path",
+              "parentPath"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "From the CLI's own record, when the session ran in a worktree it created"
       }
     },
     "required": [
@@ -944,6 +1084,16 @@
       "runId": {
         "type": "string",
         "description": "Set when it maps to a run managed by the wrapper"
+      },
+      "location": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkLocation"
+          },
+          {
+            "type": "null"
+          }
+        ]
       }
     },
     "required": [
@@ -996,6 +1146,78 @@
       "exists": {
         "type": "boolean",
         "description": "The directory exists on disk"
+      },
+      "parentId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set when this directory is a git worktree: the repository it belongs to"
+      },
+      "parentPath": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "worktree": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "branch": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "branch"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "createdBy": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "orchestrationId": {
+                "type": "string"
+              },
+              "orchestrationName": {
+                "type": "string"
+              },
+              "taskId": {
+                "type": "string"
+              },
+              "taskName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "orchestrationId",
+              "orchestrationName",
+              "taskId",
+              "taskName"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The orchestration task that created this worktree, when one did"
       }
     },
     "required": [
