@@ -387,3 +387,74 @@ test('a finished graph from before integration existed can be integrated afterwa
   assert.equal(show(repo, `${orch?.integration?.branch}:two.txt`), 'two');
   db.close();
 });
+
+// ---------- following a task's run after its first result ----------
+
+async function until<T>(read: () => T, done: (value: T) => boolean, what: string): Promise<T> {
+  for (let i = 0; i < 300; i++) {
+    const value = read();
+    if (done(value)) return value;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(`timed out waiting for ${what}`);
+}
+
+test('a task whose run was stopped and then continued to a result delivers that work', async () => {
+  // Seen on 2026-09-19: a stopped worker was continued by hand, finished and committed on its
+  // branch, and the graph never noticed. The task stayed failed, its cost went uncounted, its
+  // branch was left out of the integration, and the synthesis reported the work as missing.
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  const runs = new RunManager(config, db);
+  const orchestrator = new Orchestrator(config, runs, db);
+
+  const started = orchestrator.create({
+    name: 'late',
+    cwd: repo,
+    worktree: true,
+    tasks: [
+      { id: 'quick', name: 'Quick', prompt: 'FAKE-WRITE quick.txt fast' },
+      { id: 'slow', name: 'Slow', prompt: 'FAKE-HANG' },
+    ],
+  });
+  const slowRun = await until(() => orchestrator.get(started.id)?.tasks.find((t) => t.id === 'slow')?.runId, Boolean, 'the slow worker');
+  assert.ok(slowRun);
+  await until(() => runs.get(slowRun)?.pid, Boolean, 'the slow worker to spawn');
+  runs.stop(slowRun);
+
+  let orch = await settle(orchestrator, started.id);
+  const slow = () => orchestrator.get(started.id)?.tasks.find((t) => t.id === 'slow');
+  assert.equal(orch.status, 'failed');
+  assert.equal(slow()?.status, 'failed');
+  assert.deepEqual(orch.integration?.merged, ['quick']);
+
+  // A turn that fails keeps the task failed, with that turn's error rather than the stop's
+  await runs.exited(slowRun);
+  runs.send(slowRun, 'FAKE-FAIL the tests do not pass');
+  await until(slow, (t) => t?.error === 'the tests do not pass', 'the failed turn to reach the task');
+  assert.equal(slow()?.status, 'failed');
+
+  await runs.exited(slowRun);
+  runs.send(slowRun, 'FAKE-WRITE slow.txt finally');
+  await until(slow, (t) => t?.status === 'completed', 'the task to complete');
+  orch = await until(
+    () => orchestrator.get(started.id) ?? orch,
+    (o) => o.integration?.status === 'merged' && o.integration.merged.includes('slow'),
+    'the late branch to be integrated',
+  );
+
+  const done = slow();
+  assert.equal(done?.error, null);
+  assert.match(done?.result ?? '', /slow\.txt/);
+  assert.ok(done?.commit, 'the late work was not committed');
+  // The run's whole cost, and the graph's with it
+  assert.equal(done?.costUsd, runs.get(slowRun)?.costUsd);
+  assert.ok((done?.costUsd ?? 0) > 0);
+  assert.equal(orch.costUsd, orch.tasks.reduce((sum, t) => sum + t.costUsd, 0));
+  assert.equal(orch.status, 'completed');
+  assert.deepEqual([...(orch.integration?.merged ?? [])].sort(), ['quick', 'slow']);
+  assert.equal(show(repo, `${orch.integration?.branch}:slow.txt`), 'finally');
+  assert.equal(show(repo, `${orch.integration?.branch}:quick.txt`), 'fast');
+  db.close();
+});

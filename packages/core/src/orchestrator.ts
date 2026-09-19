@@ -39,7 +39,7 @@ import {
   topLevel,
 } from './git.ts';
 import type { CoreConfig } from './paths.ts';
-import type { RunManager } from './runner.ts';
+import type { RunManager, RunResult } from './runner.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
@@ -215,6 +215,8 @@ export class Orchestrator {
   /** Where status changes, task changes and merge conflicts are announced; set by Core */
   bus: EventBus | null = null;
   private readonly tracker = new OrchestrationEventTracker();
+  /** Graphs a task result reached after their integration had started, which integrate again */
+  private readonly lateArrivals = new Set<string>();
 
   constructor(
     private readonly config: CoreConfig,
@@ -224,6 +226,7 @@ export class Orchestrator {
     this.file = join(config.dataDir, 'orchestrations.json');
     this.load();
     this.tracker.baseline(this.list());
+    this.runs.on('run-result', (runId: string, result: RunResult) => this.follow(runId, result));
   }
 
   private load(): void {
@@ -414,6 +417,8 @@ export class Orchestrator {
       task.error = null;
       task.startedAt = null;
       task.endedAt = null;
+      // The graph already counted what the last attempt cost; the task counts the run it gets now
+      task.costUsd = 0;
     }
     orch.status = 'running';
     orch.endedAt = null;
@@ -578,13 +583,7 @@ export class Orchestrator {
       task.startedAt = now();
       void this.runs.waitForResult(run.id).then((result) => {
         if (task.status !== 'running') return; // stopped meanwhile
-        task.status = result.isError ? 'failed' : 'completed';
-        task.result = result.isError ? null : result.result;
-        task.error = result.isError ? result.result : null;
-        task.costUsd = result.costUsd;
-        task.endedAt = now();
-        if (task.status === 'completed') this.commitTask(orch, task);
-        orch.costUsd = orch.tasks.reduce((sum, t) => sum + t.costUsd, 0);
+        this.record(orch, task, result);
         this.schedule(orch);
       });
       return true;
@@ -603,6 +602,54 @@ export class Orchestrator {
       setTimeout(() => this.schedule(orch), 0).unref();
       return false;
     }
+  }
+
+  /**
+   * Puts a result of the task's run on the task. The first one decides how the task ended; a later
+   * one comes from someone continuing the run by hand, and is the task's work all the same.
+   */
+  private record(orch: Orchestration, task: OrchestrationTaskState, result: RunResult): void {
+    // A turn that fails after the work was delivered does not take the delivery back
+    if (!result.isError || task.status !== 'completed') {
+      task.status = result.isError ? 'failed' : 'completed';
+      task.result = result.isError ? null : result.result;
+      task.error = result.isError ? result.result : null;
+    }
+    // The run's total, so the graph adds only what this turn cost on top of what it already counted
+    orch.costUsd += result.costUsd - task.costUsd;
+    task.costUsd = result.costUsd;
+    task.endedAt = now();
+    if (!result.isError) this.commitTask(orch, task);
+  }
+
+  /**
+   * Keeps a task on its run for as long as the run lives. A stopped worker ends its task failed,
+   * but it can be continued by hand, finish the work and commit it on the task's branch; a graph
+   * that only heard the first result left that work out of its status, its cost and its branch.
+   */
+  private follow(runId: string, result: RunResult): void {
+    const orch = [...this.items.values()].find((o) => o.engine === 'graph' && o.tasks.some((t) => t.runId === runId));
+    const task = orch?.tasks.find((t) => t.runId === runId);
+    // The first result of a running task is the launch's to record
+    if (!orch || !task || task.status === 'running') return;
+    this.record(orch, task, result);
+    if (orch.status === 'running' && !orch.endedAt) return this.schedule(orch);
+    if (orch.status === 'running') {
+      // Finishing: the integration may already have passed this task by, so it runs again after
+      this.lateArrivals.add(orch.id);
+    } else {
+      // Someone who stopped the graph is told so until nothing is left undone
+      orch.status = orch.tasks.every((t) => t.status === 'completed') ? 'completed' : orch.status === 'stopped' ? 'stopped' : 'failed';
+      orch.endedAt = now();
+      if (orch.worktree && (orch.integration || orch.status === 'completed')) this.integrateLate(orch);
+    }
+    this.persist();
+  }
+
+  /** Integrates a finished graph again for work that arrived late, after any integration in flight. */
+  private integrateLate(orch: Orchestration): void {
+    if (orch.integration && ['merging', 'resolving'].includes(orch.integration.status)) this.lateArrivals.add(orch.id);
+    else void this.integrate(orch);
   }
 
   /**
@@ -693,6 +740,8 @@ export class Orchestrator {
       state.error = (err as Error).message;
     }
     this.persist();
+    // While the graph is finishing, finish() integrates again itself once it is done
+    if (orch.status !== 'running' && this.lateArrivals.delete(orch.id)) await this.integrate(orch);
   }
 
   /** Runs an agent in the integration worktree to merge the branches git could not. */
@@ -733,15 +782,17 @@ export class Orchestrator {
 
   private async finish(orch: Orchestration): Promise<void> {
     if (orch.status !== 'running' || orch.endedAt) return;
-    const anyFailed = orch.tasks.some((t) => t.status === 'failed' || t.status === 'skipped');
     orch.endedAt = now(); // guards against re-entry while integration and synthesis run
 
     if (orch.worktree) await this.integrate(orch);
     if (orch.status !== 'running') return; // stopped meanwhile
     if (orch.synthesize && orch.tasks.some((t) => t.status === 'completed')) await this.synthesize(orch);
+    // Read at the end: a task continued by hand can complete while the graph is finishing
+    const anyFailed = orch.tasks.some((t) => t.status === 'failed' || t.status === 'skipped');
     if (orch.status === 'running') orch.status = anyFailed ? 'failed' : 'completed';
     orch.endedAt = now();
     this.persist();
+    if (this.lateArrivals.delete(orch.id) && orch.worktree) this.integrateLate(orch);
   }
 
   private async synthesize(orch: Orchestration): Promise<void> {
