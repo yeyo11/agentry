@@ -1,96 +1,31 @@
 import type { ContentBlock, RunEvent, TranscriptEntry } from '@agentry/shared';
 import { Brain, CircleAlert, CornerDownRight, Flag, Info, Sparkles, TerminalSquare, User } from 'lucide-react';
-import { Fragment, memo, type ReactNode } from 'react';
+import { Fragment, lazy, memo, Suspense } from 'react';
 import { formatClock, formatCost, formatDuration, truncate } from '../lib/format';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
+import { CodeBlock } from './CodeBlock';
 import { Collapsible } from './controls/Collapsible';
 import { BrandMark, ICON_SM, toolIcon } from './icons';
 import { RiseIn } from './motion';
-import { CopyButton, StatusBadge } from './ui';
+import { StatusBadge } from './ui';
 
 const RESULT_PREVIEW_CHARS = 6000;
 
-/** Inline markdown: **bold** and `code`. Everything is rendered as React nodes, never as HTML. */
-function inlineMarkdown(text: string): ReactNode[] {
-  return text.split(/(\*\*[^*\n]+\*\*|`[^`\n]+`)/g).map((part, i) => {
-    if (part.length > 4 && part.startsWith('**') && part.endsWith('**')) return <strong key={i}>{part.slice(2, -2)}</strong>;
-    if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) return <code key={i}>{part.slice(1, -1)}</code>;
-    return part;
-  });
-}
+const Markdown = lazy(() => import('./Markdown'));
 
-/** Block-level markdown-lite for prose: headings, bullets, numbered items and rules; other lines keep their whitespace. */
-function Prose({ text }: { text: string }) {
-  const blocks: ReactNode[] = [];
-  let plain: string[] = [];
-  const flush = () => {
-    if (plain.length === 0) return;
-    blocks.push(
-      <div key={blocks.length} className="prose">
-        {inlineMarkdown(plain.join('\n'))}
-      </div>,
-    );
-    plain = [];
-  };
-  for (const line of text.split('\n')) {
-    const heading = /^(#{1,4})\s+(.*)$/.exec(line);
-    const bullet = /^(\s*)(?:[-*•]|(\d+)[.)])\s+(.*)$/.exec(line);
-    if (heading) {
-      flush();
-      blocks.push(
-        <div key={blocks.length} className={`md-h md-h${heading[1]?.length ?? 1}`}>
-          {inlineMarkdown(heading[2] ?? '')}
-        </div>,
-      );
-    } else if (bullet) {
-      flush();
-      blocks.push(
-        <div key={blocks.length} className="md-li" style={{ marginLeft: Math.min((bullet[1]?.length ?? 0) * 6, 36) }}>
-          <span className="md-li-mark">{bullet[2] ? `${bullet[2]}.` : '•'}</span>
-          <span className="prose">{inlineMarkdown(bullet[3] ?? '')}</span>
-        </div>,
-      );
-    } else if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) {
-      flush();
-      blocks.push(<hr key={blocks.length} />);
-    } else {
-      plain.push(line);
-    }
-  }
-  flush();
-  return <>{blocks}</>;
-}
-
-/** Rich text: fenced code blocks become code surfaces, prose gets markdown-lite formatting. */
-export function RichText({ text }: { text: string }) {
-  const parts = text.split(/```/);
+/**
+ * Markdown the way chat apps show it: GFM tables and task lists, highlighted code, safe links. The
+ * renderer loads on first use; until then the text shows as typed, so nothing waits on it.
+ */
+export const RichText = memo(function RichText({ text, className = '' }: { text: string; className?: string }) {
   return (
-    <div className="rich">
-      {parts.map((part, i) => {
-        if (i % 2 === 0) return part.trim() ? <Prose key={i} text={part.replace(/^\n+|\n+$/g, '')} /> : null;
-        const newline = part.indexOf('\n');
-        const lang = newline > 0 ? part.slice(0, newline).trim() : '';
-        const code = newline >= 0 && /^[\w+#.-]*$/.test(lang) ? part.slice(newline + 1) : part;
-        return <CodeBlock key={i} code={code.replace(/\n$/, '')} lang={lang} />;
-      })}
+    <div className={`rich md ${className}`}>
+      <Suspense fallback={<div className="prose">{text}</div>}>
+        <Markdown text={text} />
+      </Suspense>
     </div>
   );
-}
-
-/** Code surface with a language tag and a copy button that appears on hover. */
-export function CodeBlock({ code, lang, tone }: { code: string; lang?: string; tone?: 'error' }) {
-  return (
-    <div className={`code-block ${tone === 'error' ? 'is-error' : ''}`}>
-      <div className="code-block-bar">
-        {lang && <span className="code-lang">{lang}</span>}
-        <CopyButton text={code} label="Copy code" />
-      </div>
-      <pre className="code" data-lang={lang || undefined}>
-        {code}
-      </pre>
-    </div>
-  );
-}
+});
 
 function toolHint(input: unknown): string {
   if (!input || typeof input !== 'object') return '';
@@ -102,13 +37,14 @@ function toolHint(input: unknown): string {
   return '';
 }
 
-function Block({ block }: { block: ContentBlock }) {
+function Block({ block, role }: { block: ContentBlock; role: 'user' | 'assistant' }) {
   switch (block.type) {
     case 'text': {
       const { text, files } = splitAttached(block.text);
       return (
         <>
-          {text.trim() && <RichText text={text} />}
+          {/* What a person typed is shown as typed, the way chat apps do; Claude's answers are markdown */}
+          {text.trim() && (role === 'user' ? <div className="prose">{text.trim()}</div> : <RichText text={text} />)}
           <AttachedFiles files={files} />
         </>
       );
@@ -195,7 +131,7 @@ export const EntryView = memo(function EntryView({ entry }: { entry: TranscriptE
           </header>
         )}
         {withoutListedMedia(entry.blocks).map((block, i) => (
-          <Block key={i} block={block} />
+          <Block key={i} block={block} role={entry.role} />
         ))}
       </div>
     </article>
@@ -230,10 +166,7 @@ export function StreamingEntry({ block, text }: { block: 'text' | 'thinking'; te
             <div className="prose muted">{text.length > 1200 ? `…${text.slice(-1200)}` : text}</div>
           </div>
         ) : (
-          <div className="prose streaming-text">
-            {text}
-            <span className="caret" aria-hidden />
-          </div>
+          <RichText text={text} className="streaming-text" />
         )}
       </div>
     </article>

@@ -1,0 +1,67 @@
+import { Fragment, useEffect, useState, type CSSProperties } from 'react';
+import { CopyButton } from './ui';
+
+type Tokens = Awaited<ReturnType<typeof import('./highlight').highlight>>;
+
+/**
+ * Highlights off the main bundle and a beat after the code stops changing. While a block is still
+ * streaming, the part already coloured stays coloured and only the new tail shows plain.
+ */
+function useHighlight(code: string, lang: string | undefined, enabled: boolean): { tokens: NonNullable<Tokens>; rest: string } | null {
+  const [done, setDone] = useState<{ code: string; tokens: NonNullable<Tokens> } | null>(null);
+  useEffect(() => {
+    if (!enabled || !lang) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      import('./highlight')
+        .then((m) => m.highlight(code, lang))
+        .then((tokens) => {
+          if (live && tokens) setDone({ code, tokens });
+        })
+        .catch(() => {
+          // colour is a nicety: the plain block is already on screen
+        });
+    }, 120);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [code, lang, enabled]);
+  if (!done || !code.startsWith(done.code)) return null;
+  return { tokens: done.tokens, rest: code.slice(done.code.length) };
+}
+
+/**
+ * Code surface with a copy button. `header` gives it the always-visible bar with the language that
+ * chat answers get; tool payloads keep the quieter bar that shows on hover.
+ */
+export function CodeBlock({ code, lang, tone, header = false }: { code: string; lang?: string; tone?: 'error'; header?: boolean }) {
+  const highlighted = useHighlight(code, lang, tone !== 'error');
+  return (
+    <div className={`code-block ${tone === 'error' ? 'is-error' : ''} ${header ? 'has-header' : ''}`}>
+      <div className="code-block-bar">
+        {(lang || header) && <span className="code-lang">{lang || 'text'}</span>}
+        <CopyButton text={code} label="Copy code" />
+      </div>
+      <pre className="code" data-lang={lang || undefined}>
+        {highlighted ? (
+          <>
+            {highlighted.tokens.map((line, i) => (
+              <Fragment key={i}>
+                {i > 0 && '\n'}
+                {line.map((token, j) => (
+                  <span key={j} style={token.htmlStyle as CSSProperties}>
+                    {token.content}
+                  </span>
+                ))}
+              </Fragment>
+            ))}
+            {highlighted.rest}
+          </>
+        ) : (
+          code
+        )}
+      </pre>
+    </div>
+  );
+}

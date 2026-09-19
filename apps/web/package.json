@@ -30,7 +30,10 @@
     "motion": "^13.4.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-router-dom": "^7.18.4"
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.18.4",
+    "remark-gfm": "^4.0.1",
+    "shiki": "^4.4.3"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
