@@ -244,7 +244,8 @@ export class Core {
             ...s,
             runId: source.runId,
             runName: source.runName,
-            location,
+            // Its own directory when it has one: an isolated subagent works in a worktree of its own
+            location: s.cwd ? this.locate(s.cwd) : location,
           }));
         },
       ),

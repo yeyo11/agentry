@@ -262,6 +262,8 @@ export interface SubagentInfo {
   agentId?: string;
   /** Last time the agent wrote to its transcript */
   lastActivityAt?: string | null;
+  /** Directory the agent works in, from its own transcript: a worktree when started with isolation */
+  cwd?: string | null;
   location?: WorkLocation | null;
 }
 

@@ -798,6 +798,13 @@
         ],
         "description": "Last time the agent wrote to its transcript"
       },
+      "cwd": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Directory the agent works in, from its own transcript: a worktree when started with isolation"
+      },
       "location": {
         "anyOf": [
           {
