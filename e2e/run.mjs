@@ -86,7 +86,8 @@ let failed = 0;
 let browser;
 try {
   await waitForServer();
-  browser = await launch({ baseUrl, shotsDir: process.env.E2E_SHOTS });
+  // A second suite can run beside another one given its own E2E_PORT and E2E_CDP_PORT
+  browser = await launch({ baseUrl, port: Number(process.env.E2E_CDP_PORT ?? 9444), shotsDir: process.env.E2E_SHOTS });
   for (const file of specs) {
     const spec = await import(join(here, 'specs', file));
     if (spec.live && !live) {

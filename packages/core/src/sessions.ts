@@ -4,8 +4,11 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
+  entrySearchText,
   entryText,
   normalizeMessage,
+  searchPattern,
+  TranscriptSearch,
   TRANSCRIPT_PAGE,
   TRANSCRIPT_PAGE_MAX,
   type ProjectSummary,
@@ -16,6 +19,7 @@ import {
   type SessionSummary,
   type SubagentInfo,
   type TranscriptEntry,
+  type TranscriptSearchResult,
   type WorkflowRun,
 } from '@agentry/shared';
 import { AGENT_ID_RE, WORKFLOW_RUN_ID_RE, emptyAgentRead, readAgentFile } from './agents.ts';
@@ -699,5 +703,25 @@ export class SessionStore {
     if (before !== null) return { summary, entries: earlier, from: firstKept < 0 ? total : firstKept, total };
     const entries = [...ring.slice(at), ...ring.slice(0, at)];
     return { summary, entries, from: total - entries.length, total };
+  }
+
+  /**
+   * The entries of a whole transcript whose text contains `query`, indexed the way `getSession`
+   * pages them (same filtering, so the same `total`): the view holds a window, and a search has to
+   * reach the pages it has not loaded. Null when there is no such session.
+   */
+  async searchSession(sessionId: string, query: string, opts: { includeSidechains?: boolean } = {}): Promise<TranscriptSearchResult | null> {
+    const pattern = searchPattern(query);
+    if (!pattern) throw new Error('q is required');
+    const found = await this.findFile(sessionId);
+    if (!found) return null;
+    const search = new TranscriptSearch(query, pattern);
+    for await (const o of readJsonl(found.file)) {
+      const entry = normalizeMessage(o);
+      if (!entry) continue;
+      if (entry.isSidechain && !opts.includeSidechains) continue;
+      search.add(entrySearchText(entry));
+    }
+    return search.result();
   }
 }

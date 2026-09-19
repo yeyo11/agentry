@@ -293,6 +293,7 @@ transcript to the shared config dir, so sessions and history behave as usual.
 | GET | `/sessions?limit=N` | All sessions, newest first, flagged when live |
 | GET | `/sessions/:id?sidechains=1` | A window of the transcript: the newest 200 entries, or `?limit=` of them, with `from` and `total`; `?before=` the `from` of a page reads the one before it (optionally with subagent messages) |
 | DELETE | `/sessions/:id` | Delete a transcript (refused while the session is live) |
+| GET | `/sessions/:id/search?q=&sidechains=1` | Search the whole transcript, pages not loaded included: the matching entries' indices (the space of `from`/`total`) with a snippet each, case-insensitive; at most 500, the newest, with `truncated` |
 | GET | `/sessions/:id/subagents` | Background agents a session spawned, read from its files |
 | GET | `/sessions/:id/tasks` | Shell commands a session sent to the background |
 | GET | `/sessions/:id/tasks/:taskId/output` | What one of them printed: the last 64 KiB, or with `?offset=` only what came after that byte |
@@ -321,6 +322,7 @@ A run is a live conversation backed by a `claude -p` process.
 | GET | `/runs` | All runs |
 | POST | `/runs` | Start a run. Body: `RunOptions` (`prompt` required; `cwd`, `model`, `permissionMode`, `resumeSessionId`, `forkSession` (continue a copy of that session), `name`, `effort`, `appendSystemPrompt`, `allowedTools`, `keepAlive`, `jsonSchema`, `maxBudgetUsd`, `worktree`, `permissionPrompts`, `attachments`) |
 | GET | `/runs/:id` | Run summary + a window of its events: the newest 200, or `?limit=` of them, with `from` and `total`; `?before=` reads further back |
+| GET | `/runs/:id/search?q=` | Search every event of the run: matching event indices (the space of `from`/`total`) with a snippet and the event `kind` each |
 | GET | `/runs/:id/stream?since=SEQ` | Server-Sent Events, one `RunEvent` per message (honours `Last-Event-ID`). Includes ephemeral `partial` events with the text generated so far (token streaming); they are never replayed |
 | POST | `/runs/:id/messages` | `{ text, attachments? }` — send another turn (resumes the session if the process ended). `attachments` are upload ids from `POST /uploads` |
 | POST | `/runs/:id/stop` | Stop the process; the conversation is kept |

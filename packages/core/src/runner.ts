@@ -7,6 +7,9 @@ import { createInterface } from 'node:readline';
 import {
   entryText,
   normalizeMessage,
+  runEventSearchText,
+  searchPattern,
+  TranscriptSearch,
   type Attachment,
   type BackgroundTask,
   type EffectiveEnvironment,
@@ -20,6 +23,7 @@ import {
   type RunStatus,
   type RunSummary,
   type SubagentInfo,
+  type TranscriptSearchResult,
   type WorkflowRun,
 } from '@agentry/shared';
 import { authFreeEnv } from './accounts.ts';
@@ -381,6 +385,17 @@ export class RunManager extends EventEmitter {
     const until = opts.before !== undefined && Number.isFinite(opts.before) ? Math.max(0, Math.min(Math.trunc(opts.before), all.length)) : all.length;
     const from = Math.max(0, until - limit);
     return { events: all.slice(from, until), from, total: all.length };
+  }
+
+  /** The events of a run whose text contains `query`, indexed the way `eventPage` pages them. */
+  searchEvents(id: string, query: string): TranscriptSearchResult | null {
+    const pattern = searchPattern(query);
+    if (!pattern) throw new Error('q is required');
+    const run = this.runs.get(id);
+    if (!run) return null;
+    const search = new TranscriptSearch(query, pattern);
+    for (const event of run.events) search.add(runEventSearchText(event), { kind: event.kind });
+    return search.result();
   }
 
   activeCount(): number {
