@@ -152,10 +152,23 @@ Split the checks by what each step can actually judge:
 
 ## Smaller items noted on the way
 
-- Tag background tasks a subagent started as "from subagent": the CLI marks them with
-  `owned_by_subagent: true` on `task_started`.
 - A run cut off by a wrapper restart is restored as `stopped` with no reason. Record "interrupted by
   a wrapper restart" and the real time it stopped.
+
+Left over from 0.11.0, which brought the event feed, the notifications and the detail panels:
+
+- **A run already waiting when the page loads gets no notification**: nothing happens while the page
+  is open, so no event announces it. Seed the list on load from the `pendingPrompts` of `GET /runs`.
+- A "waiting" notification opens the run, not the prompt that is waiting. It should scroll to it, or
+  offer to answer it from the notification.
+- A finished workflow links to the Workflows page rather than to the agent that ended, because the
+  event carries no agent id.
+- `GET /runs/:id` leaves `sessionId` off the subagents it reports. The aggregated `GET /subagents`
+  has it, which is what the panel reads, so nothing is broken; it is inconsistent.
+- `lib/detail.ts` has no unit tests of its own for encoding and decoding the `?detail=` parameter.
+- Polls kept on purpose, worth revisiting when the CLI reports more: accounts (10 s, usage has no
+  event) and the detail panels while an agent or task runs (2.5 s, neither the output file nor the
+  transcript announces each line).
 
 ## Suggested order
 
