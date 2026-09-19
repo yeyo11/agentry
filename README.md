@@ -36,10 +36,18 @@ docker run -p 8787:8787 -v agentry:/data ghcr.io/yeyo11/agentry
 
 - **Every conversation, from anywhere** — start a run from the UI or the API, stream the tokens,
   answer follow-up turns, and pick up any session the CLI has ever written on that machine.
+- **Approve tool calls as they happen** — a headless run has nobody to ask, so it is normally
+  denied anything that needs permission. Agentry routes those prompts to the panel: you see the
+  exact command, allow it, or deny it with a reason the model reads and adapts to.
 - **Orchestration** — a DAG of tasks, each with its own Claude worker, run in parallel with
-  dependency context and a synthesis step. An auto-planner drafts the graph for you.
+  dependency context and a synthesis step. Every worker can get its own git worktree and branch,
+  so parallel agents never write over each other. An auto-planner drafts the graph; plans are kept,
+  so one lost to a closed tab is reloaded instead of paid for twice, and a graph interrupted by a
+  restart resumes where it stopped.
 - **Multi-account rotation** — usage per window, proactive switching before an account runs out,
-  and a run that hits its limit is rotated and resumed on the next account.
+  and a run that hits its limit is rotated and resumed on the next account. Every rotation is
+  recorded, so "why did my account change" has an answer that survives a restart.
+- **Spending limits** — cap any run with a budget the CLI enforces from inside.
 - **The whole configuration surface** — settings, instructions, MCP servers, agents, skills,
   commands, output styles, memory, plugins and marketplaces, per user and per project.
 - **One container, one volume** — non-root, the CLI baked in, everything else on a data volume.
@@ -192,7 +200,9 @@ Types live in [`packages/shared/src/types.ts`](packages/shared/src/types.ts).
 | GET | `/health` | `{ ok, cli, loggedIn }` |
 | GET | `/system?refresh=1` | CLI detection, auth status, paths |
 | GET | `/overview` | Everything the dashboard needs in one call |
-| GET | `/active` | Live CLI sessions (`claude agents --json`) |
+| GET | `/active` | Live CLI sessions (`claude agents --json`), each marked `live` — a finished process or a pre-warmed spare is listed but not counted |
+| GET | `/active/:id/logs` | A background session's recent terminal output (`claude logs`) |
+| POST | `/active/:id/stop` | Stop a background session through `claude stop`, keeping it resumable |
 
 ### Account credentials
 
@@ -228,6 +238,7 @@ environment before the credential file.
 | POST | `/accounts/:number/enable` · `/disable` | Return to / hold out of the rotation |
 | PUT | `/accounts/:number/alias` | `{ alias }` (`null` unsets) |
 | GET / PUT | `/accounts/autoswitch` | `{ enabled, threshold, strategy, models, intervalSec, rotateOnLimit }` |
+| GET | `/accounts/events?limit=&since=` | Rotation history — every poll, switch and failure — persisted across restarts |
 
 Rotation happens two ways:
 
@@ -253,6 +264,7 @@ transcript to the shared config dir, so sessions and history behave as usual.
 | GET | `/sessions?limit=N` | All sessions, newest first, flagged when live |
 | GET | `/sessions/:id?sidechains=1` | Full transcript (optionally with subagent messages) |
 | DELETE | `/sessions/:id` | Delete a transcript (refused while the session is live) |
+| DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible |
 
 ### Runs
 
@@ -261,11 +273,13 @@ A run is a live conversation backed by a `claude -p` process.
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/runs` | All runs |
-| POST | `/runs` | Start a run. Body: `RunOptions` (`prompt` required; `cwd`, `model`, `permissionMode`, `resumeSessionId`, `name`, `effort`, `appendSystemPrompt`, `allowedTools`, `keepAlive`, `jsonSchema`) |
+| POST | `/runs` | Start a run. Body: `RunOptions` (`prompt` required; `cwd`, `model`, `permissionMode`, `resumeSessionId`, `name`, `effort`, `appendSystemPrompt`, `allowedTools`, `keepAlive`, `jsonSchema`, `maxBudgetUsd`, `worktree`, `permissionPrompts`) |
 | GET | `/runs/:id` | Run summary + buffered events |
 | GET | `/runs/:id/stream?since=SEQ` | Server-Sent Events, one `RunEvent` per message (honours `Last-Event-ID`). Includes ephemeral `partial` events with the text generated so far (token streaming); they are never replayed |
 | POST | `/runs/:id/messages` | `{ text }` — send another turn (resumes the session if the process ended) |
 | POST | `/runs/:id/stop` | Stop the process; the conversation is kept |
+| GET | `/runs/:id/permissions` | Tool calls waiting for approval (runs started with `permissionPrompts: "host"`) |
+| POST | `/runs/:id/permissions/:requestId` | `{ behavior: "allow" \| "deny", message?, updatedInput? }` — answer one. Unanswered requests are denied after ten minutes |
 | DELETE | `/runs/:id` | Forget an ended run |
 | GET | `/environments?cwd=` | What Claude actually loaded (tools, MCP status, agents, skills, plugins, commands, memory paths) per directory, from the latest run there |
 | GET | `/tasks` | Background tasks across runs |
@@ -283,13 +297,23 @@ An orchestration is a DAG of tasks; each task runs in its own Claude worker. Ind
 tasks run in parallel (up to `concurrency`), results of dependencies are passed to dependent
 tasks, and an optional final worker synthesizes a report.
 
+A worker runs with nobody at the keyboard, so set how it gets permission: `permissionPrompts:
+"host"` sends its prompts to the run page for you to answer, `allowedTools` pre-authorises tools.
+With neither, anything that would prompt is denied. `worktree: true` gives every task its own git
+worktree and branch through `claude --worktree`.
+
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/orchestrations` | List |
 | POST | `/orchestrations` | Launch. Body: `OrchestrationSpec` |
-| POST | `/orchestrations/plan` | `{ objective, cwd?, model?, maxTasks? }` → draft `OrchestrationSpec` produced by a planner agent |
+| POST | `/orchestrations/plan/start` | `{ objective, cwd?, model?, maxTasks? }` → the planner run, returned at once so it can be streamed |
+| GET | `/orchestrations/plans` | Plans generated but not launched; each is kept when its planner finishes |
+| GET | `/orchestrations/plans/:runId` | The draft `OrchestrationSpec` a planner run produced |
+| POST | `/orchestrations/plan` | Same as `plan/start` but waits for the draft — holds the request open for minutes |
 | GET | `/orchestrations/:id` | State of every task, results, cost |
 | POST | `/orchestrations/:id/stop` | Stop all workers |
+| POST | `/orchestrations/:id/resume` | Re-run every task that did not complete, keeping the results of those that did |
+| POST | `/orchestrations/:id/worktrees/prune` | `{ force? }` — remove the graph's worktrees; branches are always kept |
 
 ```json
 {
@@ -298,6 +322,8 @@ tasks, and an optional final worker synthesizes a report.
   "cwd": "/workspace/my-project",
   "concurrency": 3,
   "synthesize": true,
+  "worktree": true,
+  "permissionPrompts": "host",
   "tasks": [
     { "id": "deps", "name": "Dependencies", "prompt": "Review outdated dependencies…" },
     { "id": "tests", "name": "Tests", "prompt": "Assess test coverage…" },
@@ -406,7 +432,10 @@ the effective environment — is available to any run.
 
 - No API authentication, no TLS, no per-user isolation (by design for now).
 - Run metadata is persisted and conversations are rebuilt from the session transcripts after a
-  restart, but live-only details (background task and subagent lists, stderr) are not.
+  restart, but live-only details (background task and subagent lists, stderr) are not. Workers do
+  not survive a restart either: an orchestration caught by one stops, and resumes on request.
+- Running the API with a file watcher (`pnpm dev`) while an orchestration edits this same repo
+  restarts it mid-flight. Use `worktree: true`, or serve with `pnpm start`.
 - Secrets inside MCP `env`/headers are returned as-is by `GET /config/mcp`.
 - A subscription token is meant for your own individual use; use an API key for anything
   shared or multi-user.
