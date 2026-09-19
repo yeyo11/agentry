@@ -464,6 +464,7 @@ export class Core {
         sessions: sessions.length,
         activeRuns: runs.filter((r) => r.pid !== null).length,
         activeCliSessions: active.filter((a) => a.live).length,
+        liveSessions: sessions.filter((s) => s.live).length,
         backgroundTasks: tasks.filter((t) => t.status === 'running').length,
         subagents: subagents.filter((s) => s.status === 'running').length,
         orchestrationsRunning: this.orchestrator.runningCount(),

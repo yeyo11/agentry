@@ -169,6 +169,17 @@ export const api = {
   resumeOrchestration: (id: string, changes: ResumeOrchestrationRequest = {}) =>
     request<Orchestration>(`/orchestrations/${enc(id)}/resume`, { method: 'POST', body: changes }),
   deleteOrchestration: (id: string) => request<{ ok: true }>(`/orchestrations/${enc(id)}`, { method: 'DELETE' }),
+  integrateOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/integrate`, { method: 'POST' }),
+  orchestrationPullRequest: (id: string) =>
+    request<{ branch: string; url: string | null; detail: string }>(`/orchestrations/${enc(id)}/pull-request`, {
+      method: 'POST',
+      timeoutMs: 5 * 60_000,
+    }),
+  pruneOrchestrationWorktrees: (id: string, force = false) =>
+    request<{ results: Array<{ task: string; removed: boolean; detail: string }> }>(`/orchestrations/${enc(id)}/worktrees/prune`, {
+      method: 'POST',
+      body: { force },
+    }),
   getSettings: (scope: Scope, variant: ConfigFileVariant = 'shared') =>
     request<SettingsDoc>(`/config/settings${scoped(scope, variant)}`),
   putSettings: (scope: Scope, variant: ConfigFileVariant, settings: Record<string, unknown>) =>
@@ -310,7 +321,12 @@ export const useOrchestration = (id: string) =>
   useQuery({
     queryKey: keys.orchestration(id),
     queryFn: () => api.orchestration(id),
-    refetchInterval: (query) => (query.state.data && query.state.data.status !== 'running' ? false : 2000),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      // Integrating again happens after the graph finished, and is worth following too
+      const integrating = data?.integration && ['merging', 'resolving'].includes(data.integration.status);
+      return data && data.status !== 'running' && !integrating ? false : 2000;
+    },
   });
 
 // ---------- SSE run stream ----------

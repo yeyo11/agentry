@@ -4,6 +4,7 @@ import { existsSync, readFileSync, renameSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type {
   Orchestration,
+  OrchestrationIntegration,
   OrchestrationSpec,
   OrchestrationTaskSpec,
   OrchestrationTaskState,
@@ -13,6 +14,20 @@ import type {
   RunSummary,
 } from '@agentry/shared';
 import type { Db } from './db.ts';
+import {
+  abortMerge,
+  addWorktree,
+  branchExists,
+  commitAll,
+  conflictedPaths,
+  contains,
+  git,
+  headCommit,
+  isGitRepo,
+  merge,
+  mergeInProgress,
+  removeWorktree,
+} from './git.ts';
 import type { CoreConfig } from './paths.ts';
 import type { RunManager } from './runner.ts';
 
@@ -31,13 +46,52 @@ function worktreeName(orch: Orchestration, task: OrchestrationTaskState): string
   return `${orch.id.slice(0, 8)}-${task.id}`.slice(0, 60);
 }
 
-function isGitRepo(dir: string): boolean {
+/** Where the CLI keeps the worktree of that name, so a pre-created one is the one it picks up. */
+const worktreePath = (orch: Orchestration, name: string) => join(orch.cwd, '.claude', 'worktrees', name);
+
+/** `agentry/<name>-<id>`: readable in a branch list, and never shared by two graphs. */
+function integrationBranch(orch: Orchestration): string {
+  const slug = orch.name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+  return `agentry/${slug || 'orchestration'}-${orch.id.slice(0, 8)}`;
+}
+
+/** Worktrees branch from a commit, so an empty repository cannot have any. */
+function baseOf(repo: string): string {
   try {
-    execFileSync('git', ['-C', dir, 'rev-parse', '--git-dir'], { stdio: 'pipe', timeout: 10_000 });
-    return true;
+    return headCommit(repo);
   } catch {
-    return false;
+    throw new Error(`per-task worktrees need a commit to start from, and ${repo} has none yet`);
   }
+}
+
+/** Tasks in an order where every dependency comes before what depends on it. */
+function topological(tasks: OrchestrationTaskState[]): OrchestrationTaskState[] {
+  const out: OrchestrationTaskState[] = [];
+  const seen = new Set<string>();
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  const visit = (t: OrchestrationTaskState) => {
+    if (seen.has(t.id)) return;
+    seen.add(t.id);
+    for (const dep of t.dependsOn ?? []) {
+      const d = byId.get(dep);
+      if (d) visit(d);
+    }
+    out.push(t);
+  };
+  tasks.forEach(visit);
+  return out;
+}
+
+/** A merge a worker has to finish before starting its own task. */
+interface PendingMerge {
+  branch: string;
+  paths: string[];
+  remaining: string[];
 }
 
 const PLAN_SCHEMA = {
@@ -117,6 +171,12 @@ export class Orchestrator {
       o.worktree ??= false;
       o.allowedTools ??= [];
       o.permissionPrompts ??= 'none';
+      o.integration ??= null;
+      o.synthesisRunId ??= null;
+      if (o.integration && ['merging', 'resolving'].includes(o.integration.status)) {
+        o.integration.status = 'failed';
+        o.integration.error = 'interrupted by a restart; integrate again to finish it';
+      }
       // Workers do not survive a wrapper restart
       if (o.status === 'running') {
         o.status = 'stopped';
@@ -187,6 +247,10 @@ export class Orchestrator {
       endedAt: null,
       finalResult: null,
       costUsd: 0,
+      // Every worktree starts here, so work that lands on the checkout meanwhile does not leak in
+      baseCommit: spec.worktree === true ? baseOf(root) : null,
+      integration: null,
+      synthesisRunId: null,
       tasks: spec.tasks.map<OrchestrationTaskState>((t) => ({
         id: t.id,
         name: t.name?.trim() || t.id,
@@ -219,6 +283,14 @@ export class Orchestrator {
       if (t.status === 'running' && t.runId) this.runs.stop(t.runId);
       if (t.status === 'pending' || t.status === 'running') t.status = 'stopped';
     }
+    // The last steps run agents too, and stopping the graph has to stop them
+    for (const runId of [orch.integration?.integratorRunId, orch.synthesisRunId]) {
+      if (runId && this.runs.get(runId)) this.runs.stop(runId);
+    }
+    if (orch.integration && ['merging', 'resolving'].includes(orch.integration.status)) {
+      orch.integration.status = 'failed';
+      orch.integration.error = 'stopped';
+    }
     this.persist();
     return orch;
   }
@@ -243,7 +315,9 @@ export class Orchestrator {
     if (changes.worktree === true && !isGitRepo(orch.cwd)) {
       throw new Error(`per-task worktrees need a git repository, and ${orch.cwd} is not one`);
     }
+    const base = changes.worktree === true && !orch.baseCommit ? baseOf(orch.cwd) : undefined;
     if (changes.worktree !== undefined) orch.worktree = changes.worktree;
+    if (orch.worktree) orch.baseCommit ??= base ?? baseOf(orch.cwd);
     if (changes.permissionPrompts !== undefined) orch.permissionPrompts = changes.permissionPrompts === 'host' ? 'host' : 'none';
     if (changes.allowedTools !== undefined) orch.allowedTools = changes.allowedTools.map(String).filter(Boolean);
     if (changes.permissionMode !== undefined) orch.permissionMode = changes.permissionMode;
@@ -259,11 +333,15 @@ export class Orchestrator {
     orch.status = 'running';
     orch.endedAt = null;
     orch.finalResult = null;
+    orch.synthesisRunId = null;
+    // Integrated again once the resumed tasks finish. The branch name is derived from the graph, so
+    // that reuses the same branch, which already holds the earlier merges.
+    orch.integration = null;
     this.schedule(orch); // persists
     return orch;
   }
 
-  private buildPrompt(orch: Orchestration, task: OrchestrationTaskState): string {
+  private buildPrompt(orch: Orchestration, task: OrchestrationTaskState, pendingMerge: PendingMerge | null = null): string {
     const parts: string[] = [];
     if (orch.objective) parts.push(`You are one worker in a multi-agent orchestration.\nOverall objective: ${orch.objective}`);
     const deps = orch.tasks.filter((t) => task.dependsOn?.includes(t.id));
@@ -277,7 +355,19 @@ export class Orchestrator {
       parts.push(
         `You are working in a git worktree of your own at ${task.worktree}, checked out on branch ${task.branch}. ` +
           'Every other worker has its own, so nothing you write there collides with theirs. Work only inside it, ' +
-          'commit your work on that branch, and do not push or merge: the branches are reviewed together afterwards.',
+          'commit your work on that branch with clear messages, and do not push: once every task is done, all ' +
+          'branches are merged into one automatically.' +
+          (deps.length > 0 ? ' Your branch already contains the work of the tasks you depend on; build on it rather than redoing it.' : ''),
+      );
+    }
+    if (pendingMerge) {
+      parts.push(
+        `Before your task: combining the work of your dependencies left a merge of ${pendingMerge.branch} unfinished, ` +
+          `with conflicts in:\n${pendingMerge.paths.map((p) => `- ${p}`).join('\n')}\n` +
+          'Resolve them keeping the intent of both sides, then commit the merge.' +
+          (pendingMerge.remaining.length
+            ? ` After that, merge these branches too, resolving any conflict the same way:\n${pendingMerge.remaining.map((b) => `- ${b}`).join('\n')}`
+            : ''),
       );
     }
     parts.push(`Your task (${task.name}):\n${task.prompt}`);
@@ -317,14 +407,45 @@ export class Orchestrator {
     this.persist();
   }
 
+  /**
+   * Creates the task's worktree before the CLI runs, on a branch that already holds its
+   * dependencies' work. Left to itself `claude --worktree` branches from HEAD, so a dependent task
+   * started from nothing its dependencies had done and rebuilt it. The CLI adopts an existing
+   * worktree of the name it is given, so it still locks it and records it as its own.
+   */
+  private prepareWorktree(orch: Orchestration, task: OrchestrationTaskState, name: string): PendingMerge | null {
+    const path = worktreePath(orch, name);
+    const branch = `worktree-${name}`;
+    task.worktree = path;
+    task.branch = branch;
+    if (existsSync(path)) return null; // a resumed task continues where its first attempt stopped
+    const deps = orch.tasks
+      .filter((t) => task.dependsOn?.includes(t.id) && t.branch && branchExists(orch.cwd, t.branch))
+      .map((t) => t.branch as string);
+    const base = deps[0] ?? orch.baseCommit ?? 'HEAD';
+    addWorktree(orch.cwd, path, branch, base);
+    const rest = deps.slice(1);
+    for (const [i, dep] of rest.entries()) {
+      if (contains(path, dep)) continue;
+      const paths = merge(path, dep, `Merge ${dep} into ${branch}`);
+      // A conflict between two dependencies is the worker's to resolve, as the first thing it does:
+      // it has the context to, and starting it on half the code would be worse.
+      if (paths) return { branch: dep, paths, remaining: rest.slice(i + 1) };
+    }
+    return null;
+  }
+
   private launch(orch: Orchestration, task: OrchestrationTaskState): boolean {
     try {
+      const isolated = orch.worktree && !task.cwd;
+      const name = worktreeName(orch, task);
+      const pendingMerge = isolated ? this.prepareWorktree(orch, task, name) : null;
       const run = this.runs.start(
         {
-          prompt: this.buildPrompt(orch, task),
+          prompt: this.buildPrompt(orch, task, pendingMerge),
           cwd: task.cwd ?? orch.cwd,
-          // The CLI creates the worktree, names its branch and locks it; we only choose the name
-          ...(orch.worktree && !task.cwd ? { worktree: worktreeName(orch, task) } : {}),
+          // The CLI adopts the worktree prepared above, locks it and works in it
+          ...(isolated ? { worktree: name } : {}),
           model: task.model ?? orch.model ?? undefined,
           permissionMode: orch.permissionMode,
           ...(orch.allowedTools?.length ? { allowedTools: orch.allowedTools } : {}),
@@ -336,12 +457,6 @@ export class Orchestrator {
       );
       task.status = 'running';
       task.runId = run.id;
-      if (orch.worktree && !task.cwd) {
-        // Mirrors the CLI's own layout, which is how the work is found and merged afterwards
-        const name = worktreeName(orch, task);
-        task.worktree = join(orch.cwd, '.claude', 'worktrees', name);
-        task.branch = `worktree-${name}`;
-      }
       task.sessionId = run.sessionId;
       task.startedAt = now();
       void this.runs.waitForResult(run.id).then((result) => {
@@ -351,6 +466,7 @@ export class Orchestrator {
         task.error = result.isError ? result.result : null;
         task.costUsd = result.costUsd;
         task.endedAt = now();
+        if (task.status === 'completed') this.commitTask(orch, task);
         orch.costUsd = orch.tasks.reduce((sum, t) => sum + t.costUsd, 0);
         this.schedule(orch);
       });
@@ -372,40 +488,231 @@ export class Orchestrator {
     }
   }
 
+  /**
+   * Commits what a finished worker left uncommitted. Asked to commit, workers often do not, and
+   * work stranded in a worktree is invisible to everything that comes after: its dependants, the
+   * integration, a review.
+   */
+  private commitTask(orch: Orchestration, task: OrchestrationTaskState): void {
+    if (!task.worktree || !existsSync(task.worktree)) return;
+    try {
+      // A worker told to resolve a merge that did not is not the wrapper's to paper over
+      if (mergeInProgress(task.worktree) && conflictedPaths(task.worktree).length > 0) return;
+      const commit = commitAll(task.worktree, `${task.name}\n\nOrchestration ${orch.name} (${orch.id.slice(0, 8)}), task ${task.id}.`);
+      if (commit) task.commit = commit;
+    } catch (err) {
+      task.error = `the work was left uncommitted: ${(err as Error).message}`;
+    }
+  }
+
+  /**
+   * Builds the one branch a worktree graph delivers: every completed task's branch merged, in
+   * dependency order, into `agentry/<name>` from the commit the graph started on. A conflict is
+   * handed to an integrator agent in that branch's worktree, and the result is checked rather than
+   * trusted. Never throws: whatever happens is recorded on `orch.integration`.
+   */
+  private async integrate(orch: Orchestration): Promise<void> {
+    const tasks = topological(orch.tasks).filter((t) => t.status === 'completed' && t.branch);
+    if (tasks.length === 0) return;
+    const branch = orch.integration?.branch ?? integrationBranch(orch);
+    const path = worktreePath(orch, `${orch.id.slice(0, 8)}-integration`);
+    const state: OrchestrationIntegration = (orch.integration = {
+      branch,
+      worktree: path,
+      status: 'merging',
+      merged: [],
+      conflicts: [],
+      commit: null,
+      error: null,
+      integratorRunId: orch.integration?.integratorRunId ?? null,
+      pullRequestUrl: orch.integration?.pullRequestUrl ?? null,
+    });
+    this.persist();
+    try {
+      // Graphs from before tasks were committed on completion still have their work loose
+      for (const task of tasks) this.commitTask(orch, task);
+      addWorktree(orch.cwd, path, branch, orch.baseCommit ?? 'HEAD');
+      if (mergeInProgress(path)) abortMerge(path); // a previous attempt stopped half way
+
+      const unmerged: OrchestrationTaskState[] = [];
+      for (const task of tasks) {
+        const taskBranch = task.branch as string;
+        if (!branchExists(orch.cwd, taskBranch)) continue; // the CLI removes a worktree that changed nothing
+        if (contains(path, taskBranch)) {
+          state.merged.push(task.id);
+          continue;
+        }
+        const paths = merge(path, taskBranch, `Merge task ${task.id}: ${task.name}`);
+        if (!paths) {
+          state.merged.push(task.id);
+          continue;
+        }
+        abortMerge(path);
+        state.conflicts.push({ taskId: task.id, paths });
+        unmerged.push(task);
+      }
+      if (unmerged.length > 0) await this.resolveConflicts(orch, state, unmerged);
+
+      const left = tasks.filter((t) => t.branch && branchExists(orch.cwd, t.branch) && !contains(path, t.branch));
+      if (left.length > 0 || mergeInProgress(path) || conflictedPaths(path).length > 0) {
+        state.status = 'conflicted';
+        state.error = left.length
+          ? `not merged: ${left.map((t) => t.id).join(', ')}`
+          : 'the integration branch has an unfinished merge';
+      } else {
+        state.merged = tasks.filter((t) => t.branch && branchExists(orch.cwd, t.branch)).map((t) => t.id);
+        state.status = 'merged';
+      }
+      state.commit = headCommit(path);
+    } catch (err) {
+      state.status = 'failed';
+      state.error = (err as Error).message;
+    }
+    this.persist();
+  }
+
+  /** Runs an agent in the integration worktree to merge the branches git could not. */
+  private async resolveConflicts(orch: Orchestration, state: OrchestrationIntegration, tasks: OrchestrationTaskState[]): Promise<void> {
+    state.status = 'resolving';
+    const run = this.runs.start(
+      {
+        prompt:
+          `You are integrating the work of a multi-agent orchestration into one branch.\n` +
+          `Objective: ${orch.objective ?? orch.name}\n\n` +
+          `You are in a git worktree at ${state.worktree}, on branch ${state.branch}, which already contains the work of: ` +
+          `${state.merged.join(', ') || 'no task yet'}. Merging these branches conflicted:\n` +
+          state.conflicts.map((c) => `- ${orch.tasks.find((t) => t.id === c.taskId)?.branch}: ${c.paths.join(', ')}`).join('\n') +
+          `\n\nMerge each of them into ${state.branch}, in this order, with \`git merge --no-ff\`:\n` +
+          tasks.map((t) => `- ${t.branch}`).join('\n') +
+          '\n\nResolve every conflict so that the intent of both sides survives; read the code on each branch to ' +
+          'understand it. Commit each merge. Do not push, and do not change anything beyond what resolving needs. ' +
+          'Finish with a short report of how each conflict was resolved.\n\n' +
+          'What each task did:\n' +
+          tasks.map((t) => `<task id="${t.id}" name="${t.name}">\n${(t.result ?? '').slice(0, MAX_DEP_CONTEXT)}\n</task>`).join('\n'),
+        cwd: state.worktree ?? orch.cwd,
+        model: orch.model ?? undefined,
+        permissionMode: orch.permissionMode,
+        // Merging is git work; without it the integrator could only describe the conflicts
+        allowedTools: [...new Set([...(orch.allowedTools ?? []), 'Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash(git:*)'])],
+        ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
+        name: `${orch.name}:integration`.slice(0, 60),
+        keepAlive: false,
+      },
+      { orchestrationId: orch.id, orchestrationTaskId: '__integration__' },
+    );
+    state.integratorRunId = run.id;
+    this.persist();
+    const result = await this.runs.waitForResult(run.id);
+    orch.costUsd += result.costUsd;
+    if (result.isError) state.error = `integrator: ${result.result}`;
+  }
+
   private async finish(orch: Orchestration): Promise<void> {
     if (orch.status !== 'running' || orch.endedAt) return;
-    const completed = orch.tasks.filter((t) => t.status === 'completed');
     const anyFailed = orch.tasks.some((t) => t.status === 'failed' || t.status === 'skipped');
-    orch.endedAt = now(); // guards against re-entry while the synthesis runs
+    orch.endedAt = now(); // guards against re-entry while integration and synthesis run
 
-    if (orch.synthesize && completed.length > 0) {
-      try {
-        const run = this.runs.start(
-          {
-            prompt:
-              `Synthesize the results of a multi-agent orchestration into one final report.\n` +
-              `Objective: ${orch.objective ?? orch.name}\n\n` +
-              orch.tasks
-                .map((t) => `<task id="${t.id}" name="${t.name}" status="${t.status}">\n${(t.result ?? t.error ?? '').slice(0, MAX_DEP_CONTEXT)}\n</task>`)
-                .join('\n'),
-            cwd: orch.cwd,
-            model: orch.model ?? undefined,
-            permissionMode: orch.permissionMode,
-            name: `${orch.name}:synthesis`.slice(0, 60),
-            keepAlive: false,
-          },
-          { orchestrationId: orch.id, orchestrationTaskId: '__synthesis__' },
-        );
-        const result = await this.runs.waitForResult(run.id);
-        orch.finalResult = result.isError ? `Synthesis failed: ${result.result}` : result.result;
-        orch.costUsd += result.costUsd;
-      } catch (err) {
-        orch.finalResult = `Synthesis failed: ${(err as Error).message}`;
-      }
-    }
+    if (orch.worktree) await this.integrate(orch);
+    if (orch.status !== 'running') return; // stopped meanwhile
+    if (orch.synthesize && orch.tasks.some((t) => t.status === 'completed')) await this.synthesize(orch);
     if (orch.status === 'running') orch.status = anyFailed ? 'failed' : 'completed';
     orch.endedAt = now();
     this.persist();
+  }
+
+  private async synthesize(orch: Orchestration): Promise<void> {
+    const integration = orch.integration;
+    const onBranch = integration?.status === 'merged' && integration.worktree && existsSync(integration.worktree);
+    try {
+      const run = this.runs.start(
+        {
+          prompt:
+            `Synthesize the results of a multi-agent orchestration into one final report.\n` +
+            `Objective: ${orch.objective ?? orch.name}\n\n` +
+            (onBranch
+              ? `All of the tasks' work has been merged into branch ${integration.branch}, checked out in your working ` +
+                'directory. Describe what is actually there and anything still missing; do not merge, push or open pull requests.\n\n'
+              : integration
+                ? `Merging the tasks' branches into ${integration.branch} did not finish (${integration.error ?? integration.status}). Say so in the report.\n\n`
+                : '') +
+            orch.tasks
+              .map((t) => `<task id="${t.id}" name="${t.name}" status="${t.status}">\n${(t.result ?? t.error ?? '').slice(0, MAX_DEP_CONTEXT)}\n</task>`)
+              .join('\n'),
+          cwd: onBranch ? (integration.worktree as string) : orch.cwd,
+          model: orch.model ?? undefined,
+          permissionMode: orch.permissionMode,
+          name: `${orch.name}:synthesis`.slice(0, 60),
+          keepAlive: false,
+        },
+        { orchestrationId: orch.id, orchestrationTaskId: '__synthesis__' },
+      );
+      // Kept so the report can be answered: it is a conversation like any other
+      orch.synthesisRunId = run.id;
+      this.persist();
+      const result = await this.runs.waitForResult(run.id);
+      orch.finalResult = result.isError ? `Synthesis failed: ${result.result}` : result.result;
+      orch.costUsd += result.costUsd;
+    } catch (err) {
+      orch.finalResult = `Synthesis failed: ${(err as Error).message}`;
+    }
+  }
+
+  /** Integrates a finished graph again: after resolving by hand, or one from before this existed. */
+  retryIntegration(id: string): Orchestration {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    if (orch.status === 'running') throw new Error('the orchestration is still running');
+    if (orch.integration && ['merging', 'resolving'].includes(orch.integration.status)) return orch;
+    if (!orch.tasks.some((t) => t.status === 'completed' && t.branch)) throw new Error('no task has a branch to integrate');
+    if (!isGitRepo(orch.cwd)) throw new Error(`${orch.cwd} is not a git repository`);
+    orch.baseCommit ??= this.forkPoint(orch);
+    void this.integrate(orch);
+    return orch;
+  }
+
+  /** Where the task branches of a graph started, for one recorded before the base commit was. */
+  private forkPoint(orch: Orchestration): string {
+    const branches = orch.tasks.map((t) => t.branch).filter((b): b is string => !!b && branchExists(orch.cwd, b));
+    if (branches.length === 0) return headCommit(orch.cwd);
+    try {
+      return git(orch.cwd, ['merge-base', '--octopus', ...branches]);
+    } catch {
+      return headCommit(orch.cwd);
+    }
+  }
+
+  /**
+   * Publishes the integration branch and opens a pull request for it. Only ever on request: pushing
+   * is the one step that leaves the machine.
+   */
+  pullRequest(id: string): { branch: string; url: string | null; detail: string } {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    const integration = orch.integration;
+    if (integration?.status !== 'merged') throw new Error('the orchestration has no integrated branch yet');
+    if (integration.pullRequestUrl) return { branch: integration.branch, url: integration.pullRequestUrl, detail: 'already open' };
+    git(orch.cwd, ['push', '-u', 'origin', integration.branch], 180_000);
+    let url: string | null = null;
+    let detail = `pushed ${integration.branch}`;
+    try {
+      const body = [orch.objective, orch.finalResult].filter(Boolean).join('\n\n---\n\n') || orch.name;
+      url = execFileSync('gh', ['pr', 'create', '--head', integration.branch, '--title', orch.name, '--body', body.slice(0, 60_000)], {
+        cwd: orch.cwd,
+        stdio: 'pipe',
+        timeout: 120_000,
+        encoding: 'utf8',
+      })
+        .trim()
+        .split('\n')
+        .pop() ?? null;
+      integration.pullRequestUrl = url;
+      detail = 'pull request opened';
+    } catch (err) {
+      const e = err as { stderr?: string; message: string };
+      detail = `pushed ${integration.branch}, but no pull request was opened: ${(e.stderr || e.message).trim().split('\n')[0]}`;
+    }
+    this.persist();
+    return { branch: integration.branch, url, detail };
   }
 
   /**
@@ -501,23 +808,22 @@ export class Orchestrator {
     if (!orch) throw new Error('orchestration not found');
     if (orch.status === 'running') throw new Error('stop the orchestration before removing its worktrees');
     const out: Array<{ task: string; removed: boolean; detail: string }> = [];
-    for (const task of orch.tasks) {
-      if (!task.worktree || !existsSync(task.worktree)) continue;
+    const places: Array<{ id: string; path: string | null | undefined; branch: string | null | undefined; clear: () => void }> = [
+      ...orch.tasks.map((t) => ({ id: t.id, path: t.worktree, branch: t.branch, clear: () => (t.worktree = null) })),
+    ];
+    const integration = orch.integration;
+    if (integration) {
+      places.push({ id: 'integration', path: integration.worktree, branch: integration.branch, clear: () => (integration.worktree = null) });
+    }
+    for (const place of places) {
+      if (!place.path || !existsSync(place.path)) continue;
       try {
-        // The CLI locks them so a stray prune cannot take them; unlocking may fail harmlessly
-        try {
-          execFileSync('git', ['-C', orch.cwd, 'worktree', 'unlock', task.worktree], { stdio: 'pipe', timeout: 30_000 });
-        } catch {
-          /* not locked */
-        }
-        const args = ['-C', orch.cwd, 'worktree', 'remove', task.worktree];
-        if (opts.force) args.push('--force');
-        execFileSync('git', args, { stdio: 'pipe', timeout: 60_000 });
-        task.worktree = null;
-        out.push({ task: task.id, removed: true, detail: `branch ${task.branch ?? '?'} kept` });
+        removeWorktree(orch.cwd, place.path, opts.force);
+        place.clear();
+        out.push({ task: place.id, removed: true, detail: `branch ${place.branch ?? '?'} kept` });
       } catch (err) {
         const detail = err instanceof Error ? err.message.split('\n')[0] ?? err.message : String(err);
-        out.push({ task: task.id, removed: false, detail });
+        out.push({ task: place.id, removed: false, detail });
       }
     }
     this.persist();

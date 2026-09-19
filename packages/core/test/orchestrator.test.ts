@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
 import { Db } from '../src/db.ts';
@@ -76,8 +77,7 @@ function offlineConfig() {
 
 test('resuming corrects the settings that stopped a graph and keeps the finished work', () => {
   const config = offlineConfig();
-  const repo = mkdtempSync(join(tmpdir(), 'agentry-repo-'));
-  execFileSync('git', ['init', '-q', repo]);
+  const repo = repoWithCommit();
   const db = new Db(config);
   db.saveOrchestrations([stoppedGraph(repo)]);
 
@@ -119,5 +119,138 @@ test('a graph that is not running can be deleted, and stays deleted', () => {
   assert.equal(orchestrator.get('graph-1'), null);
   // A fresh process reads the store, not memory: deleting has to reach it
   assert.equal(new Orchestrator(config, new RunManager(config, db), db).get('graph-1'), null);
+  db.close();
+});
+
+// ---------- delivering one branch ----------
+
+const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
+
+/** A repository with one commit and an identity, as a user's project would have. */
+function repoWithCommit(): string {
+  const repo = mkdtempSync(join(tmpdir(), 'agentry-graph-'));
+  const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { stdio: 'pipe', encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.name', 'Someone');
+  git('config', 'user.email', 'someone@example.com');
+  writeFileSync(join(repo, 'README.md'), 'project\n');
+  git('add', '-A');
+  git('commit', '-q', '-m', 'initial');
+  return repo;
+}
+
+async function settle(orchestrator: Orchestrator, id: string): Promise<Orchestration> {
+  for (let i = 0; i < 300; i++) {
+    const orch = orchestrator.get(id);
+    if (orch && orch.status !== 'running') return orch;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error('the orchestration never finished');
+}
+
+const show = (repo: string, ref: string) => execFileSync('git', ['-C', repo, 'show', ref], { encoding: 'utf8' }).trim();
+
+test('dependent tasks build on their dependencies and the graph ends on one branch', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+
+  const started = orchestrator.create({
+    name: 'Linux app',
+    cwd: repo,
+    worktree: true,
+    synthesize: true,
+    tasks: [
+      { id: 'api', name: 'API', prompt: 'FAKE-WRITE api.txt server' },
+      { id: 'assets', name: 'Assets', prompt: 'FAKE-WRITE icon.txt png' },
+      { id: 'shell', name: 'Shell', prompt: 'FAKE-WRITE shell.txt electron', dependsOn: ['api', 'assets'] },
+    ],
+  });
+  const orch = await settle(orchestrator, started.id);
+
+  assert.equal(orch.status, 'completed');
+  // Started from both dependencies' work instead of from main
+  const shell = orch.tasks.find((t) => t.id === 'shell');
+  assert.match(shell?.result ?? '', /files=README\.md,api\.txt,icon\.txt,shell\.txt/);
+  // Nobody committed; the wrapper did, so nothing was stranded in a worktree
+  for (const t of orch.tasks) assert.ok(t.commit, `${t.id} was not committed`);
+
+  const integration = orch.integration;
+  assert.equal(integration?.status, 'merged');
+  assert.equal(integration?.branch, `agentry/linux-app-${orch.id.slice(0, 8)}`);
+  assert.deepEqual(integration?.merged.sort(), ['api', 'assets', 'shell']);
+  assert.equal(show(repo, `${integration?.branch}:api.txt`), 'server');
+  assert.equal(show(repo, `${integration?.branch}:icon.txt`), 'png');
+  assert.equal(show(repo, `${integration?.branch}:shell.txt`), 'electron');
+  // The user's checkout was never touched
+  assert.equal(execFileSync('git', ['-C', repo, 'status', '--porcelain'], { encoding: 'utf8' }).replace(/^\?\? \.claude\/\n?/m, ''), '');
+
+  // The synthesis ran on the integrated branch and can be answered
+  assert.ok(orch.synthesisRunId);
+  assert.match(orch.finalResult ?? '', new RegExp(`cwd=${integration?.worktree}`));
+  db.close();
+});
+
+test('branches that conflict are merged by an integrator agent', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+
+  const started = orchestrator.create({
+    name: 'clash',
+    cwd: repo,
+    worktree: true,
+    tasks: [
+      { id: 'left', name: 'Left', prompt: 'FAKE-WRITE same.txt from left' },
+      { id: 'right', name: 'Right', prompt: 'FAKE-WRITE same.txt from right' },
+    ],
+  });
+  const orch = await settle(orchestrator, started.id);
+
+  const integration = orch.integration;
+  assert.equal(integration?.status, 'merged', String(integration?.error));
+  assert.deepEqual(integration?.conflicts, [{ taskId: 'right', paths: ['same.txt'] }]);
+  assert.ok(integration?.integratorRunId);
+  assert.equal(show(repo, `${integration?.branch}:same.txt`), 'from right');
+  db.close();
+});
+
+test('a finished graph from before integration existed can be integrated afterwards', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  // What orchestration fdd1b816 left: worktrees with their work uncommitted and no integration
+  const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { stdio: 'pipe' });
+  const tasks = ['one', 'two'].map((id) => {
+    const path = join(repo, '.claude', 'worktrees', `graph-1-${id}`);
+    git('worktree', 'add', '-q', '-b', `worktree-graph-1-${id}`, path);
+    writeFileSync(join(path, `${id}.txt`), `${id}\n`);
+    return { id, path };
+  });
+  db.saveOrchestrations([
+    stoppedGraph(repo, {
+      status: 'completed',
+      worktree: true,
+      tasks: tasks.map(({ id, path }) => ({
+        ...stoppedGraph(repo).tasks[0],
+        id,
+        name: id,
+        status: 'completed',
+        worktree: path,
+        branch: `worktree-graph-1-${id}`,
+      })) as OrchestrationTaskState[],
+    }),
+  ]);
+  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+
+  orchestrator.retryIntegration('graph-1');
+  let orch = orchestrator.get('graph-1');
+  for (let i = 0; i < 100 && orch?.integration?.status !== 'merged'; i++) await new Promise((r) => setTimeout(r, 20));
+  orch = orchestrator.get('graph-1');
+  assert.equal(orch?.integration?.status, 'merged', String(orch?.integration?.error));
+  assert.equal(show(repo, `${orch?.integration?.branch}:one.txt`), 'one');
+  assert.equal(show(repo, `${orch?.integration?.branch}:two.txt`), 'two');
   db.close();
 });

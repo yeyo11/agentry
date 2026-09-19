@@ -19,6 +19,10 @@ const TONES: Record<string, string> = {
   stopped: 'warn',
   skipped: 'muted',
   waiting: 'idle',
+  merging: 'active',
+  resolving: 'active',
+  merged: 'ok',
+  conflicted: 'warn',
 };
 
 export function StatusBadge({ status, title }: { status: string; title?: string }) {

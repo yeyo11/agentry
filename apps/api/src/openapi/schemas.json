@@ -176,6 +176,10 @@
           "activeCliSessions": {
             "type": "number"
           },
+          "liveSessions": {
+            "type": "number",
+            "description": "Sessions with a live process, from either source: what the Sessions page lists as active"
+          },
           "backgroundTasks": {
             "type": "number"
           },
@@ -191,6 +195,7 @@
           "sessions",
           "activeRuns",
           "activeCliSessions",
+          "liveSessions",
           "backgroundTasks",
           "subagents",
           "orchestrationsRunning"
@@ -1556,6 +1561,31 @@
       },
       "costUsd": {
         "type": "number"
+      },
+      "baseCommit": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Commit every worktree branches from, recorded when the graph starts"
+      },
+      "integration": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationIntegration"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The one branch a worktree graph delivers, built once its tasks finish"
+      },
+      "synthesisRunId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The synthesis run, so its report can be continued like any other conversation"
       }
     },
     "required": [
@@ -1628,6 +1658,13 @@
         ],
         "description": "Branch created for that worktree"
       },
+      "commit": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Commit the wrapper made of work the worker left uncommitted, when there was any"
+      },
       "runId": {
         "type": [
           "string",
@@ -1692,6 +1729,99 @@
       "skipped",
       "stopped"
     ]
+  },
+  "OrchestrationIntegration": {
+    "type": "object",
+    "properties": {
+      "branch": {
+        "type": "string"
+      },
+      "worktree": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Worktree the branch is checked out in, until the worktrees are removed"
+      },
+      "status": {
+        "$ref": "#/components/schemas/IntegrationStatus"
+      },
+      "merged": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Tasks whose branch is contained in the integration branch"
+      },
+      "conflicts": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "taskId": {
+              "type": "string"
+            },
+            "paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "taskId",
+            "paths"
+          ]
+        },
+        "description": "Merges that conflicted, with the paths that did"
+      },
+      "commit": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Head of the integration branch once merged"
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "integratorRunId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "pullRequestUrl": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "branch",
+      "worktree",
+      "status",
+      "merged",
+      "conflicts",
+      "commit",
+      "error",
+      "integratorRunId"
+    ]
+  },
+  "IntegrationStatus": {
+    "type": "string",
+    "enum": [
+      "merging",
+      "resolving",
+      "merged",
+      "conflicted",
+      "failed"
+    ],
+    "description": "- `merging`: task branches are being merged into the integration branch\n- `resolving`: a merge conflicted and an integrator agent is resolving it\n- `merged`: every completed task's work is on the branch\n- `conflicted`: the integrator could not finish; the branch is left for a person\n- `failed`: integration could not run at all"
   },
   "OrchestrationSpec": {
     "type": "object",

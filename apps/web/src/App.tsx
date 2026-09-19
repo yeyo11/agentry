@@ -107,7 +107,7 @@ export function App() {
     {
       label: 'Work',
       items: [
-        { to: '/sessions', label: 'Sessions', icon: History },
+        { to: '/sessions', label: 'Sessions', icon: History, count: counts?.liveSessions },
         { to: '/projects', label: 'Projects', icon: FolderGit2 },
         { to: '/orchestration', label: 'Orchestration', icon: Workflow, count: counts?.orchestrationsRunning },
       ],
