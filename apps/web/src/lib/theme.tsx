@@ -3,6 +3,7 @@
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useSyncExternalStore } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Tooltip } from '../components/controls/Tooltip';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
@@ -10,7 +11,6 @@ export type EffectiveTheme = 'light' | 'dark';
 
 const STORAGE_KEY = 'agentry-theme';
 const ORDER: ThemePreference[] = ['system', 'light', 'dark'];
-const LABEL: Record<ThemePreference, string> = { system: 'System theme', light: 'Light theme', dark: 'Dark theme' };
 
 const listeners = new Set<() => void>();
 const osLight = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: light)') : null;
@@ -69,17 +69,19 @@ const ICON = { system: Monitor, light: Sun, dark: Moon } as const;
 
 /** Cycles system → light → dark. The icon swaps with a small rotate/fade. */
 export function ThemeToggle() {
+  const { t } = useTranslation('components');
   const current = useThemePreference();
   const reduced = useReducedMotion();
   const next = ORDER[(ORDER.indexOf(current) + 1) % ORDER.length] ?? 'system';
   const Icon = ICON[current];
+  const label = { current: t(`theme.${current}`), next: t(`theme.${next}`).toLowerCase() };
   return (
-    <Tooltip content={`${LABEL[current]} · click for ${LABEL[next].toLowerCase()}`}>
+    <Tooltip content={t('theme.tooltip', label)}>
       <button
         type="button"
         className="theme-toggle"
         onClick={() => setThemePreference(next)}
-        aria-label={`${LABEL[current]} — switch to ${LABEL[next].toLowerCase()}`}
+        aria-label={t('theme.switch', label)}
       >
         <AnimatePresence mode="wait" initial={false}>
           <motion.span

@@ -37,7 +37,7 @@ interface Draft {
 }
 
 function MemoryFiles({ projectId }: { projectId: string }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -152,7 +152,7 @@ function MemoryFiles({ projectId }: { projectId: string }) {
                   {t('shared.create')}
                 </button>
                 <button type="button" className="btn btn-small" onClick={() => setNaming(null)}>
-                  {t('shared.cancel')}
+                  {t('common:actions.cancel')}
                 </button>
               </div>
               {nameTaken && <span className="field-hint text-err">{t('resources.exists')}</span>}
@@ -248,7 +248,7 @@ function MemoryFiles({ projectId }: { projectId: string }) {
                       }).then((ok) => ok && remove.mutate(draft.name))
                     }
                   >
-                    {t('shared.delete')}
+                    {t('common:actions.delete')}
                   </button>
                 )}
               </div>
@@ -261,7 +261,7 @@ function MemoryFiles({ projectId }: { projectId: string }) {
 }
 
 function MemoryInner() {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const [params, setParams] = useSearchParams();
   const guard = useLeaveGuard();
   const { data, error, isLoading } = useQuery({ queryKey: keys.memoryProjects, queryFn: api.memoryProjects, refetchInterval: 15_000 });

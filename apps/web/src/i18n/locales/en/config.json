@@ -6,11 +6,8 @@
     "unsaved": "unsaved changes",
     "notYet": "does not exist yet · saved on first write",
     "ctrlS": "Ctrl/⌘+S saves",
-    "cancel": "Cancel",
     "edit": "Edit",
-    "remove": "Remove",
     "create": "Create",
-    "delete": "Delete",
     "refresh": "Refresh",
     "reset": "Reset"
   },

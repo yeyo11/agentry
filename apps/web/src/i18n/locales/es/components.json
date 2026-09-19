@@ -24,12 +24,12 @@
     "apiUnreachable": "No se puede contactar con la API",
     "connecting": "Conectando…",
     "claudeCode": "Claude Code {{version}}",
-    "cliNotDetected": "No se detecta la CLI",
+    "cliNotDetected": "No se detecta el CLI",
     "notLoggedIn": "Sin sesión iniciada",
     "liveUpdatesPaused": "Actualizaciones en directo en pausa, reintentando",
     "loggedIn": "sesión iniciada",
     "checkWrapper": "Comprueba que el wrapper está en marcha",
-    "installCli": "Instálala o define CLAUDE_BIN",
+    "installCli": "Instálalo o define CLAUDE_BIN",
     "addCredential": "Añade una credencial en Configuración",
     "sidebar": "Barra lateral",
     "expandSidebar": "Expande la barra lateral",
@@ -42,7 +42,6 @@
     "pageNotFound": "Página no encontrada"
   },
   "ui": {
-    "loading": "Cargando…",
     "loadingShort": "Cargando",
     "copy": "Copia",
     "copied": "Copiado",
@@ -59,7 +58,6 @@
   },
   "dialog": {
     "close": "Cierra el diálogo",
-    "cancel": "Cancela",
     "confirm": "Confirma",
     "areYouSure": "¿Seguro?"
   },
@@ -71,7 +69,6 @@
   "editors": {
     "add": "Añade",
     "none": "Ninguno",
-    "remove": "Quita",
     "removeItem": "Quita {{name}}",
     "row": "la fila",
     "keyPlaceholder": "CLAVE",
@@ -154,17 +151,13 @@
     "turns_other": "{{count}} turnos",
     "up": "activo desde hace {{duration}}",
     "ended": "terminó {{time}}",
-    "pid": "pid {{pid}}",
-    "open": "Abre",
-    "stop": "Detén",
-    "remove": "Quita"
+    "pid": "pid {{pid}}"
   },
   "notifications": {
     "bell": "Notificaciones",
     "bellUnread_one": "Notificaciones, {{count}} sin leer",
     "bellUnread_other": "Notificaciones, {{count}} sin leer",
-    "answer": "Responde",
-    "open": "Abre"
+    "answer": "Responde"
   },
   "notificationPanel": {
     "title": "Notificaciones",
@@ -176,7 +169,7 @@
     "preferences": "Preferencias",
     "popupToasts": "Avisos emergentes",
     "browserNotifications": "Notificaciones del navegador",
-    "notifyMeWhen": "Avísame cuando haya",
+    "notifyMeWhen": "Avísame de",
     "browserHint": {
       "granted": "Solo se muestran mientras esta pestaña está oculta.",
       "default": "Solo se muestran mientras esta pestaña está oculta. El navegador te pedirá permiso.",
@@ -184,12 +177,12 @@
       "unsupported": "Este navegador no admite notificaciones."
     },
     "kinds": {
-      "waiting": "Un run que me espera",
-      "run": "Un run que termina o falla",
-      "orchestration": "Una orquestación que termina o falla",
-      "conflict": "Un conflicto de integración",
-      "limit": "Un límite de uso o una rotación de cuenta",
-      "activity": "Una tarea en segundo plano, un subagent o un workflow que termina"
+      "waiting": "Runs que me esperan",
+      "run": "Runs que terminan o fallan",
+      "orchestration": "Orquestaciones que terminan o fallan",
+      "conflict": "Conflictos de integración",
+      "limit": "Límites de uso y rotaciones de cuenta",
+      "activity": "Tareas en segundo plano, subagents y workflows que terminan"
     }
   },
   "environment": {
@@ -197,7 +190,7 @@
     "noneReported": "Nada informado",
     "observed": "observado {{time}}",
     "cliVersion": "CLI {{version}}",
-    "style": "estilo: {{style}}",
+    "style": "output style: {{style}}",
     "sourceRun": "run de origen",
     "source": "origen: {{source}}",
     "mcpServers": "Servidores MCP",
@@ -213,7 +206,7 @@
     "tokens": "{{n}} tokens",
     "tokensThousands": "{{n}} mil tokens",
     "workflow": "workflow",
-    "cliSession": "Session de la CLI",
+    "cliSession": "Session de CLI",
     "agentsDone": "{{done}}/{{total}} agentes terminados",
     "result": "Resultado",
     "script": "Script"
@@ -248,9 +241,9 @@
     "duration": "Duración",
     "started": "Inicio",
     "startedBy": "Iniciada por",
-    "fromSubagent": "desde un subagent",
+    "fromSubagent": "de un subagent",
     "openSubagent": "abre el subagent",
-    "cliSession": "Session de la CLI",
+    "cliSession": "Session de CLI",
     "location": "Ubicación",
     "taskGone": "Esta tarea ya no aparece en la lista; lo que escribió se sigue mostrando abajo.",
     "output": "Salida",
@@ -325,7 +318,7 @@
       "theme": "Tema",
       "goTo": "Ir a",
       "config": "Configuración",
-      "liveRuns": "Runs activos",
+      "liveRuns": "Runs en directo",
       "projects": "Proyectos",
       "recentSessions": "Sessions recientes",
       "recent": "Recientes"
@@ -340,9 +333,6 @@
     "credentialHint": "Token OAuth o clave de API",
     "apiReference": "Referencia de la API",
     "apiReferenceHint": "Documentación interactiva de OpenAPI (Scalar) en una pestaña nueva",
-    "lightTheme": "Tema claro",
-    "darkTheme": "Tema oscuro",
-    "systemTheme": "Tema del sistema",
     "configTabs": {
       "instructions": "Instrucciones",
       "settings": "Ajustes",
@@ -385,5 +375,44 @@
     "attach": "Adjunta",
     "uploading": "Subiendo",
     "remove": "Quita {{name}}"
+  },
+  "theme": {
+    "system": "Tema del sistema",
+    "light": "Tema claro",
+    "dark": "Tema oscuro",
+    "tooltip": "{{current}} · haz clic para el {{next}}",
+    "switch": "{{current}}: cambia al {{next}}"
+  },
+  "dirty": {
+    "title": "¿Descartar los cambios sin guardar?",
+    "body": "Tienes ediciones sin guardar. Si te vas ahora, se descartan.",
+    "discard": "Descarta los cambios",
+    "keepEditing": "Sigue editando"
+  },
+  "notificationText": {
+    "permission": "Aprueba o deniega {{tool}} para que pueda continuar.",
+    "question": "Está esperando tu respuesta.",
+    "plan": "Revisa el plan y apruébalo, o pide cambios.",
+    "runFinished": "{{name}} ha terminado",
+    "runReady": "Está listo para tu siguiente mensaje.",
+    "runError": "Ha terminado con un error.",
+    "turns_one": "{{count}} turno",
+    "turns_other": "{{count}} turnos",
+    "rateLimited": "{{name}} ha llegado a un límite de uso",
+    "rateLimitedBody": "El turno se ha detenido porque la cuenta se ha quedado sin cuota.",
+    "rotated": "{{name}} ha cambiado de cuenta",
+    "previousAccount": "La cuenta anterior",
+    "nextAccount": "la siguiente cuenta",
+    "rotatedBody": "{{from}} → {{to}}.",
+    "rotatedBodyReplayed": "{{from}} → {{to}}, y se ha repetido el turno.",
+    "orchestrationFailed": "La orquestación {{name}} ha fallado",
+    "orchestrationFinished": "La orquestación {{name}} ha terminado",
+    "orchestrationFailedBody": "Una tarea ha fallado y el grafo se ha detenido.",
+    "orchestrationDoneBody": "Todas las tareas se han completado.",
+    "conflict_one": "{{count}} archivo en {{branch}} necesita tu atención.",
+    "conflict_other": "{{count}} archivos en {{branch}} necesitan tu atención.",
+    "conflictResolving_one": "{{count}} archivo en {{branch}}.",
+    "conflictResolving_other": "{{count}} archivos en {{branch}}.",
+    "fromSubagent": "Lo ha iniciado un subagent."
   }
 }

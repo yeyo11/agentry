@@ -68,7 +68,7 @@ function SessionItem({
   onDelete: (session: SessionSummary) => void;
   deleting: boolean;
 }) {
-  const { t } = useTranslation('work');
+  const { t } = useTranslation(['work', 'common']);
   const navigate = useNavigate();
   const origin = originOf(session);
   const liveRunId = session.live?.source === 'wrapper' ? (session.live.runId ?? origin.runId) : undefined;
@@ -109,7 +109,7 @@ function SessionItem({
       <div className="srow-actions">
         <Tooltip content={t('sessions.openTranscript')}>
           <Link to={`/sessions/${session.id}`} className="btn btn-small">
-            {t('sessions.open')} <ArrowUpRight {...ICON_SM} />
+            {t('common:actions.open')} <ArrowUpRight {...ICON_SM} />
           </Link>
         </Tooltip>
         {liveRunId ? (
@@ -190,7 +190,7 @@ function OrchestrationRow({
   onDelete: (session: SessionSummary) => void;
   pendingId?: string;
 }) {
-  const { t } = useTranslation('work');
+  const { t } = useTranslation(['work', 'common']);
   const liveCount = group.sessions.filter((s) => s.live).length;
   const last = group.sessions.map((s) => s.updatedAt ?? '').sort().at(-1) ?? null;
   return (
@@ -241,7 +241,7 @@ function OrchestrationRow({
 }
 
 export function Sessions() {
-  const { t } = useTranslation('work');
+  const { t } = useTranslation(['work', 'common']);
   const [params, setParams] = useSearchParams();
   const projects = useProjects();
   const sessions = useSessions();

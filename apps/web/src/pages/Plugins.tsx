@@ -19,7 +19,7 @@ type Action = 'install' | 'uninstall' | 'enable' | 'disable';
 
 /** Runs a plugin CLI action, reports its output and refreshes every plugin list. */
 function usePluginAction() {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const toast = useToast();
   const [lastOutput, setLastOutput] = useState<{ title: string; result: CliTextResult } | null>(null);
@@ -43,7 +43,7 @@ function usePluginAction() {
 }
 
 function OutputPanel({ output }: { output: { title: string; result: CliTextResult } | null }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   if (!output?.result.output.trim()) return null;
   return (
     <Collapsible
@@ -61,7 +61,7 @@ function OutputPanel({ output }: { output: { title: string; result: CliTextResul
 }
 
 function DetailsDrawer({ plugin, onClose }: { plugin: InstalledPlugin; onClose: () => void }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const { data, error, isLoading } = useQuery({
     queryKey: keys.pluginDetails(plugin.id),
     queryFn: () => api.pluginDetails(plugin.id),
@@ -89,7 +89,7 @@ function DetailsDrawer({ plugin, onClose }: { plugin: InstalledPlugin; onClose: 
 }
 
 function InstalledTab({ actions }: { actions: ReturnType<typeof usePluginAction> }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const confirm = useConfirm();
   const { data, error, isLoading } = useQuery({ queryKey: keys.plugins, queryFn: api.plugins });
   const [details, setDetails] = useState<InstalledPlugin | null>(null);
@@ -194,7 +194,7 @@ function useDebounced<T>(value: T, delayMs: number): T {
 }
 
 function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<PluginScope>('user');
   const query = useDebounced(search.trim(), 300);
@@ -278,7 +278,7 @@ function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> })
 }
 
 function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction>['report'] }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -397,12 +397,12 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
                             void confirm({
                               title: t('plugins.removeTitle', { name: marketplace.name }),
                               body: t('plugins.removeBody'),
-                              confirmLabel: t('shared.remove'),
+                              confirmLabel: t('common:actions.remove'),
                               danger: true,
                             }).then((ok) => ok && remove.mutate(marketplace.name))
                           }
                         >
-                          {t('shared.remove')}
+                          {t('common:actions.remove')}
                         </button>
                       </div>
                     </td>
@@ -418,7 +418,7 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
 }
 
 export function Plugins() {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const [params, setParams] = useSearchParams();
   const tab: TabId = TABS.find((id) => id === params.get('tab')) ?? 'installed';
   const actions = usePluginAction();

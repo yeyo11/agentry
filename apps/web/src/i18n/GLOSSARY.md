@@ -50,11 +50,12 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | matcher | el matcher (of a hook) |
 | commit | el commit; "hacer commit", "sin commit" |
 | pull request, PR | la pull request, la PR |
-| worker | el worker (a run an orchestration launches) |
 | compact | "compactar" is fine as a verb in prose; `/compact` stays literal |
 | wrapper | el wrapper (Agentry's server) |
-| worker | el worker, los workers (an orchestration's task sessions; Agentry's own term, kept short) |
+| worker | el worker, los workers (the runs an orchestration launches; Agentry's own term, kept short) |
 | stream | el stream (a run's live event feed): "Stream conectado" |
+| CLI | **el** CLI, never "la CLI": "el CLI no la valida", "session de CLI" |
+| permission prompt | la petición de permiso — never "prompt", which is only what a person sends to Claude |
 
 ## Recurring UI words
 
@@ -152,6 +153,9 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | Clear (a list) | Vacía |
 | Mark all read | Márcalas todas como leídas |
 | Toast | aviso emergente |
+| Live | en directo ("Runs en directo"), never "activo", which translates *active* |
+| Theme names | Tema del sistema / Tema claro / Tema oscuro |
+| Notification kinds (what to notify about) | a plural noun phrase after "Avísame de": "Runs que me esperan" |
 
 ## Status names
 

@@ -18,7 +18,7 @@ function tone(pct: number): string {
 }
 
 function Meter({ label, window: win }: { label: string; window: AccountUsageWindow | null }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   if (!win) return null;
   const pct = Math.min(100, Math.round(win.pct));
   return (
@@ -52,7 +52,7 @@ function AccountCard({
   onToggle: () => void;
   onRemove: () => void;
 }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   return (
     <Card
       title={
@@ -122,7 +122,7 @@ function AccountCard({
 }
 
 function AddAccount({ onAdded }: { onAdded: () => void }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const toast = useToast();
   const [token, setToken] = useState('');
   const [email, setEmail] = useState('');
@@ -163,7 +163,7 @@ function AddAccount({ onAdded }: { onAdded: () => void }) {
 }
 
 function AutoSwitchPanel({ settings, running }: { settings: AutoSwitchSettings; running: boolean }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const toast = useToast();
   const [draft, setDraft] = useState(settings);
@@ -247,7 +247,7 @@ function AutoSwitchPanel({ settings, running }: { settings: AutoSwitchSettings; 
 }
 
 export function Accounts() {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const { data, error, isLoading, refetch, isFetching } = useAccounts();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -336,7 +336,7 @@ export function Accounts() {
                   void confirm({
                     title: t('accounts.removeTitle', { email: account.email }),
                     body: t('accounts.removeBody'),
-                    confirmLabel: t('shared.remove'),
+                    confirmLabel: t('common:actions.remove'),
                     danger: true,
                   }).then(async (ok) => {
                     if (ok) {

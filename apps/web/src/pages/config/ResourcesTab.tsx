@@ -52,7 +52,7 @@ interface Draft {
 }
 
 export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const k = (phrase: KindPhrase, options?: { name: string }) => t(`resources.kinds.${kind}.${phrase}`, options ?? {});
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -139,7 +139,7 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
                   {t('shared.create')}
                 </button>
                 <button type="button" className="btn btn-small" onClick={() => setNaming(null)}>
-                  {t('shared.cancel')}
+                  {t('common:actions.cancel')}
                 </button>
               </div>
               {nameTaken && <span className="field-hint text-err">{t('resources.exists')}</span>}
@@ -228,12 +228,12 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
                       void confirm({
                         title: k('deleteTitle', { name: draft.name }),
                         body: kind === 'skills' ? t('resources.deleteSkillBody') : t('resources.deleteFileBody'),
-                        confirmLabel: t('shared.delete'),
+                        confirmLabel: t('common:actions.delete'),
                         danger: true,
                       }).then((ok) => ok && remove.mutate(draft.name))
                     }
                   >
-                    {t('shared.delete')}
+                    {t('common:actions.delete')}
                   </button>
                 )}
               </div>

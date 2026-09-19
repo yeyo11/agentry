@@ -41,7 +41,7 @@ export function Dialog({
   const panelRef = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
   const drawer = variant === 'drawer';
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'common']);
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -128,7 +128,7 @@ type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
 const ConfirmContext = createContext<ConfirmFn | null>(null);
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'common']);
   const [pending, setPending] = useState<(ConfirmOptions & { resolve: (ok: boolean) => void }) | null>(null);
 
   const confirm = useCallback<ConfirmFn>(
@@ -157,7 +157,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           footer={
             <>
               <button className="btn" onClick={() => settle(false)}>
-                {pending.cancelLabel ?? t('dialog.cancel')}
+                {pending.cancelLabel ?? t('common:actions.cancel')}
               </button>
               <button
                 className={`btn ${pending.danger ? 'btn-danger-solid' : 'btn-primary'}`}

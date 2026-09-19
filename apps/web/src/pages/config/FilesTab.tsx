@@ -75,7 +75,7 @@ function TreeNode({
   const isDir = node.type === 'dir';
   const open = expanded.has(node.path);
   const FileIcon = fileIcon(node.name);
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   return (
     <>
       <div className="tree-line">
@@ -149,7 +149,7 @@ function NewFileDialog({
   onCreate: (path: string, content: string, executable: boolean) => void;
   onClose: () => void;
 }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const [templateId, setTemplateId] = useState<(typeof TEMPLATES)[number]['id']>('empty');
   const [path, setPath] = useState('');
   const template = TEMPLATES.find((entry) => entry.id === templateId) ?? TEMPLATES[0];
@@ -165,7 +165,7 @@ function NewFileDialog({
       footer={
         <>
           <button className="btn" onClick={onClose}>
-            {t('shared.cancel')}
+            {t('common:actions.cancel')}
           </button>
           <button
             className="btn btn-primary"
@@ -226,7 +226,7 @@ function flatten(nodes: ConfigFileNode[], out = new Set<string>()): Set<string> 
 }
 
 export function FilesTab({ scope }: { scope: Scope }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const rootId = scope.projectId ?? 'user';
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -475,7 +475,7 @@ export function FilesTab({ scope }: { scope: Scope }) {
                       }).then((ok) => ok && remove.mutate(file.path))
                     }
                   >
-                    {t('shared.delete')}
+                    {t('common:actions.delete')}
                   </button>
                 )}
               </div>

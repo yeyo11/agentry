@@ -49,7 +49,7 @@ function TaskEditor({
   onChange: (patch: Partial<OrchestrationTaskSpec>) => void;
   onRemove: () => void;
 }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const deps = task.dependsOn ?? [];
   return (
     <div className="task-editor">
@@ -98,7 +98,7 @@ function TaskEditor({
 }
 
 function CreateForm({ onDone }: { onDone: () => void }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const projects = useProjects(false);
@@ -436,7 +436,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
                 {create.isPending ? t('orchestration.launching') : t('orchestration.launch', { count: tasks.length })}
               </button>
               <button type="button" className="btn" onClick={onDone}>
-                {t('shared.cancel')}
+                {t('common:actions.cancel')}
               </button>
             </div>
           </>
@@ -447,7 +447,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
 }
 
 export function Orchestration() {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const { data, error, isLoading } = useOrchestrations();
   const [creating, setCreating] = useState(false);
   const list = data ?? [];

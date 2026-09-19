@@ -22,7 +22,7 @@ export function StringListEditor({
   allowDuplicates?: boolean;
   emptyText?: string;
 }) {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'common']);
   const [draft, setDraft] = useState('');
 
   const add = () => {
@@ -110,7 +110,7 @@ export function KeyValueEditor({
   maskValues?: boolean;
   addLabel?: string;
 }) {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'common']);
   const [revealed, setRevealed] = useState<ReadonlySet<number>>(new Set());
   const update = (index: number, patch: Partial<KeyValueRow>) =>
     onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -159,7 +159,7 @@ export function KeyValueEditor({
                 </button>
               </Tooltip>
             )}
-            <Tooltip content={t('editors.remove')}>
+            <Tooltip content={t('common:actions.remove')}>
               <button
                 type="button"
                 className="icon-btn"

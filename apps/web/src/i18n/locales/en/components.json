@@ -42,7 +42,6 @@
     "pageNotFound": "Page not found"
   },
   "ui": {
-    "loading": "Loading…",
     "loadingShort": "Loading",
     "copy": "Copy",
     "copied": "Copied",
@@ -59,7 +58,6 @@
   },
   "dialog": {
     "close": "Close dialog",
-    "cancel": "Cancel",
     "confirm": "Confirm",
     "areYouSure": "Are you sure?"
   },
@@ -71,7 +69,6 @@
   "editors": {
     "add": "Add",
     "none": "None",
-    "remove": "Remove",
     "removeItem": "Remove {{name}}",
     "row": "row",
     "keyPlaceholder": "KEY",
@@ -154,17 +151,13 @@
     "turns_other": "{{count}} turns",
     "up": "up {{duration}}",
     "ended": "ended {{time}}",
-    "pid": "pid {{pid}}",
-    "open": "Open",
-    "stop": "Stop",
-    "remove": "Remove"
+    "pid": "pid {{pid}}"
   },
   "notifications": {
     "bell": "Notifications",
     "bellUnread_one": "Notifications, {{count}} unread",
     "bellUnread_other": "Notifications, {{count}} unread",
-    "answer": "Answer",
-    "open": "Open"
+    "answer": "Answer"
   },
   "notificationPanel": {
     "title": "Notifications",
@@ -340,9 +333,6 @@
     "credentialHint": "OAuth token or API key",
     "apiReference": "API reference",
     "apiReferenceHint": "Interactive OpenAPI docs (Scalar) in a new tab",
-    "lightTheme": "Light theme",
-    "darkTheme": "Dark theme",
-    "systemTheme": "System theme",
     "configTabs": {
       "instructions": "Instructions",
       "settings": "Settings",
@@ -385,5 +375,44 @@
     "attach": "Attach",
     "uploading": "Uploading",
     "remove": "Remove {{name}}"
+  },
+  "theme": {
+    "system": "System theme",
+    "light": "Light theme",
+    "dark": "Dark theme",
+    "tooltip": "{{current}} · click for {{next}}",
+    "switch": "{{current}} — switch to {{next}}"
+  },
+  "dirty": {
+    "title": "Discard unsaved changes?",
+    "body": "You have edits that have not been saved. Leaving now will discard them.",
+    "discard": "Discard changes",
+    "keepEditing": "Keep editing"
+  },
+  "notificationText": {
+    "permission": "Approve or deny {{tool}} to let it continue.",
+    "question": "It is waiting for your answer.",
+    "plan": "Review the plan and approve it, or ask for changes.",
+    "runFinished": "{{name}} finished",
+    "runReady": "It is ready for your next message.",
+    "runError": "It ended with an error.",
+    "turns_one": "{{count}} turn",
+    "turns_other": "{{count}} turns",
+    "rateLimited": "{{name}} hit a rate limit",
+    "rateLimitedBody": "The turn stopped because the account ran out of quota.",
+    "rotated": "{{name}} moved to another account",
+    "previousAccount": "The previous account",
+    "nextAccount": "the next account",
+    "rotatedBody": "{{from}} → {{to}}.",
+    "rotatedBodyReplayed": "{{from}} → {{to}}, and the turn was replayed.",
+    "orchestrationFailed": "Orchestration {{name}} failed",
+    "orchestrationFinished": "Orchestration {{name}} finished",
+    "orchestrationFailedBody": "A task failed and the graph stopped.",
+    "orchestrationDoneBody": "Every task completed.",
+    "conflict_one": "{{count}} file in {{branch}} need your attention.",
+    "conflict_other": "{{count}} files in {{branch}} need your attention.",
+    "conflictResolving_one": "{{count}} file in {{branch}}.",
+    "conflictResolving_other": "{{count}} files in {{branch}}.",
+    "fromSubagent": "Started by a subagent."
   }
 }

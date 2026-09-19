@@ -12,7 +12,7 @@ import { WorkflowCard } from '../components/WorkflowCard';
 
 /** Runs one saved workflow: the CLI only runs them from inside a session, so this starts a run for it. */
 function RunForm({ workflow, cwd, onCancel }: { workflow: WorkflowDefinition; cwd: string; onCancel: () => void }) {
-  const { t } = useTranslation('work');
+  const { t } = useTranslation(['work', 'common']);
   const navigate = useNavigate();
   const [args, setArgs] = useState('');
   const [model, setModel] = useState('');
@@ -41,7 +41,7 @@ function RunForm({ workflow, cwd, onCancel }: { workflow: WorkflowDefinition; cw
           <Play {...ICON_SM} /> {run.isPending ? t('shared.starting') : t('workflows.runNamed', { name: workflow.name })}
         </button>
         <button type="button" className="btn" onClick={onCancel}>
-          {t('shared.cancel')}
+          {t('common:actions.cancel')}
         </button>
       </div>
     </form>
@@ -49,7 +49,7 @@ function RunForm({ workflow, cwd, onCancel }: { workflow: WorkflowDefinition; cw
 }
 
 function SavedWorkflows() {
-  const { t } = useTranslation('work');
+  const { t } = useTranslation(['work', 'common']);
   const projects = useProjects(false);
   const [cwd, setCwd] = useState('');
   const [open, setOpen] = useState<string | null>(null);
@@ -106,7 +106,7 @@ function SavedWorkflows() {
 }
 
 export function Workflows() {
-  const { t } = useTranslation('work');
+  const { t } = useTranslation(['work', 'common']);
   const { data, error, isLoading } = useWorkflows();
   const workflows = data ?? [];
   const running = workflows.filter((w) => w.status === 'running').length;

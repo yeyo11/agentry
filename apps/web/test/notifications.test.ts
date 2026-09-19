@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { AgentryEvent } from '@agentry/shared';
-import {
+
+// The wording of a notification follows navigator.languages; pin it so these texts are the English
+// ones whatever the machine's locale is.
+Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });
+const {
   addNotifications,
   defaultPrefs,
   hasUrgent,
@@ -13,9 +17,9 @@ import {
   settle,
   settlesWaiting,
   unreadCount,
-  type AppNotification,
-  type NotificationDraft,
-} from '../src/lib/notifications-model.ts';
+} = await import('../src/lib/notifications-model.ts');
+type AppNotification = import('../src/lib/notifications-model.ts').AppNotification;
+type NotificationDraft = import('../src/lib/notifications-model.ts').NotificationDraft;
 
 let nextId = 1;
 const at = (offsetMs = 0) => new Date(Date.parse('2026-01-01T12:00:00Z') + offsetMs).toISOString();

@@ -3,19 +3,20 @@
  *
  * Adding a string
  * 1. Pick the namespace by where the string lives:
- *    - `common`: words shared across the app (Save, Cancel, Delete…, status names)
+ *    - `common`: words shared across the app (`actions.*`, status names, times). A string that
+ *      three screens spell the same way belongs here, not copied into each namespace.
  *    - `work`: Dashboard, Agents, Tasks, Workflows, Sessions, SessionView, RunView, NewRun, Projects
  *    - `config`: Config and pages/config/*, Accounts, Memory, Plugins, Orchestration(Detail)
  *    - `components`: components/**, the App.tsx shell and navigation, CommandPalette, notifications
  * 2. Add the key to `locales/en/<ns>.json` with today's English text, byte for byte (the e2e specs
  *    find elements by it), and the same key to `locales/es/<ns>.json`. Group keys by screen or
- *    component (`"runView": { "stop": "Stop" }`). A key missing from either file fails
+ *    component (`"runView": { "send": "Send" }`). A key missing from either file fails
  *    `pnpm typecheck` and test/i18n.test.ts. Follow GLOSSARY.md for the Spanish.
  * 3. Use it:
  *      const { t } = useTranslation('work');           // typed: unknown keys do not compile
- *      t('runView.stop')
- *      t('common:save')                                // another namespace, `ns:` prefix
- *      const { t } = useTranslation(['work', 'common']); // or load several, first is the default
+ *      t('runView.send')
+ *      t('common:actions.save')                        // another namespace, with it loaded too:
+ *      const { t } = useTranslation(['work', 'common']); // the ns: prefix only types loaded ones
  *    Interpolation: `"subtitle": "up {{uptime}}"` → t('dashboard.subtitle', { uptime }). Values are
  *    not HTML-escaped (React already escapes), so never build markup from them.
  *    Plurals: one key per CLDR category, `"count_one": "{{count}} account"` and
@@ -29,7 +30,9 @@
  *    call i18n.t('work:…') at the moment the text is shown, never at import time, or it freezes
  *    in the language the page loaded with.
  * 4. Never translate what comes from the CLI, from Claude or from the user (transcripts, tool
- *    names, file contents, API error messages).
+ *    names, file contents, API error messages). test/hardcoded-strings.test.ts fails on any other
+ *    user-visible English left in a .tsx or .ts file; what legitimately stays English goes in its
+ *    ALLOWED list, with the reason.
  *
  * Dates, numbers, durations and costs go through lib/format, which follows the active language.
  */

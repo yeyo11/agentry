@@ -30,7 +30,7 @@ const RunSettings = lazy(() => import('../components/RunSettings'));
  * re-rendering the page on every character typed here is enough to lock the tab up.
  */
 function Composer({ runId, live, busy, onSent }: { runId: string; live: boolean; busy: boolean; onSent: () => void }) {
-  const { t } = useTranslation('work');
+  const { t } = useTranslation(['work', 'common']);
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
   const files = useAttachments();
@@ -114,7 +114,7 @@ function Composer({ runId, live, busy, onSent }: { runId: string; live: boolean;
 }
 
 export function RunView() {
-  const { t } = useTranslation('work');
+  const { t } = useTranslation(['work', 'common']);
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -213,12 +213,12 @@ export function RunView() {
             {live ? (
               <button className="btn btn-danger" disabled={stop.isPending} onClick={() => stop.mutate()}>
                 <Square {...ICON_SM} />
-                {t('runView.stop')}
+                {t('common:actions.stop')}
               </button>
             ) : (
               <button className="btn" disabled={remove.isPending} onClick={() => remove.mutate()}>
                 <Trash2 {...ICON_SM} />
-                {t('runView.remove')}
+                {t('common:actions.remove')}
               </button>
             )}
           </div>
@@ -239,7 +239,7 @@ export function RunView() {
           {more && (
             <div className="transcript-earlier">
               <button type="button" className="btn btn-small" onClick={loadEarlier} disabled={loadingMore}>
-                {loadingMore ? t('shared.loading') : t('runView.loadEarlier', { n: from })}
+                {loadingMore ? t('common:loading') : t('runView.loadEarlier', { n: from })}
               </button>
             </div>
           )}

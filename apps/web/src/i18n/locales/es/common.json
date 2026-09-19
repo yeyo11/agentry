@@ -1,5 +1,14 @@
 {
   "language": "Idioma",
+  "actions": {
+    "cancel": "Cancela",
+    "delete": "Elimina",
+    "remove": "Quita",
+    "open": "Abre",
+    "stop": "Detén"
+  },
+  "loading": "Cargando…",
+  "requestTimeout": "El servidor no ha respondido a tiempo. Puede que siga trabajando: recarga para ver el estado actual.",
   "time": {
     "justNow": "ahora mismo",
     "now": "ahora",

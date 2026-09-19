@@ -13,7 +13,7 @@ import { ErrorBox, StatusBadge } from './ui';
 export const isRunLive = (run: RunSummary) => ['starting', 'busy', 'idle'].includes(run.status);
 
 export function RunCard({ run, compact = false }: { run: RunSummary; compact?: boolean }) {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'common']);
   const queryClient = useQueryClient();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: keys.runs });
   const stop = useMutation({ mutationFn: () => api.stopRun(run.id), onSuccess: invalidate });
@@ -71,15 +71,15 @@ export function RunCard({ run, compact = false }: { run: RunSummary; compact?: b
       </div>
       <div className="row-card-actions">
         <Link to={`/runs/${run.id}`} className="btn btn-small">
-          {t('runCard.open')} <ArrowUpRight {...ICON_SM} />
+          {t('common:actions.open')} <ArrowUpRight {...ICON_SM} />
         </Link>
         {live ? (
           <button className="btn btn-small btn-danger" disabled={stop.isPending} onClick={() => stop.mutate()}>
-            <Square {...ICON_SM} /> {t('runCard.stop')}
+            <Square {...ICON_SM} /> {t('common:actions.stop')}
           </button>
         ) : (
           <button className="btn btn-small" disabled={remove.isPending} onClick={() => remove.mutate()}>
-            <Trash2 {...ICON_SM} /> {t('runCard.remove')}
+            <Trash2 {...ICON_SM} /> {t('common:actions.remove')}
           </button>
         )}
       </div>

@@ -12,7 +12,7 @@ import { Stagger } from '../components/motion';
 import { timeAgo } from '../lib/format';
 
 function NewProjectForm({ onDone }: { onDone: () => void }) {
-  const { t } = useTranslation('work');
+  const { t } = useTranslation(['work', 'common']);
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [gitUrl, setGitUrl] = useState('');
@@ -38,7 +38,7 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
             {create.isPending ? (gitUrl.trim() ? t('projects.cloning') : t('projects.creating')) : t('projects.create')}
           </button>
           <button className="btn" onClick={onDone}>
-            {t('shared.cancel')}
+            {t('common:actions.cancel')}
           </button>
         </div>
       </div>
@@ -50,7 +50,7 @@ const liveIn = (p: ProjectSummary) => p.activeRuns + (p.activeSessions ?? 0);
 
 /** One worktree of a project: its branch, who made it, and whether anything is working in it now. */
 function WorktreeRow({ worktree }: { worktree: ProjectSummary }) {
-  const { t } = useTranslation('work');
+  const { t } = useTranslation(['work', 'common']);
   const live = liveIn(worktree);
   const creator = worktree.createdBy;
   return (
@@ -84,7 +84,7 @@ function WorktreeRow({ worktree }: { worktree: ProjectSummary }) {
 }
 
 export function Projects() {
-  const { t } = useTranslation('work');
+  const { t } = useTranslation(['work', 'common']);
   const [creating, setCreating] = useState(false);
   const [showTemporary, setShowTemporary] = useState(false);
   const { data, error, isLoading } = useProjects();

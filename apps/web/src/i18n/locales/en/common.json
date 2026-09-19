@@ -1,5 +1,14 @@
 {
   "language": "Language",
+  "actions": {
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "remove": "Remove",
+    "open": "Open",
+    "stop": "Stop"
+  },
+  "loading": "Loading…",
+  "requestTimeout": "The server did not answer in time. It may still be working — reload to see the current state.",
   "time": {
     "justNow": "just now",
     "now": "now",

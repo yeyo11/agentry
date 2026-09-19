@@ -16,7 +16,7 @@ import { Card, Empty, ErrorBox, Loading, PageHeader, StatusBadge } from '../comp
 import { formatBytes, formatDateTime } from '../lib/format';
 
 export function SessionView() {
-  const { t } = useTranslation('work');
+  const { t } = useTranslation(['work', 'common']);
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [sidechains, setSidechains] = useState(false);
@@ -127,7 +127,7 @@ export function SessionView() {
               <span className="tooltip-anchor">
                 <button className="btn btn-danger" disabled={Boolean(live) || remove.isPending} onClick={() => remove.requestDelete(summary)}>
                   <Trash2 {...ICON_SM} />
-                  {remove.isPending ? t('sessionView.deleting') : t('sessionView.delete')}
+                  {remove.isPending ? t('sessionView.deleting') : t('common:actions.delete')}
                 </button>
               </span>
             </Tooltip>
@@ -205,7 +205,7 @@ export function SessionView() {
           {transcript.more && (
             <div className="transcript-earlier">
               <button type="button" className="btn btn-small" onClick={transcript.loadEarlier} disabled={transcript.loadingMore}>
-                {transcript.loadingMore ? t('shared.loading') : t('sessionView.loadEarlier', { n: transcript.from })}
+                {transcript.loadingMore ? t('common:loading') : t('sessionView.loadEarlier', { n: transcript.from })}
               </button>
             </div>
           )}

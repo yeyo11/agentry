@@ -61,10 +61,10 @@ export function Tag({ children, tone = 'muted' }: { children: ReactNode; tone?: 
 }
 
 export function Loading({ label }: { label?: string }) {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'common']);
   return (
     <div className="state">
-      <span className="spinner" /> {label ?? t('ui.loading')}
+      <span className="spinner" /> {label ?? t('common:loading')}
     </div>
   );
 }
@@ -94,7 +94,7 @@ export function Empty({
 
 /** Placeholder rows shown while the first response is on its way (no layout jump afterwards). */
 export function Skeleton({ rows = 3, height = 14 }: { rows?: number; height?: number }) {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'common']);
   return (
     <div className="skeleton-stack" aria-busy="true" aria-label={t('ui.loadingShort')}>
       {Array.from({ length: rows }, (_, i) => (
@@ -111,7 +111,7 @@ export function usePageTitle(title: string | undefined): void {
 }
 
 export function CopyButton({ text, label }: { text: string; label?: string }) {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'common']);
   const [copied, setCopied] = useState(false);
   const name = label ?? t('ui.copy');
   return (
@@ -146,7 +146,7 @@ export function CopyButton({ text, label }: { text: string; label?: string }) {
 
 /** A path in monospace with a copy button; long paths are truncated with the full value as tooltip. */
 export function PathLabel({ path }: { path: string }) {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'common']);
   return (
     <span className="path-label">
       <span className="mono small muted ellipsis" title={path}>
@@ -190,7 +190,7 @@ export function Segmented<T extends string>({
 }
 
 export function ErrorBox({ error, title }: { error: unknown; title?: string }) {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'common']);
   if (!error) return null;
   return (
     <div className="alert alert-bad" role="alert">
@@ -245,7 +245,7 @@ export function Tabs<T extends string>({
   inline?: boolean;
 }) {
   const indicator = useIndicatorId('tabs');
-  const { t: translate } = useTranslation('components');
+  const { t: translate } = useTranslation(['components', 'common']);
   return (
     <div className={`tabs ${inline ? 'tabs-inline' : ''}`} role="tablist" aria-label={label}>
       {tabs.map((t) => (

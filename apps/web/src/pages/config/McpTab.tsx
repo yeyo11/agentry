@@ -99,7 +99,7 @@ function ServerEditor({
   existingNames: Set<string>;
   onClose: () => void;
 }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const toast = useToast();
   const [form, setForm] = useState(initial);
@@ -281,7 +281,7 @@ function ServerEditor({
             {save.isPending ? t('shared.saving') : isNew ? t('mcp.add') : t('mcp.save')}
           </button>
           <button type="button" className="btn" onClick={onClose}>
-            {t('shared.cancel')}
+            {t('common:actions.cancel')}
           </button>
         </div>
       </form>
@@ -290,7 +290,7 @@ function ServerEditor({
 }
 
 export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser: () => void }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -431,7 +431,7 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
                                 }).then((ok) => ok && remove.mutate(server))
                               }
                             >
-                              {t('shared.remove')}
+                              {t('common:actions.remove')}
                             </button>
                           </>
                         ) : (

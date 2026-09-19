@@ -20,7 +20,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const panelId = useId();
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'common']);
   const label = unread > 0 ? t('notifications.bellUnread', { count: unread }) : t('notifications.bell');
 
   return (
@@ -60,7 +60,7 @@ export function NotificationBell() {
  */
 export function NotificationHost() {
   const toast = useToast();
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'common']);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   // Read at event time: the person may have moved since the last render
@@ -86,7 +86,7 @@ export function NotificationHost() {
           urgent: n.priority === 'high',
           action: n.href
             ? {
-                label: n.kind === 'waiting' ? t('notifications.answer') : t('notifications.open'),
+                label: n.kind === 'waiting' ? t('notifications.answer') : t('common:actions.open'),
                 onClick: () => {
                   markRead(n.id);
                   open(n.href);

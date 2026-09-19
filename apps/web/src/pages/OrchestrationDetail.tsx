@@ -57,7 +57,7 @@ function StageHead({ title, tasks }: { title: string; tasks: OrchestrationTaskSt
 }
 
 function TaskCard({ task }: { task: OrchestrationTaskState }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const reduced = useReducedMotion();
   return (
     // Keyed on status so a task visibly settles into its new state when it changes
@@ -109,7 +109,7 @@ function TaskCard({ task }: { task: OrchestrationTaskState }) {
  * where it stands and offers the steps that stay a person's call: publishing it, and cleaning up.
  */
 function IntegrationCard({ orch }: { orch: Orchestration }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
@@ -190,7 +190,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
                   void confirm({
                     title: t('detail.pruneTitle'),
                     body: t('detail.pruneBody'),
-                    confirmLabel: t('shared.remove'),
+                    confirmLabel: t('common:actions.remove'),
                   }).then((ok) => {
                     if (ok) prune.mutate();
                   })
@@ -255,7 +255,7 @@ const SAFE_TOOLS = 'Bash,Read,Write,Edit,Glob,Grep';
  * can be kept as a workflow of the project and run from then on by name.
  */
 function WorkflowCard({ orch }: { orch: Orchestration }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const toast = useToast();
   const [name, setName] = useState('');
   const script = useQuery({ queryKey: ['orchestrations', orch.id, 'workflow'], queryFn: () => api.orchestrationWorkflow(orch.id) });
@@ -331,7 +331,7 @@ function ResumePanel({
   onResume: (changes: ResumeOrchestrationRequest) => void;
   onCancel: () => void;
 }) {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const [worktree, setWorktree] = useState(true);
   const [askPermissions, setAskPermissions] = useState(true);
   const [tools, setTools] = useState(orch.allowedTools.length ? orch.allowedTools.join(',') : SAFE_TOOLS);
@@ -384,7 +384,7 @@ function ResumePanel({
           <Play {...ICON_SM} /> {pending ? t('detail.resuming') : t('detail.resume', { count: unfinished })}
         </button>
         <button type="button" className="btn" onClick={onCancel} disabled={pending}>
-          {t('shared.cancel')}
+          {t('common:actions.cancel')}
         </button>
       </div>
     </Card>
@@ -392,7 +392,7 @@ function ResumePanel({
 }
 
 export function OrchestrationDetail() {
-  const { t } = useTranslation('config');
+  const { t } = useTranslation(['config', 'common']);
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const { data: orch, error, isLoading } = useOrchestration(id);
@@ -473,14 +473,14 @@ export function OrchestrationDetail() {
                   void confirm({
                     title: t('files.deleteTitle', { path: orch.name }),
                     body: t('detail.deleteBody'),
-                    confirmLabel: t('shared.delete'),
+                    confirmLabel: t('common:actions.delete'),
                     danger: true,
                   }).then((ok) => {
                     if (ok) remove.mutate();
                   })
                 }
               >
-                <Trash2 {...ICON_SM} /> {t('shared.delete')}
+                <Trash2 {...ICON_SM} /> {t('common:actions.delete')}
               </button>
             </>
           )
