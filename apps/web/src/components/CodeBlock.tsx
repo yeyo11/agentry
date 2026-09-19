@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState, type CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CopyButton } from './ui';
 
 type Tokens = Awaited<ReturnType<typeof import('./highlight').highlight>>;
@@ -36,12 +37,13 @@ function useHighlight(code: string, lang: string | undefined, enabled: boolean):
  * chat answers get; tool payloads keep the quieter bar that shows on hover.
  */
 export function CodeBlock({ code, lang, tone, header = false }: { code: string; lang?: string; tone?: 'error'; header?: boolean }) {
+  const { t } = useTranslation('components');
   const highlighted = useHighlight(code, lang, tone !== 'error');
   return (
     <div className={`code-block ${tone === 'error' ? 'is-error' : ''} ${header ? 'has-header' : ''}`}>
       <div className="code-block-bar">
         {(lang || header) && <span className="code-lang">{lang || 'text'}</span>}
-        <CopyButton text={code} label="Copy code" />
+        <CopyButton text={code} label={t('ui.copyCode')} />
       </div>
       {/* Highlighted, the block carries the foreground colour, which the bare runs inherit */}
       <pre className="code" data-lang={lang || undefined} style={highlighted ? (highlighted.tokens.base as CSSProperties) : undefined}>

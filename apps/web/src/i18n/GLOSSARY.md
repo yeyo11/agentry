@@ -144,14 +144,36 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | Logged in / logged out (Claude Code auth) | sesión iniciada / sesión cerrada (the login, not a `session`) |
 | Board (orchestration) | Tablero |
 | Details / Output | Detalles / Salida |
+| Result | Resultado |
+| Tool result / Tool error | Resultado de la herramienta / Error de la herramienta |
+| Turn | Turno |
+| Decline (a question) | Rechaza |
+| Previous | Anterior |
+| Clear (a list) | Vacía |
+| Mark all read | Márcalas todas como leídas |
+| Toast | aviso emergente |
 
 ## Status names
 
-Statuses describe a run (masculine), so adjectives agree with "el run".
+Statuses describe a run (masculine), so adjectives agree with "el run". They live in
+`common:status.*` and every badge goes through `statusText()` in components/ui.tsx; a status Agentry
+does not know is shown as it came. MCP server states (`connected`, `needs-auth`…) come from the CLI
+and stay untranslated.
 
 | English | Spanish |
 |---|---|
+| starting | iniciando |
+| busy | trabajando |
 | running | en curso |
+| pending | pendiente |
+| success | correcto |
+| killed | abortado |
+| stopped | detenido |
+| skipped | omitido |
+| merging / merged | fusionando / fusionado |
+| resolving | resolviendo |
+| conflicted | en conflicto |
+| unknown | desconocido |
 | queued | en cola |
 | waiting | esperando |
 | completed | completado |

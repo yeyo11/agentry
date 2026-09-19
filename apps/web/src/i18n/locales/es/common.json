@@ -4,5 +4,25 @@
     "justNow": "ahora mismo",
     "now": "ahora",
     "in": "dentro de {{duration}}"
+  },
+  "status": {
+    "starting": "iniciando",
+    "busy": "trabajando",
+    "idle": "inactivo",
+    "running": "en curso",
+    "pending": "pendiente",
+    "completed": "completado",
+    "success": "correcto",
+    "failed": "fallido",
+    "error": "error",
+    "killed": "abortado",
+    "stopped": "detenido",
+    "skipped": "omitido",
+    "waiting": "esperando",
+    "merging": "fusionando",
+    "resolving": "resolviendo",
+    "merged": "fusionado",
+    "conflicted": "en conflicto",
+    "unknown": "desconocido"
   }
 }

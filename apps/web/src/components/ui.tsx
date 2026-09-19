@@ -1,11 +1,13 @@
 import { Check, CircleAlert, Copy, Inbox, type LucideIcon } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 import { errorMessage } from '../lib/format';
 import { Tooltip } from './controls/Tooltip';
 import { ICON, ICON_SM } from './icons';
 import { AnimatePresence, motion, SlidingIndicator, StatusDot, useIndicatorId, type DotTone } from './motion';
 
-const TONES: Record<string, string> = {
+const TONES = {
   starting: 'info',
   busy: 'active',
   running: 'active',
@@ -23,11 +25,25 @@ const TONES: Record<string, string> = {
   resolving: 'active',
   merged: 'ok',
   conflicted: 'warn',
-};
+  unknown: 'muted',
+} satisfies Record<string, string>;
+
+/** The statuses Agentry names; each has its text under `common:status`. */
+type Status = keyof typeof TONES;
+
+const isStatus = (value: string): value is Status => Object.hasOwn(TONES, value);
+
+/** A status in the active language; one Agentry does not know is shown as it came. */
+export function statusText(status: string): string {
+  const key = status.toLowerCase();
+  return isStatus(key) ? i18n.t(`common:status.${key}`) : status;
+}
 
 export function StatusBadge({ status, title }: { status: string; title?: string }) {
+  // Subscribes the badge to language changes; statusText reads the active language
+  useTranslation();
   const key = status.toLowerCase();
-  const tone = TONES[key] ?? 'muted';
+  const tone = isStatus(key) ? TONES[key] : 'muted';
   return (
     <span className={`badge badge-${tone}`} title={title}>
       {key === 'starting' ? (
@@ -35,7 +51,7 @@ export function StatusBadge({ status, title }: { status: string; title?: string 
       ) : (
         <StatusDot tone={tone as DotTone} live={tone === 'active'} />
       )}
-      {status}
+      {statusText(status)}
     </span>
   );
 }
@@ -44,10 +60,11 @@ export function Tag({ children, tone = 'muted' }: { children: ReactNode; tone?: 
   return <span className={`badge badge-${tone}`}>{children}</span>;
 }
 
-export function Loading({ label = 'Loading…' }: { label?: string }) {
+export function Loading({ label }: { label?: string }) {
+  const { t } = useTranslation('components');
   return (
     <div className="state">
-      <span className="spinner" /> {label}
+      <span className="spinner" /> {label ?? t('ui.loading')}
     </div>
   );
 }
@@ -77,8 +94,9 @@ export function Empty({
 
 /** Placeholder rows shown while the first response is on its way (no layout jump afterwards). */
 export function Skeleton({ rows = 3, height = 14 }: { rows?: number; height?: number }) {
+  const { t } = useTranslation('components');
   return (
-    <div className="skeleton-stack" aria-busy="true" aria-label="Loading">
+    <div className="skeleton-stack" aria-busy="true" aria-label={t('ui.loadingShort')}>
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="skeleton" style={{ height, width: `${92 - ((i * 17) % 40)}%` }} />
       ))}
@@ -92,14 +110,16 @@ export function usePageTitle(title: string | undefined): void {
   }, [title]);
 }
 
-export function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
+export function CopyButton({ text, label }: { text: string; label?: string }) {
+  const { t } = useTranslation('components');
   const [copied, setCopied] = useState(false);
+  const name = label ?? t('ui.copy');
   return (
-    <Tooltip content={copied ? 'Copied' : label}>
+    <Tooltip content={copied ? t('ui.copied') : name}>
       <button
         type="button"
         className="icon-btn"
-        aria-label={label}
+        aria-label={name}
         onClick={() => {
           void navigator.clipboard?.writeText(text).then(() => {
             setCopied(true);
@@ -126,12 +146,13 @@ export function CopyButton({ text, label = 'Copy' }: { text: string; label?: str
 
 /** A path in monospace with a copy button; long paths are truncated with the full value as tooltip. */
 export function PathLabel({ path }: { path: string }) {
+  const { t } = useTranslation('components');
   return (
     <span className="path-label">
       <span className="mono small muted ellipsis" title={path}>
         {path}
       </span>
-      <CopyButton text={path} label="Copy path" />
+      <CopyButton text={path} label={t('ui.copyPath')} />
     </span>
   );
 }
@@ -168,13 +189,14 @@ export function Segmented<T extends string>({
   );
 }
 
-export function ErrorBox({ error, title = 'Request failed' }: { error: unknown; title?: string }) {
+export function ErrorBox({ error, title }: { error: unknown; title?: string }) {
+  const { t } = useTranslation('components');
   if (!error) return null;
   return (
     <div className="alert alert-bad" role="alert">
       <CircleAlert {...ICON} className="alert-icon" />
       <div className="alert-body">
-        <strong>{title}</strong>
+        <strong>{title ?? t('ui.requestFailed')}</strong>
         <div>{errorMessage(error)}</div>
       </div>
     </div>
@@ -223,6 +245,7 @@ export function Tabs<T extends string>({
   inline?: boolean;
 }) {
   const indicator = useIndicatorId('tabs');
+  const { t: translate } = useTranslation('components');
   return (
     <div className={`tabs ${inline ? 'tabs-inline' : ''}`} role="tablist" aria-label={label}>
       {tabs.map((t) => (
@@ -235,7 +258,7 @@ export function Tabs<T extends string>({
           onClick={() => value !== t.id && onChange(t.id)}
         >
           {t.label}
-          {t.dirty && <span className="tab-dirty" title="Unsaved changes" aria-label="unsaved changes" />}
+          {t.dirty && <span className="tab-dirty" title={translate('ui.unsavedChanges')} aria-label={translate('ui.unsavedChangesLabel')} />}
           {value === t.id && <SlidingIndicator layoutId={indicator} className="tab-indicator" />}
         </button>
       ))}

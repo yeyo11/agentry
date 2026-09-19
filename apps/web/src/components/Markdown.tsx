@@ -2,6 +2,7 @@
 import { streamingMarkdownExtension } from '@tanstack/markdown/extensions/streaming';
 import { Markdown as MarkdownView, type MarkdownComponentProps, type MarkdownReactOptions } from '@tanstack/markdown/react';
 import { isValidElement, memo, useRef, type ReactNode } from 'react';
+import i18n from '../i18n';
 import { autolinkExtension } from '../lib/markdown-autolink';
 import { splitMarkdownBlocks, type BlockSplit } from '../lib/markdown-blocks';
 import { CodeBlock } from './CodeBlock';
@@ -41,7 +42,7 @@ const COMPONENTS: MarkdownReactOptions['components'] = {
   ),
   // Task list boxes are read-only marks, not form controls
   input: ({ type, checked }: MarkdownComponentProps<'input'>) =>
-    type === 'checkbox' ? <span className={`md-task ${checked ? 'is-done' : ''}`} aria-label={checked ? 'done' : 'to do'} /> : null,
+    type === 'checkbox' ? <span className={`md-task ${checked ? 'is-done' : ''}`} aria-label={i18n.t(checked ? 'components:markdown.taskDone' : 'components:markdown.taskTodo')} /> : null,
 };
 
 const autolink = autolinkExtension();
