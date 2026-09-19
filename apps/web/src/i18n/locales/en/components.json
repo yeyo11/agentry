@@ -1,0 +1,23 @@
+{
+  "nav": {
+    "groups": {
+      "monitor": "Monitor",
+      "work": "Work",
+      "configure": "Configure"
+    },
+    "dashboard": "Dashboard",
+    "agents": "Agents",
+    "backgroundTasks": "Background tasks",
+    "workflows": "Workflows",
+    "sessions": "Sessions",
+    "projects": "Projects",
+    "orchestration": "Orchestration",
+    "accounts": "Accounts",
+    "memory": "Memory",
+    "plugins": "Plugins",
+    "config": "Config",
+    "apiReference": "API reference",
+    "activeCount_one": "{{count}} active",
+    "activeCount_other": "{{count}} active"
+  }
+}

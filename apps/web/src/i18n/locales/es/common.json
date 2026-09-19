@@ -1,0 +1,8 @@
+{
+  "language": "Idioma",
+  "time": {
+    "justNow": "ahora mismo",
+    "now": "ahora",
+    "in": "dentro de {{duration}}"
+  }
+}

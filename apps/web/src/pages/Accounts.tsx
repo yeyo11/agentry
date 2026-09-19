@@ -2,6 +2,7 @@ import type { AccountSummary, AccountUsageWindow, AutoSwitchSettings } from '@ag
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CirclePause, CirclePlay, KeyRound, RefreshCw, Trash2, Users } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, keys, useAccountEvents, useAccounts } from '../api';
 import { NumberInput, Select, Slider, Switch, Tooltip } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
@@ -234,6 +235,7 @@ function AutoSwitchPanel({ settings, running }: { settings: AutoSwitchSettings; 
 }
 
 export function Accounts() {
+  const { t } = useTranslation('config');
   const { data, error, isLoading, refetch, isFetching } = useAccounts();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -269,10 +271,10 @@ export function Accounts() {
   return (
     <div className="stack">
       <PageHeader
-        title="Accounts"
+        title={t('accounts.title')}
         subtitle={
           data.cswap.installed
-            ? `claude-swap ${data.cswap.version ?? ''} · ${data.accounts.length} account${data.accounts.length === 1 ? '' : 's'}`
+            ? `claude-swap ${data.cswap.version ?? ''} · ${t('accounts.count', { count: data.accounts.length })}`
             : 'Multi-account support needs claude-swap'
         }
         actions={

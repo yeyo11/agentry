@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { SessionSummary } from '@agentry/shared';
 import { Link } from 'react-router-dom';
 import { useOverview, useProjects } from '../api';
@@ -69,13 +70,14 @@ export function SessionRow({ session, action }: { session: SessionSummary; actio
 }
 
 export function Dashboard() {
+  const { t } = useTranslation('work');
   const { data, error, isLoading } = useOverview();
   const projects = useProjects();
 
   if (isLoading) {
     return (
       <>
-        <PageHeader title="Dashboard" subtitle="Connecting to the wrapper…" />
+        <PageHeader title={t('dashboard.title')} subtitle={t('dashboard.connecting')} />
         <div className="card">
           <Skeleton rows={4} height={18} />
         </div>
@@ -107,8 +109,8 @@ export function Dashboard() {
   return (
     <>
       <PageHeader
-        title="Dashboard"
-        subtitle={`Agentry v${system.version} · up ${formatDuration(system.uptimeSec * 1000)}`}
+        title={t('dashboard.title')}
+        subtitle={t('dashboard.subtitle', { version: system.version, uptime: formatDuration(system.uptimeSec * 1000) })}
       />
       <ErrorBox error={error} title="Last refresh failed" />
 

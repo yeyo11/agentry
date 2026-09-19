@@ -1,0 +1,7 @@
+{
+  "dashboard": {
+    "title": "Dashboard",
+    "connecting": "Connecting to the wrapper…",
+    "subtitle": "Agentry v{{version}} · up {{uptime}}"
+  }
+}

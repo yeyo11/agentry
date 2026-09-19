@@ -1,3 +1,35 @@
+import i18n from '../i18n';
+import { intlLocale } from '../i18n/language';
+
+// Everything here follows the active UI language through Intl. The English output is the text
+// these helpers produced by hand before (5s ago, 2h 5m, $0.12, 1.5 KB), which the e2e specs and
+// the tests in test/format.test.ts pin down.
+
+// Lists call these once per row: building an Intl formatter is far dearer than using one.
+const formatters = new Map<string, Intl.NumberFormat | Intl.RelativeTimeFormat>();
+function cached<T extends Intl.NumberFormat | Intl.RelativeTimeFormat>(key: string, make: (locale: string) => T): T {
+  const locale = intlLocale();
+  const id = `${locale}|${key}`;
+  let formatter = formatters.get(id);
+  if (!formatter) {
+    formatter = make(locale);
+    formatters.set(id, formatter);
+  }
+  return formatter as T;
+}
+
+type Unit = 'second' | 'minute' | 'hour' | 'day';
+
+// English keeps its narrow `2h 5m`; Spanish's narrow units run into the number (`5min`), so it
+// gets the short ones, which are just as brief there (`2 h 5 min`).
+const unit = (value: number, u: Unit) =>
+  cached(`unit:${u}`, (l) =>
+    new Intl.NumberFormat(l, { style: 'unit', unit: u, unitDisplay: l.startsWith('en') ? 'narrow' : 'short' }),
+  ).format(value);
+
+const ago = (value: number, u: Unit) =>
+  cached('ago', (l) => new Intl.RelativeTimeFormat(l, { style: 'narrow', numeric: 'always' })).format(-value, u);
+
 export function toMs(value: string | number | null | undefined): number | null {
   if (value == null) return null;
   const ms = typeof value === 'number' ? value : Date.parse(value);
@@ -6,34 +38,34 @@ export function toMs(value: string | number | null | undefined): number | null {
 
 export function formatDuration(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `${s}s`;
+  if (s < 60) return unit(s, 'second');
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ${s % 60}s`;
+  if (m < 60) return `${unit(m, 'minute')} ${unit(s % 60, 'second')}`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ${m % 60}m`;
-  return `${Math.floor(h / 24)}d ${h % 24}h`;
+  if (h < 24) return `${unit(h, 'hour')} ${unit(m % 60, 'minute')}`;
+  return `${unit(Math.floor(h / 24), 'day')} ${unit(h % 24, 'hour')}`;
 }
 
 export function timeAgo(value: string | number | null | undefined): string {
   const ms = toMs(value);
   if (ms == null) return '—';
   const diff = Date.now() - ms;
-  if (diff < 5000) return 'just now';
+  if (diff < 5000) return i18n.t('common:time.justNow');
   const s = Math.round(diff / 1000);
-  if (s < 60) return `${s}s ago`;
+  if (s < 60) return ago(s, 'second');
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return ago(m, 'minute');
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return ago(h, 'hour');
   const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d ago`;
-  return new Date(ms).toLocaleDateString();
+  if (d < 30) return ago(d, 'day');
+  return new Date(ms).toLocaleDateString(intlLocale());
 }
 
 export function timeUntil(epochSeconds: number | undefined): string {
   if (!epochSeconds) return '—';
   const diff = epochSeconds * 1000 - Date.now();
-  return diff <= 0 ? 'now' : `in ${formatDuration(diff)}`;
+  return diff <= 0 ? i18n.t('common:time.now') : i18n.t('common:time.in', { duration: formatDuration(diff) });
 }
 
 export function durationBetween(start: string | number | null, end: string | number | null): string {
@@ -44,23 +76,33 @@ export function durationBetween(start: string | number | null, end: string | num
 
 export function formatDateTime(value: string | number | null | undefined): string {
   const ms = toMs(value);
-  return ms == null ? '—' : new Date(ms).toLocaleString();
+  return ms == null ? '—' : new Date(ms).toLocaleString(intlLocale());
 }
 
 export function formatClock(value: string | null | undefined): string {
   const ms = toMs(value);
-  return ms == null ? '' : new Date(ms).toLocaleTimeString();
+  return ms == null ? '' : new Date(ms).toLocaleTimeString(intlLocale());
 }
 
 export function formatCost(usd: number | null | undefined): string {
-  if (!usd) return '$0.00';
-  return usd < 0.01 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`;
+  const digits = usd && usd < 0.01 ? 4 : 2;
+  return cached(`usd:${digits}`, (l) =>
+    new Intl.NumberFormat(l, { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits }),
+  ).format(usd || 0);
+}
+
+/** A plain number in the active language: 1,500 in English, 1.500 in Spanish. */
+export function formatNumber(value: number, options?: Intl.NumberFormatOptions): string {
+  return cached(`number:${JSON.stringify(options ?? {})}`, (l) => new Intl.NumberFormat(l, options)).format(value);
 }
 
 export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  // Ungrouped, as before: 2048.0 MB, never 2,048.0 MB
+  const decimal = (value: number, digits: number) =>
+    formatNumber(value, { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
+  if (bytes < 1024) return `${decimal(bytes, 0)} B`;
+  if (bytes < 1024 * 1024) return `${decimal(bytes / 1024, 1)} KB`;
+  return `${decimal(bytes / 1024 / 1024, 1)} MB`;
 }
 
 export function shortPath(path: string, max = 48): string {

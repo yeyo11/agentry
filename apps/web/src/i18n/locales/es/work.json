@@ -1,0 +1,7 @@
+{
+  "dashboard": {
+    "title": "Panel",
+    "connecting": "Conectando con el wrapper…",
+    "subtitle": "Agentry v{{version}} · activo desde hace {{uptime}}"
+  }
+}

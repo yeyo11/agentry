@@ -1,0 +1,10 @@
+{
+  "config": {
+    "title": "Config"
+  },
+  "accounts": {
+    "title": "Accounts",
+    "count_one": "{{count}} account",
+    "count_other": "{{count}} accounts"
+  }
+}

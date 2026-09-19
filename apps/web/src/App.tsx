@@ -20,10 +20,12 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useOverview } from './api';
 import { CommandPalette, CommandPaletteTrigger } from './components/CommandPalette';
 import { DetailHost } from './components/DetailHost';
+import { LanguageSwitch } from './components/LanguageSwitch';
 import { Tooltip } from './components/controls/Tooltip';
 import { BrandMark, ICON } from './components/icons';
 import { NotificationBell, NotificationHost } from './components/Notifications';
@@ -81,6 +83,7 @@ export function App() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const reduced = useReducedMotion();
+  const { t } = useTranslation('components');
   const overview = useOverview();
   // The one connection that keeps every page current; the sidebar footer shows when it is down
   const feed = useEventFeed();
@@ -105,29 +108,29 @@ export function App() {
 
   const groups: NavGroup[] = [
     {
-      label: 'Monitor',
+      label: t('nav.groups.monitor'),
       items: [
-        { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-        { to: '/agents', label: 'Agents', icon: Activity, count: (counts?.activeRuns ?? 0) + (counts?.subagents ?? 0) },
-        { to: '/tasks', label: 'Background tasks', icon: Timer, count: counts?.backgroundTasks },
-        { to: '/workflows', label: 'Workflows', icon: Waypoints, count: counts?.workflows },
+        { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
+        { to: '/agents', label: t('nav.agents'), icon: Activity, count: (counts?.activeRuns ?? 0) + (counts?.subagents ?? 0) },
+        { to: '/tasks', label: t('nav.backgroundTasks'), icon: Timer, count: counts?.backgroundTasks },
+        { to: '/workflows', label: t('nav.workflows'), icon: Waypoints, count: counts?.workflows },
       ],
     },
     {
-      label: 'Work',
+      label: t('nav.groups.work'),
       items: [
-        { to: '/sessions', label: 'Sessions', icon: History, count: counts?.liveSessions },
-        { to: '/projects', label: 'Projects', icon: FolderGit2 },
-        { to: '/orchestration', label: 'Orchestration', icon: Workflow, count: counts?.orchestrationsRunning },
+        { to: '/sessions', label: t('nav.sessions'), icon: History, count: counts?.liveSessions },
+        { to: '/projects', label: t('nav.projects'), icon: FolderGit2 },
+        { to: '/orchestration', label: t('nav.orchestration'), icon: Workflow, count: counts?.orchestrationsRunning },
       ],
     },
     {
-      label: 'Configure',
+      label: t('nav.groups.configure'),
       items: [
-        { to: '/accounts', label: 'Accounts', icon: Users },
-        { to: '/memory', label: 'Memory', icon: Brain },
-        { to: '/plugins', label: 'Plugins', icon: Puzzle },
-        { to: '/config', label: 'Config', icon: Settings2 },
+        { to: '/accounts', label: t('nav.accounts'), icon: Users },
+        { to: '/memory', label: t('nav.memory'), icon: Brain },
+        { to: '/plugins', label: t('nav.plugins'), icon: Puzzle },
+        { to: '/config', label: t('nav.config'), icon: Settings2 },
       ],
     },
   ];
@@ -213,7 +216,7 @@ export function App() {
                       </span>
                       <span className="nav-label">{item.label}</span>
                       {item.count ? (
-                        <span className="nav-count" aria-label={`${item.count} active`}>
+                        <span className="nav-count" aria-label={t('nav.activeCount', { count: item.count })}>
                           <span className="nav-count-ping" aria-hidden />
                           {item.count}
                         </span>
@@ -226,12 +229,12 @@ export function App() {
           ))}
         </nav>
 
-        <Tooltip content={railTip('API reference')} side="right">
+        <Tooltip content={railTip(t('nav.apiReference'))} side="right">
           <a href="/docs" target="_blank" rel="noopener noreferrer" className="nav-link nav-link-ext">
             <span className="nav-icon">
               <BookOpen {...ICON} />
             </span>
-            <span className="nav-label">API reference</span>
+            <span className="nav-label">{t('nav.apiReference')}</span>
           </a>
         </Tooltip>
 
@@ -267,6 +270,7 @@ export function App() {
           <div className="topbar-actions">
             <CommandPaletteTrigger />
             <NotificationBell />
+            <LanguageSwitch />
             <ThemeToggle />
             <button className="btn btn-primary topbar-new" onClick={() => navigate('/runs/new')}>
               <Plus {...ICON} />

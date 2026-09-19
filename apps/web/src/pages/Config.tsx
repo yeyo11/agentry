@@ -1,4 +1,5 @@
 import type { ResourceKind } from '@agentry/shared';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { Collapsible } from '../components/controls';
 import { EnvironmentPanel } from '../components/EnvironmentPanel';
@@ -33,6 +34,7 @@ function ConfigInner() {
   const [params, setParams] = useSearchParams();
   const projectId = params.get('project') || undefined;
   const state = useScopeState(projectId);
+  const { t } = useTranslation('config');
   const dirtyKeys = useDirtyKeys();
   const guard = useLeaveGuard();
 
@@ -55,7 +57,7 @@ function ConfigInner() {
   return (
     <>
       <PageHeader
-        title="Config"
+        title={t('config.title')}
         subtitle={
           state.project ? (
             <span className="scope-subtitle">
