@@ -42,6 +42,7 @@ import type {
   RunDetail,
   RunEvent,
   RunOptions,
+  RunSettingsUpdate,
   RunSummary,
   SessionDetail,
   SessionSummary,
@@ -163,6 +164,8 @@ export const api = {
     request<RunSummary>(`/runs/${enc(id)}/messages`, { method: 'POST', body: attachments.length ? { text, attachments } : { text } }),
   uploadFile: (file: File) => uploadFile(file),
   stopRun: (id: string) => request<RunSummary>(`/runs/${enc(id)}/stop`, { method: 'POST' }),
+  interruptRun: (id: string) => request<RunSummary>(`/runs/${enc(id)}/interrupt`, { method: 'POST' }),
+  updateRun: (id: string, update: RunSettingsUpdate) => request<RunSummary>(`/runs/${enc(id)}`, { method: 'PATCH', body: update }),
   deleteRun: (id: string) => request<{ ok: true }>(`/runs/${enc(id)}`, { method: 'DELETE' }),
   tasks: () => request<BackgroundTask[]>('/tasks'),
   taskOutput: (sessionId: string, taskId: string) =>

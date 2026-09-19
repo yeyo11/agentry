@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ChevronLeft, Play, SendHorizontal, Square, Trash2 } from 'lucide-react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ArrowDown, ChevronLeft, CircleSlash, Play, SendHorizontal, Square, Trash2 } from 'lucide-react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, keys, useRuns, useRunStream } from '../api';
 // Direct imports: this page is in the shell bundle, and the barrel would pull the lazy form controls into it
@@ -16,6 +16,9 @@ import { AnimatePresence, motion, StatusDot, ThinkingDots } from '../components/
 import { RunTimeline, StreamingEntry } from '../components/Transcript';
 import { Card, Empty, ErrorBox, Loading, StatusBadge, usePageTitle } from '../components/ui';
 import { durationBetween, formatCost, formatDateTime } from '../lib/format';
+
+// Its Select and Combobox are Radix controls kept out of the shell bundle this page lives in
+const RunSettings = lazy(() => import('../components/RunSettings'));
 
 export function RunView() {
   const { id = '' } = useParams();
@@ -44,6 +47,7 @@ export function RunView() {
     },
   });
   const stop = useMutation({ mutationFn: () => api.stopRun(id), onSuccess: invalidate });
+  const interrupt = useMutation({ mutationFn: () => api.interruptRun(id), onSuccess: invalidate });
   const remove = useMutation({
     mutationFn: () => api.deleteRun(id),
     onSuccess: () => {
@@ -112,6 +116,14 @@ export function RunView() {
             <Switch checked={showNoise} onChange={setShowNoise}>
               All events
             </Switch>
+            {busy && run.pid !== null && (
+              <Tooltip content="End this turn and keep the session open for your next message">
+                <button className="btn" disabled={interrupt.isPending} onClick={() => interrupt.mutate()}>
+                  <CircleSlash {...ICON_SM} />
+                  Interrupt
+                </button>
+              </Tooltip>
+            )}
             {live ? (
               <button className="btn btn-danger" disabled={stop.isPending} onClick={() => stop.mutate()}>
                 <Square {...ICON_SM} />
@@ -125,7 +137,7 @@ export function RunView() {
             )}
           </div>
         </header>
-        <ErrorBox error={stop.error ?? remove.error} />
+        <ErrorBox error={stop.error ?? interrupt.error ?? remove.error} />
 
         <div className="run-stage">
         <div
@@ -212,10 +224,20 @@ export function RunView() {
       <aside className="run-side">
         <Card title="Run">
           <dl className="kv kv-narrow">
-            <dt>Model</dt>
-            <dd>{run.model ?? 'default'}</dd>
-            <dt>Permissions</dt>
-            <dd>{run.permissionMode}</dd>
+            <Suspense
+              fallback={
+                <>
+                  <dt>Permissions</dt>
+                  <dd>{run.permissionMode}</dd>
+                  <dt>Model</dt>
+                  <dd>{run.model ?? 'default'}</dd>
+                </>
+              }
+            >
+              <RunSettings run={run} />
+            </Suspense>
+            <dt>Prompts</dt>
+            <dd>{run.permissionPrompts === 'host' ? 'answered here' : 'denied (nobody asked)'}</dd>
             <dt>Directory</dt>
             <dd className="mono break">{run.cwd}</dd>
             <dt>Session</dt>

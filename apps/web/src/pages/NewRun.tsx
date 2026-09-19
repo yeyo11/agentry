@@ -20,13 +20,14 @@ export function NewRun() {
   const [name, setName] = useState('');
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [keepAlive, setKeepAlive] = useState(true);
+  const [askHere, setAskHere] = useState(true);
   const [appendSystemPrompt, setAppendSystemPrompt] = useState('');
   const [account, setAccount] = useState('');
   const accounts = useAccounts();
 
   const start = useMutation({
     mutationFn: () => {
-      const opts: RunOptions = { prompt: prompt.trim(), keepAlive };
+      const opts: RunOptions = { prompt: prompt.trim(), keepAlive, permissionPrompts: askHere ? 'host' : 'none' };
       if (files.ids.length) opts.attachments = files.ids;
       if (cwd.trim()) opts.cwd = cwd.trim();
       if (model.trim()) opts.model = model.trim();
@@ -84,7 +85,7 @@ export function NewRun() {
             <Field label="Model" hint="Alias or full model id. Empty = CLI default">
               <Combobox aria-label="Model" placeholder="default" value={model} onChange={setModel} options={MODEL_OPTIONS} />
             </Field>
-            <Field label="Permission mode" hint="Prompts cannot be answered headless: whatever would ask is denied">
+            <Field label="Permission mode" hint="Can be changed while the run works">
               <Select<PermissionMode | ''>
                 value={permissionMode}
                 onChange={setPermissionMode}
@@ -116,6 +117,9 @@ export function NewRun() {
           <Field label="Append to system prompt" hint="Optional">
             <textarea rows={2} value={appendSystemPrompt} onChange={(e) => setAppendSystemPrompt(e.target.value)} />
           </Field>
+          <Switch checked={askHere} onChange={setAskHere}>
+            Answer permission prompts, questions and plans from the panel (off: whatever would ask is denied)
+          </Switch>
           <Switch checked={keepAlive} onChange={setKeepAlive}>
             Keep the process alive between turns (faster follow-ups)
           </Switch>

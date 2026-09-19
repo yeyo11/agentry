@@ -34,6 +34,7 @@ export function SessionView() {
       api.startRun({
         prompt: prompt.trim(),
         resumeSessionId: id,
+        permissionPrompts: 'host',
         cwd: data?.summary.projectPath || undefined,
         ...(files.ids.length ? { attachments: files.ids } : {}),
       }),
