@@ -10,10 +10,11 @@ services:
     init: true # reaps the claude child processes
     env_file: .env
     ports:
-      - "${PORT:-8787}:8787"
+      # localhost only: the API has no authentication yet (see SECURITY.md)
+      - "127.0.0.1:${PORT:-8787}:8787"
     volumes:
       - claude-config:/home/node/.claude # account config: settings, MCP servers, CLAUDE.md, sessions
-      - wrapper-data:/data # wrapper state (orchestrations, auto-rotation settings)
+      - wrapper-data:/data # wrapper state: SQLite store, auto-rotation settings, credential, uploads
       - claude-swap:/home/node/.local/share/claude-swap # credentials of every registered account
       - ./workspace:/workspace # projects Claude works on
     restart: unless-stopped
