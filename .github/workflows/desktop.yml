@@ -51,11 +51,18 @@ jobs:
             apps/desktop/release/*.deb
           if-no-files-found: error
 
-      # The release already exists by now (release-please publishes it before this runs); --clobber makes a
-      # republish of the same tag replace the packages instead of failing on the name
+      # The release exists by now as a draft (release-please creates it before this runs), and the release
+      # workflow publishes it afterwards. A published release is immutable and takes no files, so a rebuild
+      # of one only keeps the packages as the run artifact above. --clobber makes a second build of a draft
+      # replace its packages instead of failing on the name.
       - name: Attach to the release
         if: inputs.tag != ''
-        run: gh release upload "$TAG" apps/desktop/release/*.AppImage apps/desktop/release/*.deb --clobber
+        run: |
+          if [ "$(gh release view "$TAG" --json isDraft -q .isDraft)" != "true" ]; then
+            echo "::warning::$TAG is already published and immutable; the packages stay on this run as an artifact"
+            exit 0
+          fi
+          gh release upload "$TAG" apps/desktop/release/*.AppImage apps/desktop/release/*.deb --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
