@@ -131,8 +131,11 @@ Prefer a window to a container? Every [release](https://github.com/yeyo11/agentr
 carries an AppImage and a `.deb`:
 
 ```bash
-sudo apt install ./Agentry-<version>-amd64.deb   # or: chmod +x the AppImage and run it
+curl -fsSL https://raw.githubusercontent.com/yeyo11/agentry/main/scripts/install.sh | bash
 ```
+
+The `.deb` through apt on Debian and Ubuntu, the AppImage under `~/.local` everywhere else. To
+install by hand, download either file from the release.
 
 It runs on your machine with your own Claude Code CLI and `~/.claude` login, so nothing is
 sandboxed and runs default to `acceptEdits` instead of `bypassPermissions`. Requirements, data

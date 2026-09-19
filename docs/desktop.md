@@ -38,6 +38,26 @@ listens on the loopback interface, but any process on your machine can reach tha
 
 ## Installing
 
+**One command**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yeyo11/agentry/main/scripts/install.sh | bash
+```
+
+It downloads the latest release and picks the package for your system: the `.deb` through apt on
+Debian and Ubuntu (it asks for your password once), the AppImage everywhere else, installed under
+`~/.local` with a menu entry and icon and no root. Options go after `bash -s --`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yeyo11/agentry/main/scripts/install.sh | bash -s -- --version v0.7.0
+curl -fsSL https://raw.githubusercontent.com/yeyo11/agentry/main/scripts/install.sh | bash -s -- --appimage
+curl -fsSL https://raw.githubusercontent.com/yeyo11/agentry/main/scripts/install.sh | bash -s -- --uninstall
+```
+
+Uninstalling keeps your data (`~/.config/Agentry`, `~/Agentry`). Run it again to update.
+
+**By hand**
+
 Both files are attached to each [GitHub release](https://github.com/yeyo11/agentry/releases).
 
 **AppImage**
@@ -52,6 +72,10 @@ chmod +x Agentry-<version>-x86_64.AppImage
 ```bash
 sudo apt install ./Agentry-<version>-amd64.deb
 ```
+
+apt may end with a note that the download was "performed unsandboxed as root" because the file is
+not readable by user `_apt`. That is harmless: the package installed. Installing from `/tmp`
+avoids it.
 
 This installs to `/opt/Agentry`, links `/usr/bin/agentry` and adds a launcher entry. Start it from
 your application menu or with `agentry`.
