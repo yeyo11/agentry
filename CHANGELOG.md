@@ -3,6 +3,22 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.7.2](https://github.com/yeyo11/agentry/compare/v0.7.1...v0.7.2) (2026-09-19)
+
+
+### Build and packaging
+
+* **deps:** bump actions/attest-build-provenance from 2 to 4 ([45df85c](https://github.com/yeyo11/agentry/commit/45df85cd4f70193f52e8524380469d2dd91429c6))
+* **deps:** bump actions/attest-build-provenance from 2 to 4 ([443b605](https://github.com/yeyo11/agentry/commit/443b6054bcda5519e15ce6f35fbd6f13c6f80441))
+* **deps:** bump actions/checkout from 4 to 7 ([02aa7f6](https://github.com/yeyo11/agentry/commit/02aa7f6ae367d51ddd07561301c2835b5354157b))
+* **deps:** bump actions/checkout from 4 to 7 ([77c3abe](https://github.com/yeyo11/agentry/commit/77c3abe9a21b7d69ae470ecd004760a9b6f20518))
+* **deps:** bump docker/build-push-action from 6 to 7 ([8439b6c](https://github.com/yeyo11/agentry/commit/8439b6c16ee7197093e4621571f01bc8a52984c3))
+* **deps:** bump docker/build-push-action from 6 to 7 ([4600a72](https://github.com/yeyo11/agentry/commit/4600a7234889db6dd92cd29250ff3e5e85fa1e60))
+* **deps:** bump docker/metadata-action from 5 to 6 ([d526aa3](https://github.com/yeyo11/agentry/commit/d526aa3f6f4922646d7b3e9ef7f0b596c46d6e65))
+* **deps:** bump docker/metadata-action from 5 to 6 ([180aa2b](https://github.com/yeyo11/agentry/commit/180aa2bd9a419d62194df33ca1b80a866f17957c))
+* **deps:** bump docker/setup-buildx-action from 3 to 4 ([7ee9ef9](https://github.com/yeyo11/agentry/commit/7ee9ef9b51034fb1786ca1a2c866f3f454770733))
+* **deps:** bump docker/setup-buildx-action from 3 to 4 ([3b7495f](https://github.com/yeyo11/agentry/commit/3b7495f1a2fff0b7a0d5e5ac8f3a8837b4cbb43a))
+
 ## [0.7.1](https://github.com/yeyo11/agentry/compare/v0.7.0...v0.7.1) (2026-09-19)
 
 
