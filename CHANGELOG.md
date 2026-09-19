@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.4.1](https://github.com/yeyo11/agentry/compare/v0.4.0...v0.4.1) (2026-09-19)
+
+
+### Bug fixes
+
+* **release:** publish the version tags on the image ([b5097be](https://github.com/yeyo11/agentry/commit/b5097be79148ed54e2ee6ba16f8e05f28c71a25a))
+
 ## [0.4.0](https://github.com/yeyo11/agentry/compare/v0.3.0...v0.4.0) (2026-09-19)
 
 
