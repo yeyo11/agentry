@@ -1,5 +1,5 @@
 import { createReadStream, existsSync } from 'node:fs';
-import { readdir, rm, stat } from 'node:fs/promises';
+import { readFile, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -9,6 +9,7 @@ import {
   type ProjectSummary,
   type SessionDetail,
   type SessionSummary,
+  type SubagentInfo,
   type TranscriptEntry,
 } from '@agentry/shared';
 import type { CoreConfig } from './paths.ts';
@@ -21,6 +22,26 @@ interface CacheItem {
   size: number;
   summary: SessionSummary;
 }
+
+/** A line's text whether the CLI stored it as a plain string or as content blocks. */
+function lineText(o: Record<string, unknown>): string {
+  if (typeof o.content === 'string') return o.content;
+  const message = o.message as { content?: unknown } | undefined;
+  if (typeof message?.content === 'string') return message.content;
+  if (Array.isArray(message?.content)) {
+    return message.content
+      .map((b) => (b && typeof b === 'object' && 'text' in b ? String((b as { text: unknown }).text) : ''))
+      .join('\n');
+  }
+  return '';
+}
+
+/**
+ * A stop notification is written to the parent just after the agent's last write, so an agent only
+ * counts as resumed once it writes clearly later than that — otherwise a clock tick between the two
+ * would read a finished agent as running.
+ */
+const RESUMED_AFTER_MS = 2000;
 
 async function* readJsonl(file: string): AsyncGenerator<Record<string, unknown>> {
   const rl = createInterface({ input: createReadStream(file, 'utf8'), crlfDelay: Infinity });
@@ -164,6 +185,72 @@ export class SessionStore {
   async summary(sessionId: string): Promise<SessionSummary | null> {
     const found = await this.findFile(sessionId);
     return found ? this.summarize(found.projectId, found.file) : null;
+  }
+
+  /**
+   * Background agents a session spawned, read from what the CLI writes beside its transcript. This
+   * is what makes them visible for a session started from a terminal, whose live stream the
+   * wrapper never sees.
+   *
+   * The CLI gives no explicit "running" flag. It notifies the parent each time an agent stops, and
+   * an agent can be resumed and stop again, so the state is: running until the first notification,
+   * and running again whenever the agent writes after its latest one.
+   */
+  async subagents(sessionId: string): Promise<SubagentInfo[]> {
+    const found = await this.findFile(sessionId);
+    if (!found) return [];
+    const dir = join(found.file.slice(0, -'.jsonl'.length), 'subagents');
+    let names: string[];
+    try {
+      names = await readdir(dir);
+    } catch {
+      return []; // no subagents yet
+    }
+
+    // One pass over the parent: when each agent was launched and when it last stopped.
+    const launched = new Map<string, string>();
+    const stopped = new Map<string, { at: string; status: string }>();
+    for await (const o of readJsonl(found.file)) {
+      const at = typeof o.timestamp === 'string' ? o.timestamp : null;
+      const result = o.toolUseResult as { agentId?: unknown } | undefined;
+      if (at && typeof result?.agentId === 'string' && !launched.has(result.agentId)) launched.set(result.agentId, at);
+      const text = lineText(o);
+      if (!at || !text.includes('<task-notification>')) continue;
+      const id = /<task-id>([^<]+)<\/task-id>/.exec(text)?.[1];
+      if (id) stopped.set(id, { at, status: /<status>([^<]+)<\/status>/.exec(text)?.[1] ?? 'completed' }); // later lines win
+    }
+
+    const out: SubagentInfo[] = [];
+    for (const name of names) {
+      if (!name.endsWith('.meta.json')) continue;
+      const agentId = name.slice('agent-'.length, -'.meta.json'.length);
+      let meta: { agentType?: string; description?: string; toolUseId?: string };
+      try {
+        meta = JSON.parse(await readFile(join(dir, name), 'utf8')) as typeof meta;
+      } catch {
+        continue;
+      }
+      const transcript = await stat(join(dir, `agent-${agentId}.jsonl`)).catch(() => null);
+      const lastActivityAt = transcript ? transcript.mtime.toISOString() : null;
+      const stop = stopped.get(agentId);
+      const resumed = stop && transcript ? transcript.mtimeMs > Date.parse(stop.at) + RESUMED_AFTER_MS : false;
+      const running = !stop || resumed;
+      out.push({
+        toolUseId: meta.toolUseId ?? '',
+        runId: '',
+        runName: '',
+        subagentType: meta.agentType ?? 'agent',
+        description: meta.description ?? agentId,
+        status: running ? 'running' : stop?.status === 'completed' ? 'completed' : 'failed',
+        startedAt: launched.get(agentId) ?? lastActivityAt ?? new Date(0).toISOString(),
+        endedAt: running ? null : (stop?.at ?? null),
+        source: 'cli',
+        sessionId,
+        agentId,
+        lastActivityAt,
+      });
+    }
+    return out.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   }
 
   /** Deletes the transcript and the session's sidecar directory (subagent transcripts, tool results). */

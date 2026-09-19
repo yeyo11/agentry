@@ -634,7 +634,8 @@
         "type": "string"
       },
       "runId": {
-        "type": "string"
+        "type": "string",
+        "description": "Empty when the subagent belongs to a CLI session rather than a run"
       },
       "runName": {
         "type": "string"
@@ -661,6 +662,29 @@
           "string",
           "null"
         ]
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "run",
+          "cli"
+        ],
+        "description": "`run` when read from a run's live stream, `cli` when read from a session's files on disk"
+      },
+      "sessionId": {
+        "type": "string",
+        "description": "Session that spawned it; always set for `cli` subagents"
+      },
+      "agentId": {
+        "type": "string",
+        "description": "The CLI's own id for the agent"
+      },
+      "lastActivityAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Last time the agent wrote to its transcript"
       }
     },
     "required": [

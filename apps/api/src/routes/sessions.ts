@@ -36,6 +36,13 @@ export const sessionRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   app.get<{ Params: { id: string }; Querystring: { sidechains?: string } }>('/sessions/:id', async (req) => {
     const detail = await core.sessions.getSession(req.params.id, { includeSidechains: req.query.sidechains === '1' });
     if (!detail) throw new Error('session not found');
-    return detail;
+    // The list reported this session live while its own page did not: both now read the same
+    // liveness, so opening a running session never shows it as idle.
+    const summary = (await core.sessionsWithLive()).find((s) => s.id === detail.summary.id);
+    return summary?.live ? { ...detail, summary: { ...detail.summary, live: summary.live } } : detail;
   });
+
+  // Background agents this session spawned, from its files on disk — works whether it was started
+  // from Agentry or from a terminal.
+  app.get<{ Params: { id: string } }>('/sessions/:id/subagents', (req) => core.sessions.subagents(req.params.id));
 };

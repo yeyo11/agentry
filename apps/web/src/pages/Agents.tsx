@@ -50,7 +50,9 @@ export function Agents() {
 
       <Card title={`Subagents (${subs.length})`}>
         {subs.length === 0 ? (
-          <Empty title="No subagents">Subagents spawned by runs (Task/Agent tool) are tracked here.</Empty>
+          <Empty title="No subagents">
+            Subagents spawned by runs, or by CLI sessions that are live right now, are tracked here.
+          </Empty>
         ) : (
           <div className="table-wrap">
             <table className="table">
@@ -59,20 +61,25 @@ export function Agents() {
                   <th>Status</th>
                   <th>Type</th>
                   <th>Description</th>
-                  <th>Parent run</th>
+                  <th>Started by</th>
                   <th>Duration</th>
                 </tr>
               </thead>
               <tbody>
                 {subs.map((sub) => (
-                  <tr key={`${sub.runId}:${sub.toolUseId}`}>
+                  <tr key={`${sub.runId || sub.sessionId}:${sub.toolUseId || sub.agentId}`}>
                     <td>
                       <StatusBadge status={sub.status} />
                     </td>
                     <td className="nowrap">{sub.subagentType}</td>
                     <td>{sub.description || '—'}</td>
                     <td className="nowrap">
-                      <Link to={`/runs/${sub.runId}`}>{sub.runName}</Link>
+                      {/* A CLI session's agents have no run: they belong to the session */}
+                      {sub.runId ? (
+                        <Link to={`/runs/${sub.runId}`}>{sub.runName}</Link>
+                      ) : (
+                        <Link to={`/sessions/${sub.sessionId ?? ''}`}>{sub.runName || 'CLI session'}</Link>
+                      )}
                     </td>
                     <td className="nowrap">{durationBetween(sub.startedAt, sub.endedAt)}</td>
                   </tr>

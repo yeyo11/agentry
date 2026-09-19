@@ -202,6 +202,7 @@ export interface BackgroundTask {
 
 export interface SubagentInfo {
   toolUseId: string;
+  /** Empty when the subagent belongs to a CLI session rather than a run */
   runId: string;
   runName: string;
   subagentType: string;
@@ -209,6 +210,14 @@ export interface SubagentInfo {
   status: 'running' | 'completed' | 'failed';
   startedAt: string;
   endedAt: string | null;
+  /** `run` when read from a run's live stream, `cli` when read from a session's files on disk */
+  source?: 'run' | 'cli';
+  /** Session that spawned it; always set for `cli` subagents */
+  sessionId?: string;
+  /** The CLI's own id for the agent */
+  agentId?: string;
+  /** Last time the agent wrote to its transcript */
+  lastActivityAt?: string | null;
 }
 
 export interface RunSummary {

@@ -12,6 +12,7 @@ import type {
   RunSummary,
   SessionOrigin,
   SessionSummary,
+  SubagentInfo,
   SystemInfo,
 } from '@agentry/shared';
 import { AccountManager } from './accounts.ts';
@@ -162,6 +163,21 @@ export class Core {
       };
     }
     return { ...this.systemCache.value, uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+  }
+
+  /**
+   * Subagents of the CLI sessions that are live right now, read from their files on disk. A run's
+   * subagents come from its live stream; a session started from a terminal has no stream the
+   * wrapper can see, so without this its agents are simply invisible.
+   */
+  async cliSubagents(): Promise<SubagentInfo[]> {
+    const live = (await this.activeCliSessions()).filter((a) => a.live && !a.runId);
+    const lists = await Promise.all(
+      live.map(async (agent) =>
+        (await this.sessions.subagents(agent.sessionId).catch(() => [])).map((s) => ({ ...s, runName: agent.name })),
+      ),
+    );
+    return lists.flat();
   }
 
   /** Recent terminal output of a background CLI session, which only the CLI itself keeps. */
