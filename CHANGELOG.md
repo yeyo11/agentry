@@ -3,6 +3,19 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.8.0](https://github.com/yeyo11/agentry/compare/v0.7.3...v0.8.0) (2026-09-19)
+
+
+### Features
+
+* full control of runs from the panel through the CLI control protocol ([#37](https://github.com/yeyo11/agentry/issues/37)) ([a79cb39](https://github.com/yeyo11/agentry/commit/a79cb39ae367c5a9980b0253e40bb1e0f818d4c4))
+* **web:** render Claude's answers as markdown with highlighted code ([#38](https://github.com/yeyo11/agentry/issues/38)) ([47ad9f8](https://github.com/yeyo11/agentry/commit/47ad9f889a2d5bff7f9e4c1d438128f3443fcaf3))
+
+
+### Bug fixes
+
+* **release:** attach the packages before publishing an immutable release ([#40](https://github.com/yeyo11/agentry/issues/40)) ([25386ac](https://github.com/yeyo11/agentry/commit/25386acdfde87aff61de9e8608c4944c7a018175))
+
 ## [0.7.3](https://github.com/yeyo11/agentry/compare/v0.7.2...v0.7.3) (2026-09-19)
 
 
