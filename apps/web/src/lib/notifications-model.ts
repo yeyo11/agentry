@@ -1,10 +1,14 @@
 import type { AgentryEvent } from '@agentry/shared';
+import i18n from '../i18n';
 import { detailHref } from './detail';
 
 /*
  * What a notification is and which events make one. Pure on purpose (no React, no DOM, no
  * storage): the store, the toasts and the tests all build on these functions, and this file is the
  * one place that decides what deserves a person's attention.
+ *
+ * Its text is translated when the notification is made, not when it is shown: a notification is
+ * stored with the words it was born with, the way the browser's own notifications are.
  */
 
 export type NotificationKind = 'waiting' | 'run' | 'orchestration' | 'conflict' | 'limit' | 'activity';
@@ -47,16 +51,8 @@ export interface NotificationPrefs {
   browser: boolean;
 }
 
-export const KIND_LABEL: Record<NotificationKind, string> = {
-  waiting: 'A run is waiting for me',
-  run: 'A run finished or failed',
-  orchestration: 'An orchestration finished or failed',
-  conflict: 'An integration conflict',
-  limit: 'A rate limit or account rotation',
-  activity: 'A background task, subagent or workflow finished',
-};
-
-export const KINDS = Object.keys(KIND_LABEL) as NotificationKind[];
+/** In the order the preferences list them; their labels are `components:notificationPanel.kinds`. */
+export const KINDS: NotificationKind[] = ['waiting', 'run', 'orchestration', 'conflict', 'limit', 'activity'];
 
 export const MAX_NOTIFICATIONS = 200;
 const DEDUPE_MS = 60_000;
@@ -84,9 +80,9 @@ const draft = (event: AgentryEvent, fields: DraftFields): NotificationDraft => (
 });
 
 const WAITING_BODY = {
-  permission: (tool: string) => `Approve or deny ${tool} to let it continue.`,
-  question: () => 'It is waiting for your answer.',
-  plan: () => 'Review the plan and approve it, or ask for changes.',
+  permission: (tool: string) => i18n.t('components:notificationText.permission', { tool }),
+  question: () => i18n.t('components:notificationText.question'),
+  plan: () => i18n.t('components:notificationText.plan'),
 } as const;
 
 const ACTIVITY_FAILED = new Set(['failed', 'killed', 'stopped', 'error']);
@@ -124,8 +120,8 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           kind: 'run',
           priority: 'normal',
           tone: 'ok',
-          title: `${event.runName} finished`,
-          body: 'It is ready for your next message.',
+          title: i18n.t('components:notificationText.runFinished', { name: event.runName }),
+          body: i18n.t('components:notificationText.runReady'),
           href: runHref(event.runId),
           runId: event.runId,
         }),
@@ -143,7 +139,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           priority: 'normal',
           tone: failed ? 'bad' : 'ok',
           title: event.title,
-          body: failed ? (event.error ?? 'It ended with an error.') : `${event.turns} ${event.turns === 1 ? 'turn' : 'turns'}`,
+          body: failed ? (event.error ?? i18n.t('components:notificationText.runError')) : i18n.t('components:notificationText.turns', { count: event.turns }),
           href: runHref(event.runId),
           runId: event.runId,
         }),
@@ -158,8 +154,8 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           kind: 'limit',
           priority: 'normal',
           tone: 'warn',
-          title: `${event.runName} hit a rate limit`,
-          body: 'The turn stopped because the account ran out of quota.',
+          title: i18n.t('components:notificationText.rateLimited', { name: event.runName }),
+          body: i18n.t('components:notificationText.rateLimitedBody'),
           href: runHref(event.runId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,
@@ -174,8 +170,11 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           kind: 'limit',
           priority: 'normal',
           tone: 'info',
-          title: `${event.runName} moved to another account`,
-          body: `${event.from ?? 'The previous account'} → ${event.to ?? 'the next account'}${event.resumed ? ', and the turn was replayed' : ''}.`,
+          title: i18n.t('components:notificationText.rotated', { name: event.runName }),
+          body: i18n.t(event.resumed ? 'components:notificationText.rotatedBodyReplayed' : 'components:notificationText.rotatedBody', {
+            from: event.from ?? i18n.t('components:notificationText.previousAccount'),
+            to: event.to ?? i18n.t('components:notificationText.nextAccount'),
+          }),
           href: runHref(event.runId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,
@@ -192,8 +191,8 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           kind: 'orchestration',
           priority: 'normal',
           tone: failed ? 'bad' : 'ok',
-          title: `Orchestration ${event.orchestrationName} ${failed ? 'failed' : 'finished'}`,
-          body: failed ? 'A task failed and the graph stopped.' : 'Every task completed.',
+          title: i18n.t(failed ? 'components:notificationText.orchestrationFailed' : 'components:notificationText.orchestrationFinished', { name: event.orchestrationName }),
+          body: i18n.t(failed ? 'components:notificationText.orchestrationFailedBody' : 'components:notificationText.orchestrationDoneBody'),
           href: orchestrationHref(event.orchestrationId),
           orchestrationId: event.orchestrationId,
         }),
@@ -208,7 +207,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           priority: 'normal',
           tone: 'warn',
           title: event.title,
-          body: `${event.paths.length} ${event.paths.length === 1 ? 'file' : 'files'} in ${event.branch}${event.resolving ? '' : ' need your attention'}.`,
+          body: i18n.t(event.resolving ? 'components:notificationText.conflictResolving' : 'components:notificationText.conflict', { count: event.paths.length, branch: event.branch }),
           href: orchestrationHref(event.orchestrationId),
           orchestrationId: event.orchestrationId,
         }),
@@ -223,7 +222,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           priority: failed ? 'normal' : 'low',
           tone: failed ? 'bad' : 'info',
           title: event.title,
-          body: event.summary ?? (event.fromSubagent ? 'Started by a subagent.' : ''),
+          body: event.summary ?? (event.fromSubagent ? i18n.t('components:notificationText.fromSubagent') : ''),
           href: event.sessionId ? detailHref({ kind: 'task', sessionId: event.sessionId, taskId: event.taskId }, '/tasks') : activityHref(event.runId, event.sessionId, '/tasks'),
           runId: event.runId || null,
         }),

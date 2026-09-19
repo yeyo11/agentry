@@ -604,6 +604,14 @@ svg.lucide {
   align-items: center;
   gap: 8px;
 }
+/* Sized like the theme toggle next to it rather than like a form field */
+.select-trigger.language-switch {
+  width: auto;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  font-size: 13px;
+}
 
 .main {
   flex: 1;

@@ -1,5 +1,6 @@
 import type { SessionSummary } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { api, keys } from '../api';
 import { useConfirm } from './Dialog';
 import { useToast } from './Toast';
@@ -9,6 +10,7 @@ export function useDeleteSession(onDeleted?: () => void) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
+  const { t } = useTranslation('components');
 
   const mutation = useMutation({
     mutationFn: (session: SessionSummary) => api.deleteSession(session.id),
@@ -16,25 +18,22 @@ export function useDeleteSession(onDeleted?: () => void) {
       void queryClient.invalidateQueries({ queryKey: ['sessions'] });
       void queryClient.invalidateQueries({ queryKey: keys.projects });
       void queryClient.invalidateQueries({ queryKey: keys.overview });
-      toast.success('Session deleted', session.title);
+      toast.success(t('sessionDelete.deleted'), session.title);
       onDeleted?.();
     },
-    onError: (err) => toast.error('Could not delete the session', err),
+    onError: (err) => toast.error(t('sessionDelete.failed'), err),
   });
 
   const requestDelete = (session: SessionSummary) =>
     void confirm({
-      title: 'Delete this session?',
+      title: t('sessionDelete.title'),
       body: (
         <>
           <p className="strong break">{session.title}</p>
-          <p>
-            The transcript ({session.messageCount} messages) is removed from disk and the session can no longer be resumed. This
-            cannot be undone.
-          </p>
+          <p>{t('sessionDelete.body', { count: session.messageCount })}</p>
         </>
       ),
-      confirmLabel: 'Delete session',
+      confirmLabel: t('sessionDelete.confirm'),
       danger: true,
     }).then((ok) => ok && mutation.mutate(session));
 

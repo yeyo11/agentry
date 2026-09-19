@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useBlocker } from 'react-router-dom';
 import { useConfirm } from '../components/Dialog';
 
@@ -9,18 +10,23 @@ interface DirtyApi {
 
 const DirtyContext = createContext<DirtyApi | null>(null);
 
-const DISCARD_PROMPT = {
-  title: 'Discard unsaved changes?',
-  body: 'You have edits that have not been saved. Leaving now will discard them.',
-  confirmLabel: 'Discard changes',
-  cancelLabel: 'Keep editing',
-  danger: true,
-} as const;
+/** Built on each render so it follows the language the person is reading right now. */
+function useDiscardPrompt() {
+  const { t } = useTranslation('components');
+  return {
+    title: t('dirty.title'),
+    body: t('dirty.body'),
+    confirmLabel: t('dirty.discard'),
+    cancelLabel: t('dirty.keepEditing'),
+    danger: true,
+  };
+}
 
 /** Tracks which editors hold unsaved changes so navigation inside the page can be guarded. */
 export function DirtyProvider({ children }: { children: ReactNode }) {
   const [keys, setKeys] = useState<ReadonlySet<string>>(new Set());
   const confirm = useConfirm();
+  const discardPrompt = useDiscardPrompt();
 
   // Leaving the page (sidebar, links, back button). Query-string changes on the same page are
   // tab/scope switches, which the pages guard themselves with useLeaveGuard.
@@ -30,7 +36,7 @@ export function DirtyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (blocker.state !== 'blocked') return;
     let cancelled = false;
-    void confirm(DISCARD_PROMPT).then((leave) => {
+    void confirm(discardPrompt).then((leave) => {
       if (cancelled) return;
       if (leave) blocker.proceed();
       else blocker.reset();
@@ -38,7 +44,7 @@ export function DirtyProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [blocker, confirm]);
+  }, [blocker, confirm, discardPrompt]);
 
   const set = useCallback((key: string, dirty: boolean) => {
     setKeys((current) => {
@@ -84,8 +90,9 @@ export function useDirtyKeys(): ReadonlySet<string> {
 export function useLeaveGuard(): () => Promise<boolean> {
   const { keys } = useDirtyApi();
   const confirm = useConfirm();
+  const discardPrompt = useDiscardPrompt();
   return useCallback(async () => {
     if (keys.size === 0) return true;
-    return confirm(DISCARD_PROMPT);
-  }, [keys, confirm]);
+    return confirm(discardPrompt);
+  }, [keys, confirm, discardPrompt]);
 }

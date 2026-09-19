@@ -1,6 +1,8 @@
 // Pure helpers for editing settings.json as a plain object while preserving everything the
 // guided editor does not know about.
 
+import i18n from '../../i18n';
+
 export type Json = Record<string, unknown>;
 
 export function isObject(value: unknown): value is Json {
@@ -10,7 +12,7 @@ export function isObject(value: unknown): value is Json {
 export function parseObject(text: string): { value: Json | null; error: string | null } {
   try {
     const value: unknown = JSON.parse(text.trim() || '{}');
-    if (!isObject(value)) return { value: null, error: 'The document must be a JSON object' };
+    if (!isObject(value)) return { value: null, error: i18n.t('config:settings.notObject') };
     return { value, error: null };
   } catch (err) {
     return { value: null, error: (err as Error).message };
@@ -68,16 +70,17 @@ export function changedKeys(saved: Json, draft: Json): Array<{ key: string; chan
 
 // ---------- Hooks ----------
 
+// Each event's hint lives in the `config` locale under settingsGuided.hookEvents
 export const HOOK_EVENTS = [
-  { id: 'PreToolUse', hint: 'Before a tool runs. Matcher: tool name pattern, e.g. Bash or Edit|Write. Can block the call.' },
-  { id: 'PostToolUse', hint: 'After a tool succeeds. Matcher: tool name pattern.' },
-  { id: 'UserPromptSubmit', hint: 'When the user sends a prompt, before Claude sees it.' },
-  { id: 'Notification', hint: 'When Claude Code sends a notification.' },
-  { id: 'Stop', hint: 'When the main agent finishes responding.' },
-  { id: 'SubagentStop', hint: 'When a subagent finishes.' },
-  { id: 'PreCompact', hint: 'Before compaction. Matcher: manual or auto.' },
-  { id: 'SessionStart', hint: 'When a session starts. Matcher: startup, resume, clear or compact.' },
-  { id: 'SessionEnd', hint: 'When a session ends.' },
+  'PreToolUse',
+  'PostToolUse',
+  'UserPromptSubmit',
+  'Notification',
+  'Stop',
+  'SubagentStop',
+  'PreCompact',
+  'SessionStart',
+  'SessionEnd',
 ] as const;
 
 export interface HookCommand {

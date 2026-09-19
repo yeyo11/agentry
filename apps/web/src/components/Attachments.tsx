@@ -1,6 +1,8 @@
 import type { Attachment } from '@agentry/shared';
 import { FileText, Image as ImageIcon, Loader2, Paperclip, X } from 'lucide-react';
 import { useCallback, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 import { api } from '../api';
 import { errorMessage, formatBytes } from '../lib/format';
 import { ICON_SM } from './icons';
@@ -81,12 +83,13 @@ export function AttachedFiles({ files }: { files: AttachedFile[] }) {
 
 /** An image or PDF in a message that did not come through the wrapper, e.g. pasted into a terminal. */
 export function MediaBlock({ kind, mediaType, name, uploadId }: { kind: 'image' | 'document'; mediaType: string; name?: string; uploadId?: string }) {
+  const { t } = useTranslation('components');
   if (uploadId && kind === 'image' && isViewableImage(mediaType)) {
-    return <AttachedFiles files={[{ name: name ?? 'image', mediaType, sizeBytes: 0, path: '', uploadId }]} />;
+    return <AttachedFiles files={[{ name: name ?? t('attachments.image'), mediaType, sizeBytes: 0, path: '', uploadId }]} />;
   }
   return (
     <div className="attachments">
-      <FileChip name={name ?? (kind === 'image' ? 'Image' : 'Document')} mediaType={mediaType} href={uploadId ? contentUrl(uploadId) : null} />
+      <FileChip name={name ?? (kind === 'image' ? t('attachments.imageTitle') : t('attachments.document'))} mediaType={mediaType} href={uploadId ? contentUrl(uploadId) : null} />
     </div>
   );
 }
@@ -115,7 +118,7 @@ export function useAttachments() {
     for (const file of files) {
       const key = ++seq.current;
       const preview = isViewableImage(file.type) ? URL.createObjectURL(file) : undefined;
-      setItems((prev) => [...prev, { key, name: file.name || 'pasted', size: file.size, status: 'uploading', preview }]);
+      setItems((prev) => [...prev, { key, name: file.name || i18n.t('components:attachments.pasted'), size: file.size, status: 'uploading', preview }]);
       api
         .uploadFile(file)
         .then((attachment) => setItems((prev) => prev.map((p) => (p.key === key ? { ...p, status: 'ready', attachment } : p))))
@@ -166,6 +169,7 @@ export function useAttachments() {
 export type AttachmentsState = ReturnType<typeof useAttachments>;
 
 export function AttachButton({ state, disabled, compact }: { state: AttachmentsState; disabled?: boolean; compact?: boolean }) {
+  const { t } = useTranslation('components');
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
@@ -174,11 +178,11 @@ export function AttachButton({ state, disabled, compact }: { state: AttachmentsS
         className={compact ? 'icon-btn composer-attach' : 'btn btn-small'}
         onClick={() => input.current?.click()}
         disabled={disabled}
-        aria-label="Attach files"
-        title="Attach files, or drop or paste them here. Images and PDFs are shown to Claude; anything else it reads from disk."
+        aria-label={t('attachments.attachFiles')}
+        title={t('attachments.attachHint')}
       >
         <Paperclip {...ICON_SM} />
-        {!compact && ' Attach'}
+        {!compact && ` ${t('attachments.attach')}`}
       </button>
       <input
         ref={input}
@@ -196,6 +200,7 @@ export function AttachButton({ state, disabled, compact }: { state: AttachmentsS
 
 /** What is about to be sent, with a way to take each file back out. */
 export function AttachmentTray({ state }: { state: AttachmentsState }) {
+  const { t } = useTranslation('components');
   if (state.items.length === 0) return null;
   return (
     <div className="attachments attachments-pending" aria-live="polite">
@@ -204,13 +209,13 @@ export function AttachmentTray({ state }: { state: AttachmentsState }) {
           {p.preview ? <img className="attachment-mini" src={p.preview} alt="" /> : <FileText {...ICON_SM} aria-hidden />}
           <span className="attachment-name ellipsis">{p.name}</span>
           {p.status === 'uploading' ? (
-            <Loader2 {...ICON_SM} className="spin" aria-label="Uploading" />
+            <Loader2 {...ICON_SM} className="spin" aria-label={t('attachments.uploading')} />
           ) : p.status === 'error' ? (
             <span className="small attachment-error">{p.error}</span>
           ) : (
             <span className="muted small">{formatBytes(p.size)}</span>
           )}
-          <button type="button" className="icon-btn" onClick={() => state.remove(p.key)} aria-label={`Remove ${p.name}`}>
+          <button type="button" className="icon-btn" onClick={() => state.remove(p.key)} aria-label={t('attachments.remove', { name: p.name })}>
             <X {...ICON_SM} />
           </button>
         </span>

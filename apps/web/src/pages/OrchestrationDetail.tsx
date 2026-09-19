@@ -2,6 +2,7 @@ import type { Orchestration, OrchestrationTaskState, ResumeOrchestrationRequest 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ChevronRight, Combine, CornerDownRight, ExternalLink, GitMerge, GitPullRequest, MessageSquare, Play, RotateCw, Save, Square, Target, Trash2, Waypoints } from 'lucide-react';
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, keys, useOrchestration } from '../api';
 import { Collapsible, Switch } from '../components/controls';
@@ -56,6 +57,7 @@ function StageHead({ title, tasks }: { title: string; tasks: OrchestrationTaskSt
 }
 
 function TaskCard({ task }: { task: OrchestrationTaskState }) {
+  const { t } = useTranslation(['config', 'common']);
   const reduced = useReducedMotion();
   return (
     // Keyed on status so a task visibly settles into its new state when it changes
@@ -74,21 +76,21 @@ function TaskCard({ task }: { task: OrchestrationTaskState }) {
       <div className="mono small muted">{task.id}</div>
       {(task.dependsOn?.length ?? 0) > 0 && (
         <div className="small muted meta-icon">
-          <CornerDownRight size={12} strokeWidth={1.75} aria-hidden /> after {task.dependsOn?.join(', ')}
+          <CornerDownRight size={12} strokeWidth={1.75} aria-hidden /> {t('detail.after', { deps: task.dependsOn?.join(', ') })}
         </div>
       )}
-      <Collapsible className="fold" title="Prompt">
+      <Collapsible className="fold" title={t('orchestration.prompt')}>
         <div className="prose small">{task.prompt}</div>
       </Collapsible>
       {task.error && <div className="alert alert-bad small">{task.error}</div>}
       {task.result && (
-        <Collapsible className="fold" title="Result">
+        <Collapsible className="fold" title={t('detail.result')}>
           <RichText text={task.result} />
         </Collapsible>
       )}
       <div className="meta">
-        {task.runId && <Link to={`/runs/${task.runId}`}>run</Link>}
-        {task.sessionId && <Link to={`/sessions/${task.sessionId}`}>session</Link>}
+        {task.runId && <Link to={`/runs/${task.runId}`}>{t('detail.run')}</Link>}
+        {task.sessionId && <Link to={`/sessions/${task.sessionId}`}>{t('detail.session')}</Link>}
         {task.model && <span>{task.model}</span>}
         {task.costUsd > 0 && <span>{formatCost(task.costUsd)}</span>}
         {/* The branch is how the work is found afterwards, so it is worth the space */}
@@ -107,6 +109,7 @@ function TaskCard({ task }: { task: OrchestrationTaskState }) {
  * where it stands and offers the steps that stay a person's call: publishing it, and cleaning up.
  */
 function IntegrationCard({ orch }: { orch: Orchestration }) {
+  const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
@@ -119,8 +122,8 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
   const publish = useMutation({
     mutationFn: () => api.orchestrationPullRequest(orch.id),
     onSuccess: (res) => {
-      if (res.url) toast.success('Pull request opened', res.url);
-      else toast.info(`Pushed ${res.branch}`, res.detail);
+      if (res.url) toast.success(t('detail.prOpened'), res.url);
+      else toast.info(t('detail.pushed', { branch: res.branch }), res.detail);
       void refresh();
     },
   });
@@ -128,23 +131,23 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
     mutationFn: () => api.pruneOrchestrationWorktrees(orch.id),
     onSuccess: ({ results }) => {
       const kept = results.filter((r) => !r.removed);
-      if (kept.length) toast.info(`${kept.length} worktree(s) kept`, kept.map((k) => `${k.task}: ${k.detail}`).join('\n'));
-      else toast.success('Worktrees removed', 'Every branch is kept.');
+      if (kept.length) toast.info(t('detail.worktreesKept', { count: kept.length }), kept.map((k) => `${k.task}: ${k.detail}`).join('\n'));
+      else toast.success(t('detail.worktreesRemoved'), t('detail.branchesKept'));
       void refresh();
     },
   });
 
-  const branches = orch.tasks.filter((t) => t.branch && t.status === 'completed').length;
+  const branches = orch.tasks.filter((task) => task.branch && task.status === 'completed').length;
   if (!integration && (orch.status === 'running' || branches === 0)) return null;
   const busy = integration && ['merging', 'resolving'].includes(integration.status);
   const idle = orch.status !== 'running' && !busy;
-  const hasWorktrees = orch.tasks.some((t) => t.worktree) || Boolean(integration?.worktree);
+  const hasWorktrees = orch.tasks.some((task) => task.worktree) || Boolean(integration?.worktree);
 
   return (
     <Card
       title={
         <span className="title-icon">
-          <GitMerge {...ICON_SM} /> Integration
+          <GitMerge {...ICON_SM} /> {t('detail.integration')}
         </span>
       }
       actions={
@@ -153,7 +156,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
             {integration?.status === 'merged' &&
               (integration.pullRequestUrl ? (
                 <a className="btn btn-small" href={integration.pullRequestUrl} target="_blank" rel="noreferrer">
-                  <ExternalLink {...ICON_SM} /> Pull request
+                  <ExternalLink {...ICON_SM} /> {t('detail.pullRequest')}
                 </a>
               ) : (
                 <button
@@ -162,20 +165,20 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
                   disabled={publish.isPending}
                   onClick={() =>
                     void confirm({
-                      title: `Push ${integration.branch}?`,
-                      body: 'The branch is pushed to origin and a pull request is opened for it with gh.',
-                      confirmLabel: 'Push and open',
+                      title: t('detail.pushTitle', { branch: integration.branch }),
+                      body: t('detail.pushBody'),
+                      confirmLabel: t('detail.pushConfirm'),
                     }).then((ok) => {
                       if (ok) publish.mutate();
                     })
                   }
                 >
-                  <GitPullRequest {...ICON_SM} /> {publish.isPending ? 'Pushing…' : 'Push & open PR'}
+                  <GitPullRequest {...ICON_SM} /> {publish.isPending ? t('detail.pushing') : t('detail.push')}
                 </button>
               ))}
             {integration?.status !== 'merged' && (
               <button type="button" className="btn btn-small" disabled={integrate.isPending} onClick={() => integrate.mutate()}>
-                <RotateCw {...ICON_SM} /> {integration ? 'Integrate again' : 'Integrate branches'}
+                <RotateCw {...ICON_SM} /> {integration ? t('detail.integrateAgain') : t('detail.integrate')}
               </button>
             )}
             {hasWorktrees && integration?.status === 'merged' && (
@@ -185,15 +188,15 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
                 disabled={prune.isPending}
                 onClick={() =>
                   void confirm({
-                    title: 'Remove the worktrees?',
-                    body: 'Their directories go; every branch, the integrated one included, is kept.',
-                    confirmLabel: 'Remove',
+                    title: t('detail.pruneTitle'),
+                    body: t('detail.pruneBody'),
+                    confirmLabel: t('common:actions.remove'),
                   }).then((ok) => {
                     if (ok) prune.mutate();
                   })
                 }
               >
-                <Trash2 {...ICON_SM} /> Remove worktrees
+                <Trash2 {...ICON_SM} /> {t('detail.prune')}
               </button>
             )}
           </>
@@ -208,19 +211,22 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
               {integration.branch}
             </span>
             {integration.commit && <span className="mono">{integration.commit.slice(0, 8)}</span>}
-            <span>
-              {integration.merged.length}/{branches} task branch{branches === 1 ? '' : 'es'} merged
-            </span>
-            {integration.integratorRunId && <Link to={`/runs/${integration.integratorRunId}`}>integrator run</Link>}
+            <span>{t('detail.merged', { merged: integration.merged.length, count: branches })}</span>
+            {integration.integratorRunId && <Link to={`/runs/${integration.integratorRunId}`}>{t('detail.integratorRun')}</Link>}
           </div>
           {integration.status === 'resolving' && (
-            <p className="muted small">Some branches conflicted; an integrator agent is merging them.</p>
+            <p className="muted small">{t('detail.resolving')}</p>
           )}
           {integration.conflicts.length > 0 && (
             <ul className="small">
               {integration.conflicts.map((c) => (
                 <li key={c.taskId}>
-                  <span className="mono">{c.taskId}</span> conflicted in <span className="mono">{c.paths.join(', ')}</span>
+                  <Trans
+                    t={t}
+                    i18nKey="detail.conflict"
+                    values={{ task: c.taskId, paths: c.paths.join(', ') }}
+                    components={{ mono: <span className="mono" /> }}
+                  />
                 </li>
               ))}
             </ul>
@@ -229,8 +235,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
         </>
       ) : (
         <p className="muted small">
-          This graph finished before orchestrations merged their own work. Its {branches} task branch{branches === 1 ? '' : 'es'} can
-          be integrated into one now; anything left uncommitted in a worktree is committed first.
+          {t('detail.legacy', { count: branches })}
         </p>
       )}
       <ErrorBox error={integrate.error ?? publish.error ?? prune.error} />
@@ -250,34 +255,35 @@ const SAFE_TOOLS = 'Bash,Read,Write,Edit,Glob,Grep';
  * can be kept as a workflow of the project and run from then on by name.
  */
 function WorkflowCard({ orch }: { orch: Orchestration }) {
+  const { t } = useTranslation(['config', 'common']);
   const toast = useToast();
   const [name, setName] = useState('');
   const script = useQuery({ queryKey: ['orchestrations', orch.id, 'workflow'], queryFn: () => api.orchestrationWorkflow(orch.id) });
   const save = useMutation({
     mutationFn: (overwrite: boolean) => api.saveOrchestrationWorkflow(orch.id, { ...(name.trim() ? { name: name.trim() } : {}), overwrite }),
-    onSuccess: (saved) => toast.success(`Saved as ${saved.name}`, saved.path),
+    onSuccess: (saved) => toast.success(t('detail.savedAs', { name: saved.name }), saved.path),
   });
   return (
     <Card
       title={
         <span className="title-icon">
-          <Waypoints {...ICON_SM} /> Workflow
+          <Waypoints {...ICON_SM} /> {t('orchestration.workflow')}
         </span>
       }
       actions={
         orch.workflow?.runId ? (
           <Link to={`/runs/${orch.workflow.runId}`} className="btn btn-small">
-            <ExternalLink {...ICON_SM} /> Open run
+            <ExternalLink {...ICON_SM} /> {t('detail.openRun')}
           </Link>
         ) : undefined
       }
     >
       <p className="muted small">
-        Every task runs as a subagent of one Claude Code session, driven by a script generated from this graph.
-        {orch.workflow?.workflowRunId ? ` Claude Code run ${orch.workflow.workflowRunId}: a resume replays what had finished from its cache.` : ''}
+        {t('detail.workflowIntro')}
+        {orch.workflow?.workflowRunId ? t('detail.workflowRun', { id: orch.workflow.workflowRunId }) : ''}
       </p>
-      {orch.engineReason && <p className="small">Planner: {orch.engineReason}</p>}
-      <Collapsible className="fold" title={<span className="tool-name">Script</span>}>
+      {orch.engineReason && <p className="small">{t('orchestration.plannerReason', { reason: orch.engineReason })}</p>}
+      <Collapsible className="fold" title={<span className="tool-name">{t('detail.script')}</span>}>
         {script.data ? <CodeBlock code={script.data.script} lang="js" /> : <ErrorBox error={script.error} />}
       </Collapsible>
       <form
@@ -287,18 +293,23 @@ function WorkflowCard({ orch }: { orch: Orchestration }) {
           save.mutate(false);
         }}
       >
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (defaults to agentry-…)" aria-label="Workflow name" />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t('detail.workflowNamePlaceholder')}
+          aria-label={t('detail.workflowName')}
+        />
         <button type="submit" className="btn btn-small" disabled={save.isPending}>
-          <Save {...ICON_SM} /> Save as project workflow
+          <Save {...ICON_SM} /> {t('detail.saveWorkflow')}
         </button>
       </form>
-      <p className="muted small">Copies it into the project&apos;s .claude/workflows/, where Claude Code runs it by name.</p>
+      <p className="muted small">{t('detail.saveWorkflowHint')}</p>
       {save.error && (
         <div className="stack-tight">
           <ErrorBox error={save.error} />
           {String((save.error as Error).message).includes('already exists') && (
             <button type="button" className="btn btn-small btn-danger" onClick={() => save.mutate(true)}>
-              Replace it
+              {t('detail.replace')}
             </button>
           )}
         </div>
@@ -320,6 +331,7 @@ function ResumePanel({
   onResume: (changes: ResumeOrchestrationRequest) => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation(['config', 'common']);
   const [worktree, setWorktree] = useState(true);
   const [askPermissions, setAskPermissions] = useState(true);
   const [tools, setTools] = useState(orch.allowedTools.length ? orch.allowedTools.join(',') : SAFE_TOOLS);
@@ -328,29 +340,29 @@ function ResumePanel({
   const risky = (!workflow && !orch.worktree) || orch.permissionPrompts !== 'host';
 
   return (
-    <Card title={`Resume ${unfinished} unfinished task${unfinished === 1 ? '' : 's'}`}>
+    <Card title={t('detail.resumeUnfinished', { count: unfinished })}>
       <p className="muted small">
-        The {orch.tasks.length - unfinished} completed task{orch.tasks.length - unfinished === 1 ? '' : 's'} and{' '}
-        {orch.tasks.length - unfinished === 1 ? 'its' : 'their'} results are kept.
-        {workflow ? " It resumes in the same session, where Claude Code replays what had finished from its cache." : ''}
+        {t('detail.kept', { count: orch.tasks.length - unfinished })}
+        {workflow ? t('detail.keptWorkflow') : ''}
       </p>
       {risky && (
         <p className="alert alert-warn small">
-          This graph was started {!workflow && !orch.worktree ? 'without worktrees' : ''}
-          {!workflow && !orch.worktree && orch.permissionPrompts !== 'host' ? ' and ' : ''}
-          {orch.permissionPrompts !== 'host' ? 'with nobody to answer its permission prompts' : ''} — which is likely what
-          stopped it. Resuming with the settings below avoids both.
+          {!workflow && !orch.worktree
+            ? orch.permissionPrompts !== 'host'
+              ? t('detail.risky.both')
+              : t('detail.risky.worktree')
+            : t('detail.risky.prompts')}
         </p>
       )}
       {!workflow && (
         <Switch checked={worktree} onChange={setWorktree}>
-          Give each task its own git worktree and branch
+          {t('orchestration.worktree')}
         </Switch>
       )}
       <Switch checked={askPermissions} onChange={setAskPermissions}>
-        Ask me when a worker needs permission
+        {t('orchestration.askPermissions')}
       </Switch>
-      <Field label="Tools workers may use" hint="Pre-authorised: used without asking.">
+      <Field label={t('orchestration.tools')} hint={t('detail.toolsHint')}>
         <input value={tools} onChange={(e) => setTools(e.target.value)} placeholder={SAFE_TOOLS} />
       </Field>
       <div className="form-actions">
@@ -364,15 +376,15 @@ function ResumePanel({
               permissionPrompts: askPermissions ? 'host' : 'none',
               allowedTools: tools
                 .split(',')
-                .map((t) => t.trim())
+                .map((tool) => tool.trim())
                 .filter(Boolean),
             })
           }
         >
-          <Play {...ICON_SM} /> {pending ? 'Resuming…' : `Resume ${unfinished} task${unfinished === 1 ? '' : 's'}`}
+          <Play {...ICON_SM} /> {pending ? t('detail.resuming') : t('detail.resume', { count: unfinished })}
         </button>
         <button type="button" className="btn" onClick={onCancel} disabled={pending}>
-          Cancel
+          {t('common:actions.cancel')}
         </button>
       </div>
     </Card>
@@ -380,6 +392,7 @@ function ResumePanel({
 }
 
 export function OrchestrationDetail() {
+  const { t } = useTranslation(['config', 'common']);
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const { data: orch, error, isLoading } = useOrchestration(id);
@@ -406,23 +419,23 @@ export function OrchestrationDetail() {
   });
 
   if (isLoading) return <Loading />;
-  if (!orch) return <ErrorBox error={error ?? new Error('Orchestration not found')} />;
+  if (!orch) return <ErrorBox error={error ?? new Error(t('detail.notFound'))} />;
 
   const layers = layerTasks(orch.tasks);
   // Workers die with the wrapper, so an interrupted graph can be picked up from where it stopped.
-  const unfinished = orch.tasks.filter((t) => t.status !== 'completed').length;
-  const counts = orch.tasks.reduce<Record<string, number>>((acc, t) => {
-    acc[t.status] = (acc[t.status] ?? 0) + 1;
+  const unfinished = orch.tasks.filter((task) => task.status !== 'completed').length;
+  const counts = orch.tasks.reduce<Record<string, number>>((acc, task) => {
+    acc[task.status] = (acc[task.status] ?? 0) + 1;
     return acc;
   }, {});
 
   return (
     <>
       <PageHeader
-        docTitle={`${orch.name} · orchestration`}
+        docTitle={t('detail.docTitle', { name: orch.name })}
         title={
           <>
-            <Link to="/orchestration" className="title-back" aria-label="Back to orchestrations">
+            <Link to="/orchestration" className="title-back" aria-label={t('detail.back')}>
               <ArrowLeft {...ICON} />
             </Link>
             {orch.name}
@@ -432,25 +445,25 @@ export function OrchestrationDetail() {
           <span className="meta">
             <StatusBadge status={orch.status} />
             <span title={orch.cwd}>{shortPath(orch.cwd)}</span>
-            <span>{orch.model ?? 'default model'}</span>
+            <span>{orch.model ?? t('detail.defaultModel')}</span>
             <span>{orch.permissionMode}</span>
-            <span>concurrency {orch.concurrency}</span>
-            {orch.engine === 'workflow' ? <span>workflow engine</span> : orch.worktree && <span>worktree per task</span>}
-            <span>total {formatCost(orch.costUsd)}</span>
+            <span>{t('orchestration.concurrencyValue', { n: orch.concurrency })}</span>
+            {orch.engine === 'workflow' ? <span>{t('detail.workflowEngine')}</span> : orch.worktree && <span>{t('detail.worktreePerTask')}</span>}
+            <span>{t('detail.total', { cost: formatCost(orch.costUsd) })}</span>
             <span>{durationBetween(orch.createdAt, orch.endedAt)}</span>
-            <span>created {formatDateTime(orch.createdAt)}</span>
+            <span>{t('detail.created', { date: formatDateTime(orch.createdAt) })}</span>
           </span>
         }
         actions={
           orch.status === 'running' ? (
             <button className="btn btn-danger" disabled={stop.isPending} onClick={() => stop.mutate()}>
-              <Square {...ICON_SM} /> Stop orchestration
+              <Square {...ICON_SM} /> {t('detail.stop')}
             </button>
           ) : (
             <>
               {unfinished > 0 && !resuming && (
                 <button className="btn btn-primary" onClick={() => setResuming(true)}>
-                  <Play {...ICON_SM} /> Resume {unfinished} task{unfinished === 1 ? '' : 's'}
+                  <Play {...ICON_SM} /> {t('detail.resume', { count: unfinished })}
                 </button>
               )}
               <button
@@ -458,16 +471,16 @@ export function OrchestrationDetail() {
                 disabled={remove.isPending}
                 onClick={() =>
                   void confirm({
-                    title: `Delete ${orch.name}?`,
-                    body: 'Its record and its worktrees are removed. Branches are kept, so anything committed there survives.',
-                    confirmLabel: 'Delete',
+                    title: t('files.deleteTitle', { path: orch.name }),
+                    body: t('detail.deleteBody'),
+                    confirmLabel: t('common:actions.delete'),
                     danger: true,
                   }).then((ok) => {
                     if (ok) remove.mutate();
                   })
                 }
               >
-                <Trash2 {...ICON_SM} /> Delete
+                <Trash2 {...ICON_SM} /> {t('common:actions.delete')}
               </button>
             </>
           )
@@ -488,7 +501,7 @@ export function OrchestrationDetail() {
         <Card
           title={
             <span className="title-icon">
-              <Target {...ICON_SM} /> Objective
+              <Target {...ICON_SM} /> {t('orchestration.objective')}
             </span>
           }
         >
@@ -508,11 +521,11 @@ export function OrchestrationDetail() {
         {layers.map((layer, level) => (
           <div key={level} className="board-col">
             {level > 0 && (
-              <span className={`board-link ${layer.some((t) => t.status === 'running') ? 'is-flowing' : ''}`} aria-hidden>
+              <span className={`board-link ${layer.some((task) => task.status === 'running') ? 'is-flowing' : ''}`} aria-hidden>
                 <ChevronRight size={12} strokeWidth={2} />
               </span>
             )}
-            <StageHead title={level === 0 ? 'Stage 1 · no dependencies' : `Stage ${level + 1}`} tasks={layer} />
+            <StageHead title={level === 0 ? t('detail.firstStage') : t('detail.stage', { n: level + 1 })} tasks={layer} />
             {layer.map((task) => (
               <TaskCard key={task.id} task={task} />
             ))}
@@ -525,14 +538,14 @@ export function OrchestrationDetail() {
             </span>
             <div className="board-col-head">
               <Combine {...ICON_SM} />
-              <span className="board-col-title">Synthesis</span>
+              <span className="board-col-title">{t('detail.synthesis')}</span>
             </div>
             <div className={`board-task status-${orch.finalResult ? 'completed' : orch.status === 'running' ? 'pending' : 'skipped'}`}>
               <StatusBadge status={orch.finalResult ? 'completed' : orch.status === 'running' ? 'pending' : 'skipped'} />
-              <div className="small muted">Final agent that reports on everything the tasks did.</div>
+              <div className="small muted">{t('detail.synthesisHint')}</div>
               {orch.synthesisRunId && (
                 <div className="meta">
-                  <Link to={`/runs/${orch.synthesisRunId}`}>run</Link>
+                  <Link to={`/runs/${orch.synthesisRunId}`}>{t('detail.run')}</Link>
                 </div>
               )}
             </div>
@@ -544,12 +557,12 @@ export function OrchestrationDetail() {
 
       {orch.finalResult && (
         <Card
-          title="Final result"
+          title={t('detail.finalResult')}
           actions={
             // The report is a conversation: asking it to change or finish something continues it
             orch.synthesisRunId && (
               <Link className="btn btn-small" to={`/runs/${orch.synthesisRunId}`}>
-                <MessageSquare {...ICON_SM} /> Continue the conversation
+                <MessageSquare {...ICON_SM} /> {t('detail.continue')}
               </Link>
             )
           }

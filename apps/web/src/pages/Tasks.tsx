@@ -1,4 +1,5 @@
 import type { BackgroundTask } from '@agentry/shared';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Location } from '../components/Location';
 import { useTasks } from '../api';
@@ -7,38 +8,35 @@ import { useDetailPanel } from '../lib/detail';
 import { durationBetween, timeAgo } from '../lib/format';
 
 export function Tasks() {
+  const { t } = useTranslation('work');
   const { data, error, isLoading } = useTasks();
   const { open } = useDetailPanel();
   const tasks = [...(data ?? [])].sort(
     (a, b) => Number(b.status === 'running') - Number(a.status === 'running') || b.startedAt.localeCompare(a.startedAt),
   );
-  const running = tasks.filter((t) => t.status === 'running').length;
-  const key = (t: BackgroundTask) => `${t.runId || t.sessionId}:${t.id}`;
+  const running = tasks.filter((task) => task.status === 'running').length;
+  const key = (task: BackgroundTask) => `${task.runId || task.sessionId}:${task.id}`;
 
   return (
     <>
-      <PageHeader title="Background tasks" subtitle={`${running} running · ${tasks.length} total across runs and CLI sessions`} />
+      <PageHeader title={t('tasks.title')} subtitle={t('tasks.subtitle', { running, total: tasks.length })} />
       <ErrorBox error={error} />
       <Card>
         {isLoading ? (
           <Loading />
         ) : tasks.length === 0 ? (
-          <Empty title="No background tasks">
-            Commands sent to the background — by a run, or by a session started from a terminal — appear here. Long
-            commands that run in the foreground are not listed, even though the CLI reports them as tasks. Agents are listed
-            under Agents, and workflows under Workflows.
-          </Empty>
+          <Empty title={t('tasks.empty')}>{t('tasks.emptyHint')}</Empty>
         ) : (
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Status</th>
-                  <th>Command</th>
-                  <th>Location</th>
-                  <th>Started by</th>
-                  <th>Started</th>
-                  <th>Duration</th>
+                  <th>{t('shared.column.status')}</th>
+                  <th>{t('tasks.command')}</th>
+                  <th>{t('shared.column.location')}</th>
+                  <th>{t('shared.column.startedBy')}</th>
+                  <th>{t('shared.column.started')}</th>
+                  <th>{t('shared.column.duration')}</th>
                   <th />
                 </tr>
               </thead>
@@ -55,14 +53,14 @@ export function Tasks() {
                         {task.backgroundedByUser && (
                           <>
                             {' '}
-                            <Tag tone="muted">by you</Tag>
+                            <Tag tone="muted">{t('tasks.byYou')}</Tag>
                           </>
                         )}
                         {/* Launched by a subagent, so the main agent's own transcript never mentions it */}
                         {task.fromSubagent && (
                           <>
                             {' '}
-                            <Tag tone="info">from subagent</Tag>
+                            <Tag tone="info">{t('shared.fromSubagent')}</Tag>
                           </>
                         )}
                       </div>
@@ -80,7 +78,7 @@ export function Tasks() {
                       {task.runId ? (
                         <Link to={`/runs/${task.runId}`}>{task.runName}</Link>
                       ) : (
-                        <Link to={`/sessions/${task.sessionId ?? ''}`}>{task.runName || 'CLI session'}</Link>
+                        <Link to={`/sessions/${task.sessionId ?? ''}`}>{task.runName || t('shared.cliSession')}</Link>
                       )}
                     </td>
                     <td className="nowrap">{timeAgo(task.startedAt)}</td>
@@ -92,7 +90,7 @@ export function Tasks() {
                           className="btn btn-small"
                           onClick={() => open({ kind: 'task', sessionId: task.sessionId ?? '', taskId: task.id })}
                         >
-                          Output
+                          {t('tasks.output')}
                         </button>
                       )}
                     </td>

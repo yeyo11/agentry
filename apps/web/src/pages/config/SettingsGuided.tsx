@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp, X, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { KeyValueEditor, recordToRows, rowsToRecord, StringListEditor, type KeyValueRow } from '../../components/editors';
 import { Collapsible, Combobox, NumberInput, Select, Tooltip } from '../../components/controls';
@@ -51,15 +52,16 @@ function Section({
 
 /** true / false / "not set" — an unset key is different from false because lower scopes can still set it. */
 function TriState({ value, onChange, label }: { value: unknown; onChange: (v: boolean | undefined) => void; label: string }) {
+  const { t } = useTranslation('config');
   return (
     <Select
       aria-label={label}
       value={value === true ? 'true' : value === false ? 'false' : ''}
       onChange={(v) => onChange(v === '' ? undefined : v === 'true')}
       options={[
-        { value: '', label: 'Not set (inherit)' },
-        { value: 'true', label: 'Yes' },
-        { value: 'false', label: 'No' },
+        { value: '', label: t('settingsGuided.notSet') },
+        { value: 'true', label: t('settingsGuided.yes') },
+        { value: 'false', label: t('settingsGuided.no') },
       ]}
     />
   );
@@ -70,6 +72,7 @@ function text(value: unknown): string {
 }
 
 function HooksEditor({ settings, set, filesHref }: { settings: Json; set: SetFn; filesHref: string }) {
+  const { t } = useTranslation('config');
   const update = (event: string, groups: HookGroup[]) =>
     set(
       ['hooks', event],
@@ -82,10 +85,13 @@ function HooksEditor({ settings, set, filesHref }: { settings: Json; set: SetFn;
   return (
     <div className="stack">
       <p className="small muted">
-        Hooks run shell commands at lifecycle events; the event payload arrives as JSON on stdin. Keep scripts in{' '}
-        <span className="mono">hooks/</span> and edit them in the <Link to={filesHref}>Files tab</Link>.
+        <Trans
+          t={t}
+          i18nKey="settingsGuided.hooksIntro"
+          components={{ mono: <span className="mono" />, link: <Link to={filesHref} /> }}
+        />
       </p>
-      {HOOK_EVENTS.map(({ id: event, hint }) => {
+      {HOOK_EVENTS.map((event) => {
         const groups = hookGroups(settings, event);
         const patchGroup = (index: number, patch: Partial<HookGroup>) =>
           update(event, groups.map((g, i) => (i === index ? { ...g, ...patch } : g)));
@@ -112,8 +118,10 @@ function HooksEditor({ settings, set, filesHref }: { settings: Json; set: SetFn;
             title={
               <>
                 <span className="mono strong">{event}</span>
-                {groups.length > 0 && <Tag tone="active">{groups.reduce((n, g) => n + g.hooks.length, 0)} commands</Tag>}
-                <span className="small muted hook-hint">{hint}</span>
+                {groups.length > 0 && (
+                  <Tag tone="active">{t('settingsGuided.commands', { count: groups.reduce((n, g) => n + g.hooks.length, 0) })}</Tag>
+                )}
+                <span className="small muted hook-hint">{t(`settingsGuided.hookEvents.${event}`)}</span>
               </>
             }
           >
@@ -121,36 +129,36 @@ function HooksEditor({ settings, set, filesHref }: { settings: Json; set: SetFn;
               {groups.map((group, gi) => (
                 <div key={gi} className="hook-group">
                   <div className="hook-group-head">
-                    <Field label="Matcher" hint="Empty matches everything">
+                    <Field label={t('settingsGuided.matcher')} hint={t('settingsGuided.matcherHint')}>
                       <input
                         className="mono"
                         value={group.matcher ?? ''}
-                        placeholder="e.g. Bash or Edit|Write"
+                        placeholder={t('settingsGuided.matcherPlaceholder')}
                         onChange={(e) => patchGroup(gi, { matcher: e.target.value || undefined })}
                       />
                     </Field>
                     <div className="row-actions">
-                      <Tooltip content="Move up">
-                        <button type="button" className="icon-btn" aria-label="Move group up" disabled={gi === 0} onClick={() => move(gi, -1)}>
+                      <Tooltip content={t('settingsGuided.moveUp')}>
+                        <button type="button" className="icon-btn" aria-label={t('settingsGuided.moveGroupUp')} disabled={gi === 0} onClick={() => move(gi, -1)}>
                           <ArrowUp {...ICON_SM} />
                         </button>
                       </Tooltip>
-                      <Tooltip content="Move down">
+                      <Tooltip content={t('settingsGuided.moveDown')}>
                         <button
                           type="button"
                           className="icon-btn"
-                          aria-label="Move group down"
+                          aria-label={t('settingsGuided.moveGroupDown')}
                           disabled={gi === groups.length - 1}
                           onClick={() => move(gi, 1)}
                         >
                           <ArrowDown {...ICON_SM} />
                         </button>
                       </Tooltip>
-                      <Tooltip content="Remove group">
+                      <Tooltip content={t('settingsGuided.removeGroup')}>
                         <button
                           type="button"
                           className="icon-btn"
-                          aria-label="Remove matcher group"
+                          aria-label={t('settingsGuided.removeMatcherGroup')}
                           onClick={() => update(event, groups.filter((_, i) => i !== gi))}
                         >
                           <X {...ICON_SM} />
@@ -162,24 +170,24 @@ function HooksEditor({ settings, set, filesHref }: { settings: Json; set: SetFn;
                     <div key={ci} className="hook-command">
                       <input
                         className="mono"
-                        aria-label="Command"
+                        aria-label={t('settingsGuided.command')}
                         value={text(command.command)}
-                        placeholder='e.g. "$CLAUDE_PROJECT_DIR"/.claude/hooks/check.sh'
+                        placeholder={t('settingsGuided.commandPlaceholder')}
                         onChange={(e) => patchCommand(gi, ci, { command: e.target.value })}
                       />
                       <NumberInput
                         compact
                         min={1}
-                        aria-label="Timeout in seconds (optional)"
-                        placeholder="timeout s"
+                        aria-label={t('settingsGuided.timeout')}
+                        placeholder={t('settingsGuided.timeoutPlaceholder')}
                         value={typeof command.timeout === 'number' ? command.timeout : undefined}
                         onChange={(timeout) => patchCommand(gi, ci, { timeout })}
                       />
-                      <Tooltip content="Remove command">
+                      <Tooltip content={t('settingsGuided.removeCommand')}>
                         <button
                           type="button"
                           className="icon-btn"
-                          aria-label="Remove command"
+                          aria-label={t('settingsGuided.removeCommand')}
                           onClick={() => patchGroup(gi, { hooks: group.hooks.filter((_, i) => i !== ci) })}
                         >
                           <X {...ICON_SM} />
@@ -194,7 +202,7 @@ function HooksEditor({ settings, set, filesHref }: { settings: Json; set: SetFn;
                       onClick={() => patchGroup(gi, { hooks: [...group.hooks, { type: 'command', command: '' }] })}
                     >
                       <Plus size={14} strokeWidth={2} aria-hidden />
-                      Command
+                      {t('settingsGuided.command')}
                     </button>
                   </div>
                 </div>
@@ -206,7 +214,7 @@ function HooksEditor({ settings, set, filesHref }: { settings: Json; set: SetFn;
                   onClick={() => update(event, [...groups, { hooks: [{ type: 'command', command: '' }] }])}
                 >
                   <Plus size={14} strokeWidth={2} aria-hidden />
-                  Matcher group
+                  {t('settingsGuided.matcherGroup')}
                 </button>
               </div>
             </div>
@@ -227,12 +235,13 @@ export function SettingsGuided({
   /** Link to the Files tab in the current scope */
   filesHref: string;
 }) {
+  const { t } = useTranslation('config');
   // Env rows keep their own state so half-typed rows (empty key) are not dropped while editing.
   const [envRows, setEnvRows] = useState<KeyValueRow[]>(() => recordToRows(settings.env));
   const permissions = (path: string) => stringList(getIn(settings, ['permissions', path]));
   const statusLine = isObject(settings.statusLine) ? settings.statusLine : {};
   const preserved = Object.keys(settings).filter((key) => !GUIDED_KEYS.has(key));
-  const hookCount = HOOK_EVENTS.reduce((n, e) => n + hookGroups(settings, e.id).reduce((m, g) => m + g.hooks.length, 0), 0);
+  const hookCount = HOOK_EVENTS.reduce((n, event) => n + hookGroups(settings, event).reduce((m, g) => m + g.hooks.length, 0), 0);
   const ruleCount = permissions('allow').length + permissions('ask').length + permissions('deny').length;
   const defaultMode = text(getIn(settings, ['permissions', 'defaultMode']));
   const enabledPlugins = isObject(settings.enabledPlugins) ? Object.entries(settings.enabledPlugins) : [];
@@ -240,15 +249,15 @@ export function SettingsGuided({
 
   return (
     <div className="sections">
-      <Section title="General" defaultOpen summary={text(settings.model) || undefined}>
+      <Section title={t('settingsGuided.general')} defaultOpen summary={text(settings.model) || undefined}>
         <div className="form-grid">
-          <Field label="Model" hint="Alias (fable, opus, sonnet, haiku) or a full model id. Empty uses the default.">
-            <Combobox value={text(settings.model)} placeholder="default" options={MODEL_OPTIONS} onChange={(v) => set(['model'], v)} />
+          <Field label={t('settingsGuided.model')} hint={t('settingsGuided.modelHint')}>
+            <Combobox value={text(settings.model)} placeholder={t('settingsGuided.defaultPlaceholder')} options={MODEL_OPTIONS} onChange={(v) => set(['model'], v)} />
           </Field>
-          <Field label="Output style" hint="Name of a built-in or custom output style.">
-            <input value={text(settings.outputStyle)} placeholder="default" onChange={(e) => set(['outputStyle'], e.target.value)} />
+          <Field label={t('settingsGuided.outputStyle')} hint={t('settingsGuided.outputStyleHint')}>
+            <input value={text(settings.outputStyle)} placeholder={t('settingsGuided.defaultPlaceholder')} onChange={(e) => set(['outputStyle'], e.target.value)} />
           </Field>
-          <Field label="Transcript retention (days)" hint="cleanupPeriodDays: local transcripts older than this are deleted.">
+          <Field label={t('settingsGuided.retention')} hint={t('settingsGuided.retentionHint')}>
             <NumberInput
               min={0}
               value={typeof settings.cleanupPeriodDays === 'number' ? settings.cleanupPeriodDays : undefined}
@@ -256,10 +265,10 @@ export function SettingsGuided({
               onChange={(v) => set(['cleanupPeriodDays'], v)}
             />
           </Field>
-          <Field label="Co-authored-by in commits" hint="includeCoAuthoredBy">
-            <TriState label="Include co-authored-by" value={settings.includeCoAuthoredBy} onChange={(v) => set(['includeCoAuthoredBy'], v)} />
+          <Field label={t('settingsGuided.coAuthored')} hint="includeCoAuthoredBy">
+            <TriState label={t('settingsGuided.coAuthoredLabel')} value={settings.includeCoAuthoredBy} onChange={(v) => set(['includeCoAuthoredBy'], v)} />
           </Field>
-          <Field label="API key helper" hint="apiKeyHelper: script that prints an API key on stdout.">
+          <Field label={t('settingsGuided.apiKeyHelper')} hint={t('settingsGuided.apiKeyHelperHint')}>
             <input
               className="mono"
               value={text(settings.apiKeyHelper)}
@@ -267,7 +276,7 @@ export function SettingsGuided({
               onChange={(e) => set(['apiKeyHelper'], e.target.value)}
             />
           </Field>
-          <Field label="Status line command" hint="statusLine: command whose output is shown as the status line.">
+          <Field label={t('settingsGuided.statusLine')} hint={t('settingsGuided.statusLineHint')}>
             <input
               className="mono"
               value={text(statusLine.command)}
@@ -280,14 +289,14 @@ export function SettingsGuided({
         </div>
       </Section>
 
-      <Section title="Permissions" summary={ruleCount > 0 ? `${ruleCount} rules` : undefined}>
+      <Section title={t('settingsGuided.permissions')} summary={ruleCount > 0 ? t('settingsGuided.rules', { count: ruleCount }) : undefined}>
         <div className="form">
-          <Field label="Default mode" hint="permissions.defaultMode: how tool calls are handled when no rule matches.">
+          <Field label={t('settingsGuided.defaultMode')} hint={t('settingsGuided.defaultModeHint')}>
             <Select
               value={defaultMode}
               onChange={(v) => set(['permissions', 'defaultMode'], v)}
               options={[
-                { value: '', label: 'Not set (inherit)' },
+                { value: '', label: t('settingsGuided.notSet') },
                 ...DEFAULT_MODES.map((mode) => ({ value: mode, label: mode })),
                 // Keep a value this form does not know about selectable instead of showing it blank
                 ...(defaultMode && !(DEFAULT_MODES as readonly string[]).includes(defaultMode) ? [{ value: defaultMode, label: defaultMode }] : []),
@@ -295,28 +304,19 @@ export function SettingsGuided({
             />
           </Field>
           <p className="small muted">
-            Rule syntax: <span className="mono">Tool</span> or <span className="mono">Tool(specifier)</span>, e.g.{' '}
-            <span className="mono">Bash(git status)</span>, <span className="mono">Bash(npm run test:*)</span>,{' '}
-            <span className="mono">Read(./secrets/**)</span>, <span className="mono">WebFetch(domain:example.com)</span>,{' '}
-            <span className="mono">mcp__server__tool</span>. Deny wins over ask, ask wins over allow.
+            <Trans t={t} i18nKey="settingsGuided.ruleSyntax" components={{ mono: <span className="mono" /> }} />
           </p>
-          {(
-            [
-              ['allow', 'Allow', 'Runs without asking'],
-              ['ask', 'Ask', 'Always asks for confirmation'],
-              ['deny', 'Deny', 'Never allowed'],
-            ] as const
-          ).map(([key, label, hint]) => (
-            <Field key={key} label={`${label} · ${hint}`}>
+          {(['allow', 'ask', 'deny'] as const).map((key) => (
+            <Field key={key} label={t(`settingsGuided.ruleLists.${key}`)}>
               <StringListEditor
                 values={permissions(key)}
                 placeholder="Bash(git status)"
-                addLabel={`Add to ${key}`}
+                addLabel={t('settingsGuided.addTo', { key })}
                 onChange={(values) => set(['permissions', key], values)}
               />
             </Field>
           ))}
-          <Field label="Additional directories" hint="permissions.additionalDirectories: extra directories Claude may work in.">
+          <Field label={t('settingsGuided.additionalDirs')} hint={t('settingsGuided.additionalDirsHint')}>
             <StringListEditor
               values={permissions('additionalDirectories')}
               placeholder="../shared-lib"
@@ -326,8 +326,8 @@ export function SettingsGuided({
         </div>
       </Section>
 
-      <Section title="Environment variables" summary={envRows.length > 0 ? `${envRows.length} variables` : undefined}>
-        <p className="small muted">Applied to every session. Values are masked here but stored in plain text in the file.</p>
+      <Section title={t('settingsGuided.env')} summary={envRows.length > 0 ? t('settingsGuided.variables', { count: envRows.length }) : undefined}>
+        <p className="small muted">{t('settingsGuided.envHint')}</p>
         <KeyValueEditor
           rows={envRows}
           maskValues
@@ -338,44 +338,47 @@ export function SettingsGuided({
         />
       </Section>
 
-      <Section title="Hooks" summary={hookCount > 0 ? `${hookCount} commands` : undefined}>
+      <Section title={t('settingsGuided.hooks')} summary={hookCount > 0 ? t('settingsGuided.commands', { count: hookCount }) : undefined}>
         <HooksEditor settings={settings} set={set} filesHref={filesHref} />
       </Section>
 
-      <Section title="MCP approvals">
+      <Section title={t('settingsGuided.mcpApprovals')}>
         <div className="form">
-          <Field label="Approve every server in .mcp.json" hint="enableAllProjectMcpServers">
+          <Field label={t('settingsGuided.approveAll')} hint="enableAllProjectMcpServers">
             <TriState
-              label="Approve all project MCP servers"
+              label={t('settingsGuided.approveAllLabel')}
               value={settings.enableAllProjectMcpServers}
               onChange={(v) => set(['enableAllProjectMcpServers'], v)}
             />
           </Field>
-          <Field label="Approved .mcp.json servers" hint="enabledMcpjsonServers">
+          <Field label={t('settingsGuided.approved')} hint="enabledMcpjsonServers">
             <StringListEditor
               values={stringList(settings.enabledMcpjsonServers)}
-              placeholder="server-name"
+              placeholder={t('settingsGuided.serverName')}
               onChange={(values) => set(['enabledMcpjsonServers'], values)}
             />
           </Field>
-          <Field label="Rejected .mcp.json servers" hint="disabledMcpjsonServers">
+          <Field label={t('settingsGuided.rejected')} hint="disabledMcpjsonServers">
             <StringListEditor
               values={stringList(settings.disabledMcpjsonServers)}
-              placeholder="server-name"
+              placeholder={t('settingsGuided.serverName')}
               onChange={(values) => set(['disabledMcpjsonServers'], values)}
             />
           </Field>
         </div>
       </Section>
 
-      <Section title="Plugins & marketplaces" summary={enabledPlugins.length > 0 ? `${enabledPlugins.length} plugins` : undefined}>
+      <Section
+        title={t('settingsGuided.plugins')}
+        summary={enabledPlugins.length > 0 ? t('settingsGuided.pluginCount', { count: enabledPlugins.length }) : undefined}
+      >
         <p className="small muted">
-          Managed by the CLI. Use the <Link to="/plugins">Plugins page</Link> to install, enable or remove them.
+          <Trans t={t} i18nKey="settingsGuided.pluginsHint" components={{ link: <Link to="/plugins" /> }} />
         </p>
         <div className="chips">
-          {enabledPlugins.length === 0 && marketplaces.length === 0 && <span className="small muted">Nothing configured in this file</span>}
+          {enabledPlugins.length === 0 && marketplaces.length === 0 && <span className="small muted">{t('settingsGuided.nothingConfigured')}</span>}
           {enabledPlugins.map(([id, enabled]) => (
-            <span key={id} className="chip chip-static mono" title={enabled ? 'enabled' : 'disabled'}>
+            <span key={id} className="chip chip-static mono" title={enabled ? t('settingsGuided.enabled') : t('settingsGuided.disabled')}>
               <StatusDot tone={enabled ? 'ok' : 'muted'} /> {id}
             </span>
           ))}
@@ -388,8 +391,8 @@ export function SettingsGuided({
       </Section>
 
       {preserved.length > 0 && (
-        <Section title="Other keys" summary={`${preserved.length} preserved`}>
-          <p className="small muted">These keys have no guided control. They are kept untouched; edit them in Raw JSON.</p>
+        <Section title={t('settingsGuided.otherKeys')} summary={t('settingsGuided.preserved', { count: preserved.length })}>
+          <p className="small muted">{t('settingsGuided.otherKeysHint')}</p>
           <div className="chips">
             {preserved.map((key) => (
               <span key={key} className="chip chip-static mono">

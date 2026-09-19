@@ -1,6 +1,7 @@
 import type { ConfigFileVariant } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, keys, type Scope } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { useToast } from '../../components/Toast';
@@ -8,11 +9,12 @@ import { Card, ErrorBox, PathLabel, Segmented, Skeleton, Tag } from '../../compo
 import { useDirty, useLeaveGuard } from '../../lib/dirty';
 
 const VARIANTS = [
-  { value: 'shared', label: 'CLAUDE.md', title: 'Shared with the team (meant to be committed)' },
-  { value: 'local', label: 'CLAUDE.local.md', title: 'Personal notes for this project (not committed)' },
+  { value: 'shared', label: 'CLAUDE.md' },
+  { value: 'local', label: 'CLAUDE.local.md' },
 ] as const;
 
 function InstructionsEditor({ scope, variant }: { scope: Scope; variant: ConfigFileVariant }) {
+  const { t } = useTranslation('config');
   const queryClient = useQueryClient();
   const toast = useToast();
   const queryKey = keys.instructions(scope, variant);
@@ -31,9 +33,9 @@ function InstructionsEditor({ scope, variant }: { scope: Scope; variant: ConfigF
     onSuccess: (doc) => {
       queryClient.setQueryData(queryKey, doc);
       setContent(doc.content);
-      toast.success('Instructions saved', doc.path);
+      toast.success(t('instructions.saved'), doc.path);
     },
-    onError: (err) => toast.error('Could not save the instructions', err),
+    onError: (err) => toast.error(t('instructions.saveFailed'), err),
   });
 
   if (isLoading) return <Skeleton rows={8} />;
@@ -43,18 +45,16 @@ function InstructionsEditor({ scope, variant }: { scope: Scope; variant: ConfigF
       {data && (
         <div className="editor-meta">
           <PathLabel path={data.path} />
-          {!data.exists && <Tag tone="info">does not exist yet · saved on first write</Tag>}
-          {dirty && <Tag tone="warn">unsaved changes</Tag>}
+          {!data.exists && <Tag tone="info">{t('shared.notYet')}</Tag>}
+          {dirty && <Tag tone="warn">{t('shared.unsaved')}</Tag>}
         </div>
       )}
       <CodeEditor
         language="markdown"
-        ariaLabel="Instructions"
+        ariaLabel={t('instructions.editor')}
         minHeight="360px"
         placeholder={
-          scope.projectId
-            ? '# Project instructions\n\nConventions, commands and context Claude should know in this project.'
-            : '# Instructions applied to every session of this account'
+          scope.projectId ? t('instructions.projectPlaceholder') : t('instructions.userPlaceholder')
         }
         value={content ?? ''}
         onChange={setContent}
@@ -62,31 +62,32 @@ function InstructionsEditor({ scope, variant }: { scope: Scope; variant: ConfigF
       />
       <div className="form-actions">
         <button className="btn btn-primary" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
-          {save.isPending ? 'Saving…' : 'Save'}
+          {save.isPending ? t('shared.saving') : t('shared.save')}
         </button>
         <button className="btn" disabled={!dirty} onClick={() => setContent(data?.content ?? '')}>
-          Discard
+          {t('shared.discard')}
         </button>
-        <span className="small muted push-right">Ctrl/⌘+S saves</span>
+        <span className="small muted push-right">{t('shared.ctrlS')}</span>
       </div>
     </div>
   );
 }
 
 export function InstructionsTab({ scope, scopeKey }: { scope: Scope; scopeKey: string }) {
+  const { t } = useTranslation('config');
   const [variant, setVariant] = useState<ConfigFileVariant>('shared');
   const guard = useLeaveGuard();
   const effective: ConfigFileVariant = scope.projectId ? variant : 'shared';
 
   return (
     <Card
-      title={scope.projectId ? 'Project instructions' : 'User instructions (CLAUDE.md)'}
+      title={scope.projectId ? t('instructions.projectTitle') : t('instructions.userTitle')}
       actions={
         scope.projectId && (
           <Segmented
-            label="Instructions file"
+            label={t('instructions.file')}
             value={effective}
-            options={VARIANTS}
+            options={VARIANTS.map((v) => ({ ...v, title: t(`instructions.variants.${v.value}`) }))}
             onChange={(next) => void guard().then((ok) => ok && setVariant(next))}
           />
         )
