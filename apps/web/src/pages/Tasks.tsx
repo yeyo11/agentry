@@ -43,8 +43,9 @@ export function Tasks() {
           <Loading />
         ) : tasks.length === 0 ? (
           <Empty title="No background tasks">
-            Shell commands sent to the background — by a run, or by a session started from a terminal — appear here.
-            Agents are listed under Agents.
+            Commands sent to the background — by a run, or by a session started from a terminal — appear here. Long
+            commands that run in the foreground are not listed, even though the CLI reports them as tasks. Agents are listed
+            under Agents, and workflows under Workflows.
           </Empty>
         ) : (
           <div className="table-wrap">

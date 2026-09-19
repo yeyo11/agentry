@@ -12,7 +12,6 @@ import {
   KeyRound,
   LayoutDashboard,
   ListTodo,
-  type LucideIcon,
   MessageSquare,
   Monitor,
   Moon,
@@ -24,6 +23,8 @@ import {
   SlidersHorizontal,
   Sun,
   Users,
+  Waypoints,
+  type LucideIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -152,6 +153,7 @@ export function CommandPalette() {
       { id: 'nav:/', group: 'Go to', title: 'Dashboard', keywords: 'home overview status usage', icon: LayoutDashboard, run: go('/') },
       { id: 'nav:/agents', group: 'Go to', title: 'Agents', keywords: 'runs subagents live', icon: Bot, run: go('/agents') },
       { id: 'nav:/tasks', group: 'Go to', title: 'Background tasks', keywords: 'bash jobs', icon: ListTodo, run: go('/tasks') },
+      { id: 'nav:/workflows', group: 'Go to', title: 'Workflows', keywords: 'workflow tool script agents saved run', icon: Waypoints, run: go('/workflows') },
       { id: 'nav:/sessions', group: 'Go to', title: 'Sessions', keywords: 'history transcripts', icon: History, run: go('/sessions') },
       { id: 'nav:/projects', group: 'Go to', title: 'Projects', keywords: 'workspace directories', icon: FolderGit2, run: go('/projects') },
       { id: 'nav:/orchestration', group: 'Go to', title: 'Orchestration', keywords: 'multi agent', icon: Network, run: go('/orchestration') },

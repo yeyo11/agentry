@@ -1,0 +1,2 @@
+{"type":"user","agentId":"a6d120918f0c2d6c5","isSidechain":true,"cwd":"/CWD","sessionId":"760cacf1-f138-4355-8962-034b7565e858","timestamp":"2026-09-19T11:28:36.829Z","uuid":"7dea7721-37e0-4407-bbe9-42c8803d997e","message":{"role":"user","content":"Reply with only the word"}}
+{"type":"assistant","agentId":"a6d120918f0c2d6c5","isSidechain":true,"cwd":"/CWD","sessionId":"760cacf1-f138-4355-8962-034b7565e858","timestamp":"2026-09-19T11:28:41.059Z","uuid":"a36dc03d-936f-4ce9-9d7b-e78bdacc3e3a","message":{"role":"assistant","content":[{"type":"text","text":"blue"}]}}

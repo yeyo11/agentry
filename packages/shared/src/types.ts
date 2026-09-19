@@ -228,6 +228,12 @@ export interface RunOptions {
   account?: string;
 }
 
+/**
+ * Work the CLI runs in the background: a Bash command sent there (by the model or by the person at
+ * the terminal), a monitor, a remote agent. The CLI calls every delegated piece of work a task, and
+ * reports foreground commands that way too; those are left out, and so are subagents and workflows,
+ * which have lists of their own.
+ */
 export interface BackgroundTask {
   id: string;
   /** Empty when the task belongs to a CLI session rather than a run */
@@ -260,6 +266,7 @@ export interface BackgroundTaskOutput {
   bytes: number;
 }
 
+/** An agent a session spawned with the Agent tool, in the foreground or the background. */
 export interface SubagentInfo {
   toolUseId: string;
   /** Empty when the subagent belongs to a CLI session rather than a run */
@@ -282,6 +289,76 @@ export interface SubagentInfo {
   /** Directory the agent works in, from its own transcript: a worktree when started with isolation */
   cwd?: string | null;
   location?: WorkLocation | null;
+  /** Launched to run in the background, rather than awaited by its parent */
+  background?: boolean;
+}
+
+/** One agent a workflow launched, as its progress reports it. */
+export interface WorkflowAgentState {
+  index: number;
+  label: string;
+  /** As the CLI reports it: `start`, `progress`, `done` or `error` */
+  state: string;
+  agentId: string | null;
+  phaseTitle: string | null;
+  model: string | null;
+  startedAt: string | null;
+  durationMs: number | null;
+  tokens: number | null;
+  toolCalls: number | null;
+  promptPreview: string | null;
+  resultPreview: string | null;
+}
+
+/**
+ * A run of a Claude Code workflow: a script started with the Workflow tool that orchestrates
+ * subagents inside one session. Read from a run's live stream (`local_workflow` tasks) or from the
+ * files the CLI keeps beside the session's transcript.
+ */
+export interface WorkflowRun {
+  /** The CLI's workflow run id (`wf_…`) when known, the task id otherwise */
+  id: string;
+  taskId: string | null;
+  /** The `name` in the script's meta */
+  name: string | null;
+  description: string;
+  /** `stopped` when its session ended before the workflow reported back */
+  status: 'running' | 'completed' | 'failed' | 'stopped';
+  startedAt: string;
+  endedAt: string | null;
+  /** Empty when the workflow belongs to a CLI session rather than a run */
+  runId: string;
+  runName: string;
+  /** `run` when read from a run's live stream, `cli` when read from a session's files on disk */
+  source: 'run' | 'cli';
+  sessionId?: string;
+  phases: string[];
+  agents: WorkflowAgentState[];
+  /** What the script returned, once it finished */
+  result?: unknown;
+  summary: string | null;
+  totalTokens: number | null;
+  script: string | null;
+  location?: WorkLocation | null;
+}
+
+/** A saved workflow the Workflow tool can run by name, from a `.claude/workflows/` directory. */
+export interface WorkflowDefinition {
+  name: string;
+  description: string | null;
+  /** `project` from the directory's `.claude/workflows/`, `user` from `~/.claude/workflows/` */
+  scope: 'project' | 'user';
+  path: string;
+}
+
+/** Starts a run that runs a saved workflow. */
+export interface RunWorkflowRequest {
+  name: string;
+  /** Project to run it in; its `.claude/workflows/` must hold it unless it is a user workflow */
+  cwd?: string;
+  /** Handed to the script as its `args` */
+  args?: string;
+  model?: string;
 }
 
 export interface RunSummary {
@@ -308,6 +385,8 @@ export interface RunSummary {
   account: string | null;
   backgroundTasks: BackgroundTask[];
   subagents: SubagentInfo[];
+  /** Claude Code workflows it ran (the Workflow tool), with each agent's progress */
+  workflows?: WorkflowRun[];
   /** Directory the CLI actually works in, which differs from `cwd` when it runs in a worktree */
   workingDir?: string | null;
   location?: WorkLocation | null;
@@ -873,6 +952,8 @@ export interface Overview {
     liveSessions: number;
     backgroundTasks: number;
     subagents: number;
+    /** Claude Code workflows running right now */
+    workflows?: number;
     orchestrationsRunning: number;
   };
   runs: RunSummary[];

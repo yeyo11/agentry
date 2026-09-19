@@ -4,9 +4,11 @@
 // an interrupt withdraws the pending one and ends the turn with `error_during_execution` while the
 // process stays up, and a mode switch is echoed as a `system/status` event.
 //
-//   ASK <tool>   asks permission for <tool> and ends the turn with the decision it got back
-//   (anything)   ends the turn at once
+//   ASK <tool>     asks permission for <tool> and ends the turn with the decision it got back
+//   REPLAY <file>  writes each JSON line of <file> to stdout, then ends the turn
+//   (anything)     ends the turn at once
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
@@ -31,6 +33,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     const content = msg.message?.content;
     const prompt = typeof content === 'string' ? content : content.map((b) => b.text ?? '').join('\n');
     out({ type: 'system', subtype: 'init', session_id: sessionId, cwd: process.cwd(), model: 'fake', permissionMode: reported(mode), tools: [], argv: args });
+    const replay = /^REPLAY (\S+)/.exec(prompt);
+    if (replay) {
+      for (const line of readFileSync(replay[1], 'utf8').split('\n')) if (line.trim()) process.stdout.write(`${line}\n`);
+      return result('replayed');
+    }
     const ask = /^ASK (\S+)/.exec(prompt);
     if (!ask) return result(`args=${args.join(' ')}`);
     if (!args.includes('--permission-prompt-tool')) return result('denied: nobody to ask');

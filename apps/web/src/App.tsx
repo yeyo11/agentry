@@ -14,6 +14,7 @@ import {
   Settings2,
   Timer,
   Users,
+  Waypoints,
   Workflow,
   X,
   type LucideIcon,
@@ -42,6 +43,7 @@ const Projects = lazy(() => import('./pages/Projects').then((m) => ({ default: m
 const SessionView = lazy(() => import('./pages/SessionView').then((m) => ({ default: m.SessionView })));
 const Sessions = lazy(() => import('./pages/Sessions').then((m) => ({ default: m.Sessions })));
 const Tasks = lazy(() => import('./pages/Tasks').then((m) => ({ default: m.Tasks })));
+const Workflows = lazy(() => import('./pages/Workflows').then((m) => ({ default: m.Workflows })));
 const NewRun = lazy(() => import('./pages/NewRun').then((m) => ({ default: m.NewRun })));
 
 interface NavItem {
@@ -102,6 +104,7 @@ export function App() {
         { to: '/', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/agents', label: 'Agents', icon: Activity, count: (counts?.activeRuns ?? 0) + (counts?.subagents ?? 0) },
         { to: '/tasks', label: 'Background tasks', icon: Timer, count: counts?.backgroundTasks },
+        { to: '/workflows', label: 'Workflows', icon: Waypoints, count: counts?.workflows },
       ],
     },
     {
@@ -275,6 +278,7 @@ export function App() {
               <Route path="/runs/new" element={<NewRun />} />
               <Route path="/runs/:id" element={<RunView />} />
               <Route path="/tasks" element={<Tasks />} />
+              <Route path="/workflows" element={<Workflows />} />
               <Route path="/projects" element={<Projects />} />
               <Route path="/orchestration" element={<Orchestration />} />
               <Route path="/orchestration/:id" element={<OrchestrationDetail />} />

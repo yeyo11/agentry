@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
-import type { PermissionDecision, PermissionMode, RunDetail, RunEvent, RunOptions, RunSettingsUpdate } from '@agentry/shared';
+import type { PermissionDecision, PermissionMode, RunDetail, RunEvent, RunOptions, RunSettingsUpdate, RunWorkflowRequest } from '@agentry/shared';
 
 const HEARTBEAT_MS = 15_000;
 const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'];
@@ -96,4 +96,15 @@ export const runRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core 
   );
 
   app.get('/subagents', () => core.allSubagents());
+
+  // Claude Code workflows (the Workflow tool), which run inside a session: runs report them live,
+  // terminal sessions from the files the CLI keeps beside the transcript
+  app.get('/workflows', () => core.allWorkflows());
+
+  app.get<{ Querystring: { cwd?: string } }>('/workflows/saved', (req) => core.workflowDefinitions(req.query.cwd || undefined));
+
+  app.post<{ Body: RunWorkflowRequest }>('/workflows/saved/run', async (req, reply) => {
+    const run = await core.runWorkflow(req.body ?? ({} as RunWorkflowRequest));
+    return reply.status(201).send(run);
+  });
 };

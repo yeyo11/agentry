@@ -140,6 +140,11 @@ test('runs, orchestrations and plugins reject bad requests', async () => {
   assert.equal((await app.inject({ method: 'POST', url: '/api/runs', ...json({ prompt: '  ' }) })).statusCode, 400);
   assert.equal((await app.inject('/api/runs/ghost')).statusCode, 404);
   assert.equal((await app.inject({ method: 'POST', url: '/api/runs/ghost/messages', ...json({ text: 'hi' }) })).statusCode, 404);
+  assert.deepEqual((await app.inject('/api/workflows')).json(), []);
+  assert.deepEqual((await app.inject('/api/workflows/saved')).json(), []);
+  const unknownWorkflow = await app.inject({ method: 'POST', url: '/api/workflows/saved/run', ...json({ name: 'nope' }) });
+  assert.equal(unknownWorkflow.statusCode, 404);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/workflows/saved/run', ...json({}) })).statusCode, 400);
   assert.equal((await app.inject({ method: 'POST', url: '/api/runs/ghost/interrupt' })).statusCode, 404);
   assert.equal((await app.inject({ method: 'PATCH', url: '/api/runs/ghost', ...json({ model: 'opus' }) })).statusCode, 404);
   const badMode = await app.inject({ method: 'PATCH', url: '/api/runs/ghost', ...json({ permissionMode: 'yolo' }) });
