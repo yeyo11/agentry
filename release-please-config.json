@@ -8,7 +8,6 @@
       "package-name": "agentry",
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
-        "packages/core/src/index.ts",
         {
           "type": "json",
           "path": "apps/api/package.json",
