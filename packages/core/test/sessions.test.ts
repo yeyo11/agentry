@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -44,6 +45,115 @@ test('reads a transcript in windows, newest first, without gaps or overlap', asy
   assert.equal((await store.getSession('bbbb-2222', { limit: 9999 }))?.entries.length, 25);
   assert.equal((await store.getSession('bbbb-2222', { limit: 10, before: 0 }))?.entries.length, 0);
   assert.equal((await store.getSession('bbbb-2222', { limit: 10, before: 999 }))?.total, 25);
+});
+
+const entryLine = (uuid: string, extra: object = {}) =>
+  line({ type: 'user', uuid, timestamp: '2026-01-01T10:00:00Z', cwd: '/work/idx', message: { role: 'user', content: `message ${uuid}` }, ...extra });
+const uuids = (detail: { entries: { uuid: string }[] } | null | undefined) => detail?.entries.map((e) => e.uuid);
+
+function indexedSession(): { store: SessionStore; file: string } {
+  const config = tempConfig();
+  const dir = join(config.projectsDir, '-work-idx');
+  mkdirSync(dir, { recursive: true });
+  return { store: new SessionStore(config), file: join(dir, 'cccc-3333.jsonl') };
+}
+
+test('pages through the index, skipping lines that are not entries', async () => {
+  const { store, file } = indexedSession();
+  // Non-entry lines between the messages, and a line past the one-megabyte read chunk
+  const lines = [line({ type: 'mode', mode: 'normal' })];
+  for (let i = 0; i < 30; i++) {
+    lines.push(entryLine(`u${i}`, i === 12 ? { message: { role: 'user', content: 'x'.repeat(1_500_000) } } : {}));
+    lines.push(line({ type: 'file-history-snapshot', snapshot: { n: i } }), '', '{"broken');
+  }
+  writeFileSync(file, `${lines.join('\n')}\n`);
+
+  const seen: string[] = [];
+  let before: number | undefined;
+  for (;;) {
+    const page = await store.getSession('cccc-3333', { limit: 7, before });
+    assert.equal(page?.total, 30);
+    seen.unshift(...(uuids(page) ?? []));
+    if (!page || page.from === 0) break;
+    before = page.from;
+  }
+  assert.deepEqual(seen, Array.from({ length: 30 }, (_, i) => `u${i}`));
+  const big = await store.getSession('cccc-3333', { limit: 1, before: 13 });
+  assert.equal(big?.entries[0]?.blocks[0]?.type === 'text' && big.entries[0].blocks[0].text.length, 1_500_000);
+});
+
+test('a session that grows is read on from where the index stopped', async () => {
+  const { store, file } = indexedSession();
+  writeFileSync(file, `${[entryLine('a'), entryLine('b')].join('\n')}\n`);
+  assert.deepEqual(uuids(await store.getSession('cccc-3333')), ['a', 'b']);
+
+  // An edit in place, far from the end, that only a pass from the start would see
+  const handle = await open(file, 'r+');
+  await handle.write('/work/xdi', readFileSync(file, 'utf8').indexOf('/work/idx'));
+  await handle.close();
+  appendFileSync(file, `${[entryLine('c'), line({ type: 'custom-title', customTitle: 'Renamed' }), entryLine('d')].join('\n')}\n`);
+  const grown = await store.getSession('cccc-3333', { limit: 3 });
+  assert.equal(grown?.total, 4);
+  assert.equal(grown?.from, 1);
+  assert.deepEqual(uuids(grown), ['b', 'c', 'd']);
+  // The summary is carried on too, not just the entries
+  assert.equal(grown?.summary.messageCount, 4);
+  assert.equal(grown?.summary.title, 'Renamed');
+  assert.equal(grown?.summary.projectPath, '/work/idx');
+  assert.deepEqual(uuids(await store.getSession('cccc-3333', { limit: 2, before: 2 })), ['a', 'b']);
+});
+
+test('a rewritten transcript is indexed again', async () => {
+  const { store, file } = indexedSession();
+  writeFileSync(file, `${[entryLine('a'), entryLine('b'), entryLine('c')].join('\n')}\n`);
+  assert.equal((await store.getSession('cccc-3333'))?.total, 3);
+
+  // Shorter than before
+  writeFileSync(file, `${entryLine('x')}\n`);
+  assert.deepEqual(uuids(await store.getSession('cccc-3333')), ['x']);
+
+  // Longer than before, but not by appending: what was indexed is no longer where it was
+  writeFileSync(file, `${[entryLine('p', { cwd: '/work/rewritten' }), entryLine('q'), entryLine('r'), entryLine('s')].join('\n')}\n`);
+  const rewritten = await store.getSession('cccc-3333');
+  assert.deepEqual(uuids(rewritten), ['p', 'q', 'r', 's']);
+  assert.equal(rewritten?.summary.projectPath, '/work/rewritten');
+  assert.equal(rewritten?.summary.messageCount, 4);
+});
+
+test('a half-written last line counts once it parses, and only once', async () => {
+  const { store, file } = indexedSession();
+  const last = entryLine('c');
+  writeFileSync(file, `${[entryLine('a'), entryLine('b')].join('\n')}\n${last.slice(0, 20)}`);
+  assert.deepEqual(uuids(await store.getSession('cccc-3333')), ['a', 'b']);
+
+  // Complete JSON, still without its newline: read, but not yet final
+  appendFileSync(file, last.slice(20));
+  const complete = await store.getSession('cccc-3333');
+  assert.deepEqual(uuids(complete), ['a', 'b', 'c']);
+  assert.equal(complete?.summary.messageCount, 3);
+
+  // Its newline and the next line: the tail is indexed for good, and not counted twice
+  appendFileSync(file, `\n${entryLine('d')}\n`);
+  const after = await store.getSession('cccc-3333');
+  assert.deepEqual(uuids(after), ['a', 'b', 'c', 'd']);
+  assert.equal(after?.summary.messageCount, 4);
+});
+
+test('the index serves the main thread and the one with sidechains', async () => {
+  const { store, file } = indexedSession();
+  const lines = Array.from({ length: 12 }, (_, i) => entryLine(`m${i}`, i % 3 === 2 ? { isSidechain: true } : {}));
+  writeFileSync(file, `${lines.join('\n')}\n${entryLine('side-tail', { isSidechain: true })}`);
+
+  const main = await store.getSession('cccc-3333', { limit: 3 });
+  assert.equal(main?.total, 8);
+  assert.deepEqual(uuids(main), ['m7', 'm9', 'm10']);
+  assert.deepEqual(uuids(await store.getSession('cccc-3333', { limit: 3, before: main?.from })), ['m3', 'm4', 'm6']);
+
+  const all = await store.getSession('cccc-3333', { limit: 3, includeSidechains: true });
+  assert.equal(all?.total, 13);
+  assert.deepEqual(uuids(all), ['m10', 'm11', 'side-tail']);
+  assert.deepEqual(uuids(await store.getSession('cccc-3333', { limit: 3, before: all?.from, includeSidechains: true })), ['m7', 'm8', 'm9']);
+  assert.equal(all?.summary.messageCount, 8);
 });
 
 test('summarizes sessions and reads transcripts', async () => {

@@ -58,7 +58,10 @@ import type {
   SystemInfo,
   WriteConfigFileRequest,
   SaveOrchestrationWorkflowRequest,
+  TranscriptSearchResult,
 } from '@agentry/shared';
+import { TRANSCRIPT_PAGE_MAX } from '@agentry/shared';
+import i18n from './i18n';
 import { useFallbackInterval } from './lib/feed';
 
 const BASE = '/api';
@@ -94,7 +97,7 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'TimeoutError') {
-      throw new ApiRequestError('The server did not answer in time. It may still be working — reload to see the current state.', 408);
+      throw new ApiRequestError(i18n.t('common:requestTimeout'), 408);
     }
     throw err;
   }
@@ -160,6 +163,9 @@ export const api = {
     ),
   runDetail: (id: string, page: { limit?: number; before?: number } = {}) =>
     request<RunDetail>(`/runs/${enc(id)}${qs({ limit: num(page.limit), before: num(page.before) })}`),
+  searchSession: (id: string, sidechains: boolean, q: string) =>
+    request<TranscriptSearchResult>(`/sessions/${enc(id)}/search${qs({ q, sidechains: sidechains ? '1' : undefined })}`),
+  searchRun: (id: string, q: string) => request<TranscriptSearchResult>(`/runs/${enc(id)}/search${qs({ q })}`),
   deleteSession: (id: string) => request<{ ok: true }>(`/sessions/${enc(id)}`, { method: 'DELETE' }),
   active: () => request<ActiveCliSession[]>('/active'),
   environments: (cwd: string) => request<EffectiveEnvironment[]>(`/environments${qs({ cwd })}`),
@@ -361,7 +367,12 @@ export interface Paged<T> {
   more: boolean;
   loadingMore: boolean;
   loadEarlier: () => void;
+  /** Reads back until `index` is held, however many pages that takes */
+  reach: (index: number) => Promise<void>;
 }
+
+/** How many entries to read at once to get back to `index` from `from`. */
+const stretch = (from: number, index: number) => Math.min(TRANSCRIPT_PAGE_MAX, Math.max(1, from - index));
 
 /**
  * Holds a contiguous run of a transcript, `[from, total)`, from the newest page back. The query
@@ -370,14 +381,17 @@ export interface Paged<T> {
  */
 function usePages<T>(
   page: { items: T[]; from: number; total: number } | undefined,
-  fetchBefore: (before: number) => Promise<{ items: T[]; from: number; total: number }>,
+  fetchBefore: (before: number, limit?: number) => Promise<{ items: T[]; from: number; total: number }>,
   reset: unknown,
 ): Paged<T> {
   const [earlier, setEarlier] = useState<{ items: T[]; from: number }>({ items: [], from: -1 });
   const [loadingMore, setLoadingMore] = useState(false);
   const busy = useRef(false);
+  // A page that lands after the reader switched transcripts belongs to the previous one
+  const generation = useRef(0);
 
   useEffect(() => {
+    generation.current++;
     setEarlier({ items: [], from: -1 });
     setLoadingMore(false);
     busy.current = false;
@@ -391,34 +405,71 @@ function usePages<T>(
   const items = joined ? [...earlier.items.slice(0, tailFrom - earlier.from), ...tail] : tail;
   const from = joined ? earlier.from : tailFrom;
   const total = page?.total ?? 0;
+  const fromNow = useRef(from);
+  useEffect(() => {
+    fromNow.current = from;
+  }, [from]);
+
+  /** Reads the page before `before` and splices it on; resolves to where what is held now starts. */
+  const readBefore = useCallback(
+    async (before: number, limit?: number): Promise<number> => {
+      const started = generation.current;
+      const older = await fetchBefore(before, limit);
+      if (started !== generation.current || older.items.length === 0) return before;
+      setEarlier((held) =>
+        held.from >= 0 && held.from <= older.from
+          ? held
+          : { items: [...older.items, ...(held.from >= 0 ? held.items : [])], from: older.from },
+      );
+      return older.from;
+    },
+    [fetchBefore],
+  );
 
   const loadEarlier = useCallback(() => {
     if (busy.current || from <= 0) return;
     busy.current = true;
     setLoadingMore(true);
-    void fetchBefore(from)
-      .then((older) => {
-        if (older.items.length === 0) return;
-        setEarlier((held) =>
-          held.from >= 0 && held.from <= older.from
-            ? held
-            : { items: [...older.items, ...(held.from >= 0 ? held.items : [])], from: older.from },
-        );
+    void readBefore(from)
+      .catch(() => {
+        // the page stays as it is; the reader can ask again
       })
       .finally(() => {
         busy.current = false;
         setLoadingMore(false);
       });
-  }, [fetchBefore, from]);
+  }, [readBefore, from]);
 
-  return { items, from, total, more: from > 0, loadingMore, loadEarlier };
+  const reach = useCallback(
+    async (index: number) => {
+      // A page the reader asked for is already on its way: wait for it rather than read it twice
+      while (busy.current) await new Promise((resolve) => setTimeout(resolve, 50));
+      busy.current = true;
+      setLoadingMore(true);
+      try {
+        let at = fromNow.current;
+        while (at > index) {
+          const next = await readBefore(at, stretch(at, index));
+          if (next >= at) break;
+          at = next;
+        }
+      } finally {
+        busy.current = false;
+        setLoadingMore(false);
+      }
+    },
+    [readBefore],
+  );
+
+  return { items, from, total, more: from > 0, loadingMore, loadEarlier, reach };
 }
 
 /** A session's transcript, newest page first, reading backwards on demand. */
 export const useSessionTranscript = (id: string, sidechains: boolean, live: boolean) => {
   const query = useSession(id, sidechains, live);
   const fetchBefore = useCallback(
-    (before: number) => api.session(id, sidechains, { before }).then((d) => ({ items: d.entries, from: d.from, total: d.total })),
+    (before: number, limit?: number) =>
+      api.session(id, sidechains, { before, limit }).then((d) => ({ items: d.entries, from: d.from, total: d.total })),
     [id, sidechains],
   );
   const page = query.data ? { items: query.data.entries, from: query.data.from, total: query.data.total } : undefined;
@@ -592,6 +643,8 @@ export function useRunStream(
   more: boolean;
   loadingMore: boolean;
   loadEarlier: () => void;
+  /** Reads back until the event at `index` is held */
+  reach: (index: number) => Promise<void>;
 } {
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [from, setFrom] = useState(0);
@@ -603,17 +656,33 @@ export function useRunStream(
   // Latest partial of the current frame; applied together with the stored events in flush()
   const pendingPartial = useRef<StreamingPartial | null | undefined>(undefined);
 
+  const fromNow = useRef(from);
+  useEffect(() => {
+    fromNow.current = from;
+  }, [from]);
+  // The run a page was read for, so one landing after the reader moved on is dropped
+  const current = useRef(id);
+  useEffect(() => {
+    current.current = id;
+  }, [id]);
+
+  const readBefore = useCallback(
+    async (before: number, limit?: number): Promise<number> => {
+      if (!id) return before;
+      const older = await api.runDetail(id, { before, limit });
+      if (current.current !== id || older.events.length === 0) return before;
+      setEvents((held) => [...older.events, ...held]);
+      setFrom(older.from);
+      return older.from;
+    },
+    [id],
+  );
+
   const loadEarlier = useCallback(() => {
     if (!id || olderBusy.current || from <= 0) return;
     olderBusy.current = true;
     setLoadingMore(true);
-    void api
-      .runDetail(id, { before: from })
-      .then((older) => {
-        if (older.events.length === 0) return;
-        setEvents((held) => [...older.events, ...held]);
-        setFrom(older.from);
-      })
+    void readBefore(from)
       .catch(() => {
         // the page stays as it is; the reader can ask again
       })
@@ -621,7 +690,27 @@ export function useRunStream(
         olderBusy.current = false;
         setLoadingMore(false);
       });
-  }, [id, from]);
+  }, [id, from, readBefore]);
+
+  const reach = useCallback(
+    async (index: number) => {
+      while (olderBusy.current) await new Promise((resolve) => setTimeout(resolve, 50));
+      olderBusy.current = true;
+      setLoadingMore(true);
+      try {
+        let at = fromNow.current;
+        while (at > index) {
+          const next = await readBefore(at, stretch(at, index));
+          if (next >= at) break;
+          at = next;
+        }
+      } finally {
+        olderBusy.current = false;
+        setLoadingMore(false);
+      }
+    },
+    [readBefore],
+  );
 
   useEffect(() => {
     setEvents([]);
@@ -701,5 +790,5 @@ export function useRunStream(
     };
   }, [id, enabled]);
 
-  return { events, connected, partial, from, more: from > 0, loadingMore, loadEarlier };
+  return { events, connected, partial, from, more: from > 0, loadingMore, loadEarlier, reach };
 }

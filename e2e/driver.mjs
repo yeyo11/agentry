@@ -16,8 +16,10 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
   if (shotsDir) mkdirSync(shotsDir, { recursive: true });
   const chrome = spawn(
     findChrome(),
-    ['--headless=new', '--disable-gpu', '--no-sandbox', '--hide-scrollbars', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'agentry-e2e-chrome-'))}`, `--remote-debugging-port=${port}`, '--window-size=1440,900', 'about:blank'],
-    { stdio: 'ignore' },
+    ['--headless=new', '--disable-gpu', '--no-sandbox', '--hide-scrollbars', '--lang=en-US', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'agentry-e2e-chrome-'))}`, `--remote-debugging-port=${port}`, '--window-size=1440,900', 'about:blank'],
+    // Specs click buttons by their English text; on a non-English host locale (LANG/LANGUAGE),
+    // Chrome otherwise reports navigator.language from the OS regardless of --lang.
+    { stdio: 'ignore', env: { ...process.env, LANGUAGE: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' } },
   );
   let target;
   for (let i = 0; i < 60 && !target; i++) {

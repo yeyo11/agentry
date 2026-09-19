@@ -1,5 +1,6 @@
 import { CircleAlert, CircleCheck, Info, TriangleAlert, X } from 'lucide-react';
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { errorMessage } from '../lib/format';
 import { Collapsible } from './controls/Collapsible';
 import { ICON, ICON_SM } from './icons';
@@ -43,6 +44,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const nextId = useRef(1);
   const reduced = useReducedMotion();
+  const { t } = useTranslation('components');
 
   const dismiss = useCallback((id: number) => setItems((list) => list.filter((t) => t.id !== id)), []);
 
@@ -79,7 +81,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="toasts" role="region" aria-label="Notifications" aria-live="polite">
+      <div className="toasts" role="region" aria-label={t('toast.region')} aria-live="polite">
         <AnimatePresence initial={false}>
         {items.map((toast) => (
           <motion.div
@@ -107,7 +109,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <div className="toast-title">{toast.title}</div>
               {toast.detail &&
                 (toast.detail.length > 140 || toast.detail.includes('\n') ? (
-                  <Collapsible title="Show output" triggerClassName="small muted">
+                  <Collapsible title={t('toast.showOutput')} triggerClassName="small muted">
                     <pre className="toast-detail">{toast.detail}</pre>
                   </Collapsible>
                 ) : (
@@ -126,7 +128,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 </button>
               )}
             </div>
-            <button className="icon-btn" aria-label="Dismiss notification" onClick={() => dismiss(toast.id)}>
+            <button className="icon-btn" aria-label={t('toast.dismiss')} onClick={() => dismiss(toast.id)}>
               <X {...ICON_SM} />
             </button>
             {!toast.persistent && <span className="toast-timer" style={{ '--toast-life': `${toast.lifetime}ms` } as CSSProperties} aria-hidden />}

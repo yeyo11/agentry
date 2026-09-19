@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react';
 import type { ResourceKind } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, keys, type Scope } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { useConfirm } from '../../components/Dialog';
@@ -10,48 +11,37 @@ import { Card, Empty, ErrorBox, PathLabel, Skeleton, Tag } from '../../component
 import { useDirty, useLeaveGuard } from '../../lib/dirty';
 import { timeAgo } from '../../lib/format';
 
-interface KindInfo {
-  title: string;
-  singular: string;
-  hint: string;
-  template: (name: string) => string;
-}
-
-export const RESOURCE_INFO: Record<ResourceKind, KindInfo> = {
-  agents: {
-    title: 'Agents',
-    singular: 'agent',
-    hint: 'Subagents Claude can delegate to. The description tells Claude when to use each one.',
-    template: (name) =>
-      `---\nname: ${name}\ndescription: When Claude should delegate to this agent\ntools: Read, Grep, Glob\nmodel: inherit\n---\n\nYou are a specialist in …\n\nWhen invoked:\n1. …\n`,
-  },
-  skills: {
-    title: 'Skills',
-    singular: 'skill',
-    hint: 'Packaged instructions Claude loads on demand. Each skill is a directory with a SKILL.md; extra files live in the Files tab.',
-    template: (name) =>
-      `---\nname: ${name}\ndescription: What this skill does and when to use it\n---\n\n# ${name}\n\n## Instructions\n\n1. …\n`,
-  },
-  commands: {
-    title: 'Commands',
-    singular: 'command',
-    hint: 'Custom slash commands: the file name is the command name. $ARGUMENTS is replaced with what the user types.',
-    template: () =>
-      `---\ndescription: What this command does\nargument-hint: [target]\nallowed-tools: Read, Grep\n---\n\nDo the following with $ARGUMENTS:\n\n1. …\n`,
-  },
-  'output-styles': {
-    title: 'Output styles',
-    singular: 'output style',
-    hint: 'Alternative system-prompt styles, selectable with the outputStyle setting.',
-    template: (name) => `---\nname: ${name}\ndescription: How this style changes the responses\n---\n\n# ${name}\n\nRespond …\n`,
-  },
-  rules: {
-    title: 'Rules',
-    singular: 'rule',
-    hint: 'Modular instructions loaded next to CLAUDE.md. Optional `paths:` frontmatter limits a rule to matching files.',
-    template: () => `---\npaths:\n  - "src/**/*.ts"\n---\n\n# Rule\n\n- …\n`,
-  },
+// The starting file content is not translated: it is what the CLI reads, and the frontmatter keys are
+// the CLI's own. Every visible string about a kind lives in the `config` locale under resources.kinds.
+const TEMPLATES: Record<ResourceKind, (name: string) => string> = {
+  agents: (name) =>
+    `---\nname: ${name}\ndescription: When Claude should delegate to this agent\ntools: Read, Grep, Glob\nmodel: inherit\n---\n\nYou are a specialist in …\n\nWhen invoked:\n1. …\n`,
+  skills: (name) =>
+    `---\nname: ${name}\ndescription: What this skill does and when to use it\n---\n\n# ${name}\n\n## Instructions\n\n1. …\n`,
+  commands: () =>
+    `---\ndescription: What this command does\nargument-hint: [target]\nallowed-tools: Read, Grep\n---\n\nDo the following with $ARGUMENTS:\n\n1. …\n`,
+  'output-styles': (name) => `---\nname: ${name}\ndescription: How this style changes the responses\n---\n\n# ${name}\n\nRespond …\n`,
+  rules: () => `---\npaths:\n  - "src/**/*.ts"\n---\n\n# Rule\n\n- …\n`,
 };
+
+// Spanish nouns differ in gender (el agente, la skill), so each kind carries whole phrases rather
+// than one sentence with the noun spliced in
+type KindPhrase =
+  | 'hint'
+  | 'new'
+  | 'namePlaceholder'
+  | 'nameLabel'
+  | 'saved'
+  | 'saveFailed'
+  | 'deleted'
+  | 'deleteFailed'
+  | 'noneInScope'
+  | 'noneYet'
+  | 'select'
+  | 'createFirst'
+  | 'content'
+  | 'create'
+  | 'deleteTitle';
 
 interface Draft {
   name: string;
@@ -62,7 +52,8 @@ interface Draft {
 }
 
 export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind }) {
-  const info = RESOURCE_INFO[kind];
+  const { t } = useTranslation(['config', 'common']);
+  const k = (phrase: KindPhrase, options?: { name: string }) => t(`resources.kinds.${kind}.${phrase}`, options ?? {});
   const queryClient = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -81,9 +72,9 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey });
       setDraft({ name: saved.name, content: saved.content, saved: saved.content, isNew: false });
-      toast.success(`${info.singular} “${saved.name}” saved`, saved.path);
+      toast.success(k('saved', { name: saved.name }), saved.path);
     },
-    onError: (err) => toast.error(`Could not save the ${info.singular}`, err),
+    onError: (err) => toast.error(k('saveFailed'), err),
   });
 
   const remove = useMutation({
@@ -91,9 +82,9 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
     onSuccess: (_result, name) => {
       void queryClient.invalidateQueries({ queryKey });
       setDraft(null);
-      toast.success(`${info.singular} “${name}” deleted`);
+      toast.success(k('deleted', { name }));
     },
-    onError: (err) => toast.error(`Could not delete the ${info.singular}`, err),
+    onError: (err) => toast.error(k('deleteFailed'), err),
   });
 
   const open = async (name: string) => {
@@ -107,25 +98,25 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
   const nameTaken = naming !== null && resources.some((r) => r.name === naming);
   const create = () => {
     if (!naming || !nameValid || nameTaken) return;
-    setDraft({ name: naming, content: info.template(naming), saved: '', isNew: true });
+    setDraft({ name: naming, content: TEMPLATES[kind](naming), saved: '', isNew: true });
     setNaming(null);
   };
   const trySave = () => draft && dirty && !save.isPending && save.mutate(draft);
 
   return (
     <Card
-      title={info.title}
+      title={t(`config.tabs.${kind}`)}
       actions={
         <button className="btn btn-small btn-primary" onClick={() => void guard().then((ok) => ok && setNaming(''))}>
           <Plus size={14} strokeWidth={2} aria-hidden />
-          New {info.singular}
+          {k('new')}
         </button>
       }
     >
-      <p className="small muted">{info.hint}</p>
+      <p className="small muted">{k('hint')}</p>
       <ErrorBox error={error} />
       <div className="master-detail">
-        <div className="master" role="list" aria-label={info.title}>
+        <div className="master" role="list" aria-label={t(`config.tabs.${kind}`)}>
           {naming !== null && (
             <form
               className="master-new"
@@ -138,33 +129,33 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
                 autoFocus
                 className={`mono ${naming && (!nameValid || nameTaken) ? 'is-invalid' : ''}`}
                 value={naming}
-                placeholder={`${info.singular.replace(' ', '-')}-name`}
-                aria-label={`New ${info.singular} name`}
+                placeholder={k('namePlaceholder')}
+                aria-label={k('nameLabel')}
                 onChange={(e) => setNaming(e.target.value.trim())}
                 onKeyDown={(e) => e.key === 'Escape' && setNaming(null)}
               />
               <div className="form-actions">
                 <button type="submit" className="btn btn-small btn-primary" disabled={!nameValid || nameTaken}>
-                  Create
+                  {t('shared.create')}
                 </button>
                 <button type="button" className="btn btn-small" onClick={() => setNaming(null)}>
-                  Cancel
+                  {t('common:actions.cancel')}
                 </button>
               </div>
-              {nameTaken && <span className="field-hint text-err">Already exists</span>}
-              {naming && !nameValid && <span className="field-hint text-err">Letters, digits, dashes and underscores only</span>}
+              {nameTaken && <span className="field-hint text-err">{t('resources.exists')}</span>}
+              {naming && !nameValid && <span className="field-hint text-err">{t('resources.nameRule')}</span>}
             </form>
           )}
           {isLoading ? (
             <Skeleton rows={4} />
           ) : resources.length === 0 && !draft?.isNew ? (
-            naming === null && <div className="small muted master-empty">No {info.title.toLowerCase()} in this scope yet.</div>
+            naming === null && <div className="small muted master-empty">{k('noneInScope')}</div>
           ) : (
             <>
               {draft?.isNew && (
                 <div className="master-item master-item-on" role="listitem">
                   <span className="strong ellipsis">{draft.name}</span>
-                  <Tag tone="warn">new · unsaved</Tag>
+                  <Tag tone="warn">{t('resources.newUnsaved')}</Tag>
                 </div>
               )}
               {resources.map((resource) => (
@@ -179,7 +170,7 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
                     {resource.name}
                   </span>
                   <span className="small muted ellipsis" title={resource.description ?? undefined}>
-                    {resource.description ?? 'No description'}
+                    {resource.description ?? t('resources.noDescription')}
                   </span>
                   <span className="small muted">{timeAgo(resource.updatedAt)}</span>
                 </button>
@@ -191,28 +182,28 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
         <div className="detail">
           {!draft ? (
             <Empty
-              title={resources.length === 0 ? `No ${info.title.toLowerCase()} yet` : `Select a ${info.singular}`}
+              title={resources.length === 0 ? k('noneYet') : k('select')}
               action={
                 resources.length === 0 && (
                   <button className="btn btn-primary" onClick={() => setNaming('')}>
-                    Create the first {info.singular}
+                    {k('createFirst')}
                   </button>
                 )
               }
             >
-              {resources.length === 0 ? info.hint : 'Pick one from the list to view and edit it.'}
+              {resources.length === 0 ? k('hint') : t('resources.pick')}
             </Empty>
           ) : (
             <div className="form">
               <div className="editor-meta">
                 <strong>{draft.name}</strong>
                 {!draft.isNew && <PathLabel path={resources.find((r) => r.name === draft.name)?.path ?? ''} />}
-                {dirty && <Tag tone="warn">{draft.isNew ? 'not saved yet' : 'unsaved changes'}</Tag>}
+                {dirty && <Tag tone="warn">{draft.isNew ? t('resources.notSavedYet') : t('shared.unsaved')}</Tag>}
               </div>
               <CodeEditor
                 key={`${draft.name}:${draft.isNew}`}
                 language="markdown"
-                ariaLabel={`${info.singular} content`}
+                ariaLabel={k('content')}
                 minHeight="380px"
                 value={draft.content}
                 onChange={(content) => setDraft((d) => (d ? { ...d, content } : d))}
@@ -220,14 +211,14 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
               />
               <div className="form-actions">
                 <button className="btn btn-primary" disabled={!dirty || save.isPending} onClick={() => save.mutate(draft)}>
-                  {save.isPending ? 'Saving…' : draft.isNew ? `Create ${info.singular}` : 'Save'}
+                  {save.isPending ? t('shared.saving') : draft.isNew ? k('create') : t('shared.save')}
                 </button>
                 <button
                   className="btn"
                   disabled={!dirty}
                   onClick={() => (draft.isNew ? setDraft(null) : setDraft({ ...draft, content: draft.saved }))}
                 >
-                  Discard
+                  {t('shared.discard')}
                 </button>
                 {!draft.isNew && (
                   <button
@@ -235,17 +226,14 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
                     disabled={remove.isPending}
                     onClick={() =>
                       void confirm({
-                        title: `Delete ${info.singular} “${draft.name}”?`,
-                        body:
-                          kind === 'skills'
-                            ? 'The whole skill directory is deleted, including any extra files in it. This cannot be undone.'
-                            : 'The file is deleted from disk. This cannot be undone.',
-                        confirmLabel: 'Delete',
+                        title: k('deleteTitle', { name: draft.name }),
+                        body: kind === 'skills' ? t('resources.deleteSkillBody') : t('resources.deleteFileBody'),
+                        confirmLabel: t('common:actions.delete'),
                         danger: true,
                       }).then((ok) => ok && remove.mutate(draft.name))
                     }
                   >
-                    Delete
+                    {t('common:actions.delete')}
                   </button>
                 )}
               </div>

@@ -1,4 +1,4 @@
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 /** Row height assumed for a row that has never been on screen, until a real one is measured. */
@@ -6,6 +6,9 @@ const FIRST_GUESS = 140;
 
 /** Rows kept mounted beyond each edge of the viewport. */
 const OVERSCAN = 6;
+
+/** How long a focused row is held in view while the rows around it are measured. */
+const SETTLE_MS = 1500;
 
 /**
  * Windowed list: only the rows near the viewport are in the DOM and the rest are two paddings that
@@ -23,6 +26,7 @@ export function VirtualList<T>({
   className,
   pinToBottom = false,
   onReachTop,
+  focus,
   children,
 }: {
   items: T[];
@@ -32,6 +36,11 @@ export function VirtualList<T>({
   pinToBottom?: boolean;
   /** The window reached the first row held: whatever comes before it, if anything, is wanted now. */
   onReachTop?: () => void;
+  /**
+   * A row to bring into view and mark with `data-focused`, e.g. a search hit. A new object scrolls
+   * again, even to the same row: pressing Enter on the only hit brings it back.
+   */
+  focus?: { item: T } | null;
   children: (item: T, index: number) => ReactNode;
 }) {
   const host = useRef<HTMLDivElement>(null);
@@ -68,6 +77,21 @@ export function VirtualList<T>({
     followOnAppend: pinToBottom,
   });
 
+  // The default only compensates a row measured for the first time when it starts above the scroll
+  // offset. Loading earlier messages while the header above the list is in view breaks that: the
+  // jump lands with freshly prepended rows inside the viewport, just above the row being read, and
+  // each one that turns out shorter or taller than its estimate would drag that row with it.
+  useLayoutEffect(() => {
+    rows.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
+      const offset = (instance.scrollOffset ?? 0) + instance.scrollAdjustments;
+      const measured = (key: VirtualItem['key']) => instance.itemSizeCache.has(key);
+      if (measured(item.key)) return item.end <= offset && instance.scrollDirection !== 'backward';
+      if (item.start < offset) return true;
+      const bottom = offset + (instance.scrollRect?.height ?? 0);
+      return instance.getVirtualItems().some((v) => v.index > item.index && v.start < bottom && v.end > offset && measured(v.key));
+    };
+  }, [rows]);
+
   const visible = rows.getVirtualItems();
   const first = visible[0];
   const last = visible[visible.length - 1];
@@ -84,9 +108,55 @@ export function VirtualList<T>({
     if (pinToBottom && items.length > 0) rows.scrollToEnd();
   }, [pinToBottom, items.length, total, rows]);
 
+  // Pinned, the window only starts at the first row because nothing has been scrolled yet: a list
+  // mounts at its top before it is taken to its end. Loading on that would fetch pages nobody
+  // asked for, twice over, since `onReachTop` changes as soon as the first of them lands.
   useEffect(() => {
-    if (first?.index === 0) onReachTop?.();
-  }, [first?.index, onReachTop]);
+    if (first?.index === 0 && !pinToBottom) onReachTop?.();
+  }, [first?.index, onReachTop, pinToBottom]);
+
+  const focused = focus ? items.indexOf(focus.item) : -1;
+  // One scroll is not enough to reach a row far away: it is placed by estimated heights, which
+  // change as the rows around it are measured, and pages loading above it move it too. Keep it in
+  // view while that settles, and let go the moment the reader scrolls. A row already in view is
+  // left where it is, so whoever scrolled within it (to a match in a tall row) is not undone.
+  const [settling, setSettling] = useState(false);
+  useEffect(() => {
+    if (!focus || !scroller) return;
+    setSettling(true);
+    const release = () => setSettling(false);
+    const settled = setTimeout(release, SETTLE_MS);
+    scroller.addEventListener('wheel', release, { passive: true, once: true });
+    scroller.addEventListener('touchmove', release, { passive: true, once: true });
+    return () => {
+      clearTimeout(settled);
+      scroller.removeEventListener('wheel', release);
+      scroller.removeEventListener('touchmove', release);
+    };
+  }, [focus, scroller]);
+  useEffect(() => {
+    if (!settling || focused < 0 || !scroller) return;
+    let frame = 0;
+    const hold = () => {
+      frame = 0;
+      const row = host.current?.querySelector('[data-focused]')?.getBoundingClientRect();
+      const view = scroller.getBoundingClientRect();
+      const shown = row ? Math.min(row.bottom, view.bottom) - Math.max(row.top, view.top) : 0;
+      if (row && shown >= Math.min(row.height, view.height) / 2) return;
+      rows.scrollToIndex(focused, { align: 'center' });
+    };
+    hold();
+    // A row growing above the viewport scrolls it (the list is anchored to its end) without
+    // changing anything this effect depends on
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(hold);
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      scroller.removeEventListener('scroll', onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [settling, focused, total, scroller, rows]);
 
   return (
     <div ref={host} className={className} style={{ paddingTop: before, paddingBottom: after }}>
@@ -95,7 +165,7 @@ export function VirtualList<T>({
         if (item === undefined) return null;
         return (
           // The wrapper is what the virtualizer measures; the row inside it stays as it was
-          <div key={row.key} data-index={row.index} ref={rows.measureElement}>
+          <div key={row.key} data-index={row.index} data-focused={row.index === focused || undefined} ref={rows.measureElement}>
             {children(item, row.index)}
           </div>
         );

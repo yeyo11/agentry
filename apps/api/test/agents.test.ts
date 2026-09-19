@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
-import type { AgentTranscript, BackgroundTask, BackgroundTaskOutput } from '@agentry/shared';
+import type { AgentTranscript, BackgroundTask, BackgroundTaskOutput, SessionDetail, TranscriptSearchResult } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
 
 // Subagent and workflow-agent transcripts and task output over HTTP, against synthetic sessions
@@ -127,4 +127,20 @@ test('a task launched by a subagent is listed with its owner and can be followed
   assert.equal(more.output, 'done\n');
   assert.equal(more.truncated, false);
   assert.equal(more.offset, more.bytes);
+});
+
+test('a session is searched whole over HTTP, and a search without a query or a target is refused', async () => {
+  const res = await app.inject(`/api/sessions/${SESSION}/search?q=${encodeURIComponent('SURVEY the')}`);
+  assert.equal(res.statusCode, 200);
+  const result = res.json<TranscriptSearchResult>();
+  assert.equal(result.total, (await app.inject(`/api/sessions/${SESSION}`)).json<SessionDetail>().total);
+  assert.deepEqual(result.hits.map((h) => h.index), [0]);
+  assert.equal(result.hits[0]?.snippet, 'survey the build');
+  assert.equal(result.truncated, false);
+
+  assert.equal((await app.inject(`/api/sessions/${SESSION}/search`)).statusCode, 400);
+  assert.equal((await app.inject(`/api/sessions/${SESSION}/search?q=%20`)).statusCode, 400);
+  assert.equal((await app.inject('/api/sessions/no-such-session/search?q=x')).statusCode, 404);
+  assert.equal((await app.inject('/api/runs/ghost/search?q=x')).statusCode, 404);
+  assert.equal((await app.inject('/api/runs/ghost/search')).statusCode, 400);
 });

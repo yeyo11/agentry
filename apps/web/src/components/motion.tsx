@@ -2,6 +2,7 @@
 // for reduced motion (both through CSS and motion's useReducedMotion).
 import { animate, AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Children, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 export const SPRING = { type: 'spring', stiffness: 520, damping: 38, mass: 0.7 } as const;
@@ -153,9 +154,10 @@ export function StatusDot({ tone = 'muted', live = false, title }: { tone?: DotT
 }
 
 /** Three bouncing dots shown while Claude is producing a turn. */
-export function ThinkingDots({ label = 'Claude is working' }: { label?: string }) {
+export function ThinkingDots({ label }: { label?: string }) {
+  const { t } = useTranslation('components');
   return (
-    <span className="thinking-dots" role="status" aria-label={label}>
+    <span className="thinking-dots" role="status" aria-label={label ?? t('ui.claudeIsWorking')}>
       <span />
       <span />
       <span />

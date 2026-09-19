@@ -20,10 +20,12 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useOverview } from './api';
 import { CommandPalette, CommandPaletteTrigger } from './components/CommandPalette';
 import { DetailHost } from './components/DetailHost';
+import { LanguageSwitch } from './components/LanguageSwitch';
 import { Tooltip } from './components/controls/Tooltip';
 import { BrandMark, ICON } from './components/icons';
 import { NotificationBell, NotificationHost } from './components/Notifications';
@@ -81,6 +83,7 @@ export function App() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const reduced = useReducedMotion();
+  const { t } = useTranslation('components');
   const overview = useOverview();
   // The one connection that keeps every page current; the sidebar footer shows when it is down
   const feed = useEventFeed();
@@ -105,29 +108,29 @@ export function App() {
 
   const groups: NavGroup[] = [
     {
-      label: 'Monitor',
+      label: t('nav.groups.monitor'),
       items: [
-        { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-        { to: '/agents', label: 'Agents', icon: Activity, count: (counts?.activeRuns ?? 0) + (counts?.subagents ?? 0) },
-        { to: '/tasks', label: 'Background tasks', icon: Timer, count: counts?.backgroundTasks },
-        { to: '/workflows', label: 'Workflows', icon: Waypoints, count: counts?.workflows },
+        { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
+        { to: '/agents', label: t('nav.agents'), icon: Activity, count: (counts?.activeRuns ?? 0) + (counts?.subagents ?? 0) },
+        { to: '/tasks', label: t('nav.backgroundTasks'), icon: Timer, count: counts?.backgroundTasks },
+        { to: '/workflows', label: t('nav.workflows'), icon: Waypoints, count: counts?.workflows },
       ],
     },
     {
-      label: 'Work',
+      label: t('nav.groups.work'),
       items: [
-        { to: '/sessions', label: 'Sessions', icon: History, count: counts?.liveSessions },
-        { to: '/projects', label: 'Projects', icon: FolderGit2 },
-        { to: '/orchestration', label: 'Orchestration', icon: Workflow, count: counts?.orchestrationsRunning },
+        { to: '/sessions', label: t('nav.sessions'), icon: History, count: counts?.liveSessions },
+        { to: '/projects', label: t('nav.projects'), icon: FolderGit2 },
+        { to: '/orchestration', label: t('nav.orchestration'), icon: Workflow, count: counts?.orchestrationsRunning },
       ],
     },
     {
-      label: 'Configure',
+      label: t('nav.groups.configure'),
       items: [
-        { to: '/accounts', label: 'Accounts', icon: Users },
-        { to: '/memory', label: 'Memory', icon: Brain },
-        { to: '/plugins', label: 'Plugins', icon: Puzzle },
-        { to: '/config', label: 'Config', icon: Settings2 },
+        { to: '/accounts', label: t('nav.accounts'), icon: Users },
+        { to: '/memory', label: t('nav.memory'), icon: Brain },
+        { to: '/plugins', label: t('nav.plugins'), icon: Puzzle },
+        { to: '/config', label: t('nav.config'), icon: Settings2 },
       ],
     },
   ];
@@ -136,25 +139,25 @@ export function App() {
 
   const statusTone = overview.isError ? 'bad' : healthy && !feedDown ? 'ok' : 'warn';
   const statusTitle = overview.isError
-    ? 'API unreachable'
+    ? t('shell.apiUnreachable')
     : !overview.data
-      ? 'Connecting…'
+      ? t('shell.connecting')
       : healthy
-        ? `Claude Code ${cli?.version ?? ''}`
+        ? t('shell.claudeCode', { version: cli?.version ?? '' })
         : !cli?.installed
-          ? 'CLI not detected'
-          : 'Not logged in';
+          ? t('shell.cliNotDetected')
+          : t('shell.notLoggedIn');
   const statusDetail = healthy
     ? feedDown
-      ? 'Live updates paused, retrying'
-      : [auth?.subscriptionType ?? auth?.authMethod, auth?.email].filter(Boolean).join(' · ') || 'logged in'
+      ? t('shell.liveUpdatesPaused')
+      : [auth?.subscriptionType ?? auth?.authMethod, auth?.email].filter(Boolean).join(' · ') || t('shell.loggedIn')
     : overview.isError
-      ? 'Check that the wrapper is running'
+      ? t('shell.checkWrapper')
       : !overview.data
         ? ''
         : !cli?.installed
-          ? 'Install it or set CLAUDE_BIN'
-          : 'Add a credential in Config';
+          ? t('shell.installCli')
+          : t('shell.addCredential');
 
   // In the icon rail the labels are hidden, so they move into tooltips
   const railTip = (label: string) => (collapsed ? label : undefined);
@@ -174,7 +177,7 @@ export function App() {
         )}
       </AnimatePresence>
 
-      <aside className="sidebar" aria-label="Sidebar">
+      <aside className="sidebar" aria-label={t('shell.sidebar')}>
         <div className="sidebar-head">
           <Tooltip content={railTip('Agentry')} side="right">
             <NavLink to="/" className="brand" aria-label="Agentry">
@@ -182,22 +185,22 @@ export function App() {
               <span className="brand-name">Agentry</span>
             </NavLink>
           </Tooltip>
-          <Tooltip content={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right">
+          <Tooltip content={collapsed ? t('shell.expandSidebar') : t('shell.collapseSidebar')} side="right">
             <button
               type="button"
               className="icon-btn sidebar-collapse"
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label={collapsed ? t('shell.expandSidebar') : t('shell.collapseSidebar')}
               onClick={() => setCollapsed((v) => !v)}
             >
               {collapsed ? <PanelLeftOpen {...ICON} /> : <PanelLeftClose {...ICON} />}
             </button>
           </Tooltip>
-          <button type="button" className="icon-btn sidebar-close" aria-label="Close navigation" onClick={() => setMobileNav(false)}>
+          <button type="button" className="icon-btn sidebar-close" aria-label={t('shell.closeNavigation')} onClick={() => setMobileNav(false)}>
             <X {...ICON} />
           </button>
         </div>
 
-        <nav className="nav" aria-label="Main">
+        <nav className="nav" aria-label={t('shell.mainNavigation')}>
           {groups.map((group) => (
             <div key={group.label} className="nav-group">
               <div className="nav-group-label">{group.label}</div>
@@ -213,7 +216,7 @@ export function App() {
                       </span>
                       <span className="nav-label">{item.label}</span>
                       {item.count ? (
-                        <span className="nav-count" aria-label={`${item.count} active`}>
+                        <span className="nav-count" aria-label={t('nav.activeCount', { count: item.count })}>
                           <span className="nav-count-ping" aria-hidden />
                           {item.count}
                         </span>
@@ -226,12 +229,12 @@ export function App() {
           ))}
         </nav>
 
-        <Tooltip content={railTip('API reference')} side="right">
+        <Tooltip content={railTip(t('nav.apiReference'))} side="right">
           <a href="/docs" target="_blank" rel="noopener noreferrer" className="nav-link nav-link-ext">
             <span className="nav-icon">
               <BookOpen {...ICON} />
             </span>
-            <span className="nav-label">API reference</span>
+            <span className="nav-label">{t('nav.apiReference')}</span>
           </a>
         </Tooltip>
 
@@ -248,10 +251,10 @@ export function App() {
 
       <div className="content">
         <header className="topbar">
-          <button type="button" className="icon-btn topbar-menu" aria-label="Open navigation" onClick={() => setMobileNav(true)}>
+          <button type="button" className="icon-btn topbar-menu" aria-label={t('shell.openNavigation')} onClick={() => setMobileNav(true)}>
             <Menu {...ICON} />
           </button>
-          <div className="crumbs" aria-label="Breadcrumb">
+          <div className="crumbs" aria-label={t('shell.breadcrumb')}>
             {current ? (
               <>
                 <span className="crumb-group">{current.group}</span>
@@ -267,10 +270,11 @@ export function App() {
           <div className="topbar-actions">
             <CommandPaletteTrigger />
             <NotificationBell />
+            <LanguageSwitch />
             <ThemeToggle />
             <button className="btn btn-primary topbar-new" onClick={() => navigate('/runs/new')}>
               <Plus {...ICON} />
-              <span className="topbar-new-label">New run</span>
+              <span className="topbar-new-label">{t('shell.newRun')}</span>
             </button>
           </div>
         </header>
@@ -295,7 +299,7 @@ export function App() {
               <Route path="/memory" element={<Memory />} />
               <Route path="/plugins" element={<Plugins />} />
               <Route path="/config" element={<Config />} />
-              <Route path="*" element={<Empty icon={SearchX} title="Page not found" />} />
+              <Route path="*" element={<Empty icon={SearchX} title={t('shell.pageNotFound')} />} />
             </Routes>
             </Suspense>
           </PageTransition>

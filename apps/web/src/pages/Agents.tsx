@@ -1,4 +1,5 @@
 import { Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useActive, useRuns, useSubagents } from '../api';
 import { Location } from '../components/Location';
@@ -8,6 +9,7 @@ import { useDetailPanel } from '../lib/detail';
 import { durationBetween, timeAgo } from '../lib/format';
 
 export function Agents() {
+  const { t } = useTranslation('work');
   const runs = useRuns();
   const subagents = useSubagents();
   const active = useActive();
@@ -26,22 +28,26 @@ export function Agents() {
   return (
     <>
       <PageHeader
-        title="Agents in progress"
-        subtitle={`${live.length} live runs · ${runningSubs} running subagents · ${liveCli.length} live CLI sessions`}
+        title={t('agents.title')}
+        subtitle={[
+          t('agents.liveRuns', { count: live.length }),
+          t('agents.runningSubagents', { count: runningSubs }),
+          t('agents.liveCliSessions', { count: liveCli.length }),
+        ].join(' · ')}
         actions={
           <Link to="/runs/new" className="btn btn-primary">
             <Plus size={14} strokeWidth={2} aria-hidden />
-            New run
+            {t('agents.newRun')}
           </Link>
         }
       />
       <ErrorBox error={runs.error ?? subagents.error ?? active.error} />
 
-      <Card title={`Agentry runs — live (${live.length})`}>
+      <Card title={t('agents.liveCard', { n: live.length })}>
         {runs.isLoading ? (
           <Loading />
         ) : live.length === 0 ? (
-          <Empty title="No live runs">Runs started through the API or this UI show up here.</Empty>
+          <Empty title={t('agents.noLiveRuns')}>{t('agents.noLiveRunsHint')}</Empty>
         ) : (
           <div className="stack">
             {live.map((run) => (
@@ -51,23 +57,20 @@ export function Agents() {
         )}
       </Card>
 
-      <Card title={`Subagents (${subs.length})`}>
+      <Card title={t('agents.subagentsCard', { n: subs.length })}>
         {subs.length === 0 ? (
-          <Empty title="No subagents">
-            Agents spawned with the Agent tool — by a run, or by a terminal session that is live or ended in the last
-            day — are tracked here. The ones a workflow launched are listed under Workflows.
-          </Empty>
+          <Empty title={t('agents.noSubagents')}>{t('agents.noSubagentsHint')}</Empty>
         ) : (
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Status</th>
-                  <th>Type</th>
-                  <th>Description</th>
-                  <th>Location</th>
-                  <th>Started by</th>
-                  <th>Duration</th>
+                  <th>{t('shared.column.status')}</th>
+                  <th>{t('agents.type')}</th>
+                  <th>{t('agents.description')}</th>
+                  <th>{t('shared.column.location')}</th>
+                  <th>{t('shared.column.startedBy')}</th>
+                  <th>{t('shared.column.duration')}</th>
                   <th />
                 </tr>
               </thead>
@@ -82,7 +85,7 @@ export function Agents() {
                       {sub.background && (
                         <>
                           {' '}
-                          <Tag tone="muted">background</Tag>
+                          <Tag tone="muted">{t('shared.background')}</Tag>
                         </>
                       )}
                     </td>
@@ -95,7 +98,7 @@ export function Agents() {
                       {sub.runId ? (
                         <Link to={`/runs/${sub.runId}`}>{sub.runName}</Link>
                       ) : (
-                        <Link to={`/sessions/${sub.sessionId ?? ''}`}>{sub.runName || 'CLI session'}</Link>
+                        <Link to={`/sessions/${sub.sessionId ?? ''}`}>{sub.runName || t('shared.cliSession')}</Link>
                       )}
                     </td>
                     <td className="nowrap">{durationBetween(sub.startedAt, sub.endedAt)}</td>
@@ -106,7 +109,7 @@ export function Agents() {
                           className="btn btn-small"
                           onClick={() => open({ kind: 'subagent', sessionId: sub.sessionId ?? '', agentId: sub.agentId ?? '' })}
                         >
-                          Details
+                          {t('agents.details')}
                         </button>
                       )}
                     </td>
@@ -118,22 +121,22 @@ export function Agents() {
         )}
       </Card>
 
-      <Card title={`Live CLI sessions (${liveCli.length})`}>
+      <Card title={t('agents.cliCard', { n: liveCli.length })}>
         {active.isLoading ? (
           <Loading />
         ) : (active.data ?? []).length === 0 ? (
-          <Empty title="No live CLI sessions">Reported by `claude agents --json`.</Empty>
+          <Empty title={t('agents.noCli')}>{t('agents.noCliHint')}</Empty>
         ) : (
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Status</th>
-                  <th>Name</th>
-                  <th>Kind</th>
-                  <th>Location</th>
-                  <th>PID</th>
-                  <th>Started</th>
+                  <th>{t('shared.column.status')}</th>
+                  <th>{t('agents.name')}</th>
+                  <th>{t('agents.kind')}</th>
+                  <th>{t('shared.column.location')}</th>
+                  <th>{t('agents.pid')}</th>
+                  <th>{t('shared.column.started')}</th>
                   <th />
                 </tr>
               </thead>
@@ -146,7 +149,7 @@ export function Agents() {
                     <td>
                       {s.name || s.sessionId.slice(0, 8)}
                       {!s.live && (
-                        <Tag tone="muted">{s.state === 'done' ? 'finished' : 'spare'}</Tag>
+                        <Tag tone="muted">{s.state === 'done' ? t('agents.finished') : t('agents.spare')}</Tag>
                       )}
                     </td>
                     <td>{s.kind}</td>
@@ -156,7 +159,11 @@ export function Agents() {
                     <td>{s.pid}</td>
                     <td className="nowrap">{timeAgo(s.startedAt)}</td>
                     <td className="nowrap">
-                      {s.runId ? <Link to={`/runs/${s.runId}`}>run</Link> : <Link to={`/sessions/${s.sessionId}`}>session</Link>}
+                      {s.runId ? (
+                        <Link to={`/runs/${s.runId}`}>{t('agents.runLink')}</Link>
+                      ) : (
+                        <Link to={`/sessions/${s.sessionId}`}>{t('agents.sessionLink')}</Link>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -167,7 +174,7 @@ export function Agents() {
       </Card>
 
       {ended.length > 0 && (
-        <Card title={`Ended runs (${ended.length})`}>
+        <Card title={t('agents.endedCard', { n: ended.length })}>
           <div className="stack">
             {ended.map((run) => (
               <RunCard key={run.id} run={run} compact />

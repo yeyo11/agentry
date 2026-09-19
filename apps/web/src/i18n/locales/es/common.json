@@ -1,0 +1,37 @@
+{
+  "language": "Idioma",
+  "actions": {
+    "cancel": "Cancela",
+    "delete": "Elimina",
+    "remove": "Quita",
+    "open": "Abre",
+    "stop": "Detén"
+  },
+  "loading": "Cargando…",
+  "requestTimeout": "El servidor no ha respondido a tiempo. Puede que siga trabajando: recarga para ver el estado actual.",
+  "time": {
+    "justNow": "ahora mismo",
+    "now": "ahora",
+    "in": "dentro de {{duration}}"
+  },
+  "status": {
+    "starting": "iniciando",
+    "busy": "trabajando",
+    "idle": "inactivo",
+    "running": "en curso",
+    "pending": "pendiente",
+    "completed": "completado",
+    "success": "correcto",
+    "failed": "fallido",
+    "error": "error",
+    "killed": "abortado",
+    "stopped": "detenido",
+    "skipped": "omitido",
+    "waiting": "esperando",
+    "merging": "fusionando",
+    "resolving": "resolviendo",
+    "merged": "fusionado",
+    "conflicted": "en conflicto",
+    "unknown": "desconocido"
+  }
+}

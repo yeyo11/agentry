@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { hasOpenLayer } from './controls/layer';
 import { ICON } from './icons';
 import { EASE_OUT, motion, useReducedMotion } from './motion';
@@ -40,6 +41,7 @@ export function Dialog({
   const panelRef = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
   const drawer = variant === 'drawer';
+  const { t } = useTranslation(['components', 'common']);
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -98,7 +100,7 @@ export function Dialog({
       >
         <div className="dialog-head">
           <h2 id={titleId}>{title}</h2>
-          <button className="icon-btn" aria-label="Close dialog" onClick={onClose}>
+          <button className="icon-btn" aria-label={t('dialog.close')} onClick={onClose}>
             <X {...ICON} />
           </button>
         </div>
@@ -126,6 +128,7 @@ type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
 const ConfirmContext = createContext<ConfirmFn | null>(null);
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation(['components', 'common']);
   const [pending, setPending] = useState<(ConfirmOptions & { resolve: (ok: boolean) => void }) | null>(null);
 
   const confirm = useCallback<ConfirmFn>(
@@ -154,19 +157,19 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           footer={
             <>
               <button className="btn" onClick={() => settle(false)}>
-                {pending.cancelLabel ?? 'Cancel'}
+                {pending.cancelLabel ?? t('common:actions.cancel')}
               </button>
               <button
                 className={`btn ${pending.danger ? 'btn-danger-solid' : 'btn-primary'}`}
                 data-autofocus
                 onClick={() => settle(true)}
               >
-                {pending.confirmLabel ?? 'Confirm'}
+                {pending.confirmLabel ?? t('dialog.confirm')}
               </button>
             </>
           }
         >
-          {pending.body ?? 'Are you sure?'}
+          {pending.body ?? t('dialog.areYouSure')}
         </Dialog>
       )}
     </ConfirmContext.Provider>

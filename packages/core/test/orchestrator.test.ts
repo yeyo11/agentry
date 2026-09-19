@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -192,6 +192,139 @@ test('dependent tasks build on their dependencies and the graph ends on one bran
   db.close();
 });
 
+test('a graph in a subdirectory gets its worktrees where the CLI looks, and works in that subdirectory', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  mkdirSync(join(repo, 'app'));
+  writeFileSync(join(repo, 'app', 'main.txt'), 'main\n');
+  execFileSync('git', ['-C', repo, 'add', '-A']);
+  execFileSync('git', ['-C', repo, 'commit', '-q', '-m', 'app']);
+  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+
+  const started = orchestrator.create({
+    name: 'in app',
+    cwd: join(repo, 'app'),
+    worktree: true,
+    synthesize: true,
+    tasks: [
+      { id: 'api', name: 'API', prompt: 'FAKE-WRITE api.txt server' },
+      { id: 'shell', name: 'Shell', prompt: 'FAKE-WRITE shell.txt electron', dependsOn: ['api'] },
+    ],
+  });
+  const orch = await settle(orchestrator, started.id);
+
+  assert.equal(orch.status, 'completed', orch.tasks.map((t) => t.error).join('; '));
+  for (const t of orch.tasks) {
+    assert.equal(t.worktree, join(repo, '.claude', 'worktrees', `${orch.id.slice(0, 8)}-${t.id}`));
+    // In the same subdirectory it would have had in the checkout, with its dependency's work
+    assert.match(t.result ?? '', new RegExp(`^cwd=${join(t.worktree ?? '', 'app')} `));
+  }
+  assert.match(orch.tasks.find((t) => t.id === 'shell')?.result ?? '', /files=api\.txt,main\.txt,shell\.txt/);
+  const integration = orch.integration;
+  assert.equal(integration?.status, 'merged', String(integration?.error));
+  assert.equal(integration?.worktree, join(repo, '.claude', 'worktrees', `${orch.id.slice(0, 8)}-integration`));
+  assert.equal(show(repo, `${integration?.branch}:app/api.txt`), 'server');
+  assert.equal(show(repo, `${integration?.branch}:app/shell.txt`), 'electron');
+  assert.match(orch.finalResult ?? '', new RegExp(`cwd=${join(integration?.worktree ?? '', 'app')} `));
+  // Nothing was created under the subdirectory itself
+  assert.equal(existsSync(join(repo, 'app', '.claude')), false);
+  db.close();
+});
+
+test('a graph started from a linked worktree builds on that worktree, with its worktrees where the CLI looks', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  // The graph runs from a linked worktree whose branch is ahead of the main checkout
+  const linked = `${repo}-linked`;
+  execFileSync('git', ['-C', repo, 'worktree', 'add', '-q', '-b', 'feature', linked]);
+  writeFileSync(join(linked, 'feature.txt'), 'feature\n');
+  execFileSync('git', ['-C', linked, 'add', '-A']);
+  execFileSync('git', ['-C', linked, 'commit', '-q', '-m', 'feature']);
+  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+
+  const started = orchestrator.create({
+    name: 'from linked',
+    cwd: linked,
+    worktree: true,
+    tasks: [{ id: 'docs', name: 'Docs', prompt: 'FAKE-WRITE docs.txt written' }],
+  });
+  const orch = await settle(orchestrator, started.id);
+
+  assert.equal(orch.status, 'completed', orch.tasks.map((t) => t.error).join('; '));
+  // The CLI keeps --worktree checkouts under the main checkout, not under the linked one
+  const task = orch.tasks[0];
+  assert.equal(task?.worktree, join(repo, '.claude', 'worktrees', `${orch.id.slice(0, 8)}-docs`));
+  assert.equal(existsSync(join(linked, '.claude')), false);
+  // It starts from what the linked worktree has, not from the main checkout's branch
+  assert.match(task?.result ?? '', /files=.*feature\.txt/);
+  const integration = orch.integration;
+  assert.equal(integration?.status, 'merged', String(integration?.error));
+  assert.equal(show(repo, `${integration?.branch}:feature.txt`), 'feature');
+  assert.equal(show(repo, `${integration?.branch}:docs.txt`), 'written');
+  db.close();
+});
+
+test('a graph in an ignored subdirectory works at the top of its worktrees, where its work is kept', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  // Like the wrapper's own workspace/, the default cwd, inside this repository
+  writeFileSync(join(repo, '.gitignore'), 'workspace/\n');
+  execFileSync('git', ['-C', repo, 'add', '-A']);
+  execFileSync('git', ['-C', repo, 'commit', '-q', '-m', 'ignore']);
+  mkdirSync(join(repo, 'workspace'));
+  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+
+  const started = orchestrator.create({
+    name: 'in workspace',
+    cwd: join(repo, 'workspace'),
+    worktree: true,
+    tasks: [{ id: 'api', name: 'API', prompt: 'FAKE-WRITE api.txt server' }],
+  });
+  const orch = await settle(orchestrator, started.id);
+
+  assert.equal(orch.status, 'completed', orch.tasks.map((t) => t.error).join('; '));
+  const api = orch.tasks[0];
+  assert.equal(api?.worktree, join(repo, '.claude', 'worktrees', `${orch.id.slice(0, 8)}-api`));
+  assert.match(api?.result ?? '', new RegExp(`^cwd=${api?.worktree} `));
+  assert.equal(show(repo, `${orch.integration?.branch}:api.txt`), 'server');
+  db.close();
+});
+
+test('resuming a graph whose worktrees were put in its subdirectory moves them where the CLI looks', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  mkdirSync(join(repo, 'app'));
+  writeFileSync(join(repo, 'app', 'main.txt'), 'main\n');
+  execFileSync('git', ['-C', repo, 'add', '-A']);
+  execFileSync('git', ['-C', repo, 'commit', '-q', '-m', 'app']);
+  // What the bug left: the worktree under the subdirectory, and a worker that failed before starting
+  const stale = join(repo, 'app', '.claude', 'worktrees', 'graph-1-api');
+  execFileSync('git', ['-C', repo, 'worktree', 'add', '-q', '-b', 'worktree-graph-1-api', stale]);
+  const failed = stoppedGraph(join(repo, 'app')).tasks[0] as OrchestrationTaskState;
+  db.saveOrchestrations([
+    stoppedGraph(join(repo, 'app'), {
+      status: 'failed',
+      worktree: true,
+      baseCommit: execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+      tasks: [{ ...failed, prompt: 'FAKE-WRITE api.txt server', status: 'failed', worktree: stale, branch: 'worktree-graph-1-api' }],
+    }),
+  ]);
+  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+
+  orchestrator.resume('graph-1', {});
+  const orch = await settle(orchestrator, 'graph-1');
+
+  assert.equal(orch.status, 'completed', orch.tasks.map((t) => t.error).join('; '));
+  assert.equal(orch.tasks[0]?.worktree, join(repo, '.claude', 'worktrees', 'graph-1-api'));
+  assert.equal(existsSync(stale), false);
+  assert.equal(show(repo, `${orch.integration?.branch}:app/api.txt`), 'server');
+  db.close();
+});
+
 test('branches that conflict are merged by an integrator agent', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
@@ -252,5 +385,76 @@ test('a finished graph from before integration existed can be integrated afterwa
   assert.equal(orch?.integration?.status, 'merged', String(orch?.integration?.error));
   assert.equal(show(repo, `${orch?.integration?.branch}:one.txt`), 'one');
   assert.equal(show(repo, `${orch?.integration?.branch}:two.txt`), 'two');
+  db.close();
+});
+
+// ---------- following a task's run after its first result ----------
+
+async function until<T>(read: () => T, done: (value: T) => boolean, what: string): Promise<T> {
+  for (let i = 0; i < 300; i++) {
+    const value = read();
+    if (done(value)) return value;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(`timed out waiting for ${what}`);
+}
+
+test('a task whose run was stopped and then continued to a result delivers that work', async () => {
+  // Seen on 2026-09-19: a stopped worker was continued by hand, finished and committed on its
+  // branch, and the graph never noticed. The task stayed failed, its cost went uncounted, its
+  // branch was left out of the integration, and the synthesis reported the work as missing.
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  const runs = new RunManager(config, db);
+  const orchestrator = new Orchestrator(config, runs, db);
+
+  const started = orchestrator.create({
+    name: 'late',
+    cwd: repo,
+    worktree: true,
+    tasks: [
+      { id: 'quick', name: 'Quick', prompt: 'FAKE-WRITE quick.txt fast' },
+      { id: 'slow', name: 'Slow', prompt: 'FAKE-HANG' },
+    ],
+  });
+  const slowRun = await until(() => orchestrator.get(started.id)?.tasks.find((t) => t.id === 'slow')?.runId, Boolean, 'the slow worker');
+  assert.ok(slowRun);
+  await until(() => runs.get(slowRun)?.pid, Boolean, 'the slow worker to spawn');
+  runs.stop(slowRun);
+
+  let orch = await settle(orchestrator, started.id);
+  const slow = () => orchestrator.get(started.id)?.tasks.find((t) => t.id === 'slow');
+  assert.equal(orch.status, 'failed');
+  assert.equal(slow()?.status, 'failed');
+  assert.deepEqual(orch.integration?.merged, ['quick']);
+
+  // A turn that fails keeps the task failed, with that turn's error rather than the stop's
+  await runs.exited(slowRun);
+  runs.send(slowRun, 'FAKE-FAIL the tests do not pass');
+  await until(slow, (t) => t?.error === 'the tests do not pass', 'the failed turn to reach the task');
+  assert.equal(slow()?.status, 'failed');
+
+  await runs.exited(slowRun);
+  runs.send(slowRun, 'FAKE-WRITE slow.txt finally');
+  await until(slow, (t) => t?.status === 'completed', 'the task to complete');
+  orch = await until(
+    () => orchestrator.get(started.id) ?? orch,
+    (o) => o.integration?.status === 'merged' && o.integration.merged.includes('slow'),
+    'the late branch to be integrated',
+  );
+
+  const done = slow();
+  assert.equal(done?.error, null);
+  assert.match(done?.result ?? '', /slow\.txt/);
+  assert.ok(done?.commit, 'the late work was not committed');
+  // The run's whole cost, and the graph's with it
+  assert.equal(done?.costUsd, runs.get(slowRun)?.costUsd);
+  assert.ok((done?.costUsd ?? 0) > 0);
+  assert.equal(orch.costUsd, orch.tasks.reduce((sum, t) => sum + t.costUsd, 0));
+  assert.equal(orch.status, 'completed');
+  assert.deepEqual([...(orch.integration?.merged ?? [])].sort(), ['quick', 'slow']);
+  assert.equal(show(repo, `${orch.integration?.branch}:slow.txt`), 'finally');
+  assert.equal(show(repo, `${orch.integration?.branch}:quick.txt`), 'fast');
   db.close();
 });

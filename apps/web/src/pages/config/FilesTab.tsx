@@ -2,6 +2,7 @@ import type { ConfigFileNode } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Folder, FolderOpen, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiRequestError, keys, type Scope } from '../../api';
 import { CodeEditor, languageForPath } from '../../components/CodeEditor';
 import { Select, Switch, Tooltip } from '../../components/controls';
@@ -13,11 +14,11 @@ import { Card, CopyButton, Empty, ErrorBox, Field, Skeleton, Tag } from '../../c
 import { useDirty, useLeaveGuard } from '../../lib/dirty';
 import { errorMessage, formatBytes, timeAgo } from '../../lib/format';
 
+// Labels live in the `config` locale under files.templates
 const TEMPLATES = [
-  { id: 'empty', label: 'Empty file', path: '', executable: false, content: '' },
+  { id: 'empty', path: '', executable: false, content: '' },
   {
     id: 'hook',
-    label: 'Hook script (bash)',
     path: 'hooks/my-hook.sh',
     executable: true,
     content: `#!/usr/bin/env bash
@@ -40,14 +41,12 @@ exit 0
   },
   {
     id: 'keybindings',
-    label: 'keybindings.json',
     path: 'keybindings.json',
     executable: false,
     content: '{\n  "bindings": []\n}\n',
   },
   {
     id: 'rule',
-    label: 'Rule (markdown)',
     path: 'rules/my-rule.md',
     executable: false,
     content: '---\npaths:\n  - "src/**/*.ts"\n---\n\n# Rule\n\n- …\n',
@@ -76,6 +75,7 @@ function TreeNode({
   const isDir = node.type === 'dir';
   const open = expanded.has(node.path);
   const FileIcon = fileIcon(node.name);
+  const { t } = useTranslation(['config', 'common']);
   return (
     <>
       <div className="tree-line">
@@ -101,15 +101,15 @@ function TreeNode({
         {!isDir && node.size !== undefined && <span className="small muted tree-size">{formatBytes(node.size)}</span>}
       </button>
       {isDir && (
-        <Tooltip content="Delete folder">
+        <Tooltip content={t('files.deleteFolder')}>
           <button
             type="button"
             className="icon-btn tree-delete"
-            aria-label={`Delete folder ${node.path}`}
+            aria-label={t('files.deleteFolderPath', { path: node.path })}
             onClick={() => onDeleteDir(node.path)}
           >
             <Trash2 {...ICON_SM} />
-            <span className="sr-only">Delete folder</span>
+            <span className="sr-only">{t('files.deleteFolder')}</span>
           </button>
         </Tooltip>
       )}
@@ -131,7 +131,7 @@ function TreeNode({
           ))
         ) : (
           <div className="small muted tree-empty" style={{ paddingLeft: 22 + (depth + 1) * 14 }}>
-            empty
+            {t('files.emptyDir')}
           </div>
         )}
         </Collapse>
@@ -149,46 +149,50 @@ function NewFileDialog({
   onCreate: (path: string, content: string, executable: boolean) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation(['config', 'common']);
   const [templateId, setTemplateId] = useState<(typeof TEMPLATES)[number]['id']>('empty');
   const [path, setPath] = useState('');
-  const template = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
+  const template = TEMPLATES.find((entry) => entry.id === templateId) ?? TEMPLATES[0];
   const clean = path.trim().replace(/^\/+/, '');
   const invalid = clean.split('/').some((part) => part === '' || part === '.' || part === '..');
   const taken = existing.has(clean);
 
   return (
     <Dialog
-      title="New file"
+      title={t('files.newFile')}
       onClose={onClose}
       width={520}
       footer={
         <>
           <button className="btn" onClick={onClose}>
-            Cancel
+            {t('common:actions.cancel')}
           </button>
           <button
             className="btn btn-primary"
             disabled={!clean || invalid || taken}
             onClick={() => onCreate(clean, template.content, template.executable)}
           >
-            Create in editor
+            {t('files.createInEditor')}
           </button>
         </>
       }
     >
       <div className="form">
-        <Field label="Template">
+        <Field label={t('files.template')}>
           <Select
             value={templateId}
             onChange={(value) => {
-              const next = TEMPLATES.find((t) => t.id === value) ?? TEMPLATES[0];
+              const next = TEMPLATES.find((entry) => entry.id === value) ?? TEMPLATES[0];
               setTemplateId(next.id);
               if (next.path) setPath(next.path);
             }}
-            options={TEMPLATES.map((t) => ({ value: t.id, label: t.label }))}
+            options={TEMPLATES.map((entry) => ({
+              value: entry.id,
+              label: t(`files.templates.${entry.id}`),
+            }))}
           />
         </Field>
-        <Field label="Path" hint="Relative to the root shown above. Missing directories are created on save.">
+        <Field label={t('files.path')} hint={t('files.pathHint')}>
           <input
             data-autofocus
             className={`mono ${clean && (invalid || taken) ? 'is-invalid' : ''}`}
@@ -197,8 +201,8 @@ function NewFileDialog({
             onChange={(e) => setPath(e.target.value)}
           />
         </Field>
-        {taken && <span className="field-hint text-err">A file with this path already exists.</span>}
-        {clean && invalid && <span className="field-hint text-err">Use a relative path without “..”.</span>}
+        {taken && <span className="field-hint text-err">{t('files.taken')}</span>}
+        {clean && invalid && <span className="field-hint text-err">{t('files.invalidPath')}</span>}
       </div>
     </Dialog>
   );
@@ -222,6 +226,7 @@ function flatten(nodes: ConfigFileNode[], out = new Set<string>()): Set<string> 
 }
 
 export function FilesTab({ scope }: { scope: Scope }) {
+  const { t } = useTranslation(['config', 'common']);
   const rootId = scope.projectId ?? 'user';
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -276,9 +281,9 @@ export function FilesTab({ scope }: { scope: Scope }) {
         savedExecutable: saved.executable,
         isNew: false,
       });
-      toast.success('File saved', saved.absolutePath);
+      toast.success(t('files.saved'), saved.absolutePath);
     },
-    onError: (err) => toast.error('Could not save the file', err),
+    onError: (err) => toast.error(t('files.saveFailed'), err),
   });
 
   const remove = useMutation({
@@ -287,9 +292,9 @@ export function FilesTab({ scope }: { scope: Scope }) {
       void queryClient.invalidateQueries({ queryKey: keys.fileTree(rootId) });
       setSelected(null);
       setFile(null);
-      toast.success(`Deleted ${path}`);
+      toast.success(t('files.deleted', { path }));
     },
-    onError: (err) => toast.error('Could not delete', err),
+    onError: (err) => toast.error(t('files.deleteFailed'), err),
   });
 
   const select = async (path: string) => {
@@ -322,39 +327,36 @@ export function FilesTab({ scope }: { scope: Scope }) {
 
   return (
     <Card
-      title="Files"
+      title={t('config.tabs.files')}
       actions={
         <div className="toolbar">
           <button className="btn btn-small" onClick={() => void tree.refetch()} disabled={tree.isFetching}>
-            Refresh
+            {t('shared.refresh')}
           </button>
           <button className="btn btn-small btn-primary" onClick={() => void guard().then((ok) => ok && setCreating(true))}>
             <Plus size={14} strokeWidth={2} aria-hidden />
-            New file
+            {t('files.newFile')}
           </button>
         </div>
       }
     >
       <div className="editor-meta">
-        <span className="small muted">Root</span>
+        <span className="small muted">{t('files.root')}</span>
         <span className="mono small ellipsis" title={root?.path}>
           {root?.path ?? rootId}
         </span>
-        {root && <CopyButton text={root.path} label="Copy root path" />}
-        {root && !root.exists && <Tag tone="info">directory does not exist yet · created on first save</Tag>}
+        {root && <CopyButton text={root.path} label={t('files.copyRoot')} />}
+        {root && !root.exists && <Tag tone="info">{t('files.rootMissing')}</Tag>}
       </div>
-      <p className="small muted">
-        Everything Claude Code reads from this directory: hook scripts, skill resources, rules, keybindings, memory… Secrets,
-        transcripts and caches are hidden by the API.
-      </p>
+      <p className="small muted">{t('files.intro')}</p>
       <ErrorBox error={tree.error} />
 
       <div className="master-detail master-detail-files">
-        <div className="master tree" role="tree" aria-label="Configuration files">
+        <div className="master tree" role="tree" aria-label={t('files.tree')}>
           {tree.isLoading ? (
             <Skeleton rows={6} />
           ) : (tree.data ?? []).length === 0 ? (
-            <div className="small muted master-empty">No files yet.</div>
+            <div className="small muted master-empty">{t('files.noFiles')}</div>
           ) : (
             (tree.data ?? []).map((node) => (
               <TreeNode
@@ -367,9 +369,9 @@ export function FilesTab({ scope }: { scope: Scope }) {
                 onSelect={(path) => void select(path)}
                 onDeleteDir={(path) =>
                   void confirm({
-                    title: `Delete folder ${path}?`,
-                    body: 'The folder and everything inside it are deleted from disk. This cannot be undone.',
-                    confirmLabel: 'Delete folder',
+                    title: t('files.deleteFolderTitle', { path }),
+                    body: t('files.deleteFolderBody'),
+                    confirmLabel: t('files.deleteFolder'),
                     danger: true,
                   }).then((ok) => ok && remove.mutate(path))
                 }
@@ -382,28 +384,35 @@ export function FilesTab({ scope }: { scope: Scope }) {
                 +
               </span>
               <span className="ellipsis">{file.path}</span>
-              <Tag tone="warn">new</Tag>
+              <Tag tone="warn">{t('files.new')}</Tag>
             </div>
           )}
         </div>
 
         <div className="detail">
           {selected === null ? (
-            <Empty title="Select a file" action={<button className="btn btn-primary" onClick={() => setCreating(true)}>New file</button>}>
-              Pick a file from the tree to view and edit it, or create a new one.
+            <Empty
+              title={t('files.select')}
+              action={
+                <button className="btn btn-primary" onClick={() => setCreating(true)}>
+                  {t('files.newFile')}
+                </button>
+              }
+            >
+              {t('files.selectHint')}
             </Empty>
           ) : loadError && !file ? (
             <div className="state state-empty">
-              <strong>{loadError.status === 404 ? 'File not found' : 'This file cannot be opened here'}</strong>
+              <strong>{loadError.status === 404 ? t('files.notFound') : t('files.cannotOpen')}</strong>
               <div className="muted">{errorMessage(loadError)}</div>
-              <div className="small muted">Binary, very large and protected files are not editable from the browser.</div>
+              <div className="small muted">{t('files.cannotOpenHint')}</div>
             </div>
           ) : !file ? (
             <Skeleton rows={10} />
           ) : (
             <div className="form">
               <div className="editor-meta">
-                <nav className="breadcrumb" aria-label="File path">
+                <nav className="breadcrumb" aria-label={t('files.filePath')}>
                   {file.path.split('/').map((part, index, parts) => (
                     <span key={index} className={index === parts.length - 1 ? 'strong' : 'muted'}>
                       {part}
@@ -413,18 +422,18 @@ export function FilesTab({ scope }: { scope: Scope }) {
                 </nav>
                 {content.data && !file.isNew && (
                   <>
-                    <CopyButton text={content.data.absolutePath} label="Copy absolute path" />
+                    <CopyButton text={content.data.absolutePath} label={t('files.copyAbsolute')} />
                     <span className="small muted">
                       {formatBytes(content.data.size)} · {timeAgo(content.data.updatedAt)}
                     </span>
                   </>
                 )}
-                {dirty && <Tag tone="warn">{file.isNew ? 'not saved yet' : 'unsaved changes'}</Tag>}
+                {dirty && <Tag tone="warn">{file.isNew ? t('resources.notSavedYet') : t('shared.unsaved')}</Tag>}
               </div>
               <CodeEditor
                 key={`${rootId}:${file.path}:${file.isNew}`}
                 language={languageForPath(file.path)}
-                ariaLabel={`Contents of ${file.path}`}
+                ariaLabel={t('files.contents', { path: file.path })}
                 minHeight="400px"
                 value={file.content}
                 onChange={(next) => setFile((f) => (f ? { ...f, content: next } : f))}
@@ -432,7 +441,7 @@ export function FilesTab({ scope }: { scope: Scope }) {
               />
               <div className="form-actions">
                 <button className="btn btn-primary" disabled={!dirty || save.isPending} onClick={() => save.mutate(file)}>
-                  {save.isPending ? 'Saving…' : file.isNew ? 'Create file' : 'Save'}
+                  {save.isPending ? t('shared.saving') : file.isNew ? t('files.create') : t('shared.save')}
                 </button>
                 <button
                   className="btn"
@@ -444,14 +453,14 @@ export function FilesTab({ scope }: { scope: Scope }) {
                     } else setFile({ ...file, content: file.saved, executable: file.savedExecutable });
                   }}
                 >
-                  Discard
+                  {t('shared.discard')}
                 </button>
                 <Switch
                   checked={file.executable}
                   onChange={(executable) => setFile((f) => (f ? { ...f, executable } : f))}
-                  tooltip="chmod +x — required for hook scripts run directly"
+                  tooltip={t('files.executableHint')}
                 >
-                  Executable
+                  {t('files.executable')}
                 </Switch>
                 {!file.isNew && selectedNode && (
                   <button
@@ -459,14 +468,14 @@ export function FilesTab({ scope }: { scope: Scope }) {
                     disabled={remove.isPending}
                     onClick={() =>
                       void confirm({
-                        title: `Delete ${file.path}?`,
-                        body: 'The file is deleted from disk. This cannot be undone.',
-                        confirmLabel: 'Delete file',
+                        title: t('files.deleteTitle', { path: file.path }),
+                        body: t('resources.deleteFileBody'),
+                        confirmLabel: t('files.deleteFile'),
                         danger: true,
                       }).then((ok) => ok && remove.mutate(file.path))
                     }
                   >
-                    Delete
+                    {t('common:actions.delete')}
                   </button>
                 )}
               </div>

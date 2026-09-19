@@ -8,6 +8,7 @@ import { ConfirmProvider } from './components/Dialog';
 import { ToastProvider } from './components/Toast';
 import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
+import './i18n'; // picks the language and sets <html lang> before the first render
 import './lib/theme'; // applies the stored theme before the first paint
 import './styles.css';
 import './controls.css';

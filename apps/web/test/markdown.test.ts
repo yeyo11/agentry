@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { TooltipProvider } from '../src/components/controls/Tooltip.tsx';
-import Markdown from '../src/components/Markdown.tsx';
+
+// The labels follow navigator.languages; pin it so the markup does not depend on the machine.
+Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });
+const { TooltipProvider } = await import('../src/components/controls/Tooltip.tsx');
+const { default: Markdown } = await import('../src/components/Markdown.tsx');
 
 // CodeBlock's copy button carries a tooltip
 const html = (text: string) => renderToStaticMarkup(createElement(TooltipProvider, null, createElement(Markdown, { text })));

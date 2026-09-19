@@ -1,6 +1,7 @@
 import type { PermissionMode, RunSummary } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, keys } from '../api';
 import { Combobox, Select } from './controls';
 import { ErrorBox, MODEL_OPTIONS, PERMISSION_MODES } from './ui';
@@ -11,6 +12,7 @@ import { ErrorBox, MODEL_OPTIONS, PERMISSION_MODES } from './ui';
  */
 export default function RunSettings({ run }: { run: RunSummary }) {
   const queryClient = useQueryClient();
+  const { t } = useTranslation('components');
   const [model, setModel] = useState('');
   const update = useMutation({
     mutationFn: (change: { permissionMode?: PermissionMode; model?: string }) => api.updateRun(run.id, change),
@@ -21,17 +23,17 @@ export default function RunSettings({ run }: { run: RunSummary }) {
   });
   return (
     <>
-      <dt>Permissions</dt>
+      <dt>{t('runSettings.permissions')}</dt>
       <dd>
         <Select<PermissionMode>
-          aria-label="Permission mode"
+          aria-label={t('runSettings.permissionMode')}
           value={run.permissionMode}
           disabled={update.isPending}
           onChange={(permissionMode) => update.mutate({ permissionMode })}
           options={PERMISSION_MODES.map((m) => ({ value: m, label: m }))}
         />
       </dd>
-      <dt>Model</dt>
+      <dt>{t('runSettings.model')}</dt>
       <dd>
         <form
           className="inline-form"
@@ -40,10 +42,10 @@ export default function RunSettings({ run }: { run: RunSummary }) {
             if (model.trim()) update.mutate({ model: model.trim() });
           }}
         >
-          <Combobox aria-label="Model" placeholder={run.model ?? 'default'} value={model} onChange={setModel} options={MODEL_OPTIONS} />
+          <Combobox aria-label={t('runSettings.model')} placeholder={run.model ?? t('runSettings.defaultModel')} value={model} onChange={setModel} options={MODEL_OPTIONS} />
           {model.trim() && (
             <button type="submit" className="btn btn-small" disabled={update.isPending}>
-              Set
+              {t('runSettings.set')}
             </button>
           )}
         </form>

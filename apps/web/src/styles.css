@@ -604,6 +604,14 @@ svg.lucide {
   align-items: center;
   gap: 8px;
 }
+/* Sized like the theme toggle next to it rather than like a form field */
+.select-trigger.language-switch {
+  width: auto;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  font-size: 13px;
+}
 
 .main {
   flex: 1;
@@ -3762,7 +3770,12 @@ button.tree-row-on:hover {
     grid-template-columns: minmax(0, 1fr);
     height: auto;
   }
+  /* The layout above is as tall as its content now, and against that a zero flex basis resolves to
+     the content height and wins over `height`: the stage would grow with the log, `.run-scroll`
+     would never scroll (`.main` would), and the windowed log would measure a viewport as tall as
+     itself and never move its window. */
   .run-stage {
+    flex: none;
     height: 62vh;
   }
   .split {
@@ -4450,4 +4463,57 @@ a.attachment-chip:hover {
 }
 .detail-transcript .msg-head .badge-info {
   display: none;
+}
+
+/* ---------- Search over a whole transcript ---------- */
+.find-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.find-icon {
+  flex: none;
+  color: var(--text-muted);
+}
+.find-input {
+  flex: 1;
+  padding: 4px 8px;
+}
+.find-count {
+  flex: none;
+  min-width: 6.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.find-context {
+  padding-left: 22px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.find-snippet mark,
+::highlight(transcript-find-current) {
+  background: var(--warn);
+  color: #1a1407;
+}
+::highlight(transcript-find) {
+  background: var(--warn-soft);
+}
+.transcript > [data-focused] {
+  outline: 2px solid var(--warn);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
 }

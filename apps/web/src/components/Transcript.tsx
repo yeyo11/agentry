@@ -1,6 +1,7 @@
 import type { ContentBlock, RunEvent, TranscriptEntry } from '@agentry/shared';
 import { Brain, CircleAlert, CornerDownRight, Flag, Info, Sparkles, TerminalSquare, User } from 'lucide-react';
 import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { formatClock, formatCost, formatDuration, truncate } from '../lib/format';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
 import { CodeBlock } from './CodeBlock';
@@ -17,12 +18,13 @@ const Markdown = lazy(() => import('./Markdown'));
 /**
  * Markdown the way chat apps show it: GFM tables and task lists, highlighted code, safe links. The
  * renderer loads on first use; until then the text shows as typed, so nothing waits on it.
+ * `streaming` marks text that is still growing, so only its last block is parsed on every update.
  */
-export const RichText = memo(function RichText({ text, className = '' }: { text: string; className?: string }) {
+export const RichText = memo(function RichText({ text, className = '', streaming = false }: { text: string; className?: string; streaming?: boolean }) {
   return (
     <div className={`rich md ${className}`}>
       <Suspense fallback={<div className="prose">{text}</div>}>
-        <Markdown text={text} />
+        <Markdown text={text} streaming={streaming} />
       </Suspense>
     </div>
   );
@@ -39,6 +41,7 @@ function toolHint(input: unknown): string {
 }
 
 function Block({ block, role }: { block: ContentBlock; role: 'user' | 'assistant' }) {
+  const { t } = useTranslation('components');
   switch (block.type) {
     case 'text': {
       const { text, files } = splitAttached(block.text);
@@ -60,7 +63,7 @@ function Block({ block, role }: { block: ContentBlock; role: 'user' | 'assistant
           title={
             <>
               <Brain {...ICON_SM} className="fold-icon" />
-              <span className="tool-name">Thinking</span>
+              <span className="tool-name">{t('transcript.thinking')}</span>
             </>
           }
         >
@@ -92,14 +95,14 @@ function Block({ block, role }: { block: ContentBlock; role: 'user' | 'assistant
           title={
             <>
               {block.isError ? <CircleAlert {...ICON_SM} className="fold-icon" /> : <CornerDownRight {...ICON_SM} className="fold-icon" />}
-              <span className="tool-name">{block.isError ? 'Tool error' : 'Tool result'}</span>
-              <span className="tool-hint">{truncate(block.content.replace(/\s+/g, ' '), 110) || '(empty)'}</span>
+              <span className="tool-name">{block.isError ? t('transcript.toolError') : t('transcript.toolResult')}</span>
+              <span className="tool-hint">{truncate(block.content.replace(/\s+/g, ' '), 110) || t('transcript.empty')}</span>
             </>
           }
         >
           <CodeBlock
             tone={block.isError ? 'error' : undefined}
-            code={long ? `${block.content.slice(0, RESULT_PREVIEW_CHARS)}\n… [${block.content.length - RESULT_PREVIEW_CHARS} more chars]` : block.content}
+            code={long ? `${block.content.slice(0, RESULT_PREVIEW_CHARS)}\n${t('transcript.moreChars', { count: block.content.length - RESULT_PREVIEW_CHARS })}` : block.content}
           />
         </Collapsible>
       );
@@ -117,6 +120,7 @@ function withoutListedMedia(blocks: ContentBlock[]): ContentBlock[] {
 }
 
 export const EntryView = memo(function EntryView({ entry }: { entry: TranscriptEntry }) {
+  const { t } = useTranslation('components');
   const onlyToolResults = entry.role === 'user' && entry.blocks.every((b) => b.type === 'tool_result');
   const role = onlyToolResults ? 'tool' : entry.role;
   return (
@@ -125,8 +129,8 @@ export const EntryView = memo(function EntryView({ entry }: { entry: TranscriptE
       <div className="msg-body">
         {!onlyToolResults && (
           <header className="msg-head">
-            <span className="msg-role">{entry.role === 'user' ? 'User' : 'Claude'}</span>
-            {entry.isSidechain && <span className="badge badge-info">subagent</span>}
+            <span className="msg-role">{entry.role === 'user' ? t('transcript.user') : 'Claude'}</span>
+            {entry.isSidechain && <span className="badge badge-info">{t('transcript.subagent')}</span>}
             {entry.model && <span className="muted small msg-model">{entry.model}</span>}
             <span className="muted small msg-time">{formatClock(entry.timestamp)}</span>
           </header>
@@ -149,6 +153,7 @@ function Avatar({ role }: { role: 'user' | 'assistant' }) {
 
 /** The block Claude is generating right now, fed by ephemeral `partial` stream events. */
 export function StreamingEntry({ block, text }: { block: 'text' | 'thinking'; text: string }) {
+  const { t } = useTranslation('components');
   return (
     <article className="msg msg-assistant msg-streaming" aria-live="off">
       <Avatar role="assistant" />
@@ -156,18 +161,18 @@ export function StreamingEntry({ block, text }: { block: 'text' | 'thinking'; te
         <header className="msg-head">
           <span className="msg-role">Claude</span>
           <span className="badge badge-active">
-            <Sparkles {...ICON_SM} /> {block === 'thinking' ? 'thinking' : 'writing'}
+            <Sparkles {...ICON_SM} /> {block === 'thinking' ? t('transcript.streamingThinking') : t('transcript.streamingWriting')}
           </span>
         </header>
         {block === 'thinking' ? (
           <div className="streaming-thinking">
             <div className="streaming-thinking-label">
-              <Brain {...ICON_SM} /> Thinking…
+              <Brain {...ICON_SM} /> {t('transcript.thinkingNow')}
             </div>
             <div className="prose muted">{text.length > 1200 ? `…${text.slice(-1200)}` : text}</div>
           </div>
         ) : (
-          <RichText text={text} className="streaming-text" />
+          <RichText text={text} className="streaming-text" streaming />
         )}
       </div>
     </article>
@@ -178,10 +183,12 @@ export function Transcript({
   entries,
   pinToBottom = false,
   onReachTop,
+  focus,
 }: {
   entries: TranscriptEntry[];
   pinToBottom?: boolean;
   onReachTop?: () => void;
+  focus?: { item: TranscriptEntry } | null;
 }) {
   return (
     <VirtualList
@@ -190,6 +197,7 @@ export function Transcript({
       itemKey={(entry, i) => entry.uuid || String(i)}
       pinToBottom={pinToBottom}
       onReachTop={onReachTop}
+      focus={focus}
     >
       {(entry) => <EntryView entry={entry} />}
     </VirtualList>
@@ -201,12 +209,13 @@ function str(value: unknown): string {
 }
 
 function InlineEvent({ event }: { event: RunEvent }) {
+  const { t } = useTranslation('components');
   const data = event.data ?? {};
   switch (event.kind) {
     case 'status':
       return (
         <div className="evt">
-          <span className="evt-label">status</span>
+          <span className="evt-label">{t('transcript.status')}</span>
           <StatusBadge status={event.status ?? 'unknown'} />
           <span className="muted small">{formatClock(event.ts)}</span>
         </div>
@@ -218,7 +227,7 @@ function InlineEvent({ event }: { event: RunEvent }) {
         <div className="evt">
           <span className="evt-label">init</span>
           <span>
-            {str(data.model) || 'model ?'} · {str(data.permissionMode) || 'default'} · {tools} tools · {servers} MCP servers
+            {str(data.model) || t('transcript.unknownModel')} · {str(data.permissionMode) || t('transcript.defaultMode')} · {t('transcript.initSummary', { tools, servers })}
           </span>
         </div>
       );
@@ -229,16 +238,16 @@ function InlineEvent({ event }: { event: RunEvent }) {
       return (
         <div className={`evt evt-result ${isError ? 'is-error' : ''}`}>
           <Flag {...ICON_SM} />
-          <span className="evt-label">{isError ? 'turn failed' : 'turn done'}</span>
+          <span className="evt-label">{isError ? t('transcript.turnFailed') : t('transcript.turnDone')}</span>
           <span>
-            {typeof data.num_turns === 'number' ? `${data.num_turns} turns · ` : ''}
+            {typeof data.num_turns === 'number' ? t('transcript.turns', { count: data.num_turns }) : ''}
             {typeof data.duration_ms === 'number' ? `${formatDuration(data.duration_ms)} · ` : ''}
             {typeof data.total_cost_usd === 'number' ? formatCost(data.total_cost_usd) : ''}
-            {denials > 0 ? ` · ${denials} permission denials` : ''}
+            {denials > 0 ? t('transcript.denials', { count: denials }) : ''}
           </span>
           {isError && event.text && <span className="evt-text">{truncate(event.text, 400)}</span>}
           {data.structured_output != null && (
-            <Collapsible className="fold" title="Structured output">
+            <Collapsible className="fold" title={t('transcript.structuredOutput')}>
               <CodeBlock code={JSON.stringify(data.structured_output, null, 2)} lang="json" />
             </Collapsible>
           )}
@@ -314,10 +323,12 @@ export const RunTimeline = memo(function RunTimeline({
   events,
   follow = false,
   onReachTop,
+  focus,
 }: {
   events: RunEvent[];
   follow?: boolean;
   onReachTop?: () => void;
+  focus?: { item: RunEvent } | null;
 }) {
   const rows = useMemo(() => events.filter((event) => !isSilent(event)), [events]);
   // Rows re-mount as they scroll back into the window, and a message that slides in again every
@@ -330,7 +341,7 @@ export const RunTimeline = memo(function RunTimeline({
   }, [rows, known]);
 
   return (
-    <VirtualList className="transcript" items={rows} itemKey={(event) => String(event.seq)} pinToBottom={follow} onReachTop={onReachTop}>
+    <VirtualList className="transcript" items={rows} itemKey={(event) => String(event.seq)} pinToBottom={follow} onReachTop={onReachTop} focus={focus}>
       {(event) => <TimelineRow event={event} entrance={!known.has(event.seq)} />}
     </VirtualList>
   );

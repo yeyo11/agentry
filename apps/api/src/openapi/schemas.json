@@ -1700,6 +1700,82 @@
       }
     ]
   },
+  "TranscriptSearchResult": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string"
+      },
+      "hits": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TranscriptSearchHit"
+        },
+        "description": "Hits in transcript order, oldest first: one per entry, however many times it matches"
+      },
+      "total": {
+        "type": "number",
+        "description": "Entries (or events) searched, the same `total` a page of the transcript reports"
+      },
+      "truncated": {
+        "type": "boolean",
+        "description": "More entries matched than `hits` carries; the oldest ones were left out"
+      }
+    },
+    "required": [
+      "query",
+      "hits",
+      "total",
+      "truncated"
+    ]
+  },
+  "TranscriptSearchHit": {
+    "type": "object",
+    "properties": {
+      "index": {
+        "type": "number",
+        "description": "Index of the entry or event, in the same index space as `from` and `total` of a page"
+      },
+      "snippet": {
+        "type": "string",
+        "description": "The text around the first match, whitespace collapsed"
+      },
+      "start": {
+        "type": "number",
+        "description": "Where the match starts within `snippet`"
+      },
+      "length": {
+        "type": "number",
+        "description": "Length of the match within `snippet`"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/RunEventKind",
+        "description": "For a run, the kind of event the hit is in, so a view that hides some kinds can skip them"
+      }
+    },
+    "required": [
+      "index",
+      "snippet",
+      "start",
+      "length"
+    ],
+    "description": "One entry (or run event) whose text contains the query."
+  },
+  "RunEventKind": {
+    "type": "string",
+    "enum": [
+      "message",
+      "init",
+      "result",
+      "task",
+      "status",
+      "stderr",
+      "notice",
+      "other",
+      "partial"
+    ],
+    "description": "`partial` events are ephemeral: they carry the text generated so far for the block being streamed, reuse the seq of the last stored event, are never buffered or replayed, and are superseded by the next `message` event."
+  },
   "RunOptions": {
     "type": "object",
     "properties": {
@@ -1858,21 +1934,6 @@
       "kind",
       "type"
     ]
-  },
-  "RunEventKind": {
-    "type": "string",
-    "enum": [
-      "message",
-      "init",
-      "result",
-      "task",
-      "status",
-      "stderr",
-      "notice",
-      "other",
-      "partial"
-    ],
-    "description": "`partial` events are ephemeral: they carry the text generated so far for the block being streamed, reuse the seq of the last stored event, are never buffered or replayed, and are superseded by the next `message` event."
   },
   "EffectiveEnvironment": {
     "type": "object",

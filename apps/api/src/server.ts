@@ -22,6 +22,12 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   const host = opts.host ?? '0.0.0.0';
   const core = new Core();
   const app = await buildApp(core, { webDist: opts.webDist });
+  for (const stray of core.runs.strays()) {
+    app.log.warn(
+      `run ${stray.runId}: CLI process ${stray.pid} from a previous wrapper is still working on session ${stray.sessionId}; ` +
+        'the run will not resume beside it until it exits or the run is stopped',
+    );
+  }
 
   const system = await core.system();
   if (!system.cli.installed) app.log.error(`Claude Code CLI not detected: ${system.cli.error}`);

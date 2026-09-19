@@ -2,6 +2,7 @@ import type { ProjectSummary } from '@agentry/shared';
 import { Brain, FolderGit2, GitBranch, History, Play, Plus, Settings2, Workflow } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useProjects } from '../api';
 import { Checkbox, Collapsible } from '../components/controls';
@@ -11,6 +12,7 @@ import { Stagger } from '../components/motion';
 import { timeAgo } from '../lib/format';
 
 function NewProjectForm({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation(['work', 'common']);
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [gitUrl, setGitUrl] = useState('');
@@ -22,21 +24,21 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
     },
   });
   return (
-    <Card title="New project in the workspace">
+    <Card title={t('projects.newProjectCard')}>
       <div className="form">
-        <Field label="Name" hint="Directory name inside the workspace: letters, digits, dashes, dots and underscores.">
-          <input value={name} placeholder="my-project" onChange={(e) => setName(e.target.value)} />
+        <Field label={t('projects.name')} hint={t('projects.nameHint')}>
+          <input value={name} placeholder={t('projects.namePlaceholder')} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label="Git repository (optional)" hint="Cloned into the new directory. Leave empty for an empty project.">
+        <Field label={t('projects.gitUrl')} hint={t('projects.gitUrlHint')}>
           <input value={gitUrl} placeholder="https://github.com/owner/repo.git" onChange={(e) => setGitUrl(e.target.value)} />
         </Field>
-        <ErrorBox error={create.error} title="Could not create the project" />
+        <ErrorBox error={create.error} title={t('projects.createFailed')} />
         <div className="form-actions">
           <button className="btn btn-primary" disabled={!name.trim() || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? (gitUrl.trim() ? 'Cloning…' : 'Creating…') : 'Create project'}
+            {create.isPending ? (gitUrl.trim() ? t('projects.cloning') : t('projects.creating')) : t('projects.create')}
           </button>
           <button className="btn" onClick={onDone}>
-            Cancel
+            {t('common:actions.cancel')}
           </button>
         </div>
       </div>
@@ -48,6 +50,7 @@ const liveIn = (p: ProjectSummary) => p.activeRuns + (p.activeSessions ?? 0);
 
 /** One worktree of a project: its branch, who made it, and whether anything is working in it now. */
 function WorktreeRow({ worktree }: { worktree: ProjectSummary }) {
+  const { t } = useTranslation(['work', 'common']);
   const live = liveIn(worktree);
   const creator = worktree.createdBy;
   return (
@@ -59,21 +62,19 @@ function WorktreeRow({ worktree }: { worktree: ProjectSummary }) {
         </span>
         <span className="small muted meta">
           {creator ? (
-            <Link to={`/orchestration/${creator.orchestrationId}`} className="meta-icon" title="Created by this orchestration task">
+            <Link to={`/orchestration/${creator.orchestrationId}`} className="meta-icon" title={t('projects.createdBy')}>
               <Workflow size={12} strokeWidth={1.75} aria-hidden /> {creator.orchestrationName} · {creator.taskName}
             </Link>
           ) : null}
-          <span>
-            {worktree.sessionCount} session{worktree.sessionCount === 1 ? '' : 's'}
-          </span>
+          <span>{t('projects.sessionCount', { count: worktree.sessionCount })}</span>
           {worktree.lastActivity && <span>{timeAgo(worktree.lastActivity)}</span>}
         </span>
       </div>
       <div className="worktree-tags">
-        {live > 0 && <Tag tone="active">{live} active</Tag>}
-        {!worktree.exists && <Tag tone="warn">removed</Tag>}
+        {live > 0 && <Tag tone="active">{t('shared.activeCount', { count: live })}</Tag>}
+        {!worktree.exists && <Tag tone="warn">{t('projects.removed')}</Tag>}
         {worktree.sessionCount > 0 && (
-          <Link to={`/sessions?project=${encodeURIComponent(worktree.id)}`} className="btn btn-small" aria-label={`Sessions in ${worktree.name}`}>
+          <Link to={`/sessions?project=${encodeURIComponent(worktree.id)}`} className="btn btn-small" aria-label={t('projects.sessionsIn', { name: worktree.name })}>
             <History {...ICON_SM} />
           </Link>
         )}
@@ -83,6 +84,7 @@ function WorktreeRow({ worktree }: { worktree: ProjectSummary }) {
 }
 
 export function Projects() {
+  const { t } = useTranslation(['work', 'common']);
   const [creating, setCreating] = useState(false);
   const [showTemporary, setShowTemporary] = useState(false);
   const { data, error, isLoading } = useProjects();
@@ -100,19 +102,19 @@ export function Projects() {
   return (
     <>
       <PageHeader
-        title="Projects"
-        subtitle={`${projects.length} projects · workspace directories and directories with Claude Code history; worktrees are listed under their repository`}
+        title={t('projects.title')}
+        subtitle={t('projects.subtitle', { count: projects.length })}
         actions={
           <>
             {temporaryCount > 0 && (
-              <Checkbox checked={showTemporary} onChange={setShowTemporary} tooltip="Projects under the OS temp directory">
-                Show temporary ({temporaryCount})
+              <Checkbox checked={showTemporary} onChange={setShowTemporary} tooltip={t('projects.temporaryTooltip')}>
+                {t('projects.showTemporary', { n: temporaryCount })}
               </Checkbox>
             )}
             {!creating && (
             <button className="btn btn-primary" onClick={() => setCreating(true)}>
               <Plus size={14} strokeWidth={2} aria-hidden />
-              New project
+              {t('projects.newProject')}
             </button>
           )}
           </>
@@ -123,8 +125,8 @@ export function Projects() {
       {isLoading ? (
         <Loading />
       ) : projects.length === 0 ? (
-        <Empty icon={FolderGit2} title="No projects yet">
-          Projects appear once a session has run in a directory.
+        <Empty icon={FolderGit2} title={t('projects.empty')}>
+          {t('projects.emptyHint')}
         </Empty>
       ) : (
         <Stagger className="cards project-cards">
@@ -145,17 +147,17 @@ export function Projects() {
                     {project.path}
                   </div>
                 </div>
-                {project.temporary && <Tag>temporary</Tag>}
-                {project.worktree && <Tag>worktree</Tag>}
-                {live > 0 && <Tag tone="active">{live} active</Tag>}
-                {!project.exists && <Tag tone="warn">missing on disk</Tag>}
+                {project.temporary && <Tag>{t('shared.temporary')}</Tag>}
+                {project.worktree && <Tag>{t('projects.worktree')}</Tag>}
+                {live > 0 && <Tag tone="active">{t('shared.activeCount', { count: live })}</Tag>}
+                {!project.exists && <Tag tone="warn">{t('projects.missing')}</Tag>}
               </div>
               <div className="meta">
-                <span>{project.sessionCount} sessions</span>
-                <span>last activity {timeAgo(project.lastActivity)}</span>
+                <span>{t('projects.sessions', { count: project.sessionCount })}</span>
+                <span>{t('projects.lastActivity', { ago: timeAgo(project.lastActivity) })}</span>
                 {project.worktree && project.parentPath && (
                   <span className="mono ellipsis" title={project.parentPath}>
-                    worktree of {project.parentPath}
+                    {t('projects.worktreeOf', { path: project.parentPath })}
                   </span>
                 )}
               </div>
@@ -165,8 +167,8 @@ export function Projects() {
                   defaultOpen={liveWorktrees > 0}
                   title={
                     <span>
-                      {worktrees.length} worktree{worktrees.length === 1 ? '' : 's'}
-                      {liveWorktrees > 0 && <span className="muted"> · {liveWorktrees} in use</span>}
+                      {t('projects.worktrees', { count: worktrees.length })}
+                      {liveWorktrees > 0 && <span className="muted">{t('projects.inUse', { n: liveWorktrees })}</span>}
                     </span>
                   }
                 >
@@ -181,17 +183,17 @@ export function Projects() {
               )}
               <div className="card-foot">
                 <Link to={`/sessions?project=${encodeURIComponent(project.id)}`} className="btn btn-small">
-                  <History {...ICON_SM} /> Sessions
+                  <History {...ICON_SM} /> {t('projects.sessionsButton')}
                 </Link>
                 <Link to={`/config?project=${encodeURIComponent(project.id)}`} className="btn btn-small">
-                  <Settings2 {...ICON_SM} /> Config
+                  <Settings2 {...ICON_SM} /> {t('projects.configButton')}
                 </Link>
                 <Link to={`/memory?project=${encodeURIComponent(project.id)}`} className="btn btn-small">
-                  <Brain {...ICON_SM} /> Memory
+                  <Brain {...ICON_SM} /> {t('projects.memoryButton')}
                 </Link>
                 {project.exists && (
                   <Link to={`/runs/new?cwd=${encodeURIComponent(project.path)}`} className="btn btn-small btn-primary">
-                    <Play {...ICON_SM} /> New run here
+                    <Play {...ICON_SM} /> {t('projects.newRunHere')}
                   </Link>
                 )}
               </div>
