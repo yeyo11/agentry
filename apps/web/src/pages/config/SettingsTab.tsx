@@ -1,6 +1,7 @@
 import type { ConfigFileVariant } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, keys, type Scope } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { useToast } from '../../components/Toast';
@@ -10,18 +11,16 @@ import { SettingsGuided } from './SettingsGuided';
 import { changedKeys, parseObject, setIn } from './settingsModel';
 
 const VARIANTS = [
-  { value: 'shared', label: 'settings.json', title: 'Shared with the team (meant to be committed)' },
-  { value: 'local', label: 'settings.local.json', title: 'Personal overrides for this project (not committed)' },
+  { value: 'shared', label: 'settings.json' },
+  { value: 'local', label: 'settings.local.json' },
 ] as const;
 
-const MODES = [
-  { value: 'guided', label: 'Guided' },
-  { value: 'raw', label: 'Raw JSON' },
-] as const;
+const MODES = ['guided', 'raw'] as const;
 
 const format = (value: unknown) => JSON.stringify(value, null, 2);
 
 function SettingsEditor({ scope, variant, filesHref }: { scope: Scope; variant: ConfigFileVariant; filesHref: string }) {
+  const { t } = useTranslation('config');
   const queryClient = useQueryClient();
   const toast = useToast();
   const queryKey = keys.settings(scope, variant);
@@ -45,16 +44,16 @@ function SettingsEditor({ scope, variant, filesHref }: { scope: Scope; variant: 
 
   const save = useMutation({
     mutationFn: () => {
-      if (!parsed.value) throw new Error(parsed.error ?? 'Invalid JSON');
+      if (!parsed.value) throw new Error(parsed.error ?? t('settings.invalidJson'));
       return api.putSettings(scope, variant, parsed.value);
     },
     onSuccess: (doc) => {
       queryClient.setQueryData(queryKey, doc);
       setText(format(doc.settings));
       setRevision((r) => r + 1);
-      toast.success('Settings saved', doc.path);
+      toast.success(t('settings.saved'), doc.path);
     },
-    onError: (err) => toast.error('Could not save the settings', err),
+    onError: (err) => toast.error(t('settings.saveFailed'), err),
   });
   const trySave = () => dirty && parsed.value && !save.isPending && save.mutate();
 
@@ -64,15 +63,15 @@ function SettingsEditor({ scope, variant, filesHref }: { scope: Scope; variant: 
       <ErrorBox error={error} />
       <div className="editor-meta">
         {data && <PathLabel path={data.path} />}
-        {data && !data.exists && <Tag tone="info">does not exist yet · saved on first write</Tag>}
+        {data && !data.exists && <Tag tone="info">{t('shared.notYet')}</Tag>}
         <span className="push-right">
           <Segmented
-            label="Editor mode"
+            label={t('settings.editorMode')}
             value={mode}
-            options={MODES}
+            options={MODES.map((value) => ({ value, label: t(`settings.modes.${value}`) }))}
             onChange={(next) => {
               if (next === 'guided' && !parsed.value) {
-                toast.error('Fix the JSON first', new Error(parsed.error ?? 'Invalid JSON'));
+                toast.error(t('settings.fixFirst'), new Error(parsed.error ?? t('settings.invalidJson')));
                 return;
               }
               setMode(next);
@@ -92,7 +91,7 @@ function SettingsEditor({ scope, variant, filesHref }: { scope: Scope; variant: 
         <>
           <CodeEditor
             language="json"
-            ariaLabel="settings JSON"
+            ariaLabel={t('settings.editor')}
             minHeight="420px"
             invalid={Boolean(parsed.error)}
             value={text ?? ''}
@@ -101,7 +100,7 @@ function SettingsEditor({ scope, variant, filesHref }: { scope: Scope; variant: 
           />
           {parsed.error && (
             <div className="alert alert-warn" role="alert">
-              Invalid JSON: {parsed.error}
+              {t('settings.invalidJsonDetail', { error: parsed.error })}
             </div>
           )}
         </>
@@ -110,7 +109,7 @@ function SettingsEditor({ scope, variant, filesHref }: { scope: Scope; variant: 
       <div className="save-bar">
         <div className="form-actions">
           <button className="btn btn-primary" disabled={!dirty || !parsed.value || save.isPending} onClick={() => save.mutate()}>
-            {save.isPending ? 'Saving…' : 'Save settings'}
+            {save.isPending ? t('shared.saving') : t('settings.save')}
           </button>
           <button
             className="btn"
@@ -120,17 +119,17 @@ function SettingsEditor({ scope, variant, filesHref }: { scope: Scope; variant: 
               setRevision((r) => r + 1);
             }}
           >
-            Discard
+            {t('shared.discard')}
           </button>
         </div>
         <div className="change-list" aria-live="polite">
           {!dirty ? (
-            <span className="small muted">No pending changes</span>
+            <span className="small muted">{t('settings.noChanges')}</span>
           ) : changes.length === 0 ? (
-            <span className="small muted">{parsed.value ? 'Formatting changes only' : 'Invalid JSON cannot be saved'}</span>
+            <span className="small muted">{parsed.value ? t('settings.formattingOnly') : t('settings.cannotSave')}</span>
           ) : (
             changes.map(({ key, change }) => (
-              <span key={key} className={`change change-${change}`} title={change}>
+              <span key={key} className={`change change-${change}`} title={t(`settings.change.${change}`)}>
                 {change === 'added' ? '+' : change === 'removed' ? '−' : '~'} {key}
               </span>
             ))
@@ -142,19 +141,20 @@ function SettingsEditor({ scope, variant, filesHref }: { scope: Scope; variant: 
 }
 
 export function SettingsTab({ scope, scopeKey, filesHref }: { scope: Scope; scopeKey: string; filesHref: string }) {
+  const { t } = useTranslation('config');
   const [variant, setVariant] = useState<ConfigFileVariant>('shared');
   const guard = useLeaveGuard();
   const effective: ConfigFileVariant = scope.projectId ? variant : 'shared';
 
   return (
     <Card
-      title={scope.projectId ? 'Project settings' : 'User settings'}
+      title={scope.projectId ? t('settings.projectTitle') : t('settings.userTitle')}
       actions={
         scope.projectId && (
           <Segmented
-            label="Settings file"
+            label={t('settings.file')}
             value={effective}
-            options={VARIANTS}
+            options={VARIANTS.map((v) => ({ ...v, title: t(`settings.variants.${v.value}`) }))}
             onChange={(next) => void guard().then((ok) => ok && setVariant(next))}
           />
         )

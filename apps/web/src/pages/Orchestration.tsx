@@ -1,7 +1,9 @@
 import { Plus } from 'lucide-react';
 import type { OrchestrationEngine, OrchestrationSpec, OrchestrationTaskSpec, PermissionMode } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { TFunction } from 'i18next';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useOrchestrations, useProjects } from '../api';
 import { Combobox, NumberInput, Select, Switch } from '../components/controls';
@@ -18,19 +20,19 @@ const emptyTask = (index: number): OrchestrationTaskSpec => ({
   dependsOn: [],
 });
 
-function validate(name: string, tasks: OrchestrationTaskSpec[]): string | null {
-  if (!name.trim()) return 'Give the orchestration a name.';
-  if (tasks.length === 0) return 'Add at least one task.';
+function validate(t: TFunction<'config'>, name: string, tasks: OrchestrationTaskSpec[]): string | null {
+  if (!name.trim()) return t('orchestration.errors.name');
+  if (tasks.length === 0) return t('orchestration.errors.noTasks');
   const ids = new Set<string>();
   for (const task of tasks) {
-    if (!task.id.trim()) return 'Every task needs an id.';
-    if (ids.has(task.id)) return `Duplicate task id "${task.id}".`;
+    if (!task.id.trim()) return t('orchestration.errors.noId');
+    if (ids.has(task.id)) return t('orchestration.errors.duplicate', { id: task.id });
     ids.add(task.id);
-    if (!task.prompt.trim()) return `Task "${task.id}" has no prompt.`;
+    if (!task.prompt.trim()) return t('orchestration.errors.noPrompt', { id: task.id });
   }
   for (const task of tasks) {
     for (const dep of task.dependsOn ?? []) {
-      if (!ids.has(dep)) return `Task "${task.id}" depends on unknown task "${dep}".`;
+      if (!ids.has(dep)) return t('orchestration.errors.unknownDep', { id: task.id, dep });
     }
   }
   return null;
@@ -47,33 +49,34 @@ function TaskEditor({
   onChange: (patch: Partial<OrchestrationTaskSpec>) => void;
   onRemove: () => void;
 }) {
+  const { t } = useTranslation('config');
   const deps = task.dependsOn ?? [];
   return (
     <div className="task-editor">
       <div className="form-grid form-grid-3">
-        <Field label="Id">
+        <Field label={t('plugins.id')}>
           <input value={task.id} onChange={(e) => onChange({ id: e.target.value.replace(/\s+/g, '-') })} />
         </Field>
-        <Field label="Name">
-          <input value={task.name} placeholder="Short label" onChange={(e) => onChange({ name: e.target.value })} />
+        <Field label={t('mcp.name')}>
+          <input value={task.name} placeholder={t('orchestration.shortLabel')} onChange={(e) => onChange({ name: e.target.value })} />
         </Field>
-        <Field label="Model (optional)">
+        <Field label={t('orchestration.modelOptional')}>
           <Combobox
-            aria-label="Model"
+            aria-label={t('settingsGuided.model')}
             value={task.model ?? ''}
-            placeholder="inherit"
+            placeholder={t('orchestration.inherit')}
             onChange={(model) => onChange({ model: model || undefined })}
             options={MODEL_OPTIONS}
           />
         </Field>
       </div>
-      <Field label="Prompt">
+      <Field label={t('orchestration.prompt')}>
         <textarea rows={3} value={task.prompt} onChange={(e) => onChange({ prompt: e.target.value })} />
       </Field>
       <div className="task-editor-foot">
         <div className="chips">
-          <span className="field-label">Depends on</span>
-          {others.length === 0 && <span className="muted small">no other tasks</span>}
+          <span className="field-label">{t('orchestration.dependsOn')}</span>
+          {others.length === 0 && <span className="muted small">{t('orchestration.noOtherTasks')}</span>}
           {others.map((id) => (
             <button
               key={id}
@@ -87,7 +90,7 @@ function TaskEditor({
           ))}
         </div>
         <button type="button" className="btn btn-small btn-danger" onClick={onRemove}>
-          Remove task
+          {t('orchestration.removeTask')}
         </button>
       </div>
     </div>
@@ -95,6 +98,7 @@ function TaskEditor({
 }
 
 function CreateForm({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation('config');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const projects = useProjects(false);
@@ -120,7 +124,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
   const [appliedRunId, setAppliedRunId] = useState<string | null>(null);
 
   const applyDraft = (draft: OrchestrationSpec) => {
-    setTasks(draft.tasks.map((t) => ({ ...t, dependsOn: t.dependsOn ?? [] })));
+    setTasks(draft.tasks.map((task) => ({ ...task, dependsOn: task.dependsOn ?? [] })));
     if (draft.name) setName(draft.name);
     if (draft.objective && !objective.trim()) setObjective(draft.objective);
     if (draft.cwd && !cwd.trim()) setCwd(draft.cwd);
@@ -188,10 +192,10 @@ function CreateForm({ onDone }: { onDone: () => void }) {
     setTasks((prev) => {
       const current = prev[index];
       if (!current) return prev;
-      const next = prev.map((t, i) => (i === index ? { ...t, ...patch } : t));
+      const next = prev.map((task, i) => (i === index ? { ...task, ...patch } : task));
       // Keep dependency references in sync when an id is renamed.
       if (patch.id !== undefined && patch.id !== current.id) {
-        return next.map((t) => ({ ...t, dependsOn: (t.dependsOn ?? []).map((d) => (d === current.id ? patch.id! : d)) }));
+        return next.map((task) => ({ ...task, dependsOn: (task.dependsOn ?? []).map((d) => (d === current.id ? patch.id! : d)) }));
       }
       return next;
     });
@@ -202,12 +206,12 @@ function CreateForm({ onDone }: { onDone: () => void }) {
       const removed = prev[index]?.id;
       return prev
         .filter((_, i) => i !== index)
-        .map((t) => ({ ...t, dependsOn: (t.dependsOn ?? []).filter((d) => d !== removed) }));
+        .map((task) => ({ ...task, dependsOn: (task.dependsOn ?? []).filter((d) => d !== removed) }));
     });
   };
 
   const launch = () => {
-    const problem = validate(name, tasks);
+    const problem = validate(t, name, tasks);
     setLocalError(problem);
     if (problem) return;
     create.mutate({
@@ -224,56 +228,59 @@ function CreateForm({ onDone }: { onDone: () => void }) {
       worktree: engine === 'workflow' ? false : worktree,
       allowedTools: allowedTools
         .split(',')
-        .map((t) => t.trim())
+        .map((tool) => tool.trim())
         .filter(Boolean),
       permissionPrompts: askPermissions ? ('host' as const) : ('none' as const),
-      tasks: tasks.map((t) => ({
-        ...t,
-        id: t.id.trim(),
-        name: t.name.trim() || t.id.trim(),
-        prompt: t.prompt.trim(),
-        dependsOn: t.dependsOn?.length ? t.dependsOn : undefined,
+      tasks: tasks.map((task) => ({
+        ...task,
+        id: task.id.trim(),
+        name: task.name.trim() || task.id.trim(),
+        prompt: task.prompt.trim(),
+        dependsOn: task.dependsOn?.length ? task.dependsOn : undefined,
       })),
     });
   };
 
   return (
     <Card
-      title="New orchestration"
+      title={t('orchestration.new')}
       actions={
         <Segmented
-          label="Creation mode"
+          label={t('orchestration.creationMode')}
           value={mode}
           onChange={setMode}
           options={[
-            { value: 'auto', label: 'Auto-plan' },
-            { value: 'manual', label: 'Manual' },
+            { value: 'auto', label: t('orchestration.autoPlan') },
+            { value: 'manual', label: t('orchestration.manual') },
           ]}
         />
       }
     >
       <div className="form">
         <Field
-          label="Objective"
-          hint={mode === 'auto' ? 'A planner agent splits this into tasks you can edit before launching.' : 'Optional; passed to the final synthesis agent.'}
+          label={t('orchestration.objective')}
+          hint={mode === 'auto' ? t('orchestration.objectiveAutoHint') : t('orchestration.objectiveManualHint')}
         >
           <textarea rows={3} value={objective} onChange={(e) => setObjective(e.target.value)} />
         </Field>
         <div className="form-grid form-grid-3">
-          <Field label="Working directory">
+          <Field label={t('orchestration.cwd')}>
             <Combobox
-              aria-label="Working directory"
-              placeholder="wrapper workspace"
+              aria-label={t('orchestration.cwd')}
+              placeholder={t('orchestration.cwdPlaceholder')}
               value={cwd}
               onChange={setCwd}
               options={(projects.data ?? []).filter((p) => p.exists).map((p) => ({ value: p.path, label: p.name, hint: p.path }))}
             />
           </Field>
-          <Field label="Model">
-            <Combobox aria-label="Model" placeholder="default" value={model} onChange={setModel} options={MODEL_OPTIONS} />
+          <Field label={t('settingsGuided.model')}>
+            <Combobox
+              aria-label={t('settingsGuided.model')}
+              placeholder={t('settingsGuided.defaultPlaceholder')}
+              value={model} onChange={setModel} options={MODEL_OPTIONS} />
           </Field>
           {mode === 'auto' && (
-            <Field label="Max tasks">
+            <Field label={t('orchestration.maxTasks')}>
               <NumberInput min={1} max={12} value={maxTasks} onChange={(v) => setMaxTasks(v || 1)} />
             </Field>
           )}
@@ -286,23 +293,23 @@ function CreateForm({ onDone }: { onDone: () => void }) {
               disabled={!objective.trim() || plan.isPending || planning}
               onClick={() => plan.mutate()}
             >
-              {planning ? 'Planning…' : tasks.length ? 'Re-plan' : 'Generate plan'}
+              {planning ? t('orchestration.planning') : tasks.length ? t('orchestration.replan') : t('orchestration.generate')}
             </button>
             {planning && <span className="spinner" />}
             {plannerRunId && (
               <span className="muted small">
                 {planning ? (
                   <>
-                    {plannerRun.data?.run.turns ? `${plannerRun.data.run.turns} turns · ` : ''}
-                    planner running —{' '}
+                    {plannerRun.data?.run.turns ? t('orchestration.turns', { count: plannerRun.data.run.turns }) : ''}
+                    {t('orchestration.plannerRunning')}{' '}
                   </>
                 ) : plannerStatus === 'failed' || plannerStatus === 'stopped' ? (
-                  <>planner {plannerStatus} — </>
+                  <>{t(`orchestration.planner.${plannerStatus}`)} </>
                 ) : (
-                  <>plan ready — </>
+                  <>{t('orchestration.planReady')} </>
                 )}
-                <Link to={`/runs/${plannerRunId}`}>watch the agent</Link>
-                {draft.isPending && ' · loading the plan…'}
+                <Link to={`/runs/${plannerRunId}`}>{t('orchestration.watchAgent')}</Link>
+                {draft.isPending && t('orchestration.loadingPlan')}
               </span>
             )}
           </div>
@@ -310,24 +317,28 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         {/* The plan is stored server-side, so leaving this page never loses it. */}
         {plannerRunId && !planning && plannerStatus !== 'completed' && (
           <p className="muted small">
-            The planner {plannerStatus ?? 'ended'} without a plan. Its output is on the run page; you can re-plan or
-            write the tasks by hand.
+            {t('orchestration.noPlan', {
+              status:
+                plannerStatus === 'failed' || plannerStatus === 'stopped'
+                  ? t(`orchestration.plannerEnded.${plannerStatus}`)
+                  : (plannerStatus ?? t('orchestration.plannerEnded.ended')),
+            })}
           </p>
         )}
-        <ErrorBox error={plan.error} title="Could not start the planner" />
-        <ErrorBox error={draft.error} title="Could not load the plan" />
+        <ErrorBox error={plan.error} title={t('orchestration.planStartFailed')} />
+        <ErrorBox error={draft.error} title={t('orchestration.planLoadFailed')} />
 
         {mode === 'auto' && (drafts.data?.length ?? 0) > 0 && (
           <div className="stack-sm">
             <hr />
-            <div className="muted small">Plans already generated — load one instead of paying for a new run.</div>
+            <div className="muted small">{t('orchestration.drafts')}</div>
             <ul className="list">
               {(drafts.data ?? []).slice(0, 5).map((d) => (
                 <li key={d.runId} className="list-row small">
                   <span className="strong ellipsis">{d.name}</span>
                   <span className="muted ellipsis">{d.objective ?? ''}</span>
                   <span className="muted nowrap">
-                    {d.taskCount} task{d.taskCount === 1 ? '' : 's'} · {timeAgo(d.createdAt)}
+                    {t('orchestration.taskCount', { count: d.taskCount })} · {timeAgo(d.createdAt)}
                   </span>
                   <button
                     type="button"
@@ -338,7 +349,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
                       draft.mutate(d.runId);
                     }}
                   >
-                    Load
+                    {t('orchestration.load')}
                   </button>
                 </li>
               ))}
@@ -350,92 +361,82 @@ function CreateForm({ onDone }: { onDone: () => void }) {
           <>
             <hr />
             <div className="form-grid form-grid-3">
-              <Field label="Name">
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Refactor auth module" />
+              <Field label={t('mcp.name')}>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('orchestration.namePlaceholder')} />
               </Field>
-              <Field label="Concurrency" hint="Agents in parallel">
+              <Field label={t('orchestration.concurrency')} hint={t('orchestration.concurrencyHint')}>
                 <NumberInput min={1} max={8} value={concurrency} onChange={(v) => setConcurrency(v || 1)} />
               </Field>
-              <Field label="Permission mode">
+              <Field label={t('orchestration.permissionMode')}>
                 <Select<PermissionMode | ''>
                   value={permissionMode}
                   onChange={setPermissionMode}
-                  options={[{ value: '', label: 'Default' }, ...PERMISSION_MODES.map((m) => ({ value: m, label: m }))]}
+                  options={[{ value: '', label: t('orchestration.default') }, ...PERMISSION_MODES.map((m) => ({ value: m, label: m }))]}
                 />
               </Field>
             </div>
-            <Field label="Engine" hint={engineReason ? `Planner: ${engineReason}` : undefined}>
+            <Field label={t('orchestration.engine')} hint={engineReason ? t('orchestration.plannerReason', { reason: engineReason }) : undefined}>
               <Segmented<OrchestrationEngine>
-                label="Engine"
+                label={t('orchestration.engine')}
                 value={engine}
                 onChange={setEngine}
                 options={[
-                  { value: 'graph', label: 'Graph', title: 'One process per task, each able to get its own worktree and branch' },
-                  { value: 'workflow', label: 'Workflow', title: 'Every task a subagent of one Claude Code session' },
+                  { value: 'graph', label: t('orchestration.graph'), title: t('orchestration.graphTitle') },
+                  { value: 'workflow', label: t('orchestration.workflow'), title: t('orchestration.workflowTitle') },
                 ]}
               />
             </Field>
             <p className="muted small">
-              {engine === 'graph'
-                ? 'Every task runs as its own Claude Code process and can get its own worktree and branch, merged into one at the end. The choice for tasks that change code.'
-                : "Every task runs as a subagent of one Claude Code session, through a workflow script generated from these tasks: cheaper, and a resume replays what had finished from Claude Code's cache. All of them work in the project directory, with no worktrees: for tasks that read, analyse or review."}
+              {engine === 'graph' ? t('orchestration.graphHint') : t('orchestration.workflowHint')}
             </p>
             <Switch checked={synthesize} onChange={setSynthesize}>
-              Run a final agent that synthesizes all task results
+              {t('orchestration.synthesize')}
             </Switch>
             {engine === 'graph' && (
               <Switch checked={worktree} onChange={setWorktree}>
-                Give each task its own git worktree and branch
+                {t('orchestration.worktree')}
               </Switch>
             )}
             <Switch checked={askPermissions} onChange={setAskPermissions}>
-              Ask me when a worker needs permission
+              {t('orchestration.askPermissions')}
             </Switch>
-            <p className="muted small">
-              Prompts appear on the worker's run page for you to allow or deny. Without this a worker has nobody to ask,
-              so anything not listed below is denied automatically.
-            </p>
-            <Field
-              label="Tools workers may use"
-              hint="A worker has nobody to ask, so the CLI denies anything not pre-authorised here. Leave empty to rely on the permission mode alone."
-            >
+            <p className="muted small">{t('orchestration.askPermissionsHint')}</p>
+            <Field label={t('orchestration.tools')} hint={t('orchestration.toolsHint')}>
               <input value={allowedTools} onChange={(e) => setAllowedTools(e.target.value)} placeholder="Bash,Read,Write,Edit" />
             </Field>
             {engine === 'graph' && worktree && (
               <p className="muted small">
-                Workers then never write over each other, and never edit the checkout Agentry is running from — an
-                orchestration that edits this repo restarts the wrapper and kills itself. Needs the directory to be a git
-                repository.
+                {t('orchestration.worktreeHint')}
               </p>
             )}
 
             <div className="card-head">
-              <h2>Tasks ({tasks.length})</h2>
+              <h2>{t('orchestration.tasks', { count: tasks.length })}</h2>
               <button type="button" className="btn btn-small" onClick={() => setTasks((prev) => [...prev, emptyTask(prev.length + 1)])}>
                 <Plus size={14} strokeWidth={2} aria-hidden />
-                Add task
+                {t('orchestration.addTask')}
               </button>
             </div>
-            {tasks.length === 0 && <Empty title="No tasks yet">Add tasks and wire their dependencies.</Empty>}
+            {tasks.length === 0 && <Empty title={t('orchestration.noTasks')}>{t('orchestration.noTasksHint')}</Empty>}
             <div className="stack">
               {tasks.map((task, i) => (
                 <TaskEditor
                   key={i}
                   task={task}
-                  others={tasks.filter((_, j) => j !== i).map((t) => t.id).filter(Boolean)}
+                  others={tasks.filter((_, j) => j !== i).map((other) => other.id).filter(Boolean)}
                   onChange={(patch) => updateTask(i, patch)}
                   onRemove={() => removeTask(i)}
                 />
               ))}
             </div>
             {localError && <div className="alert alert-warn">{localError}</div>}
-            <ErrorBox error={create.error} title="Could not launch" />
+            <ErrorBox error={create.error} title={t('orchestration.launchFailed')} />
             <div className="form-actions">
               <button type="button" className="btn btn-primary" disabled={create.isPending} onClick={launch}>
-                {create.isPending ? 'Launching…' : `Launch ${tasks.length} task${tasks.length === 1 ? '' : 's'}`}
+                {create.isPending ? t('orchestration.launching') : t('orchestration.launch', { count: tasks.length })}
               </button>
               <button type="button" className="btn" onClick={onDone}>
-                Cancel
+                {t('shared.cancel')}
               </button>
             </div>
           </>
@@ -446,6 +447,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
 }
 
 export function Orchestration() {
+  const { t } = useTranslation('config');
   const { data, error, isLoading } = useOrchestrations();
   const [creating, setCreating] = useState(false);
   const list = data ?? [];
@@ -453,32 +455,32 @@ export function Orchestration() {
   return (
     <>
       <PageHeader
-        title="Orchestration"
-        subtitle="Split an objective into tasks and run them as parallel agents with dependencies"
+        title={t('orchestration.title')}
+        subtitle={t('orchestration.subtitle')}
         actions={
           !creating && (
             <button className="btn btn-primary" onClick={() => setCreating(true)}>
               <Plus size={14} strokeWidth={2} aria-hidden />
-              New orchestration
+              {t('orchestration.new')}
             </button>
           )
         }
       />
       {creating && <CreateForm onDone={() => setCreating(false)} />}
       <ErrorBox error={error} />
-      <Card title={`Orchestrations (${list.length})`}>
+      <Card title={t('orchestration.list', { count: list.length })}>
         {isLoading ? (
           <Loading />
         ) : list.length === 0 ? (
-          <Empty title="No orchestrations yet" />
+          <Empty title={t('orchestration.none')} />
         ) : (
           <div className="list">
             {list.map((orch) => {
               // Progress is completed work only: counting stopped tasks as done drew a full bar and
               // "5/5" over a graph that had finished two tasks and been interrupted.
-              const completed = orch.tasks.filter((t) => t.status === 'completed').length;
-              const stopped = orch.tasks.filter((t) => t.status === 'stopped' || t.status === 'skipped').length;
-              const failed = orch.tasks.filter((t) => t.status === 'failed').length;
+              const completed = orch.tasks.filter((task) => task.status === 'completed').length;
+              const stopped = orch.tasks.filter((task) => task.status === 'stopped' || task.status === 'skipped').length;
+              const failed = orch.tasks.filter((task) => task.status === 'failed').length;
               const pct = orch.tasks.length ? Math.round((completed / orch.tasks.length) * 100) : 0;
               const resumable = orch.status !== 'running' && completed < orch.tasks.length;
               return (
@@ -493,15 +495,13 @@ export function Orchestration() {
                       <div className={`meter-fill ${failed ? 'is-bad' : ''}`} style={{ width: `${pct}%` }} />
                     </div>
                     <div className="meta">
-                      <span>
-                        {completed}/{orch.tasks.length} completed
-                      </span>
-                      {stopped > 0 && <span className="text-warn">{stopped} not run</span>}
-                      {failed > 0 && <span className="text-bad">{failed} failed</span>}
+                      <span>{t('orchestration.completed', { done: completed, total: orch.tasks.length })}</span>
+                      {stopped > 0 && <span className="text-warn">{t('orchestration.notRun', { count: stopped })}</span>}
+                      {failed > 0 && <span className="text-bad">{t('orchestration.failed', { count: failed })}</span>}
                       {orch.engine === 'workflow' && <Tag tone="info">workflow</Tag>}
-                      {resumable && <Tag tone="active">can be resumed</Tag>}
+                      {resumable && <Tag tone="active">{t('orchestration.resumable')}</Tag>}
                       <span>{formatCost(orch.costUsd)}</span>
-                      <span>concurrency {orch.concurrency}</span>
+                      <span>{t('orchestration.concurrencyValue', { n: orch.concurrency })}</span>
                     </div>
                   </div>
                   <span className="muted small nowrap">{timeAgo(orch.createdAt)}</span>

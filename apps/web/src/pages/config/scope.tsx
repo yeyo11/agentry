@@ -2,6 +2,7 @@ import type { ProjectSummary } from '@agentry/shared';
 import * as Popover from '@radix-ui/react-popover';
 import { ChevronsUpDown } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useProjects, type Scope } from '../../api';
 import { Checkbox } from '../../components/controls';
 import { LAYER_ATTR } from '../../components/controls/layer';
@@ -40,6 +41,7 @@ export function ScopePicker({
   state: ScopeState;
   onSelect: (projectId: string | undefined) => void;
 }) {
+  const { t } = useTranslation('config');
   const listId = useId();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
@@ -80,21 +82,23 @@ export function ScopePicker({
   return (
     <Popover.Root open={open} onOpenChange={openChange}>
       <Popover.Trigger className="btn scope-picker-button" aria-haspopup="listbox">
-        <span className="muted">Scope</span>
-        <strong className="ellipsis">{state.project ? state.project.name : state.scope.projectId ? 'Unknown project' : 'User'}</strong>
+        <span className="muted">{t('scope.label')}</span>
+        <strong className="ellipsis">
+          {state.project ? state.project.name : state.scope.projectId ? t('config.unknownProject') : t('scope.user')}
+        </strong>
         <ChevronsUpDown size={14} strokeWidth={1.75} aria-hidden className="muted" />
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content {...LAYER_ATTR} className="popover" align="end" sideOffset={8} collisionPadding={8}>
           <input
             role="combobox"
-            aria-label="Search projects"
+            aria-label={t('scope.search')}
             aria-expanded
             aria-controls={listId}
             aria-autocomplete="list"
             aria-activedescendant={options.length ? `${listId}-${highlighted}` : undefined}
             value={filter}
-            placeholder="Search projects…"
+            placeholder={t('scope.searchPlaceholder')}
             onChange={(e) => {
               setFilter(e.target.value);
               setActive(0);
@@ -109,27 +113,28 @@ export function ScopePicker({
               }
             }}
           />
-          <div className="popover-list" id={listId} role="listbox" aria-label="Configuration scope">
+          <div className="popover-list" id={listId} role="listbox" aria-label={t('scope.listLabel')}>
             {showUser && (
               <div {...optionProps(undefined, 0)}>
-                <strong>User</strong>
-                <span className="small muted">Applies to every project of this account</span>
+                <strong>{t('scope.user')}</strong>
+                <span className="small muted">{t('scope.userHint')}</span>
               </div>
             )}
             {matches.map((project, i) => (
               <div key={project.id} {...optionProps(project.id, i + (showUser ? 1 : 0))} title={project.path}>
                 <strong className="ellipsis">
                   {project.name}
-                  {project.temporary && <span className="badge popover-badge">temporary</span>}
+                  {project.temporary && <span className="badge popover-badge">{t('scope.temporary')}</span>}
                 </strong>
                 <span className="small muted mono ellipsis">{shortPath(project.path, 44)}</span>
               </div>
             ))}
-            {options.length === 0 && <div className="small muted popover-empty">No project matches</div>}
+            {options.length === 0 && <div className="small muted popover-empty">{t('scope.noMatch')}</div>}
           </div>
           {(hiddenTemporary > 0 || showTemporary) && (
             <Checkbox className="check small popover-foot" checked={showTemporary} onChange={setShowTemporary}>
-              Show temporary projects{hiddenTemporary > 0 ? ` (${hiddenTemporary})` : ''}
+              {t('scope.showTemporary')}
+              {hiddenTemporary > 0 ? ` (${hiddenTemporary})` : ''}
             </Checkbox>
           )}
         </Popover.Content>

@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react';
 import type { McpHealthStatus, McpScope, McpServerEntry, McpServerHealth } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { api, keys, type Scope } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { Select, Switch } from '../../components/controls';
@@ -28,15 +29,16 @@ interface ServerForm {
 }
 
 const TRANSPORTS = [
-  { value: 'stdio', label: 'stdio', title: 'Local process started by Claude Code' },
-  { value: 'http', label: 'HTTP', title: 'Remote server over streamable HTTP' },
-  { value: 'sse', label: 'SSE', title: 'Remote server over Server-Sent Events (legacy)' },
+  { value: 'stdio', label: 'stdio' },
+  { value: 'http', label: 'HTTP' },
+  { value: 'sse', label: 'SSE' },
 ] as const;
 
-const SCOPE_INFO: Record<McpScope, { tone: string; hint: string }> = {
-  user: { tone: 'info', hint: 'Available in every project of this account' },
-  project: { tone: 'idle', hint: 'Stored in .mcp.json, shared with the team' },
-  local: { tone: 'warn', hint: 'Private to you within this project' },
+// Each scope's hint lives in the `config` locale under mcp.scopeHints
+const SCOPE_TONE: Record<McpScope, string> = {
+  user: 'info',
+  project: 'idle',
+  local: 'warn',
 };
 
 const HEALTH_TONE: Record<McpHealthStatus, string> = {
@@ -97,6 +99,7 @@ function ServerEditor({
   existingNames: Set<string>;
   onClose: () => void;
 }) {
+  const { t } = useTranslation('config');
   const queryClient = useQueryClient();
   const toast = useToast();
   const [form, setForm] = useState(initial);
@@ -121,15 +124,15 @@ function ServerEditor({
 
   const save = useMutation({
     mutationFn: () => {
-      if (!config) throw new Error(parsedJson?.error ?? 'Invalid configuration');
+      if (!config) throw new Error(parsedJson?.error ?? t('mcp.invalidConfig'));
       return api.putMcpServer(scope, form.name, config, form.scope);
     },
     onSuccess: (entry) => {
       void queryClient.invalidateQueries({ queryKey: keys.mcp(scope) });
-      toast.success(`MCP server “${entry.name}” saved`, `${entry.scope} scope`);
+      toast.success(t('mcp.saved', { name: entry.name }), t('mcp.scopeName', { scope: entry.scope }));
       onClose();
     },
-    onError: (err) => toast.error('Could not save the MCP server', err),
+    onError: (err) => toast.error(t('mcp.saveFailed'), err),
   });
 
   const toggleAdvanced = () => {
@@ -139,7 +142,7 @@ function ServerEditor({
       return;
     }
     if (!parsedJson?.value) {
-      toast.error('Fix the JSON first', new Error(parsedJson?.error ?? 'Invalid JSON'));
+      toast.error(t('settings.fixFirst'), new Error(parsedJson?.error ?? t('settings.invalidJson')));
       return;
     }
     setForm((f) => ({ ...formFromEntry({ name: f.name, scope: f.scope, config: parsedJson.value as Record<string, unknown> }) }));
@@ -148,10 +151,10 @@ function ServerEditor({
 
   return (
     <Card
-      title={isNew ? 'New MCP server' : `Edit “${initial.name}”`}
+      title={isNew ? t('mcp.newServer') : t('mcp.editServer', { name: initial.name })}
       actions={
         <Switch checked={advanced} onChange={toggleAdvanced}>
-          Advanced JSON
+          {t('mcp.advanced')}
         </Switch>
       }
     >
@@ -163,7 +166,7 @@ function ServerEditor({
         }}
       >
         <div className="form-grid">
-          <Field label="Name" hint={clash ? undefined : 'Letters, digits, dots, dashes and underscores.'}>
+          <Field label={t('mcp.name')} hint={clash ? undefined : t('mcp.nameHint')}>
             <input
               className={`mono ${form.name && (!nameValid || clash) ? 'is-invalid' : ''}`}
               value={form.name}
@@ -171,9 +174,9 @@ function ServerEditor({
               placeholder="my-server"
               onChange={(e) => patch({ name: e.target.value.trim() })}
             />
-            {clash && <span className="field-hint text-err">A server with this name already exists in the {form.scope} scope.</span>}
+            {clash && <span className="field-hint text-err">{t('mcp.clash', { scope: form.scope })}</span>}
           </Field>
-          <Field label="Scope" hint={SCOPE_INFO[form.scope].hint}>
+          <Field label={t('scope.label')} hint={t(`mcp.scopeHints.${form.scope}`)}>
             <Select<McpScope>
               value={form.scope}
               disabled={!isNew}
@@ -181,8 +184,8 @@ function ServerEditor({
               options={
                 scope.projectId
                   ? [
-                      { value: 'project', label: 'project (.mcp.json)' },
-                      { value: 'local', label: 'local (only me, this project)' },
+                      { value: 'project', label: t('mcp.projectOption') },
+                      { value: 'local', label: t('mcp.localOption') },
                     ]
                   : [{ value: 'user', label: 'user' }]
               }
@@ -194,7 +197,7 @@ function ServerEditor({
           <>
             <CodeEditor
               language="json"
-              ariaLabel="MCP server JSON"
+              ariaLabel={t('mcp.json')}
               minHeight="220px"
               invalid={Boolean(parsedJson?.error)}
               value={json}
@@ -205,31 +208,36 @@ function ServerEditor({
             />
             {parsedJson?.error && (
               <div className="alert alert-warn" role="alert">
-                Invalid JSON: {parsedJson.error}
+                {t('settings.invalidJsonDetail', { error: parsedJson.error })}
               </div>
             )}
           </>
         ) : (
           <>
-            <Field label="Transport">
-              <Segmented label="Transport" value={form.transport} options={TRANSPORTS} onChange={(transport) => patch({ transport })} />
+            <Field label={t('mcp.transport')}>
+              <Segmented
+                label={t('mcp.transport')}
+                value={form.transport}
+                options={TRANSPORTS.map((option) => ({ ...option, title: t(`mcp.transports.${option.value}`) }))}
+                onChange={(transport) => patch({ transport })}
+              />
             </Field>
             {form.transport === 'stdio' ? (
               <>
-                <Field label="Command" hint="Executable that speaks MCP over stdin/stdout.">
+                <Field label={t('settingsGuided.command')} hint={t('mcp.commandHint')}>
                   <input className="mono" value={form.command} placeholder="npx" onChange={(e) => patch({ command: e.target.value })} />
                 </Field>
-                <Field label="Arguments" hint="One argument per entry, in order.">
+                <Field label={t('mcp.args')} hint={t('mcp.argsHint')}>
                   <StringListEditor
                     values={form.args}
                     allowDuplicates
                     placeholder="-y"
-                    addLabel="Add argument"
-                    emptyText="No arguments"
+                    addLabel={t('mcp.addArg')}
+                    emptyText={t('mcp.noArgs')}
                     onChange={(args) => patch({ args })}
                   />
                 </Field>
-                <Field label="Environment variables">
+                <Field label={t('settingsGuided.env')}>
                   <KeyValueEditor rows={form.env} maskValues onChange={(env) => patch({ env })} />
                 </Field>
               </>
@@ -244,12 +252,12 @@ function ServerEditor({
                     onChange={(e) => patch({ url: e.target.value })}
                   />
                 </Field>
-                <Field label="Headers" hint="For example Authorization: Bearer …">
+                <Field label={t('mcp.headers')} hint={t('mcp.headersHint')}>
                   <KeyValueEditor
                     rows={form.headers}
                     maskValues
-                    keyPlaceholder="Header"
-                    addLabel="Add header"
+                    keyPlaceholder={t('mcp.header')}
+                    addLabel={t('mcp.addHeader')}
                     onChange={(headers) => patch({ headers })}
                   />
                 </Field>
@@ -257,7 +265,12 @@ function ServerEditor({
             )}
             {Object.keys(form.extra).length > 0 && (
               <p className="small muted">
-                Extra keys kept as-is: <span className="mono">{Object.keys(form.extra).join(', ')}</span> (edit them in Advanced JSON).
+                <Trans
+                  t={t}
+                  i18nKey="mcp.extraKeys"
+                  values={{ keys: Object.keys(form.extra).join(', ') }}
+                  components={{ mono: <span className="mono" /> }}
+                />
               </p>
             )}
           </>
@@ -265,10 +278,10 @@ function ServerEditor({
 
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={!nameValid || !complete || clash || save.isPending}>
-            {save.isPending ? 'Saving…' : isNew ? 'Add server' : 'Save server'}
+            {save.isPending ? t('shared.saving') : isNew ? t('mcp.add') : t('mcp.save')}
           </button>
           <button type="button" className="btn" onClick={onClose}>
-            Cancel
+            {t('shared.cancel')}
           </button>
         </div>
       </form>
@@ -277,6 +290,7 @@ function ServerEditor({
 }
 
 export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser: () => void }) {
+  const { t } = useTranslation('config');
   const queryClient = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -290,19 +304,19 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
     onSuccess: (results) => {
       setHealth(new Map(results.map((r) => [r.name, r])));
       const failing = results.filter((r) => r.status !== 'connected').length;
-      if (failing === 0) toast.success(`All ${results.length} servers connected`);
-      else toast.info(`${failing} of ${results.length} servers are not connected`);
+      if (failing === 0) toast.success(t('mcp.allConnected', { count: results.length }));
+      else toast.info(t('mcp.someFailing', { failing, count: results.length }));
     },
-    onError: (err) => toast.error('Connection check failed', err),
+    onError: (err) => toast.error(t('mcp.checkFailed'), err),
   });
 
   const remove = useMutation({
     mutationFn: (server: McpServerEntry) => api.deleteMcpServer(scope, server.name, server.scope),
     onSuccess: (_result, server) => {
       void queryClient.invalidateQueries({ queryKey: keys.mcp(scope) });
-      toast.success(`MCP server “${server.name}” removed`);
+      toast.success(t('mcp.removed', { name: server.name }));
     },
-    onError: (err) => toast.error('Could not remove the MCP server', err),
+    onError: (err) => toast.error(t('mcp.removeFailed'), err),
   });
 
   const editable = (server: McpServerEntry) => !scope.projectId || server.scope !== 'user';
@@ -322,16 +336,16 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
 
   return (
     <Card
-      title="MCP servers"
+      title={t('config.tabs.mcp')}
       actions={
         <div className="toolbar">
           <button className="btn btn-small" disabled={check.isPending || servers.length === 0} onClick={() => check.mutate()}>
             {check.isPending ? (
               <>
-                <span className="spinner" /> Checking…
+                <span className="spinner" /> {t('mcp.checking')}
               </>
             ) : (
-              'Check connections'
+              t('mcp.check')
             )}
           </button>
           <button
@@ -339,36 +353,36 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
             onClick={() => setEditing({ form: emptyForm(scope.projectId ? 'project' : 'user'), isNew: true })}
           >
             <Plus size={14} strokeWidth={2} aria-hidden />
-            Add server
+            {t('mcp.add')}
           </button>
         </div>
       }
     >
       <ErrorBox error={error} />
-      {check.isPending && <p className="small muted">Starting every server and testing the connection. This can take a while…</p>}
+      {check.isPending && <p className="small muted">{t('mcp.checkingHint')}</p>}
       {isLoading ? (
         <Skeleton rows={4} />
       ) : servers.length === 0 ? (
         <Empty
-          title="No MCP servers"
+          title={t('mcp.empty')}
           action={
             <button className="btn btn-primary" onClick={() => setEditing({ form: emptyForm(scope.projectId ? 'project' : 'user'), isNew: true })}>
-              Add the first server
+              {t('mcp.addFirst')}
             </button>
           }
         >
-          MCP servers give Claude extra tools: databases, issue trackers, browsers…
+          {t('mcp.emptyHint')}
         </Empty>
       ) : (
         <div className="table-wrap">
           <table className="table">
             <thead>
               <tr>
-                <th>Server</th>
-                <th>Scope</th>
-                <th>Transport</th>
-                <th>Target</th>
-                <th>Connection</th>
+                <th>{t('mcp.server')}</th>
+                <th>{t('scope.label')}</th>
+                <th>{t('mcp.transport')}</th>
+                <th>{t('mcp.target')}</th>
+                <th>{t('mcp.connection')}</th>
                 <th />
               </tr>
             </thead>
@@ -380,10 +394,10 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
                   <tr key={`${server.scope}:${server.name}`} className={remove.isPending && remove.variables === server ? 'row-busy' : ''}>
                     <td className="strong">{server.name}</td>
                     <td>
-                      <span title={SCOPE_INFO[server.scope].hint}>
-                        <Tag tone={SCOPE_INFO[server.scope].tone}>{server.scope}</Tag>
+                      <span title={t(`mcp.scopeHints.${server.scope}`)}>
+                        <Tag tone={SCOPE_TONE[server.scope]}>{server.scope}</Tag>
                       </span>
-                      {!editable(server) && <span className="small muted"> inherited</span>}
+                      {!editable(server) && <span className="small muted"> {t('mcp.inherited')}</span>}
                     </td>
                     <td className="mono small">{transport}</td>
                     <td className="mono small break" title={target(server.config)}>
@@ -395,7 +409,7 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
                           <span className={`dot ${HEALTH_TONE[status.status]}`} /> <span className="small">{status.detail || status.status}</span>
                         </span>
                       ) : (
-                        <span className="small muted">not checked</span>
+                        <span className="small muted">{t('mcp.notChecked')}</span>
                       )}
                     </td>
                     <td>
@@ -403,26 +417,26 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
                         {editable(server) ? (
                           <>
                             <button className="btn btn-small" onClick={() => setEditing({ form: formFromEntry(server), isNew: false })}>
-                              Edit
+                              {t('shared.edit')}
                             </button>
                             <button
                               className="btn btn-small btn-danger"
                               disabled={remove.isPending}
                               onClick={() =>
                                 void confirm({
-                                  title: `Remove “${server.name}”?`,
-                                  body: `The server is removed from the ${server.scope} scope. Sessions already running keep it until they restart.`,
-                                  confirmLabel: 'Remove server',
+                                  title: t('mcp.removeTitle', { name: server.name }),
+                                  body: t('mcp.removeBody', { scope: server.scope }),
+                                  confirmLabel: t('mcp.remove'),
                                   danger: true,
                                 }).then((ok) => ok && remove.mutate(server))
                               }
                             >
-                              Remove
+                              {t('shared.remove')}
                             </button>
                           </>
                         ) : (
                           <button className="btn btn-small" onClick={onSwitchToUser}>
-                            Edit in user scope
+                            {t('mcp.editInUser')}
                           </button>
                         )}
                       </div>
