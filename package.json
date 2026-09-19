@@ -18,7 +18,9 @@
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
     "test": "pnpm --filter @agentry/core --filter @agentry/api test",
-    "e2e": "node e2e/run.mjs"
+    "e2e": "node e2e/run.mjs",
+    "desktop:dev": "pnpm --filter @agentry/desktop dev",
+    "desktop:dist": "pnpm --filter @agentry/desktop dist:linux"
   },
   "devDependencies": {
     "@types/node": "^26.6.1",

@@ -1,0 +1,62 @@
+name: Desktop
+
+# Reusable, like image.yml: the release workflow calls it with the tag it just published, and it can be run
+# by hand to get a build to test. Without a tag it only builds and keeps the packages as a run artifact;
+# with one it also attaches them to that GitHub release. It is called, never triggered by a tag push — a tag
+# created by GITHUB_TOKEN does not start a workflow of its own.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to build and attach the packages to (e.g. v0.6.0); empty builds the current commit only
+        required: false
+        default: ''
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and attach the packages to (e.g. v0.6.0); empty builds the current commit only
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.sha }}
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Web UI, API bundle, Electron shell, then electron-builder: AppImage and .deb land in apps/desktop/release
+      - run: pnpm desktop:dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: agentry-linux
+          path: |
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+          if-no-files-found: error
+
+      # The release already exists by now (release-please publishes it before this runs); --clobber makes a
+      # republish of the same tag replace the packages instead of failing on the name
+      - name: Attach to the release
+        if: inputs.tag != ''
+        run: gh release upload "$TAG" apps/desktop/release/*.AppImage apps/desktop/release/*.deb --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}

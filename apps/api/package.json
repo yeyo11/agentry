@@ -8,7 +8,8 @@
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "tsx --test test/*.test.ts",
-    "openapi:schemas": "tsx scripts/generate-schemas.ts"
+    "openapi:schemas": "tsx scripts/generate-schemas.ts",
+    "bundle": "node scripts/bundle.mjs"
   },
   "dependencies": {
     "@agentry/core": "workspace:*",
@@ -21,6 +22,7 @@
     "tsx": "^4.23.13"
   },
   "devDependencies": {
+    "esbuild": "^0.25.12",
     "ts-json-schema-generator": "^2.9.0"
   }
 }

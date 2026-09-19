@@ -69,3 +69,14 @@ jobs:
         type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag || needs.please.outputs.tag }}
         type=semver,pattern={{major}},value=${{ inputs.tag || needs.please.outputs.tag }}
         type=raw,value=latest
+
+  # The Linux desktop app rides the same trigger as the image: AppImage and .deb are attached to the release
+  # that was just published, or replaced on it when a tag is republished by hand.
+  desktop:
+    needs: please
+    if: always() && (inputs.tag != '' || needs.please.outputs.released == 'true')
+    permissions:
+      contents: write
+    uses: ./.github/workflows/desktop.yml
+    with:
+      tag: ${{ inputs.tag || needs.please.outputs.tag }}
