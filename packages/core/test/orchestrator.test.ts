@@ -232,6 +232,40 @@ test('a graph in a subdirectory gets its worktrees where the CLI looks, and work
   db.close();
 });
 
+test('a graph started from a linked worktree builds on that worktree, with its worktrees where the CLI looks', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  // The graph runs from a linked worktree whose branch is ahead of the main checkout
+  const linked = `${repo}-linked`;
+  execFileSync('git', ['-C', repo, 'worktree', 'add', '-q', '-b', 'feature', linked]);
+  writeFileSync(join(linked, 'feature.txt'), 'feature\n');
+  execFileSync('git', ['-C', linked, 'add', '-A']);
+  execFileSync('git', ['-C', linked, 'commit', '-q', '-m', 'feature']);
+  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+
+  const started = orchestrator.create({
+    name: 'from linked',
+    cwd: linked,
+    worktree: true,
+    tasks: [{ id: 'docs', name: 'Docs', prompt: 'FAKE-WRITE docs.txt written' }],
+  });
+  const orch = await settle(orchestrator, started.id);
+
+  assert.equal(orch.status, 'completed', orch.tasks.map((t) => t.error).join('; '));
+  // The CLI keeps --worktree checkouts under the main checkout, not under the linked one
+  const task = orch.tasks[0];
+  assert.equal(task?.worktree, join(repo, '.claude', 'worktrees', `${orch.id.slice(0, 8)}-docs`));
+  assert.equal(existsSync(join(linked, '.claude')), false);
+  // It starts from what the linked worktree has, not from the main checkout's branch
+  assert.match(task?.result ?? '', /files=.*feature\.txt/);
+  const integration = orch.integration;
+  assert.equal(integration?.status, 'merged', String(integration?.error));
+  assert.equal(show(repo, `${integration?.branch}:feature.txt`), 'feature');
+  assert.equal(show(repo, `${integration?.branch}:docs.txt`), 'written');
+  db.close();
+});
+
 test('a graph in an ignored subdirectory works at the top of its worktrees, where its work is kept', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);

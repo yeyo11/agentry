@@ -35,6 +35,7 @@ import {
   merge,
   mergeInProgress,
   removeWorktree,
+  mainTopLevel,
   topLevel,
 } from './git.ts';
 import type { CoreConfig } from './paths.ts';
@@ -62,10 +63,15 @@ function worktreeName(orch: Orchestration, task: OrchestrationTaskState): string
  */
 const worktreePath = (root: string, name: string) => join(root, '.claude', 'worktrees', name);
 
-/** A graph's repository: its top level, and the subdirectory of it the graph works in ('' for the top). */
+/**
+ * A graph's repository: the top level of the checkout it runs in, the subdirectory of it the graph
+ * works in ('' for the top), and where task worktrees live. The last is the main checkout's top
+ * level even when the graph runs from a linked worktree, because that is where the CLI looks.
+ */
 interface Checkout {
   root: string;
   subdir: string;
+  home: string;
 }
 
 function checkoutOf(cwd: string): Checkout {
@@ -74,7 +80,7 @@ function checkoutOf(cwd: string): Checkout {
   const subdir = relative(root, realpathSync(cwd));
   // An ignored directory is missing from a fresh worktree, and whatever a worker writes there never
   // reaches its branch: in one of those, working at the top is the only way the work survives.
-  return { root, subdir: subdir && !isIgnored(root, subdir) ? subdir : '' };
+  return { root, subdir: subdir && !isIgnored(root, subdir) ? subdir : '', home: mainTopLevel(cwd) };
 }
 
 /** `agentry/<name>-<id>`: readable in a branch list, and never shared by two graphs. */
@@ -505,8 +511,8 @@ export class Orchestrator {
    * worktree of the name it is given, so it still locks it and records it as its own.
    */
   private prepareWorktree(orch: Orchestration, task: OrchestrationTaskState, name: string): PreparedWorktree {
-    const { root, subdir } = checkoutOf(orch.cwd);
-    const path = worktreePath(root, name);
+    const { root, subdir, home } = checkoutOf(orch.cwd);
+    const path = worktreePath(home, name);
     const branch = `worktree-${name}`;
     // Before worktrees were resolved from the top level, a graph in a subdirectory put them where
     // the CLI never looked, and every worker failed there before doing anything. Its branch cannot
@@ -627,12 +633,13 @@ export class Orchestrator {
     if (tasks.length === 0) return;
     const branch = orch.integration?.branch ?? integrationBranch(orch);
     let root: string;
+    let home: string;
     try {
-      root = checkoutOf(orch.cwd).root;
+      ({ root, home } = checkoutOf(orch.cwd));
     } catch {
-      root = orch.cwd; // no longer a repository: adding the worktree below says so on the record
+      root = home = orch.cwd; // no longer a repository: adding the worktree below says so on the record
     }
-    const path = worktreePath(root, `${orch.id.slice(0, 8)}-integration`);
+    const path = worktreePath(home, `${orch.id.slice(0, 8)}-integration`);
     const state: OrchestrationIntegration = (orch.integration = {
       branch,
       worktree: path,

@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { dirname } from 'node:path';
 
 /**
  * The few git operations orchestrations need to hand back one branch instead of a pile of
@@ -28,6 +29,14 @@ export function isGitRepo(dir: string): boolean {
 /** The checkout `dir` belongs to, which is where the CLI keeps its worktrees whatever subdirectory it runs in. */
 export function topLevel(dir: string): string {
   return git(dir, ['rev-parse', '--show-toplevel'], 10_000);
+}
+
+/**
+ * The top level of the main checkout `dir` belongs to. Inside a linked worktree `topLevel` is that
+ * worktree, but the CLI keeps the checkouts it makes for `--worktree` under the main one.
+ */
+export function mainTopLevel(dir: string): string {
+  return dirname(git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], 10_000));
 }
 
 /** Whether git ignores `path`, relative to the top level of `repo`, or anything above it. */
