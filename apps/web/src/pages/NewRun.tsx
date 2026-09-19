@@ -1,6 +1,7 @@
 import type { PermissionMode, RunOptions } from '@agentry/shared';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, useAccounts, useOverview, useProjects } from '../api';
 import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
@@ -8,6 +9,7 @@ import { Combobox, Select, Switch } from '../components/controls';
 import { Card, ErrorBox, Field, MODEL_OPTIONS, PageHeader, PERMISSION_MODES } from '../components/ui';
 
 export function NewRun() {
+  const { t } = useTranslation('work');
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const projects = useProjects(false);
@@ -44,7 +46,7 @@ export function NewRun() {
 
   return (
     <>
-      <PageHeader title="New run" subtitle="Starts a headless `claude -p` process managed by the wrapper" />
+      <PageHeader title={t('newRun.title')} subtitle={t('newRun.subtitle')} />
       <Card>
         <form
           className="form"
@@ -53,12 +55,12 @@ export function NewRun() {
             if (ready) start.mutate();
           }}
         >
-          <Field label="Prompt" hint="Drop or paste files onto the prompt to attach them.">
+          <Field label={t('newRun.prompt')} hint={t('newRun.promptHint')}>
             <div {...files.dropProps}>
               <textarea
                 autoFocus
                 rows={7}
-                placeholder="What should Claude do?"
+                placeholder={t('newRun.promptPlaceholder')}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onPaste={files.onPaste}
@@ -73,60 +75,60 @@ export function NewRun() {
             <AttachmentTray state={files} />
           </div>
           <div className="form-grid">
-            <Field label="Working directory" hint={`Default: ${system?.workspaceDir ?? 'wrapper workspace'}`}>
+            <Field label={t('newRun.cwd')} hint={t('newRun.cwdHint', { dir: system?.workspaceDir ?? t('newRun.wrapperWorkspace') })}>
               <Combobox
-                aria-label="Working directory"
-                placeholder="/path/to/project"
+                aria-label={t('newRun.cwd')}
+                placeholder={t('newRun.cwdPlaceholder')}
                 value={cwd}
                 onChange={setCwd}
                 options={(projects.data ?? []).filter((p) => p.exists).map((p) => ({ value: p.path, label: p.name, hint: p.path }))}
               />
             </Field>
-            <Field label="Model" hint="Alias or full model id. Empty = CLI default">
-              <Combobox aria-label="Model" placeholder="default" value={model} onChange={setModel} options={MODEL_OPTIONS} />
+            <Field label={t('shared.model')} hint={t('newRun.modelHint')}>
+              <Combobox aria-label={t('shared.model')} placeholder={t('shared.default')} value={model} onChange={setModel} options={MODEL_OPTIONS} />
             </Field>
-            <Field label="Permission mode" hint="Can be changed while the run works">
+            <Field label={t('newRun.permissionMode')} hint={t('newRun.permissionModeHint')}>
               <Select<PermissionMode | ''>
                 value={permissionMode}
                 onChange={setPermissionMode}
                 options={[
-                  { value: '', label: `Default (${system?.defaultPermissionMode ?? '…'})` },
+                  { value: '', label: t('newRun.defaultMode', { mode: system?.defaultPermissionMode ?? '…' }) },
                   ...PERMISSION_MODES.map((m) => ({ value: m, label: m })),
                 ]}
               />
             </Field>
-            <Field label="Name" hint="Optional display name">
-              <input placeholder="auto" value={name} onChange={(e) => setName(e.target.value)} />
+            <Field label={t('newRun.name')} hint={t('newRun.nameHint')}>
+              <input placeholder={t('newRun.namePlaceholder')} value={name} onChange={(e) => setName(e.target.value)} />
             </Field>
             {(accounts.data?.accounts.length ?? 0) > 1 && (
-              <Field label="Account" hint="Pins the run to one claude-swap account instead of the active one">
+              <Field label={t('newRun.account')} hint={t('newRun.accountHint')}>
                 <Select
                   value={account}
                   onChange={setAccount}
                   options={[
-                    { value: '', label: 'Active account' },
+                    { value: '', label: t('newRun.activeAccount') },
                     ...(accounts.data?.accounts ?? []).map((a) => ({
                       value: String(a.number),
-                      label: `${a.alias ?? a.email}${a.headroomPct !== null ? ` · ${a.headroomPct}% left` : ''}`,
+                      label: `${a.alias ?? a.email}${a.headroomPct !== null ? ` · ${t('newRun.percentLeft', { pct: a.headroomPct })}` : ''}`,
                     })),
                   ]}
                 />
               </Field>
             )}
           </div>
-          <Field label="Append to system prompt" hint="Optional">
+          <Field label={t('newRun.appendSystemPrompt')} hint={t('newRun.optional')}>
             <textarea rows={2} value={appendSystemPrompt} onChange={(e) => setAppendSystemPrompt(e.target.value)} />
           </Field>
           <Switch checked={askHere} onChange={setAskHere}>
-            Answer permission prompts, questions and plans from the panel (off: whatever would ask is denied)
+            {t('newRun.askHere')}
           </Switch>
           <Switch checked={keepAlive} onChange={setKeepAlive}>
-            Keep the process alive between turns (faster follow-ups)
+            {t('newRun.keepAlive')}
           </Switch>
-          <ErrorBox error={start.error} title="Could not start the run" />
+          <ErrorBox error={start.error} title={t('newRun.startFailed')} />
           <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={!ready || start.isPending}>
-              {start.isPending ? 'Starting…' : files.uploading ? 'Uploading…' : 'Start run'}
+              {start.isPending ? t('shared.starting') : files.uploading ? t('shared.uploading') : t('newRun.start')}
             </button>
             <span className="muted small">Ctrl/⌘ + Enter</span>
           </div>

@@ -49,6 +49,8 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | effort | el effort (the `--effort` level), its values untranslated |
 | compact | "compactar" is fine as a verb in prose; `/compact` stays literal |
 | wrapper | el wrapper (Agentry's server) |
+| worker | el worker, los workers (an orchestration's task sessions; Agentry's own term, kept short) |
+| stream | el stream (a run's live event feed): "Stream conectado" |
 
 ## Recurring UI words
 
@@ -112,6 +114,13 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | Scope: user / project | Ámbito: usuario / proyecto |
 | Language | Idioma |
 | Theme: system / light / dark | Tema del sistema / claro / oscuro |
+| Workspace (the wrapper's) | Espacio de trabajo |
+| Working directory | Directorio de trabajo |
+| Default (value) | Predeterminado |
+| Background (a task, a subagent) | segundo plano: "Tareas en segundo plano", tag "segundo plano" |
+| Logged in / logged out (Claude Code auth) | sesión iniciada / sesión cerrada (the login, not a `session`) |
+| Board (orchestration) | Tablero |
+| Details / Output | Detalles / Salida |
 
 ## Status names
 
