@@ -126,6 +126,29 @@ What happens when one fires:
 - **Per-task time and cost limits** in an orchestration. The cost limit already exists per run
   (`--max-budget-usd`) and only needs exposing per task, with a soft warning before the hard stop.
 
+## 5. Verify once, after integrating
+
+The same orchestration showed where the time goes: in the e2e suite, run by every worker on its own
+part of the change. A worker cannot see the whole: the one building notifications does not have
+the detail views, and the other way round. Its e2e failures are mostly not its own, and it chases
+them for minutes at a time, in parallel with other workers running the same suite on the same CPU.
+By the time stage 2 started, the workers had already run e2e commands 4, 2 and a dozen times.
+
+Split the checks by what each step can actually judge:
+
+- **Workers**: `pnpm typecheck` and `pnpm test`, fast and reliable on a part of the change. They may
+  write or update e2e specs but do not run the suite. Agentry adds this to every worker's prompt
+  instead of relying on the objective to say it.
+- **A verification phase** after integration, configurable per orchestration:
+  - commands to run on the integration branch (for this repo `pnpm build`, then the e2e suite spec
+    by spec);
+  - a fixer agent for what fails, with rules that come from Agentry, not the objective: every
+    command under `timeout`, one spec at a time, headless browsers closed after a hang, existing
+    assertions never loosened (a behaviour that changed on purpose is stated as such), and at most N
+    attempts per failure before it stops and reports what is left;
+  - its outcome on the orchestration: passed, fixed (with the commits it made), or failed with the
+    report, before the pull request is offered.
+
 ## Smaller items noted on the way
 
 - Tag background tasks a subagent started as "from subagent": the CLI marks them with
@@ -139,5 +162,6 @@ What happens when one fires:
    orchestration that builds the global event feed, and this builds on both.
 2. Stuck-agent signals, badge, notifications and the cancel-command and send-hint actions
    (section 3), with the e2e harness fixes (section 4).
-3. Editor links (section 2).
-4. Per-task limits and the optional supervisor.
+3. The verification phase and the split of checks between workers and it (section 5).
+4. Editor links (section 2).
+5. Per-task limits and the optional supervisor.
