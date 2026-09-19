@@ -12,10 +12,10 @@ import { restoreWindowState } from './window-state.ts';
 
 const isDev = !app.isPackaged || process.argv.includes('--dev');
 
-// Name before anything reads it: it decides the userData dir and the X11 WM class the launcher matches on.
+// Name before anything reads it: it decides the userData dir. (The X11 WM class the launcher matches on
+// comes from the packaged package.json name instead; see extraMetadata in electron-builder.yml.)
 // Dev gets its own userData so experiments never touch the installed app's data.
 app.setName('Agentry');
-app.commandLine.appendSwitch('class', 'Agentry');
 app.setPath('userData', join(app.getPath('appData'), isDev ? 'Agentry-dev' : 'Agentry'));
 
 const userData = app.getPath('userData');
@@ -100,6 +100,8 @@ function createWindow(): void {
     minWidth: 720,
     minHeight: 480,
     title: 'Agentry',
+    // The dock and the window switcher show this; the launcher entry's icon only covers the menu
+    icon: resolveResources().icon,
     backgroundColor: '#101114',
     autoHideMenuBar: true,
     webPreferences: {

@@ -7,6 +7,8 @@ export interface Resources {
   serverEntry: string;
   /** Built UI served by the API */
   webDist: string;
+  /** Window icon */
+  icon: string;
 }
 
 /**
@@ -18,12 +20,14 @@ export function resolveResources(): Resources {
     return {
       serverEntry: join(process.resourcesPath, 'server', 'server.mjs'),
       webDist: join(process.resourcesPath, 'web'),
+      icon: join(process.resourcesPath, 'icon.png'),
     };
   }
   const repoRoot = resolve(__dirname, '..', '..', '..');
   return {
     serverEntry: join(repoRoot, 'apps', 'api', 'dist', 'server.mjs'),
     webDist: join(repoRoot, 'apps', 'web', 'dist'),
+    icon: join(repoRoot, 'apps', 'desktop', 'build', 'icon.png'),
   };
 }
 

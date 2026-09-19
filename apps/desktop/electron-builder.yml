@@ -5,6 +5,13 @@ productName: Agentry
 copyright: Copyright © 2026 Jose Antonio Garrido
 artifactName: Agentry-${version}-${arch}.${ext}
 
+# The launcher finds a running window by its X11 WM_CLASS, which Electron derives from the packaged
+# package.json name, not from app.setName(). Left as "@agentry/desktop" it became "agentry-desktop",
+# matched nothing, and the dock showed a generic icon. desktopName does the same for Wayland (app id).
+extraMetadata:
+  name: agentry
+  desktopName: agentry.desktop
+
 directories:
   output: release
   buildResources: build
@@ -27,6 +34,9 @@ extraResources:
       - permission-mcp.mjs
   - from: ../web/dist
     to: web
+  # The window's own icon (src/resources.ts); without it the running window has no _NET_WM_ICON
+  - from: build/icons/512x512.png
+    to: icon.png
 
 # No native modules: the SQLite store is node:sqlite, built into the Node that Electron ships.
 npmRebuild: false
@@ -55,9 +65,9 @@ linux:
     entry:
       GenericName: Claude Code Control Panel
       Keywords: Claude;Claude Code;AI;agents;orchestration;
-      # Must equal the X11 class the shell sets with --class (src/main.ts), or the launcher will not
-      # group the running window under this entry
-      StartupWMClass: Agentry
+      # Must equal the window's WM_CLASS, which comes from extraMetadata.name above, or the launcher will
+      # not group the running window under this entry
+      StartupWMClass: agentry
 
 deb:
   # Electron's own runtime libraries only: the server runs on Electron's bundled Node, so no nodejs package.
