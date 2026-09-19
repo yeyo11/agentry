@@ -5,7 +5,7 @@ import type { PermissionDecision, RunDetail, RunEvent, RunOptions } from '@agent
 const HEARTBEAT_MS = 15_000;
 
 export const runRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
-  app.get('/runs', () => core.runs.list());
+  app.get('/runs', () => core.runList());
 
   app.post<{ Body: RunOptions }>('/runs', async (req, reply) => {
     const run = core.runs.start(req.body ?? ({} as RunOptions));

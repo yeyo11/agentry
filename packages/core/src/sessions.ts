@@ -143,6 +143,18 @@ export class SessionStore {
       if (typeof o.version === 'string') summary.cliVersion = o.version;
       if (o.type === 'summary' && typeof o.summary === 'string') customTitle = o.summary;
       if (o.type === 'custom-title' && typeof o.customTitle === 'string') customTitle = o.customTitle;
+      // Written when the CLI starts a session in a worktree it created: which one, and whose
+      if (o.type === 'worktree-state' && !summary.worktree) {
+        const w = o.worktreeSession as Record<string, unknown> | null | undefined;
+        if (w && typeof w.worktreePath === 'string' && typeof w.originalCwd === 'string') {
+          summary.worktree = {
+            path: w.worktreePath,
+            parentPath: w.originalCwd,
+            name: typeof w.worktreeName === 'string' ? w.worktreeName : null,
+            branch: typeof w.worktreeBranch === 'string' ? w.worktreeBranch : null,
+          };
+        }
+      }
 
       const entry = normalizeMessage(o);
       if (!entry || entry.isSidechain) continue;
@@ -190,7 +202,9 @@ export class SessionStore {
     const projects: ProjectSummary[] = [];
     for (const [id, list] of byProject) {
       const path = list.find((s) => s.projectPath)?.projectPath ?? id;
+      const worktree = list.find((s) => s.worktree?.path === path)?.worktree;
       projects.push({
+        ...(worktree ? { parentPath: worktree.parentPath, worktree: { name: worktree.name, branch: worktree.branch } } : {}),
         id,
         path,
         name: basename(path) || path,

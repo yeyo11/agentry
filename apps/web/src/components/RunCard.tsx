@@ -3,7 +3,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowUpRight, Square, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
-import { durationBetween, formatCost, shortPath, timeAgo, truncate } from '../lib/format';
+import { durationBetween, formatCost, timeAgo, truncate } from '../lib/format';
+import { Location } from './Location';
 import { Tooltip } from './controls/Tooltip';
 import { ICON_SM } from './icons';
 import { ErrorBox, StatusBadge } from './ui';
@@ -43,7 +44,7 @@ export function RunCard({ run, compact = false }: { run: RunSummary; compact?: b
           {runningTasks > 0 && <span className="badge badge-active">{runningTasks} bg tasks</span>}
         </div>
         <div className="meta">
-          <span title={run.cwd}>{shortPath(run.cwd)}</span>
+          <Location location={run.location} fallback={run.cwd} />
           <span>{run.model ?? 'default model'}</span>
           <span>{run.turns} turns</span>
           <span>{formatCost(run.costUsd)}</span>

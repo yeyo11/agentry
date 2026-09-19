@@ -2,6 +2,7 @@ import type { BackgroundTask } from '@agentry/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Location } from '../components/Location';
 import { api, useTasks } from '../api';
 import { Card, Empty, ErrorBox, Loading, PageHeader, StatusBadge, Tag } from '../components/ui';
 import { durationBetween, timeAgo } from '../lib/format';
@@ -52,6 +53,7 @@ export function Tasks() {
                 <tr>
                   <th>Status</th>
                   <th>Command</th>
+                  <th>Location</th>
                   <th>Started by</th>
                   <th>Started</th>
                   <th>Duration</th>
@@ -83,7 +85,10 @@ export function Tasks() {
                         )}
                         {task.summary && <div className="muted small">{task.summary}</div>}
                       </td>
-                      <td className="nowrap">
+                      <td className="cell-clip">
+                        <Location location={task.location} />
+                      </td>
+                      <td className="cell-clip">
                         {task.runId ? (
                           <Link to={`/runs/${task.runId}`}>{task.runName}</Link>
                         ) : (
@@ -107,7 +112,7 @@ export function Tasks() {
                     </tr>
                     {open === key(task) && (
                       <tr>
-                        <td colSpan={6}>
+                        <td colSpan={7}>
                           <TaskOutput task={task} />
                         </td>
                       </tr>

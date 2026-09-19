@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
 import type {
   AccountsOverview,
   ActiveCliSession,
@@ -15,6 +15,7 @@ import type {
   SessionSummary,
   SubagentInfo,
   SystemInfo,
+  WorkLocation,
 } from '@agentry/shared';
 import { AccountManager } from './accounts.ts';
 import { backgroundLogs, detectCli, execCli, getAuthStatus, isLiveCliSession, listActiveCliSessions, stopBackgroundSession } from './cli.ts';
@@ -22,6 +23,7 @@ import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
 import { Db } from './db.ts';
+import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
 import { McpConfig } from './config/mcp.ts';
 import { MarkdownResources } from './config/resources.ts';
@@ -68,6 +70,7 @@ export class Core {
   readonly credentials: CredentialStore;
   readonly accounts: AccountManager;
   readonly workspace: Workspace;
+  readonly locator = new Locator();
   private readonly startedAt = Date.now();
   private systemCache: { at: number; value: Omit<SystemInfo, 'uptimeSec'> } | null = null;
   private activeCache: { at: number; value: ActiveCliSession[] } | null = null;
@@ -171,6 +174,28 @@ export class Core {
     return { ...this.systemCache.value, uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
   }
 
+  /** Where a directory's work belongs: its project, and the worktree when it is one. */
+  locate(dir: string): WorkLocation {
+    return this.locator.locate(dir);
+  }
+
+  /** Where a session works, preferring the worktree the CLI recorded over anything guessed. */
+  private locateSummary(summary: SessionSummary | null, fallback: string): WorkLocation {
+    if (summary?.worktree) this.locator.learn(summary.worktree);
+    return this.locate(summary?.worktree?.path ?? (summary?.projectPath || fallback));
+  }
+
+  private async locateSession(sessionId: string, fallback = ''): Promise<WorkLocation | null> {
+    const summary = await this.sessions.summary(sessionId).catch(() => null);
+    if (!summary && !fallback) return null;
+    return this.locateSummary(summary, fallback);
+  }
+
+  /** Runs with where each one actually works. */
+  runList(): RunSummary[] {
+    return this.runs.list().map((r) => ({ ...r, location: this.locate(r.workingDir ?? r.cwd) }));
+  }
+
   /**
    * Where background work is read from, one entry per session. A run that is alive reports from its
    * live stream: freshest, and the only source for a run whose transcript is not kept. Everything
@@ -209,13 +234,19 @@ export class Core {
   async allSubagents(): Promise<SubagentInfo[]> {
     const lists = await Promise.all(
       (await this.activitySources()).map(async (source) =>
-        source.kind === 'stream'
-          ? source.run.subagents.map((s) => ({ ...s, source: 'run' as const }))
-          : (await this.sessions.subagents(source.sessionId, source.live).catch(() => [])).map((s) => ({
-              ...s,
-              runId: source.runId,
-              runName: source.runName,
-            })),
+        {
+          if (source.kind === 'stream') {
+            const location = this.locate(source.run.workingDir ?? source.run.cwd);
+            return source.run.subagents.map((s) => ({ ...s, source: 'run' as const, location }));
+          }
+          const location = await this.locateSession(source.sessionId);
+          return (await this.sessions.subagents(source.sessionId, source.live).catch(() => [])).map((s) => ({
+            ...s,
+            runId: source.runId,
+            runName: source.runName,
+            location,
+          }));
+        },
       ),
     );
     return lists.flat().sort(byRunningThenNewest);
@@ -225,13 +256,19 @@ export class Core {
   async allBackgroundTasks(): Promise<BackgroundTask[]> {
     const lists = await Promise.all(
       (await this.activitySources()).map(async (source) =>
-        source.kind === 'stream'
-          ? source.run.backgroundTasks.map((t) => ({ ...t, source: 'run' as const }))
-          : (await this.sessions.backgroundTasks(source.sessionId, source.live).catch(() => [])).map((t) => ({
-              ...t,
-              runId: source.runId,
-              runName: source.runName,
-            })),
+        {
+          if (source.kind === 'stream') {
+            const location = this.locate(source.run.workingDir ?? source.run.cwd);
+            return source.run.backgroundTasks.map((t) => ({ ...t, source: 'run' as const, location }));
+          }
+          const location = await this.locateSession(source.sessionId);
+          return (await this.sessions.backgroundTasks(source.sessionId, source.live).catch(() => [])).map((t) => ({
+            ...t,
+            runId: source.runId,
+            runName: source.runName,
+            location,
+          }));
+        },
       ),
     );
     return lists.flat().sort(byRunningThenNewest);
@@ -276,7 +313,12 @@ export class Core {
       const value = await Promise.all(
         agents.map(async (agent) => {
           const summary = await this.sessions.summary(agent.sessionId).catch(() => null);
-          return { ...agent, runId: runBySession.get(agent.sessionId), live: isLiveCliSession(agent, summary) };
+          return {
+            ...agent,
+            runId: runBySession.get(agent.sessionId),
+            live: isLiveCliSession(agent, summary),
+            location: this.locateSummary(summary, agent.cwd),
+          };
         }),
       );
       this.activeCache = { at: Date.now(), value };
@@ -328,8 +370,16 @@ export class Core {
   }
 
   /** Session summaries annotated with liveness (wrapper run or plain CLI process). */
+  /** A project's sessions include those of its worktrees: it is the same work, split for isolation. */
+  private async listSessionsWithWorktrees(projectId?: string): Promise<SessionSummary[]> {
+    if (!projectId) return this.sessions.listSessions();
+    const children = (await this.projects()).filter((p) => p.parentId === projectId).map((p) => p.id);
+    const lists = await Promise.all([projectId, ...children].map((id) => this.sessions.listSessions(id)));
+    return lists.flat().sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
+  }
+
   async sessionsWithLive(projectId?: string): Promise<SessionSummary[]> {
-    const [sessions, active] = await Promise.all([this.sessions.listSessions(projectId), this.activeCliSessions()]);
+    const [sessions, active] = await Promise.all([this.listSessionsWithWorktrees(projectId), this.activeCliSessions()]);
     const liveRuns = new Map(
       this.runs
         .list()
@@ -431,17 +481,81 @@ export class Core {
     const projects = await this.sessions.listProjects();
     // Workspace directories that have no sessions yet are projects too
     const known = new Set(projects.map((p) => p.path));
+    const bare = (path: string): ProjectSummary => ({
+      id: encodeProjectId(path),
+      path,
+      name: basename(path),
+      sessionCount: 0,
+      lastActivity: null,
+      activeRuns: 0,
+      exists: existsSync(path),
+      temporary: isTemporaryPath(path),
+    });
     for (const path of await this.workspace.list()) {
-      if (known.has(path)) continue;
-      projects.push({ id: encodeProjectId(path), path, name: basename(path), sessionCount: 0, lastActivity: null, activeRuns: 0, exists: true, temporary: isTemporaryPath(path) });
+      if (!known.has(path)) projects.push(bare(path));
+      known.add(path);
     }
-    const liveRuns = this.runs.list().filter((r) => r.pid !== null);
+
+    // A worktree is part of its repository, not a project of its own: link it to its parent
+    for (const p of projects) {
+      if (p.parentPath) {
+        this.locator.learn({ path: p.path, parentPath: p.parentPath, name: p.worktree?.name ?? null, branch: p.worktree?.branch ?? null });
+      } else {
+        const facts = this.locator.worktreeOf(p.path);
+        if (facts?.path === p.path) {
+          p.parentPath = facts.parentPath;
+          p.worktree = { name: facts.name, branch: facts.branch };
+        }
+      }
+      if (!p.parentPath) continue;
+      p.parentId = encodeProjectId(p.parentPath);
+      // A repository only ever worked on through worktrees still has to exist for them to nest under
+      if (!known.has(p.parentPath)) {
+        projects.push(bare(p.parentPath));
+        known.add(p.parentPath);
+      }
+    }
+
+    // The orchestration task that created each worktree, which says more than its name does
+    const creators = new Map<string, NonNullable<ProjectSummary['createdBy']>>();
+    for (const orch of this.orchestrator.list()) {
+      for (const task of orch.tasks) {
+        if (!task.branch) continue;
+        const path = task.worktree ?? join(orch.cwd, '.claude', 'worktrees', task.branch.replace(/^worktree-/, ''));
+        creators.set(path, { orchestrationId: orch.id, orchestrationName: orch.name, taskId: task.id, taskName: task.name });
+      }
+    }
+
+    // Live work counts where it happens: the deepest project containing it, so a worker in a
+    // worktree lights up the worktree, and one elsewhere in the repository lights up the repository
+    const owner = (dir: string): string | undefined => {
+      let best: ProjectSummary | undefined;
+      for (const p of projects) {
+        if ((dir === p.path || dir.startsWith(`${p.path}/`)) && p.path.length > (best?.path.length ?? -1)) best = p;
+      }
+      return best?.id;
+    };
+    const runsBy = new Map<string, number>();
+    for (const r of this.runs.list()) {
+      if (r.pid === null) continue;
+      const id = owner(r.workingDir ?? r.cwd);
+      if (id) runsBy.set(id, (runsBy.get(id) ?? 0) + 1);
+    }
     // A project someone is working in from a terminal is active too, not only one with a run
-    const liveCli = (await this.activeCliSessions()).filter((a) => a.live && !a.runId);
+    const cliBy = new Map<string, number>();
+    for (const a of await this.activeCliSessions()) {
+      if (!a.live || a.runId) continue;
+      const id = owner(a.location?.path ?? a.cwd);
+      if (id) cliBy.set(id, (cliBy.get(id) ?? 0) + 1);
+    }
     return projects.map((p) => ({
       ...p,
-      activeRuns: liveRuns.filter((r) => r.cwd === p.path).length,
-      activeSessions: liveCli.filter((a) => a.cwd === p.path).length,
+      parentId: p.parentId ?? null,
+      parentPath: p.parentPath ?? null,
+      worktree: p.worktree ?? null,
+      createdBy: creators.get(p.path) ?? null,
+      activeRuns: runsBy.get(p.id) ?? 0,
+      activeSessions: cliBy.get(p.id) ?? 0,
     }));
   }
 

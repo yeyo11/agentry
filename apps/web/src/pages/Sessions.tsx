@@ -1,5 +1,5 @@
 import type { ProjectSummary, SessionSummary } from '@agentry/shared';
-import { ArrowUpRight, ChevronRight, History, Network, Play, Radio, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { ArrowUpRight, ChevronRight, GitBranch, History, Network, Play, Radio, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjects, useSessions } from '../api';
@@ -89,6 +89,12 @@ function SessionItem({
           {!label && subtitle && <span className="srow-sub">{subtitle}</span>}
           <span className="meta">
             <OriginBadge session={session} />
+            {/* Grouped under the repository, so the branch is what tells a worktree session apart */}
+            {session.worktree && (
+              <span className="chip chip-static mono" title={session.worktree.path}>
+                <GitBranch size={12} strokeWidth={1.75} aria-hidden /> {session.worktree.branch ?? session.worktree.name}
+              </span>
+            )}
             {session.model && <span className="chip chip-static mono">{session.model}</span>}
             <span>{session.messageCount} msgs</span>
             <span>{formatBytes(session.sizeBytes)}</span>
@@ -265,7 +271,8 @@ export function Sessions() {
     const needle = search.trim().toLowerCase();
     const base = all.filter((s) => {
       const origin = originOf(s);
-      if (projectId && s.projectId !== projectId) return false;
+      // A project's worktrees are part of it
+      if (projectId && s.projectId !== projectId && projectsById.get(s.projectId)?.parentId !== projectId) return false;
       if (origin.kind === 'internal') {
         if (!showInternal) return false;
       } else if (!origins.has(origin.kind)) return false;
@@ -287,9 +294,12 @@ export function Sessions() {
   const sections = useMemo(() => {
     const byProject = new Map<string, SessionSummary[]>();
     for (const s of visible) {
-      const list = byProject.get(s.projectId) ?? [];
+      // Sessions in a worktree go with the repository it belongs to, not in a group of their own
+      const parent = projectsById.get(s.projectId)?.parentId;
+      const key = parent && projectsById.has(parent) ? parent : s.projectId;
+      const list = byProject.get(key) ?? [];
       list.push(s);
-      byProject.set(s.projectId, list);
+      byProject.set(key, list);
     }
     return [...byProject.entries()]
       .map(([id, list]) => {

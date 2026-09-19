@@ -75,6 +75,26 @@ export interface ProjectSummary {
   activeSessions?: number;
   /** The directory exists on disk */
   exists: boolean;
+  /** Set when this directory is a git worktree: the repository it belongs to */
+  parentId?: string | null;
+  parentPath?: string | null;
+  worktree?: { name: string | null; branch: string | null } | null;
+  /** The orchestration task that created this worktree, when one did */
+  createdBy?: { orchestrationId: string; orchestrationName: string; taskId: string; taskName: string } | null;
+}
+
+/**
+ * Where a piece of work happens, resolved to the project it belongs to. A worktree resolves to its
+ * repository, so work spread across worktrees still reads as one project.
+ */
+export interface WorkLocation {
+  /** Directory the work happens in */
+  path: string;
+  projectId: string;
+  projectName: string;
+  projectPath: string;
+  /** Set when `path` is inside a git worktree of that project */
+  worktree: { name: string | null; branch: string | null; path: string } | null;
 }
 
 export type SessionLiveSource = 'wrapper' | 'cli';
@@ -121,6 +141,8 @@ export interface SessionSummary {
   sizeBytes: number;
   live?: SessionLive;
   origin: SessionOrigin;
+  /** From the CLI's own record, when the session ran in a worktree it created */
+  worktree?: { name: string | null; branch: string | null; path: string; parentPath: string } | null;
 }
 
 export type ContentBlock =
@@ -209,6 +231,7 @@ export interface BackgroundTask {
   command?: string | null;
   /** Sent to the background by the person at the terminal rather than by the model */
   backgroundedByUser?: boolean;
+  location?: WorkLocation | null;
 }
 
 /** Captured output of a background task, as the CLI wrote it. */
@@ -239,6 +262,7 @@ export interface SubagentInfo {
   agentId?: string;
   /** Last time the agent wrote to its transcript */
   lastActivityAt?: string | null;
+  location?: WorkLocation | null;
 }
 
 export interface RunSummary {
@@ -265,6 +289,9 @@ export interface RunSummary {
   account: string | null;
   backgroundTasks: BackgroundTask[];
   subagents: SubagentInfo[];
+  /** Directory the CLI actually works in, which differs from `cwd` when it runs in a worktree */
+  workingDir?: string | null;
+  location?: WorkLocation | null;
 }
 
 /**
@@ -313,6 +340,7 @@ export interface ActiveCliSession {
   live: boolean;
   /** Set when it maps to a run managed by the wrapper */
   runId?: string;
+  location?: WorkLocation | null;
 }
 
 // ---------- Orchestration ----------

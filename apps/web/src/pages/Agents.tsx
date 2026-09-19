@@ -1,9 +1,10 @@
 import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useActive, useRuns, useSubagents } from '../api';
+import { Location } from '../components/Location';
 import { isRunLive, RunCard } from '../components/RunCard';
 import { Card, Empty, ErrorBox, Loading, PageHeader, StatusBadge, Tag } from '../components/ui';
-import { durationBetween, shortPath, timeAgo } from '../lib/format';
+import { durationBetween, timeAgo } from '../lib/format';
 
 export function Agents() {
   const runs = useRuns();
@@ -61,6 +62,7 @@ export function Agents() {
                   <th>Status</th>
                   <th>Type</th>
                   <th>Description</th>
+                  <th>Location</th>
                   <th>Started by</th>
                   <th>Duration</th>
                 </tr>
@@ -73,7 +75,10 @@ export function Agents() {
                     </td>
                     <td className="nowrap">{sub.subagentType}</td>
                     <td>{sub.description || '—'}</td>
-                    <td className="nowrap">
+                    <td className="cell-clip">
+                      <Location location={sub.location} />
+                    </td>
+                    <td className="cell-clip">
                       {/* A CLI session's agents have no run: they belong to the session */}
                       {sub.runId ? (
                         <Link to={`/runs/${sub.runId}`}>{sub.runName}</Link>
@@ -103,7 +108,7 @@ export function Agents() {
                   <th>Status</th>
                   <th>Name</th>
                   <th>Kind</th>
-                  <th>Directory</th>
+                  <th>Location</th>
                   <th>PID</th>
                   <th>Started</th>
                   <th />
@@ -122,8 +127,8 @@ export function Agents() {
                       )}
                     </td>
                     <td>{s.kind}</td>
-                    <td className="mono" title={s.cwd}>
-                      {shortPath(s.cwd, 44)}
+                    <td className="cell-clip">
+                      <Location location={s.location} fallback={s.cwd} />
                     </td>
                     <td>{s.pid}</td>
                     <td className="nowrap">{timeAgo(s.startedAt)}</td>
