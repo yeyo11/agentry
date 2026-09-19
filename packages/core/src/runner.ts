@@ -458,7 +458,13 @@ export class RunManager extends EventEmitter {
             [PERMISSION_SERVER]: {
               command: process.execPath,
               args: [fileURLToPath(new URL('./permission-mcp.mjs', import.meta.url))],
-              env: { AGENTRY_PERMISSION_SOCKET: socket, AGENTRY_RUN_ID: run.id },
+              env: {
+                AGENTRY_PERMISSION_SOCKET: socket,
+                AGENTRY_RUN_ID: run.id,
+                // The desktop runs this server on Electron's Node: without this flag the CLI would start
+                // process.execPath as a second Electron app instead of a plain script
+                ...(process.env.ELECTRON_RUN_AS_NODE ? { ELECTRON_RUN_AS_NODE: process.env.ELECTRON_RUN_AS_NODE } : {}),
+              },
             },
           },
         }),

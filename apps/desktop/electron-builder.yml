@@ -1,0 +1,78 @@
+# Linux packaging for the Electron shell. Run through `pnpm dist:linux`, which builds the web UI, the API
+# bundle and the shell first: this file only assembles what those steps left in dist/ folders.
+appId: io.github.yeyo11.agentry
+productName: Agentry
+copyright: Copyright © 2026 Jose Antonio Garrido
+artifactName: Agentry-${version}-${arch}.${ext}
+
+directories:
+  output: release
+  buildResources: build
+
+# The main process and preload are esbuild bundles and the API is a self-contained bundle, so nothing from
+# node_modules has to ship: only the compiled shell and its package.json (electron-builder adds the latter).
+# That also sidesteps the symlinked pnpm node_modules, which app-builder cannot walk reliably.
+files:
+  - dist/**/*
+  - '!dist/**/*.map'
+  - package.json
+
+# Paths the shell reads at runtime (src/resources.ts): <resources>/server/{server,permission-mcp}.mjs and
+# <resources>/web/index.html. The permission MCP must sit next to server.mjs.
+extraResources:
+  - from: ../api/dist
+    to: server
+    filter:
+      - server.mjs
+      - permission-mcp.mjs
+  - from: ../web/dist
+    to: web
+
+# No native modules: the SQLite store is node:sqlite, built into the Node that Electron ships.
+npmRebuild: false
+nodeGypRebuild: false
+buildDependenciesFromSource: false
+
+# Text and JS compress well; the API bundle and the UI are the bulk of the payload
+compression: normal
+
+linux:
+  target:
+    - target: AppImage
+      arch: x64
+    - target: deb
+      arch: x64
+  executableName: agentry
+  category: Development
+  icon: build/icons
+  synopsis: Desktop UI for Claude Code agents
+  description: >-
+    Agentry is a control panel for the Claude Code CLI: a web UI and multi-agent orchestration
+    around Claude Code, without giving up anything the CLI can do.
+  maintainer: Jose Antonio Garrido <josegarrido@digio.es>
+  # Keep in step with build/linux/agentry.desktop, the template for the launcher entry
+  desktop:
+    entry:
+      GenericName: Claude Code Control Panel
+      Keywords: Claude;Claude Code;AI;agents;orchestration;
+      # Must equal the X11 class the shell sets with --class (src/main.ts), or the launcher will not
+      # group the running window under this entry
+      StartupWMClass: Agentry
+
+deb:
+  # Electron's own runtime libraries only: the server runs on Electron's bundled Node, so no nodejs package.
+  # The Claude Code CLI is looked up on the user's PATH at run time and is not a package dependency either.
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+  # Not covered by electron-builder: AppStream metadata goes where software centres look for it.
+  # Extra fpm arguments in `source=destination` form.
+  fpm:
+    - build/linux/io.github.yeyo11.agentry.metainfo.xml=/usr/share/metainfo/io.github.yeyo11.agentry.metainfo.xml

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.yeyo11.agentry</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Agentry</name>
+  <summary>Desktop UI for Claude Code agents</summary>
+  <developer id="io.github.yeyo11">
+    <name>Jose Antonio Garrido</name>
+  </developer>
+  <description>
+    <p>
+      Agentry is a control panel for the Claude Code CLI: a web UI and multi-agent orchestration
+      around Claude Code, without giving up anything the CLI can do, because it drives the CLI and
+      nothing else.
+    </p>
+    <ul>
+      <li>Start and watch conversations, stream the tokens and answer follow-up turns.</li>
+      <li>Browse every session transcript the CLI has ever written on this machine.</li>
+      <li>Approve tool calls from the panel as they happen.</li>
+      <li>Run a graph of agents in parallel with multi-agent orchestration.</li>
+      <li>Rotate between accounts when one runs out of quota.</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">agentry.desktop</launchable>
+  <url type="homepage">https://github.com/yeyo11/agentry</url>
+  <url type="bugtracker">https://github.com/yeyo11/agentry/issues</url>
+  <categories>
+    <category>Development</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <provides>
+    <binary>agentry</binary>
+  </provides>
+  <releases>
+    <release version="0.6.0" date="2026-09-19"/>
+  </releases>
+</component>
