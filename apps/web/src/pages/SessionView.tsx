@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { Play, Radio, Trash2 } from 'lucide-react';
+import { Play, Radio, TerminalSquare, Trash2 } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, useSession } from '../api';
 import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
@@ -26,6 +26,10 @@ export function SessionView() {
   const { data, error, isLoading } = useSession(id, sidechains, wasLive);
   const live = data?.summary.live;
   if (Boolean(live) !== wasLive) setWasLive(Boolean(live));
+  // Still open in a terminal: taking it over would leave two processes writing one conversation
+  const openElsewhere = live?.source === 'cli';
+  const [asCopy, setAsCopy] = useState(true);
+  const fork = openElsewhere && asCopy;
 
   const files = useAttachments();
   const ready = (prompt.trim() || files.ids.length > 0) && !files.uploading;
@@ -34,6 +38,7 @@ export function SessionView() {
       api.startRun({
         prompt: prompt.trim(),
         resumeSessionId: id,
+        ...(fork ? { forkSession: true } : {}),
         permissionPrompts: 'host',
         cwd: data?.summary.projectPath || undefined,
         ...(files.ids.length ? { attachments: files.ids } : {}),
@@ -93,16 +98,38 @@ export function SessionView() {
                 </button>
               </span>
             </Tooltip>
-            <button className="btn btn-primary" onClick={() => setResumeOpen((v) => !v)}>
-              <Play {...ICON_SM} /> Resume in a run
-            </button>
+            {/* A session a run already drives is continued in that run */}
+            {!live?.runId && (
+              <button className="btn btn-primary" onClick={() => setResumeOpen((v) => !v)}>
+                <Play {...ICON_SM} /> Continue in Agentry
+              </button>
+            )}
           </>
         }
       />
       <div className="mono small muted">session {summary.id}</div>
 
-      {resumeOpen && (
-        <Card title="Resume this session">
+      {resumeOpen && !live?.runId && (
+        <Card title="Continue in Agentry">
+          <p className="muted small">
+            Starts a run that picks this conversation up with its whole history. From then on you answer its questions and
+            permissions, interrupt it and change its mode or model from the panel.
+          </p>
+          {openElsewhere && (
+            <div className="alert alert-warn" role="alert">
+              <TerminalSquare {...ICON_SM} className="alert-icon" />
+              <div className="alert-body stack-tight">
+                <span>
+                  This session is still open in a terminal. To hand it over, close it there first (<code>/exit</code>) and
+                  continue it as is. Otherwise continue in a copy: a new session with the same history that leaves the
+                  terminal&apos;s untouched.
+                </span>
+                <Switch checked={asCopy} onChange={setAsCopy}>
+                  Continue in a copy
+                </Switch>
+              </div>
+            </div>
+          )}
           <form
             className="stack"
             onSubmit={(e) => {
@@ -126,7 +153,7 @@ export function SessionView() {
             <ErrorBox error={resume.error} />
             <div className="form-actions">
               <button type="submit" className="btn btn-primary" disabled={!ready || resume.isPending}>
-                {resume.isPending ? 'Starting…' : files.uploading ? 'Uploading…' : 'Resume'}
+                {resume.isPending ? 'Starting…' : files.uploading ? 'Uploading…' : fork ? 'Continue in a copy' : 'Continue'}
               </button>
               <span className="muted small">Runs in {summary.projectPath || 'the wrapper workspace'}</span>
             </div>

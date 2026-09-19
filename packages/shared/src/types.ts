@@ -203,6 +203,12 @@ export interface RunOptions {
   permissionMode?: PermissionMode;
   /** Resume an existing session */
   resumeSessionId?: string;
+  /**
+   * With `resumeSessionId`: continue in a copy (`--fork-session`), a new session with the same
+   * history, leaving the original untouched. The way to pick up a session that is still open in a
+   * terminal without two processes writing the same conversation.
+   */
+  forkSession?: boolean;
   appendSystemPrompt?: string;
   allowedTools?: string[];
   /** Run inside a new git worktree of this name, created and managed by the CLI (`--worktree`) */

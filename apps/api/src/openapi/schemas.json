@@ -1487,6 +1487,10 @@
         "type": "string",
         "description": "Resume an existing session"
       },
+      "forkSession": {
+        "type": "boolean",
+        "description": "With `resumeSessionId`: continue in a copy (`--fork-session`), a new session with the same history, leaving the original untouched. The way to pick up a session that is still open in a terminal without two processes writing the same conversation."
+      },
       "appendSystemPrompt": {
         "type": "string"
       },

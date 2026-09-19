@@ -115,9 +115,11 @@ function SessionItem({
             <Radio {...ICON_SM} /> Open run
           </Link>
         ) : (
-          <button className="btn btn-small" onClick={() => navigate(`/sessions/${session.id}?resume=1`)}>
-            <Play {...ICON_SM} /> Resume in a run
-          </button>
+          <Tooltip content="Pick this conversation up in a run you control from the panel">
+            <button className="btn btn-small" onClick={() => navigate(`/sessions/${session.id}?resume=1`)}>
+              <Play {...ICON_SM} /> Continue in Agentry
+            </button>
+          </Tooltip>
         )}
         {/* The wrapper keeps the tooltip working while the button is disabled */}
         <Tooltip content={session.live ? 'Live sessions cannot be deleted' : 'Delete session'}>

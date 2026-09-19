@@ -12,7 +12,8 @@ import { createInterface } from 'node:readline';
 const args = process.argv.slice(2);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const out = (msg) => process.stdout.write(`${JSON.stringify(msg)}\n`);
-const sessionId = flag('--session-id') ?? flag('--resume') ?? randomUUID();
+// Like the CLI, a fork resumes the history under a new id
+const sessionId = args.includes('--fork-session') ? randomUUID() : (flag('--session-id') ?? flag('--resume') ?? randomUUID());
 // Reports `manual` the way the real CLI does, as `default`
 const reported = (m) => (m === 'manual' ? 'default' : m);
 let mode = flag('--permission-mode') ?? 'manual';
