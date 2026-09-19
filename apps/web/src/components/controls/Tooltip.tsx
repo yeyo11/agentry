@@ -1,5 +1,5 @@
 import * as RadixTooltip from '@radix-ui/react-tooltip';
-import type { ReactElement, ReactNode } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
   return (
@@ -11,7 +11,8 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
 
 /**
  * Themed tooltip for interactive elements. The child must accept a ref (native elements do).
- * Renders the child untouched when there is no content, so callers can pass optional text.
+ * Empty content keeps it closed without changing the tree, so a conditional hint never remounts
+ * the child (an input would lose focus mid-typing).
  */
 export function Tooltip({
   content,
@@ -22,9 +23,10 @@ export function Tooltip({
   children: ReactElement;
   side?: 'top' | 'right' | 'bottom' | 'left';
 }) {
-  if (content === undefined || content === null || content === false || content === '') return children;
+  const [open, setOpen] = useState(false);
+  const empty = content === undefined || content === null || content === false || content === '';
   return (
-    <RadixTooltip.Root>
+    <RadixTooltip.Root open={open && !empty} onOpenChange={setOpen}>
       <RadixTooltip.Trigger asChild>{children}</RadixTooltip.Trigger>
       <RadixTooltip.Portal>
         <RadixTooltip.Content className="tooltip" side={side} sideOffset={6} collisionPadding={8}>

@@ -74,14 +74,16 @@ function SessionItem({
   const subtitle = session.firstPrompt && session.firstPrompt.split('\n')[0]?.slice(0, 100) !== session.title ? session.firstPrompt : null;
   return (
     <div className={`srow ${session.live ? 'is-live' : ''}`}>
-      <Link to={`/sessions/${session.id}`} className="srow-link" title={session.title}>
+      <Link to={`/sessions/${session.id}`} className="srow-link">
         <span className="srow-status">
           {session.live ? <StatusDot tone="active" live title={`live via ${session.live.source}`} /> : <StatusDot tone="muted" />}
         </span>
         <span className="srow-main">
           <span className="srow-title">
             {session.live && <StatusBadge status={session.live.status} />}
-            <span className="srow-title-text">{title}</span>
+            <Tooltip content={session.title}>
+              <span className="srow-title-text">{title}</span>
+            </Tooltip>
           </span>
           {label && label !== session.title && <span className="srow-sub">{session.title}</span>}
           {!label && subtitle && <span className="srow-sub">{subtitle}</span>}

@@ -1,6 +1,6 @@
 import { Eye, EyeOff, X } from 'lucide-react';
 import { useState, type KeyboardEvent } from 'react';
-import { Tooltip } from './controls';
+import { Tooltip } from './controls/Tooltip';
 import { ICON_SM } from './icons';
 
 /** Chip list with an "add" input: permission rules, args, directories… */
@@ -119,14 +119,15 @@ export function KeyValueEditor({
         const shown = !maskValues || revealed.has(index);
         return (
           <div key={index} className="kv-editor-row">
-            <input
-              className={`mono ${duplicates.has(row.key.trim()) ? 'is-invalid' : ''}`}
-              value={row.key}
-              placeholder={keyPlaceholder}
-              aria-label="Name"
-              title={duplicates.has(row.key.trim()) ? 'Duplicate name: the last one wins' : undefined}
-              onChange={(e) => update(index, { key: e.target.value })}
-            />
+            <Tooltip content={duplicates.has(row.key.trim()) && 'Duplicate name: the last one wins'}>
+              <input
+                className={`mono ${duplicates.has(row.key.trim()) ? 'is-invalid' : ''}`}
+                value={row.key}
+                placeholder={keyPlaceholder}
+                aria-label="Name"
+                onChange={(e) => update(index, { key: e.target.value })}
+              />
+            </Tooltip>
             <input
               className="mono"
               type={shown ? 'text' : 'password'}
