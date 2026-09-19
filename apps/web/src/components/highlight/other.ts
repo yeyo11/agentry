@@ -10,8 +10,6 @@ export function* paintOther(tokens: HighlightToken[], lang: string): Generator<P
       if (range) yield* [[range, 'function'], [value.slice(range.length), null]] as Piece[];
       else yield [value, value.startsWith('---') ? 'deleted' : value.startsWith('+++') ? 'tag' : value.startsWith('diff ') ? 'constant' : null];
     }
-    // The Dockerfile grammar leaves the commands of a RUN in the foreground
-    else if (lang === 'dockerfile' && className === 'command') yield [value, null];
     else yield [value, roleOf(token)];
   }
 }

@@ -30,8 +30,29 @@ export async function highlight(code: string, lang: string): Promise<Highlighted
   if (code.length > MAX_CHARS) return null;
   const id = lang.toLowerCase();
   const tanstack = TANSTACK_IDS[id];
-  return tanstack ? highlightTanstack(code, tanstack) : highlightShiki(code, id);
+  if (tanstack) {
+    if (runaway(code, TANSTACK[tanstack]!.family)) return null;
+    const out = await highlightTanstack(code, tanstack);
+    // Only a block TanStack read wrongly is worth shiki's time; one it choked on is not code
+    if (out !== 'shiki') return out;
+  }
+  return highlightShiki(code, id);
 }
+
+/**
+ * Openers TanStack looks for a closer of all the way to the end of the block. A few hundred of
+ * them left open turns its tokenizer quadratic — 60 000 characters of `<a<a<a…` took five seconds,
+ * on the main thread — and no engine reads text like that as code anyway, so the block stays plain.
+ */
+const RUNAWAY: Partial<Record<Family, [open: string, close: string][]>> = {
+  script: [['${', '}']],
+  markdown: [['[', ']'], ['(', ')']],
+  html: [['<', '>']],
+};
+const LIMIT = 500;
+
+const runaway = (code: string, family: Family) =>
+  (RUNAWAY[family] ?? []).some(([open, close]) => code.split(open).length - code.split(close).length > LIMIT);
 
 /**
  * shiki and TanStack both hand back one token per lexeme, and a span each is most of the DOM a
@@ -139,19 +160,31 @@ async function highlightShiki(code: string, id: string): Promise<Highlighted | n
 const STYLES = {} as Record<Role, Record<string, string>>;
 for (const role of Object.keys(PALETTE) as Role[]) STYLES[role] = { '--shiki-light': PALETTE[role][0], '--shiki-dark': PALETTE[role][1] };
 
-type Family = 'script' | 'json' | 'yaml' | 'css' | 'markdown' | 'shell' | 'python' | 'other';
+type Family = 'script' | 'json' | 'yaml' | 'css' | 'markdown' | 'shell' | 'python' | 'html' | 'other';
 
 interface TanstackLanguage {
   load: () => Promise<LanguageDefinition>;
   family: Family;
   /** Languages its blocks embed (a `<style>`, a `<script>`) */
   embeds?: string[];
+  /** Tokens TanStack got wrong, where the block goes to shiki instead */
+  misread?: (tokens: HighlightToken[]) => boolean;
 }
 
 /**
+ * TanStack ends a double-quoted string at the first quote inside a `$(…)` or `${…}` it holds, so
+ * `"$(dirname "$f")"` flips what is quoted for the rest of the block, comments included. The
+ * string token it leaves behind is the tell: a substitution opened and never closed.
+ */
+const unclosedSubstitution = (tokens: HighlightToken[]) =>
+  tokens.some((t) => t.className === 'string' && t.value.startsWith('"') && /\$[({]/.test(t.value) && count(t.value, /[({]/g) > count(t.value, /[)}]/g));
+const count = (text: string, pattern: RegExp) => text.match(pattern)?.length ?? 0;
+
+/**
  * Only the TanStack languages whose colours were held against shiki's on real files. Its others
- * stay on shiki: C++ (a quarter of it coloured differently) and those nobody measured yet (go,
- * sql, toml, php, vue, svelte, nginx…).
+ * stay on shiki: C++ (a quarter of it coloured differently), Dockerfile (a sixth: quoted
+ * arguments plain, image names and variables coloured, where shiki takes 0.6 ms for a whole file
+ * anyway) and those nobody measured yet (go, sql, toml, php, vue, svelte, nginx…).
  */
 const TANSTACK: Record<string, TanstackLanguage> = {
   ts: { load: () => import('@tanstack/highlight/languages/ts').then((m) => m.ts), family: 'script' },
@@ -162,11 +195,10 @@ const TANSTACK: Record<string, TanstackLanguage> = {
   css: { load: () => import('@tanstack/highlight/languages/css').then((m) => m.css), family: 'css' },
   yaml: { load: () => import('@tanstack/highlight/languages/yaml').then((m) => m.yaml), family: 'yaml' },
   markdown: { load: () => import('@tanstack/highlight/languages/markdown').then((m) => m.markdown), family: 'markdown' },
-  shell: { load: () => import('@tanstack/highlight/languages/shell').then((m) => m.shell), family: 'shell' },
+  shell: { load: () => import('@tanstack/highlight/languages/shell').then((m) => m.shell), family: 'shell', misread: unclosedSubstitution },
   python: { load: () => import('@tanstack/highlight/languages/python').then((m) => m.python), family: 'python' },
-  html: { load: () => import('@tanstack/highlight/languages/html').then((m) => m.html), family: 'other', embeds: ['css', 'js', 'ts'] },
+  html: { load: () => import('@tanstack/highlight/languages/html').then((m) => m.html), family: 'html', embeds: ['css', 'js', 'ts'] },
   diff: { load: () => import('@tanstack/highlight/languages/diff').then((m) => m.diff), family: 'other' },
-  dockerfile: { load: () => import('@tanstack/highlight/languages/dockerfile').then((m) => m.dockerfile), family: 'other' },
 };
 
 /** Block language (as written after the fence) → TanStack language */
@@ -199,8 +231,6 @@ const TANSTACK_IDS: Record<string, string> = {
   htm: 'html',
   diff: 'diff',
   patch: 'diff',
-  dockerfile: 'dockerfile',
-  docker: 'dockerfile',
 };
 
 const tanstackLoaded = new Map<string, Promise<LanguageDefinition>>();
@@ -214,20 +244,51 @@ function wantedLanguages(code: string, name: string): string[] {
   return [...new Set(own.flatMap((n) => [n, ...(TANSTACK[n]!.embeds ?? [])]))];
 }
 
-async function tanstackTokens(code: string, name: string): Promise<HighlightToken[]> {
+async function tanstackTokens(code: string, name: string): Promise<HighlightToken[] | null> {
   const wanted = wantedLanguages(code, name);
   for (const n of wanted) if (!tanstackLoaded.has(n)) tanstackLoaded.set(n, TANSTACK[n]!.load());
   tanstackCore ??= import('@tanstack/highlight/core');
   const [{ createHighlighter }, ...languages] = await Promise.all([tanstackCore, ...wanted.map((n) => tanstackLoaded.get(n)!)]);
   // A highlighter is a map of definitions: building one per block costs nothing next to tokenizing
-  return createHighlighter({ languages }).tokenize(code, { lang: name }).tokens;
+  try {
+    return createHighlighter({ languages }).tokenize(code, { lang: name }).tokens;
+  } catch {
+    // Its template scanner recurses once per nested `${`: thousands of them overflow the stack
+    return null;
+  }
 }
 
-async function highlightTanstack(code: string, name: string): Promise<Highlighted> {
+async function highlightTanstack(code: string, name: string): Promise<Highlighted | 'shiki' | null> {
   const [tokens, paint] = await Promise.all([tanstackTokens(code, name), PAINTERS[TANSTACK[name]!.family]()]);
+  if (!tokens) return null;
+  if (TANSTACK[name]!.misread?.(tokens)) return 'shiki';
   const runs = new Runs(STYLES.fg);
-  for (const [text, role] of paint(tokens, name)) runs.push(text, role ? STYLES[role] : null);
+  for (const part of name === 'markdown' ? fences(tokens) : [{ tokens, lang: name }]) {
+    // A fenced block is painted like a block of its own language, fetching that painter if need be
+    const painter = part.lang === name ? paint : await PAINTERS[TANSTACK[part.lang]!.family]();
+    for (const [text, role] of painter(part.tokens, part.lang)) runs.push(text, role ? STYLES[role] : null);
+  }
   return { lines: runs.lines, base: STYLES.fg };
+}
+
+/**
+ * Markdown cut at its fenced blocks: TanStack tokenizes a fence in its language, and classes the
+ * text its rules leave over `code-inline`, which inside a fence means no class at all.
+ */
+function fences(tokens: HighlightToken[]): { tokens: HighlightToken[]; lang: string }[] {
+  const parts = [{ tokens: [] as HighlightToken[], lang: 'markdown' }];
+  for (const token of tokens) {
+    const part = parts[parts.length - 1]!;
+    const fence = token.className === 'meta' ? /^\s*(?:```|~~~)\s*([\w+-]*)/.exec(token.value) : null;
+    if (fence && part.lang !== 'markdown') {
+      parts.push({ tokens: [token], lang: 'markdown' });
+      continue;
+    }
+    part.tokens.push(part.lang !== 'markdown' && token.className === 'code-inline' ? { ...token, className: undefined } : token);
+    const lang = fence?.[1] ? TANSTACK_IDS[fence[1].toLowerCase()] : undefined;
+    if (lang) parts.push({ tokens: [], lang });
+  }
+  return parts;
 }
 
 /** One painter per family, each in its own chunk: a TypeScript block never fetches the rest */
@@ -239,5 +300,6 @@ const PAINTERS: Record<Family, () => Promise<Painter>> = {
   yaml: () => import('./highlight/data').then((m) => m.paintData),
   markdown: () => import('./highlight/markdown').then((m) => m.paintMarkdown),
   shell: () => import('./highlight/shell').then((m) => m.paintShell),
+  html: () => import('./highlight/html').then((m) => m.paintHtml),
   other: () => import('./highlight/other').then((m) => m.paintOther),
 };
