@@ -25,6 +25,7 @@ import { useOverview } from './api';
 import { CommandPalette, CommandPaletteTrigger } from './components/CommandPalette';
 import { Tooltip } from './components/controls/Tooltip';
 import { BrandMark, ICON } from './components/icons';
+import { NotificationBell, NotificationHost } from './components/Notifications';
 import { AnimatePresence, motion, PageTransition, SlidingIndicator, StatusDot, useReducedMotion } from './components/motion';
 import { Empty, Skeleton } from './components/ui';
 import { useEventFeed } from './lib/events';
@@ -264,6 +265,7 @@ export function App() {
           </div>
           <div className="topbar-actions">
             <CommandPaletteTrigger />
+            <NotificationBell />
             <ThemeToggle />
             <button className="btn btn-primary topbar-new" onClick={() => navigate('/runs/new')}>
               <Plus {...ICON} />
@@ -300,6 +302,7 @@ export function App() {
       </div>
 
       <CommandPalette />
+      <NotificationHost />
     </div>
   );
 }
