@@ -512,7 +512,13 @@ Across the app:
   account rotation, and finished background tasks, subagents and workflows. All but those last
   ones also pop up as a toast (questions stay until you act); browser notifications are
   opt-in, ask for permission only when you turn them on, and appear only while the tab is hidden.
-  The list, read state and preferences are kept per browser.
+  The list, read state and preferences are kept per browser. A finished task or subagent links straight
+  to its side panel.
+- **Execution detail**: a subagent, a background task or a workflow agent opens in a side panel — prompt,
+  type, status, duration, tokens, the full transcript, the result and, for a subagent, the tasks it
+  launched — from the Agents and Background tasks pages, a run's side card and a workflow's agents. It
+  follows the agent or the command's output while it runs, and it is part of the URL (`?detail=…`), so a
+  reload or a link brings it back.
 - **Editors**: CodeMirror (JSON, Markdown, YAML, JS/TS) with `Ctrl/⌘ S`, unsaved-change guards
   (tabs, scope switches, sidebar navigation, reload), confirmation dialogs for destructive actions
   and toasts for every mutation.

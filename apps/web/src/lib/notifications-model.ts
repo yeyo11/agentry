@@ -1,4 +1,5 @@
 import type { AgentryEvent } from '@agentry/shared';
+import { detailHref } from './detail';
 
 /*
  * What a notification is and which events make one. Pure on purpose (no React, no DOM, no
@@ -223,7 +224,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'info',
           title: event.title,
           body: event.summary ?? (event.fromSubagent ? 'Started by a subagent.' : ''),
-          href: activityHref(event.runId, event.sessionId, '/tasks'),
+          href: event.sessionId ? detailHref({ kind: 'task', sessionId: event.sessionId, taskId: event.taskId }, '/tasks') : activityHref(event.runId, event.sessionId, '/tasks'),
           runId: event.runId || null,
         }),
       ];
@@ -239,7 +240,10 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'info',
           title: event.title,
           body: event.description,
-          href: activityHref(event.runId, event.sessionId, '/agents'),
+          href:
+            event.sessionId && event.agentId
+              ? detailHref({ kind: 'subagent', sessionId: event.sessionId, agentId: event.agentId }, '/agents')
+              : activityHref(event.runId, event.sessionId, '/agents'),
           runId: event.runId || null,
         }),
       ];

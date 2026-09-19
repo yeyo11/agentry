@@ -61,7 +61,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText.includes('List the build scripts')`, { label: 'the subagent prompt in the panel' });
     const panel = await page.text('[role=dialog]');
     check(panel.includes('Found 3 build scripts'), 'the panel shows what the subagent reported back');
-    check(panel.includes('Background tasks it launched'), 'the panel lists the tasks the subagent launched');
+    check(/background tasks it launched/i.test(panel), 'the panel lists the tasks the subagent launched');
     await page.shot('detail-subagent');
 
     await page.click('[role=dialog] .detail-task-link', undefined, 800);
