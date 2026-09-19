@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   entryText,
   normalizeMessage,
+  type Attachment,
   type BackgroundTask,
   type EffectiveEnvironment,
   type PermissionMode,
@@ -22,6 +23,7 @@ import { authFreeEnv } from './accounts.ts';
 import type { Db } from './db.ts';
 import type { CoreConfig } from './paths.ts';
 import type { SessionStore } from './sessions.ts';
+import { composeContent, type UploadStore } from './uploads.ts';
 
 /** Server key in the generated MCP config; the tool is addressed as mcp__<key>__approve. */
 const PERMISSION_SERVER = 'agentry_permissions';
@@ -36,6 +38,7 @@ const IGNORED_SUBTYPES = new Set(['thinking_tokens', 'hook_started', 'hook_respo
 const RATE_LIMIT_RE = /usage limit|rate limit|session limit|out of (?:usage|quota)|quota exceeded/i;
 /** One rotate-and-resume per run: a second failure is a real one, not a quota one */
 const MAX_ROTATION_RETRIES = 1;
+const MAX_ATTACHMENTS = 20;
 
 export interface RunResult {
   isError: boolean;
@@ -108,7 +111,8 @@ class Run {
   /** Generated MCP config for this run's permission prompts, removed when it ends */
   mcpConfigFile: string | null = null;
   /** Last turn written to stdin, so it can be replayed after an account rotation */
-  lastUserText: string | null = null;
+  /** The last turn sent, files included, so a turn lost to a rate limit is replayed whole */
+  lastUserTurn: { text: string; attachments: string[] } | null = null;
   /** The turn died against the account's rate limit */
   rateLimited = false;
   /** A rotation was already asked for this attempt */
@@ -241,6 +245,8 @@ export class RunManager extends EventEmitter {
   accounts: AccountResolver | null = null;
   /** Unix socket a run's permission prompts are forwarded to; null means nothing is listening */
   permissionSocket: string | null = null;
+  /** Files attached to messages; every run may read them */
+  uploads: UploadStore | null = null;
   /** Latest `init` snapshot per working directory */
   readonly environments = new Map<string, EffectiveEnvironment>();
 
@@ -325,32 +331,43 @@ export class RunManager extends EventEmitter {
   }
 
   start(opts: RunOptions, meta: RunMeta = {}): RunSummary {
-    if (!opts.prompt?.trim()) throw new Error('prompt is required');
+    if (!opts.prompt?.trim() && !opts.attachments?.length) throw new Error('prompt is required');
     if (opts.account && !this.accounts?.managed) {
       throw new Error('no claude-swap account is registered: a run cannot be pinned to one');
     }
     if (this.activeCount() >= this.config.maxConcurrentRuns) {
       throw new Error(`Concurrent run limit reached (${this.config.maxConcurrentRuns})`);
     }
+    const attachments = this.resolveAttachments(opts.attachments);
     const run = new Run(opts, meta, this.config);
     if (!existsSync(run.cwd)) mkdirSync(run.cwd, { recursive: true });
     this.runs.set(run.id, run);
-    this.spawnProcess(run, opts.prompt);
+    this.spawnProcess(run, opts.prompt, attachments);
     return run.summary();
   }
 
   /** Sends a new turn. If the process is gone, the session is resumed with --resume. */
-  send(id: string, text: string): RunSummary {
+  send(id: string, text: string, attachmentIds: string[] = []): RunSummary {
     const run = this.runs.get(id);
     if (!run) throw new Error('run not found');
-    if (!text.trim()) throw new Error('text is required');
+    const attachments = this.resolveAttachments(attachmentIds);
+    if (!text.trim() && attachments.length === 0) throw new Error('text is required');
     if (run.alive) {
-      this.writeUserMessage(run, text);
+      this.writeUserMessage(run, text, attachments);
     } else {
       if (!run.sessionId) throw new Error('The run ended without a sessionId; it cannot be resumed');
-      this.spawnProcess(run, text);
+      this.spawnProcess(run, text, attachments);
     }
     return run.summary();
+  }
+
+  /** Looks the uploads up before anything starts, so a bad id fails the request, not the turn. */
+  private resolveAttachments(ids: string[] = []): Attachment[] {
+    if (ids.length === 0) return [];
+    if (!this.uploads) throw new Error('attachments are not available');
+    if (ids.length > MAX_ATTACHMENTS) throw new Error(`at most ${MAX_ATTACHMENTS} files can be attached to one message`);
+    const uploads = this.uploads;
+    return ids.map((id) => uploads.get(String(id)));
   }
 
   stop(id: string): RunSummary {
@@ -440,6 +457,8 @@ export class RunManager extends EventEmitter {
     if (opts.effort) args.push('--effort', opts.effort);
     if (opts.appendSystemPrompt) args.push('--append-system-prompt', opts.appendSystemPrompt);
     if (opts.allowedTools?.length) args.push(`--allowedTools=${opts.allowedTools.join(',')}`);
+    // Attached files live outside every project; this is what lets Claude open them by path
+    if (this.uploads) args.push('--add-dir', this.uploads.dir);
     // The CLI creates, names and locks the worktree itself, and works in it for the session
     if (opts.worktree) args.push('--worktree', opts.worktree);
     // The CLI stops the run itself once the ceiling is reached, which no amount of watching from
@@ -496,7 +515,7 @@ export class RunManager extends EventEmitter {
     return [this.config.cswapBin, ['run', account, '--share-history', '--', ...args]];
   }
 
-  private spawnProcess(run: Run, prompt: string): void {
+  private spawnProcess(run: Run, prompt: string, attachments: Attachment[] = []): void {
     const resuming = run.sessionId !== null;
     const args = this.buildArgs(run, resuming);
     run.stopRequested = false;
@@ -530,13 +549,15 @@ export class RunManager extends EventEmitter {
       }
     });
 
-    this.writeUserMessage(run, prompt);
+    this.writeUserMessage(run, prompt, attachments);
   }
 
-  private writeUserMessage(run: Run, text: string): void {
-    run.lastUserText = text;
+  private writeUserMessage(run: Run, text: string, attachments: Attachment[] = []): void {
+    run.lastUserTurn = { text, attachments: attachments.map((a) => a.id) };
     if (run.idleTimer) clearTimeout(run.idleTimer);
-    const payload = { type: 'user', message: { role: 'user', content: text } };
+    const uploads = this.uploads;
+    const content = attachments.length && uploads ? composeContent(text, attachments, (id) => uploads.read(id).bytes) : text;
+    const payload = { type: 'user', message: { role: 'user', content } };
     run.proc?.stdin.write(`${JSON.stringify(payload)}\n`);
     run.push({
       kind: 'message',
@@ -548,7 +569,12 @@ export class RunManager extends EventEmitter {
         model: null,
         isSidechain: false,
         parentToolUseId: null,
-        blocks: [{ type: 'text', text }],
+        blocks: [
+          ...attachments
+            .filter((a) => a.kind !== 'file')
+            .map((a) => ({ type: a.kind === 'image' ? ('image' as const) : ('document' as const), mediaType: a.mediaType, name: a.name, uploadId: a.id })),
+          { type: 'text', text: Array.isArray(content) ? String((content.at(-1) as { text: string }).text) : text },
+        ],
       },
     });
     run.setStatus('busy');
@@ -581,7 +607,7 @@ export class RunManager extends EventEmitter {
    * process stays alive (keepAlive) or by taking it down, so both paths end up here.
    */
   private maybeRotate(run: Run): void {
-    if (!run.rateLimited || run.rotationRequested || !run.lastUserText) return;
+    if (!run.rateLimited || run.rotationRequested || !run.lastUserTurn) return;
     if (run.rotationRetries >= MAX_ROTATION_RETRIES) return;
     run.rotationRequested = true;
     this.emit('rate-limited', run.summary());
@@ -598,7 +624,7 @@ export class RunManager extends EventEmitter {
    */
   async replayLastTurn(id: string): Promise<boolean> {
     const run = this.runs.get(id);
-    if (!run || !run.lastUserText || !run.sessionId || run.rotationRetries >= MAX_ROTATION_RETRIES) return false;
+    if (!run || !run.lastUserTurn || !run.sessionId || run.rotationRetries >= MAX_ROTATION_RETRIES) return false;
     run.rotationRetries++;
     run.rateLimited = false;
     run.rotationRequested = false;
@@ -608,7 +634,7 @@ export class RunManager extends EventEmitter {
       this.stop(id);
       if (proc) await once(proc, 'exit');
     }
-    this.send(id, run.lastUserText);
+    this.send(id, run.lastUserTurn.text, run.lastUserTurn.attachments);
     return true;
   }
 

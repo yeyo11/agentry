@@ -43,6 +43,17 @@ function toBlocks(content: unknown): ContentBlock[] {
         });
         break;
       }
+      // Only what the block is: the base64 can run to megabytes and is never needed to display it
+      case 'image':
+      case 'document': {
+        const source = (b.source ?? {}) as Record<string, unknown>;
+        blocks.push({
+          type: b.type,
+          mediaType: String(source.media_type ?? (b.type === 'image' ? 'image' : 'application/pdf')),
+          ...(typeof b.title === 'string' ? { name: b.title } : {}),
+        });
+        break;
+      }
       default:
         break;
     }

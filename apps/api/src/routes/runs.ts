@@ -18,8 +18,8 @@ export const runRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core 
     return { run, events: core.runs.events(run.id) };
   });
 
-  app.post<{ Params: { id: string }; Body: { text?: string } }>('/runs/:id/messages', (req) =>
-    core.runs.send(req.params.id, req.body?.text ?? ''),
+  app.post<{ Params: { id: string }; Body: { text?: string; attachments?: string[] } }>('/runs/:id/messages', (req) =>
+    core.runs.send(req.params.id, req.body?.text ?? '', Array.isArray(req.body?.attachments) ? req.body.attachments : []),
   );
 
   app.post<{ Params: { id: string } }>('/runs/:id/stop', (req) => core.runs.stop(req.params.id));

@@ -3890,3 +3890,80 @@ button.tree-row-on:hover {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* ---------- Attachments ---------- */
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0;
+}
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+a.attachment-chip:hover {
+  background: var(--bg-hover);
+}
+.attachment-chip.is-error {
+  border-color: var(--bad);
+}
+.attachment-name {
+  max-width: 24ch;
+}
+.attachment-error {
+  color: var(--bad);
+  max-width: 32ch;
+}
+.attachment-thumb {
+  display: block;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  line-height: 0;
+}
+.attachment-thumb img {
+  max-width: 240px;
+  max-height: 180px;
+  object-fit: contain;
+  background: var(--bg-sunken);
+}
+.attachment-mini {
+  width: 20px;
+  height: 20px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.attachments-pending {
+  margin: 0 0 8px;
+}
+.attach-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+.attach-row .attachments-pending {
+  margin: 0;
+}
+.composer-attach {
+  align-self: center;
+  flex-shrink: 0;
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}

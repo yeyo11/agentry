@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import type {
+  Attachment,
   AccountsOverview,
   ActiveCliSession,
   AddAccountTokenRequest,
@@ -106,6 +107,19 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
 
 const enc = encodeURIComponent;
 
+/** The file is the request body, as is: no multipart, no base64 on the way up. */
+async function uploadFile(file: File): Promise<Attachment> {
+  const res = await fetch(`${BASE}/uploads?name=${encodeURIComponent(file.name || 'pasted')}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/octet-stream' },
+    body: file,
+    signal: AbortSignal.timeout(5 * 60_000),
+  });
+  const json = (await res.json().catch(() => null)) as (Attachment & Partial<ApiError>) | null;
+  if (!res.ok) throw new ApiRequestError(json?.error ?? `HTTP ${res.status} ${res.statusText}`, res.status, json?.detail);
+  return json as Attachment;
+}
+
 /** Config scope: no projectId means the user scope. */
 export interface Scope {
   projectId?: string;
@@ -145,8 +159,9 @@ export const api = {
   runs: () => request<RunSummary[]>('/runs'),
   run: (id: string) => request<RunDetail>(`/runs/${enc(id)}`),
   startRun: (opts: RunOptions) => request<RunSummary>('/runs', { method: 'POST', body: opts }),
-  sendMessage: (id: string, text: string) =>
-    request<RunSummary>(`/runs/${enc(id)}/messages`, { method: 'POST', body: { text } }),
+  sendMessage: (id: string, text: string, attachments: string[] = []) =>
+    request<RunSummary>(`/runs/${enc(id)}/messages`, { method: 'POST', body: attachments.length ? { text, attachments } : { text } }),
+  uploadFile: (file: File) => uploadFile(file),
   stopRun: (id: string) => request<RunSummary>(`/runs/${enc(id)}/stop`, { method: 'POST' }),
   deleteRun: (id: string) => request<{ ok: true }>(`/runs/${enc(id)}`, { method: 'DELETE' }),
   tasks: () => request<BackgroundTask[]>('/tasks'),

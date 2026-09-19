@@ -29,6 +29,7 @@ import { McpConfig } from './config/mcp.ts';
 import { MarkdownResources } from './config/resources.ts';
 import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
 import { Plugins } from './plugins.ts';
+import { UploadStore } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
 import { Orchestrator } from './orchestrator.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
@@ -68,6 +69,7 @@ export class Core {
   readonly mcp: McpConfig;
   readonly resources: MarkdownResources;
   readonly credentials: CredentialStore;
+  readonly uploads: UploadStore;
   readonly accounts: AccountManager;
   readonly workspace: Workspace;
   readonly locator = new Locator();
@@ -84,8 +86,10 @@ export class Core {
     // Must run before anything spawns the CLI: it injects stored credentials into process.env
     this.credentials = new CredentialStore(config);
     this.workspace = new Workspace(config);
+    this.uploads = new UploadStore(config.dataDir);
     this.runs = new RunManager(config, this.db);
     this.runs.permissionSocket = this.permissions.socketPath;
+    this.runs.uploads = this.uploads;
     this.runs.on('run-ended', (runId: string) => this.permissions.denyAllFor(runId));
     // The UI watches a run's event stream, so the prompt has to arrive on it
     this.permissions.on('requested', (request: PermissionRequest) => {

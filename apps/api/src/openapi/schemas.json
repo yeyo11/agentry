@@ -1355,6 +1355,50 @@
         "properties": {
           "type": {
             "type": "string",
+            "const": "image"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "uploadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "mediaType"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "document"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "uploadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "mediaType"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
             "const": "tool_use"
           },
           "id": {
@@ -1403,6 +1447,13 @@
     "properties": {
       "prompt": {
         "type": "string"
+      },
+      "attachments": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Uploads (`POST /uploads`) attached to the first message"
       },
       "cwd": {
         "type": "string",
@@ -2782,6 +2833,48 @@
       "ok",
       "output"
     ]
+  },
+  "Attachment": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "mediaType": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "image",
+          "pdf",
+          "file"
+        ]
+      },
+      "sizeBytes": {
+        "type": "number"
+      },
+      "path": {
+        "type": "string",
+        "description": "Absolute path on the machine the wrapper runs on"
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "mediaType",
+      "kind",
+      "sizeBytes",
+      "path",
+      "createdAt"
+    ],
+    "description": "A file uploaded to attach to a message. Images and PDFs reach Claude as content blocks; any other file by its path, which every run can read."
   },
   "AccountsOverview": {
     "type": "object",

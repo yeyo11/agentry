@@ -26,6 +26,7 @@ export const TAGS = [
   { name: 'Config files', description: "Generic editor confined to a scope's Claude dir; secrets and runtime state are refused." },
   { name: 'Memory', description: "Claude Code's per-project file memory." },
   { name: 'Plugins', description: 'Delegated to `claude plugin`; actions return the CLI output.' },
+  { name: 'Uploads', description: 'Files to attach to a message. Images and PDFs reach Claude as content blocks, any other file by its path.' },
 ];
 
 interface RouteDoc {
@@ -95,7 +96,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
     ok: ref('RunEvent'),
     produces: 'text/event-stream',
   }),
-  'POST /runs/:id/messages': d('Runs', 'Send another turn', { description: 'If the process has exited, the session is resumed transparently with `--resume`.', body: obj({ text: str() }, ['text']), ok: ref('RunSummary') }),
+  'POST /runs/:id/messages': d('Runs', 'Send another turn', { description: 'If the process has exited, the session is resumed transparently with `--resume`. `attachments` are upload ids from `POST /uploads`; with attachments the text may be empty.', body: obj({ text: str(), attachments: { type: 'array', items: str('Upload id') } }), ok: ref('RunSummary') }),
   'POST /runs/:id/stop': d('Runs', 'Stop the process', { description: 'The conversation is kept and can be continued later.', ok: ref('RunSummary') }),
   'DELETE /runs/:id': d('Runs', 'Forget an ended run', { ok: OK }),
   'GET /environments': d('Runs', 'What Claude actually loaded, per directory', { description: 'Tools, MCP server status, agents, skills, plugins, slash commands and memory paths, captured from the `init` event of the latest run in each directory.', querystring: obj({ cwd: str('Absolute directory to filter by') }), ok: list('EffectiveEnvironment') }),
@@ -157,6 +158,11 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /plugins/marketplaces': d('Plugins', 'Add a marketplace', { body: obj({ source: str('GitHub `owner/repo`, URL or path') }, ['source']), ok: ref('CliTextResult') }),
   'POST /plugins/marketplaces/update': d('Plugins', 'Update one or all marketplaces', { body: obj({ name: str('Omit to update all') }), ok: ref('CliTextResult') }),
   'DELETE /plugins/marketplaces/:name': d('Plugins', 'Remove a marketplace', { ok: ref('CliTextResult') }),
+
+  // ---- Uploads
+  'POST /uploads': d('Uploads', 'Upload a file to attach', { description: 'The request body is the file itself, sent as `application/octet-stream`; `name` is its file name. The type is read from the bytes. Limits: images (PNG, JPEG, GIF, WebP) 5 MB, PDFs 32 MB, anything else 50 MB. Files are kept in the data dir, outside every project, and every run can read them.', querystring: obj({ name: str('File name') }), ok: ref('Attachment'), created: true }),
+  'GET /uploads/:id': d('Uploads', "An upload's metadata", { ok: ref('Attachment') }),
+  'GET /uploads/:id/content': d('Uploads', 'The uploaded file', { description: 'Images and PDFs are served inline; any other type as a download, never rendered.' }),
 };
 
 /** Builds the Fastify route schema for a documented route; path params are derived from the URL. */

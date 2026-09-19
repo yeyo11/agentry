@@ -14,6 +14,7 @@ import { pluginRoutes } from './routes/plugins.ts';
 import { runRoutes } from './routes/runs.ts';
 import { sessionRoutes } from './routes/sessions.ts';
 import { systemRoutes } from './routes/system.ts';
+import { uploadRoutes } from './routes/uploads.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -51,6 +52,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(configRoutes, { core });
       await api.register(pluginRoutes, { core });
       await api.register(memoryRoutes, { core });
+      await api.register(uploadRoutes, { core });
     },
     { prefix: '/api' },
   );

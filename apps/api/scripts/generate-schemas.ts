@@ -18,7 +18,7 @@ const ROOT_TYPES = [
   'SettingsDoc', 'InstructionsDoc', 'McpServerEntry', 'McpServerHealth', 'MarkdownResource',
   'ConfigFileRoot', 'ConfigFileNode', 'ConfigFileContent', 'WriteConfigFileRequest',
   'MemoryFile', 'MemoryProjectSummary', 'PluginsOverview', 'AvailablePlugin', 'PluginActionRequest', 'CliTextResult',
-  'AccountsOverview', 'AccountSummary', 'SwitchAccountRequest', 'SwitchResult', 'AddAccountTokenRequest',
+  'Attachment', 'AccountsOverview', 'AccountSummary', 'SwitchAccountRequest', 'SwitchResult', 'AddAccountTokenRequest',
   'SetAccountAliasRequest', 'AutoSwitchSettings', 'AutoSwitchEvent',
 ];
 

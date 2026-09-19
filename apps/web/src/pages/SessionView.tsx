@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Play, Radio, Trash2 } from 'lucide-react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, useSession } from '../api';
+import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
 import { Switch, Tooltip } from '../components/controls';
 import { ICON_SM } from '../components/icons';
 import { ScrollJump } from '../components/ScrollJump';
@@ -26,12 +27,15 @@ export function SessionView() {
   const live = data?.summary.live;
   if (Boolean(live) !== wasLive) setWasLive(Boolean(live));
 
+  const files = useAttachments();
+  const ready = (prompt.trim() || files.ids.length > 0) && !files.uploading;
   const resume = useMutation({
     mutationFn: () =>
       api.startRun({
         prompt: prompt.trim(),
         resumeSessionId: id,
         cwd: data?.summary.projectPath || undefined,
+        ...(files.ids.length ? { attachments: files.ids } : {}),
       }),
     onSuccess: (run) => navigate(`/runs/${run.id}`),
   });
@@ -102,20 +106,26 @@ export function SessionView() {
             className="stack"
             onSubmit={(e) => {
               e.preventDefault();
-              if (prompt.trim()) resume.mutate();
+              if (ready) resume.mutate();
             }}
+            {...files.dropProps}
           >
             <textarea
               autoFocus
               rows={3}
-              placeholder="Next message for Claude…"
+              placeholder="Next message for Claude… (drop or paste files to attach them)"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
+              onPaste={files.onPaste}
             />
+            <div className="attach-row">
+              <AttachButton state={files} disabled={resume.isPending} />
+              <AttachmentTray state={files} />
+            </div>
             <ErrorBox error={resume.error} />
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary" disabled={!prompt.trim() || resume.isPending}>
-                {resume.isPending ? 'Starting…' : 'Resume'}
+              <button type="submit" className="btn btn-primary" disabled={!ready || resume.isPending}>
+                {resume.isPending ? 'Starting…' : files.uploading ? 'Uploading…' : 'Resume'}
               </button>
               <span className="muted small">Runs in {summary.projectPath || 'the wrapper workspace'}</span>
             </div>
