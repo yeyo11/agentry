@@ -260,16 +260,32 @@ export interface BackgroundTask {
   command?: string | null;
   /** Sent to the background by the person at the terminal rather than by the model */
   backgroundedByUser?: boolean;
+  /** Launched by a subagent rather than by the main agent (`owned_by_subagent` on the stream event) */
+  fromSubagent?: boolean;
+  /**
+   * The subagent that launched it, when known. The stream event only says a subagent did, so this
+   * comes from the subagent's own transcript, where the launch result is recorded.
+   */
+  ownerAgentId?: string | null;
   location?: WorkLocation | null;
 }
 
 /** Captured output of a background task, as the CLI wrote it. */
 export interface BackgroundTaskOutput {
   taskId: string;
+  /**
+   * Without `offset`, the tail of the file (at most 64 KiB); with it, up to 64 KiB of what follows
+   * that byte, so a longer gap takes several reads (`offset` < `bytes` means more is waiting)
+   */
   output: string;
-  /** Only the end of a long output is returned */
+  /** `output` is the tail of a longer file, not its start. Never set on a read that resumed from `offset`. */
   truncated: boolean;
+  /** Size of the output file in bytes */
   bytes: number;
+  /** Byte position just after `output`: pass it back as `?offset=` to read only what came since */
+  offset: number;
+  /** The requested `offset` was past the end of the file (it was replaced), so `output` restarts from the tail */
+  reset?: boolean;
 }
 
 /** An agent a session spawned with the Agent tool, in the foreground or the background. */
@@ -297,6 +313,58 @@ export interface SubagentInfo {
   location?: WorkLocation | null;
   /** Launched to run in the background, rather than awaited by its parent */
   background?: boolean;
+}
+
+/** Token usage summed over an agent's assistant messages. */
+export interface AgentTokenUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreation: number;
+  /** `input + output + cacheRead + cacheCreation` */
+  total: number;
+}
+
+/**
+ * Everything one subagent or workflow agent did, from the transcript and meta the CLI keeps for it
+ * beside the session's transcript: what it was asked, how it went, and its whole conversation.
+ */
+export interface AgentTranscript {
+  agentId: string;
+  sessionId: string;
+  kind: 'subagent' | 'workflow';
+  /** The workflow run (`wf_…`) a workflow agent belongs to */
+  workflowRunId: string | null;
+  /** The Agent tool call that spawned it; workflow agents have none */
+  toolUseId: string | null;
+  /** The CLI's `agentType` (`Explore`, `general-purpose`, `workflow-subagent`…) */
+  subagentType: string | null;
+  /** The description given at launch; a workflow agent's is its label */
+  description: string | null;
+  workflowPhase: string | null;
+  /** Its first message: the prompt it was given */
+  prompt: string | null;
+  /** `stopped` when its session ended before the agent reported back */
+  status: 'running' | 'completed' | 'failed' | 'stopped';
+  background: boolean;
+  startedAt: string | null;
+  endedAt: string | null;
+  durationMs: number | null;
+  lastActivityAt: string | null;
+  model: string | null;
+  usage: AgentTokenUsage;
+  toolCalls: number;
+  cwd: string | null;
+  /** Text of the agent's last assistant message: what it reported back */
+  result: string | null;
+  /** Entries of the transcript, from index `from` on (all of it unless `?after=` asked for a tail) */
+  entries: TranscriptEntry[];
+  /** Index of the first entry returned */
+  from: number;
+  /** Entries in the whole transcript: pass it back as `?after=` to read only what was appended */
+  total: number;
+  /** Background tasks this agent launched, where the transcripts say so (subagents only) */
+  tasks: BackgroundTask[];
 }
 
 /** One agent a workflow launched, as its progress reports it. */

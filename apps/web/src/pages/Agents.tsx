@@ -4,12 +4,14 @@ import { useActive, useRuns, useSubagents } from '../api';
 import { Location } from '../components/Location';
 import { isRunLive, RunCard } from '../components/RunCard';
 import { Card, Empty, ErrorBox, Loading, PageHeader, StatusBadge, Tag } from '../components/ui';
+import { useDetailPanel } from '../lib/detail';
 import { durationBetween, timeAgo } from '../lib/format';
 
 export function Agents() {
   const runs = useRuns();
   const subagents = useSubagents();
   const active = useActive();
+  const { open } = useDetailPanel();
   // Processes the CLI still lists but nobody is working in: they show, they just do not count
   const liveCli = (active.data ?? []).filter((s) => s.live);
 
@@ -66,6 +68,7 @@ export function Agents() {
                   <th>Location</th>
                   <th>Started by</th>
                   <th>Duration</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -96,6 +99,17 @@ export function Agents() {
                       )}
                     </td>
                     <td className="nowrap">{durationBetween(sub.startedAt, sub.endedAt)}</td>
+                    <td className="nowrap">
+                      {sub.sessionId && sub.agentId && (
+                        <button
+                          type="button"
+                          className="btn btn-small"
+                          onClick={() => open({ kind: 'subagent', sessionId: sub.sessionId ?? '', agentId: sub.agentId ?? '' })}
+                        >
+                          Details
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

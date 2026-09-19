@@ -65,10 +65,17 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
 
 type Target = readonly [QueryKey, number];
 
+// Open panels read from these; a query nobody has mounted is only marked stale, not refetched
+const detail = (delay: number): Target[] => [
+  [keys.agentDetail, delay],
+  [keys.taskOutput, delay],
+];
+
 const activity = (delay: number): Target[] => [
   [keys.tasks, delay],
   [keys.subagents, delay],
   [keys.workflows, delay],
+  ...detail(delay),
 ];
 
 /** The cached queries an event makes stale, and how soon each should be refetched. */
@@ -98,16 +105,16 @@ export function targetsFor(event: AgentryEvent): Target[] {
       return [[keys.accounts, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.runs, NOW]];
     case 'task.started':
     case 'task.ended':
-      return [[keys.tasks, NOW], [['task-output'], NOW], [keys.overview, OVERVIEW]];
+      return [[keys.tasks, NOW], ...detail(NOW), [keys.overview, OVERVIEW]];
     case 'subagent.started':
     case 'subagent.ended':
-      return [[keys.subagents, NOW], [keys.overview, OVERVIEW]];
+      return [[keys.subagents, NOW], ...detail(NOW), [keys.overview, OVERVIEW]];
     case 'subagent.updated':
-      return [[keys.subagents, NOW]];
+      return [[keys.subagents, NOW], [keys.agentDetail, NOW]];
     case 'workflow.progress':
-      return [[keys.workflows, NOW]];
+      return [[keys.workflows, NOW], [keys.agentDetail, NOW]];
     case 'workflow.ended':
-      return [[keys.workflows, NOW], [keys.overview, OVERVIEW]];
+      return [[keys.workflows, NOW], [keys.agentDetail, NOW], [keys.overview, OVERVIEW]];
     case 'orchestration.updated':
     case 'orchestration.conflict':
       return [

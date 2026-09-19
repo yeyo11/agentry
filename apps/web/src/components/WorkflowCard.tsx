@@ -1,5 +1,6 @@
 import type { WorkflowAgentState, WorkflowRun } from '@agentry/shared';
 import { Link } from 'react-router-dom';
+import { useDetailPanel } from '../lib/detail';
 import { durationBetween, formatDuration, truncate } from '../lib/format';
 import { CodeBlock } from './CodeBlock';
 // Direct import: the run view that renders this is in the shell bundle
@@ -12,12 +13,19 @@ const tokens = (n: number | null) => (n === null ? null : n >= 1000 ? `${(n / 10
 /** The CLI's agent states, in the tones the rest of the panel uses. */
 const tone = (state: string) => (state === 'done' ? 'ok' : state === 'error' ? 'bad' : 'active');
 
-function AgentRow({ agent }: { agent: WorkflowAgentState }) {
+/** `open` is set when the agent's transcript can be read: it needs the session and the workflow's `wf_…` id. */
+function AgentRow({ agent, open }: { agent: WorkflowAgentState; open: (() => void) | null }) {
   const preview = agent.state === 'done' ? agent.resultPreview : agent.promptPreview;
   return (
     <li className="wf-agent">
       <span className={`wf-dot wf-dot-${tone(agent.state)}`} aria-label={agent.state} />
-      <span className="wf-agent-label">{agent.label}</span>
+      {open ? (
+        <button type="button" className="link-btn wf-agent-label" onClick={open}>
+          {agent.label}
+        </button>
+      ) : (
+        <span className="wf-agent-label">{agent.label}</span>
+      )}
       <span className="muted small wf-agent-meta">
         {[agent.state === 'done' || agent.state === 'error' ? null : agent.state, agent.durationMs !== null ? formatDuration(agent.durationMs) : null, tokens(agent.tokens)]
           .filter(Boolean)
@@ -44,7 +52,10 @@ function byPhase(workflow: WorkflowRun): Array<[string | null, WorkflowAgentStat
  * One run of a Claude Code workflow: its phases, where each agent is, and what it returned.
  * `compact` drops who started it, for places that already say so, like the run's own page.
  */
-export function WorkflowCard({ workflow, compact = false }: { workflow: WorkflowRun; compact?: boolean }) {
+export function WorkflowCard({ workflow, compact = false, sessionId }: { workflow: WorkflowRun; compact?: boolean; sessionId?: string }) {
+  const { open } = useDetailPanel();
+  // A run's workflows carry no session of their own; the page that knows the run passes it
+  const session = workflow.sessionId ?? sessionId;
   const done = workflow.agents.filter((a) => a.state === 'done').length;
   const total = workflow.agents.length;
   const hasResult = workflow.result !== undefined && workflow.result !== null;
@@ -79,7 +90,15 @@ export function WorkflowCard({ workflow, compact = false }: { workflow: Workflow
           {phase && <div className="wf-phase-title">{phase}</div>}
           <ul className="wf-agents">
             {agents.map((agent) => (
-              <AgentRow key={`${agent.index}:${agent.agentId ?? agent.label}`} agent={agent} />
+              <AgentRow
+                key={`${agent.index}:${agent.agentId ?? agent.label}`}
+                agent={agent}
+                open={
+                  session && agent.agentId && workflow.id.startsWith('wf_')
+                    ? () => open({ kind: 'workflow-agent', sessionId: session, runId: workflow.id, agentId: agent.agentId ?? '' })
+                    : null
+                }
+              />
             ))}
           </ul>
         </section>

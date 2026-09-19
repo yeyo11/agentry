@@ -4385,3 +4385,59 @@ a.attachment-chip:hover {
     animation: none;
   }
 }
+
+/* ---------- Execution detail panel (subagent, background task, workflow agent) ---------- */
+/* The dialog body is as tall as its content, so a zero basis would collapse this to nothing */
+.detail-scroll {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.detail-facts {
+  color: var(--text);
+}
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.detail-live {
+  margin-left: 6px;
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.detail-output {
+  max-height: min(64dvh, 720px);
+  overflow-y: auto;
+}
+.detail-output .task-output {
+  max-height: none;
+  overflow: visible;
+}
+.detail-task-link {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+/* Every message here is a subagent's, so the marker that sets one apart in a run adds nothing */
+.detail-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.detail-transcript .transcript {
+  align-self: stretch;
+}
+.detail-transcript .msg-sidechain {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
+}
+.detail-transcript .msg-head .badge-info {
+  display: none;
+}

@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import type {
   Attachment,
   AccountsOverview,
   ActiveCliSession,
+  AgentTranscript,
   AddAccountTokenRequest,
   ApiError,
   AuthStatus,
@@ -173,8 +174,16 @@ export const api = {
   updateRun: (id: string, update: RunSettingsUpdate) => request<RunSummary>(`/runs/${enc(id)}`, { method: 'PATCH', body: update }),
   deleteRun: (id: string) => request<{ ok: true }>(`/runs/${enc(id)}`, { method: 'DELETE' }),
   tasks: () => request<BackgroundTask[]>('/tasks'),
-  taskOutput: (sessionId: string, taskId: string) =>
-    request<BackgroundTaskOutput>(`/sessions/${enc(sessionId)}/tasks/${enc(taskId)}/output`),
+  taskOutput: (sessionId: string, taskId: string, offset?: number) =>
+    request<BackgroundTaskOutput>(
+      `/sessions/${enc(sessionId)}/tasks/${enc(taskId)}/output${qs({ offset: offset === undefined ? undefined : String(offset) })}`,
+    ),
+  subagent: (sessionId: string, agentId: string, after?: number) =>
+    request<AgentTranscript>(`/sessions/${enc(sessionId)}/subagents/${enc(agentId)}${qs({ after: after === undefined ? undefined : String(after) })}`),
+  workflowAgent: (sessionId: string, runId: string, agentId: string, after?: number) =>
+    request<AgentTranscript>(
+      `/sessions/${enc(sessionId)}/workflows/${enc(runId)}/agents/${enc(agentId)}${qs({ after: after === undefined ? undefined : String(after) })}`,
+    ),
   subagents: () => request<SubagentInfo[]>('/subagents'),
   workflows: () => request<WorkflowRun[]>('/workflows'),
   savedWorkflows: (cwd?: string) => request<WorkflowDefinition[]>(`/workflows/saved${qs({ cwd })}`),
@@ -284,6 +293,9 @@ export const keys = {
   tasks: ['tasks'] as const,
   subagents: ['subagents'] as const,
   workflows: ['workflows'] as const,
+  // Prefixes the event feed invalidates (lib/events.ts): a panel's queries all sit under them
+  agentDetail: ['agent-detail'] as const,
+  taskOutput: ['task-output'] as const,
   savedWorkflows: (cwd: string) => ['workflows', 'saved', cwd] as const,
   orchestrations: ['orchestrations'] as const,
   planDrafts: ['orchestrations', 'plans'] as const,
@@ -369,6 +381,101 @@ export const useOrchestration = (id: string) => {
     },
   });
 };
+
+// ---------- Execution detail ----------
+
+/**
+ * What the events cannot say: a subagent writes to its own transcript and a task to its own output
+ * file, and neither announces each line. So while one is running, its panel asks again this often,
+ * which is cheap because both reads are incremental.
+ */
+const RUNNING_POLL_MS = 2500;
+
+/** More than any reasonable panel scrolls through; older output is dropped from the front. */
+const MAX_OUTPUT_CHARS = 1_000_000;
+
+/** Reads a chunk at a time until the end; a burst larger than one chunk is never left half read. */
+const MAX_OUTPUT_CHUNKS = 16;
+
+/** Which agent a panel shows: a subagent, or with `workflowRunId` an agent of that workflow. */
+export interface AgentRef {
+  sessionId: string;
+  agentId: string;
+  workflowRunId?: string;
+}
+
+/**
+ * One agent's detail and transcript. Every fetch asks only for the entries after the ones already
+ * cached and appends them, so following a long transcript costs its growth, not its size.
+ */
+export function useAgentDetail(ref: AgentRef, running: boolean) {
+  const client = useQueryClient();
+  const fallback = useFallbackInterval();
+  const key = [...keys.agentDetail, ref.sessionId, ref.workflowRunId ?? '', ref.agentId];
+  return useQuery({
+    queryKey: key,
+    queryFn: async (): Promise<AgentTranscript> => {
+      const before = client.getQueryData<AgentTranscript>(key);
+      const next = ref.workflowRunId
+        ? await api.workflowAgent(ref.sessionId, ref.workflowRunId, ref.agentId, before?.total)
+        : await api.subagent(ref.sessionId, ref.agentId, before?.total);
+      // `from` is 0 when the server had to start over (the file was rewritten): then it is all there is
+      if (!before || next.from === 0) return next;
+      return { ...next, entries: [...before.entries.slice(0, next.from), ...next.entries], from: 0 };
+    },
+    // Entries are appended by identity, so comparing thousands of them deeply on each poll is waste
+    structuralSharing: false,
+    refetchInterval: (query) => ((query.state.data ? query.state.data.status === 'running' : running) ? RUNNING_POLL_MS : fallback),
+  });
+}
+
+/** A background task's output as followed so far. */
+export interface FollowedOutput {
+  text: string;
+  /** Size of the file when last read */
+  bytes: number;
+  /** Where the next read resumes */
+  offset: number;
+  /** The start of the output is not in `text`: the file was longer than what is kept */
+  cutHead: boolean;
+}
+
+/** A task's output, following the file as it grows: each fetch resumes from where the last one ended. */
+export function useTaskOutput(sessionId: string, taskId: string, running: boolean) {
+  const client = useQueryClient();
+  const fallback = useFallbackInterval();
+  const key = [...keys.taskOutput, sessionId, taskId];
+  return useQuery({
+    queryKey: key,
+    queryFn: async (): Promise<FollowedOutput> => {
+      const before = client.getQueryData<FollowedOutput>(key);
+      let text = before?.text ?? '';
+      let cutHead = before?.cutHead ?? false;
+      let offset = before?.offset;
+      let bytes = before?.bytes ?? 0;
+      for (let i = 0; i < MAX_OUTPUT_CHUNKS; i++) {
+        const chunk = await api.taskOutput(sessionId, taskId, offset);
+        if (offset === undefined || chunk.reset) {
+          text = chunk.output;
+          cutHead = chunk.truncated;
+        } else {
+          text += chunk.output;
+        }
+        offset = chunk.offset;
+        bytes = chunk.bytes;
+        // Nothing came back while bytes remain: the rest is the start of a character still being written
+        if (offset >= bytes || !chunk.output) break;
+      }
+      if (text.length > MAX_OUTPUT_CHARS) {
+        text = text.slice(-MAX_OUTPUT_CHARS);
+        cutHead = true;
+      }
+      return { text, bytes, offset: offset ?? 0, cutHead };
+    },
+    structuralSharing: false,
+    refetchInterval: running ? RUNNING_POLL_MS : fallback,
+  });
+}
 
 // ---------- SSE run stream ----------
 
