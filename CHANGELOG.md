@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.13.0](https://github.com/yeyo11/agentry/compare/v0.12.0...v0.13.0) (2026-09-19)
+
+
+### Features
+
+* improve task orchestration, transcript performance, and i18n [#54](https://github.com/yeyo11/agentry/issues/54)) ([0ffa2c7](https://github.com/yeyo11/agentry/commit/0ffa2c7c5111644f9d2ca794ed14a61291371f0b))
+
 ## [0.12.0](https://github.com/yeyo11/agentry/compare/v0.11.1...v0.12.0) (2026-09-19)
 
 
