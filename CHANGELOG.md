@@ -3,6 +3,14 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.6.0](https://github.com/yeyo11/agentry/compare/v0.5.1...v0.6.0) (2026-09-19)
+
+
+### Features
+
+* **orchestration:** resume with corrected settings, delete, honest progress ([afabe9c](https://github.com/yeyo11/agentry/commit/afabe9cdb941581596368bbf4f480c190f9931b1))
+* **orchestration:** resume with corrected settings, delete, honest progress ([51b23e7](https://github.com/yeyo11/agentry/commit/51b23e7f626518b714f25f2936cb3741cbc540db))
+
 ## [0.5.1](https://github.com/yeyo11/agentry/compare/v0.5.0...v0.5.1) (2026-09-19)
 
 
