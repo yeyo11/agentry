@@ -20,6 +20,7 @@ export const TAGS = [
   { name: 'Account', description: 'Credential used by every `claude` process. The secret is never returned.' },
   { name: 'Accounts', description: 'Several Claude accounts through claude-swap (`cswap`), with usage per window and rotation when one runs out.' },
   { name: 'Projects & sessions', description: 'Read from the transcripts Claude Code writes under `<configDir>/projects`.' },
+  { name: 'Events', description: 'One Server-Sent Events stream announcing every change, so clients do not have to poll.' },
   { name: 'Runs', description: 'Live conversations, each backed by a `claude -p` process speaking stream-json.' },
   { name: 'Orchestration', description: 'A DAG of tasks, each executed by its own Claude worker.' },
   { name: 'Configuration', description: 'Settings, instructions, MCP servers and markdown resources, per user or per project (`?project=`).' },
@@ -84,6 +85,15 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /sessions/:id/tasks': d('Projects & sessions', 'Shell commands a session sent to the background', { description: 'From the transcript: the command, who sent it to the background, and how it ended. A command still marked running when its session has ended is reported as `stopped`.', ok: list('BackgroundTask') }),
   'GET /sessions/:id/tasks/:taskId/output': d('Projects & sessions', 'What a background command printed', { description: 'Read from the CLI\'s temp dir, which a reboot clears. Only the last 64 KiB of a longer output is returned.', ok: ref('BackgroundTaskOutput') }),
   'DELETE /sessions/:id': d('Projects & sessions', 'Delete a transcript', { description: 'Refused with 400 while the session is live.', ok: OK }),
+
+  // ---- Events
+  'GET /events': d('Events', 'Live feed of everything that changes (Server-Sent Events)', {
+    description:
+      'One stream for the whole app. Every message has an SSE `id`, an `event:` line naming its `type` and `data: <AgentryEvent JSON>`: run created/updated/ended/removed, prompts waiting for a person (`run.waiting`, `permission.*`), rate limits and account rotation, background tasks, subagents and workflows starting and ending, orchestration, task and merge-conflict changes, and `sessions.changed` when the CLI writes under its projects directory. Events describe what changed and carry the ids to refetch it; `run.updated` and `workflow.progress` are coalesced to about one per 250 ms. The stream opens with `stream.hello` (no id) carrying the server `bootId`. Reconnect with `Last-Event-ID` (or `since`) to receive what was missed from a bounded in-memory buffer; when that id has fallen out of it, or belongs to a previous server process, `stream.resync` is sent instead and the client must refetch everything it shows. A `: ping` comment is sent every 15 s.',
+    querystring: obj({ since: str('Last event id already received; the `Last-Event-ID` header wins') }),
+    ok: ref('AgentryEvent'),
+    produces: 'text/event-stream',
+  }),
 
   // ---- Runs
   'GET /runs': d('Runs', 'All runs, newest first', { description: 'Includes runs restored from previous wrapper processes.', ok: list('RunSummary') }),

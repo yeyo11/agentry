@@ -25,7 +25,7 @@ export function RunView() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const runs = useRuns(1500);
+  const runs = useRuns();
   const run = runs.data?.find((r) => r.id === id);
   usePageTitle(run ? `${run.name} · run` : 'Run');
   const notFound = runs.isSuccess && !run;

@@ -8,6 +8,7 @@ import type { Core } from '@agentry/core';
 import { registerOpenApi } from './openapi/plugin.ts';
 import { accountRoutes } from './routes/accounts.ts';
 import { configRoutes } from './routes/config.ts';
+import { eventRoutes } from './routes/events.ts';
 import { memoryRoutes } from './routes/memory.ts';
 import { orchestrationRoutes } from './routes/orchestrations.ts';
 import { pluginRoutes } from './routes/plugins.ts';
@@ -47,6 +48,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(systemRoutes, { core });
     await api.register(accountRoutes, { core });
       await api.register(sessionRoutes, { core });
+      await api.register(eventRoutes, { core });
       await api.register(runRoutes, { core });
       await api.register(orchestrationRoutes, { core });
       await api.register(configRoutes, { core });

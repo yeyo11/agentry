@@ -58,6 +58,7 @@ import type {
   WriteConfigFileRequest,
   SaveOrchestrationWorkflowRequest,
 } from '@agentry/shared';
+import { useFallbackInterval } from './lib/feed';
 
 const BASE = '/api';
 
@@ -307,29 +308,35 @@ export const keys = {
   pluginDetails: (plugin: string) => ['plugins', 'details', plugin] as const,
 };
 
-export const useOverview = () => useQuery({ queryKey: keys.overview, queryFn: api.overview, refetchInterval: 3000 });
+// The queries below are kept fresh by the event feed (lib/events.ts); their intervals are only a
+// slow fallback that runs while it is disconnected.
+export const useOverview = () => useQuery({ queryKey: keys.overview, queryFn: api.overview, refetchInterval: useFallbackInterval() });
 
-export const useProjects = (interval: number | false = 10_000) =>
-  useQuery({ queryKey: keys.projects, queryFn: api.projects, refetchInterval: interval });
+/** `poll: false` for pages that read the list once, e.g. to fill a picker. */
+export const useProjects = (poll = true) => {
+  const fallback = useFallbackInterval();
+  return useQuery({ queryKey: keys.projects, queryFn: api.projects, refetchInterval: poll ? fallback : false });
+};
 
 export const useSessions = (projectId?: string) =>
   useQuery({
     queryKey: keys.sessions(projectId),
     queryFn: () => (projectId ? api.projectSessions(projectId) : api.sessions()),
-    refetchInterval: 5000,
+    refetchInterval: useFallbackInterval(),
   });
 
-export const useSession = (id: string, sidechains: boolean, live: boolean) =>
-  useQuery({
+export const useSession = (id: string, sidechains: boolean, live: boolean) => {
+  const fallback = useFallbackInterval();
+  return useQuery({
     queryKey: keys.session(id, sidechains),
     queryFn: () => api.session(id, sidechains),
-    refetchInterval: live ? 3000 : false,
+    refetchInterval: live ? fallback : false,
   });
+};
 
-export const useActive = () => useQuery({ queryKey: keys.active, queryFn: api.active, refetchInterval: 2000 });
+export const useActive = () => useQuery({ queryKey: keys.active, queryFn: api.active, refetchInterval: useFallbackInterval() });
 
-export const useRuns = (interval = 2000) =>
-  useQuery({ queryKey: keys.runs, queryFn: api.runs, refetchInterval: interval });
+export const useRuns = () => useQuery({ queryKey: keys.runs, queryFn: api.runs, refetchInterval: useFallbackInterval() });
 
 /** Usage refreshes on claude-swap's own cadence; polling faster would only re-read its cache. */
 export const useAccounts = () =>
@@ -339,27 +346,29 @@ export const useAccounts = () =>
 export const useAccountEvents = (enabled: boolean) =>
   useQuery({ queryKey: keys.accountEvents, queryFn: () => api.accountEvents(), refetchInterval: 10_000, enabled });
 
-export const useTasks = () => useQuery({ queryKey: keys.tasks, queryFn: api.tasks, refetchInterval: 2000 });
+export const useTasks = () => useQuery({ queryKey: keys.tasks, queryFn: api.tasks, refetchInterval: useFallbackInterval() });
 
 export const useSubagents = () =>
-  useQuery({ queryKey: keys.subagents, queryFn: api.subagents, refetchInterval: 2000 });
+  useQuery({ queryKey: keys.subagents, queryFn: api.subagents, refetchInterval: useFallbackInterval() });
 
-export const useWorkflows = () => useQuery({ queryKey: keys.workflows, queryFn: api.workflows, refetchInterval: 2000 });
+export const useWorkflows = () => useQuery({ queryKey: keys.workflows, queryFn: api.workflows, refetchInterval: useFallbackInterval() });
 
 export const useOrchestrations = () =>
-  useQuery({ queryKey: keys.orchestrations, queryFn: api.orchestrations, refetchInterval: 3000 });
+  useQuery({ queryKey: keys.orchestrations, queryFn: api.orchestrations, refetchInterval: useFallbackInterval() });
 
-export const useOrchestration = (id: string) =>
-  useQuery({
+export const useOrchestration = (id: string) => {
+  const fallback = useFallbackInterval();
+  return useQuery({
     queryKey: keys.orchestration(id),
     queryFn: () => api.orchestration(id),
     refetchInterval: (query) => {
       const data = query.state.data;
       // Integrating again happens after the graph finished, and is worth following too
       const integrating = data?.integration && ['merging', 'resolving'].includes(data.integration.status);
-      return data && data.status !== 'running' && !integrating ? false : 2000;
+      return data && data.status !== 'running' && !integrating ? false : fallback;
     },
   });
+};
 
 // ---------- SSE run stream ----------
 

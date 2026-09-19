@@ -3532,5 +3532,1525 @@
     "required": [
       "alias"
     ]
+  },
+  "AgentryEvent": {
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/RunCreatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/RunUpdatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/RunEndedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/RunRemovedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/RunWaitingEvent"
+      },
+      {
+        "$ref": "#/components/schemas/PermissionRequestedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/PermissionResolvedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/RunRateLimitedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/RunAccountRotatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/AccountSwitchedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/TaskStartedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/TaskEndedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/SubagentStartedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/SubagentUpdatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/SubagentEndedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/WorkflowProgressEvent"
+      },
+      {
+        "$ref": "#/components/schemas/WorkflowEndedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/OrchestrationUpdatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/OrchestrationRemovedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/OrchestrationTaskEvent"
+      },
+      {
+        "$ref": "#/components/schemas/OrchestrationConflictEvent"
+      },
+      {
+        "$ref": "#/components/schemas/SessionsChangedEvent"
+      }
+    ],
+    "description": "Everything the buffered feed carries, discriminated by `type`."
+  },
+  "RunCreatedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "run.created"
+      },
+      "status": {
+        "$ref": "#/components/schemas/RunStatus"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "internal",
+      "orchestrationId",
+      "runId",
+      "runName",
+      "sessionId",
+      "status",
+      "title",
+      "type"
+    ]
+  },
+  "RunUpdatedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "run.updated"
+      },
+      "status": {
+        "$ref": "#/components/schemas/RunStatus"
+      },
+      "previousStatus": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "turns": {
+        "type": "number"
+      },
+      "costUsd": {
+        "type": "number"
+      },
+      "pendingPrompts": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "at",
+      "costUsd",
+      "id",
+      "internal",
+      "orchestrationId",
+      "pendingPrompts",
+      "previousStatus",
+      "runId",
+      "runName",
+      "sessionId",
+      "status",
+      "title",
+      "turns",
+      "type"
+    ],
+    "description": "The run's status, turns, cost, last text, or pending prompts changed. A status change is sent as it happens (`previousStatus` says from what: busy → idle is a finished turn); other changes are coalesced to one event every ~250 ms per run."
+  },
+  "RunEndedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "run.ended"
+      },
+      "status": {
+        "$ref": "#/components/schemas/RunEndStatus"
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "turns": {
+        "type": "number"
+      },
+      "costUsd": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "at",
+      "costUsd",
+      "error",
+      "id",
+      "internal",
+      "orchestrationId",
+      "runId",
+      "runName",
+      "sessionId",
+      "status",
+      "title",
+      "turns",
+      "type"
+    ],
+    "description": "The process ended for good (until a message resumes it)."
+  },
+  "RunEndStatus": {
+    "type": "string",
+    "enum": [
+      "completed",
+      "failed",
+      "stopped"
+    ]
+  },
+  "RunRemovedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "run.removed"
+      },
+      "runId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "runId",
+      "title",
+      "type"
+    ]
+  },
+  "RunWaitingEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "run.waiting"
+      },
+      "reason": {
+        "$ref": "#/components/schemas/RunWaitingReason"
+      },
+      "permissionId": {
+        "type": "string"
+      },
+      "toolName": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "internal",
+      "orchestrationId",
+      "permissionId",
+      "reason",
+      "runId",
+      "runName",
+      "sessionId",
+      "title",
+      "toolName",
+      "type"
+    ],
+    "description": "The run cannot go on until a person answers; `permissionId` is the request to answer."
+  },
+  "RunWaitingReason": {
+    "type": "string",
+    "enum": [
+      "permission",
+      "question",
+      "plan"
+    ],
+    "description": "Why a run is waiting for a person: a tool call to approve, a question to answer, a plan to approve."
+  },
+  "PermissionRequestedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "permission.requested"
+      },
+      "permissionId": {
+        "type": "string"
+      },
+      "toolName": {
+        "type": "string"
+      },
+      "reason": {
+        "$ref": "#/components/schemas/RunWaitingReason"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "at",
+      "description",
+      "id",
+      "internal",
+      "orchestrationId",
+      "permissionId",
+      "reason",
+      "runId",
+      "runName",
+      "sessionId",
+      "title",
+      "toolName",
+      "type"
+    ]
+  },
+  "PermissionResolvedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "permission.resolved"
+      },
+      "permissionId": {
+        "type": "string"
+      },
+      "toolName": {
+        "type": "string"
+      },
+      "outcome": {
+        "type": "string",
+        "enum": [
+          "allow",
+          "deny",
+          "withdrawn"
+        ],
+        "description": "`withdrawn` when the CLI took the question back; a timeout resolves as `deny`"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "internal",
+      "orchestrationId",
+      "outcome",
+      "permissionId",
+      "runId",
+      "runName",
+      "sessionId",
+      "title",
+      "toolName",
+      "type"
+    ]
+  },
+  "RunRateLimitedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "run.rateLimited"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "internal",
+      "orchestrationId",
+      "runId",
+      "runName",
+      "sessionId",
+      "title",
+      "type"
+    ],
+    "description": "A turn died against the account's rate limit."
+  },
+  "RunAccountRotatedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "run.accountRotated"
+      },
+      "from": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "to": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "resumed": {
+        "type": "boolean",
+        "description": "The interrupted turn was replayed on the new account"
+      }
+    },
+    "required": [
+      "at",
+      "from",
+      "id",
+      "internal",
+      "orchestrationId",
+      "resumed",
+      "runId",
+      "runName",
+      "sessionId",
+      "title",
+      "to",
+      "type"
+    ],
+    "description": "Rotation moved the wrapper to another account after a run hit its limit."
+  },
+  "AccountSwitchedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "account.switched"
+      },
+      "from": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "to": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "reason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "at",
+      "from",
+      "id",
+      "reason",
+      "title",
+      "to",
+      "type"
+    ],
+    "description": "The active account changed, by whatever means (manual switch, `cswap auto`, rotation)."
+  },
+  "TaskStartedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "task.started"
+      },
+      "taskId": {
+        "type": "string"
+      },
+      "taskType": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "toolUseId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "fromSubagent": {
+        "type": "boolean",
+        "description": "Launched by a subagent rather than the main agent, when the CLI said so"
+      }
+    },
+    "required": [
+      "at",
+      "description",
+      "fromSubagent",
+      "id",
+      "runId",
+      "runName",
+      "sessionId",
+      "taskId",
+      "taskType",
+      "title",
+      "toolUseId",
+      "type"
+    ]
+  },
+  "TaskEndedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "task.ended"
+      },
+      "taskId": {
+        "type": "string"
+      },
+      "taskType": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "description": "As the CLI reports it: `completed`, `failed`, `killed`, `stopped`…"
+      },
+      "summary": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "fromSubagent": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "at",
+      "description",
+      "fromSubagent",
+      "id",
+      "runId",
+      "runName",
+      "sessionId",
+      "status",
+      "summary",
+      "taskId",
+      "taskType",
+      "title",
+      "type"
+    ]
+  },
+  "SubagentStartedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "subagent.started"
+      },
+      "toolUseId": {
+        "type": "string"
+      },
+      "agentId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The CLI's id for the agent; may only arrive with `subagent.updated`"
+      },
+      "subagentType": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "background": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "agentId",
+      "at",
+      "background",
+      "description",
+      "id",
+      "runId",
+      "runName",
+      "sessionId",
+      "subagentType",
+      "title",
+      "toolUseId",
+      "type"
+    ]
+  },
+  "SubagentUpdatedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "subagent.updated"
+      },
+      "toolUseId": {
+        "type": "string"
+      },
+      "agentId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "subagentType": {
+        "type": "string"
+      },
+      "background": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "agentId",
+      "at",
+      "background",
+      "id",
+      "runId",
+      "runName",
+      "sessionId",
+      "subagentType",
+      "title",
+      "toolUseId",
+      "type"
+    ],
+    "description": "The agent got its CLI id (which names its transcript) or was sent to the background."
+  },
+  "SubagentEndedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "subagent.ended"
+      },
+      "toolUseId": {
+        "type": "string"
+      },
+      "agentId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "subagentType": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "completed",
+          "failed",
+          "stopped"
+        ]
+      }
+    },
+    "required": [
+      "agentId",
+      "at",
+      "description",
+      "id",
+      "runId",
+      "runName",
+      "sessionId",
+      "status",
+      "subagentType",
+      "title",
+      "toolUseId",
+      "type"
+    ]
+  },
+  "WorkflowProgressEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "workflow.progress"
+      },
+      "workflowId": {
+        "type": "string",
+        "description": "The CLI's workflow run id (`wf_…`) when known, the task id otherwise"
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "name": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "agentsRunning": {
+        "type": "number"
+      },
+      "agentsDone": {
+        "type": "number"
+      },
+      "agentsTotal": {
+        "type": "number"
+      },
+      "totalTokens": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "agentsDone",
+      "agentsRunning",
+      "agentsTotal",
+      "at",
+      "id",
+      "name",
+      "runId",
+      "runName",
+      "sessionId",
+      "taskId",
+      "title",
+      "totalTokens",
+      "type",
+      "workflowId"
+    ],
+    "description": "A workflow's phases, agents or token count moved while it runs."
+  },
+  "WorkflowEndedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "workflow.ended"
+      },
+      "workflowId": {
+        "type": "string"
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "name": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "completed",
+          "failed",
+          "stopped"
+        ]
+      },
+      "summary": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "totalTokens": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "name",
+      "runId",
+      "runName",
+      "sessionId",
+      "status",
+      "summary",
+      "taskId",
+      "title",
+      "totalTokens",
+      "type",
+      "workflowId"
+    ]
+  },
+  "OrchestrationUpdatedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "orchestration.updated"
+      },
+      "orchestrationId": {
+        "type": "string"
+      },
+      "orchestrationName": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/OrchestrationStatus"
+      },
+      "previousStatus": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationStatus"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "integrationStatus": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/IntegrationStatus"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "costUsd": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "at",
+      "costUsd",
+      "id",
+      "integrationStatus",
+      "orchestrationId",
+      "orchestrationName",
+      "previousStatus",
+      "status",
+      "title",
+      "type"
+    ],
+    "description": "An orchestration was created, changed status, or its integration moved."
+  },
+  "OrchestrationRemovedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "orchestration.removed"
+      },
+      "orchestrationId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "orchestrationId",
+      "title",
+      "type"
+    ]
+  },
+  "OrchestrationTaskEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "orchestration.task"
+      },
+      "orchestrationId": {
+        "type": "string"
+      },
+      "orchestrationName": {
+        "type": "string"
+      },
+      "taskId": {
+        "type": "string"
+      },
+      "taskName": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/OrchestrationTaskStatus"
+      },
+      "previousStatus": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationTaskStatus"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "runId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "at",
+      "error",
+      "id",
+      "orchestrationId",
+      "orchestrationName",
+      "previousStatus",
+      "runId",
+      "status",
+      "taskId",
+      "taskName",
+      "title",
+      "type"
+    ]
+  },
+  "OrchestrationConflictEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "orchestration.conflict"
+      },
+      "orchestrationId": {
+        "type": "string"
+      },
+      "orchestrationName": {
+        "type": "string"
+      },
+      "integrationStatus": {
+        "$ref": "#/components/schemas/IntegrationStatus"
+      },
+      "branch": {
+        "type": "string"
+      },
+      "paths": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "resolving": {
+        "type": "boolean",
+        "description": "An integrator agent is resolving it; false when the person has to"
+      }
+    },
+    "required": [
+      "at",
+      "branch",
+      "id",
+      "integrationStatus",
+      "orchestrationId",
+      "orchestrationName",
+      "paths",
+      "resolving",
+      "title",
+      "type"
+    ],
+    "description": "Merging the tasks' branches conflicted; `paths` are what could not be merged."
+  },
+  "SessionsChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "sessions.changed"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "title",
+      "type"
+    ],
+    "description": "Files under the CLI's projects directory changed: a session was created, grew or ended."
+  },
+  "StreamHelloEvent": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "const": "stream.hello"
+      },
+      "lastEventId": {
+        "type": "number",
+        "description": "Id of the newest event the server has emitted"
+      },
+      "bootId": {
+        "type": "string",
+        "description": "Changes on every server start; ids restart from 1 with it, so a new one means a full resync"
+      },
+      "serverTime": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "type",
+      "lastEventId",
+      "bootId",
+      "serverTime"
+    ],
+    "description": "Sent first on every connection, without an SSE id: it is not part of the replay buffer."
+  },
+  "StreamResyncEvent": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "const": "stream.resync"
+      },
+      "lastEventId": {
+        "type": "number"
+      },
+      "reason": {
+        "type": "string",
+        "enum": [
+          "buffer-overflow",
+          "server-restarted"
+        ]
+      }
+    },
+    "required": [
+      "type",
+      "lastEventId",
+      "reason"
+    ],
+    "description": "Sent instead of a replay when the client's `Last-Event-ID` is not one this server can continue from (it fell out of the buffer, or is newer than anything emitted, as after a restart): whatever the client cached may be stale, so it must refetch everything live."
   }
 }

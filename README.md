@@ -298,6 +298,18 @@ transcript to the shared config dir, so sessions and history behave as usual.
 | GET | `/sessions/:id/tasks/:taskId/output` | What one of them printed (the last 64 KiB) |
 | DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible |
 
+### Events
+
+One Server-Sent Events stream for the whole app, so a client never has to poll.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes; `sessions.changed`. Opens with `stream.hello`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
+
+```bash
+curl -N localhost:8787/api/events
+```
+
 ### Runs
 
 A run is a live conversation backed by a `claude -p` process.
@@ -488,6 +500,10 @@ Across the app:
   recent sessions and actions (new run, theme, API reference…), with recents and full keyboard control.
 - **Themes**: light, dark or system, switchable from the top bar or the palette, applied before first paint.
 - **Live chat**: responses stream token by token; thinking, tool calls and results render as they arrive.
+- **Live updates**: one Server-Sent Events connection (`GET /api/events`) keeps every page current —
+  runs, prompts waiting for you, background tasks, subagents, workflows, orchestrations, account
+  rotation — instead of each screen polling. If the stream drops, the sidebar status says so and the
+  pages fall back to a slow poll until it returns.
 - **Editors**: CodeMirror (JSON, Markdown, YAML, JS/TS) with `Ctrl/⌘ S`, unsaved-change guards
   (tabs, scope switches, sidebar navigation, reload), confirmation dialogs for destructive actions
   and toasts for every mutation.

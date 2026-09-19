@@ -18,7 +18,7 @@ export interface ScopeState {
 }
 
 export function useScopeState(projectId: string | undefined): ScopeState {
-  const { data, isSuccess } = useProjects(30_000);
+  const { data, isSuccess } = useProjects();
   return useMemo(() => {
     const projects = data ?? [];
     const project = projectId ? projects.find((p) => p.id === projectId) : undefined;

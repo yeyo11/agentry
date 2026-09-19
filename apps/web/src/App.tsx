@@ -27,6 +27,7 @@ import { Tooltip } from './components/controls/Tooltip';
 import { BrandMark, ICON } from './components/icons';
 import { AnimatePresence, motion, PageTransition, SlidingIndicator, StatusDot, useReducedMotion } from './components/motion';
 import { Empty, Skeleton } from './components/ui';
+import { useEventFeed } from './lib/events';
 import { ThemeToggle } from './lib/theme';
 import { Agents } from './pages/Agents';
 import { Dashboard } from './pages/Dashboard';
@@ -79,10 +80,13 @@ export function App() {
   const { pathname } = useLocation();
   const reduced = useReducedMotion();
   const overview = useOverview();
+  // The one connection that keeps every page current; the sidebar footer shows when it is down
+  const feed = useEventFeed();
   const counts = overview.data?.counts;
   const auth = overview.data?.system.auth;
   const cli = overview.data?.system.cli;
   const healthy = cli?.installed === true && auth?.loggedIn === true;
+  const feedDown = feed !== 'open' && overview.data !== undefined;
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [mobileNav, setMobileNav] = useState(false);
 
@@ -128,7 +132,7 @@ export function App() {
 
   const current = groups.flatMap((g) => g.items.map((item) => ({ group: g.label, item }))).find(({ item }) => isActive(item, pathname));
 
-  const statusTone = overview.isError ? 'bad' : healthy ? 'ok' : 'warn';
+  const statusTone = overview.isError ? 'bad' : healthy && !feedDown ? 'ok' : 'warn';
   const statusTitle = overview.isError
     ? 'API unreachable'
     : !overview.data
@@ -139,7 +143,9 @@ export function App() {
           ? 'CLI not detected'
           : 'Not logged in';
   const statusDetail = healthy
-    ? [auth?.subscriptionType ?? auth?.authMethod, auth?.email].filter(Boolean).join(' · ') || 'logged in'
+    ? feedDown
+      ? 'Live updates paused, retrying'
+      : [auth?.subscriptionType ?? auth?.authMethod, auth?.email].filter(Boolean).join(' · ') || 'logged in'
     : overview.isError
       ? 'Check that the wrapper is running'
       : !overview.data
@@ -229,7 +235,7 @@ export function App() {
 
         <Tooltip content={`${statusTitle}${statusDetail ? ` · ${statusDetail}` : ''}`} side="right">
           <NavLink to="/config?tab=account" className="sidebar-foot">
-            <StatusDot tone={statusTone} live={healthy} />
+            <StatusDot tone={statusTone} live={healthy && !feedDown} />
             <span className="sidebar-foot-text">
               <span className="sidebar-foot-title ellipsis">{statusTitle}</span>
               {statusDetail && <span className="sidebar-foot-detail ellipsis">{statusDetail}</span>}
