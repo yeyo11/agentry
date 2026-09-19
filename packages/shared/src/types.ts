@@ -422,6 +422,17 @@ export interface PermissionDecision {
   updatedInput?: Record<string, unknown>;
 }
 
+/**
+ * Settings that can be corrected when resuming, so a graph started with the wrong ones is fixed and
+ * picked up instead of rebuilt. Only what shapes the workers still to run; completed work is kept.
+ */
+export interface ResumeOrchestrationRequest {
+  worktree?: boolean;
+  permissionPrompts?: 'host' | 'none';
+  allowedTools?: string[];
+  permissionMode?: PermissionMode;
+}
+
 export interface PlanRequest {
   objective: string;
   cwd?: string;

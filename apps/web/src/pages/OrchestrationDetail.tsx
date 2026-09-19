@@ -1,13 +1,15 @@
-import type { OrchestrationTaskState } from '@agentry/shared';
+import type { Orchestration, OrchestrationTaskState, ResumeOrchestrationRequest } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ChevronRight, Combine, CornerDownRight, Play, Square, Target } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, ChevronRight, Combine, CornerDownRight, Play, Square, Target, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, keys, useOrchestration } from '../api';
-import { Collapsible } from '../components/controls';
+import { Collapsible, Switch } from '../components/controls';
+import { useConfirm } from '../components/Dialog';
 import { ICON, ICON_SM } from '../components/icons';
 import { motion, ProgressRing, useReducedMotion } from '../components/motion';
 import { RichText } from '../components/Transcript';
-import { Card, ErrorBox, Loading, PageHeader, StatusBadge } from '../components/ui';
+import { Card, ErrorBox, Field, Loading, PageHeader, StatusBadge } from '../components/ui';
 import { durationBetween, formatCost, formatDateTime, shortPath } from '../lib/format';
 
 /** Groups tasks into columns by topological level (longest dependency chain). Cycles are tolerated. */
@@ -98,6 +100,80 @@ function TaskCard({ task }: { task: OrchestrationTaskState }) {
   );
 }
 
+const SAFE_TOOLS = 'Bash,Read,Write,Edit,Glob,Grep';
+
+/**
+ * Resuming keeps completed work but relaunches the rest with whatever settings the graph has, so a
+ * graph that stopped for lack of permissions or by editing the wrapper's own checkout would stop the
+ * same way again. This offers to correct those first, with the settings that avoid both already on.
+ */
+function ResumePanel({
+  orch,
+  unfinished,
+  pending,
+  onResume,
+  onCancel,
+}: {
+  orch: Orchestration;
+  unfinished: number;
+  pending: boolean;
+  onResume: (changes: ResumeOrchestrationRequest) => void;
+  onCancel: () => void;
+}) {
+  const [worktree, setWorktree] = useState(true);
+  const [askPermissions, setAskPermissions] = useState(true);
+  const [tools, setTools] = useState(orch.allowedTools.length ? orch.allowedTools.join(',') : SAFE_TOOLS);
+  const risky = !orch.worktree || orch.permissionPrompts !== 'host';
+
+  return (
+    <Card title={`Resume ${unfinished} unfinished task${unfinished === 1 ? '' : 's'}`}>
+      <p className="muted small">
+        The {orch.tasks.length - unfinished} completed task{orch.tasks.length - unfinished === 1 ? '' : 's'} and{' '}
+        {orch.tasks.length - unfinished === 1 ? 'its' : 'their'} results are kept.
+      </p>
+      {risky && (
+        <p className="alert alert-warn small">
+          This graph was started {!orch.worktree ? 'without worktrees' : ''}
+          {!orch.worktree && orch.permissionPrompts !== 'host' ? ' and ' : ''}
+          {orch.permissionPrompts !== 'host' ? 'with nobody to answer its permission prompts' : ''} — which is likely what
+          stopped it. Resuming with the settings below avoids both.
+        </p>
+      )}
+      <Switch checked={worktree} onChange={setWorktree}>
+        Give each task its own git worktree and branch
+      </Switch>
+      <Switch checked={askPermissions} onChange={setAskPermissions}>
+        Ask me when a worker needs permission
+      </Switch>
+      <Field label="Tools workers may use" hint="Pre-authorised: used without asking.">
+        <input value={tools} onChange={(e) => setTools(e.target.value)} placeholder={SAFE_TOOLS} />
+      </Field>
+      <div className="form-actions">
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={pending}
+          onClick={() =>
+            onResume({
+              worktree,
+              permissionPrompts: askPermissions ? 'host' : 'none',
+              allowedTools: tools
+                .split(',')
+                .map((t) => t.trim())
+                .filter(Boolean),
+            })
+          }
+        >
+          <Play {...ICON_SM} /> {pending ? 'Resuming…' : `Resume ${unfinished} task${unfinished === 1 ? '' : 's'}`}
+        </button>
+        <button type="button" className="btn" onClick={onCancel} disabled={pending}>
+          Cancel
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 export function OrchestrationDetail() {
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
@@ -106,9 +182,22 @@ export function OrchestrationDetail() {
     mutationFn: () => api.stopOrchestration(id),
     onSuccess: (next) => queryClient.setQueryData(keys.orchestration(id), next),
   });
+  const navigate = useNavigate();
+  const confirm = useConfirm();
+  const [resuming, setResuming] = useState(false);
   const resume = useMutation({
-    mutationFn: () => api.resumeOrchestration(id),
-    onSuccess: (next) => queryClient.setQueryData(keys.orchestration(id), next),
+    mutationFn: (changes: ResumeOrchestrationRequest) => api.resumeOrchestration(id, changes),
+    onSuccess: (next) => {
+      queryClient.setQueryData(keys.orchestration(id), next);
+      setResuming(false);
+    },
+  });
+  const remove = useMutation({
+    mutationFn: () => api.deleteOrchestration(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.orchestrations });
+      navigate('/orchestration');
+    },
   });
 
   if (isLoading) return <Loading />;
@@ -153,15 +242,42 @@ export function OrchestrationDetail() {
               <Square {...ICON_SM} /> Stop orchestration
             </button>
           ) : (
-            unfinished > 0 && (
-              <button className="btn btn-primary" disabled={resume.isPending} onClick={() => resume.mutate()}>
-                <Play {...ICON_SM} /> {resume.isPending ? 'Resuming…' : `Resume ${unfinished} task${unfinished === 1 ? '' : 's'}`}
+            <>
+              {unfinished > 0 && !resuming && (
+                <button className="btn btn-primary" onClick={() => setResuming(true)}>
+                  <Play {...ICON_SM} /> Resume {unfinished} task{unfinished === 1 ? '' : 's'}
+                </button>
+              )}
+              <button
+                className="btn btn-danger"
+                disabled={remove.isPending}
+                onClick={() =>
+                  void confirm({
+                    title: `Delete ${orch.name}?`,
+                    body: 'Its record and its worktrees are removed. Branches are kept, so anything committed there survives.',
+                    confirmLabel: 'Delete',
+                    danger: true,
+                  }).then((ok) => {
+                    if (ok) remove.mutate();
+                  })
+                }
+              >
+                <Trash2 {...ICON_SM} /> Delete
               </button>
-            )
+            </>
           )
         }
       />
-      <ErrorBox error={error ?? stop.error ?? resume.error} />
+      <ErrorBox error={error ?? stop.error ?? resume.error ?? remove.error} />
+      {resuming && (
+        <ResumePanel
+          orch={orch}
+          unfinished={unfinished}
+          pending={resume.isPending}
+          onResume={(changes) => resume.mutate(changes)}
+          onCancel={() => setResuming(false)}
+        />
+      )}
 
       {orch.objective && (
         <Card

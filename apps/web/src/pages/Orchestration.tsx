@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useOrchestrations, useProjects } from '../api';
 import { Combobox, NumberInput, Select, Switch } from '../components/controls';
-import { Card, Empty, ErrorBox, Field, Loading, MODEL_OPTIONS, PageHeader, PERMISSION_MODES, Segmented, StatusBadge } from '../components/ui';
+import { Card, Empty, ErrorBox, Field, Loading, MODEL_OPTIONS, PageHeader, PERMISSION_MODES, Segmented, StatusBadge, Tag } from '../components/ui';
 import { formatCost, timeAgo, truncate } from '../lib/format';
 
 type Mode = 'auto' | 'manual';
@@ -445,9 +445,13 @@ export function Orchestration() {
         ) : (
           <div className="list">
             {list.map((orch) => {
-              const done = orch.tasks.filter((t) => ['completed', 'failed', 'skipped', 'stopped'].includes(t.status)).length;
+              // Progress is completed work only: counting stopped tasks as done drew a full bar and
+              // "5/5" over a graph that had finished two tasks and been interrupted.
+              const completed = orch.tasks.filter((t) => t.status === 'completed').length;
+              const stopped = orch.tasks.filter((t) => t.status === 'stopped' || t.status === 'skipped').length;
               const failed = orch.tasks.filter((t) => t.status === 'failed').length;
-              const pct = orch.tasks.length ? Math.round((done / orch.tasks.length) * 100) : 0;
+              const pct = orch.tasks.length ? Math.round((completed / orch.tasks.length) * 100) : 0;
+              const resumable = orch.status !== 'running' && completed < orch.tasks.length;
               return (
                 <Link key={orch.id} to={`/orchestration/${orch.id}`} className="list-row">
                   <div className="list-row-main">
@@ -461,9 +465,11 @@ export function Orchestration() {
                     </div>
                     <div className="meta">
                       <span>
-                        {done}/{orch.tasks.length} tasks
+                        {completed}/{orch.tasks.length} completed
                       </span>
+                      {stopped > 0 && <span className="text-warn">{stopped} not run</span>}
                       {failed > 0 && <span className="text-bad">{failed} failed</span>}
+                      {resumable && <Tag tone="active">can be resumed</Tag>}
                       <span>{formatCost(orch.costUsd)}</span>
                       <span>concurrency {orch.concurrency}</span>
                     </div>

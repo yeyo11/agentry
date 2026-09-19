@@ -33,6 +33,7 @@ import type {
   PermissionRequest,
   PlanDraftSummary,
   PlanRequest,
+  ResumeOrchestrationRequest,
   PluginActionRequest,
   PluginsOverview,
   ProjectSummary,
@@ -165,7 +166,9 @@ export const api = {
     request<PermissionRequest>(`/runs/${enc(runId)}/permissions/${enc(requestId)}`, { method: 'POST', body: decision }),
   planDraft: (runId: string) => request<OrchestrationSpec>(`/orchestrations/plans/${enc(runId)}`),
   stopOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/stop`, { method: 'POST' }),
-  resumeOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/resume`, { method: 'POST' }),
+  resumeOrchestration: (id: string, changes: ResumeOrchestrationRequest = {}) =>
+    request<Orchestration>(`/orchestrations/${enc(id)}/resume`, { method: 'POST', body: changes }),
+  deleteOrchestration: (id: string) => request<{ ok: true }>(`/orchestrations/${enc(id)}`, { method: 'DELETE' }),
   getSettings: (scope: Scope, variant: ConfigFileVariant = 'shared') =>
     request<SettingsDoc>(`/config/settings${scoped(scope, variant)}`),
   putSettings: (scope: Scope, variant: ConfigFileVariant, settings: Record<string, unknown>) =>

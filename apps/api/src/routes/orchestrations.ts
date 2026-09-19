@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
-import type { OrchestrationSpec, PlanRequest } from '@agentry/shared';
+import type { OrchestrationSpec, PlanRequest, ResumeOrchestrationRequest } from '@agentry/shared';
 
 export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.get('/orchestrations', () => core.orchestrator.list());
@@ -37,7 +37,14 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
 
   // Workers die with the process, so a restart leaves the graph stopped. This picks it up from
   // where it was instead of starting the whole thing over.
-  app.post<{ Params: { id: string } }>('/orchestrations/:id/resume', (req) => core.orchestrator.resume(req.params.id));
+  app.post<{ Params: { id: string }; Body: ResumeOrchestrationRequest }>('/orchestrations/:id/resume', (req) =>
+    core.orchestrator.resume(req.params.id, req.body ?? {}),
+  );
+
+  app.delete<{ Params: { id: string } }>('/orchestrations/:id', (req) => {
+    core.orchestrator.remove(req.params.id);
+    return { ok: true };
+  });
 
   app.post<{ Params: { id: string }; Body: { force?: boolean } }>('/orchestrations/:id/worktrees/prune', (req) => ({
     results: core.orchestrator.pruneWorktrees(req.params.id, { force: req.body?.force === true }),

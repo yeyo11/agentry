@@ -9,6 +9,7 @@ import type {
   OrchestrationTaskState,
   PlanDraftSummary,
   PlanRequest,
+  ResumeOrchestrationRequest,
   RunSummary,
 } from '@agentry/shared';
 import type { Db } from './db.ts';
@@ -231,12 +232,21 @@ export class Orchestrator {
    * dependants still receive their context. Everything else — stopped, failed, or skipped because
    * a dependency never completed — goes back to pending and is attempted again.
    */
-  resume(id: string): Orchestration {
+  resume(id: string, changes: ResumeOrchestrationRequest = {}): Orchestration {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
     if (orch.status === 'running') return orch;
     const unfinished = orch.tasks.filter((t) => t.status !== 'completed');
     if (unfinished.length === 0) throw new Error('every task already completed');
+    // A graph that died for lack of permissions, or by editing the checkout the wrapper runs from,
+    // would only die the same way again: correct those before relaunching what is left.
+    if (changes.worktree === true && !isGitRepo(orch.cwd)) {
+      throw new Error(`per-task worktrees need a git repository, and ${orch.cwd} is not one`);
+    }
+    if (changes.worktree !== undefined) orch.worktree = changes.worktree;
+    if (changes.permissionPrompts !== undefined) orch.permissionPrompts = changes.permissionPrompts === 'host' ? 'host' : 'none';
+    if (changes.allowedTools !== undefined) orch.allowedTools = changes.allowedTools.map(String).filter(Boolean);
+    if (changes.permissionMode !== undefined) orch.permissionMode = changes.permissionMode;
     for (const task of unfinished) {
       task.status = 'pending';
       task.runId = null;
@@ -512,6 +522,24 @@ export class Orchestrator {
     }
     this.persist();
     return out;
+  }
+
+  /**
+   * Forgets a graph that is not running. Its worktrees go with it, but their branches are kept:
+   * deleting a record must not delete work that was committed there.
+   */
+  remove(id: string): void {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    if (orch.status === 'running') throw new Error('stop the orchestration before deleting it');
+    const kept = this.pruneWorktrees(id, { force: false }).filter((r) => !r.removed);
+    if (kept.length > 0) {
+      throw new Error(
+        `${kept.length} worktree(s) still hold uncommitted work (${kept.map((k) => k.task).join(', ')}); commit it or remove them with force first`,
+      );
+    }
+    this.items.delete(id);
+    this.db.deleteOrchestration(id);
   }
 
   /** Plans that can still be launched, newest first. */
