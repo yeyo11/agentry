@@ -75,6 +75,16 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     }),
   );
 
+  // What the chat changed on disk: a worktree's git changes, and the files its own tool calls wrote
+  app.get<{ Params: { id: string } }>('/chats/:id/changes', (req) => core.changes.chatChanges(req.params.id));
+
+  app.get<{ Params: { id: string }; Querystring: { path?: string } }>('/chats/:id/changes/diff', (req) => {
+    if (!req.query.path) throw new Error('path is required');
+    return core.changes.chatDiff(req.params.id, req.query.path);
+  });
+
+  app.get<{ Params: { id: string } }>('/chats/:id/checklist', (req) => core.changes.chatChecklist(req.params.id));
+
   app.get<{ Params: { id: string }; Querystring: { q?: string; sidechains?: string } }>('/chats/:id/search', (req) =>
     chats.search(req.params.id, req.query.q ?? '', { includeSidechains: req.query.sidechains === '1' }),
   );
