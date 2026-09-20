@@ -1,6 +1,7 @@
 import type { ChatState, ChatSummary } from '@agentry/shared';
 import { GitBranch, MessageSquare, Plus, RotateCcw, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Checkbox, Select } from '../components/controls';
 import { ContextMeter, ControlBadge, LastOutcome, OriginBadge, StateBadge } from '../components/ChatBadges';
@@ -14,30 +15,27 @@ import {
   originsToFetch,
   ORIGIN_LABEL,
   SORT_LABEL,
+  STATE_LABEL,
   SORTERS,
   type ChatFilters,
   type ChatOriginFilter,
   type ChatSort,
 } from '../lib/chat-model';
-import { formatDateTime, timeAgo } from '../lib/format';
+import { formatDateTime, formatNumber, timeAgo } from '../lib/format';
+import i18n from '../i18n';
 
 const PAGE = 100;
 const STATES: readonly ChatState[] = ['working', 'waiting', 'idle'];
 const SORTS = Object.keys(SORT_LABEL) as ChatSort[];
-const STATE_OPTIONS = [
-  { value: 'all', label: 'All', title: 'Every chat, whatever it is doing' },
-  { value: 'working', label: 'Working', title: 'A process is generating or running tools' },
-  { value: 'waiting', label: 'Waiting for you', title: 'Stopped for a permission, a question or a plan' },
-  { value: 'idle', label: 'Idle' },
-] as const;
 
 /** Where the chat came from, with the orchestration named when it works for one. */
 function originLabel(chat: ChatSummary): string {
   if (chat.origin !== 'orchestration' || !chat.orchestration) return ORIGIN_LABEL[chat.origin];
-  return `${chat.orchestration.name} · ${chat.orchestration.taskName ?? 'synthesis'}`;
+  return `${chat.orchestration.name} · ${chat.orchestration.taskName ?? i18n.t('chats:list.synthesis')}`;
 }
 
 function ChatRow({ chat }: { chat: ChatSummary }) {
+  const { t } = useTranslation('chats');
   const subtitle = chat.firstPrompt && chat.firstPrompt.split('\n')[0]?.slice(0, 100) !== chat.title ? chat.firstPrompt : null;
   return (
     <li className="crow">
@@ -56,20 +54,20 @@ function ChatRow({ chat }: { chat: ChatSummary }) {
           <span className="meta">
             <OriginBadge origin={chat.origin} label={originLabel(chat)} />
             <ControlBadge control={chat.control} />
-            {chat.derivedFrom && <span>fork</span>}
-            <span>{chat.project?.name ?? 'no project'}</span>
+            {chat.derivedFrom && <span>{t('list.fork')}</span>}
+            <span>{chat.project?.name ?? t('list.noProject')}</span>
             {chat.worktree && (
               <span className="chip chip-static mono" title={chat.worktree.path}>
                 <GitBranch size={12} strokeWidth={1.75} aria-hidden /> {chat.worktree.branch ?? chat.worktree.name}
               </span>
             )}
             {chat.model && <span className="chip chip-static mono">{chat.model}</span>}
-            <span>{chat.messageCount} msgs</span>
+            <span>{t('list.messages', { n: formatNumber(chat.messageCount) })}</span>
           </span>
         </span>
         <span className="crow-side">
           <ContextMeter chat={chat} />
-          <span className="small muted">cost {formatUsd(chat.cost.usd)}</span>
+          <span className="small muted">{t('list.cost', { cost: formatUsd(chat.cost.usd) })}</span>
           <span className="small muted nowrap" title={formatDateTime(chat.updatedAt)}>
             {timeAgo(chat.updatedAt)}
           </span>
@@ -80,6 +78,7 @@ function ChatRow({ chat }: { chat: ChatSummary }) {
 }
 
 export function Chats() {
+  const { t } = useTranslation('chats');
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [shown, setShown] = useState(PAGE);
@@ -96,6 +95,13 @@ export function Chats() {
   // The project chosen in the top bar; `loose` is the chats under no project
   const scope = params.get('project');
   const project = scope === null ? undefined : scope === 'loose' ? null : scope;
+
+  const stateOptions = [
+    { value: 'all', label: t('list.stateAll'), title: t('list.stateAllHint') },
+    { value: 'working', label: STATE_LABEL.working, title: t('list.stateWorkingHint') },
+    { value: 'waiting', label: STATE_LABEL.waiting, title: t('list.stateWaitingHint') },
+    { value: 'idle', label: STATE_LABEL.idle },
+  ] as const;
 
   const filters: ChatFilters = { origins, state, workers, internal, search };
   const chats = useChats({ origin: originsToFetch(filters), ...(project !== undefined ? { project } : {}) });
@@ -131,14 +137,14 @@ export function Chats() {
   return (
     <>
       <PageHeader
-        title="Chats"
+        title={t('list.title')}
         subtitle={
           <span className="meta">
             <span role="status">
-              {visible.length} of {all.length} chats
+              {t('list.count', { shown: formatNumber(visible.length), total: formatNumber(all.length) })}
             </span>
-            {working > 0 && <span>{working} working</span>}
-            {waiting > 0 && <span>{waiting} waiting for you</span>}
+            {working > 0 && <span>{t('list.working', { n: formatNumber(working) })}</span>}
+            {waiting > 0 && <span>{t('list.waiting', { n: formatNumber(waiting) })}</span>}
             {filtersActive && (
               <button
                 type="button"
@@ -148,7 +154,7 @@ export function Chats() {
                   setParams(scope ? { project: scope } : {}, { replace: true });
                 }}
               >
-                <RotateCcw size={11} strokeWidth={2} aria-hidden /> Reset filters
+                <RotateCcw size={11} strokeWidth={2} aria-hidden /> {t('list.resetFilters')}
               </button>
             )}
           </span>
@@ -156,7 +162,7 @@ export function Chats() {
         actions={
           <Link to="/chats/new" className="btn btn-primary">
             <Plus size={14} strokeWidth={2} aria-hidden />
-            New chat
+            {t('list.newChat')}
           </Link>
         }
       />
@@ -166,8 +172,8 @@ export function Chats() {
           <Search {...ICON_SM} />
           <input
             type="search"
-            placeholder="Search title, first prompt, project, id…"
-            aria-label="Search chats"
+            placeholder={t('list.searchPlaceholder')}
+            aria-label={t('list.searchLabel')}
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -176,13 +182,13 @@ export function Chats() {
           />
         </div>
         <Segmented
-          label="State"
+          label={t('list.stateLabel')}
           value={state ?? 'all'}
           onChange={(v) => patch({ state: v === 'all' ? null : v })}
-          options={STATE_OPTIONS}
+          options={stateOptions}
         />
-        <Select<ChatSort> aria-label="Sort by" value={sort} onChange={(v) => patch({ sort: v === 'activity' ? null : v })} options={SORTS.map((value) => ({ value, label: SORT_LABEL[value] }))} />
-        <div className="chips" role="group" aria-label="Origin">
+        <Select<ChatSort> aria-label={t('list.sortLabel')} value={sort} onChange={(v) => patch({ sort: v === 'activity' ? null : v })} options={SORTS.map((value) => ({ value, label: SORT_LABEL[value] }))} />
+        <div className="chips" role="group" aria-label={t('list.originLabel')}>
           {ALL_ORIGINS.map((origin) => (
             <button
               key={origin}
@@ -191,15 +197,15 @@ export function Chats() {
               aria-pressed={origins.has(origin)}
               onClick={() => toggleOrigin(origin)}
             >
-              {origin === 'orchestration' ? 'Orchestration syntheses' : ORIGIN_LABEL[origin]}
+              {origin === 'orchestration' ? t('list.orchestrationSyntheses') : ORIGIN_LABEL[origin]}
             </button>
           ))}
         </div>
-        <Checkbox checked={workers} onChange={(on) => patch({ workers: on ? '1' : null })} tooltip="The chats that carry out the tasks of an orchestration: their home is the orchestration board">
-          Orchestration workers
+        <Checkbox checked={workers} onChange={(on) => patch({ workers: on ? '1' : null })} tooltip={t('list.workersHint')}>
+          {t('list.workers')}
         </Checkbox>
-        <Checkbox checked={internal} onChange={(on) => patch({ internal: on ? '1' : null })} tooltip="Housekeeping chats of Agentry itself (the planner, the auth check)">
-          Internal
+        <Checkbox checked={internal} onChange={(on) => patch({ internal: on ? '1' : null })} tooltip={t('list.internalHint')}>
+          {t('list.internal')}
         </Checkbox>
       </div>
 
@@ -213,16 +219,16 @@ export function Chats() {
         <Card>
           <Empty
             icon={MessageSquare}
-            title={filtersActive ? 'No chats match' : 'No chats yet'}
+            title={filtersActive ? t('list.emptyFiltered') : t('list.empty')}
             action={
               !filtersActive && (
                 <Link to="/chats/new" className="btn btn-primary">
-                  New chat
+                  {t('list.newChat')}
                 </Link>
               )
             }
           >
-            {filtersActive ? 'Try resetting the filters.' : 'Chats you start here, and the ones Claude Code has run in an imported project, appear in this list.'}
+            {filtersActive ? t('list.emptyFilteredBody') : t('list.emptyBody')}
           </Empty>
         </Card>
       ) : (
@@ -235,7 +241,7 @@ export function Chats() {
           {visible.length > shown && (
             <div className="crow-more">
               <button type="button" className="btn" onClick={() => setShown((n) => n + PAGE)}>
-                Show more ({visible.length - shown} left)
+                {t('list.showMore', { n: formatNumber(visible.length - shown) })}
               </button>
             </div>
           )}

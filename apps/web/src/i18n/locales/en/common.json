@@ -1,0 +1,39 @@
+{
+  "language": "Language",
+  "actions": {
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "remove": "Remove",
+    "open": "Open",
+    "stop": "Stop"
+  },
+  "loading": "Loading…",
+  "requestTimeout": "The server did not answer in time. It may still be working — reload to see the current state.",
+  "time": {
+    "justNow": "just now",
+    "now": "now",
+    "in": "in {{duration}}"
+  },
+  "status": {
+    "starting": "starting",
+    "busy": "busy",
+    "idle": "idle",
+    "running": "running",
+    "pending": "pending",
+    "completed": "completed",
+    "success": "success",
+    "failed": "failed",
+    "error": "error",
+    "killed": "killed",
+    "stopped": "stopped",
+    "skipped": "skipped",
+    "waiting": "waiting",
+    "merging": "merging",
+    "resolving": "resolving",
+    "merged": "merged",
+    "conflicted": "conflicted",
+    "unknown": "unknown",
+    "working": "working",
+    "blocked": "blocked"
+  }
+}

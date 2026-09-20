@@ -28,10 +28,12 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { useProjectScope } from '../lib/project-scope';
 import { setThemePreference } from '../lib/theme';
+import { statusText } from './ui';
 import '../palette.css';
 
 const OPEN_EVENT = 'cw:open-command-palette';
@@ -41,9 +43,11 @@ const RECENT_KEY = 'agentry-palette-recent';
 const MAX_RECENT = 5;
 const MAX_RESULTS = 40;
 
+type Group = 'actions' | 'theme' | 'goTo' | 'settings' | 'workingChats' | 'projects' | 'recentChats' | 'recent';
+
 interface Command {
   id: string;
-  group: string;
+  group: Group;
   title: string;
   hint?: string;
   keywords?: string;
@@ -83,10 +87,11 @@ function readRecent(): string[] {
 }
 
 export function CommandPaletteTrigger() {
+  const { t } = useTranslation('components');
   return (
     <button type="button" className="palette-trigger" onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}>
       <Search size={14} strokeWidth={1.75} aria-hidden />
-      <span className="palette-trigger-label">Search…</span>
+      <span className="palette-trigger-label">{t('palette.trigger')}</span>
       <kbd className="palette-kbd">{isMac ? '⌘' : 'Ctrl'} K</kbd>
     </button>
   );
@@ -94,6 +99,7 @@ export function CommandPaletteTrigger() {
 
 export function CommandPalette() {
   const navigate = useNavigate();
+  const { t } = useTranslation('components');
   const { project: selected } = useProjectScope();
   const reduced = useReducedMotion();
   const [open, setOpen] = useState(false);
@@ -147,82 +153,83 @@ export function CommandPalette() {
     const go = (to: string) => () => navigate(to);
     const newChat = selected?.exists ? `/chats/new?cwd=${encodeURIComponent(selected.path)}` : '/chats/new';
     const list: Command[] = [
-      { id: 'act:new-chat', group: 'Actions', title: 'New chat', hint: selected?.exists ? `In ${selected.name}` : 'Start a conversation with Claude', keywords: 'run prompt start', icon: Play, run: go(newChat) },
-      { id: 'act:run-workflow', group: 'Actions', title: 'Run a saved workflow', hint: 'Starts a chat that launches it', keywords: 'workflow script', icon: Waypoints, run: () => window.dispatchEvent(new Event(RUN_WORKFLOW_EVENT)) },
-      { id: 'act:new-orchestration', group: 'Actions', title: 'New orchestration', hint: 'Plan and launch a multi-agent task graph', keywords: 'agents dag plan', icon: Network, run: go('/orchestration') },
-      { id: 'act:new-project', group: 'Actions', title: 'Import or create a project', hint: 'Import a directory, or create or clone one in the workspace', keywords: 'import git clone folder directory', icon: FolderPlus, run: go('/projects') },
-      { id: 'act:credential', group: 'Actions', title: 'Set account credential', hint: 'OAuth token or API key', keywords: 'login auth token key', icon: KeyRound, run: go('/settings?tab=account') },
-      { id: 'act:api-docs', group: 'Actions', title: 'API reference', hint: 'Interactive OpenAPI docs (Scalar) in a new tab', keywords: 'swagger openapi rest docs scalar', icon: BookOpen, run: () => window.open('/docs', '_blank', 'noopener') },
-      { id: 'theme:light', group: 'Theme', title: 'Light theme', icon: Sun, run: () => setThemePreference('light') },
-      { id: 'theme:dark', group: 'Theme', title: 'Dark theme', icon: Moon, run: () => setThemePreference('dark') },
-      { id: 'theme:system', group: 'Theme', title: 'System theme', icon: Monitor, run: () => setThemePreference('system') },
-      { id: 'nav:/', group: 'Go to', title: 'Home', keywords: 'inbox activity waiting overview status usage', icon: House, run: go('/') },
-      { id: 'nav:/chats', group: 'Go to', title: 'Chats', keywords: 'sessions history transcripts conversations', icon: MessagesSquare, run: go('/chats') },
-      { id: 'nav:/orchestration', group: 'Go to', title: 'Orchestrations', keywords: 'multi agent graph', icon: Network, run: go('/orchestration') },
-      { id: 'nav:/projects', group: 'Go to', title: 'Projects', keywords: 'import workspace directories', icon: FolderGit2, run: go('/projects') },
-      { id: 'nav:/accounts', group: 'Go to', title: 'Accounts', keywords: 'claude-swap multi account quota rotate switch limit', icon: Users, run: go('/accounts') },
-      { id: 'nav:/settings', group: 'Go to', title: 'Settings', keywords: 'config preferences', icon: Settings2, run: go('/settings') },
+      { id: 'act:new-chat', group: 'actions', title: t('palette.newChat'), hint: selected?.exists ? t('palette.newChatIn', { name: selected.name }) : t('palette.newChatHint'), keywords: 'run prompt start', icon: Play, run: go(newChat) },
+      { id: 'act:run-workflow', group: 'actions', title: t('palette.runWorkflow'), hint: t('palette.runWorkflowHint'), keywords: 'workflow script', icon: Waypoints, run: () => window.dispatchEvent(new Event(RUN_WORKFLOW_EVENT)) },
+      { id: 'act:new-orchestration', group: 'actions', title: t('palette.newOrchestration'), hint: t('palette.newOrchestrationHint'), keywords: 'agents dag plan', icon: Network, run: go('/orchestration') },
+      { id: 'act:new-project', group: 'actions', title: t('palette.newProject'), hint: t('palette.newProjectHint'), keywords: 'import git clone folder directory', icon: FolderPlus, run: go('/projects') },
+      { id: 'act:credential', group: 'actions', title: t('palette.credential'), hint: t('palette.credentialHint'), keywords: 'login auth token key', icon: KeyRound, run: go('/settings?tab=account') },
+      { id: 'act:api-docs', group: 'actions', title: t('palette.apiReference'), hint: t('palette.apiReferenceHint'), keywords: 'swagger openapi rest docs scalar', icon: BookOpen, run: () => window.open('/docs', '_blank', 'noopener') },
+      { id: 'theme:light', group: 'theme', title: t('theme.light'), icon: Sun, run: () => setThemePreference('light') },
+      { id: 'theme:dark', group: 'theme', title: t('theme.dark'), icon: Moon, run: () => setThemePreference('dark') },
+      { id: 'theme:system', group: 'theme', title: t('theme.system'), icon: Monitor, run: () => setThemePreference('system') },
+      { id: 'nav:/', group: 'goTo', title: t('nav.home'), keywords: 'inbox activity waiting overview status usage', icon: House, run: go('/') },
+      { id: 'nav:/chats', group: 'goTo', title: t('nav.chats'), keywords: 'sessions history transcripts conversations', icon: MessagesSquare, run: go('/chats') },
+      { id: 'nav:/orchestration', group: 'goTo', title: t('nav.orchestrations'), keywords: 'multi agent graph', icon: Network, run: go('/orchestration') },
+      { id: 'nav:/projects', group: 'goTo', title: t('nav.projects'), keywords: 'import workspace directories', icon: FolderGit2, run: go('/projects') },
+      { id: 'nav:/accounts', group: 'goTo', title: t('nav.accounts'), keywords: 'claude-swap multi account quota rotate switch limit', icon: Users, run: go('/accounts') },
+      { id: 'nav:/settings', group: 'goTo', title: t('nav.settings'), keywords: 'config preferences', icon: Settings2, run: go('/settings') },
     ];
     const tabs: Array<[string, string, string, LucideIcon]> = [
-      ['instructions', 'Instructions', 'CLAUDE.md', SlidersHorizontal],
-      ['settings', 'Settings', 'settings.json permissions hooks env model', SlidersHorizontal],
-      ['mcp', 'MCP servers', 'connectors tools', SlidersHorizontal],
-      ['agents', 'Agents', 'subagents', SlidersHorizontal],
-      ['skills', 'Skills', 'SKILL.md', SlidersHorizontal],
-      ['commands', 'Commands', 'slash', SlidersHorizontal],
-      ['output-styles', 'Output styles', '', SlidersHorizontal],
-      ['rules', 'Rules', '', SlidersHorizontal],
-      ['files', 'Files', 'explorer hooks scripts keybindings', SlidersHorizontal],
-      ['memory', 'Memory', 'facts feedback MEMORY.md projects', Brain],
-      ['plugins', 'Plugins', 'marketplace install extensions', Puzzle],
+      ['instructions', t('palette.settingsTabs.instructions'), 'CLAUDE.md', SlidersHorizontal],
+      ['settings', t('palette.settingsTabs.settings'), 'settings.json permissions hooks env model', SlidersHorizontal],
+      ['mcp', t('palette.settingsTabs.mcp'), 'connectors tools', SlidersHorizontal],
+      ['agents', t('palette.settingsTabs.agents'), 'subagents', SlidersHorizontal],
+      ['skills', t('palette.settingsTabs.skills'), 'SKILL.md', SlidersHorizontal],
+      ['commands', t('palette.settingsTabs.commands'), 'slash', SlidersHorizontal],
+      ['output-styles', t('palette.settingsTabs.outputStyles'), '', SlidersHorizontal],
+      ['rules', t('palette.settingsTabs.rules'), '', SlidersHorizontal],
+      ['workflows', t('palette.settingsTabs.workflows'), 'saved script', SlidersHorizontal],
+      ['files', t('palette.settingsTabs.files'), 'explorer hooks scripts keybindings', SlidersHorizontal],
+      ['memory', t('palette.settingsTabs.memory'), 'facts feedback MEMORY.md projects', Brain],
+      ['plugins', t('palette.settingsTabs.plugins'), 'marketplace install extensions', Puzzle],
     ];
     for (const [tab, title, extra, icon] of tabs) {
-      list.push({ id: `settings:${tab}`, group: 'Settings', title, hint: 'User scope', keywords: `settings config ${extra}`, icon, run: go(`/settings?tab=${tab}`) });
+      list.push({ id: `settings:${tab}`, group: 'settings', title, hint: t('palette.userScope'), keywords: `settings config ${extra}`, icon, run: go(`/settings?tab=${tab}`) });
     }
     for (const chat of (working.data ?? []).slice(0, 8)) {
-      list.push({ id: `chat:${chat.id}`, group: 'Working chats', title: chat.title, hint: `${chat.project?.name ?? 'no project'} · ${chat.cwd}`, keywords: 'chat live running', icon: Activity, run: go(`/chats/${encodeURIComponent(chat.id)}`) });
+      list.push({ id: `chat:${chat.id}`, group: 'workingChats', title: chat.title, hint: `${chat.project?.name ?? t('palette.noProject')} · ${chat.cwd}`, keywords: 'chat live running', icon: Activity, run: go(`/chats/${encodeURIComponent(chat.id)}`) });
     }
     for (const project of (projects.data ?? []).slice(0, 30)) {
       const id = encodeURIComponent(project.id);
       const hint = project.path;
       // The project page is Home with the project selected; the deep link selects it on the way
-      const page = (tab: string, title: string, icon: LucideIcon, keywords = '') =>
-        list.push({ id: `project:${tab}:${project.id}`, group: 'Projects', title: `${project.name} — ${title}`, hint, keywords, icon, run: go(`/?project=${id}${tab === 'activity' ? '' : `&tab=${tab}`}`) });
-      page('activity', 'activity', House, 'home inbox');
-      page('settings', 'settings', Settings2, 'config instructions CLAUDE.md mcp files');
-      page('memory', 'memory', Brain, 'facts');
-      page('resources', 'resources', Library, 'agents skills commands workflows');
-      page('worktrees', 'worktrees', GitBranch, 'branches');
-      list.push({ id: `project:chats:${project.id}`, group: 'Projects', title: `${project.name} — chats`, hint, keywords: 'sessions history', icon: MessagesSquare, run: go(`/chats?project=${id}`) });
+      const page = (tab: 'activity' | 'settings' | 'memory' | 'resources' | 'worktrees', icon: LucideIcon, keywords = '') =>
+        list.push({ id: `project:${tab}:${project.id}`, group: 'projects', title: t('palette.projectPage', { name: project.name, page: t(`palette.projectPages.${tab}`) }), hint, keywords, icon, run: go(`/?project=${id}${tab === 'activity' ? '' : `&tab=${tab}`}`) });
+      page('activity', House, 'home inbox');
+      page('settings', Settings2, 'config instructions CLAUDE.md mcp files');
+      page('memory', Brain, 'facts');
+      page('resources', Library, 'agents skills commands workflows');
+      page('worktrees', GitBranch, 'branches');
+      list.push({ id: `project:chats:${project.id}`, group: 'projects', title: t('palette.projectChats', { name: project.name }), hint, keywords: 'sessions history', icon: MessagesSquare, run: go(`/chats?project=${id}`) });
       if (project.exists) {
-        list.push({ id: `project:new-chat:${project.id}`, group: 'Projects', title: `${project.name} — new chat`, hint, keywords: 'start run', icon: Play, run: go(`/chats/new?cwd=${encodeURIComponent(project.path)}`) });
+        list.push({ id: `project:new-chat:${project.id}`, group: 'projects', title: t('palette.projectNewChat', { name: project.name }), hint, keywords: 'start run', icon: Play, run: go(`/chats/new?cwd=${encodeURIComponent(project.path)}`) });
       }
     }
     for (const chat of overview.data?.recentChats ?? []) {
-      list.push({ id: `recent:${chat.id}`, group: 'Recent chats', title: chat.title, hint: chat.cwd, keywords: 'chat transcript', icon: MessageSquare, run: go(`/chats/${encodeURIComponent(chat.id)}`) });
+      list.push({ id: `recent:${chat.id}`, group: 'recentChats', title: chat.title, hint: chat.cwd, keywords: 'chat transcript', icon: MessageSquare, run: go(`/chats/${encodeURIComponent(chat.id)}`) });
     }
     return list;
-  }, [navigate, selected, projects.data, working.data, overview.data]);
+  }, [navigate, t, selected, projects.data, working.data, overview.data]);
 
   const results = useMemo(() => {
     const q = query.trim();
     if (!q) {
       // Idle state: recently used first, then the static entries; per-project noise stays out
       const byId = new Map(commands.map((c) => [c.id, c]));
-      const recents = recent.flatMap((id) => (byId.has(id) ? [{ ...(byId.get(id) as Command), group: 'Recent' }] : []));
-      const rest = commands.filter((c) => c.group !== 'Projects' && c.group !== 'Settings' && !recent.includes(c.id));
+      const recents = recent.flatMap((id) => (byId.has(id) ? [{ ...(byId.get(id) as Command), group: 'recent' as const }] : []));
+      const rest = commands.filter((c) => c.group !== 'projects' && c.group !== 'settings' && !recent.includes(c.id));
       return [...recents, ...rest].slice(0, MAX_RESULTS);
     }
     return commands
       .map((command) => ({
         command,
-        rank: Math.max(score(q, command.title), score(q, `${command.group} ${command.title}`) - 5, score(q, command.keywords ?? '') - 20, score(q, command.hint ?? '') - 30),
+        rank: Math.max(score(q, command.title), score(q, `${t(`palette.groups.${command.group}`)} ${command.title}`) - 5, score(q, command.keywords ?? '') - 20, score(q, command.hint ?? '') - 30),
       }))
       .filter((r) => r.rank > 0)
       .sort((a, b) => b.rank - a.rank)
       .slice(0, MAX_RESULTS)
       .map((r) => r.command);
-  }, [commands, query, recent]);
+  }, [commands, query, recent, t]);
 
   // While searching, results are ranked globally; grouping only applies to the idle list
   const grouped = !query.trim();
@@ -283,7 +290,7 @@ export function CommandPalette() {
             className="palette"
             role="dialog"
             aria-modal="true"
-            aria-label="Command palette"
+            aria-label={t('palette.label')}
             initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.98, y: -4 }}
@@ -300,8 +307,8 @@ export function CommandPalette() {
                 aria-controls="palette-list"
                 aria-activedescendant={results[active] ? `palette-option-${active}` : undefined}
                 aria-autocomplete="list"
-                aria-label="Search pages, projects, chats and actions"
-                placeholder="Search pages, projects, chats and actions…"
+                aria-label={t('palette.placeholderLabel')}
+                placeholder={t('palette.placeholder')}
                 autoComplete="off"
                 spellCheck={false}
                 value={query}
@@ -310,10 +317,10 @@ export function CommandPalette() {
               <kbd className="palette-kbd">Esc</kbd>
             </div>
 
-            <div className="palette-list" id="palette-list" role="listbox" aria-label="Commands" ref={listRef}>
+            <div className="palette-list" id="palette-list" role="listbox" aria-label={t('palette.commands')} ref={listRef}>
               {results.length === 0 ? (
                 <div className="palette-empty">
-                  No matches for “<strong>{query}</strong>”
+                  {t('palette.noMatches')} “<strong>{query}</strong>”
                 </div>
               ) : (
                 results.map((command, index) => {
@@ -324,7 +331,7 @@ export function CommandPalette() {
                     <Fragment key={`${command.group}:${command.id}`}>
                       {showGroup && (
                         <div className="palette-group" role="presentation">
-                          {command.group}
+                          {t(`palette.groups.${command.group}`)}
                         </div>
                       )}
                       <div
@@ -349,7 +356,7 @@ export function CommandPalette() {
                           <span className="palette-option-title">{command.title}</span>
                           {command.hint && <span className="palette-option-hint">{command.hint}</span>}
                         </span>
-                        {!grouped && <span className="palette-option-group">{command.group}</span>}
+                        {!grouped && <span className="palette-option-group">{t(`palette.groups.${command.group}`)}</span>}
                         {selected && <CornerDownLeft className="palette-option-enter" size={14} strokeWidth={1.75} aria-hidden />}
                       </div>
                     </Fragment>
@@ -361,13 +368,13 @@ export function CommandPalette() {
             <div className="palette-foot">
               <span>
                 <kbd className="palette-kbd">↑</kbd>
-                <kbd className="palette-kbd">↓</kbd> navigate
+                <kbd className="palette-kbd">↓</kbd> {t('palette.navigate')}
               </span>
               <span>
-                <kbd className="palette-kbd">↵</kbd> open
+                <kbd className="palette-kbd">↵</kbd> {t('palette.open')}
               </span>
               <span className="palette-foot-right">
-                <kbd className="palette-kbd">{isMac ? '⌘' : 'Ctrl'} K</kbd> toggle
+                <kbd className="palette-kbd">{isMac ? '⌘' : 'Ctrl'} K</kbd> {t('palette.toggle')}
               </span>
             </div>
           </motion.div>

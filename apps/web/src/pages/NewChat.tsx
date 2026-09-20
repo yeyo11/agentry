@@ -1,6 +1,7 @@
 import type { NewChatRequest, PermissionMode } from '@agentry/shared';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, useAccounts, useOverview, useProjects } from '../api';
 import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
@@ -9,6 +10,7 @@ import { useProjectScope } from '../lib/project-scope';
 import { Card, ErrorBox, Field, MODEL_OPTIONS, PageHeader, PERMISSION_MODES } from '../components/ui';
 
 export function NewChat() {
+  const { t } = useTranslation('chats');
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const projects = useProjects(false);
@@ -43,7 +45,7 @@ export function NewChat() {
 
   return (
     <>
-      <PageHeader title="New chat" subtitle="Starts a Claude Code conversation that Agentry keeps" />
+      <PageHeader title={t('new.title')} subtitle={t('new.subtitle')} />
       <Card>
         <form
           className="form"
@@ -52,12 +54,12 @@ export function NewChat() {
             if (ready) start.mutate();
           }}
         >
-          <Field label="Prompt" hint="Drop or paste files onto the prompt to attach them.">
+          <Field label={t('new.prompt')} hint={t('new.promptHint')}>
             <div {...files.dropProps}>
               <textarea
                 autoFocus
                 rows={7}
-                placeholder="What should Claude do?"
+                placeholder={t('new.promptPlaceholder')}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onPaste={files.onPaste}
@@ -72,56 +74,56 @@ export function NewChat() {
             <AttachmentTray state={files} />
           </div>
           <div className="form-grid">
-            <Field label="Working directory" hint={`Default: ${system?.workspaceDir ?? 'wrapper workspace'}`}>
+            <Field label={t('new.workingDirectory')} hint={t('new.workingDirectoryHint', { dir: system?.workspaceDir ?? t('new.wrapperWorkspace') })}>
               <Combobox
-                aria-label="Working directory"
+                aria-label={t('new.workingDirectory')}
                 placeholder="/path/to/project"
                 value={cwd}
                 onChange={setCwd}
                 options={(projects.data ?? []).filter((p) => p.exists).map((p) => ({ value: p.path, label: p.name, hint: p.path }))}
               />
             </Field>
-            <Field label="Model" hint="Alias or full model id. Empty = CLI default">
-              <Combobox aria-label="Model" placeholder="default" value={model} onChange={setModel} options={MODEL_OPTIONS} />
+            <Field label={t('new.model')} hint={t('new.modelHint')}>
+              <Combobox aria-label={t('new.model')} placeholder={t('new.modelPlaceholder')} value={model} onChange={setModel} options={MODEL_OPTIONS} />
             </Field>
-            <Field label="Permission mode" hint="Can be changed while the chat works">
+            <Field label={t('new.permissionMode')} hint={t('new.permissionModeHint')}>
               <Select<PermissionMode | ''>
-                aria-label="Permission mode"
+                aria-label={t('new.permissionMode')}
                 value={permissionMode}
                 onChange={setPermissionMode}
                 options={[
-                  { value: '', label: `Default (${system?.defaultPermissionMode ?? '…'})` },
+                  { value: '', label: t('new.permissionModeDefault', { mode: system?.defaultPermissionMode ?? '…' }) },
                   ...PERMISSION_MODES.map((m) => ({ value: m, label: m })),
                 ]}
               />
             </Field>
             {(accounts.data?.accounts.length ?? 0) > 1 && (
-              <Field label="Account" hint="Pins the chat to one claude-swap account instead of the active one">
+              <Field label={t('new.account')} hint={t('new.accountHint')}>
                 <Select
-                  aria-label="Account"
+                  aria-label={t('new.account')}
                   value={account}
                   onChange={setAccount}
                   options={[
-                    { value: '', label: 'Active account' },
+                    { value: '', label: t('new.activeAccount') },
                     ...(accounts.data?.accounts ?? []).map((a) => ({
                       value: String(a.number),
-                      label: `${a.alias ?? a.email}${a.headroomPct !== null ? ` · ${a.headroomPct}% left` : ''}`,
+                      label: a.headroomPct !== null ? t('new.accountHeadroom', { name: a.alias ?? a.email, pct: a.headroomPct }) : (a.alias ?? a.email),
                     })),
                   ]}
                 />
               </Field>
             )}
           </div>
-          <Field label="Append to system prompt" hint="Optional">
+          <Field label={t('new.appendSystemPrompt')} hint={t('new.optional')}>
             <textarea rows={2} value={appendSystemPrompt} onChange={(e) => setAppendSystemPrompt(e.target.value)} />
           </Field>
           <Switch checked={askHere} onChange={setAskHere}>
-            Answer permission prompts, questions and plans from the panel (off: whatever would ask is denied)
+            {t('new.askHere')}
           </Switch>
-          <ErrorBox error={start.error} title="Could not start the chat" />
+          <ErrorBox error={start.error} title={t('new.startError')} />
           <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={!ready || start.isPending}>
-              {start.isPending ? 'Starting…' : files.uploading ? 'Uploading…' : 'Start chat'}
+              {start.isPending ? t('new.starting') : files.uploading ? t('new.uploading') : t('new.start')}
             </button>
             <span className="muted small">Ctrl/⌘ + Enter</span>
           </div>

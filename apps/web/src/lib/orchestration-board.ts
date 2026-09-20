@@ -1,4 +1,5 @@
 import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
+import i18n from '../i18n';
 
 /** What a person can decide about one task right now; mirrors what the server accepts. */
 export interface TaskDecisions {
@@ -50,15 +51,18 @@ export function blockedBy(orch: Orchestration, task: OrchestrationTaskState): Or
 /** Where a task stands among its attempts, or null when there is nothing worth saying (the first, uneventful one). */
 export function attemptLabel(orch: Orchestration, task: OrchestrationTaskState): string | null {
   const { attempts, status } = task;
-  const plural = (n: number) => `${n} attempt${n === 1 ? '' : 's'}`;
   if (status === 'running' && attempts > 1) {
     // Past the configured attempts only a person's decision gets a task here
-    return attempts > orch.maxAttempts ? `Attempt ${attempts}, retried by hand` : `Attempt ${attempts} of ${orch.maxAttempts}`;
+    return attempts > orch.maxAttempts
+      ? i18n.t('orchestration:board.attemptByHand', { n: attempts })
+      : i18n.t('orchestration:board.attemptOf', { n: attempts, max: orch.maxAttempts });
   }
   if (status === 'failed' && attempts > 0) {
-    return attempts < orch.maxAttempts ? `Failed after ${plural(attempts)}, not retried` : `Failed after ${plural(attempts)}`;
+    return attempts < orch.maxAttempts
+      ? i18n.t('orchestration:board.failedAfterNotRetried', { count: attempts })
+      : i18n.t('orchestration:board.failedAfter', { count: attempts });
   }
-  if (status === 'completed' && attempts > 1) return `Completed on attempt ${attempts}`;
+  if (status === 'completed' && attempts > 1) return i18n.t('orchestration:board.completedOn', { n: attempts });
   return null;
 }
 

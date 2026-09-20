@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agentry &mdash; runs</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      body {
+        margin: 0;
+        font: 14px/1.5 system-ui, sans-serif;
+        color: #1f2328;
+      }
+      .card > h2:first-child {
+        margin-top: 0;
+      }
+      @media (max-width: 600px) {
+        .card { padding: 8px; }
+      }
+    </style>
+  </head>
+  <body class="light">
+    <!-- The list is filled in by the script below -->
+    <header id="top">
+      <h1>Runs</h1>
+      <nav>
+        <a href="/" class="active">Overview</a>
+        <a href="/runs?status=running" target="_blank" rel="noopener">Running</a>
+      </nav>
+    </header>
+    <main>
+      <form action="/api/runs" method="post">
+        <label for="prompt">Prompt</label>
+        <textarea id="prompt" name="prompt" rows="4" required></textarea>
+        <input type="checkbox" name="worktree" checked disabled />
+        <button type="submit">Start</button>
+      </form>
+      <ul id="runs"></ul>
+      <img src="/logo.svg" alt="Agentry logo" width="32" height="32" />
+    </main>
+    <script type="module">
+      const list = document.getElementById('runs');
+      const res = await fetch('/api/runs?limit=20');
+      const { items } = await res.json();
+      for (const run of items) {
+        const li = document.createElement('li');
+        li.textContent = `${run.title} (${run.status})`;
+        list.append(li);
+      }
+      if (items.length === 0 || !res.ok) {
+        list.innerHTML = '<li class="empty">No runs yet</li>';
+      }
+    </script>
+  </body>
+</html>

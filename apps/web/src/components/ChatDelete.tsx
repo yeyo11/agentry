@@ -1,11 +1,13 @@
 import type { ChatSummary } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { api, keys } from '../api';
 import { useConfirm } from './Dialog';
 import { useToast } from './Toast';
 
 /** Confirms and deletes a chat with its transcript; the server refuses while a process is working on it. */
 export function useDeleteChat(onDeleted?: () => void) {
+  const { t } = useTranslation('chat');
   const queryClient = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -15,25 +17,22 @@ export function useDeleteChat(onDeleted?: () => void) {
     onSuccess: (_result, chat) => {
       void queryClient.invalidateQueries({ queryKey: keys.chats });
       void queryClient.removeQueries({ queryKey: keys.chatScope(chat.id) });
-      toast.success('Chat deleted', chat.title);
+      toast.success(t('delete.deleted'), chat.title);
       onDeleted?.();
     },
-    onError: (err) => toast.error('Could not delete the chat', err),
+    onError: (err) => toast.error(t('delete.failed'), err),
   });
 
   const requestDelete = (chat: Pick<ChatSummary, 'id' | 'title' | 'messageCount'>) =>
     void confirm({
-      title: 'Delete this chat?',
+      title: t('delete.title'),
       body: (
         <>
           <p className="strong break">{chat.title}</p>
-          <p>
-            The transcript ({chat.messageCount} messages) is removed from disk and the chat can no longer be resumed or forked. This
-            cannot be undone.
-          </p>
+          <p>{t('delete.body', { count: chat.messageCount })}</p>
         </>
       ),
-      confirmLabel: 'Delete chat',
+      confirmLabel: t('delete.confirm'),
       danger: true,
     }).then((ok) => ok && mutation.mutate(chat));
 

@@ -1,4 +1,6 @@
-import { CONTEXT_FULL, CONTEXT_WARN, type ChatOrigin, type ChatState, type ChatSummary, type Execution, type ExecutionOutcome } from '@agentry/shared';
+import { CONTEXT_FULL, CONTEXT_WARN, type ChatOrigin, type ChatState, type ChatSummary, type Execution } from '@agentry/shared';
+import i18n from '../i18n';
+import { formatCost } from './format';
 
 /** The share of the window in use, or null when there is nothing honest to divide by. */
 export function contextShare(chat: Pick<ChatSummary, 'context'>): number | null {
@@ -25,28 +27,37 @@ export function formatPercent(share: number): string {
 
 /** Dollars, or the words for a cost nobody reported: it is never estimated, so it is never zero either. */
 export function formatUsd(usd: number | null): string {
-  if (usd === null) return 'not available';
-  return usd < 0.01 && usd > 0 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`;
+  if (usd === null) return i18n.t('chats:model.notAvailable');
+  return formatCost(usd);
 }
 
+// The label maps read their text through getters: the language can change after this module has
+// loaded, and every caller indexes the map at render time.
 export const STATE_LABEL: Record<ChatState, string> = {
-  working: 'Working',
-  waiting: 'Waiting for you',
-  idle: 'Idle',
+  get working() {
+    return i18n.t('chats:model.state.working');
+  },
+  get waiting() {
+    return i18n.t('chats:model.state.waiting');
+  },
+  get idle() {
+    return i18n.t('chats:model.state.idle');
+  },
 };
 
 export const ORIGIN_LABEL: Record<ChatOrigin, string> = {
-  agentry: 'Agentry',
-  external: 'Terminal',
-  orchestration: 'Orchestration',
-  internal: 'Internal',
-};
-
-export const OUTCOME_LABEL: Record<ExecutionOutcome, string> = {
-  completed: 'Completed',
-  failed: 'Failed',
-  stopped: 'Stopped',
-  interrupted: 'Interrupted',
+  get agentry() {
+    return i18n.t('chats:model.origin.agentry');
+  },
+  get external() {
+    return i18n.t('chats:model.origin.external');
+  },
+  get orchestration() {
+    return i18n.t('chats:model.origin.orchestration');
+  },
+  get internal() {
+    return i18n.t('chats:model.origin.internal');
+  },
 };
 
 /** The execution that ended last, which is what tells an idle chat that crashed from one that finished. */
@@ -100,10 +111,18 @@ export function matchesFilters(chat: ChatSummary, filters: ChatFilters): boolean
 export type ChatSort = 'activity' | 'started' | 'context' | 'messages';
 
 export const SORT_LABEL: Record<ChatSort, string> = {
-  activity: 'Recent activity',
-  started: 'Recently started',
-  context: 'Most context in use',
-  messages: 'Most messages',
+  get activity() {
+    return i18n.t('chats:model.sort.activity');
+  },
+  get started() {
+    return i18n.t('chats:model.sort.started');
+  },
+  get context() {
+    return i18n.t('chats:model.sort.context');
+  },
+  get messages() {
+    return i18n.t('chats:model.sort.messages');
+  },
 };
 
 export const SORTERS: Record<ChatSort, (a: ChatSummary, b: ChatSummary) => number> = {

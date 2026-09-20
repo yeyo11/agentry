@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export type EditorLanguage = 'json' | 'markdown' | 'javascript' | 'typescript' | 'yaml' | 'text';
 
@@ -44,11 +45,12 @@ export function languageForPath(path: string): EditorLanguage {
 const Impl = lazy(() => import('./CodeEditorImpl'));
 
 export function CodeEditor(props: CodeEditorProps) {
+  const { t } = useTranslation('components');
   return (
     <Suspense
       fallback={
         <div className="code-editor code-editor-loading" role="status" style={{ minHeight: props.minHeight ?? '220px' }}>
-          <span className="spinner" aria-hidden /> Loading editor…
+          <span className="spinner" aria-hidden /> {t('codeEditor.loading')}
         </div>
       }
     >

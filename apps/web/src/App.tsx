@@ -16,10 +16,12 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useOverview } from './api';
 import { CommandPalette, CommandPaletteTrigger, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
 import { DetailHost } from './components/DetailHost';
+import { LanguageSwitch } from './components/LanguageSwitch';
 import { Tooltip } from './components/controls/Tooltip';
 import { BrandMark, ICON } from './components/icons';
 import { NotificationBell, NotificationHost } from './components/Notifications';
@@ -79,6 +81,7 @@ function Shell() {
   const { project } = useProjectScope();
   const { pathname } = useLocation();
   const reduced = useReducedMotion();
+  const { t } = useTranslation('components');
   const overview = useOverview();
   // The one connection that keeps every page current; the sidebar footer shows when it is down
   const feed = useEventFeed();
@@ -141,37 +144,37 @@ function Shell() {
   }, []);
 
   const items: NavItem[] = [
-    { to: '/', label: 'Home', icon: House, count: { value: counts?.chatsWaiting, what: 'waiting for you' } },
-    { to: '/chats', label: 'Chats', icon: MessagesSquare, count: { value: counts?.chatsWorking, what: 'working' } },
-    { to: '/orchestration', label: 'Orchestrations', icon: Workflow, count: { value: counts?.orchestrationsRunning, what: 'running' } },
-    { to: '/projects', label: 'Projects', icon: FolderGit2 },
-    { to: '/accounts', label: 'Accounts', icon: Users },
-    { to: '/settings', label: 'Settings', icon: Settings2 },
+    { to: '/', label: t('nav.home'), icon: House, count: { value: counts?.chatsWaiting, what: t('nav.badge.waiting') } },
+    { to: '/chats', label: t('nav.chats'), icon: MessagesSquare, count: { value: counts?.chatsWorking, what: t('nav.badge.working') } },
+    { to: '/orchestration', label: t('nav.orchestrations'), icon: Workflow, count: { value: counts?.orchestrationsRunning, what: t('nav.badge.running') } },
+    { to: '/projects', label: t('nav.projects'), icon: FolderGit2 },
+    { to: '/accounts', label: t('nav.accounts'), icon: Users },
+    { to: '/settings', label: t('nav.settings'), icon: Settings2 },
   ];
 
   const current = items.find((item) => isActive(item, pathname));
 
   const statusTone = overview.isError ? 'bad' : healthy && !feedDown ? 'ok' : 'warn';
   const statusTitle = overview.isError
-    ? 'API unreachable'
+    ? t('shell.apiUnreachable')
     : !overview.data
-      ? 'Connecting…'
+      ? t('shell.connecting')
       : healthy
-        ? `Claude Code ${cli?.version ?? ''}`
+        ? t('shell.claudeCode', { version: cli?.version ?? '' })
         : !cli?.installed
-          ? 'CLI not detected'
-          : 'Not logged in';
+          ? t('shell.cliNotDetected')
+          : t('shell.notLoggedIn');
   const statusDetail = healthy
     ? feedDown
-      ? 'Live updates paused, retrying'
-      : [auth?.subscriptionType ?? auth?.authMethod, auth?.email].filter(Boolean).join(' · ') || 'logged in'
+      ? t('shell.liveUpdatesPaused')
+      : [auth?.subscriptionType ?? auth?.authMethod, auth?.email].filter(Boolean).join(' · ') || t('shell.loggedIn')
     : overview.isError
-      ? 'Check that the wrapper is running'
+      ? t('shell.checkWrapper')
       : !overview.data
         ? ''
         : !cli?.installed
-          ? 'Install it or set CLAUDE_BIN'
-          : 'Add a credential in Settings';
+          ? t('shell.installCli')
+          : t('shell.addCredential');
 
   // In the icon rail the labels are hidden, so they move into tooltips
   const railTip = (label: string) => (collapsed ? label : undefined);
@@ -186,7 +189,7 @@ function Shell() {
           mainRef.current?.focus();
         }}
       >
-        Skip to content
+        {t('shell.skipToContent')}
       </a>
       <AnimatePresence>
         {mobileNav && (
@@ -202,7 +205,7 @@ function Shell() {
         )}
       </AnimatePresence>
 
-      <aside id="sidebar" className="sidebar" aria-label="Sidebar">
+      <aside id="sidebar" className="sidebar" aria-label={t('shell.sidebar')}>
         <div className="sidebar-head">
           <Tooltip content={railTip('Agentry')} side="right">
             <NavLink to="/" className="brand" aria-label="Agentry">
@@ -210,22 +213,22 @@ function Shell() {
               <span className="brand-name">Agentry</span>
             </NavLink>
           </Tooltip>
-          <Tooltip content={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right">
+          <Tooltip content={collapsed ? t('shell.expandSidebar') : t('shell.collapseSidebar')} side="right">
             <button
               type="button"
               className="icon-btn sidebar-collapse"
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label={collapsed ? t('shell.expandSidebar') : t('shell.collapseSidebar')}
               onClick={() => setCollapsed((v) => !v)}
             >
               {collapsed ? <PanelLeftOpen {...ICON} /> : <PanelLeftClose {...ICON} />}
             </button>
           </Tooltip>
-          <button ref={closeRef} type="button" className="icon-btn sidebar-close" aria-label="Close navigation" onClick={() => setMobileNav(false)}>
+          <button ref={closeRef} type="button" className="icon-btn sidebar-close" aria-label={t('shell.closeNavigation')} onClick={() => setMobileNav(false)}>
             <X {...ICON} />
           </button>
         </div>
 
-        <nav className="nav" aria-label="Main">
+        <nav className="nav" aria-label={t('shell.mainNavigation')}>
           <div className="nav-group">
             {items.map((item) => {
               const active = isActive(item, pathname);
@@ -253,12 +256,12 @@ function Shell() {
           </div>
         </nav>
 
-        <Tooltip content={railTip('API reference')} side="right">
+        <Tooltip content={railTip(t('nav.apiReference'))} side="right">
           <a href="/docs" target="_blank" rel="noopener noreferrer" className="nav-link nav-link-ext">
             <span className="nav-icon">
               <BookOpen {...ICON} />
             </span>
-            <span className="nav-label">API reference</span>
+            <span className="nav-label">{t('nav.apiReference')}</span>
           </a>
         </Tooltip>
 
@@ -279,7 +282,7 @@ function Shell() {
             ref={menuRef}
             type="button"
             className="icon-btn topbar-menu"
-            aria-label="Open navigation"
+            aria-label={t('shell.openNavigation')}
             aria-expanded={mobileNav}
             aria-controls="sidebar"
             onClick={() => setMobileNav(true)}
@@ -301,10 +304,11 @@ function Shell() {
             <ProjectSelector />
             <CommandPaletteTrigger />
             <NotificationBell />
+            <LanguageSwitch />
             <ThemeToggle />
             <button type="button" className="btn topbar-workflow" onClick={() => setWorkflowOpen(true)}>
               <Play {...ICON} aria-hidden />
-              <span className="topbar-new-label">Run workflow</span>
+              <span className="topbar-new-label">{t('shell.runWorkflow')}</span>
             </button>
             <button
               type="button"
@@ -312,7 +316,7 @@ function Shell() {
               onClick={() => navigate(project?.exists ? `/chats/new?cwd=${encodeURIComponent(project.path)}` : '/chats/new')}
             >
               <Plus {...ICON} aria-hidden />
-              <span className="topbar-new-label">New chat</span>
+              <span className="topbar-new-label">{t('shell.newChat')}</span>
             </button>
           </div>
         </header>
@@ -331,7 +335,7 @@ function Shell() {
               <Route path="/orchestration/:id" element={<OrchestrationDetail />} />
               <Route path="/accounts" element={<Accounts />} />
               <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<Empty icon={SearchX} title="Page not found" />} />
+              <Route path="*" element={<Empty icon={SearchX} title={t('shell.pageNotFound')} />} />
             </Routes>
             </Suspense>
           </PageTransition>

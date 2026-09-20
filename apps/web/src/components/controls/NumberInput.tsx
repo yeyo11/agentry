@@ -1,4 +1,5 @@
 import { Minus, Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const clamp = (n: number, min?: number, max?: number) => Math.min(max ?? Infinity, Math.max(min ?? -Infinity, n));
 
@@ -28,6 +29,7 @@ export function NumberInput({
   compact?: boolean;
   'aria-label'?: string;
 }) {
+  const { t } = useTranslation('components');
   const nudge = (direction: 1 | -1) => onChange(clamp((value ?? min ?? 0) + direction * step, min, max));
   return (
     <div className={`number-input ${compact ? 'number-input-compact' : ''}`}>
@@ -35,7 +37,7 @@ export function NumberInput({
         type="button"
         className="number-step"
         tabIndex={-1}
-        aria-label="Decrease"
+        aria-label={t('controls.decrease')}
         disabled={disabled || (value !== undefined && min !== undefined && value <= min)}
         onClick={() => nudge(-1)}
       >
@@ -57,7 +59,7 @@ export function NumberInput({
         type="button"
         className="number-step"
         tabIndex={-1}
-        aria-label="Increase"
+        aria-label={t('controls.increase')}
         disabled={disabled || (value !== undefined && max !== undefined && value >= max)}
         onClick={() => nudge(1)}
       >

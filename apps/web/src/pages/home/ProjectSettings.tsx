@@ -1,4 +1,5 @@
 import type { Project } from '@agentry/shared';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { Collapsible } from '../../components/controls';
 import { EnvironmentPanel } from '../../components/EnvironmentPanel';
@@ -10,24 +11,20 @@ import { McpTab } from '../config/McpTab';
 import { SettingsTab } from '../config/SettingsTab';
 
 // The ids double as the dirty keys the tabs register, which is what marks a section as unsaved
-const SECTIONS = [
-  { id: 'instructions', label: 'Instructions' },
-  { id: 'settings', label: 'Settings' },
-  { id: 'mcp', label: 'MCP servers' },
-  { id: 'files', label: 'Files' },
-] as const;
+const SECTIONS = ['instructions', 'settings', 'mcp', 'files'] as const;
 
-type SectionId = (typeof SECTIONS)[number]['id'];
+type SectionId = (typeof SECTIONS)[number];
 
 /** The Claude Code configuration that lives in the project: CLAUDE.md, settings, MCP servers and files. */
 export function ProjectSettings({ project }: { project: Project }) {
+  const { t } = useTranslation(['projects', 'config']);
   const [params, setParams] = useSearchParams();
   const dirtyKeys = useDirtyKeys();
   const guard = useLeaveGuard();
   const scope = { projectId: project.id };
   const group = useTabGroup();
 
-  const section: SectionId = SECTIONS.find((s) => s.id === params.get('section'))?.id ?? 'instructions';
+  const section: SectionId = SECTIONS.find((s) => s === params.get('section')) ?? 'instructions';
   const select = (next: SectionId) =>
     void guard().then(
       (ok) =>
@@ -49,8 +46,8 @@ export function ProjectSettings({ project }: { project: Project }) {
         className="card fold-card"
         title={
           <>
-            <span className="fold-card-title">Effective environment</span>
-            <span className="small muted">what Claude actually loaded in the last chat here</span>
+            <span className="fold-card-title">{t('config:config.environment')}</span>
+            <span className="small muted">{t('settings.environmentHint')}</span>
           </>
         }
       >
@@ -58,10 +55,10 @@ export function ProjectSettings({ project }: { project: Project }) {
       </Collapsible>
 
       <Tabs
-        label="Project settings sections"
+        label={t('settings.sections')}
         group={group}
         value={section}
-        tabs={SECTIONS.map((s) => ({ id: s.id, label: s.label, dirty: dirtyKeys.has(s.id) }))}
+        tabs={SECTIONS.map((s) => ({ id: s, label: t(`config:config.tabs.${s}`), dirty: dirtyKeys.has(s) }))}
         onChange={select}
       />
 

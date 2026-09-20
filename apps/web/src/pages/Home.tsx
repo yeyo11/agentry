@@ -1,6 +1,7 @@
 import type { Project } from '@agentry/shared';
 import { FolderX } from 'lucide-react';
 import { lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader, PathLabel, Skeleton, TabPanel, Tabs, useTabGroup } from '../components/ui';
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
@@ -13,22 +14,17 @@ const ProjectMemory = lazy(() => import('./home/ProjectMemory').then((m) => ({ d
 const ProjectResources = lazy(() => import('./home/ProjectResources').then((m) => ({ default: m.ProjectResources })));
 const ProjectWorktrees = lazy(() => import('./home/ProjectWorktrees').then((m) => ({ default: m.ProjectWorktrees })));
 
-const TABS = [
-  { id: 'activity', label: 'Activity' },
-  { id: 'settings', label: 'Settings' },
-  { id: 'memory', label: 'Memory' },
-  { id: 'resources', label: 'Resources' },
-  { id: 'worktrees', label: 'Worktrees' },
-] as const;
+const TABS = ['activity', 'settings', 'memory', 'resources', 'worktrees'] as const;
 
-type TabId = (typeof TABS)[number]['id'];
+type TabId = (typeof TABS)[number];
 
 function ProjectPage({ project }: { project: Project }) {
+  const { t } = useTranslation('home');
   const [params, setParams] = useSearchParams();
   const dirtyKeys = useDirtyKeys();
   const guard = useLeaveGuard();
   const group = useTabGroup();
-  const tab: TabId = TABS.find((t) => t.id === params.get('tab'))?.id ?? 'activity';
+  const tab: TabId = TABS.find((id) => id === params.get('tab')) ?? 'activity';
   // Every tab keeps its own sections in the address, so switching starts the next one clean
   const open = (id: TabId) => void guard().then((ok) => ok && setParams(id === 'activity' ? {} : { tab: id }, { replace: true }));
 
@@ -43,16 +39,16 @@ function ProjectPage({ project }: { project: Project }) {
         <div className="alert alert-warn" role="alert">
           <FolderX size={16} strokeWidth={1.75} aria-hidden className="alert-icon" />
           <div className="alert-body">
-            <strong>This directory is missing on disk</strong>
-            <div>Its chats are still here, but nothing can start in it until the directory is back or the project is removed.</div>
+            <strong>{t('page.missing')}</strong>
+            <div>{t('page.missingHint')}</div>
           </div>
         </div>
       )}
       <Tabs
-        label="Project sections"
+        label={t('page.sections')}
         group={group}
         value={tab}
-        tabs={TABS.map((t) => ({ id: t.id, label: t.label, dirty: dirtyKeys.size > 0 && t.id === tab }))}
+        tabs={TABS.map((id) => ({ id, label: t(`tabs.${id}`), dirty: dirtyKeys.size > 0 && id === tab }))}
         onChange={open}
       />
       <TabPanel group={group} tab={tab} className="tab-panel" key={`${project.id}:${tab}`}>
@@ -73,12 +69,13 @@ function ProjectPage({ project }: { project: Project }) {
  * means nothing without a project.
  */
 export function Home() {
+  const { t } = useTranslation('home');
   const { project, ready } = useProjectScope();
   if (!ready) return <Skeleton rows={5} height={18} />;
   if (!project) {
     return (
       <>
-        <PageHeader title="Home" subtitle="Everything that needs you, across all projects" />
+        <PageHeader title={t('page.title')} subtitle={t('page.subtitle')} />
         <Activity project={null} />
       </>
     );

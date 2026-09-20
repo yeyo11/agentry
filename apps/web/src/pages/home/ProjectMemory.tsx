@@ -2,6 +2,7 @@ import type { Project } from '@agentry/shared';
 import { Plus } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { useConfirm } from '../../components/Dialog';
@@ -35,6 +36,7 @@ interface Draft {
 }
 
 function MemoryFiles({ projectId }: { projectId: string }) {
+  const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -59,12 +61,9 @@ function MemoryFiles({ projectId }: { projectId: string }) {
     onSuccess: (saved, d) => {
       refresh();
       setDraft({ name: saved.name, content: saved.content, saved: saved.content, isNew: false });
-      toast.success(
-        `${saved.name} saved`,
-        d.isNew && !saved.isIndex ? 'Remember to add a one-line pointer to it in MEMORY.md.' : saved.path,
-      );
+      toast.success(t('memory.saved', { name: saved.name }), d.isNew && !saved.isIndex ? t('memory.savedHint') : saved.path);
     },
-    onError: (err) => toast.error('Could not save the memory', err),
+    onError: (err) => toast.error(t('memory.saveFailed'), err),
   });
 
   const remove = useMutation({
@@ -72,9 +71,9 @@ function MemoryFiles({ projectId }: { projectId: string }) {
     onSuccess: (_result, name) => {
       refresh();
       setDraft(null);
-      toast.success(`${name} deleted`, name === 'MEMORY.md' ? undefined : 'Remove its pointer from MEMORY.md too.');
+      toast.success(t('memory.deleted', { name }), name === 'MEMORY.md' ? undefined : t('memory.deletedHint'));
     },
-    onError: (err) => toast.error('Could not delete the memory', err),
+    onError: (err) => toast.error(t('memory.deleteFailed'), err),
   });
 
   const open = async (name: string) => {
@@ -102,25 +101,24 @@ function MemoryFiles({ projectId }: { projectId: string }) {
 
   return (
     <Card
-      title="Memory files"
+      title={t('memory.files')}
       actions={
         <button className="btn btn-small btn-primary" onClick={() => void guard().then((ok) => ok && setNaming(''))}>
           <Plus size={14} strokeWidth={2} aria-hidden />
-          New memory
+          {t('memory.new')}
         </button>
       }
     >
       <p className="small muted">
-        <span className="mono">MEMORY.md</span> is the index loaded into every session of this project: keep one line per memory,
-        pointing to its file. The other files hold one fact each and are read on demand.
+        <Trans t={t} i18nKey="memory.intro" components={{ mono: <span className="mono" /> }} />
       </p>
       {!isLoading && files.length > 0 && !hasIndex && (
         <div className="alert alert-warn" role="alert">
-          <strong>No MEMORY.md index</strong>
+          <strong>{t('memory.noIndex')}</strong>
           <div>
-            Without it, sessions will not know these memories exist.{' '}
+            {t('memory.noIndexHint')}{' '}
             <button type="button" className="link-btn" onClick={() => setNaming('MEMORY.md')}>
-              Create it
+              {t('memory.createIt')}
             </button>
           </div>
         </div>
@@ -140,21 +138,21 @@ function MemoryFiles({ projectId }: { projectId: string }) {
                 autoFocus
                 className={`mono ${naming && (!nameValid || nameTaken) ? 'is-invalid' : ''}`}
                 value={naming}
-                placeholder="short-kebab-case-name"
-                aria-label="New memory file name"
+                placeholder={t('memory.namePlaceholder')}
+                aria-label={t('memory.nameLabel')}
                 onChange={(e) => setNaming(e.target.value.trim())}
                 onKeyDown={(e) => e.key === 'Escape' && setNaming(null)}
               />
               <div className="form-actions">
                 <button type="submit" className="btn btn-small btn-primary" disabled={!nameValid || nameTaken}>
-                  Create
+                  {t('shared.create')}
                 </button>
                 <button type="button" className="btn btn-small" onClick={() => setNaming(null)}>
-                  Cancel
+                  {t('common:actions.cancel')}
                 </button>
               </div>
-              {nameTaken && <span className="field-hint text-err">Already exists</span>}
-              {naming && !nameValid && <span className="field-hint text-err">Letters, digits, dots, dashes and underscores; .md is added</span>}
+              {nameTaken && <span className="field-hint text-err">{t('resources.exists')}</span>}
+              {naming && !nameValid && <span className="field-hint text-err">{t('memory.nameRule')}</span>}
             </form>
           )}
           {isLoading ? (
@@ -162,12 +160,12 @@ function MemoryFiles({ projectId }: { projectId: string }) {
           ) : (
             <>
               {(files.length > 0 || draft?.isNew) && (
-                <ul className="master-list" aria-label="Memory files">
+                <ul className="master-list" aria-label={t('memory.files')}>
                   {draft?.isNew && (
                     <li>
                       <div className="master-item master-item-on" aria-current="true">
                         <span className="strong break mono">{draft.name}</span>
-                        <Tag tone="warn">new · unsaved</Tag>
+                        <Tag tone="warn">{t('resources.newUnsaved')}</Tag>
                       </div>
                     </li>
                   )}
@@ -183,10 +181,10 @@ function MemoryFiles({ projectId }: { projectId: string }) {
                         >
                           <span className="master-item-head">
                             <span className="strong break mono">{file.name}</span>
-                            {file.isIndex ? <Tag tone="active">index</Tag> : file.type && <Tag tone={TYPE_TONE[file.type] ?? 'muted'}>{file.type}</Tag>}
+                            {file.isIndex ? <Tag tone="active">{t('memory.index')}</Tag> : file.type && <Tag tone={TYPE_TONE[file.type] ?? 'muted'}>{file.type}</Tag>}
                           </span>
                           <span className="small muted break">
-                            {file.isIndex ? 'Loaded into every session' : (file.description ?? 'No description')}
+                            {file.isIndex ? t('memory.loadedEverySession') : (file.description ?? t('resources.noDescription'))}
                           </span>
                           <span className="small muted">{timeAgo(file.updatedAt)}</span>
                         </button>
@@ -195,7 +193,7 @@ function MemoryFiles({ projectId }: { projectId: string }) {
                   })}
                 </ul>
               )}
-              {files.length === 0 && !draft?.isNew && naming === null && <div className="small muted master-empty">No memories yet.</div>}
+              {files.length === 0 && !draft?.isNew && naming === null && <div className="small muted master-empty">{t('memory.noneYet')}</div>}
             </>
           )}
         </div>
@@ -203,30 +201,30 @@ function MemoryFiles({ projectId }: { projectId: string }) {
         <div className="detail">
           {!draft ? (
             <Empty
-              title={files.length === 0 ? 'No memories in this project' : 'Select a memory'}
+              title={files.length === 0 ? t('memory.noneInProject') : t('memory.select')}
               action={
                 files.length === 0 && (
                   <button type="button" className="btn btn-primary" onClick={() => setNaming('')}>
-                    Write the first memory
+                    {t('memory.writeFirst')}
                   </button>
                 )
               }
             >
               {files.length === 0
-                ? 'Claude saves facts about you, your feedback and the project here so they survive across sessions.'
-                : 'Pick a file from the list to read or edit it.'}
+                ? t('memory.emptyHint')
+                : t('memory.pick')}
             </Empty>
           ) : (
             <div className="form">
               <div className="editor-meta">
                 <strong className="mono">{draft.name}</strong>
                 {current && <PathLabel path={current.path} />}
-                {dirty && <Tag tone="warn">{draft.isNew ? 'not saved yet' : 'unsaved changes'}</Tag>}
+                {dirty && <Tag tone="warn">{draft.isNew ? t('resources.notSavedYet') : t('shared.unsaved')}</Tag>}
               </div>
               <CodeEditor
                 key={`${projectId}:${draft.name}:${draft.isNew}`}
                 language="markdown"
-                ariaLabel={`Contents of ${draft.name}`}
+                ariaLabel={t('files.contents', { path: draft.name })}
                 minHeight="380px"
                 value={draft.content}
                 onChange={(content) => setDraft((d) => (d ? { ...d, content } : d))}
@@ -234,14 +232,14 @@ function MemoryFiles({ projectId }: { projectId: string }) {
               />
               <div className="form-actions">
                 <button className="btn btn-primary" disabled={!dirty || save.isPending} onClick={() => save.mutate(draft)}>
-                  {save.isPending ? 'Saving…' : draft.isNew ? 'Create memory' : 'Save'}
+                  {save.isPending ? t('shared.saving') : draft.isNew ? t('memory.create') : t('shared.save')}
                 </button>
                 <button
                   className="btn"
                   disabled={!dirty}
                   onClick={() => (draft.isNew ? setDraft(null) : setDraft({ ...draft, content: draft.saved }))}
                 >
-                  Discard
+                  {t('shared.discard')}
                 </button>
                 {!draft.isNew && (
                   <button
@@ -249,14 +247,14 @@ function MemoryFiles({ projectId }: { projectId: string }) {
                     disabled={remove.isPending}
                     onClick={() =>
                       void confirm({
-                        title: `Delete ${draft.name}?`,
-                        body: draft.name === 'MEMORY.md' ? 'Without the index, sessions no longer learn about the other memory files.' : 'Claude will no longer recall this. This cannot be undone.',
-                        confirmLabel: 'Delete memory',
+                        title: t('files.deleteTitle', { path: draft.name }),
+                        body: draft.name === 'MEMORY.md' ? t('memory.deleteIndexBody') : t('memory.deleteBody'),
+                        confirmLabel: t('memory.delete'),
                         danger: true,
                       }).then((ok) => ok && remove.mutate(draft.name))
                     }
                   >
-                    Delete
+                    {t('common:actions.delete')}
                   </button>
                 )}
               </div>

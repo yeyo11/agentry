@@ -1,6 +1,7 @@
 import type { Chat, PermissionMode } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Combobox, Select } from '../../components/controls';
 import { ErrorBox, MODEL_OPTIONS, PERMISSION_MODES } from '../../components/ui';
 import { api, keys } from '../../api';
@@ -12,6 +13,7 @@ import type { StartChoices } from './Composer';
 
 /** Permission mode and model of a live execution, changed in place: it switches at once. */
 export function LiveSettings({ chat }: { chat: Chat }) {
+  const { t } = useTranslation(['work', 'components']);
   const queryClient = useQueryClient();
   const [model, setModel] = useState('');
   const update = useMutation({
@@ -24,17 +26,17 @@ export function LiveSettings({ chat }: { chat: Chat }) {
   const current = chat.execution;
   return (
     <>
-      <dt>Permissions</dt>
+      <dt>{t('work:runView.permissions')}</dt>
       <dd>
         <Select<PermissionMode>
-          aria-label="Permission mode"
+          aria-label={t('components:runSettings.permissionMode')}
           value={current?.permissionMode ?? 'manual'}
           disabled={update.isPending}
           onChange={(permissionMode) => update.mutate({ permissionMode })}
           options={PERMISSION_MODES.map((m) => ({ value: m, label: m }))}
         />
       </dd>
-      <dt>Model</dt>
+      <dt>{t('work:shared.model')}</dt>
       <dd>
         <form
           className="inline-form"
@@ -43,10 +45,10 @@ export function LiveSettings({ chat }: { chat: Chat }) {
             if (model.trim()) update.mutate({ model: model.trim() });
           }}
         >
-          <Combobox aria-label="Model" placeholder={current?.model ?? chat.model ?? 'default'} value={model} onChange={setModel} options={MODEL_OPTIONS} />
+          <Combobox aria-label={t('work:shared.model')} placeholder={current?.model ?? chat.model ?? t('work:shared.default')} value={model} onChange={setModel} options={MODEL_OPTIONS} />
           {model.trim() && (
             <button type="submit" className="btn btn-small" disabled={update.isPending}>
-              Set
+              {t('components:runSettings.set')}
             </button>
           )}
         </form>
@@ -62,23 +64,24 @@ export function LiveSettings({ chat }: { chat: Chat }) {
 
 /** What a resume or a fork may start with; left alone, it starts as the chat last ran. */
 export function StartOptions({ chat, value, onChange }: { chat: Chat; value: StartChoices; onChange: (next: StartChoices) => void }) {
+  const { t } = useTranslation(['chat', 'work']);
   const last = chat.executions.at(-1);
   return (
     <div className="chat-options">
       <label>
-        Permissions
+        {t('work:runView.permissions')}
         <Select<PermissionMode | ''>
-          aria-label="Permission mode for the new execution"
+          aria-label={t('controls.permissionModeNew')}
           value={value.permissionMode ?? ''}
           onChange={(permissionMode) => onChange({ ...value, permissionMode: permissionMode || undefined })}
-          options={[{ value: '', label: last ? `As before (${last.permissionMode})` : 'Default' }, ...PERMISSION_MODES.map((m) => ({ value: m, label: m }))]}
+          options={[{ value: '', label: last ? t('controls.asBefore', { mode: last.permissionMode }) : t('controls.default') }, ...PERMISSION_MODES.map((m) => ({ value: m, label: m }))]}
         />
       </label>
       <label>
-        Model
+        {t('work:shared.model')}
         <Combobox
-          aria-label="Model for the new execution"
-          placeholder={last?.model ?? chat.model ?? 'default'}
+          aria-label={t('controls.modelNew')}
+          placeholder={last?.model ?? chat.model ?? t('work:shared.default')}
           value={value.model ?? ''}
           onChange={(model) => onChange({ ...value, model: model.trim() ? model : undefined })}
           options={MODEL_OPTIONS}

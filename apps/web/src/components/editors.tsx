@@ -1,5 +1,6 @@
 import { Eye, EyeOff, X } from 'lucide-react';
 import { useState, type KeyboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Tooltip } from './controls/Tooltip';
 import { ICON_SM } from './icons';
 
@@ -8,11 +9,11 @@ export function StringListEditor({
   values,
   onChange,
   placeholder,
-  addLabel = 'Add',
+  addLabel,
   label,
   mono = true,
   allowDuplicates = false,
-  emptyText = 'None',
+  emptyText,
 }: {
   values: string[];
   onChange: (values: string[]) => void;
@@ -24,6 +25,7 @@ export function StringListEditor({
   allowDuplicates?: boolean;
   emptyText?: string;
 }) {
+  const { t } = useTranslation(['components', 'common']);
   const [draft, setDraft] = useState('');
 
   const add = () => {
@@ -45,14 +47,14 @@ export function StringListEditor({
   return (
     <div className="list-editor">
       <div className="chips">
-        {values.length === 0 && <span className="small muted">{emptyText}</span>}
+        {values.length === 0 && <span className="small muted">{emptyText ?? t('editors.none')}</span>}
         {values.map((value, index) => (
           <span key={`${value}-${index}`} className={`chip chip-static ${mono ? 'mono' : ''}`}>
             <span className="break">{value}</span>
             <button
               type="button"
               className="chip-x"
-              aria-label={`Remove ${value}`}
+              aria-label={t('editors.removeItem', { name: value })}
               onClick={() => onChange(values.filter((_, i) => i !== index))}
             >
               <X size={12} strokeWidth={2} aria-hidden />
@@ -70,7 +72,7 @@ export function StringListEditor({
           onKeyDown={onKeyDown}
         />
         <button type="button" className="btn btn-small" disabled={!draft.trim()} onClick={add}>
-          {addLabel}
+          {addLabel ?? t('editors.add')}
         </button>
       </div>
     </div>
@@ -100,10 +102,10 @@ export function rowsToRecord(rows: KeyValueRow[]): Record<string, string> {
 export function KeyValueEditor({
   rows,
   onChange,
-  keyPlaceholder = 'KEY',
-  valuePlaceholder = 'value',
+  keyPlaceholder,
+  valuePlaceholder,
   maskValues = false,
-  addLabel = 'Add variable',
+  addLabel,
 }: {
   rows: KeyValueRow[];
   onChange: (rows: KeyValueRow[]) => void;
@@ -112,6 +114,7 @@ export function KeyValueEditor({
   maskValues?: boolean;
   addLabel?: string;
 }) {
+  const { t } = useTranslation(['components', 'common']);
   const [revealed, setRevealed] = useState<ReadonlySet<number>>(new Set());
   const update = (index: number, patch: Partial<KeyValueRow>) =>
     onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -123,12 +126,12 @@ export function KeyValueEditor({
         const shown = !maskValues || revealed.has(index);
         return (
           <div key={index} className="kv-editor-row">
-            <Tooltip content={duplicates.has(row.key.trim()) && 'Duplicate name: the last one wins'}>
+            <Tooltip content={duplicates.has(row.key.trim()) && t('editors.duplicateName')}>
               <input
                 className={`mono ${duplicates.has(row.key.trim()) ? 'is-invalid' : ''}`}
                 value={row.key}
-                placeholder={keyPlaceholder}
-                aria-label="Name"
+                placeholder={keyPlaceholder ?? t('editors.keyPlaceholder')}
+                aria-label={t('editors.name')}
                 onChange={(e) => update(index, { key: e.target.value })}
               />
             </Tooltip>
@@ -137,16 +140,16 @@ export function KeyValueEditor({
               type={shown ? 'text' : 'password'}
               autoComplete="off"
               value={row.value}
-              placeholder={valuePlaceholder}
-              aria-label="Value"
+              placeholder={valuePlaceholder ?? t('editors.valuePlaceholder')}
+              aria-label={t('editors.value')}
               onChange={(e) => update(index, { value: e.target.value })}
             />
             {maskValues && (
-              <Tooltip content={shown ? 'Hide value' : 'Reveal value'}>
+              <Tooltip content={shown ? t('editors.hideValue') : t('editors.revealValue')}>
                 <button
                   type="button"
                   className="icon-btn"
-                  aria-label={shown ? 'Hide value' : 'Reveal value'}
+                  aria-label={shown ? t('editors.hideValue') : t('editors.revealValue')}
                   onClick={() =>
                     setRevealed((current) => {
                       const next = new Set(current);
@@ -160,11 +163,11 @@ export function KeyValueEditor({
                 </button>
               </Tooltip>
             )}
-            <Tooltip content="Remove">
+            <Tooltip content={t('common:actions.remove')}>
               <button
                 type="button"
                 className="icon-btn"
-                aria-label={`Remove ${row.key || 'row'}`}
+                aria-label={t('editors.removeItem', { name: row.key || t('editors.row') })}
                 onClick={() => onChange(rows.filter((_, i) => i !== index))}
               >
                 <X {...ICON_SM} />
@@ -175,7 +178,7 @@ export function KeyValueEditor({
       })}
       <div>
         <button type="button" className="btn btn-small" onClick={() => onChange([...rows, { key: '', value: '' }])}>
-          + {addLabel}
+          + {addLabel ?? t('editors.addVariable')}
         </button>
       </div>
     </div>

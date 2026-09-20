@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""Load run events from a JSONL file and summarise them.
+
+Usage: python summarise.py events.jsonl --since 2026-01-01
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Iterable, Iterator, Optional
+
+MAX_LINES = 10_000
+DEFAULT_KINDS = ("assistant", "user", "result")
+
+
+@dataclass(frozen=True)
+class Event:
+    kind: str
+    at: datetime
+    cost_usd: float = 0.0
+    tags: list[str] = field(default_factory=list)
+
+    @classmethod
+    def parse(cls, raw: dict) -> "Event":
+        at = datetime.fromisoformat(raw["at"]).astimezone(timezone.utc)
+        return cls(kind=raw.get("type", "unknown"), at=at, cost_usd=float(raw.get("cost", 0)))
+
+    @property
+    def day(self) -> str:
+        return self.at.strftime("%Y-%m-%d")
+
+    def __repr__(self) -> str:
+        return f"Event({self.kind!r}, {self.at:%H:%M}, ${self.cost_usd:.2f})"
+
+
+class Store:
+    """Rows by id, loaded lazily."""
+
+    def __init__(self, path: Path, *, limit: int = MAX_LINES) -> None:
+        self.path = path
+        self.limit = limit
+        self._rows: dict[str, Event] | None = None
+
+    def __len__(self) -> int:
+        return len(self.rows)
+
+    def __iter__(self) -> Iterator[Event]:
+        yield from self.rows.values()
+
+    @property
+    def rows(self) -> dict[str, Event]:
+        if self._rows is None:
+            self._rows = dict(self._load())
+        return self._rows
+
+    def _load(self) -> Iterable[tuple[str, Event]]:
+        with open(self.path, encoding="utf-8") as f:
+            for n, line in enumerate(f):
+                if n >= self.limit:
+                    break
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                try:
+                    raw = json.loads(line)
+                except json.JSONDecodeError as err:
+                    print(f"line {n + 1}: {err}", file=sys.stderr)
+                    continue
+                if isinstance(raw, dict) and "id" in raw:
+                    yield raw["id"], Event.parse(raw)
+
+
+def by_day(events: Iterable[Event]) -> dict[str, list[Event]]:
+    days: defaultdict[str, list[Event]] = defaultdict(list)
+    for event in events:
+        days[event.day].append(event)
+    return dict(sorted(days.items()))
+
+
+def total(events: Iterable[Event], kinds: tuple[str, ...] = DEFAULT_KINDS) -> float:
+    return round(sum(e.cost_usd for e in events if e.kind in kinds), 4)
+
+
+async def fetch_all(client, ids: list[str], concurrency: int = 4) -> list[dict]:
+    import asyncio
+
+    semaphore = asyncio.Semaphore(concurrency)
+
+    async def one(i: str) -> dict:
+        async with semaphore:
+            response = await client.get(f"/api/runs/{i}")
+            response.raise_for_status()
+            return response.json()
+
+    return await asyncio.gather(*(one(i) for i in ids))
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("path", type=Path)
+    parser.add_argument("--since", default=None, help="ISO date")
+    parser.add_argument("-v", "--verbose", action="store_true")
+    args = parser.parse_args(argv)
+
+    if not args.path.exists():
+        parser.error(f"{args.path} does not exist")
+
+    store = Store(args.path)
+    since = datetime.fromisoformat(args.since).replace(tzinfo=timezone.utc) if args.since else None
+    events = [e for e in store if since is None or e.at >= since]
+    counts = Counter(e.kind for e in events)
+    for day, items in by_day(events).items():
+        print(f"{day}  {len(items):>5}  ${total(items):>8.2f}")
+    if args.verbose:
+        for kind, n in counts.most_common():
+            print(f"  {kind:<12} {n}")
+    width = os.get_terminal_size().columns if sys.stdout.isatty() else 80
+    print("-" * width)
+    ratio = counts["result"] / max(len(events), 1) * 100
+    print(f"{len(events)} events, {ratio:.1f}% results, total ${total(events):.2f}")
+    return 0 if events else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

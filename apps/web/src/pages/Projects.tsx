@@ -2,6 +2,7 @@ import type { Project, ProjectCandidate } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Download, Eraser, FolderGit2, FolderPlus, GitBranch, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useProjectCandidates, useProjects } from '../api';
 import { Collapsible, Combobox } from '../components/controls';
@@ -10,7 +11,7 @@ import { ICON_SM, Monogram } from '../components/icons';
 import { Stagger } from '../components/motion';
 import { useToast } from '../components/Toast';
 import { Card, Empty, ErrorBox, Field, Loading, PageHeader, Tag } from '../components/ui';
-import { timeAgo } from '../lib/format';
+import { formatNumber, timeAgo } from '../lib/format';
 
 /** What a change to the projects makes stale: the list, what is offered, and everything scoped by a project. */
 function useRefreshProjects() {
@@ -24,6 +25,7 @@ function useRefreshProjects() {
 }
 
 function ImportForm({ candidates, onDone }: { candidates: ProjectCandidate[]; onDone: () => void }) {
+  const { t } = useTranslation(['projects', 'work', 'common', 'config']);
   const refresh = useRefreshProjects();
   const [path, setPath] = useState('');
   const [name, setName] = useState('');
@@ -35,7 +37,7 @@ function ImportForm({ candidates, onDone }: { candidates: ProjectCandidate[]; on
     },
   });
   return (
-    <Card title="Import a directory">
+    <Card title={t('page.importDirectory')}>
       <form
         className="form"
         onSubmit={(e) => {
@@ -43,25 +45,25 @@ function ImportForm({ candidates, onDone }: { candidates: ProjectCandidate[]; on
           add.mutate();
         }}
       >
-        <Field label="Directory" hint="An absolute path. Every chat that ran under it becomes part of the project. A git worktree is refused: import its repository.">
+        <Field label={t('importForm.directory')} hint={t('importForm.directoryHint')}>
           <Combobox
-            aria-label="Directory"
+            aria-label={t('importForm.directory')}
             placeholder="/home/you/code/my-project"
             value={path}
             onChange={setPath}
-            options={candidates.map((c) => ({ value: c.path, label: c.name, hint: `${c.chatCount} chats · ${c.path}` }))}
+            options={candidates.map((c) => ({ value: c.path, label: c.name, hint: t('importForm.candidateHint', { count: c.chatCount, n: formatNumber(c.chatCount), path: c.path }) }))}
           />
         </Field>
-        <Field label="Name (optional)" hint="Defaults to the directory's name.">
-          <input value={name} placeholder="my-project" onChange={(e) => setName(e.target.value)} />
+        <Field label={t('importForm.nameOptional')} hint={t('importForm.nameOptionalHint')}>
+          <input value={name} placeholder={t('work:projects.namePlaceholder')} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <ErrorBox error={add.error} title="Could not import the directory" />
+        <ErrorBox error={add.error} title={t('importForm.failed')} />
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={!path.trim() || add.isPending}>
-            {add.isPending ? 'Importing…' : 'Import'}
+            {add.isPending ? t('importForm.importing') : t('importForm.import')}
           </button>
           <button type="button" className="btn" onClick={onDone}>
-            Cancel
+            {t('common:actions.cancel')}
           </button>
         </div>
       </form>
@@ -70,6 +72,7 @@ function ImportForm({ candidates, onDone }: { candidates: ProjectCandidate[]; on
 }
 
 function NewProjectForm({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation(['projects', 'work', 'common', 'config']);
   const refresh = useRefreshProjects();
   const [name, setName] = useState('');
   const [gitUrl, setGitUrl] = useState('');
@@ -81,21 +84,21 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
     },
   });
   return (
-    <Card title="New project in the workspace">
+    <Card title={t('work:projects.newProjectCard')}>
       <div className="form">
-        <Field label="Name" hint="Directory name inside the workspace: letters, digits, dashes, dots and underscores.">
-          <input value={name} placeholder="my-project" onChange={(e) => setName(e.target.value)} />
+        <Field label={t('work:projects.name')} hint={t('work:projects.nameHint')}>
+          <input value={name} placeholder={t('work:projects.namePlaceholder')} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label="Git repository (optional)" hint="Cloned into the new directory. Leave empty for an empty project.">
+        <Field label={t('work:projects.gitUrl')} hint={t('work:projects.gitUrlHint')}>
           <input value={gitUrl} placeholder="https://github.com/owner/repo.git" onChange={(e) => setGitUrl(e.target.value)} />
         </Field>
-        <ErrorBox error={create.error} title="Could not create the project" />
+        <ErrorBox error={create.error} title={t('work:projects.createFailed')} />
         <div className="form-actions">
           <button className="btn btn-primary" disabled={!name.trim() || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? (gitUrl.trim() ? 'Cloning…' : 'Creating…') : 'Create project'}
+            {create.isPending ? (gitUrl.trim() ? t('work:projects.cloning') : t('work:projects.creating')) : t('work:projects.create')}
           </button>
           <button className="btn" onClick={onDone}>
-            Cancel
+            {t('common:actions.cancel')}
           </button>
         </div>
       </div>
@@ -105,15 +108,16 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
 
 /** The directories with the most chats: what a first start offers instead of an empty screen. */
 function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; first: boolean }) {
+  const { t } = useTranslation(['projects', 'work', 'common', 'config']);
   const refresh = useRefreshProjects();
   const toast = useToast();
   const add = useMutation({
     mutationFn: (candidate: ProjectCandidate) => api.importProject({ path: candidate.path }),
     onSuccess: (project) => {
       refresh();
-      toast.success(`Imported ${project.name}`, `${project.chatCount} chats adopted`);
+      toast.success(t('candidates.imported', { name: project.name }), t('candidates.adopted', { count: project.chatCount, n: formatNumber(project.chatCount) }));
     },
-    onError: (error) => toast.error('Could not import the directory', error),
+    onError: (error) => toast.error(t('importForm.failed'), error),
   });
   const list = (
     <ul className="candidate-list">
@@ -123,12 +127,12 @@ function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; fir
             <strong className="break">{c.name}</strong>
             <span className="mono small muted break">{c.path}</span>
             <span className="small muted">
-              {c.chatCount} chat{c.chatCount === 1 ? '' : 's'}
-              {c.lastActivity ? ` · last ${timeAgo(c.lastActivity)}` : ''}
+              {t('candidates.chats', { count: c.chatCount, n: formatNumber(c.chatCount) })}
+              {c.lastActivity ? t('candidates.last', { ago: timeAgo(c.lastActivity) }) : ''}
             </span>
           </div>
-          <button type="button" className="btn btn-small" disabled={add.isPending} onClick={() => add.mutate(c)} aria-label={`Import ${c.name}`}>
-            <Download {...ICON_SM} /> Import
+          <button type="button" className="btn btn-small" disabled={add.isPending} onClick={() => add.mutate(c)} aria-label={t('candidates.importNamed', { name: c.name })}>
+            <Download {...ICON_SM} /> {t('importForm.import')}
           </button>
         </li>
       ))}
@@ -136,23 +140,21 @@ function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; fir
   );
   if (first) {
     return (
-      <Card title="Start with the directories you already work in">
-        <p className="muted">
-          Claude Code has run in these directories the most. Import the ones that are projects: their chats join them, and the rest stay
-          out of the way. You can import any other directory by hand.
-        </p>
+      <Card title={t('candidates.firstTitle')}>
+        <p className="muted">{t('candidates.firstBody')}</p>
         {list}
       </Card>
     );
   }
   return (
-    <Collapsible className="card fold-card" title={<span className="fold-card-title">Other directories with chats ({candidates.length})</span>}>
+    <Collapsible className="card fold-card" title={<span className="fold-card-title">{t('candidates.others', { n: formatNumber(candidates.length) })}</span>}>
       {list}
     </Collapsible>
   );
 }
 
 function ProjectCard({ project }: { project: Project }) {
+  const { t } = useTranslation(['projects', 'work', 'common', 'config']);
   const refresh = useRefreshProjects();
   const confirm = useConfirm();
   const toast = useToast();
@@ -164,48 +166,46 @@ function ProjectCard({ project }: { project: Project }) {
       refresh();
       setRenaming(null);
     },
-    onError: (error) => toast.error('Could not rename the project', error),
+    onError: (error) => toast.error(t('card.renameFailed'), error),
   });
   const remove = useMutation({
     mutationFn: () => api.removeProject(project.id),
     onSuccess: () => {
       refresh();
-      toast.success(`Removed ${project.name}`, 'Nothing on disk changed');
+      toast.success(t('card.removed', { name: project.name }), t('card.removedHint'));
     },
-    onError: (error) => toast.error('Could not remove the project', error),
+    onError: (error) => toast.error(t('card.removeFailed'), error),
   });
   const purge = useMutation({
     mutationFn: () => api.purgeProject(project.id),
     onSuccess: (done) => {
       refresh();
-      toast.success(`Purged what Claude Code kept about ${project.name}`, done.detail);
+      toast.success(t('card.purged', { name: project.name }), done.detail);
     },
-    onError: (error) => toast.error('Could not purge the project', error),
+    onError: (error) => toast.error(t('card.purgeFailed'), error),
   });
 
   const askRemove = async () => {
     const ok = await confirm({
-      title: `Remove ${project.name}?`,
-      body: (
-        <>
-          Agentry forgets this directory. Nothing on disk changes, and importing it again brings its {project.chatCount} chats back.
-        </>
-      ),
-      confirmLabel: 'Remove project',
+      title: t('card.removeTitle', { name: project.name }),
+      body: t('card.removeBody', { count: project.chatCount, n: formatNumber(project.chatCount) }),
+      confirmLabel: t('card.removeConfirm'),
     });
     if (ok) remove.mutate();
   };
   const askPurge = async () => {
     const ok = await confirm({
-      title: `Purge what Claude Code keeps about ${project.name}?`,
+      title: t('card.purgeTitle', { name: project.name }),
       body: (
-        <>
-          This deletes its transcripts, background tasks, file history and its entry in Claude Code&apos;s configuration
-          (<code>claude project purge</code>), so its {project.chatCount} chats are gone for good. Your files are not touched. The
-          project stays imported. <strong>This cannot be undone.</strong>
-        </>
+        <Trans
+          t={t}
+          i18nKey="card.purgeBody"
+          count={project.chatCount}
+          values={{ n: formatNumber(project.chatCount) }}
+          components={{ code: <code />, strong: <strong /> }}
+        />
       ),
-      confirmLabel: 'Purge for good',
+      confirmLabel: t('card.purgeConfirm'),
       danger: true,
     });
     if (ok) purge.mutate();
@@ -226,42 +226,40 @@ function ProjectCard({ project }: { project: Project }) {
                 if (renaming.trim()) rename.mutate(renaming.trim());
               }}
             >
-              <input aria-label="Project name" value={renaming} onChange={(e) => setRenaming(e.target.value)} autoFocus />
+              <input aria-label={t('card.nameLabel')} value={renaming} onChange={(e) => setRenaming(e.target.value)} autoFocus />
               <button type="submit" className="btn btn-small btn-primary" disabled={!renaming.trim() || rename.isPending}>
-                Save
+                {t('config:shared.save')}
               </button>
               <button type="button" className="btn btn-small" onClick={() => setRenaming(null)}>
-                Cancel
+                {t('common:actions.cancel')}
               </button>
             </form>
           )}
           <div className="mono small muted break">{project.path}</div>
         </div>
-        {!project.exists && <Tag tone="warn">missing on disk</Tag>}
+        {!project.exists && <Tag tone="warn">{t('work:projects.missing')}</Tag>}
       </div>
       <div className="meta">
-        <span>
-          {project.chatCount} chat{project.chatCount === 1 ? '' : 's'}
-        </span>
-        <span>last activity {timeAgo(project.lastActivity)}</span>
+        <span>{t('card.chats', { count: project.chatCount, n: formatNumber(project.chatCount) })}</span>
+        <span>{t('work:projects.lastActivity', { ago: timeAgo(project.lastActivity) })}</span>
         {project.worktrees.length > 0 && (
           <span className="meta-icon">
-            <GitBranch size={12} strokeWidth={1.75} aria-hidden /> {project.worktrees.length} worktree{project.worktrees.length === 1 ? '' : 's'}
+            <GitBranch size={12} strokeWidth={1.75} aria-hidden /> {t('work:projects.worktrees', { count: project.worktrees.length })}
           </span>
         )}
       </div>
       <div className="card-foot">
-        <Link to={`/?project=${encodeURIComponent(project.id)}`} className="btn btn-small btn-primary" aria-label={`Open ${project.name}`}>
-          Open <ArrowRight {...ICON_SM} />
+        <Link to={`/?project=${encodeURIComponent(project.id)}`} className="btn btn-small btn-primary" aria-label={t('card.openNamed', { name: project.name })}>
+          {t('common:actions.open')} <ArrowRight {...ICON_SM} />
         </Link>
-        <button type="button" className="btn btn-small" onClick={() => setRenaming(project.name)} disabled={renaming !== null} aria-label={`Rename ${project.name}`}>
-          <Pencil {...ICON_SM} /> Rename
+        <button type="button" className="btn btn-small" onClick={() => setRenaming(project.name)} disabled={renaming !== null} aria-label={t('card.renameNamed', { name: project.name })}>
+          <Pencil {...ICON_SM} /> {t('card.rename')}
         </button>
-        <button type="button" className="btn btn-small" onClick={() => void askRemove()} disabled={remove.isPending} aria-label={`Remove ${project.name}`}>
-          <Trash2 {...ICON_SM} /> Remove
+        <button type="button" className="btn btn-small" onClick={() => void askRemove()} disabled={remove.isPending} aria-label={t('card.removeNamed', { name: project.name })}>
+          <Trash2 {...ICON_SM} /> {t('common:actions.remove')}
         </button>
-        <button type="button" className="btn btn-small btn-danger" onClick={() => void askPurge()} disabled={purge.isPending} aria-label={`Purge Claude Code state of ${project.name}`}>
-          <Eraser {...ICON_SM} /> Purge Claude Code state
+        <button type="button" className="btn btn-small btn-danger" onClick={() => void askPurge()} disabled={purge.isPending} aria-label={t('card.purgeNamed', { name: project.name })}>
+          <Eraser {...ICON_SM} /> {t('card.purge')}
         </button>
       </div>
     </div>
@@ -269,6 +267,7 @@ function ProjectCard({ project }: { project: Project }) {
 }
 
 export function Projects() {
+  const { t } = useTranslation(['projects', 'work', 'common', 'config']);
   const [adding, setAdding] = useState<'import' | 'create' | null>(null);
   const { data, error, isLoading } = useProjects();
   const projects = data ?? [];
@@ -280,18 +279,18 @@ export function Projects() {
   return (
     <>
       <PageHeader
-        title="Projects"
-        subtitle={`${projects.length} imported · a project is a directory you import by hand; its worktrees belong to it`}
+        title={t('work:projects.title')}
+        subtitle={t('page.subtitle', { n: formatNumber(projects.length) })}
         actions={
           adding === null && (
             <>
               <button className="btn" onClick={() => setAdding('create')}>
                 <Plus size={14} strokeWidth={2} aria-hidden />
-                New project
+                {t('work:projects.newProject')}
               </button>
               <button className="btn btn-primary" onClick={() => setAdding('import')}>
                 <FolderPlus size={14} strokeWidth={2} aria-hidden />
-                Import a directory
+                {t('page.importDirectory')}
               </button>
             </>
           )
@@ -304,8 +303,8 @@ export function Projects() {
         <Loading />
       ) : projects.length === 0 ? (
         offered.length === 0 && (
-          <Empty icon={FolderGit2} title="No projects yet">
-            Import a directory to make it a project, or create one in the workspace.
+          <Empty icon={FolderGit2} title={t('work:projects.empty')}>
+            {t('page.emptyHint')}
           </Empty>
         )
       ) : (

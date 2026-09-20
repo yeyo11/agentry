@@ -1,0 +1,8 @@
+{
+  "integratorChat": "integrator chat",
+  "costOnNoTask": "{{cost}} of it is on no task: the synthesis, or a chat a clean retry left behind",
+  "deleteTitle": "Delete {{name}}?",
+  "taskBoard": "Task board",
+  "synthesisHeld": "Held until the blocked tasks are retried or given up: a report over a graph with a hole in it would read as the final one.",
+  "chat": "Chat"
+}

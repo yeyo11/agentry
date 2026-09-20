@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { useFallbackInterval } from '../lib/feed';
@@ -9,6 +10,7 @@ import { ErrorBox, Skeleton, Tag } from './ui';
 const MCP_TONE: Record<string, string> = { connected: 'ok', failed: 'bad', 'needs-auth': 'warn', pending: 'muted' };
 
 function ChipGroup({ label, items, mono = true }: { label: string; items: string[]; mono?: boolean }) {
+  const { t } = useTranslation('components');
   return (
     <Collapsible
       className="env-group"
@@ -20,7 +22,7 @@ function ChipGroup({ label, items, mono = true }: { label: string; items: string
       }
     >
       {items.length === 0 ? (
-        <div className="small muted">None loaded</div>
+        <div className="small muted">{t('environment.noneLoaded')}</div>
       ) : (
         <div className="chips">
           {items.map((item) => (
@@ -53,55 +55,56 @@ export interface LoadedEnvironment {
 }
 
 export function EnvironmentBody({ env }: { env: LoadedEnvironment }) {
+  const { t } = useTranslation('components');
   const memory = Object.entries(env.memoryPaths);
   return (
     <div className="stack-tight">
       <div className="meta">
-        <span title={env.observedAt}>observed {timeAgo(env.observedAt)}</span>
+        <span title={env.observedAt}>{t('environment.observed', { time: timeAgo(env.observedAt) })}</span>
         {env.model && <span className="mono">{env.model}</span>}
-        {env.cliVersion && <span>CLI {env.cliVersion}</span>}
+        {env.cliVersion && <span>{t('environment.cliVersion', { version: env.cliVersion })}</span>}
         {env.permissionMode && <span>{env.permissionMode}</span>}
-        {env.outputStyle && <span>style: {env.outputStyle}</span>}
-        {env.chatId && <Link to={`/chats/${env.chatId}`}>source chat</Link>}
+        {env.outputStyle && <span>{t('environment.style', { style: env.outputStyle })}</span>}
+        {env.chatId && <Link to={`/chats/${env.chatId}`}>{t('environment.sourceChat')}</Link>}
       </div>
       <Collapsible
         className="env-group"
         defaultOpen={env.mcpServers.some((s) => s.status !== 'connected')}
         title={
           <>
-            <span>MCP servers</span>
+            <span>{t('environment.mcpServers')}</span>
             <span className={`count ${env.mcpServers.length > 0 ? 'count-on' : ''}`}>{env.mcpServers.length}</span>
           </>
         }
       >
         {env.mcpServers.length === 0 ? (
-          <div className="small muted">None loaded</div>
+          <div className="small muted">{t('environment.noneLoaded')}</div>
         ) : (
           <div className="chips">
             {env.mcpServers.map((server) => (
-              <span key={server.name} className="chip chip-static" title={server.source ? `source: ${server.source}` : undefined}>
+              <span key={server.name} className="chip chip-static" title={server.source ? t('environment.source', { source: server.source }) : undefined}>
                 <span className="ellipsis">{server.name}</span> <Tag tone={MCP_TONE[server.status] ?? 'muted'}>{server.status}</Tag>
               </span>
             ))}
           </div>
         )}
       </Collapsible>
-      <ChipGroup label="Tools" items={env.tools} />
-      <ChipGroup label="Agents" items={env.agents} />
-      <ChipGroup label="Skills" items={env.skills} />
-      <ChipGroup label="Slash commands" items={env.slashCommands.map((c) => (c.startsWith('/') ? c : `/${c}`))} />
-      <ChipGroup label="Plugins" items={env.plugins.map((p) => p.name)} />
+      <ChipGroup label={t('environment.tools')} items={env.tools} />
+      <ChipGroup label={t('environment.agents')} items={env.agents} />
+      <ChipGroup label={t('environment.skills')} items={env.skills} />
+      <ChipGroup label={t('environment.slashCommands')} items={env.slashCommands.map((c) => (c.startsWith('/') ? c : `/${c}`))} />
+      <ChipGroup label={t('environment.plugins')} items={env.plugins.map((p) => p.name)} />
       <Collapsible
         className="env-group"
         title={
           <>
-            <span>Memory paths</span>
+            <span>{t('environment.memoryPaths')}</span>
             <span className={`count ${memory.length > 0 ? 'count-on' : ''}`}>{memory.length}</span>
           </>
         }
       >
         {memory.length === 0 ? (
-          <div className="small muted">None reported</div>
+          <div className="small muted">{t('environment.noneReported')}</div>
         ) : (
           <dl className="kv kv-narrow">
             {memory.map(([key, path]) => (
@@ -123,6 +126,7 @@ export function EnvironmentBody({ env }: { env: LoadedEnvironment }) {
  * feed does it, and a slow poll stands in while the feed is down.
  */
 export function EnvironmentPanel({ cwd, live = false }: { cwd: string; live?: boolean }) {
+  const { t } = useTranslation('components');
   const fallback = useFallbackInterval();
   const { data, error, isLoading } = useQuery({
     queryKey: keys.environments(cwd),
@@ -134,6 +138,6 @@ export function EnvironmentPanel({ cwd, live = false }: { cwd: string; live?: bo
 
   if (isLoading) return <Skeleton rows={3} />;
   if (error) return <ErrorBox error={error} />;
-  if (!env) return <div className="small muted">Start a chat in this project to see what Claude loads.</div>;
+  if (!env) return <div className="small muted">{t('environment.empty')}</div>;
   return <EnvironmentBody env={env} />;
 }

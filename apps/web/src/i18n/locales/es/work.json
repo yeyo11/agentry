@@ -1,0 +1,60 @@
+{
+  "shared": {
+    "default": "predeterminado",
+    "model": "Modelo",
+    "project": "Proyecto",
+    "uploading": "Subiendo…"
+  },
+  "sessionView": {
+    "deleteTranscript": "Elimina la transcripción",
+    "deleting": "Eliminando…",
+    "continueCopy": "Continúa en una copia",
+    "continue": "Continúa",
+    "loadEarlier": "Carga mensajes anteriores ({{n}} más arriba)"
+  },
+  "runView": {
+    "placeholderQueued": "Envía un mensaje (queda en cola hasta que acabe el turno actual)…",
+    "placeholderFollowUp": "Envía un mensaje de seguimiento…",
+    "sending": "Enviando…",
+    "send": "Envía",
+    "notSent": "Mensaje no enviado",
+    "streamConnected": "Stream conectado",
+    "streamReconnecting": "Reconectando el stream…",
+    "interrupt": "Interrumpe",
+    "working": "Claude está trabajando…",
+    "jumpToLatest": "Salta a lo último",
+    "permissions": "Permisos",
+    "prompts": "Peticiones de permiso",
+    "promptsHost": "se responden aquí",
+    "directory": "Directorio",
+    "session": "Session",
+    "cost": "Coste",
+    "started": "Inicio",
+    "orchestration": "Orquestación",
+    "backgroundTasks": "Tareas en segundo plano ({{n}})",
+    "subagents": "Subagents ({{n}})",
+    "workflows": "Workflows ({{n}})",
+    "loadedByClaude": "Cargado por Claude",
+    "loadedHint": "herramientas, servidores MCP, agentes, skills…"
+  },
+  "projects": {
+    "title": "Proyectos",
+    "newProjectCard": "Nuevo proyecto en el espacio de trabajo",
+    "name": "Nombre",
+    "nameHint": "Nombre del directorio dentro del espacio de trabajo: letras, dígitos, guiones, puntos y guiones bajos.",
+    "namePlaceholder": "mi-proyecto",
+    "gitUrl": "Repositorio Git (opcional)",
+    "gitUrlHint": "Se clona en el directorio nuevo. Déjalo vacío para un proyecto vacío.",
+    "createFailed": "No se ha podido crear el proyecto",
+    "cloning": "Clonando…",
+    "creating": "Creando…",
+    "create": "Crea el proyecto",
+    "newProject": "Nuevo proyecto",
+    "empty": "Aún no hay proyectos",
+    "worktree": "worktree",
+    "missing": "no está en el disco",
+    "lastActivity": "última actividad {{ago}}",
+    "worktrees_one": "{{count}} worktree",
+    "worktrees_other": "{{count}} worktrees"
+  }
+}

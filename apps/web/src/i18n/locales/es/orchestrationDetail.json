@@ -1,0 +1,8 @@
+{
+  "integratorChat": "chat del integrador",
+  "costOnNoTask": "{{cost}} no está en ninguna tarea: la síntesis, o un chat que dejó atrás un reintento limpio",
+  "deleteTitle": "¿Eliminar {{name}}?",
+  "taskBoard": "Tablero de tareas",
+  "synthesisHeld": "En espera hasta que las tareas bloqueadas se reintenten o se descarten: un informe sobre un grafo con un hueco parecería el final.",
+  "chat": "Chat"
+}

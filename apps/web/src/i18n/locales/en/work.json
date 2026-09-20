@@ -1,0 +1,60 @@
+{
+  "shared": {
+    "default": "default",
+    "model": "Model",
+    "project": "Project",
+    "uploading": "Uploading…"
+  },
+  "sessionView": {
+    "deleteTranscript": "Delete the transcript",
+    "deleting": "Deleting…",
+    "continueCopy": "Continue in a copy",
+    "continue": "Continue",
+    "loadEarlier": "Load earlier messages ({{n}} above)"
+  },
+  "runView": {
+    "placeholderQueued": "Send a message (queued until the current turn ends)…",
+    "placeholderFollowUp": "Send a follow-up message…",
+    "sending": "Sending…",
+    "send": "Send",
+    "notSent": "Message not sent",
+    "streamConnected": "Stream connected",
+    "streamReconnecting": "Stream reconnecting…",
+    "interrupt": "Interrupt",
+    "working": "Claude is working…",
+    "jumpToLatest": "Jump to latest",
+    "permissions": "Permissions",
+    "prompts": "Prompts",
+    "promptsHost": "answered here",
+    "directory": "Directory",
+    "session": "Session",
+    "cost": "Cost",
+    "started": "Started",
+    "orchestration": "Orchestration",
+    "backgroundTasks": "Background tasks ({{n}})",
+    "subagents": "Subagents ({{n}})",
+    "workflows": "Workflows ({{n}})",
+    "loadedByClaude": "Loaded by Claude",
+    "loadedHint": "tools, MCP servers, agents, skills…"
+  },
+  "projects": {
+    "title": "Projects",
+    "newProjectCard": "New project in the workspace",
+    "name": "Name",
+    "nameHint": "Directory name inside the workspace: letters, digits, dashes, dots and underscores.",
+    "namePlaceholder": "my-project",
+    "gitUrl": "Git repository (optional)",
+    "gitUrlHint": "Cloned into the new directory. Leave empty for an empty project.",
+    "createFailed": "Could not create the project",
+    "cloning": "Cloning…",
+    "creating": "Creating…",
+    "create": "Create project",
+    "newProject": "New project",
+    "empty": "No projects yet",
+    "worktree": "worktree",
+    "missing": "missing on disk",
+    "lastActivity": "last activity {{ago}}",
+    "worktrees_one": "{{count}} worktree",
+    "worktrees_other": "{{count}} worktrees"
+  }
+}

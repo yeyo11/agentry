@@ -1,9 +1,10 @@
 import type { AgentTranscript, ChatBackgroundTask } from '@agentry/shared';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useAgentDetail, useChatTasks, useTaskOutput, type AgentRef } from '../lib/chats';
 import { useDetailPanel, type DetailRef } from '../lib/detail';
-import { durationBetween, formatDateTime, formatDuration } from '../lib/format';
+import { durationBetween, formatDateTime, formatDuration, formatNumber } from '../lib/format';
 import { CodeBlock } from './CodeBlock';
 import { Collapsible } from './controls/Collapsible';
 import { Dialog } from './Dialog';
@@ -15,7 +16,9 @@ import { ErrorBox, Loading, Tag } from './ui';
 /** A transcript can run to thousands of entries; the newest are what a panel is opened for. */
 const RENDERED_ENTRIES = 300;
 
-const tokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
+// Ungrouped, as before: 1234.5k, never 1,234.5k
+const tokens = (n: number) =>
+  n >= 1000 ? `${formatNumber(n / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false })}k` : formatNumber(n, { useGrouping: false });
 
 /** Re-renders every second while `active`, so a running duration ticks. */
 function useTick(active: boolean): void {
@@ -57,6 +60,7 @@ function useTask(chatId: string, taskId: string): { task: ChatBackgroundTask | u
 }
 
 function TaskBody({ chatId, taskId }: { chatId: string; taskId: string }) {
+  const { t } = useTranslation('components');
   const { open } = useDetailPanel();
   const { task, loading } = useTask(chatId, taskId);
   const running = task?.status === 'running';
@@ -69,38 +73,38 @@ function TaskBody({ chatId, taskId }: { chatId: string; taskId: string }) {
     <>
       {task ? (
         <Facts>
-          <dt>Status</dt>
+          <dt>{t('detail.status')}</dt>
           <dd>
             <BranchStatus status={task.status} />
             {task.byPerson && (
               <>
                 {' '}
-                <Tag tone="muted">by you</Tag>
+                <Tag tone="muted">{t('detail.byYou')}</Tag>
               </>
             )}
           </dd>
-          <dt>Type</dt>
+          <dt>{t('detail.type')}</dt>
           <dd>{task.kind}</dd>
-          <dt>Duration</dt>
+          <dt>{t('detail.duration')}</dt>
           <dd>{durationBetween(task.startedAt, task.endedAt)}</dd>
-          <dt>Started</dt>
+          <dt>{t('detail.started')}</dt>
           <dd>{formatDateTime(task.startedAt)}</dd>
-          <dt>Started by</dt>
+          <dt>{t('detail.startedBy')}</dt>
           <dd>
             {task.ownerId ? (
               <>
-                <Tag tone="info">a subagent</Tag>{' '}
+                <Tag tone="info">{t('detail.fromSubagent')}</Tag>{' '}
                 <button type="button" className="link-btn" onClick={() => open({ kind: 'subagent', chatId, agentId: task.ownerId ?? '' })}>
-                  open it
+                  {t('detail.openSubagent')}
                 </button>
               </>
             ) : (
-              <Link to={`/chats/${chatId}`}>the chat</Link>
+              <Link to={`/chats/${chatId}`}>{t('detail.theChat')}</Link>
             )}
           </dd>
         </Facts>
       ) : (
-        <div className="muted small">This task is no longer listed; what it wrote is still shown below.</div>
+        <div className="muted small">{t('detail.taskGone')}</div>
       )}
       {task?.description && <div>{task.description}</div>}
       {task?.command && task.command !== task.description && <CodeBlock code={task.command} lang="bash" />}
@@ -108,16 +112,16 @@ function TaskBody({ chatId, taskId }: { chatId: string; taskId: string }) {
 
       <section className="detail-section detail-section-fill">
         <h3 className="dialog-section">
-          Output {running && <span className="detail-live">live</span>}
+          {t('detail.output')} {running && <span className="detail-live">{t('detail.live')}</span>}
         </h3>
         {output.isLoading ? (
           <Loading />
         ) : output.error ? (
-          <ErrorBox error={output.error} title="No output to show" />
+          <ErrorBox error={output.error} title={t('detail.noOutput')} />
         ) : (
-          <div className="detail-output" ref={follow.ref} onScroll={follow.onScroll} data-scroll-root role="region" aria-label="Task output" tabIndex={0}>
-            {output.data?.cutHead && <div className="muted small">Showing the end of {Math.round((output.data.bytes ?? 0) / 1024)} KiB of output.</div>}
-            <pre className="task-output">{output.data?.text.trim() || '(no output yet)'}</pre>
+          <div className="detail-output" ref={follow.ref} onScroll={follow.onScroll} data-scroll-root role="region" aria-label={t('detail.taskOutput')} tabIndex={0}>
+            {output.data?.cutHead && <div className="muted small">{t('detail.outputCut', { size: Math.round((output.data.bytes ?? 0) / 1024) })}</div>}
+            <pre className="task-output">{output.data?.text.trim() || t('detail.noOutputYet')}</pre>
             <ScrollJump screens={1} label="output" />
           </div>
         )}
@@ -142,6 +146,7 @@ const agentRef = (target: AgentTarget): AgentRef =>
     : { chatId: target.chatId, agentId: target.agentId, workflowId: target.workflowId };
 
 function AgentBody({ target }: { target: AgentTarget }) {
+  const { t } = useTranslation('components');
   const { open } = useDetailPanel();
   const { data, error, isLoading } = useAgentDetail(agentRef(target), false);
   const running = data?.status === 'running';
@@ -150,64 +155,69 @@ function AgentBody({ target }: { target: AgentTarget }) {
   const [showAll, setShowAll] = useState(false);
 
   if (isLoading) return <Loading />;
-  if (error || !data) return <ErrorBox error={error} title="Could not read this agent" />;
+  if (error || !data) return <ErrorBox error={error} title={t('detail.agentFailed')} />;
 
   const hidden = showAll ? 0 : Math.max(0, data.entries.length - RENDERED_ENTRIES);
   const { usage } = data;
   return (
     <div className="detail-scroll" ref={follow.ref} onScroll={follow.onScroll} data-scroll-root>
       <Facts>
-        <dt>Status</dt>
+        <dt>{t('detail.status')}</dt>
         <dd>
           <BranchStatus status={data.status} />
           {data.background && (
             <>
               {' '}
-              <Tag tone="muted">background</Tag>
+              <Tag tone="muted">{t('detail.background')}</Tag>
             </>
           )}
         </dd>
-        <dt>Type</dt>
-        <dd>{data.subagentType ?? (data.kind === 'workflow' ? 'workflow agent' : '—')}</dd>
+        <dt>{t('detail.type')}</dt>
+        <dd>{data.subagentType ?? (data.kind === 'workflow' ? t('detail.workflowAgentType') : '—')}</dd>
         {data.kind === 'workflow' && (
           <>
-            <dt>Workflow</dt>
+            <dt>{t('detail.workflow')}</dt>
             <dd className="mono">{data.workflowRunId}</dd>
             {data.workflowPhase && (
               <>
-                <dt>Phase</dt>
+                <dt>{t('detail.phase')}</dt>
                 <dd>{data.workflowPhase}</dd>
               </>
             )}
           </>
         )}
-        <dt>Duration</dt>
+        <dt>{t('detail.duration')}</dt>
         <dd>{agentDuration(data)}</dd>
-        <dt>Tokens</dt>
+        <dt>{t('detail.tokens')}</dt>
         <dd>
           {tokens(usage.total)}
           <span className="muted small">
             {' '}
-            · in {tokens(usage.input)} · out {tokens(usage.output)} · cache read {tokens(usage.cacheRead)} · cache write {tokens(usage.cacheCreation)}
+            {t('detail.tokenBreakdown', {
+              input: tokens(usage.input),
+              output: tokens(usage.output),
+              cacheRead: tokens(usage.cacheRead),
+              cacheWrite: tokens(usage.cacheCreation),
+            })}
           </span>
         </dd>
-        <dt>Tool calls</dt>
+        <dt>{t('detail.toolCalls')}</dt>
         <dd>{data.toolCalls}</dd>
         {data.model && (
           <>
-            <dt>Model</dt>
+            <dt>{t('detail.model')}</dt>
             <dd>{data.model}</dd>
           </>
         )}
         {data.cwd && (
           <>
-            <dt>Directory</dt>
+            <dt>{t('detail.directory')}</dt>
             <dd className="mono break">{data.cwd}</dd>
           </>
         )}
-        <dt>Started</dt>
+        <dt>{t('detail.started')}</dt>
         <dd>{formatDateTime(data.startedAt)}</dd>
-        <dt>Chat</dt>
+        <dt>{t('detail.chat')}</dt>
         <dd className="mono break">
           <Link to={`/chats/${data.sessionId}`}>{data.sessionId}</Link>
         </dd>
@@ -215,7 +225,7 @@ function AgentBody({ target }: { target: AgentTarget }) {
 
       {data.prompt && (
         <section className="detail-section">
-          <Collapsible className="fold" defaultOpen title={<span className="tool-name">Prompt</span>}>
+          <Collapsible className="fold" defaultOpen title={<span className="tool-name">{t('detail.prompt')}</span>}>
             <RichText text={data.prompt} />
           </Collapsible>
         </section>
@@ -223,7 +233,7 @@ function AgentBody({ target }: { target: AgentTarget }) {
 
       {data.tasks.length > 0 && (
         <section className="detail-section">
-          <h3 className="dialog-section">Background tasks it launched ({data.tasks.length})</h3>
+          <h3 className="dialog-section">{t('detail.tasksLaunched', { count: data.tasks.length })}</h3>
           <div className="stack-tight">
             {data.tasks.map((task) => (
               <div key={task.id} className="side-item">
@@ -244,22 +254,22 @@ function AgentBody({ target }: { target: AgentTarget }) {
 
       {data.result && (
         <section className="detail-section">
-          <h3 className="dialog-section">Result</h3>
+          <h3 className="dialog-section">{t('detail.result')}</h3>
           <RichText text={data.result} />
         </section>
       )}
 
       <section className="detail-section">
         <h3 className="dialog-section">
-          Transcript ({data.total}) {running && <span className="detail-live">live</span>}
+          {t('detail.transcript', { total: data.total })} {running && <span className="detail-live">{t('detail.live')}</span>}
         </h3>
         {data.entries.length === 0 ? (
-          <div className="muted small">Nothing written yet.</div>
+          <div className="muted small">{t('detail.nothingYet')}</div>
         ) : (
           <div className="detail-transcript">
             {hidden > 0 && (
               <button type="button" className="btn btn-small" onClick={() => setShowAll(true)}>
-                Show {hidden} earlier {hidden === 1 ? 'entry' : 'entries'}
+                {t('detail.showEarlier', { count: hidden })}
               </button>
             )}
             <Transcript entries={hidden > 0 ? data.entries.slice(hidden) : data.entries} />
@@ -274,15 +284,17 @@ function AgentBody({ target }: { target: AgentTarget }) {
 // ---------- the panel ----------
 
 function TaskTitle({ chatId, taskId }: { chatId: string; taskId: string }) {
+  const { t } = useTranslation('components');
   const { task } = useTask(chatId, taskId);
-  return <span className="ellipsis">{task?.description || 'Background task'}</span>;
+  return <span className="ellipsis">{task?.description || t('detail.backgroundTask')}</span>;
 }
 
 function AgentTitle({ target }: { target: AgentTarget }) {
+  const { t } = useTranslation('components');
   const { data } = useAgentDetail(agentRef(target), false);
   return (
     <span className="ellipsis">
-      {target.kind === 'subagent' ? 'Subagent' : 'Workflow agent'}
+      {target.kind === 'subagent' ? t('detail.subagent') : t('detail.workflowAgent')}
       {data?.description ? ` · ${data.description}` : ''}
     </span>
   );

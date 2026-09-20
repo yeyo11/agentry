@@ -1,6 +1,7 @@
 import type { ContentBlock, TranscriptEntry } from '@agentry/shared';
 import { Brain, CircleAlert, CornerDownRight, Sparkles, User } from 'lucide-react';
 import { lazy, memo, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { formatClock, truncate } from '../lib/format';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
 import { CodeBlock } from './CodeBlock';
@@ -38,6 +39,7 @@ function toolHint(input: unknown): string {
 }
 
 function Block({ block, role }: { block: ContentBlock; role: 'user' | 'assistant' }) {
+  const { t } = useTranslation('components');
   switch (block.type) {
     case 'text': {
       const { text, files } = splitAttached(block.text);
@@ -59,7 +61,7 @@ function Block({ block, role }: { block: ContentBlock; role: 'user' | 'assistant
           title={
             <>
               <Brain {...ICON_SM} className="fold-icon" />
-              <span className="tool-name">Thinking</span>
+              <span className="tool-name">{t('transcript.thinking')}</span>
             </>
           }
         >
@@ -91,14 +93,14 @@ function Block({ block, role }: { block: ContentBlock; role: 'user' | 'assistant
           title={
             <>
               {block.isError ? <CircleAlert {...ICON_SM} className="fold-icon" /> : <CornerDownRight {...ICON_SM} className="fold-icon" />}
-              <span className="tool-name">{block.isError ? 'Tool error' : 'Tool result'}</span>
-              <span className="tool-hint">{truncate(block.content.replace(/\s+/g, ' '), 110) || '(empty)'}</span>
+              <span className="tool-name">{block.isError ? t('transcript.toolError') : t('transcript.toolResult')}</span>
+              <span className="tool-hint">{truncate(block.content.replace(/\s+/g, ' '), 110) || t('transcript.empty')}</span>
             </>
           }
         >
           <CodeBlock
             tone={block.isError ? 'error' : undefined}
-            code={long ? `${block.content.slice(0, RESULT_PREVIEW_CHARS)}\n… [${block.content.length - RESULT_PREVIEW_CHARS} more chars]` : block.content}
+            code={long ? `${block.content.slice(0, RESULT_PREVIEW_CHARS)}\n${t('transcript.moreChars', { count: block.content.length - RESULT_PREVIEW_CHARS })}` : block.content}
           />
         </Collapsible>
       );
@@ -116,6 +118,7 @@ function withoutListedMedia(blocks: ContentBlock[]): ContentBlock[] {
 }
 
 export const EntryView = memo(function EntryView({ entry }: { entry: TranscriptEntry }) {
+  const { t } = useTranslation('components');
   const onlyToolResults = entry.role === 'user' && entry.blocks.every((b) => b.type === 'tool_result');
   const role = onlyToolResults ? 'tool' : entry.role;
   return (
@@ -124,8 +127,8 @@ export const EntryView = memo(function EntryView({ entry }: { entry: TranscriptE
       <div className="msg-body">
         {!onlyToolResults && (
           <header className="msg-head">
-            <span className="msg-role">{entry.role === 'user' ? 'User' : 'Claude'}</span>
-            {entry.isSidechain && <span className="badge badge-info">subagent</span>}
+            <span className="msg-role">{entry.role === 'user' ? t('transcript.user') : 'Claude'}</span>
+            {entry.isSidechain && <span className="badge badge-info">{t('transcript.subagent')}</span>}
             {entry.model && <span className="muted small msg-model">{entry.model}</span>}
             <span className="muted small msg-time">{formatClock(entry.timestamp)}</span>
           </header>
@@ -148,6 +151,7 @@ function Avatar({ role }: { role: 'user' | 'assistant' }) {
 
 /** The block Claude is generating right now, fed by ephemeral `partial` stream events. */
 export function StreamingEntry({ block, text }: { block: 'text' | 'thinking'; text: string }) {
+  const { t } = useTranslation('components');
   return (
     <article className="msg msg-assistant msg-streaming" aria-live="off">
       <Avatar role="assistant" />
@@ -155,13 +159,13 @@ export function StreamingEntry({ block, text }: { block: 'text' | 'thinking'; te
         <header className="msg-head">
           <span className="msg-role">Claude</span>
           <span className="badge badge-active">
-            <Sparkles {...ICON_SM} /> {block === 'thinking' ? 'thinking' : 'writing'}
+            <Sparkles {...ICON_SM} /> {block === 'thinking' ? t('transcript.streamingThinking') : t('transcript.streamingWriting')}
           </span>
         </header>
         {block === 'thinking' ? (
           <div className="streaming-thinking">
             <div className="streaming-thinking-label">
-              <Brain {...ICON_SM} /> Thinking…
+              <Brain {...ICON_SM} /> {t('transcript.thinkingNow')}
             </div>
             <div className="prose muted">{text.length > 1200 ? `…${text.slice(-1200)}` : text}</div>
           </div>

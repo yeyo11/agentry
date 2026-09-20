@@ -26,8 +26,10 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
   // Its own process group, so the renderers and helpers go down with it and none outlives the run
   const chrome = spawn(
     findChrome(),
-    ['--headless=new', '--disable-gpu', '--no-sandbox', '--hide-scrollbars', `--user-data-dir=${profile}`, `--remote-debugging-port=${port}`, '--window-size=1440,900', 'about:blank'],
-    { stdio: 'ignore', detached: true },
+    ['--headless=new', '--disable-gpu', '--no-sandbox', '--hide-scrollbars', '--lang=en-US', `--user-data-dir=${profile}`, `--remote-debugging-port=${port}`, '--window-size=1440,900', 'about:blank'],
+    // Specs click buttons by their English text; on a non-English host locale (LANG/LANGUAGE),
+    // Chrome otherwise reports navigator.language from the OS regardless of --lang.
+    { stdio: 'ignore', detached: true, env: { ...process.env, LANGUAGE: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' } },
   );
   let closed = false;
   const close = () => {

@@ -1,5 +1,6 @@
 import { ArrowDownToLine, ArrowUpToLine } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Tooltip } from './controls/Tooltip';
 import { ICON_SM } from './icons';
 
@@ -10,7 +11,8 @@ type Position = 'hidden' | 'top' | 'middle' | 'bottom';
  * otherwise only navigable by dragging: you land on one end and the other is thousands of pixels
  * away. It appears only once the content is worth the shortcut.
  */
-export function ScrollJump({ screens = 2, label = 'transcript' }: { screens?: number; label?: string }) {
+export function ScrollJump({ screens = 2, label = 'transcript' }: { screens?: number; label?: 'transcript' | 'output' }) {
+  const { t } = useTranslation('components');
   const anchor = useRef<HTMLSpanElement>(null);
   const [position, setPosition] = useState<Position>('hidden');
   const scroller = useRef<HTMLElement | null>(null);
@@ -59,17 +61,17 @@ export function ScrollJump({ screens = 2, label = 'transcript' }: { screens?: nu
   return (
     <>
       <span ref={anchor} hidden />
-      <div className="scroll-jump" role="group" aria-label={`Jump within the ${label}`}>
+      <div className="scroll-jump" role="group" aria-label={t(`scrollJump.${label}.group`)}>
         {position !== 'top' && (
-          <Tooltip content="Oldest (top)">
-            <button type="button" className="icon-btn" onClick={() => jump('top')} aria-label={`Jump to the start of the ${label}`}>
+          <Tooltip content={t('scrollJump.oldest')}>
+            <button type="button" className="icon-btn" onClick={() => jump('top')} aria-label={t(`scrollJump.${label}.start`)}>
               <ArrowUpToLine {...ICON_SM} />
             </button>
           </Tooltip>
         )}
         {position !== 'bottom' && (
-          <Tooltip content="Newest (bottom)">
-            <button type="button" className="icon-btn" onClick={() => jump('bottom')} aria-label={`Jump to the end of the ${label}`}>
+          <Tooltip content={t('scrollJump.newest')}>
+            <button type="button" className="icon-btn" onClick={() => jump('bottom')} aria-label={t(`scrollJump.${label}.end`)}>
               <ArrowDownToLine {...ICON_SM} />
             </button>
           </Tooltip>

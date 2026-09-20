@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
-import { attemptLabel, blockedBy, costSplit, decisionsOn, waitingSummary } from '../src/lib/orchestration-board.ts';
+
+// The wording follows navigator.languages; pin it so the result does not depend on the machine.
+Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });
+const { attemptLabel, blockedBy, costSplit, decisionsOn, waitingSummary } = await import('../src/lib/orchestration-board.ts');
 
 const task = (id: string, extra: Partial<OrchestrationTaskState> = {}): OrchestrationTaskState => ({
   id,

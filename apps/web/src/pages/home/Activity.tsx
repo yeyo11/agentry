@@ -12,13 +12,14 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useChats, useOrchestrations, useOverview, useUsage } from '../../api';
 import { ICON_SM } from '../../components/icons';
 import { ProgressRing } from '../../components/motion';
 import { Card, Empty, Skeleton, StatusBadge, Tag } from '../../components/ui';
 import { detailHref } from '../../lib/detail';
-import { formatCost, formatDuration, timeAgo, timeUntil, truncate } from '../../lib/format';
+import { formatCost, formatDuration, formatNumber, timeAgo, timeUntil, truncate } from '../../lib/format';
 import { inProject } from '../../lib/project-scope';
 
 /** A command running this long in the background is worth a look; there is no baseline to compare it with yet. */
@@ -55,16 +56,24 @@ function InboxItem({ row }: { row: InboxRow }) {
   );
 }
 
-/** What a chat stopped for, in the words of the request that holds it. */
-function waitingFor(requests: readonly PermissionRequest[] | undefined): { what: string; detail: string | null } {
+/** What a chat stopped for, described so the component words it in the active language. */
+interface WaitingReason {
+  kind: 'generic' | 'plan' | 'question' | 'tool';
+  tool: string;
+  /** Requests beyond the first one */
+  more: number;
+  detail: string | null;
+}
+
+function waitingFor(requests: readonly PermissionRequest[] | undefined): WaitingReason {
   const first = requests?.[0];
-  if (!first) return { what: 'is waiting for you', detail: null };
-  const more = requests && requests.length > 1 ? ` (+${requests.length - 1} more)` : '';
+  if (!first) return { kind: 'generic', tool: '', more: 0, detail: null };
+  const more = requests && requests.length > 1 ? requests.length - 1 : 0;
   const command = typeof first.input.command === 'string' ? first.input.command : null;
   const detail = truncate(first.description ?? command ?? '', 140) || null;
-  if (first.toolName === 'ExitPlanMode') return { what: `wants your approval of a plan${more}`, detail };
-  if (first.toolName === 'AskUserQuestion' || first.requiresUserInteraction) return { what: `asks you a question${more}`, detail };
-  return { what: `wants to use ${first.toolName}${more}`, detail };
+  if (first.toolName === 'ExitPlanMode') return { kind: 'plan', tool: first.toolName, more, detail };
+  if (first.toolName === 'AskUserQuestion' || first.requiresUserInteraction) return { kind: 'question', tool: first.toolName, more, detail };
+  return { kind: 'tool', tool: first.toolName, more, detail };
 }
 
 const contextPercent = (chat: ChatSummary): number | null =>
@@ -72,16 +81,18 @@ const contextPercent = (chat: ChatSummary): number | null =>
 
 /** A chat's context and what it has spent: the numbers that tell one about to compact from one that is fine. */
 function ChatNumbers({ chat }: { chat: ChatSummary }) {
+  const { t } = useTranslation('home');
   const percent = contextPercent(chat);
   return (
     <>
-      {percent !== null && <span title="Context in use">{percent}% context</span>}
-      <span>{chat.cost.usd === null ? 'cost not available' : formatCost(chat.cost.usd)}</span>
+      {percent !== null && <span title={t('activity.contextInUse')}>{t('activity.context', { percent })}</span>}
+      <span>{chat.cost.usd === null ? t('activity.costUnavailable') : formatCost(chat.cost.usd)}</span>
     </>
   );
 }
 
 function ChatRow({ chat, showProject }: { chat: ChatSummary; showProject: boolean }) {
+  const { t } = useTranslation('home');
   return (
     <Link to={`/chats/${encodeURIComponent(chat.id)}`} className="list-row">
       <div className="list-row-main">
@@ -90,7 +101,7 @@ function ChatRow({ chat, showProject }: { chat: ChatSummary; showProject: boolea
           <span className="strong ellipsis" title={chat.title}>{chat.title}</span>
         </div>
         <div className="meta">
-          {showProject && <span>{chat.project?.name ?? 'no project'}</span>}
+          {showProject && <span>{chat.project?.name ?? t('activity.noProject')}</span>}
           {chat.worktree?.branch && <span className="mono">{chat.worktree.branch}</span>}
           <ChatNumbers chat={chat} />
         </div>
@@ -100,18 +111,14 @@ function ChatRow({ chat, showProject }: { chat: ChatSummary; showProject: boolea
   );
 }
 
-function progress(orchestration: Orchestration): string {
-  const done = orchestration.tasks.filter((t) => t.status === 'completed' || t.status === 'skipped').length;
-  return `${done}/${orchestration.tasks.length} tasks`;
-}
-
 /** The attention block: everything that needs a person, with its action on the row. Absent when nothing does. */
-function Waiting({ rows }: { rows: InboxRow[] }) {
+function WaitingBlock({ rows }: { rows: InboxRow[] }) {
+  const { t } = useTranslation('home');
   if (rows.length === 0) return null;
   return (
     <section className="card inbox" aria-labelledby="inbox-title">
       <div className="card-head">
-        <h2 id="inbox-title">Waiting for you</h2>
+        <h2 id="inbox-title">{t('activity.waitingForYou')}</h2>
         <Tag tone="bad">{rows.length}</Tag>
       </div>
       <ul className="inbox-list">
@@ -128,6 +135,7 @@ function Waiting({ rows }: { rows: InboxRow[] }) {
  * `project` scopes all of it except the account's own health, which belongs to nobody in particular.
  */
 export function Activity({ project }: { project: Project | null }) {
+  const { t } = useTranslation(['home', 'common', 'work']);
   const scope = project?.id;
   const overview = useOverview();
   const orchestrations = useOrchestrations();
@@ -144,6 +152,11 @@ export function Activity({ project }: { project: Project | null }) {
     queries: waiting.map((chat) => ({ queryKey: keys.chatPermissions(chat.id), queryFn: () => api.chatPermissions(chat.id) })),
   });
 
+  const progress = (orchestration: Orchestration): string => {
+    const done = orchestration.tasks.filter((task) => task.status === 'completed' || task.status === 'skipped').length;
+    return t('activity.progress', { done, total: orchestration.tasks.length });
+  };
+
   const inScope = (dir: string) => !project || inProject(project, dir);
   const scoped = (orchestrations.data ?? []).filter((o) => inScope(o.cwd));
   const system = overview.data?.system;
@@ -153,35 +166,36 @@ export function Activity({ project }: { project: Project | null }) {
     rows.push({
       key: 'cli',
       icon: CircleAlert,
-      what: 'Claude Code CLI not detected',
-      detail: system.cli.error ?? 'The `claude` binary is not available in PATH: install it or set CLAUDE_BIN.',
+      what: t('activity.cliMissing'),
+      detail: system.cli.error ?? t('activity.cliMissingHint'),
       to: '/settings?tab=account',
-      action: 'Open settings',
+      action: t('activity.openSettings'),
     });
   } else if (system && !system.auth.loggedIn) {
     rows.push({
       key: 'auth',
       icon: KeyRound,
-      what: 'Claude Code is not logged in',
-      detail: system.auth.error ?? 'No valid credentials were found.',
+      what: t('activity.notLoggedIn'),
+      detail: system.auth.error ?? t('activity.noCredentials'),
       to: '/settings?tab=account',
-      action: 'Add a credential',
+      action: t('activity.addCredential'),
     });
   }
   waiting.forEach((chat, i) => {
-    const { what, detail } = waitingFor(permissions[i]?.data);
-    const isQuestion = what.startsWith('asks');
+    const { kind, tool, more, detail } = waitingFor(permissions[i]?.data);
+    const isQuestion = kind === 'question';
+    const words = t(`activity.waiting.${kind}`, { tool });
     rows.push({
       key: `chat:${chat.id}`,
       icon: isQuestion ? MessageCircleQuestion : ShieldQuestion,
       what: (
         <>
-          <strong>{chat.title}</strong> {what}
+          <strong>{chat.title}</strong> {more > 0 ? `${words} ${t('activity.more', { n: more })}` : words}
         </>
       ),
       detail,
       to: `/chats/${encodeURIComponent(chat.id)}`,
-      action: 'Answer',
+      action: t('activity.answer'),
     });
   });
   for (const o of scoped.filter((x) => x.status === 'waiting')) {
@@ -191,12 +205,12 @@ export function Activity({ project }: { project: Project | null }) {
       icon: Hourglass,
       what: (
         <>
-          <strong>{o.name}</strong>: {blocked.length} task{blocked.length === 1 ? '' : 's'} blocked
+          <strong>{o.name}</strong>: {t('activity.tasksBlocked', { count: blocked.length, n: formatNumber(blocked.length) })}
         </>
       ),
       detail: blocked.map((t) => `${t.name}${t.error ? `: ${truncate(t.error, 80)}` : ''}`).join(' · '),
       to: `/orchestration/${encodeURIComponent(o.id)}`,
-      action: 'Decide',
+      action: t('activity.decide'),
     });
   }
   for (const o of scoped) {
@@ -207,12 +221,17 @@ export function Activity({ project }: { project: Project | null }) {
       icon: GitMerge,
       what: (
         <>
-          {status === 'conflicted' ? 'Merge conflict' : 'Integration failed'} in <strong>{o.integration?.branch ?? o.name}</strong>
+          <Trans
+            t={t}
+            i18nKey={status === 'conflicted' ? 'activity.mergeConflict' : 'activity.integrationFailed'}
+            values={{ branch: o.integration?.branch ?? o.name }}
+            components={{ strong: <strong /> }}
+          />
         </>
       ),
       detail: o.integration?.conflicts.flatMap((c) => c.paths).slice(0, 3).join(', ') || o.integration?.error,
       to: `/orchestration/${encodeURIComponent(o.id)}`,
-      action: 'Open',
+      action: t('common:actions.open'),
     });
   }
   for (const task of tasks.data ?? []) {
@@ -224,12 +243,17 @@ export function Activity({ project }: { project: Project | null }) {
       icon: Timer,
       what: (
         <>
-          A command has been running for {formatDuration(running)} in <strong>{task.chat.title}</strong>
+          <Trans
+            t={t}
+            i18nKey="activity.hungCommand"
+            values={{ duration: formatDuration(running), title: task.chat.title }}
+            components={{ strong: <strong /> }}
+          />
         </>
       ),
       detail: task.command ?? task.description,
       to: detailHref({ kind: 'task', chatId: task.chat.id, taskId: task.id }, `/chats/${encodeURIComponent(task.chat.id)}`),
-      action: 'Open',
+      action: t('common:actions.open'),
     });
   }
 
@@ -255,24 +279,23 @@ export function Activity({ project }: { project: Project | null }) {
 
   return (
     <>
-      <Waiting rows={rows} />
+      <WaitingBlock rows={rows} />
 
       {noProjects && !project && (
         <div className="alert" role="note">
           <FolderGit2 {...ICON_SM} className="alert-icon" />
           <div className="alert-body">
-            <strong>No project yet</strong>
+            <strong>{t('activity.noProjectYet')}</strong>
             <div>
-              A project is a directory you import, and everything under it — its chats, worktrees and settings — lives on its page.{' '}
-              <Link to="/projects">Import your first project</Link>.
+              <Trans t={t} i18nKey="activity.noProjectYetHint" components={{ anchor: <Link to="/projects" /> }} />
             </div>
           </div>
         </div>
       )}
 
       {nothing && rows.length === 0 && (
-        <Empty title="Nothing is running and nothing is waiting" action={<Link to="/chats/new" className="btn btn-primary">Start a chat</Link>}>
-          Chats you start, and what your orchestrations do, show up here.
+        <Empty title={t('activity.nothing')} action={<Link to="/chats/new" className="btn btn-primary">{t('activity.startChat')}</Link>}>
+          {t('activity.nothingHint')}
         </Empty>
       )}
 
@@ -280,7 +303,11 @@ export function Activity({ project }: { project: Project | null }) {
         <Card
           title={
             <>
-              Right now <span className="muted small">· {working.length} working{running.length ? ` · ${running.length} orchestration${running.length === 1 ? '' : 's'}` : ''}</span>
+              {t('activity.rightNow')}{' '}
+              <span className="muted small">
+                · {t('activity.working', { n: formatNumber(working.length) })}
+                {running.length ? ` · ${t('activity.orchestrations', { count: running.length, n: formatNumber(running.length) })}` : ''}
+              </span>
             </>
           }
         >
@@ -307,38 +334,38 @@ export function Activity({ project }: { project: Project | null }) {
         </Card>
       )}
 
-      <Card title="Today">
+      <Card title={t('activity.today')}>
         {usage.isLoading ? (
           <Skeleton rows={2} height={16} />
         ) : spentModels.length === 0 ? (
-          <div className="muted">Nothing spent yet today.</div>
+          <div className="muted">{t('activity.nothingSpent')}</div>
         ) : (
           <>
             <div className="meta small">
-              <span>{usageRow?.costUsd === null || usageRow === undefined ? 'cost not available' : `${formatCost(usageRow.costUsd)} spent`}</span>
+              <span>{usageRow?.costUsd === null || usageRow === undefined ? t('activity.costUnavailable') : t('activity.spent', { cost: formatCost(usageRow.costUsd) })}</span>
               {usageRow && usageRow.chatsWithoutCost > 0 && (
                 <span className="muted">
-                  {usageRow.chatsWithoutCost} chat{usageRow.chatsWithoutCost === 1 ? '' : 's'} started from a terminal report no cost
+                  {t('activity.chatsWithoutCost', { count: usageRow.chatsWithoutCost, n: formatNumber(usageRow.chatsWithoutCost) })}
                 </span>
               )}
             </div>
-            <div className="table-wrap" role="region" aria-label="Tokens today by model" tabIndex={0}>
+            <div className="table-wrap" role="region" aria-label={t('activity.tokensToday')} tabIndex={0}>
             <table className="table today-table">
               <thead>
                 <tr>
-                  <th scope="col">Model</th>
-                  <th scope="col" className="num">Input</th>
-                  <th scope="col" className="num">Output</th>
-                  <th scope="col" className="num">Cache</th>
+                  <th scope="col">{t('work:shared.model')}</th>
+                  <th scope="col" className="num">{t('activity.input')}</th>
+                  <th scope="col" className="num">{t('activity.output')}</th>
+                  <th scope="col" className="num">{t('activity.cache')}</th>
                 </tr>
               </thead>
               <tbody>
                 {spentModels.map((m) => (
                   <tr key={m.model ?? 'unknown'}>
-                    <th scope="row" className="mono">{m.model ?? 'unknown model'}</th>
-                    <td className="num">{m.input.toLocaleString()}</td>
-                    <td className="num">{m.output.toLocaleString()}</td>
-                    <td className="num">{(m.cacheRead + m.cacheCreation).toLocaleString()}</td>
+                    <th scope="row" className="mono">{m.model ?? t('activity.unknownModel')}</th>
+                    <td className="num">{formatNumber(m.input)}</td>
+                    <td className="num">{formatNumber(m.output)}</td>
+                    <td className="num">{formatNumber(m.cacheRead + m.cacheCreation)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -347,7 +374,7 @@ export function Activity({ project }: { project: Project | null }) {
           </>
         )}
         {windows.length > 0 && (
-          <div className="gauges today-limits" role="group" aria-label="Usage limits">
+          <div className="gauges today-limits" role="group" aria-label={t('activity.usageLimits')}>
             {windows.map(([name, win]) => {
               const pct = Math.min(100, Math.round(win.utilization * 100));
               return (
@@ -356,8 +383,8 @@ export function Activity({ project }: { project: Project | null }) {
                     <span className="gauge-value">{pct}%</span>
                   </ProgressRing>
                   <div className="gauge-text">
-                    <span className="gauge-name">{name.replace(/_/g, ' ')} limit</span>
-                    <span className="muted small">resets {timeUntil(win.resetsAt)}</span>
+                    <span className="gauge-name">{t('activity.limit', { name: name.replace(/_/g, ' ') })}</span>
+                    <span className="muted small">{t('activity.resets', { when: timeUntil(win.resetsAt) })}</span>
                   </div>
                 </div>
               );
@@ -367,7 +394,7 @@ export function Activity({ project }: { project: Project | null }) {
       </Card>
 
       {idle.length > 0 && (
-        <Card title="Pick up again" actions={<Link to={project ? `/chats?project=${encodeURIComponent(project.id)}` : '/chats'} className="link-more">All chats</Link>}>
+        <Card title={t('activity.pickUp')} actions={<Link to={project ? `/chats?project=${encodeURIComponent(project.id)}` : '/chats'} className="link-more">{t('activity.allChats')}</Link>}>
           <div className="list">
             {idle.map((chat) => (
               <ChatRow key={chat.id} chat={chat} showProject={!project} />

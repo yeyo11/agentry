@@ -241,7 +241,8 @@
   margin-left: auto;
 }
 
-@media (max-width: 640px) {
+/* The top bar also holds the language switch, and at tablet width the labelled trigger no longer fits beside it */
+@media (max-width: 768px) {
   .palette-trigger {
     min-width: 0;
   }
@@ -257,6 +258,9 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
+}
+
+@media (max-width: 640px) {
   .palette-backdrop {
     padding-top: 8vh;
   }

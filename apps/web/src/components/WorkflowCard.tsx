@@ -1,13 +1,21 @@
 import type { ChatWorkflow, ChatWorkflowAgent } from '@agentry/shared';
 import { CircleCheck, CircleX } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 import { useDetailPanel } from '../lib/detail';
-import { durationBetween, formatDuration, truncate } from '../lib/format';
+import { durationBetween, formatDuration, formatNumber, truncate } from '../lib/format';
 import { BranchStatus } from './ChatBadges';
 import { CodeBlock } from './CodeBlock';
 // Direct import: the chat page that renders this is in the shell bundle
 import { Collapsible } from './controls/Collapsible';
 
-const tokens = (n: number | null) => (n === null ? null : n >= 1000 ? `${(n / 1000).toFixed(1)}k tokens` : `${n} tokens`);
+// Ungrouped, as before: 1234.5k tokens, never 1,234.5k
+const tokens = (n: number | null) =>
+  n === null
+    ? null
+    : n >= 1000
+      ? i18n.t('components:workflowCard.tokensThousands', { n: formatNumber(n / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }) })
+      : i18n.t('components:workflowCard.tokens', { n: formatNumber(n, { useGrouping: false }) });
 
 /** The status is this icon and the word beside it, never a coloured dot alone. */
 function AgentIcon({ status }: { status: ChatWorkflowAgent['status'] }) {
@@ -51,6 +59,7 @@ function byPhase(workflow: ChatWorkflow): Array<[string | null, ChatWorkflowAgen
 
 /** One run of a Claude Code workflow inside a chat: its phases, where each agent is, and what it returned. */
 export function WorkflowCard({ workflow, chatId }: { workflow: ChatWorkflow; chatId: string }) {
+  const { t } = useTranslation('components');
   const { open } = useDetailPanel();
   const done = workflow.agents.filter((a) => a.status === 'completed').length;
   const total = workflow.agents.length;
@@ -59,18 +68,16 @@ export function WorkflowCard({ workflow, chatId }: { workflow: ChatWorkflow; cha
     <article className="wf-card">
       <header className="wf-head">
         <BranchStatus status={workflow.status} />
-        <strong className="wf-name">{workflow.name ?? 'workflow'}</strong>
+        <strong className="wf-name">{workflow.name ?? t('workflowCard.workflow')}</strong>
         <span className="muted small break">{workflow.description !== workflow.name ? workflow.description : ''}</span>
       </header>
       <div className="meta">
-        <span>
-          {done}/{total} agents done
-        </span>
+        <span>{t('workflowCard.agentsDone', { done, total })}</span>
         <span>{durationBetween(workflow.startedAt, workflow.endedAt)}</span>
         {workflow.totalTokens !== null && <span>{tokens(workflow.totalTokens)}</span>}
       </div>
       {total > 0 && (
-        <div className="wf-progress" role="progressbar" aria-label="Agents done" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
+        <div className="wf-progress" role="progressbar" aria-label={t('workflowCard.agentsDoneLabel')} aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
           <span style={{ width: `${(done / total) * 100}%` }} />
         </div>
       )}
@@ -91,12 +98,12 @@ export function WorkflowCard({ workflow, chatId }: { workflow: ChatWorkflow; cha
       {(workflow.script || hasResult) && (
         <div className="wf-details">
           {hasResult && (
-            <Collapsible className="fold" title={<span className="tool-name">Result</span>}>
+            <Collapsible className="fold" title={<span className="tool-name">{t('workflowCard.result')}</span>}>
               <CodeBlock code={typeof workflow.result === 'string' ? workflow.result : JSON.stringify(workflow.result, null, 2)} lang={typeof workflow.result === 'string' ? undefined : 'json'} />
             </Collapsible>
           )}
           {workflow.script && (
-            <Collapsible className="fold" title={<span className="tool-name">Script</span>}>
+            <Collapsible className="fold" title={<span className="tool-name">{t('workflowCard.script')}</span>}>
               <CodeBlock code={workflow.script.trim()} lang="js" />
             </Collapsible>
           )}

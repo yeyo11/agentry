@@ -1,0 +1,90 @@
+{
+  "tabs": {
+    "activity": "Actividad",
+    "settings": "Ajustes",
+    "memory": "Memoria",
+    "resources": "Recursos",
+    "worktrees": "Worktrees"
+  },
+  "page": {
+    "title": "Inicio",
+    "subtitle": "Todo lo que te necesita, en todos los proyectos",
+    "sections": "Secciones del proyecto",
+    "missing": "Este directorio no existe en el disco",
+    "missingHint": "Sus chats siguen aquí, pero no se puede iniciar nada en él hasta que el directorio vuelva o se quite el proyecto."
+  },
+  "projectSelector": {
+    "all": "Todos los proyectos"
+  },
+  "settings": {
+    "title": "Ajustes",
+    "sections": "Secciones de los ajustes",
+    "tabs": {
+      "memory": "Memoria",
+      "plugins": "Plugins"
+    },
+    "memory": {
+      "title": "Memoria",
+      "intro": "Claude guarda su memoria por proyecto, así que se lee y se edita en la página del proyecto, en su pestaña Memoria.",
+      "none": "No hay proyectos importados",
+      "goToProjects": "Ve a Proyectos",
+      "noneHint": "Importa un proyecto para ver la memoria que Claude guarda de él.",
+      "lastUpdate": "Última actualización",
+      "actions": "Acciones",
+      "open": "Abre la memoria",
+      "openNamed": "Abre la memoria de {{name}}"
+    }
+  },
+  "activity": {
+    "waitingForYou": "Te esperan",
+    "cliMissing": "No se ha detectado el CLI de Claude Code",
+    "cliMissingHint": "El binario `claude` no está disponible en el PATH: instálalo o define CLAUDE_BIN.",
+    "openSettings": "Abre los ajustes",
+    "notLoggedIn": "Claude Code no tiene la sesión iniciada",
+    "noCredentials": "No se han encontrado credenciales válidas.",
+    "addCredential": "Añade una credencial",
+    "waiting": {
+      "generic": "te está esperando",
+      "plan": "quiere tu aprobación para un plan",
+      "question": "te hace una pregunta",
+      "tool": "quiere usar {{tool}}"
+    },
+    "more": "(+{{n}} más)",
+    "answer": "Responde",
+    "tasksBlocked_one": "{{n}} tarea bloqueada",
+    "tasksBlocked_other": "{{n}} tareas bloqueadas",
+    "decide": "Decide",
+    "mergeConflict": "Conflicto de fusión en <strong>{{branch}}</strong>",
+    "integrationFailed": "Integración fallida en <strong>{{branch}}</strong>",
+    "hungCommand": "Un comando lleva {{duration}} en ejecución en <strong>{{title}}</strong>",
+    "noProjectYet": "Aún no hay ningún proyecto",
+    "noProjectYetHint": "Un proyecto es un directorio que importas, y todo lo que cuelga de él —sus chats, worktrees y ajustes— vive en su página. <anchor>Importa tu primer proyecto</anchor>.",
+    "nothing": "No hay nada en curso ni nada esperando",
+    "startChat": "Empieza un chat",
+    "nothingHint": "Los chats que empieces y lo que hagan tus orquestaciones aparecerán aquí.",
+    "rightNow": "Ahora mismo",
+    "working": "{{n}} trabajando",
+    "orchestrations_one": "{{n}} orquestación",
+    "orchestrations_other": "{{n}} orquestaciones",
+    "progress": "{{done}}/{{total}} tareas",
+    "context": "{{percent}}% de contexto",
+    "contextInUse": "Contexto en uso",
+    "costUnavailable": "coste no disponible",
+    "noProject": "sin proyecto",
+    "today": "Hoy",
+    "nothingSpent": "Aún no has gastado nada hoy.",
+    "spent": "{{cost}} gastados",
+    "chatsWithoutCost_one": "{{n}} chat iniciado desde la terminal no informa de su coste",
+    "chatsWithoutCost_other": "{{n}} chats iniciados desde la terminal no informan de su coste",
+    "tokensToday": "Tokens de hoy por modelo",
+    "input": "Entrada",
+    "output": "Salida",
+    "cache": "Caché",
+    "unknownModel": "modelo desconocido",
+    "usageLimits": "Límites de uso",
+    "limit": "límite {{name}}",
+    "resets": "se restablece {{when}}",
+    "pickUp": "Retomar",
+    "allChats": "Todos los chats"
+  }
+}

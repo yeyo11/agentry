@@ -112,8 +112,8 @@ every version number already bumped in the six `package.json` files. The running
 from `packages/core/package.json`, so no source file carries it.
 
 Merging that pull request tags the commit and creates the GitHub release as a draft, builds the
-image for amd64 and arm64 as `X.Y.Z`, `X.Y`, `X` and `latest`, attaches the Linux AppImage and
+image as `X.Y.Z`, `X.Y`, `X` and `latest`, attaches the Linux AppImage and
 `.deb` to the draft, and only then publishes it. Releases are immutable once published, so nothing
 can be attached afterwards: if a step fails, the draft stays unpublished until it is fixed and the
-workflow is re-run for that tag. Between releases, every push to `main` publishes `edge` for amd64
-only.
+workflow is re-run for that tag. Between releases, every push to `main` publishes `edge`. Images
+are amd64 only.

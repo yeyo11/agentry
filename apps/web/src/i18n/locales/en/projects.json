@@ -1,0 +1,70 @@
+{
+  "page": {
+    "subtitle": "{{n}} imported · a project is a directory you import by hand; its worktrees belong to it",
+    "importDirectory": "Import a directory",
+    "emptyHint": "Import a directory to make it a project, or create one in the workspace."
+  },
+  "importForm": {
+    "directory": "Directory",
+    "directoryHint": "An absolute path. Every chat that ran under it becomes part of the project. A git worktree is refused: import its repository.",
+    "candidateHint_one": "{{n}} chat · {{path}}",
+    "candidateHint_other": "{{n}} chats · {{path}}",
+    "nameOptional": "Name (optional)",
+    "nameOptionalHint": "Defaults to the directory's name.",
+    "failed": "Could not import the directory",
+    "importing": "Importing…",
+    "import": "Import"
+  },
+  "candidates": {
+    "imported": "Imported {{name}}",
+    "adopted_one": "{{n}} chat adopted",
+    "adopted_other": "{{n}} chats adopted",
+    "chats_one": "{{n}} chat",
+    "chats_other": "{{n}} chats",
+    "last": " · last {{ago}}",
+    "importNamed": "Import {{name}}",
+    "firstTitle": "Start with the directories you already work in",
+    "firstBody": "Claude Code has run in these directories the most. Import the ones that are projects: their chats join them, and the rest stay out of the way. You can import any other directory by hand.",
+    "others": "Other directories with chats ({{n}})"
+  },
+  "card": {
+    "renameFailed": "Could not rename the project",
+    "removed": "Removed {{name}}",
+    "removedHint": "Nothing on disk changed",
+    "removeFailed": "Could not remove the project",
+    "purged": "Purged what Claude Code kept about {{name}}",
+    "purgeFailed": "Could not purge the project",
+    "removeTitle": "Remove {{name}}?",
+    "removeBody_one": "Agentry forgets this directory. Nothing on disk changes, and importing it again brings its chat back.",
+    "removeBody_other": "Agentry forgets this directory. Nothing on disk changes, and importing it again brings its {{n}} chats back.",
+    "removeConfirm": "Remove project",
+    "purgeTitle": "Purge what Claude Code keeps about {{name}}?",
+    "purgeBody_one": "This deletes its transcripts, background tasks, file history and its entry in Claude Code's configuration (<code>claude project purge</code>), so its chat is gone for good. Your files are not touched. The project stays imported. <strong>This cannot be undone.</strong>",
+    "purgeBody_other": "This deletes its transcripts, background tasks, file history and its entry in Claude Code's configuration (<code>claude project purge</code>), so its {{n}} chats are gone for good. Your files are not touched. The project stays imported. <strong>This cannot be undone.</strong>",
+    "purgeConfirm": "Purge for good",
+    "nameLabel": "Project name",
+    "chats_one": "{{n}} chat",
+    "chats_other": "{{n}} chats",
+    "openNamed": "Open {{name}}",
+    "rename": "Rename",
+    "renameNamed": "Rename {{name}}",
+    "removeNamed": "Remove {{name}}",
+    "purge": "Purge Claude Code state",
+    "purgeNamed": "Purge Claude Code state of {{name}}"
+  },
+  "worktrees": {
+    "title": "Worktrees",
+    "chats": "Chats",
+    "newChatHere": "New chat here",
+    "newChatIn": "New chat in {{name}}",
+    "emptyTitle": "This project has no worktrees",
+    "emptyBody": "Worktrees made with <mono>git worktree add</mono>, or by an orchestration task, show up here."
+  },
+  "settings": {
+    "environmentHint": "what Claude actually loaded in the last chat here",
+    "sections": "Project settings sections"
+  },
+  "resources": {
+    "sections": "Project resources"
+  }
+}

@@ -1,19 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ChatSummary, Execution } from '@agentry/shared';
-import {
-  ALL_ORIGINS,
-  contextLevel,
-  contextShare,
-  formatTokens,
-  formatUsd,
-  isWorker,
-  lastEnded,
-  matchesFilters,
-  originsToFetch,
-  SORTERS,
-  type ChatFilters,
-} from '../src/lib/chat-model.ts';
+import type { ChatFilters } from '../src/lib/chat-model.ts';
+
+// The cost's wording follows navigator.languages; pin it so the result does not depend on the machine.
+Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });
+const { ALL_ORIGINS, contextLevel, contextShare, formatTokens, formatUsd, isWorker, lastEnded, matchesFilters, originsToFetch, SORTERS } = await import('../src/lib/chat-model.ts');
 
 const tokens = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 };
 

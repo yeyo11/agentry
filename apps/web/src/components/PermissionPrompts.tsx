@@ -2,7 +2,9 @@ import type { PermissionDecision, PermissionRequest, PermissionUpdate } from '@a
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCheck, ChevronLeft, ChevronRight, ClipboardList, MessageCircleQuestion, ShieldQuestion, X } from 'lucide-react';
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, keys } from '../api';
+import i18n from '../i18n';
 import { useChatPermissions } from '../lib/chats';
 import { ICON_SM } from './icons';
 import { RichText } from './Transcript';
@@ -20,14 +22,14 @@ function summarize(request: PermissionRequest): string {
 
 /** What accepting a suggestion would remember, in words. */
 function describeSuggestion(update: PermissionUpdate): string {
-  if (update.type === 'setMode' && typeof update.mode === 'string') return `switch to ${update.mode}`;
+  if (update.type === 'setMode' && typeof update.mode === 'string') return i18n.t('components:permissions.switchTo', { mode: update.mode });
   if (update.type === 'addRules' && Array.isArray(update.rules)) {
     const rules = (update.rules as Array<{ toolName?: string; ruleContent?: string }>).map((r) =>
       r.ruleContent ? `${r.toolName ?? ''}(${r.ruleContent})` : (r.toolName ?? ''),
     );
-    return `always allow ${rules.join(', ')}`;
+    return i18n.t('components:permissions.alwaysAllow', { rules: rules.join(', ') });
   }
-  if (update.type === 'addDirectories' && Array.isArray(update.directories)) return `allow ${update.directories.join(', ')}`;
+  if (update.type === 'addDirectories' && Array.isArray(update.directories)) return i18n.t('components:permissions.allowDirectories', { directories: update.directories.join(', ') });
   return update.type;
 }
 
@@ -50,6 +52,7 @@ function DenyReason({ value, onChange, disabled, placeholder }: { value: string;
 }
 
 function ToolPrompt({ request }: { request: PermissionRequest }) {
+  const { t } = useTranslation('components');
   const answer = useAnswer(request);
   const [reason, setReason] = useState('');
   const suggestions = request.suggestions ?? [];
@@ -62,16 +65,16 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
       <div className="permission-head">
         <ShieldQuestion {...ICON_SM} aria-hidden />
         <strong>{request.toolName}</strong>
-        <span className="muted small">wants to run</span>
+        <span className="muted small">{t('permissions.wantsToRun')}</span>
       </div>
       {/* Focusable so a long command can be scrolled sideways from the keyboard */}
-      <pre className="permission-input" role="group" aria-label="What it wants to run" tabIndex={0}>
+      <pre className="permission-input" role="group" aria-label={t('permissions.whatItWantsToRun')} tabIndex={0}>
         {summarize(request)}
       </pre>
       {description && <p className="muted small">{description}</p>}
       <div className="permission-actions">
         <button type="button" className="btn btn-primary btn-small" disabled={answer.isPending} onClick={() => answer.mutate({ behavior: 'allow' })}>
-          <Check {...ICON_SM} /> Allow
+          <Check {...ICON_SM} /> {t('permissions.allow')}
         </button>
         {suggestions.length > 0 && (
           <button
@@ -81,13 +84,13 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
             title={suggestions.map(describeSuggestion).join('; ')}
             onClick={() => answer.mutate({ behavior: 'allow', updatedPermissions: suggestions })}
           >
-            <CheckCheck {...ICON_SM} /> Allow and {suggestions.map(describeSuggestion).join('; ')}
+            <CheckCheck {...ICON_SM} /> {t('permissions.allowAnd', { what: suggestions.map(describeSuggestion).join('; ') })}
           </button>
         )}
         <button type="button" className="btn btn-danger btn-small" disabled={answer.isPending} onClick={deny}>
-          <X {...ICON_SM} /> Deny
+          <X {...ICON_SM} /> {t('permissions.deny')}
         </button>
-        <DenyReason value={reason} onChange={setReason} disabled={answer.isPending} placeholder="Why not? (sent to the model when denying)" />
+        <DenyReason value={reason} onChange={setReason} disabled={answer.isPending} placeholder={t('permissions.denyReason')} />
       </div>
       <ErrorBox error={answer.error} />
     </li>
@@ -135,6 +138,7 @@ function Panel({ group, tab, tabbed, children }: { group: string; tab: string; t
  * they bury the conversation they are about.
  */
 function QuestionPrompt({ request }: { request: PermissionRequest }) {
+  const { t } = useTranslation('components');
   const answer = useAnswer(request);
   const group = useTabGroup();
   const questions = (Array.isArray(request.input.questions) ? request.input.questions : []) as Question[];
@@ -177,17 +181,17 @@ function QuestionPrompt({ request }: { request: PermissionRequest }) {
     <li className="permission permission-question" aria-live="polite">
       <div className="permission-head">
         <MessageCircleQuestion {...ICON_SM} aria-hidden />
-        <strong>Claude is asking</strong>
+        <strong>{t('permissions.claudeIsAsking')}</strong>
         {questions.length > 1 && (
           <span className="muted small">
-            {answered} of {questions.length} answered
+            {t('permissions.answeredCount', { answered, total: questions.length })}
           </span>
         )}
       </div>
       {questions.length > 1 && (
         <Tabs
           inline
-          label="Questions"
+          label={t('permissions.questions')}
           group={group}
           value={String(index)}
           onChange={setTab}
@@ -198,12 +202,12 @@ function QuestionPrompt({ request }: { request: PermissionRequest }) {
                 {valueOf(q).length > 0 ? (
                   <>
                     <Check {...ICON_SM} className="text-ok" />
-                    <span className="sr-only">answered: </span>
+                    <span className="sr-only">{t('permissions.answered')}: </span>
                   </>
                 ) : (
                   <span className="question-num">{i + 1}</span>
                 )}
-                {q.header || `Question ${i + 1}`}
+                {q.header || t('permissions.question', { n: i + 1 })}
               </>
             ),
           }))}
@@ -213,7 +217,7 @@ function QuestionPrompt({ request }: { request: PermissionRequest }) {
         <Panel key={index} group={group} tab={String(index)} tabbed={questions.length > 1}>
           <p className="question-text">
             {current.question}
-            {current.multiSelect && <span className="muted small"> · pick any</span>}
+            {current.multiSelect && <span className="muted small"> · {t('permissions.pickAny')}</span>}
           </p>
           <div
             className="question-options"
@@ -249,8 +253,8 @@ function QuestionPrompt({ request }: { request: PermissionRequest }) {
           </div>
           <input
             className="question-other"
-            placeholder="Other answer…"
-            aria-label={`Other answer to: ${current.question}`}
+            placeholder={t('permissions.otherAnswer')}
+            aria-label={t('permissions.otherAnswerTo', { question: current.question })}
             value={other[current.question] ?? ''}
             disabled={answer.isPending}
             onChange={(e) => {
@@ -271,17 +275,18 @@ function QuestionPrompt({ request }: { request: PermissionRequest }) {
       )}
       {declining ? (
         <div className="permission-actions">
-          <DenyReason value={reason} onChange={setReason} disabled={answer.isPending} placeholder="Why not? (optional, sent to the model)" />
+          <DenyReason value={reason} onChange={setReason} disabled={answer.isPending} placeholder={t('permissions.declineReason')} />
           <button
             type="button"
             className="btn btn-danger btn-small"
             disabled={answer.isPending}
+            // The default reasons are read by the model, not the person, so they stay in English
             onClick={() => answer.mutate({ behavior: 'deny', message: reason.trim() || 'The user declined to answer' })}
           >
-            <X {...ICON_SM} /> Decline
+            <X {...ICON_SM} /> {t('permissions.decline')}
           </button>
           <button type="button" className="btn btn-small" disabled={answer.isPending} onClick={() => setDeclining(false)}>
-            Back to the questions
+            {t('permissions.backToQuestions')}
           </button>
         </div>
       ) : (
@@ -289,19 +294,19 @@ function QuestionPrompt({ request }: { request: PermissionRequest }) {
           {questions.length > 1 && (
             <>
               <button type="button" className="btn btn-small" disabled={index === 0} onClick={() => go(index - 1)}>
-                <ChevronLeft {...ICON_SM} /> Previous
+                <ChevronLeft {...ICON_SM} /> {t('permissions.previous')}
               </button>
               <button type="button" className="btn btn-small" disabled={index === questions.length - 1} onClick={() => go(index + 1)}>
-                Next <ChevronRight {...ICON_SM} />
+                {t('permissions.next')} <ChevronRight {...ICON_SM} />
               </button>
             </>
           )}
           <span className="question-spacer" />
           <button type="button" className="btn btn-small" disabled={answer.isPending} onClick={() => setDeclining(true)}>
-            <X {...ICON_SM} /> Decline
+            <X {...ICON_SM} /> {t('permissions.decline')}
           </button>
           <button type="button" className="btn btn-primary btn-small" disabled={!complete || answer.isPending} onClick={submit}>
-            <Check {...ICON_SM} /> {complete || questions.length === 1 ? 'Answer' : `Answer (${answered}/${questions.length})`}
+            <Check {...ICON_SM} /> {complete || questions.length === 1 ? t('permissions.answer') : t('permissions.answerProgress', { answered, total: questions.length })}
           </button>
         </div>
       )}
@@ -312,6 +317,7 @@ function QuestionPrompt({ request }: { request: PermissionRequest }) {
 
 /** `ExitPlanMode`: approving lets the model start working; rejecting keeps it planning, with feedback. */
 function PlanPrompt({ request }: { request: PermissionRequest }) {
+  const { t } = useTranslation('components');
   const answer = useAnswer(request);
   const [feedback, setFeedback] = useState('');
   const plan = typeof request.input.plan === 'string' ? request.input.plan : summarize(request);
@@ -320,23 +326,23 @@ function PlanPrompt({ request }: { request: PermissionRequest }) {
     <li className="permission permission-plan" aria-live="polite">
       <div className="permission-head">
         <ClipboardList {...ICON_SM} aria-hidden />
-        <strong>Plan ready for review</strong>
+        <strong>{t('permissions.planReady')}</strong>
       </div>
-      <div className="permission-plan-body" role="group" aria-label="Plan" tabIndex={0}>
+      <div className="permission-plan-body" role="group" aria-label={t('permissions.plan')} tabIndex={0}>
         <RichText text={plan} />
       </div>
       <div className="permission-actions">
         <button type="button" className="btn btn-primary btn-small" disabled={answer.isPending} onClick={() => answer.mutate({ behavior: 'allow' })}>
-          <Check {...ICON_SM} /> Approve
+          <Check {...ICON_SM} /> {t('permissions.approve')}
         </button>
         <button
           type="button"
           className="btn btn-small"
           disabled={answer.isPending}
-          title="Approve and let it edit files without asking for the rest of the session"
+          title={t('permissions.approveAcceptEditsHint')}
           onClick={() => answer.mutate({ behavior: 'allow', updatedPermissions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }] })}
         >
-          <CheckCheck {...ICON_SM} /> Approve and accept edits
+          <CheckCheck {...ICON_SM} /> {t('permissions.approveAcceptEdits')}
         </button>
         <button
           type="button"
@@ -344,9 +350,9 @@ function PlanPrompt({ request }: { request: PermissionRequest }) {
           disabled={answer.isPending}
           onClick={() => answer.mutate({ behavior: 'deny', message: feedback.trim() || 'The user wants to keep planning' })}
         >
-          <X {...ICON_SM} /> Keep planning
+          <X {...ICON_SM} /> {t('permissions.keepPlanning')}
         </button>
-        <DenyReason value={feedback} onChange={setFeedback} disabled={answer.isPending} placeholder="What should change? (sent to the model)" />
+        <DenyReason value={feedback} onChange={setFeedback} disabled={answer.isPending} placeholder={t('permissions.planFeedback')} />
       </div>
       <ErrorBox error={answer.error} />
     </li>
@@ -365,10 +371,11 @@ function Prompt({ request }: { request: PermissionRequest }) {
  * event feed says when the list changes; a slow poll only covers the feed being down.
  */
 export function PermissionPrompts({ chatId, live }: { chatId: string; live: boolean }) {
+  const { t } = useTranslation('components');
   const { data } = useChatPermissions(chatId, live);
   if (!data?.length) return null;
   return (
-    <section className="permission-list" aria-label="Waiting for you">
+    <section className="permission-list" aria-label={t('permissions.waitingForYou')}>
       <ul>
         {data.map((request) => (
           <Prompt key={request.id} request={request} />

@@ -1,0 +1,49 @@
+## Why the build fails
+
+The error comes from `tsc`, not from Vite: **strict mode** rejects the implicit `any` in
+[`runner.ts`](packages/core/src/runner.ts). Three ways to fix it:
+
+1. Add the type annotation (recommended).
+2. Cast with `as unknown as Run` — *not* a good idea.
+3. Turn off `noImplicitAny`, which ~~hides~~ the problem.
+
+> **Note:** the CI runs `pnpm typecheck` before the tests.
+
+- [x] reproduce locally
+- [ ] add a regression test
+  - nested item with `code`
+  * another bullet
+
+```ts
+export function parse(line: string): Run | null {
+  const raw = JSON.parse(line) as unknown;
+  return isRun(raw) ? raw : null;
+}
+```
+
+```bash
+pnpm --filter @agentry/core test -- --grep "parse"
+```
+
+```json
+{ "strict": true, "noImplicitAny": true }
+```
+
+| Option | Default | Effect |
+| --- | :---: | --- |
+| `strict` | `false` | Turns on every strict check |
+| `noUncheckedIndexedAccess` | `false` | Index access may be `undefined` |
+
+See <https://www.typescriptlang.org/tsconfig> or the [handbook][ts] for more.
+Images work too: ![diagram](./diagram.png "Architecture").
+
+[ts]: https://www.typescriptlang.org/docs/handbook/ "Handbook"
+
+---
+
+### Heading with `code` and *emphasis*
+
+Line with a hard break  
+and an HTML <kbd>Ctrl</kbd>+<kbd>C</kbd> tag. Escaped \*stars\* and a footnote[^1].
+
+[^1]: The footnote text.

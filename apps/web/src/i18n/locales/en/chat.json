@@ -1,0 +1,153 @@
+{
+  "view": {
+    "pageTitle": "{{title}} · chat",
+    "pageTitleFallback": "Chat",
+    "loading": "Loading chat…",
+    "notFound": "Chat not found",
+    "notFoundHint": "It may have been deleted. <anchor>Browse chats</anchor> to find the conversation.",
+    "conversation": "Conversation",
+    "back": "Back to chats",
+    "streamConnected": "Live",
+    "streamReconnecting": "Reconnecting…",
+    "subagentMessages": "Subagent messages",
+    "interruptHint": "End this turn and keep the chat open for your next message",
+    "fork": "Fork",
+    "forkHint": "Continue in a copy of this chat, which leaves this one as it is",
+    "deleteLive": "A chat with a process working on it cannot be deleted",
+    "deleteHeld": "Something else holds this chat",
+    "noProject": "no project",
+    "messages_one": "{{count}} messages",
+    "messages_other": "{{count}} messages",
+    "updated": "updated {{date}}",
+    "sendHint": "Send a hint on the board",
+    "transcript": "Transcript",
+    "nothingWritten": "Nothing written yet",
+    "forkIntro": "A new chat with this one's whole history. This chat stays as it is, and the copy records where it came from.",
+    "details": "Chat details",
+    "synthesis": "synthesis"
+  },
+  "composer": {
+    "message": "Message",
+    "firstMessage": "First message for the copy",
+    "placeholderFork": "First message for the copy… (drop or paste files to attach them)",
+    "placeholderResume": "Send a message — the chat will be resumed…",
+    "resume": "Resume",
+    "resuming": "Resuming…",
+    "fork": "Fork",
+    "forking": "Forking…",
+    "couldNotResume": "Could not resume",
+    "couldNotFork": "Could not fork"
+  },
+  "controls": {
+    "permissionModeNew": "Permission mode for the new execution",
+    "modelNew": "Model for the new execution",
+    "asBefore": "As before ({{mode}})",
+    "default": "Default"
+  },
+  "badges": {
+    "state": {
+      "working": "Working",
+      "waiting": "Waiting for you",
+      "idle": "Idle"
+    },
+    "stateHint": {
+      "working": "A process is generating or running tools",
+      "waiting": "Stopped until a person answers a permission, a question or a plan",
+      "idle": "Nothing is running and nothing is waiting"
+    },
+    "outcome": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "stopped": "Stopped",
+      "interrupted": "Interrupted"
+    },
+    "origin": {
+      "agentry": "Agentry",
+      "external": "Terminal",
+      "orchestration": "Orchestration",
+      "internal": "Internal"
+    },
+    "originHint": {
+      "agentry": "Started from Agentry",
+      "external": "Started in a terminal with Claude Code",
+      "orchestration": "Works for an orchestration",
+      "internal": "Housekeeping of Agentry itself"
+    },
+    "control": {
+      "interactive": "Interactive",
+      "interactiveHint": "Agentry is driving this chat: write to it, interrupt it, change how it runs",
+      "resumable": "Resumable",
+      "resumableHint": "Nothing holds this chat: sending a message resumes it",
+      "readOnly": "Read-only"
+    },
+    "context": {
+      "none": "no context yet",
+      "unknownWindow": "The window of this model is not known yet, so no percentage is shown",
+      "tokens": "{{n}} tokens",
+      "detail": "{{used}} of {{window}} tokens",
+      "inUse": "Context in use",
+      "aboutToCompact": "about to compact",
+      "fillingUp": "filling up"
+    }
+  },
+  "side": {
+    "notAvailable": "not available",
+    "usage": {
+      "title": "Context and cost",
+      "tokensOf": "{{used}} tokens of {{window}}",
+      "tokensUnknownWindow": "{{used}} tokens · the window of this model is not known yet",
+      "costNotReported": "Claude Code reports a cost only for what Agentry launched.",
+      "tokensCaption": "Tokens spent, per model",
+      "input": "In",
+      "output": "Out",
+      "cache": "Cache",
+      "total": "Total",
+      "subagentsNote": "Tokens include what its subagents spent."
+    },
+    "executions": {
+      "title": "Executions ({{n}})",
+      "empty": "Agentry has not run this chat: it was written in a terminal.",
+      "lasted": "lasted {{duration}}",
+      "up": "up {{duration}}",
+      "turns_one": "{{count}} turns",
+      "turns_other": "{{count}} turns",
+      "account": "account {{name}}",
+      "budget": "budget {{amount}}",
+      "errorPrefix": "Error:"
+    },
+    "branches": {
+      "title": "Branches ({{n}})",
+      "empty": "Nothing was delegated: no subagents, background tasks or workflows.",
+      "subagents": "Subagents",
+      "backgroundTasks": "Background tasks",
+      "workflows": "Workflows",
+      "fromSubagent": "from a subagent"
+    },
+    "health": {
+      "title": "Health",
+      "level": {
+        "ok": "OK",
+        "warn": "Warning",
+        "bad": "Problem"
+      },
+      "levelSaid": "{{level}}:"
+    },
+    "facts": {
+      "title": "Chat",
+      "noProject": "none: loose chat",
+      "worktree": "Worktree",
+      "forkedFrom": "Forked from",
+      "updated": "Updated",
+      "environmentEmpty": "Nothing has reported what Claude loaded for this chat yet."
+    }
+  },
+  "delete": {
+    "deleted": "Chat deleted",
+    "failed": "Could not delete the chat",
+    "title": "Delete this chat?",
+    "body_one": "The transcript ({{count}} messages) is removed from disk and the chat can no longer be resumed or forked. This cannot be undone.",
+    "body_other": "The transcript ({{count}} messages) is removed from disk and the chat can no longer be resumed or forked. This cannot be undone.",
+    "confirm": "Delete chat"
+  }
+}

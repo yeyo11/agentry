@@ -1,6 +1,7 @@
 import type { CliTextResult, InstalledPlugin, PluginScope } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { api, keys } from '../../api';
 import { Collapsible, Select } from '../../components/controls';
@@ -11,17 +12,14 @@ import { timeAgo } from '../../lib/format';
 
 const SCOPES: PluginScope[] = ['user', 'project', 'local'];
 
-const TABS = [
-  { id: 'installed', label: 'Installed' },
-  { id: 'browse', label: 'Browse' },
-  { id: 'marketplaces', label: 'Marketplaces' },
-] as const;
-type TabId = (typeof TABS)[number]['id'];
+const TABS = ['installed', 'browse', 'marketplaces'] as const;
+type TabId = (typeof TABS)[number];
 
 type Action = 'install' | 'uninstall' | 'enable' | 'disable';
 
 /** Runs a plugin CLI action, reports its output and refreshes every plugin list. */
 function usePluginAction() {
+  const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const toast = useToast();
   const [lastOutput, setLastOutput] = useState<{ title: string; result: CliTextResult } | null>(null);
@@ -29,32 +27,35 @@ function usePluginAction() {
   const report = (title: string, result: CliTextResult) => {
     setLastOutput({ title, result });
     if (result.ok) toast.success(title, result.output.trim() || undefined);
-    else toast.error(`${title} failed`, new Error(result.output.trim() || 'The CLI reported an error'));
+    else toast.error(t('plugins.failed', { title }), new Error(result.output.trim() || t('plugins.cliError')));
     void queryClient.invalidateQueries({ queryKey: keys.plugins });
   };
 
   const mutation = useMutation({
     mutationFn: ({ action, plugin, scope }: { action: Action; plugin: string; scope?: PluginScope }) =>
       api.pluginAction(action, { plugin, scope }),
+    // The title reads like the CLI subcommand that ran, so it stays untranslated
     onSuccess: (result, { action, plugin }) => report(`${action} ${plugin}`, result),
-    onError: (err, { action, plugin }) => toast.error(`Could not ${action} ${plugin}`, err),
+    onError: (err, { action, plugin }) => toast.error(t(`plugins.actionFailed.${action}`, { plugin }), err),
   });
 
   return { mutation, lastOutput, report, busyPlugin: mutation.isPending ? mutation.variables?.plugin : undefined };
 }
 
 function OutputPanel({ output }: { output: { title: string; result: CliTextResult } | null }) {
+  const { t } = useTranslation(['config', 'common']);
   if (!output?.result.output.trim()) return null;
   return (
     <Collapsible
       className="fold"
       title={
         <span>
-          Last CLI output · <span className="mono">{output.title}</span> {output.result.ok ? <Tag tone="ok">ok</Tag> : <Tag tone="bad">failed</Tag>}
+          {t('plugins.lastOutput')} · <span className="mono">{output.title}</span>{' '}
+          {output.result.ok ? <Tag tone="ok">{t('plugins.ok')}</Tag> : <Tag tone="bad">{t('plugins.failedTag')}</Tag>}
         </span>
       }
     >
-      <pre className="code" role="group" aria-label="CLI output" tabIndex={0}>
+      <pre className="code" role="group" aria-label={t('plugins.cliOutput')} tabIndex={0}>
         {output.result.output}
       </pre>
     </Collapsible>
@@ -62,6 +63,7 @@ function OutputPanel({ output }: { output: { title: string; result: CliTextResul
 }
 
 function DetailsDrawer({ plugin, onClose }: { plugin: InstalledPlugin; onClose: () => void }) {
+  const { t } = useTranslation(['config', 'common']);
   const { data, error, isLoading } = useQuery({
     queryKey: keys.pluginDetails(plugin.id),
     queryFn: () => api.pluginDetails(plugin.id),
@@ -70,24 +72,24 @@ function DetailsDrawer({ plugin, onClose }: { plugin: InstalledPlugin; onClose: 
   return (
     <Dialog title={plugin.name} variant="drawer" onClose={onClose}>
       <dl className="kv kv-narrow">
-        <dt>Id</dt>
+        <dt>{t('plugins.id')}</dt>
         <dd className="mono small break">{plugin.id}</dd>
-        <dt>Version</dt>
+        <dt>{t('plugins.version')}</dt>
         <dd>{plugin.version ?? '—'}</dd>
-        <dt>Scope</dt>
+        <dt>{t('scope.label')}</dt>
         <dd>{plugin.scope}</dd>
-        <dt>Installed</dt>
+        <dt>{t('plugins.installedAt')}</dt>
         <dd>{timeAgo(plugin.installedAt)}</dd>
-        <dt>Path</dt>
+        <dt>{t('files.path')}</dt>
         <dd className="mono small break">{plugin.installPath ?? '—'}</dd>
       </dl>
-      <h3 className="dialog-section">Component inventory</h3>
+      <h3 className="dialog-section">{t('plugins.inventory')}</h3>
       <ErrorBox error={error} />
       {isLoading ? (
         <Skeleton rows={8} />
       ) : (
-        <pre className="code" role="group" aria-label="Component inventory" tabIndex={0}>
-          {data?.output.trim() || 'No details reported by the CLI.'}
+        <pre className="code" role="group" aria-label={t('plugins.inventory')} tabIndex={0}>
+          {data?.output.trim() || t('plugins.noDetails')}
         </pre>
       )}
     </Dialog>
@@ -95,6 +97,7 @@ function DetailsDrawer({ plugin, onClose }: { plugin: InstalledPlugin; onClose: 
 }
 
 function InstalledTab({ actions }: { actions: ReturnType<typeof usePluginAction> }) {
+  const { t } = useTranslation(['config', 'common']);
   const confirm = useConfirm();
   const { data, error, isLoading } = useQuery({ queryKey: keys.plugins, queryFn: api.plugins });
   const [details, setDetails] = useState<InstalledPlugin | null>(null);
@@ -102,25 +105,25 @@ function InstalledTab({ actions }: { actions: ReturnType<typeof usePluginAction>
   const { mutation, busyPlugin } = actions;
 
   return (
-    <Card title={`Installed plugins${installed.length ? ` (${installed.length})` : ''}`}>
+    <Card title={installed.length ? t('plugins.installedCount', { count: installed.length }) : t('plugins.installedTitle')}>
       <ErrorBox error={error} />
       {isLoading ? (
         <Skeleton rows={4} />
       ) : installed.length === 0 ? (
-        <Empty title="No plugins installed">Plugins bundle commands, agents, skills, hooks and MCP servers. Find some in Browse.</Empty>
+        <Empty title={t('plugins.noneInstalled')}>{t('plugins.noneInstalledHint')}</Empty>
       ) : (
         <div className="table-wrap">
           <table className="table">
             <thead>
               <tr>
-                <th scope="col">Plugin</th>
-                <th scope="col">Marketplace</th>
-                <th scope="col">Version</th>
-                <th scope="col">Scope</th>
-                <th scope="col">Updated</th>
-                <th scope="col">Enabled</th>
+                <th scope="col">{t('plugins.plugin')}</th>
+                <th scope="col">{t('plugins.marketplace')}</th>
+                <th scope="col">{t('plugins.version')}</th>
+                <th scope="col">{t('mcp.scope')}</th>
+                <th scope="col">{t('plugins.updated')}</th>
+                <th scope="col">{t('plugins.enabled')}</th>
                 <th scope="col">
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{t('mcp.actions')}</span>
                 </th>
               </tr>
             </thead>
@@ -141,7 +144,7 @@ function InstalledTab({ actions }: { actions: ReturnType<typeof usePluginAction>
                         type="button"
                         role="switch"
                         aria-checked={plugin.enabled}
-                        aria-label={`${plugin.enabled ? 'Disable' : 'Enable'} ${plugin.name}`}
+                        aria-label={plugin.enabled ? t('plugins.disable', { name: plugin.name }) : t('plugins.enable', { name: plugin.name })}
                         className={`switch ${plugin.enabled ? 'switch-on' : ''}`}
                         disabled={mutation.isPending}
                         onClick={() =>
@@ -157,27 +160,27 @@ function InstalledTab({ actions }: { actions: ReturnType<typeof usePluginAction>
                     </td>
                     <td>
                       <div className="row-actions">
-                        {busy && <span className="spinner" role="img" aria-label="Working" />}
-                        <button type="button" className="btn btn-small" aria-label={`Details of ${plugin.name}`} onClick={() => setDetails(plugin)}>
-                          Details
+                        {busy && <span className="spinner" role="img" aria-label={t('plugins.working')} />}
+                        <button type="button" className="btn btn-small" aria-label={t('plugins.detailsOf', { name: plugin.name })} onClick={() => setDetails(plugin)}>
+                          {t('plugins.details')}
                         </button>
                         <button
                           type="button"
                           className="btn btn-small btn-danger"
-                          aria-label={`Uninstall ${plugin.name}`}
+                          aria-label={t('plugins.uninstallNamed', { name: plugin.name })}
                           disabled={mutation.isPending}
                           onClick={() =>
                             void confirm({
-                              title: `Uninstall ${plugin.name}?`,
-                              body: 'Its commands, agents, skills, hooks and MCP servers stop being available in new sessions.',
-                              confirmLabel: 'Uninstall',
+                              title: t('plugins.uninstallTitle', { name: plugin.name }),
+                              body: t('plugins.uninstallBody'),
+                              confirmLabel: t('plugins.uninstall'),
                               danger: true,
                             }).then(
                               (ok) => ok && mutation.mutate({ action: 'uninstall', plugin: plugin.id, scope: plugin.scope as PluginScope }),
                             )
                           }
                         >
-                          Uninstall
+                          {t('plugins.uninstall')}
                         </button>
                       </div>
                     </td>
@@ -203,6 +206,7 @@ function useDebounced<T>(value: T, delayMs: number): T {
 }
 
 function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> }) {
+  const { t } = useTranslation(['config', 'common']);
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<PluginScope>('user');
   const query = useDebounced(search.trim(), 300);
@@ -216,11 +220,11 @@ function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> })
 
   return (
     <Card
-      title="Browse marketplaces"
+      title={t('plugins.browseTitle')}
       actions={
         <div className="toolbar">
           <label className="small muted" htmlFor="install-scope">
-            Install scope
+            {t('plugins.installScope')}
           </label>
           <Select<PluginScope> id="install-scope" value={scope} onChange={setScope} options={SCOPES.map((s) => ({ value: s, label: s }))} />
         </div>
@@ -230,17 +234,17 @@ function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> })
         <input
           type="search"
           value={search}
-          placeholder="Search plugins by name, description or marketplace…"
-          aria-label="Search plugins"
+          placeholder={t('plugins.searchPlaceholder')}
+          aria-label={t('plugins.search')}
           onChange={(e) => setSearch(e.target.value)}
         />
-        {isFetching && <span className="spinner" role="img" aria-label="Searching" />}
+        {isFetching && <span className="spinner" role="img" aria-label={t('plugins.searching')} />}
       </div>
       <ErrorBox error={error} />
       {isLoading ? (
         <Skeleton rows={6} />
       ) : plugins.length === 0 ? (
-        <Empty title="No plugins match">{query ? 'Try another search, or add a marketplace.' : 'Add a marketplace to browse its plugins.'}</Empty>
+        <Empty title={t('plugins.noMatch')}>{query ? t('plugins.noMatchSearch') : t('plugins.noMatchHint')}</Empty>
       ) : (
         <>
           <ul className="list">
@@ -252,10 +256,10 @@ function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> })
                     <div className="list-row-title">
                       <span className="strong">{plugin.name}</span>
                       {plugin.version && <span className="mono small muted">{plugin.version}</span>}
-                      {plugin.installed && <Tag tone="ok">installed</Tag>}
+                      {plugin.installed && <Tag tone="ok">{t('plugins.installedTag')}</Tag>}
                     </div>
                     <div className="small muted">
-                      {plugin.description || 'No description'}
+                      {plugin.description || t('resources.noDescription')}
                     </div>
                     <div className="small muted mono">{plugin.marketplaceName}</div>
                   </div>
@@ -268,19 +272,19 @@ function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> })
                   >
                     {busy ? (
                       <>
-                        <span className="spinner" aria-hidden /> Installing…
+                        <span className="spinner" aria-hidden /> {t('plugins.installing')}
                       </>
                     ) : plugin.installed ? (
-                      'Installed'
+                      t('plugins.installedButton')
                     ) : (
-                      'Install'
+                      t('plugins.install')
                     )}
                   </button>
                 </li>
               );
             })}
           </ul>
-          {plugins.length >= 100 && <p className="small muted">Showing the first 100 results. Refine the search to see more.</p>}
+          {plugins.length >= 100 && <p className="small muted">{t('plugins.first100')}</p>}
         </>
       )}
     </Card>
@@ -288,6 +292,7 @@ function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> })
 }
 
 function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction>['report'] }) {
+  const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -298,12 +303,13 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
 
   const add = useMutation({
     mutationFn: () => api.addMarketplace(source.trim()),
+    // Like the plugin actions, these titles name the CLI subcommand that ran and stay untranslated
     onSuccess: (result) => {
       report(`add marketplace ${source.trim()}`, result);
       if (result.ok) setSource('');
       refreshAvailable();
     },
-    onError: (err) => toast.error('Could not add the marketplace', err),
+    onError: (err) => toast.error(t('plugins.addFailed'), err),
   });
   const update = useMutation({
     mutationFn: (name?: string) => api.updateMarketplaces(name),
@@ -311,7 +317,7 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
       report(name ? `update marketplace ${name}` : 'update all marketplaces', result);
       refreshAvailable();
     },
-    onError: (err) => toast.error('Could not update', err),
+    onError: (err) => toast.error(t('plugins.updateFailed'), err),
   });
   const remove = useMutation({
     mutationFn: (name: string) => api.removeMarketplace(name),
@@ -319,21 +325,21 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
       report(`remove marketplace ${name}`, result);
       refreshAvailable();
     },
-    onError: (err) => toast.error('Could not remove the marketplace', err),
+    onError: (err) => toast.error(t('plugins.removeFailed'), err),
   });
   const busy = add.isPending || update.isPending || remove.isPending;
 
   return (
     <Card
-      title="Marketplaces"
+      title={t('plugins.tabs.marketplaces')}
       actions={
         <button type="button" className="btn btn-small" disabled={busy || marketplaces.length === 0} onClick={() => update.mutate(undefined)}>
           {update.isPending && update.variables === undefined ? (
             <>
-              <span className="spinner" aria-hidden /> Updating…
+              <span className="spinner" aria-hidden /> {t('plugins.updating')}
             </>
           ) : (
-            'Update all'
+            t('plugins.updateAll')
           )}
         </button>
       }
@@ -349,35 +355,35 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
           className="mono"
           value={source}
           placeholder="owner/repo · https://example.com/marketplace.json · /path/to/marketplace"
-          aria-label="Marketplace source"
+          aria-label={t('plugins.sourceLabel')}
           onChange={(e) => setSource(e.target.value)}
         />
         <button type="submit" className="btn btn-primary" disabled={!source.trim() || busy}>
           {add.isPending ? (
             <>
-              <span className="spinner" aria-hidden /> Adding…
+              <span className="spinner" aria-hidden /> {t('plugins.adding')}
             </>
           ) : (
-            'Add marketplace'
+            t('plugins.addMarketplace')
           )}
         </button>
       </form>
-      <p className="small muted">A marketplace is a catalog of plugins: a GitHub repository, a URL or a local path.</p>
+      <p className="small muted">{t('plugins.marketplaceHint')}</p>
       <ErrorBox error={error} />
       {isLoading ? (
         <Skeleton rows={3} />
       ) : marketplaces.length === 0 ? (
-        <Empty title="No marketplaces configured">Add one above to start browsing plugins.</Empty>
+        <Empty title={t('plugins.noMarketplaces')}>{t('plugins.noMarketplacesHint')}</Empty>
       ) : (
         <div className="table-wrap">
           <table className="table">
             <thead>
               <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Source</th>
-                <th scope="col">Location</th>
+                <th scope="col">{t('mcp.name')}</th>
+                <th scope="col">{t('plugins.source')}</th>
+                <th scope="col">{t('plugins.location')}</th>
                 <th scope="col">
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{t('mcp.actions')}</span>
                 </th>
               </tr>
             </thead>
@@ -396,25 +402,25 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
                     </td>
                     <td>
                       <div className="row-actions">
-                        {rowBusy && <span className="spinner" role="img" aria-label="Working" />}
-                        <button type="button" className="btn btn-small" aria-label={`Update ${marketplace.name}`} disabled={busy} onClick={() => update.mutate(marketplace.name)}>
-                          Update
+                        {rowBusy && <span className="spinner" role="img" aria-label={t('plugins.working')} />}
+                        <button type="button" className="btn btn-small" aria-label={t('plugins.updateNamed', { name: marketplace.name })} disabled={busy} onClick={() => update.mutate(marketplace.name)}>
+                          {t('plugins.update')}
                         </button>
                         <button
                           type="button"
                           className="btn btn-small btn-danger"
-                          aria-label={`Remove marketplace ${marketplace.name}`}
+                          aria-label={t('plugins.removeNamed', { name: marketplace.name })}
                           disabled={busy}
                           onClick={() =>
                             void confirm({
-                              title: `Remove marketplace ${marketplace.name}?`,
-                              body: 'Plugins installed from it may stop receiving updates.',
-                              confirmLabel: 'Remove',
+                              title: t('plugins.removeTitle', { name: marketplace.name }),
+                              body: t('plugins.removeBody'),
+                              confirmLabel: t('common:actions.remove'),
                               danger: true,
                             }).then((ok) => ok && remove.mutate(marketplace.name))
                           }
                         >
-                          Remove
+                          {t('common:actions.remove')}
                         </button>
                       </div>
                     </td>
@@ -430,23 +436,21 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
 }
 
 export function PluginsTab() {
+  const { t } = useTranslation(['config', 'common']);
   const [params, setParams] = useSearchParams();
   // `tab` belongs to the Settings page around this one, so the sections use their own parameter
-  const tab: TabId = TABS.find((t) => t.id === params.get('section'))?.id ?? 'installed';
+  const tab: TabId = TABS.find((id) => id === params.get('section')) ?? 'installed';
   const actions = usePluginAction();
   const group = useTabGroup();
 
   return (
     <>
-      <p className="small muted">
-        Extensions for Claude Code: commands, agents, skills, hooks and MCP servers packaged together. Actions run the CLI and can
-        take up to a minute.
-      </p>
+      <p className="small muted">{t('plugins.subtitle')}</p>
       <Tabs
-        label="Plugin sections"
+        label={t('plugins.sections')}
         group={group}
         value={tab}
-        tabs={TABS}
+        tabs={TABS.map((id) => ({ id, label: t(`plugins.tabs.${id}`) }))}
         onChange={(id) =>
           setParams(
             (previous) => {

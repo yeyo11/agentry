@@ -1,0 +1,66 @@
+# Compose file for a local stack
+version: "3.9"
+x-defaults: &defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  api:
+    <<: *defaults
+    image: ghcr.io/example/agentry:latest
+    ports:
+      - "8787:8787"
+      - 9229:9229
+    environment:
+      NODE_ENV: production
+      DEBUG: 'false'
+      WORKERS: 4
+      RATIO: 0.5
+      EMPTY: ~
+      ENABLED: yes
+    volumes:
+      - ./data:/data:rw
+      - claude-config:/home/node/.claude
+    command: ["node", "dist/server.js", "--port", "8787"]
+    healthcheck:
+      test: curl -fsS http://localhost:8787/api/health || exit 1
+      interval: 30s
+    depends_on: [db]
+  db:
+    <<: *defaults
+    image: postgres:16
+    env_file: .env # secrets live here
+    deploy:
+      resources:
+        limits: {cpus: '0.50', memory: 512M}
+
+volumes:
+  claude-config: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentry
+  labels:
+    app.kubernetes.io/name: agentry
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: api
+          image: "ghcr.io/example/agentry:1.2.3"
+          args:
+            - --verbose
+            - --timeout=30
+          script: >-
+            echo folded
+            text here
+          notes: |
+            literal block
+              keeps indentation
+      nodeSelector: null
+      tolerations: []
+      dates: 2026-09-19

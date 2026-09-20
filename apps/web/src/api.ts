@@ -65,6 +65,7 @@ import type {
   TranscriptSearchResult,
   UsageReport,
 } from '@agentry/shared';
+import i18n from './i18n';
 import { useFallbackInterval } from './lib/feed';
 
 export const BASE = '/api';
@@ -100,7 +101,7 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'TimeoutError') {
-      throw new ApiRequestError('The server did not answer in time. It may still be working — reload to see the current state.', 408);
+      throw new ApiRequestError(i18n.t('common:requestTimeout'), 408);
     }
     throw err;
   }

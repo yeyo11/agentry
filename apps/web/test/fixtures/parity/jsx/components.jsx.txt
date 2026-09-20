@@ -1,0 +1,83 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import PropTypes from 'prop-types';
+import { Link } from 'react-router-dom';
+import './RunList.css';
+
+const PAGE_SIZE = 20;
+
+function Badge({ status, children }) {
+  const tone = status === 'failed' ? 'bad' : status === 'running' ? 'busy' : 'ok';
+  return <span className={`badge badge-${tone}`}>{children ?? status}</span>;
+}
+
+Badge.propTypes = {
+  status: PropTypes.oneOf(['running', 'done', 'failed']).isRequired,
+  children: PropTypes.node,
+};
+
+export default function RunList({ runs, onSelect, filter = '' }) {
+  const [page, setPage] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const visible = useMemo(
+    () => runs.filter((run) => run.title.toLowerCase().includes(filter.toLowerCase())),
+    [runs, filter],
+  );
+
+  useEffect(() => {
+    setPage(0);
+  }, [filter]);
+
+  if (!visible.length) {
+    return <p className="empty">No runs match “{filter}”.</p>;
+  }
+
+  const pages = Math.ceil(visible.length / PAGE_SIZE);
+  return (
+    <>
+      <ul className="run-list" role="listbox" aria-label="Runs">
+        {visible.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((run) => (
+          <li
+            key={run.id}
+            aria-selected={selected === run.id}
+            onClick={() => {
+              setSelected(run.id);
+              onSelect?.(run);
+            }}
+          >
+            <Link to={`/runs/${run.id}`}>{run.title}</Link>
+            <Badge status={run.status} />
+            {run.costUsd > 0 && <small>${run.costUsd.toFixed(2)}</small>}
+          </li>
+        ))}
+      </ul>
+      <nav className="pager">
+        <button disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+          Previous
+        </button>
+        <span>
+          {page + 1} / {pages}
+        </span>
+        <button disabled={page + 1 >= pages} onClick={() => setPage((p) => p + 1)}>
+          Next
+        </button>
+      </nav>
+    </>
+  );
+}
+
+export class ErrorBoundary extends React.Component {
+  state = { error: null };
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error(error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.error) return <pre className="error">{String(this.state.error)}</pre>;
+    return this.props.children;
+  }
+}

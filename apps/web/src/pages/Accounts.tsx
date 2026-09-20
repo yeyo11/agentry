@@ -2,6 +2,7 @@ import type { AccountSummary, AccountUsageWindow, AutoSwitchSettings } from '@ag
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CirclePause, CirclePlay, CircleX, KeyRound, RefreshCw, Trash2, TriangleAlert, Users } from 'lucide-react';
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { api, keys, useAccountEvents, useAccounts } from '../api';
 import { NumberInput, Select, Slider, Switch, Tooltip } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
@@ -17,6 +18,7 @@ function tone(pct: number): string {
 }
 
 function Meter({ label, window: win }: { label: string; window: AccountUsageWindow | null }) {
+  const { t } = useTranslation(['config', 'common']);
   if (!win) return null;
   const pct = Math.min(100, Math.round(win.pct));
   return (
@@ -33,8 +35,9 @@ function Meter({ label, window: win }: { label: string; window: AccountUsageWind
           ) : pct >= 70 ? (
             <TriangleAlert className="text-warn" {...ICON_SM} />
           ) : null}
-          {pct}% {pct >= 90 ? <span className="sr-only">used, nearly out </span> : pct >= 70 ? <span className="sr-only">used, running high </span> : null}
-          {win.countdown ? `· resets in ${win.countdown}` : ''}
+          {pct}%{' '}
+          {pct >= 90 ? <span className="sr-only">{t('accounts.usedNearlyOut')} </span> : pct >= 70 ? <span className="sr-only">{t('accounts.usedRunningHigh')} </span> : null}
+          {win.countdown ? t('accounts.resetsIn', { countdown: win.countdown }) : ''}
           {win.resetsAt && <span className="sr-only"> ({formatDateTime(win.resetsAt)})</span>}
         </span>
       </div>
@@ -58,36 +61,37 @@ function AccountCard({
   onToggle: () => void;
   onRemove: () => void;
 }) {
+  const { t } = useTranslation(['config', 'common']);
   return (
     <Card
       title={
         <span className="meta">
           <span className="strong break">{account.alias ?? account.email}</span>
-          {account.active && <Tag tone="ok">active</Tag>}
-          {account.disabled && <Tag tone="muted">out of rotation</Tag>}
+          {account.active && <Tag tone="ok">{t('accounts.active')}</Tag>}
+          {account.disabled && <Tag tone="muted">{t('accounts.outOfRotation')}</Tag>}
           {account.usageStatus !== 'ok' && <StatusBadge status={account.usageStatus} />}
         </span>
       }
       actions={
         <span className="toolbar">
           {!account.active && (
-            <button type="button" className="btn btn-small" onClick={onSwitch} disabled={busy} aria-label={`Use ${account.alias ?? account.email}`}>
-              <CirclePlay {...ICON_SM} /> Use
+            <button type="button" className="btn btn-small" onClick={onSwitch} disabled={busy} aria-label={t('accounts.useAccount', { name: account.alias ?? account.email })}>
+              <CirclePlay {...ICON_SM} /> {t('accounts.use')}
             </button>
           )}
-          <Tooltip content={account.disabled ? 'Return to the rotation' : 'Hold out of the rotation'}>
+          <Tooltip content={account.disabled ? t('accounts.returnToRotation') : t('accounts.holdOut')}>
             <button
               type="button"
               className="btn btn-small"
               onClick={onToggle}
               disabled={busy}
-              aria-label={`${account.disabled ? 'Return to the rotation' : 'Hold out of the rotation'}: ${account.alias ?? account.email}`}
+              aria-label={`${account.disabled ? t('accounts.returnToRotation') : t('accounts.holdOut')}: ${account.alias ?? account.email}`}
             >
               {account.disabled ? <CircleCheck {...ICON_SM} /> : <CirclePause {...ICON_SM} />}
             </button>
           </Tooltip>
-          <Tooltip content="Remove the account">
-            <button type="button" className="btn btn-small btn-danger" onClick={onRemove} disabled={busy} aria-label={`Remove the account ${account.alias ?? account.email}`}>
+          <Tooltip content={t('accounts.removeAccount')}>
+            <button type="button" className="btn btn-small btn-danger" onClick={onRemove} disabled={busy} aria-label={`${t('accounts.removeAccount')} ${account.alias ?? account.email}`}>
               <Trash2 {...ICON_SM} />
             </button>
           </Tooltip>
@@ -99,26 +103,29 @@ function AccountCard({
           <span className="mono">#{account.number}</span>
           <span className="muted break">{account.email}</span>
           {account.organizationName && <span className="muted break">{account.organizationName}</span>}
-          {account.headroomPct !== null && <span>{account.headroomPct}% quota left</span>}
+          {account.headroomPct !== null && <span>{t('accounts.quotaLeft', { pct: account.headroomPct })}</span>}
         </div>
         {account.usage ? (
           <>
-            <Meter label="5 hours" window={account.usage.fiveHour} />
-            <Meter label="7 days" window={account.usage.sevenDay} />
+            <Meter label={t('accounts.fiveHours')} window={account.usage.fiveHour} />
+            <Meter label={t('accounts.sevenDays')} window={account.usage.sevenDay} />
             {account.usage.scoped.map((win) => (
-              <Meter key={win.name ?? 'model'} label="7 days" window={win} />
+              <Meter key={win.name ?? 'model'} label={t('accounts.sevenDays')} window={win} />
             ))}
           </>
         ) : (
-          <div className="muted small">No usage reported{account.usageStatus !== 'ok' ? ` (${account.usageStatus})` : ''}.</div>
+          <div className="muted small">
+            {account.usageStatus !== 'ok' ? t('accounts.noUsageStatus', { status: account.usageStatus }) : t('accounts.noUsage')}
+          </div>
         )}
-        {account.usageFetchedAt && <div className="muted small">usage read {timeAgo(account.usageFetchedAt)}</div>}
+        {account.usageFetchedAt && <div className="muted small">{t('accounts.usageRead', { ago: timeAgo(account.usageFetchedAt) })}</div>}
       </div>
     </Card>
   );
 }
 
 function AddAccount({ onAdded }: { onAdded: () => void }) {
+  const { t } = useTranslation(['config', 'common']);
   const toast = useToast();
   const [token, setToken] = useState('');
   const [email, setEmail] = useState('');
@@ -127,14 +134,14 @@ function AddAccount({ onAdded }: { onAdded: () => void }) {
     onSuccess: () => {
       setToken('');
       setEmail('');
-      toast.success('Account registered');
+      toast.success(t('accounts.registered'));
       onAdded();
     },
-    onError: (err) => toast.error('Could not register the account', err),
+    onError: (err) => toast.error(t('accounts.registerFailed'), err),
   });
 
   return (
-    <Card title="Add an account">
+    <Card title={t('accounts.add')}>
       <form
         className="form"
         onSubmit={(e) => {
@@ -142,15 +149,15 @@ function AddAccount({ onAdded }: { onAdded: () => void }) {
           if (token.trim()) mutation.mutate();
         }}
       >
-        <Field label="Token" hint="Run `claude setup-token` while logged in as that account, or paste an API key. It is stored by claude-swap and never returned by the API.">
+        <Field label={t('accounts.token')} hint={t('accounts.tokenHint')}>
           <input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="sk-ant-oat…" autoComplete="off" />
         </Field>
-        <Field label="Label (optional)" hint="Shown until claude-swap resolves the real email.">
+        <Field label={t('accounts.label')} hint={t('accounts.labelHint')}>
           <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="work@example.com" autoComplete="off" />
         </Field>
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={!token.trim() || mutation.isPending}>
-            <KeyRound {...ICON_SM} /> {mutation.isPending ? 'Registering…' : 'Register'}
+            <KeyRound {...ICON_SM} /> {mutation.isPending ? t('accounts.registering') : t('accounts.register')}
           </button>
         </div>
       </form>
@@ -159,6 +166,7 @@ function AddAccount({ onAdded }: { onAdded: () => void }) {
 }
 
 function AutoSwitchPanel({ settings, running }: { settings: AutoSwitchSettings; running: boolean }) {
+  const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const toast = useToast();
   const [draft, setDraft] = useState(settings);
@@ -168,16 +176,16 @@ function AutoSwitchPanel({ settings, running }: { settings: AutoSwitchSettings; 
     mutationFn: (next: Partial<AutoSwitchSettings>) => api.setAutoSwitch(next),
     onSuccess: (saved) => {
       setDraft(saved);
-      toast.success('Auto-rotation updated');
+      toast.success(t('accounts.autoUpdated'));
       void queryClient.invalidateQueries({ queryKey: keys.accounts });
     },
-    onError: (err) => toast.error('Could not update auto-rotation', err),
+    onError: (err) => toast.error(t('accounts.autoUpdateFailed'), err),
   });
 
   return (
     <Card
-      title="Auto-rotation"
-      actions={running ? <Tag tone="ok">supervisor running</Tag> : <Tag tone="muted">stopped</Tag>}
+      title={t('accounts.autoRotation')}
+      actions={running ? <Tag tone="ok">{t('accounts.supervisorRunning')}</Tag> : <Tag tone="muted">{t('accounts.stopped')}</Tag>}
     >
       <form
         className="form"
@@ -187,29 +195,29 @@ function AutoSwitchPanel({ settings, running }: { settings: AutoSwitchSettings; 
         }}
       >
         <Switch checked={draft.enabled} onChange={(enabled) => setDraft({ ...draft, enabled })}>
-          Rotate before the active account runs out (`cswap auto`)
+          {t('accounts.rotateBefore')}
         </Switch>
         <Switch checked={draft.rotateOnLimit} onChange={(rotateOnLimit) => setDraft({ ...draft, rotateOnLimit })}>
-          Rotate and resume a run that dies against its limit
+          {t('accounts.rotateOnLimit')}
         </Switch>
         <div className="form-grid">
-          <Field label={`Threshold · ${draft.threshold}%`} hint="Utilization of the binding 5h/7d window that triggers a switch.">
+          <Field label={t('accounts.thresholdValue', { pct: draft.threshold })} hint={t('accounts.thresholdHint')}>
             <Slider
-              aria-label="Threshold"
+              aria-label={t('accounts.threshold')}
               min={50}
               max={99}
               value={draft.threshold}
               onChange={(threshold) => setDraft({ ...draft, threshold })}
             />
           </Field>
-          <Field label="Strategy" hint="`best` stays until the limit; `consume-first` spends the soonest-resetting account first.">
+          <Field label={t('accounts.strategy')} hint={t('accounts.strategyHint')}>
             <Select<AutoSwitchSettings['strategy']>
               value={draft.strategy}
               onChange={(strategy) => setDraft({ ...draft, strategy })}
               options={STRATEGIES.map((s) => ({ value: s, label: s }))}
             />
           </Field>
-          <Field label="Poll interval (s)" hint="Minimum 15.">
+          <Field label={t('accounts.interval')} hint={t('accounts.intervalHint')}>
             <NumberInput
               min={15}
               max={3600}
@@ -218,7 +226,7 @@ function AutoSwitchPanel({ settings, running }: { settings: AutoSwitchSettings; 
               onChange={(intervalSec) => setDraft({ ...draft, intervalSec: intervalSec ?? 0 })}
             />
           </Field>
-          <Field label="Per-model windows" hint="Comma-separated display names (Fable, Opus…) or `all`. Empty watches only the account-wide windows.">
+          <Field label={t('accounts.models')} hint={t('accounts.modelsHint')}>
             <input
               value={draft.models.join(',')}
               onChange={(e) => setDraft({ ...draft, models: e.target.value.split(',').map((m) => m.trim()).filter(Boolean) })}
@@ -228,11 +236,11 @@ function AutoSwitchPanel({ settings, running }: { settings: AutoSwitchSettings; 
         </div>
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={!dirty || mutation.isPending}>
-            Save
+            {t('shared.save')}
           </button>
           {dirty && (
             <button type="button" className="btn btn-small" onClick={() => setDraft(settings)}>
-              Reset
+              {t('shared.reset')}
             </button>
           )}
         </div>
@@ -242,6 +250,7 @@ function AutoSwitchPanel({ settings, running }: { settings: AutoSwitchSettings; 
 }
 
 export function Accounts() {
+  const { t } = useTranslation(['config', 'common']);
   const { data, error, isLoading, refetch, isFetching } = useAccounts();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -253,14 +262,14 @@ export function Accounts() {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: keys.accounts });
 
-  const act = async (label: string, fn: () => Promise<unknown>) => {
+  const act = async (label: string, failure: string, fn: () => Promise<unknown>) => {
     setBusy(true);
     try {
       await fn();
       toast.success(label);
       await refresh();
     } catch (err) {
-      toast.error(`${label} failed`, err);
+      toast.error(failure, err);
     } finally {
       setBusy(false);
     }
@@ -277,27 +286,29 @@ export function Accounts() {
   return (
     <div className="stack">
       <PageHeader
-        title="Accounts"
+        title={t('accounts.title')}
         subtitle={
           data.cswap.installed
-            ? `claude-swap ${data.cswap.version ?? ''} · ${data.accounts.length} account${data.accounts.length === 1 ? '' : 's'}`
-            : 'Multi-account support needs claude-swap'
+            ? `claude-swap ${data.cswap.version ?? ''} · ${t('accounts.count', { count: data.accounts.length })}`
+            : t('accounts.needsCswap')
         }
         actions={
           <button type="button" className="btn btn-small" onClick={() => void refetch()} disabled={isFetching}>
-            <RefreshCw {...ICON_SM} /> Refresh usage
+            <RefreshCw {...ICON_SM} /> {t('accounts.refreshUsage')}
           </button>
         }
       />
 
       {!data.cswap.installed ? (
-        <Empty icon={Users} title="claude-swap is not installed">
-          Several accounts and automatic rotation are delegated to{' '}
-          <a href="https://github.com/realiti4/claude-swap" target="_blank" rel="noreferrer">
-            claude-swap
-          </a>
-          . Install it with <code className="mono">uv tool install claude-swap</code> (it ships in the Docker image), then
-          register each account with a token from <code className="mono">claude setup-token</code>.
+        <Empty icon={Users} title={t('accounts.notInstalled')}>
+          <Trans
+            t={t}
+            i18nKey="accounts.notInstalledHint"
+            components={{
+              anchor: <a href="https://github.com/realiti4/claude-swap" target="_blank" rel="noreferrer" />,
+              code: <code className="mono" />,
+            }}
+          />
           {data.cswap.error && <div className="muted small">{data.cswap.error}</div>}
         </Empty>
       ) : (
@@ -308,21 +319,36 @@ export function Accounts() {
                 key={account.number}
                 account={account}
                 busy={busy}
-                onSwitch={() => void act(`Switched to ${account.email}`, () => api.switchAccount({ target: String(account.number) }))}
+                onSwitch={() =>
+                  void act(
+                    t('accounts.switched', { email: account.email }),
+                    t('accounts.switchFailed', { email: account.email }),
+                    () => api.switchAccount({ target: String(account.number) }),
+                  )
+                }
                 onToggle={() =>
                   void act(
-                    account.disabled ? `${account.email} back in rotation` : `${account.email} held out of rotation`,
+                    account.disabled ? t('accounts.backInRotation', { email: account.email }) : t('accounts.heldOut', { email: account.email }),
+                    account.disabled
+                      ? t('accounts.backInRotationFailed', { email: account.email })
+                      : t('accounts.heldOutFailed', { email: account.email }),
                     () => api.setAccountEnabled(account.number, account.disabled),
                   )
                 }
                 onRemove={() =>
                   void confirm({
-                    title: `Remove ${account.email}?`,
-                    body: 'claude-swap drops its stored credential. You can register it again with a new setup-token.',
-                    confirmLabel: 'Remove',
+                    title: t('accounts.removeTitle', { email: account.email }),
+                    body: t('accounts.removeBody'),
+                    confirmLabel: t('common:actions.remove'),
                     danger: true,
                   }).then(async (ok) => {
-                    if (ok) await act(`Removed ${account.email}`, () => api.removeAccount(account.number));
+                    if (ok) {
+                      await act(
+                        t('accounts.removed', { email: account.email }),
+                        t('accounts.removeFailed', { email: account.email }),
+                        () => api.removeAccount(account.number),
+                      );
+                    }
                   })
                 }
               />
@@ -330,15 +356,14 @@ export function Accounts() {
           </div>
 
           {data.accounts.length === 0 && (
-            <Empty icon={Users} title="No accounts registered yet">
-              Register the first one below. Until then the wrapper keeps using the credential from its own configuration.
+            <Empty icon={Users} title={t('accounts.none')}>
+              {t('accounts.noneHint')}
             </Empty>
           )}
 
           {liveRotationWarning && (
             <div className="muted small">
-              Switching rewrites the shared credential file. Runs already in flight keep the account they started with; new
-              runs and resumed turns use the active one.
+              {t('accounts.switchNote')}
             </div>
           )}
 
@@ -348,16 +373,16 @@ export function Accounts() {
           </div>
 
           <Card
-            title="Rotation log"
+            title={t('accounts.log')}
             actions={
               <button type="button" className="btn btn-small" onClick={() => setFullHistory((v) => !v)}>
-                {fullHistory ? 'Recent only' : 'Full history'}
+                {fullHistory ? t('accounts.recentOnly') : t('accounts.fullHistory')}
               </button>
             }
           >
             {events.length === 0 ? (
-              <Empty icon={RefreshCw} title="Nothing yet">
-                Switches, polls and quarantines show up here once auto-rotation runs.
+              <Empty icon={RefreshCw} title={t('accounts.nothingYet')}>
+                {t('accounts.logHint')}
               </Empty>
             ) : (
               <ul className="list">

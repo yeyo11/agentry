@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ChevronLeft, CircleSlash, GitFork, Lock, MessageSquare, Radio, Square, Trash2, WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 // Direct imports: this page is in the shell bundle, and the barrel would pull the lazy form controls into it
 import { Switch } from '../components/controls/Toggle';
@@ -15,13 +16,13 @@ import { FindBar, FindButton, useFindFocus, useFindHighlight, useTranscriptFind 
 import { Card, Empty, ErrorBox, Loading, PageHeader, usePageTitle } from '../components/ui';
 import { api, keys } from '../api';
 import { useChatStream, useChatTranscript } from '../lib/chats';
-import { ORIGIN_LABEL } from '../lib/chat-model';
 import { formatDateTime } from '../lib/format';
 import { Composer, type ComposerKind } from './chat/Composer';
 import { BranchesCard, EnvironmentCard, ExecutionsCard, FactsCard, HealthCard, UsageCard } from './chat/Side';
 
 /** One chat: its conversation, what it has cost, what it has run and delegated, and what can be done with it now. */
 export function ChatView() {
+  const { t } = useTranslation(['chat', 'work', 'common']);
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -33,7 +34,7 @@ export function ChatView() {
   const transcript = useChatTranscript(id, sidechains);
   const { chat } = transcript;
   const stream = useChatStream(id, Boolean(chat?.execution));
-  usePageTitle(chat ? `${chat.title} · chat` : 'Chat');
+  usePageTitle(chat ? t('view.pageTitle', { title: chat.title }) : t('view.pageTitleFallback'));
 
   // Another chat starts at its end, with nothing half-typed for a copy of the last one
   useEffect(() => {
@@ -73,14 +74,14 @@ export function ChatView() {
     setFollow(true);
   };
 
-  if (transcript.query.isLoading) return <Loading label="Loading chat…" />;
+  if (transcript.query.isLoading) return <Loading label={t('view.loading')} />;
   if (!chat) {
     return (
       <>
-        <PageHeader title="Chat" />
+        <PageHeader title={t('view.pageTitleFallback')} />
         <ErrorBox error={transcript.query.error} />
-        <Empty icon={MessageSquare} title="Chat not found">
-          It may have been deleted. <Link to="/chats">Browse chats</Link> to find the conversation.
+        <Empty icon={MessageSquare} title={t('view.notFound')}>
+          <Trans t={t} i18nKey="view.notFoundHint" components={{ anchor: <Link to="/chats" /> }} />
         </Empty>
       </>
     );
@@ -91,15 +92,15 @@ export function ChatView() {
   const live = Boolean(chat.execution);
   const composer: ComposerKind | null = forking ? 'fork' : control.mode === 'interactive' ? 'send' : control.mode === 'resumable' ? 'resume' : null;
   const held = control.mode === 'readOnly';
-  const origin = chat.orchestration ? `${chat.orchestration.name} · ${chat.orchestration.taskName ?? 'synthesis'}` : ORIGIN_LABEL[chat.origin];
+  const origin = chat.orchestration ? `${chat.orchestration.name} · ${chat.orchestration.taskName ?? t('view.synthesis')}` : t(`badges.origin.${chat.origin}`);
 
   return (
     <div className="run-layout">
-      <section className="run-main" aria-label="Conversation">
+      <section className="run-main" aria-label={t('view.conversation')}>
         <header className="run-head">
           <div className="run-title">
-            <Tooltip content="Back to chats">
-              <Link to="/chats" className="icon-btn" aria-label="Back to chats">
+            <Tooltip content={t('view.back')}>
+              <Link to="/chats" className="icon-btn" aria-label={t('view.back')}>
                 <ChevronLeft {...ICON} />
               </Link>
             </Tooltip>
@@ -108,43 +109,43 @@ export function ChatView() {
             <ControlBadge control={control} />
             <LastOutcome chat={chat} />
             {live && (
-              <span className={`badge ${stream.connected ? 'badge-ok' : 'badge-warn'}`} title={stream.connected ? 'Stream connected' : 'Stream reconnecting…'}>
+              <span className={`badge ${stream.connected ? 'badge-ok' : 'badge-warn'}`} title={stream.connected ? t('work:runView.streamConnected') : t('work:runView.streamReconnecting')}>
                 {stream.connected ? <Radio size={12} strokeWidth={2} aria-hidden /> : <WifiOff size={12} strokeWidth={2} aria-hidden />}
-                {stream.connected ? 'Live' : 'Reconnecting…'}
+                {stream.connected ? t('view.streamConnected') : t('view.streamReconnecting')}
               </span>
             )}
           </div>
           <div className="page-actions">
             <FindButton find={find} />
             <Switch checked={sidechains} onChange={setSidechains}>
-              Subagent messages
+              {t('view.subagentMessages')}
             </Switch>
             {control.mode === 'interactive' && working && (
-              <Tooltip content="End this turn and keep the chat open for your next message">
+              <Tooltip content={t('view.interruptHint')}>
                 <button className="btn" disabled={interrupt.isPending} onClick={() => interrupt.mutate()}>
                   <CircleSlash {...ICON_SM} />
-                  Interrupt
+                  {t('work:runView.interrupt')}
                 </button>
               </Tooltip>
             )}
             {control.mode === 'interactive' && (
               <button className="btn btn-danger" disabled={stop.isPending} onClick={() => stop.mutate()}>
                 <Square {...ICON_SM} />
-                Stop
+                {t('common:actions.stop')}
               </button>
             )}
-            <Tooltip content="Continue in a copy of this chat, which leaves this one as it is">
+            <Tooltip content={t('view.forkHint')}>
               <button className="btn" aria-pressed={forking} onClick={() => setForking((open) => !open)}>
                 <GitFork {...ICON_SM} />
-                Fork
+                {t('view.fork')}
               </button>
             </Tooltip>
             {/* The wrapper keeps the tooltip reachable while the button is disabled */}
-            <Tooltip content={live ? 'A chat with a process working on it cannot be deleted' : held ? 'Something else holds this chat' : 'Delete the transcript'}>
+            <Tooltip content={live ? t('view.deleteLive') : held ? t('view.deleteHeld') : t('work:sessionView.deleteTranscript')}>
               <span className="tooltip-anchor">
                 <button className="btn" disabled={live || held || remove.isPending} onClick={() => remove.requestDelete(chat)}>
                   <Trash2 {...ICON_SM} />
-                  {remove.isPending ? 'Deleting…' : 'Delete'}
+                  {remove.isPending ? t('work:sessionView.deleting') : t('common:actions.delete')}
                 </button>
               </span>
             </Tooltip>
@@ -152,9 +153,9 @@ export function ChatView() {
         </header>
         <div className="meta">
           <OriginBadge origin={chat.origin} label={origin} />
-          <span>{chat.project?.name ?? 'no project'}</span>
-          <span>{chat.messageCount} messages</span>
-          <span>updated {formatDateTime(chat.updatedAt)}</span>
+          <span>{chat.project?.name ?? t('view.noProject')}</span>
+          <span>{t('view.messages', { count: chat.messageCount })}</span>
+          <span>{t('view.updated', { date: formatDateTime(chat.updatedAt) })}</span>
           <span className="mono">{chat.id}</span>
         </div>
         <ErrorBox error={stop.error ?? interrupt.error} />
@@ -162,17 +163,17 @@ export function ChatView() {
           <div className="alert alert-warn chat-banner" role="status">
             <Lock {...ICON} className="alert-icon" />
             <div className="alert-body">
-              <strong>Read-only</strong>
+              <strong>{t('badges.control.readOnly')}</strong>
               <div>{control.reason}</div>
             </div>
             {control.action === 'hint' && chat.orchestration ? (
               <Link to={`/orchestration/${chat.orchestration.id}`} className="btn btn-small">
-                Send a hint on the board
+                {t('view.sendHint')}
               </Link>
             ) : (
               !forking && (
                 <button className="btn btn-small" onClick={() => setForking(true)}>
-                  <GitFork {...ICON_SM} /> Continue in a copy
+                  <GitFork {...ICON_SM} /> {t('work:sessionView.continueCopy')}
                 </button>
               )
             )}
@@ -185,7 +186,7 @@ export function ChatView() {
           <div
             className="run-scroll"
             role="region"
-            aria-label="Transcript"
+            aria-label={t('view.transcript')}
             tabIndex={0}
             data-scroll-root
             ref={scroller}
@@ -197,12 +198,12 @@ export function ChatView() {
             {transcript.more && (
               <div className="transcript-earlier">
                 <button type="button" className="btn btn-small" onClick={transcript.loadEarlier} disabled={transcript.loadingMore}>
-                  {transcript.loadingMore ? 'Loading…' : `Load earlier messages (${transcript.from} above)`}
+                  {transcript.loadingMore ? t('common:loading') : t('work:sessionView.loadEarlier', { n: transcript.from })}
                 </button>
               </div>
             )}
             {transcript.items.length === 0 ? (
-              !working && <Empty icon={MessageSquare} title="Nothing written yet" />
+              !working && <Empty icon={MessageSquare} title={t('view.nothingWritten')} />
             ) : (
               <Transcript entries={transcript.items} pinToBottom={follow} onReachTop={transcript.loadEarlier} focus={focus} />
             )}
@@ -213,7 +214,7 @@ export function ChatView() {
             ) : (
               working && (
                 <div className="evt evt-working">
-                  <ThinkingDots /> Claude is working…
+                  <ThinkingDots /> {t('work:runView.working')}
                 </div>
               )
             )}
@@ -229,7 +230,7 @@ export function ChatView() {
                 exit={{ opacity: 0, y: 8 }}
                 transition={{ duration: 0.16 }}
               >
-                <ArrowDown {...ICON_SM} /> Jump to latest
+                <ArrowDown {...ICON_SM} /> {t('work:runView.jumpToLatest')}
               </motion.button>
             )}
           </AnimatePresence>
@@ -237,21 +238,21 @@ export function ChatView() {
 
         {composer === 'fork' && (
           <Card
-            title="Continue in a copy"
+            title={t('work:sessionView.continueCopy')}
             actions={
               <button className="btn btn-small" onClick={() => setForking(false)}>
-                Cancel
+                {t('common:actions.cancel')}
               </button>
             }
           >
-            <p className="muted small">A new chat with this one&apos;s whole history. This chat stays as it is, and the copy records where it came from.</p>
+            <p className="muted small">{t('view.forkIntro')}</p>
             <Composer chat={chat} kind="fork" onSent={() => setFollow(true)} />
           </Card>
         )}
         {composer && composer !== 'fork' && <Composer chat={chat} kind={composer} onSent={() => setFollow(true)} />}
       </section>
 
-      <aside className="run-side" aria-label="Chat details">
+      <aside className="run-side" aria-label={t('view.details')}>
         <UsageCard chat={chat} />
         <FactsCard chat={chat} />
         <ExecutionsCard chat={chat} />

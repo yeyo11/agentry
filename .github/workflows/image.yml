@@ -3,17 +3,15 @@ name: Image
 # Reusable: both the push-to-main build and the release build go through here, so the two never
 # drift apart. It is called, never triggered — a tag pushed by GITHUB_TOKEN does not start a
 # workflow of its own, which is exactly the trap this avoids.
+#
+# amd64 only. arm64 was built under QEMU, which made a release image cost 6 minutes instead of 2
+# and, on 0.11.1, hung for 93 minutes inside a `vite build` that normally takes 3 seconds.
 on:
   workflow_call:
     inputs:
       tags:
         description: Newline-separated docker/metadata-action tag expressions
         required: true
-        type: string
-      platforms:
-        description: Build platforms; arm64 is emulated and slow, so only releases pay for it
-        required: false
-        default: linux/amd64
         type: string
       ref:
         description: Commit or tag to build
@@ -28,11 +26,10 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Every job's timeout is about 3x its slowest successful run, rounded up to 5 minutes. Here: amd64 alone
-    # took at most 2.2 min over 32 runs, amd64 + emulated arm64 at most 6.0 min over 17. The 0.11.1 release
-    # hung for 93 minutes in the arm64 `vite build`, which normally takes 3 s, and blocked the release queue
-    # behind it; failing fast leaves a draft to rebuild with the release workflow's `tag` input.
-    timeout-minutes: ${{ contains(inputs.platforms, 'arm64') && 20 || 10 }}
+    # About 3x the slowest successful run (2.2 min over 32), rounded up to 5 minutes. A release that
+    # runs long blocks the queue behind it; failing fast leaves a draft to rebuild with the release
+    # workflow's `tag` input.
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: write
@@ -42,9 +39,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.sha }}
-
-      - uses: docker/setup-qemu-action@v3
-        if: contains(inputs.platforms, 'arm64')
 
       - uses: docker/setup-buildx-action@v4
 
@@ -69,7 +63,7 @@ jobs:
         with:
           context: .
           file: docker/Dockerfile
-          platforms: ${{ inputs.platforms }}
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -2,6 +2,7 @@ import type { WorkflowDefinition } from '@agentry/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Play } from 'lucide-react';
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { Dialog } from './Dialog';
@@ -11,6 +12,7 @@ import { Empty, ErrorBox, Field, Loading, MODEL_OPTIONS, Tag } from './ui';
 
 /** Arguments for one saved workflow, and the chat that runs it. */
 function RunForm({ workflow, cwd, onCancel }: { workflow: WorkflowDefinition; cwd: string | undefined; onCancel: () => void }) {
+  const { t } = useTranslation('chats');
   const navigate = useNavigate();
   const [args, setArgs] = useState('');
   const [model, setModel] = useState('');
@@ -32,19 +34,19 @@ function RunForm({ workflow, cwd, onCancel }: { workflow: WorkflowDefinition; cw
         run.mutate();
       }}
     >
-      <Field label="Args" hint="Optional: handed to the script as `args` (text or JSON)">
+      <Field label={t('runWorkflow.args')} hint={t('runWorkflow.argsHint')}>
         <textarea rows={2} value={args} onChange={(e) => setArgs(e.target.value)} placeholder="{ &quot;target&quot;: &quot;src/&quot; }" data-autofocus />
       </Field>
-      <Field label="Model" hint="For the chat that launches it; the script can pick its own per agent">
-        <Combobox aria-label="Model" placeholder="default" value={model} onChange={setModel} options={MODEL_OPTIONS} />
+      <Field label={t('runWorkflow.model')} hint={t('runWorkflow.modelHint')}>
+        <Combobox aria-label={t('runWorkflow.model')} placeholder={t('runWorkflow.modelPlaceholder')} value={model} onChange={setModel} options={MODEL_OPTIONS} />
       </Field>
-      <ErrorBox error={run.error} title="Could not start the workflow" />
+      <ErrorBox error={run.error} title={t('runWorkflow.startError')} />
       <div className="form-actions">
         <button type="submit" className="btn btn-primary" disabled={run.isPending}>
-          <Play {...ICON_SM} /> {run.isPending ? 'Starting…' : `Run ${workflow.name}`}
+          <Play {...ICON_SM} /> {run.isPending ? t('runWorkflow.starting') : t('runWorkflow.titleRun', { name: workflow.name })}
         </button>
         <button type="button" className="btn" onClick={onCancel}>
-          Back
+          {t('runWorkflow.back')}
         </button>
       </div>
     </form>
@@ -66,25 +68,25 @@ export function RunWorkflowDialog({
   workflow?: WorkflowDefinition;
   onClose: () => void;
 }) {
+  const { t } = useTranslation('chats');
   const [chosen, setChosen] = useState<WorkflowDefinition | null>(workflow ?? null);
   const saved = useQuery({ queryKey: keys.savedWorkflows(cwd ?? ''), queryFn: () => api.savedWorkflows(cwd), enabled: !workflow });
 
   return (
-    <Dialog title={chosen ? `Run ${chosen.name}` : 'Run a saved workflow'} onClose={onClose} width={520}>
+    <Dialog title={chosen ? t('runWorkflow.titleRun', { name: chosen.name }) : t('runWorkflow.titleChoose')} onClose={onClose} width={520}>
       {chosen ? (
         <RunForm workflow={chosen} cwd={cwd} onCancel={workflow ? onClose : () => setChosen(null)} />
       ) : (
         <>
           <p className="muted small">
-            Scripts in the project&apos;s <code>.claude/workflows/</code> and in your own. Running one starts a chat that launches it, so
-            its prompts come to this panel.
+            <Trans t={t} i18nKey="runWorkflow.intro" components={{ code: <code /> }} />
           </p>
           <ErrorBox error={saved.error} />
           {saved.isLoading ? (
             <Loading />
           ) : (saved.data ?? []).length === 0 ? (
-            <Empty title="No saved workflows">
-              Save one from a chat with the Workflow tool, or write a script in <code>.claude/workflows/</code>.
+            <Empty title={t('runWorkflow.emptyTitle')}>
+              <Trans t={t} i18nKey="runWorkflow.emptyBody" components={{ code: <code /> }} />
             </Empty>
           ) : (
             <ul className="wf-saved">
@@ -95,7 +97,7 @@ export function RunWorkflowDialog({
                     <Tag tone="muted">{w.scope}</Tag>
                     <span className="muted small ellipsis">{w.description}</span>
                     <button type="button" className="btn btn-small" onClick={() => setChosen(w)}>
-                      <Play {...ICON_SM} /> Run
+                      <Play {...ICON_SM} /> {t('runWorkflow.run')}
                     </button>
                   </div>
                 </li>

@@ -2,6 +2,7 @@ import { searchPattern, type TranscriptSearchHit, type TranscriptSearchResult } 
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useTranslation } from 'react-i18next';
 // Direct imports: the barrel would pull the lazy form controls into the chat page's bundle
 import { hasOpenLayer } from './controls/layer';
 import { Tooltip } from './controls/Tooltip';
@@ -306,17 +307,19 @@ function Snippet({ hit }: { hit: TranscriptSearchHit }) {
 
 /** The button in a page header that opens the search. */
 export function FindButton({ find }: { find: TranscriptFind }) {
+  const { t } = useTranslation('components');
   const mac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
   return (
-    <Tooltip content={`Search the whole transcript (${mac ? '⌘' : 'Ctrl+'}F)`}>
+    <Tooltip content={t('find.buttonHint', { shortcut: `${mac ? '⌘' : 'Ctrl+'}F` })}>
       <button type="button" className="btn" aria-pressed={find.open} onClick={() => (find.open ? find.close() : find.show())}>
-        <Search {...ICON_SM} /> Search
+        <Search {...ICON_SM} /> {t('find.button')}
       </button>
     </Tooltip>
   );
 }
 
 export function FindBar({ find, className = '' }: { find: TranscriptFind; className?: string }) {
+  const { t } = useTranslation('components');
   if (!find.open) return null;
   const { hits, position, result } = find;
   const current = position >= 0 ? hits[position] : undefined;
@@ -325,23 +328,23 @@ export function FindBar({ find, className = '' }: { find: TranscriptFind; classN
     find.query === ''
       ? ''
       : result.isError
-        ? 'Search failed'
+        ? t('find.failed')
         : hits.length === 0
           ? pending
-            ? 'Searching…'
-            : 'No matches'
-          : `${position < 0 ? 0 : hits.length - position} of ${hits.length}${result.data?.truncated ? '+' : ''}`;
+            ? t('find.searching')
+            : t('find.noMatches')
+          : `${t('find.counter', { n: position < 0 ? 0 : hits.length - position, total: hits.length })}${result.data?.truncated ? '+' : ''}`;
 
   return (
-    <div className={`find-bar ${className}`} role="search" aria-label="Transcript">
+    <div className={`find-bar ${className}`} role="search" aria-label={t('find.transcript')}>
       <div className="find-row">
         <Search {...ICON_SM} className="find-icon" />
         <input
           ref={find.input}
           className="find-input"
           type="text"
-          placeholder="Search the whole transcript"
-          aria-label="Search the whole transcript"
+          placeholder={t('find.field')}
+          aria-label={t('find.field')}
           value={find.text}
           onChange={(e) => find.setText(e.target.value)}
           onKeyDown={(e) => {
@@ -365,18 +368,18 @@ export function FindBar({ find, className = '' }: { find: TranscriptFind; classN
         <span className="find-count muted small" aria-live="polite">
           {counter}
         </span>
-        <Tooltip content="Older match (Enter)">
-          <button type="button" className="icon-btn" aria-label="Older match" disabled={hits.length === 0} onClick={find.older}>
+        <Tooltip content={t('find.olderHint')}>
+          <button type="button" className="icon-btn" aria-label={t('find.older')} disabled={hits.length === 0} onClick={find.older}>
             <ChevronUp {...ICON_SM} />
           </button>
         </Tooltip>
-        <Tooltip content="Newer match (Shift+Enter)">
-          <button type="button" className="icon-btn" aria-label="Newer match" disabled={hits.length === 0} onClick={find.newer}>
+        <Tooltip content={t('find.newerHint')}>
+          <button type="button" className="icon-btn" aria-label={t('find.newer')} disabled={hits.length === 0} onClick={find.newer}>
             <ChevronDown {...ICON_SM} />
           </button>
         </Tooltip>
-        <Tooltip content="Close (Esc)">
-          <button type="button" className="icon-btn" aria-label="Close search" onClick={find.close}>
+        <Tooltip content={t('find.closeHint')}>
+          <button type="button" className="icon-btn" aria-label={t('find.close')} onClick={find.close}>
             <X {...ICON_SM} />
           </button>
         </Tooltip>

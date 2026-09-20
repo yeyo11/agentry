@@ -2,6 +2,7 @@ import type { Chat, PermissionMode } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { GitFork, Play, SendHorizontal } from 'lucide-react';
 import { lazy, Suspense, useLayoutEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { AttachButton, AttachmentTray, useAttachments } from '../../components/Attachments';
 import { ICON_SM } from '../../components/icons';
@@ -19,23 +20,12 @@ export interface StartChoices {
   model?: string;
 }
 
-const LABEL: Record<ComposerKind, { idle: string; pending: string }> = {
-  send: { idle: 'Send', pending: 'Sending…' },
-  resume: { idle: 'Resume', pending: 'Resuming…' },
-  fork: { idle: 'Fork', pending: 'Forking…' },
-};
-
-function placeholder(kind: ComposerKind, working: boolean): string {
-  if (kind === 'fork') return 'First message for the copy… (drop or paste files to attach them)';
-  if (kind === 'resume') return 'Send a message — the chat will be resumed…';
-  return working ? 'Send a message (queued until the current turn ends)…' : 'Send a follow-up message…';
-}
-
 /**
  * The message box, with its own text state: the transcript above it can be thousands of nodes, and
  * re-rendering the page on every character typed here is enough to lock the tab up.
  */
 export function Composer({ chat, kind, onSent }: { chat: Chat; kind: ComposerKind; onSent: () => void }) {
+  const { t } = useTranslation(['chat', 'work']);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [text, setText] = useState('');
@@ -75,6 +65,19 @@ export function Composer({ chat, kind, onSent }: { chat: Chat; kind: ComposerKin
     // A file on its own is a message too; one still uploading is not sent without it
     if ((message || files.ids.length) && !files.uploading && !submit.isPending) submit.mutate(message);
   };
+  const label = {
+    send: { idle: t('work:runView.send'), pending: t('work:runView.sending') },
+    resume: { idle: t('composer.resume'), pending: t('composer.resuming') },
+    fork: { idle: t('composer.fork'), pending: t('composer.forking') },
+  }[kind];
+  const placeholder =
+    kind === 'fork'
+      ? t('composer.placeholderFork')
+      : kind === 'resume'
+        ? t('composer.placeholderResume')
+        : working
+          ? t('work:runView.placeholderQueued')
+          : t('work:runView.placeholderFollowUp');
   const Icon = kind === 'fork' ? GitFork : kind === 'resume' ? Play : SendHorizontal;
 
   return (
@@ -83,7 +86,7 @@ export function Composer({ chat, kind, onSent }: { chat: Chat; kind: ComposerKin
         <AttachmentTray state={files} />
         <form
           className="composer"
-          aria-label={kind === 'fork' ? 'Continue in a copy' : 'Message'}
+          aria-label={kind === 'fork' ? t('work:sessionView.continueCopy') : t('composer.message')}
           onSubmit={(e) => {
             e.preventDefault();
             send();
@@ -91,12 +94,12 @@ export function Composer({ chat, kind, onSent }: { chat: Chat; kind: ComposerKin
         >
           <AttachButton state={files} compact disabled={submit.isPending} />
           <textarea
-            aria-label={kind === 'fork' ? 'First message for the copy' : 'Message'}
+            aria-label={kind === 'fork' ? t('composer.firstMessage') : t('composer.message')}
             autoFocus={kind === 'fork'}
             onPaste={files.onPaste}
             ref={box}
             rows={1}
-            placeholder={placeholder(kind, working)}
+            placeholder={placeholder}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
@@ -108,7 +111,7 @@ export function Composer({ chat, kind, onSent }: { chat: Chat; kind: ComposerKin
           />
           <button type="submit" className="btn btn-primary" disabled={(!text.trim() && files.ids.length === 0) || files.uploading || submit.isPending}>
             <Icon {...ICON_SM} />
-            {submit.isPending ? LABEL[kind].pending : files.uploading ? 'Uploading…' : LABEL[kind].idle}
+            {submit.isPending ? label.pending : files.uploading ? t('work:shared.uploading') : label.idle}
           </button>
         </form>
         {kind !== 'send' && (
@@ -117,7 +120,7 @@ export function Composer({ chat, kind, onSent }: { chat: Chat; kind: ComposerKin
           </Suspense>
         )}
       </div>
-      <ErrorBox error={submit.error} title={kind === 'send' ? 'Message not sent' : kind === 'resume' ? 'Could not resume' : 'Could not fork'} />
+      <ErrorBox error={submit.error} title={kind === 'send' ? t('work:runView.notSent') : kind === 'resume' ? t('composer.couldNotResume') : t('composer.couldNotFork')} />
     </>
   );
 }

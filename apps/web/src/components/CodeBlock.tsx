@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState, type CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CopyButton } from './ui';
 
 type Tokens = Awaited<ReturnType<typeof import('./highlight').highlight>>;
@@ -36,16 +37,17 @@ function useHighlight(code: string, lang: string | undefined, enabled: boolean):
  * chat answers get; tool payloads keep the quieter bar that shows on hover.
  */
 export function CodeBlock({ code, lang, tone, header = false }: { code: string; lang?: string; tone?: 'error'; header?: boolean }) {
+  const { t } = useTranslation('components');
   const highlighted = useHighlight(code, lang, tone !== 'error');
   return (
     <div className={`code-block ${tone === 'error' ? 'is-error' : ''} ${header ? 'has-header' : ''}`}>
       <div className="code-block-bar">
         {(lang || header) && <span className="code-lang">{lang || 'text'}</span>}
-        <CopyButton text={code} label="Copy code" />
+        <CopyButton text={code} label={t('ui.copyCode')} />
       </div>
       {/* Highlighted, the block carries the foreground colour, which the bare runs inherit */}
       {/* Focusable so long lines can be scrolled from the keyboard; a group, not a landmark, since a transcript holds many */}
-      <pre className="code" role="group" aria-label={lang ? `${lang} code` : 'Code'} tabIndex={0} data-lang={lang || undefined} style={highlighted ? (highlighted.tokens.base as CSSProperties) : undefined}>
+      <pre className="code" role="group" aria-label={lang ? t('codeBlock.labelLang', { lang }) : t('codeBlock.label')} tabIndex={0} data-lang={lang || undefined} style={highlighted ? (highlighted.tokens.base as CSSProperties) : undefined}>
         {highlighted ? (
           <>
             {highlighted.tokens.lines.map((line, i) => (

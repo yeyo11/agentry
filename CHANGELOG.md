@@ -3,6 +3,43 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.13.1](https://github.com/yeyo11/agentry/compare/v0.13.0...v0.13.1) (2026-09-20)
+
+
+### Bug fixes
+
+* **web:** colour code blocks the way shiki does, measured ([#56](https://github.com/yeyo11/agentry/issues/56)) ([d6560e1](https://github.com/yeyo11/agentry/commit/d6560e19a390704d538a883167bd6deff94bfa98))
+
+## [0.13.0](https://github.com/yeyo11/agentry/compare/v0.12.0...v0.13.0) (2026-09-19)
+
+
+### Features
+
+* improve task orchestration, transcript performance, and i18n [#54](https://github.com/yeyo11/agentry/issues/54)) ([0ffa2c7](https://github.com/yeyo11/agentry/commit/0ffa2c7c5111644f9d2ca794ed14a61291371f0b))
+
+## [0.12.0](https://github.com/yeyo11/agentry/compare/v0.11.1...v0.12.0) (2026-09-19)
+
+
+### Features
+
+* page long transcripts from the API and window them in the UI ([3f79a06](https://github.com/yeyo11/agentry/commit/3f79a0690588418405afbf0d455b86fb9a1ad040))
+
+
+### Bug fixes
+
+* **core:** list monitors started by CLI sessions as background tasks ([#52](https://github.com/yeyo11/agentry/issues/52)) ([f645950](https://github.com/yeyo11/agentry/commit/f64595085bd7c10f96003903705f43057c2ba3ba))
+
+
+### Performance
+
+* **web:** merge highlighted tokens into coloured runs ([dea38a3](https://github.com/yeyo11/agentry/commit/dea38a33ad8421e214b784bda21350eba76a65d4))
+* **web:** render answers with @tanstack/markdown instead of react-markdown ([e7c2c25](https://github.com/yeyo11/agentry/commit/e7c2c2543a8699072499fcb5ea918f9844f461fe))
+
+
+### Documentation
+
+* note what 0.11.0 left for the observability work ([#49](https://github.com/yeyo11/agentry/issues/49)) ([0d38623](https://github.com/yeyo11/agentry/commit/0d38623990aada865b7f5a67c551cd3c311fa1a8))
+
 ## [0.11.1](https://github.com/yeyo11/agentry/compare/v0.11.0...v0.11.1) (2026-09-19)
 
 
