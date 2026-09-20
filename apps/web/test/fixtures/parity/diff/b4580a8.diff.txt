@@ -1,0 +1,184 @@
+commit b4580a8decbccb64145b85517d748c1783989160
+Author: Jose Antonio Garrido <yeyochico@gmail.com>
+Date:   Sat Sep 19 18:41:48 2026 +0200
+
+    fix(core): keep task worktrees under the main checkout when a graph runs from a linked worktree
+    
+    The previous fix resolved task worktrees from `git rev-parse --show-toplevel`.
+    Inside a linked worktree that is the linked worktree itself, but the CLI keeps
+    the checkouts it makes for `--worktree` under the main checkout: started from
+    a linked worktree, `claude --worktree probe` created
+    <main>/.claude/worktrees/probe. So a graph launched from a linked worktree
+    still put each task's worktree where the CLI never looked, and every worker
+    failed with "already checked out", as it did on 2026-09-19.
+    
+    Worktrees now live under the main checkout's top level (the parent of the git
+    common dir), while the branch still starts from the linked worktree's HEAD
+    and the subdirectory is still taken from the checkout the graph runs in. The
+    fake CLI used by the tests resolved worktrees the same wrong way, which is why
+    the tests passed; it now matches the real CLI.
+
+diff --git a/packages/core/src/git.ts b/packages/core/src/git.ts
+index 87c2c20..fa8ee70 100644
+--- a/packages/core/src/git.ts
++++ b/packages/core/src/git.ts
+@@ -1,5 +1,6 @@
+ import { execFileSync } from 'node:child_process';
+ import { existsSync } from 'node:fs';
++import { dirname } from 'node:path';
+ 
+ /**
+  * The few git operations orchestrations need to hand back one branch instead of a pile of
+@@ -30,6 +31,14 @@ export function topLevel(dir: string): string {
+   return git(dir, ['rev-parse', '--show-toplevel'], 10_000);
+ }
+ 
++/**
++ * The top level of the main checkout `dir` belongs to. Inside a linked worktree `topLevel` is that
++ * worktree, but the CLI keeps the checkouts it makes for `--worktree` under the main one.
++ */
++export function mainTopLevel(dir: string): string {
++  return dirname(git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], 10_000));
++}
++
+ /** Whether git ignores `path`, relative to the top level of `repo`, or anything above it. */
+ export function isIgnored(repo: string, path: string): boolean {
+   try {
+diff --git a/packages/core/src/orchestrator.ts b/packages/core/src/orchestrator.ts
+index f32eb39..dc1522e 100644
+--- a/packages/core/src/orchestrator.ts
++++ b/packages/core/src/orchestrator.ts
+@@ -35,6 +35,7 @@ import {
+   merge,
+   mergeInProgress,
+   removeWorktree,
++  mainTopLevel,
+   topLevel,
+ } from './git.ts';
+ import type { CoreConfig } from './paths.ts';
+@@ -62,10 +63,15 @@ function worktreeName(orch: Orchestration, task: OrchestrationTaskState): string
+  */
+ const worktreePath = (root: string, name: string) => join(root, '.claude', 'worktrees', name);
+ 
+-/** A graph's repository: its top level, and the subdirectory of it the graph works in ('' for the top). */
++/**
++ * A graph's repository: the top level of the checkout it runs in, the subdirectory of it the graph
++ * works in ('' for the top), and where task worktrees live. The last is the main checkout's top
++ * level even when the graph runs from a linked worktree, because that is where the CLI looks.
++ */
+ interface Checkout {
+   root: string;
+   subdir: string;
++  home: string;
+ }
+ 
+ function checkoutOf(cwd: string): Checkout {
+@@ -74,7 +80,7 @@ function checkoutOf(cwd: string): Checkout {
+   const subdir = relative(root, realpathSync(cwd));
+   // An ignored directory is missing from a fresh worktree, and whatever a worker writes there never
+   // reaches its branch: in one of those, working at the top is the only way the work survives.
+-  return { root, subdir: subdir && !isIgnored(root, subdir) ? subdir : '' };
++  return { root, subdir: subdir && !isIgnored(root, subdir) ? subdir : '', home: mainTopLevel(cwd) };
+ }
+ 
+ /** `agentry/<name>-<id>`: readable in a branch list, and never shared by two graphs. */
+@@ -505,8 +511,8 @@ export class Orchestrator {
+    * worktree of the name it is given, so it still locks it and records it as its own.
+    */
+   private prepareWorktree(orch: Orchestration, task: OrchestrationTaskState, name: string): PreparedWorktree {
+-    const { root, subdir } = checkoutOf(orch.cwd);
+-    const path = worktreePath(root, name);
++    const { root, subdir, home } = checkoutOf(orch.cwd);
++    const path = worktreePath(home, name);
+     const branch = `worktree-${name}`;
+     // Before worktrees were resolved from the top level, a graph in a subdirectory put them where
+     // the CLI never looked, and every worker failed there before doing anything. Its branch cannot
+@@ -627,12 +633,13 @@ export class Orchestrator {
+     if (tasks.length === 0) return;
+     const branch = orch.integration?.branch ?? integrationBranch(orch);
+     let root: string;
++    let home: string;
+     try {
+-      root = checkoutOf(orch.cwd).root;
++      ({ root, home } = checkoutOf(orch.cwd));
+     } catch {
+-      root = orch.cwd; // no longer a repository: adding the worktree below says so on the record
++      root = home = orch.cwd; // no longer a repository: adding the worktree below says so on the record
+     }
+-    const path = worktreePath(root, `${orch.id.slice(0, 8)}-integration`);
++    const path = worktreePath(home, `${orch.id.slice(0, 8)}-integration`);
+     const state: OrchestrationIntegration = (orch.integration = {
+       branch,
+       worktree: path,
+diff --git a/packages/core/test/fixtures/fake-claude.mjs b/packages/core/test/fixtures/fake-claude.mjs
+index bb640fe..c263ee1 100755
+--- a/packages/core/test/fixtures/fake-claude.mjs
++++ b/packages/core/test/fixtures/fake-claude.mjs
+@@ -9,16 +9,17 @@
+ import { execFileSync } from 'node:child_process';
+ import { randomUUID } from 'node:crypto';
+ import { existsSync, readdirSync, writeFileSync } from 'node:fs';
+-import { join } from 'node:path';
++import { dirname, join } from 'node:path';
+ import { createInterface } from 'node:readline';
+ 
+ const args = process.argv.slice(2);
+ const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+ const worktree = flag('--worktree');
+-// Like the CLI, adopt the worktree of that name, which lives under the repository's top level
+-// whichever subdirectory it is started in, and work at its root; unlike it, refuse to create one,
+-// so a test fails if the wrapper did not prepare it where the CLI looks
+-const topLevel = () => execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
++// Like the CLI, adopt the worktree of that name, which lives under the main checkout's top level
++// whichever subdirectory, or linked worktree, it is started in, and work at its root; unlike it,
++// refuse to create one, so a test fails if the wrapper did not prepare it where the CLI looks
++const topLevel = () =>
++  dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim());
+ const dir = worktree ? join(topLevel(), '.claude', 'worktrees', worktree) : process.cwd();
+ if (!existsSync(dir)) {
+   process.stderr.write(`fake-claude: worktree ${dir} was not prepared\n`);
+diff --git a/packages/core/test/orchestrator.test.ts b/packages/core/test/orchestrator.test.ts
+index 937ce7f..1d4cebd 100644
+--- a/packages/core/test/orchestrator.test.ts
++++ b/packages/core/test/orchestrator.test.ts
+@@ -232,6 +232,40 @@ test('a graph in a subdirectory gets its worktrees where the CLI looks, and work
+   db.close();
+ });
+ 
++test('a graph started from a linked worktree builds on that worktree, with its worktrees where the CLI looks', async () => {
++  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
++  const db = new Db(config);
++  const repo = repoWithCommit();
++  // The graph runs from a linked worktree whose branch is ahead of the main checkout
++  const linked = `${repo}-linked`;
++  execFileSync('git', ['-C', repo, 'worktree', 'add', '-q', '-b', 'feature', linked]);
++  writeFileSync(join(linked, 'feature.txt'), 'feature\n');
++  execFileSync('git', ['-C', linked, 'add', '-A']);
++  execFileSync('git', ['-C', linked, 'commit', '-q', '-m', 'feature']);
++  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
++
++  const started = orchestrator.create({
++    name: 'from linked',
++    cwd: linked,
++    worktree: true,
++    tasks: [{ id: 'docs', name: 'Docs', prompt: 'FAKE-WRITE docs.txt written' }],
++  });
++  const orch = await settle(orchestrator, started.id);
++
++  assert.equal(orch.status, 'completed', orch.tasks.map((t) => t.error).join('; '));
++  // The CLI keeps --worktree checkouts under the main checkout, not under the linked one
++  const task = orch.tasks[0];
++  assert.equal(task?.worktree, join(repo, '.claude', 'worktrees', `${orch.id.slice(0, 8)}-docs`));
++  assert.equal(existsSync(join(linked, '.claude')), false);
++  // It starts from what the linked worktree has, not from the main checkout's branch
++  assert.match(task?.result ?? '', /files=.*feature\.txt/);
++  const integration = orch.integration;
++  assert.equal(integration?.status, 'merged', String(integration?.error));
++  assert.equal(show(repo, `${integration?.branch}:feature.txt`), 'feature');
++  assert.equal(show(repo, `${integration?.branch}:docs.txt`), 'written');
++  db.close();
++});
++
+ test('a graph in an ignored subdirectory works at the top of its worktrees, where its work is kept', async () => {
+   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+   const db = new Db(config);

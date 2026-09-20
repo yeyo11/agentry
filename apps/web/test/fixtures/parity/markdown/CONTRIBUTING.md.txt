@@ -1,0 +1,112 @@
+# Contributing to Agentry
+
+Thanks for taking the time. This is a small project with a couple of strong opinions, and knowing
+them up front saves everyone a round of review.
+
+## The one rule
+
+**Agentry talks to Claude Code only through its CLI.** No SDK, no HTTP calls to Anthropic, no
+scraping a terminal. If a feature cannot be expressed as a documented CLI surface — a flag, a
+subcommand, a stream-json event, a file the CLI writes — it does not belong here yet. The table in
+[README.md](README.md#how-it-talks-to-claude) lists every surface currently in use.
+
+This is what keeps the project honest: whatever Claude Code does, Agentry does, and nothing more.
+
+## Getting set up
+
+You need Node >= 22, pnpm, and the Claude Code CLI on your `PATH`.
+
+```bash
+pnpm install
+pnpm dev          # API on :8787, Vite on :5173
+```
+
+The API serves the built UI too, so `pnpm build && pnpm start` gives you the production shape on
+`:8787` alone.
+
+For the Linux desktop app in `apps/desktop`, `pnpm desktop:dev` builds the UI and the API bundle and
+opens Electron, and `pnpm desktop:dist` produces the AppImage and `.deb` in `apps/desktop/release/`.
+See [docs/desktop.md](docs/desktop.md).
+
+## Before you open a pull request
+
+```bash
+pnpm typecheck    # all four packages
+pnpm test         # unit (core) + API integration (Fastify inject)
+pnpm build
+pnpm e2e          # headless Chrome over CDP, against an isolated instance
+```
+
+CI runs exactly these, plus a Docker image build. It also regenerates the OpenAPI component
+schemas and fails if they differ from what you committed, so if you touched a shared type:
+
+```bash
+pnpm --filter @agentry/api openapi:schemas
+```
+
+Every route must carry a summary and a tag — there is a test that enforces it.
+
+## House style
+
+- **TypeScript, strict, no `any`.** `noUncheckedIndexedAccess` is on; respect it rather than
+  casting around it.
+- **Comments explain why, not what.** If a line needs a comment to say what it does, rewrite the
+  line. The ones worth writing are the ones that record a constraint you discovered the hard way.
+- **Shared types live in `packages/shared`** and are the single source of truth: the API schemas
+  and the web client are both generated from or typed against them.
+- **Persistence:** a settings-shaped document belongs in a JSON file; anything that is a stream
+  (events, history, records that accumulate) belongs in the SQLite store in `packages/core/src/db.ts`.
+  Rows, not blobs — two processes share one data dir.
+- **UI controls come from `apps/web/src/components/controls`** (Select, Combobox, Checkbox,
+  Switch, Slider, NumberInput, Tooltip, Collapsible), not from native `<select>`, `<datalist>`,
+  checkbox/range/number inputs, `<details>` or `title=` on interactive elements: the native ones
+  render with the operating system's look and ignore the theme. Plain text inputs and textareas
+  stay native. Use a Switch for a setting that turns something on or off and a Checkbox for filters
+  and multi-choice lists. In e2e specs, `page.select(trigger, optionText)` drives a Select.
+  Pages import from the `controls` barrel; modules loaded on first paint (App, Dialog, RunView…)
+  import the file they need, or the barrel pulls the lazy form controls into the initial bundle.
+- **Tests carry their reasoning.** Name a test after the behaviour it protects, not the function
+  it calls.
+
+## Layout
+
+| Path | What it is |
+| --- | --- |
+| `packages/shared` | Types shared by every other package |
+| `packages/core` | The CLI driver: runs, sessions, accounts, orchestration, config, storage |
+| `apps/api` | Fastify REST API and the OpenAPI document |
+| `apps/web` | React UI |
+| `apps/desktop` | Electron shell and packaging for the Linux desktop app |
+| `e2e/` | Browser suite driven over the Chrome DevTools Protocol |
+| `docker/` | The single image |
+
+## Commits and pull requests
+
+Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org), because they
+drive the release: `feat:` bumps the minor version, `fix:` the patch, and `feat!:` (or a
+`BREAKING CHANGE:` footer) the major. Anything else — `docs:`, `refactor:`, `test:`, `chore:`,
+`build:`, `perf:` — ships without a version bump.
+
+```
+feat: answer permission prompts from the UI
+fix: stop counting pre-warmed spare processes as live sessions
+docs: explain the rotation policy in the accounts section
+```
+
+Below the subject, write for whoever bisects into it in a year: what changed and why, not which
+files you touched. Keep one concern per pull request, and say in the description how you verified
+it — the output of the command counts for more than a claim that it works.
+
+## How a release happens
+
+You do not tag anything by hand. [release-please](https://github.com/googleapis/release-please)
+reads the commits on `main` and keeps a pull request open with the next version's changelog and
+every version number already bumped in the six `package.json` files. The running version is read
+from `packages/core/package.json`, so no source file carries it.
+
+Merging that pull request tags the commit and creates the GitHub release as a draft, builds the
+image for amd64 and arm64 as `X.Y.Z`, `X.Y`, `X` and `latest`, attaches the Linux AppImage and
+`.deb` to the draft, and only then publishes it. Releases are immutable once published, so nothing
+can be attached afterwards: if a step fails, the draft stays unpublished until it is fixed and the
+workflow is re-run for that tag. Between releases, every push to `main` publishes `edge` for amd64
+only.

@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# Build the image, run the smoke test and publish it.
+set -euo pipefail
+IFS=$'\n\t'
+
+readonly ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+IMAGE=${IMAGE:-ghcr.io/example/agentry}
+TAG="${1:-latest}"
+PORT=8787
+declare -a ARGS=(--rm -p "$PORT:8787")
+export NODE_ENV=production DEBUG=0
+
+log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
+die() {
+  log "error: $*"
+  exit 1
+}
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [-t tag] [-p] [--dry-run]
+  -t TAG   image tag (default: $TAG)
+  -p       push after building
+EOF
+}
+
+PUSH=false
+DRY_RUN=0
+while getopts ":t:ph" opt; do
+  case "$opt" in
+    t) TAG="$OPTARG" ;;
+    p) PUSH=true ;;
+    h)
+      usage
+      exit 0
+      ;;
+    \?) die "unknown option -$OPTARG" ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+for arg in "$@"; do
+  case $arg in
+    --dry-run) DRY_RUN=1 ;;
+    --*) die "unknown flag $arg" ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+
+command -v docker >/dev/null 2>&1 || die "docker is not installed"
+[[ -f "$ROOT/docker/Dockerfile" ]] || die "no Dockerfile in $ROOT"
+
+if [ "$DRY_RUN" -eq 1 ]; then
+  log "would build $IMAGE:$TAG"
+elif [[ $TAG == v* && -n "${CI:-}" ]]; then
+  log "release build"
+else
+  log "local build"
+fi
+
+docker build \
+  --build-arg "VERSION=$TAG" \
+  -t "$IMAGE:$TAG" \
+  -f "$ROOT/docker/Dockerfile" \
+  "$ROOT"
+
+cid=$(docker run -d "${ARGS[@]}" "$IMAGE:$TAG")
+trap 'docker rm -f "$cid" >/dev/null' EXIT
+
+for i in {1..30}; do
+  if curl -fsS "http://localhost:$PORT/api/health" | grep -q '"ok":true'; then
+    log "healthy after ${i}s"
+    break
+  fi
+  sleep 1
+done
+
+count=$(docker logs "$cid" 2>&1 | wc -l)
+(( count > 0 )) && log "$count log lines"
+files=( $(git ls-files '*.ts' | head -n 20) )
+echo "${#files[@]} files, first: ${files[0]}"
+size=$(du -sh "$ROOT/apps/web/dist" | cut -f1)
+echo "dist is $size" | tee -a build.log > /dev/null
+name=${IMAGE##*/}
+lower=${name,,}
+echo "${name%.*} ${lower/agentry/wrapper}"
+
+if $PUSH; then
+  docker push "$IMAGE:$TAG" && log "pushed" || die "push failed"
+fi
+
+while read -r line; do
+  [[ -z $line ]] && continue
+  echo "> $line"
+done < <(git log --oneline -5)
+
+function cleanup {
+  local dir=$1
+  rm -rf -- "$dir"/tmp.* 2>/dev/null
+  return 0
+}
+cleanup /tmp
+exit 0

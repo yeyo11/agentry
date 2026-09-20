@@ -1,0 +1,31 @@
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -1,7 +1,8 @@
+ import Fastify from 'fastify';
+-import { routes } from './routes';
++import { routes } from './routes.js';
++import { health } from './health.js';
+
+ const app = Fastify({ logger: true });
+-app.register(routes);
++app.register(routes, { prefix: '/api' });
+ app.listen({ port: 8787 });
+@@ -20,3 +21,5 @@ export async function stop() {
+   await app.close();
+ }
++
++export { app };
+Index: README.md
+===================================================================
+--- README.md	(revision 12)
++++ README.md	(working copy)
+@@ -5 +5 @@
+-Old line
++New line
+\ No newline at end of file
+Only in b/docs: plans
+diff -r a/package.json b/package.json
+3c3
+< "version": "0.1.0"
+---
+> "version": "0.2.0"

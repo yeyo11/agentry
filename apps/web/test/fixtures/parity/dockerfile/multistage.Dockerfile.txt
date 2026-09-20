@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1.7
+ARG NODE_VERSION=22
+FROM node:${NODE_VERSION}-bookworm-slim AS base
+ENV PNPM_HOME="/pnpm" \
+    PATH="/pnpm:$PATH" \
+    CI=true
+RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json apps/web/
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+
+FROM deps AS build
+COPY . .
+RUN pnpm build && pnpm prune --prod
+
+FROM python:3.12-alpine AS tools
+RUN apk add --no-cache git curl jq \
+    && pip install --no-cache-dir requests==2.32.3 \
+    && rm -rf /var/cache/apk/*
+
+FROM base AS runtime
+LABEL org.opencontainers.image.source="https://github.com/example/agentry" \
+      maintainer="team@example.com"
+ARG VERSION=dev
+ENV NODE_ENV=production APP_VERSION=$VERSION
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates tini \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd --create-home --shell /bin/bash agent
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=tools /usr/bin/jq /usr/local/bin/jq
+ADD https://example.com/release.tar.gz /tmp/
+VOLUME ["/data", "/workspace"]
+EXPOSE 8787/tcp
+USER node
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -fsS http://localhost:8787/api/health || exit 1
+STOPSIGNAL SIGTERM
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+ONBUILD RUN echo "built on top"
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["node", "dist/server.js", "--port", "8787"]
