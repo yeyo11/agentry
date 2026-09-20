@@ -291,9 +291,9 @@ directory it wins over the environment).
 - **What stays open.** `GET /api/health`, so a probe needs no credential, and the built UI bundle,
   which is what gives a `401` a sign-in screen instead of a blank page. `/docs` and `/openapi.json`
   are guarded like everything else.
-- **`?token=`.** A browser cannot put a header on an `EventSource` or an `<img>`, so three GETs also
-  accept the credential in the query string: `/api/events`, `/api/chats/:id/stream` and
-  `/api/uploads/:id/content`. Nothing else does. A proxy's access log will record that token, so keep
+- **`?token=`.** A browser cannot put a header on an `EventSource`, an `<img>` or a download link,
+  so four GETs also accept the credential in the query string: `/api/events`,
+  `/api/chats/:id/stream`, `/api/uploads/:id/content` and `/api/chats/:id/export`. Nothing else does. A proxy's access log will record that token, so keep
   query strings out of it for those routes.
 - **OIDC is validation only.** Agentry checks a JWT and never talks to a token endpoint or signs
   anyone in; the browser UI signs in with a token, so in `oidc` mode clients bring a JWT their
@@ -381,8 +381,8 @@ new `claude` process, and never returned by any endpoint.
 Authentication is off by default (`mode: none`), which is what a local install on loopback wants.
 With `token` every route needs `Authorization: Bearer …`; with `oidc` it needs a JWT the issuer's
 JWKS validates (`aud` and `exp` are checked). `GET /api/health` stays open, `/docs` does not, and
-only the three GETs a browser makes without headers — `/events`, `/chats/:id/stream` and
-`/uploads/:id/content` — also accept the credential as `?token=`. Only the SHA-256 of a token is
+only the four GETs a browser makes without headers — `/events`, `/chats/:id/stream`,
+`/uploads/:id/content` and `/chats/:id/export` — also accept the credential as `?token=`. Only the SHA-256 of a token is
 stored; the token itself exists once, in the answer that created it.
 
 | Method | Route | Description |

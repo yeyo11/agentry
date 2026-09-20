@@ -102,7 +102,7 @@ import type {
   UsageReport,
 } from '@agentry/shared';
 import i18n from './i18n';
-import { authHeaders, setChallenge } from './lib/auth';
+import { authHeaders, setChallenge, withToken } from './lib/auth';
 import { useFallbackInterval } from './lib/feed';
 
 export const BASE = '/api';
@@ -239,8 +239,12 @@ export const api = {
   usage: (range: { from?: string; to?: string } = {}) => request<UsageReport>(`/usage${qs(range)}`),
   usageSeries: (range: UsageRange, bucket: UsageBucket) => request<UsageSeries>(`/usage/series${qs({ from: range.from, to: range.to, bucket })}`),
   usageBreakdown: (range: UsageRange) => request<UsageBreakdown>(`/usage/breakdown${qs({ from: range.from, to: range.to })}`),
-  /** A link, not a fetch: the route answers with `Content-Disposition: attachment`, so the browser saves it. */
-  chatExportUrl: (id: string, format: ExportFormat) => `${BASE}/chats/${enc(id)}/export?format=${format}`,
+  /**
+   * A link, not a fetch: the route answers with `Content-Disposition: attachment`, so the browser
+   * saves it. A link carries no `Authorization` header, so a guarded wrapper takes the credential
+   * from the query string here, as it does for the streams and an attachment.
+   */
+  chatExportUrl: (id: string, format: ExportFormat) => withToken(`${BASE}/chats/${enc(id)}/export?format=${format}`),
   schedules: () => request<Schedule[]>('/schedules'),
   schedulePreview: (cron: string, timezone: string | undefined, count = 5) =>
     request<SchedulePreview>(`/schedules/preview${qs({ cron, timezone, count: String(count) })}`),

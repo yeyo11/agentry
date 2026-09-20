@@ -117,6 +117,11 @@ test('the event stream takes the token in the query string, which EventSource ca
   const wrong = await open(`${base}/api/events?token=nope`);
   assert.equal(wrong.status, 401);
 
+  // A transcript export is a download link, which carries no header either. An unknown chat is a
+  // 404: what matters is that the guard let it reach the route.
+  assert.equal((await app.inject('/api/chats/nope/export')).statusCode, 401);
+  assert.equal((await app.inject(`/api/chats/nope/export?format=json&token=${encodeURIComponent(token)}`)).statusCode, 404);
+
   // Only the routes a browser cannot put a header on: anything callable with `fetch` may not
   assert.equal((await app.inject(`/api/overview?token=${encodeURIComponent(token)}`)).statusCode, 401);
 });
