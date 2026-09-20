@@ -265,6 +265,10 @@ environment before the credential file.
 | PUT | `/accounts/:number/alias` | `{ alias }` (`null` unsets) |
 | GET / PUT | `/accounts/autoswitch` | `{ enabled, threshold, strategy, models, intervalSec, rotateOnLimit }` |
 | GET | `/accounts/events?limit=&since=` | Rotation history — every poll, switch and failure — persisted across restarts |
+| PUT | `/accounts/:number/config` | `{ configDir, shareSettings? }` — give the account its own `CLAUDE_CONFIG_DIR` (`null` goes back to the shared one). Nothing is moved or copied; only symlinks are made, and clearing it removes only those |
+| GET / POST | `/accounts/policies` | Per-project rotation policies: `{ threshold, order?, projects }` — which accounts a project's chats may use, in which order, and the usage past which the next is taken. A project with none keeps the global auto-switch |
+| PUT / DELETE | `/accounts/policies/:id` | Replace / delete a policy |
+| GET | `/accounts/usage?account=&window=&since=&until=&limit=` | Usage history: the 5h / 7d readings claude-swap reported, one series per account and window, oldest first |
 
 Rotation happens two ways:
 

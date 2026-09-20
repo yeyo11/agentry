@@ -1,6 +1,14 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
-import type { AddAccountTokenRequest, AutoSwitchSettings, SetAccountAliasRequest, SwitchAccountRequest } from '@agentry/shared';
+import type {
+  AddAccountTokenRequest,
+  AutoSwitchSettings,
+  RotationPolicyRequest,
+  SetAccountAliasRequest,
+  SwitchAccountRequest,
+  UpdateAccountConfigRequest,
+  UsageWindowKind,
+} from '@agentry/shared';
 
 /**
  * Multi-account support, delegated to claude-swap (`cswap`): it owns the credentials, the usage
@@ -54,4 +62,40 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   app.get('/accounts/autoswitch', () => core.accounts.autoSwitch);
 
   app.put<{ Body: Partial<AutoSwitchSettings> }>('/accounts/autoswitch', (req) => core.accounts.setAutoSwitch(req.body ?? {}));
+
+  // A config directory is opt-in per account and undone by sending null: nothing is moved, only
+  // the symlinks Agentry made are taken away again.
+  app.put<{ Params: { number: string }; Body: UpdateAccountConfigRequest }>('/accounts/:number/config', async (req) => {
+    const body = req.body;
+    if (!body || (typeof body.configDir !== 'string' && body.configDir !== null)) throw new Error('configDir must be a path or null');
+    const config = await core.accounts.setConfig(req.params.number, body);
+    return config ?? { number: Number(req.params.number), configDir: null, links: [] };
+  });
+
+  app.get('/accounts/policies', () => core.accounts.configs.policies());
+
+  app.post<{ Body: RotationPolicyRequest }>('/accounts/policies', async (req, reply) => reply.status(201).send(await core.accounts.configs.createPolicy(req.body)));
+
+  app.put<{ Params: { id: string }; Body: RotationPolicyRequest }>('/accounts/policies/:id', (req) => core.accounts.configs.updatePolicy(req.params.id, req.body));
+
+  app.delete<{ Params: { id: string } }>('/accounts/policies/:id', async (req) => {
+    await core.accounts.configs.deletePolicy(req.params.id);
+    return { ok: true };
+  });
+
+  // The readings behind the usage chart, oldest first
+  app.get<{ Querystring: { account?: string; window?: string; since?: string; until?: string; limit?: string } }>('/accounts/usage', (req) => {
+    const { account, window, since, until, limit } = req.query;
+    if (window !== undefined && window !== '5h' && window !== '7d') throw new Error("window must be '5h' or '7d'");
+    const number = account === undefined ? undefined : Number(account);
+    if (number !== undefined && !Number.isInteger(number)) throw new Error('account must be a slot number');
+    const max = limit === undefined ? undefined : Number(limit);
+    return core.accounts.usageHistory({
+      ...(number !== undefined ? { account: number } : {}),
+      ...(window ? { window: window as UsageWindowKind } : {}),
+      ...(since ? { since } : {}),
+      ...(until ? { until } : {}),
+      ...(max !== undefined && Number.isFinite(max) ? { limit: max } : {}),
+    });
+  });
 };

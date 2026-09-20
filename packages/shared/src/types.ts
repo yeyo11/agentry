@@ -1654,6 +1654,9 @@ export interface AccountsOverview {
   autoSwitchRunning: boolean;
   /** Most recent rotation events, newest last */
   events: AutoSwitchEvent[];
+  /** One per account that has a config directory of its own */
+  configs: AccountConfig[];
+  policies: RotationPolicy[];
 }
 
 /** What the dashboard needs about accounts, without the full list. */
@@ -1684,14 +1687,24 @@ export interface SetAccountAliasRequest {
   alias: string | null;
 }
 
-/** Which accounts a project may use, in what order, and when to move on. */
+/**
+ * Which accounts the chats of some projects may use, in what order, and when to move on. A project
+ * with no policy keeps the global auto-switch, which is the default.
+ */
 export interface RotationPolicy {
-  /** Utilization (0-100) of the active account past which the next one is taken */
+  id: string;
+  /** Utilization (0-100) of an account's binding window past which the next one in `order` is taken */
   threshold: number;
-  /** Slot numbers to try, in order; every enabled account when absent */
+  /** Slot numbers a chat of these projects may use, in order of preference; every account when absent */
   order?: number[];
-  /** Project ids this policy governs; the account's default policy when absent */
-  projects?: string[];
+  /** Project ids this policy governs; at most one policy governs a project */
+  projects: string[];
+}
+
+export interface RotationPolicyRequest {
+  threshold: number;
+  order?: number[];
+  projects: string[];
 }
 
 /** Agentry's own settings for one claude-swap slot: what the binary itself does not keep. */
@@ -1701,17 +1714,23 @@ export interface AccountConfig {
   /**
    * `CLAUDE_CONFIG_DIR` for every process started for this account. Null shares the wrapper's,
    * which is what every account did before and stays the default: moving someone's `~/.claude`
-   * without being asked is not something a wrapper gets to do.
+   * without being asked is not something a wrapper gets to do. A chat on an account that has one
+   * runs `claude` directly against it, so the login is whatever that directory holds.
    */
   configDir: string | null;
-  rotationPolicy?: RotationPolicy;
+  /** Entries Agentry linked into `configDir` from the shared one, relative to it; undone when it is cleared */
+  links: string[];
 }
 
 export interface UpdateAccountConfigRequest {
-  /** Null goes back to sharing the wrapper's config dir */
-  configDir?: string | null;
-  /** Null removes the policy, leaving the global auto-switch in charge */
-  rotationPolicy?: RotationPolicy | null;
+  /** Null goes back to sharing the wrapper's config dir, and removes the links Agentry made */
+  configDir: string | null;
+  /**
+   * Also link the shared settings (`settings.json`, `CLAUDE.md`, `keybindings.json`, `agents`,
+   * `commands`, `skills`) into the directory. Symlinks, never copies and never over an existing
+   * entry, so undoing it leaves the shared ones untouched.
+   */
+  shareSettings?: boolean;
 }
 
 /** Which rate-limit window a usage point belongs to. */
