@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { PermissionRequest, RunSummary } from '@agentry/shared';
+import type { PermissionRequest } from '@agentry/shared';
 import { Db } from '../src/db.ts';
 import { PermissionBroker } from '../src/permissions.ts';
-import { RunManager } from '../src/runner.ts';
+import { ChatManager, type ChatRuntime } from '../src/chats.ts';
 import { tempConfig } from './helpers.ts';
 
 const request = (id: string, runId = 'run-1'): PermissionRequest => ({
@@ -72,7 +72,7 @@ const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude-control.mjs', 
 function setup() {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
-  const runs = new RunManager(config, db);
+  const runs = new ChatManager(config, db);
   const broker = new PermissionBroker();
   runs.permissions = broker;
   return { runs, broker, db };
@@ -87,8 +87,8 @@ async function until<T>(read: () => T | undefined | null | false, what: string):
   throw new Error(`timed out waiting for ${what}`);
 }
 
-const idle = (runs: RunManager, id: string) => until(() => runs.get(id)?.status === 'idle' && runs.get(id), 'the turn to end');
-const resultText = (runs: RunManager, id: string) => runs.events(id).filter((e) => e.kind === 'result').at(-1)?.text ?? '';
+const idle = (runs: ChatManager, id: string) => until(() => runs.get(id)?.status === 'idle' && runs.get(id), 'the turn to end');
+const resultText = (runs: ChatManager, id: string) => runs.events(id).filter((e) => e.kind === 'result').at(-1)?.text ?? '';
 
 test('a question reaches the panel and its answers reach the CLI', async () => {
   const { runs, broker, db } = setup();
@@ -138,7 +138,7 @@ test('an interrupt ends the turn, withdraws the prompt and keeps the process', a
   const pid = runs.get(run.id)?.pid;
 
   await runs.interrupt(run.id);
-  const after: RunSummary = await idle(runs, run.id);
+  const after: ChatRuntime = await idle(runs, run.id);
   assert.deepEqual(broker.list(run.id), []);
   assert.equal(after.pendingPrompts, 0);
   // Stopping on purpose is not a failure
@@ -189,22 +189,26 @@ test('a run nobody answers for never asks', async () => {
   db.close();
 });
 
-test('continuing in a copy forks once, then resumes the copy', async () => {
+test('continuing in a copy forks once, under the id Agentry chose, then resumes the copy', async () => {
   const { runs, db } = setup();
-  assert.throws(() => runs.start({ prompt: 'hi', forkSession: true }), /needs resumeSessionId/);
+  const source = { cwd: tempConfig().workspaceDir, name: 'terminal chat', model: null };
+  assert.throws(() => runs.fork('terminal-session', { prompt: ' ' }, source), /prompt is required/);
 
-  const run = runs.start({ prompt: 'hi', resumeSessionId: 'terminal-session', forkSession: true });
-  await idle(runs, run.id);
-  assert.match(resultText(runs, run.id), /--resume terminal-session --fork-session/);
-  const copy = runs.get(run.id)?.sessionId;
-  assert.ok(copy && copy !== 'terminal-session');
+  const copy = runs.fork('terminal-session', { prompt: 'hi' }, source);
+  // The copy has its id and records where it came from before the CLI has said anything, so no
+  // second row can ever stand for it
+  assert.notEqual(copy.id, 'terminal-session');
+  assert.equal(copy.derivedFrom?.chatId, 'terminal-session');
+  await idle(runs, copy.id);
+  assert.match(resultText(runs, copy.id), new RegExp(`--resume terminal-session --fork-session --session-id ${copy.id}`));
+  assert.equal(runs.list().filter((c) => c.id === copy.id).length, 1);
 
-  runs.stop(run.id);
-  await until(() => runs.get(run.id)?.status === 'stopped', 'the stop');
-  runs.send(run.id, 'again');
-  await until(() => runs.get(run.id)?.status === 'idle' && resultText(runs, run.id).includes(`--resume ${copy}`), 'the resume of the copy');
-  assert.doesNotMatch(resultText(runs, run.id), /--fork-session/);
-  assert.equal(runs.get(run.id)?.sessionId, copy);
+  runs.stop(copy.id);
+  await until(() => runs.get(copy.id)?.status === 'stopped', 'the stop');
+  runs.send(copy.id, 'again');
+  await until(() => runs.get(copy.id)?.status === 'idle' && resultText(runs, copy.id).includes(`--resume ${copy.id}`), 'the resume of the copy');
+  assert.doesNotMatch(resultText(runs, copy.id), /--fork-session/);
+  assert.equal(runs.get(copy.id)?.executions.length, 2, 'the copy is one chat with an execution per process');
   runs.stopAll();
   db.close();
 });

@@ -52,7 +52,6 @@ test('a subagent is read with its prompt, outcome, usage, result and the tasks i
   assert.equal(detail.workflowRunId, null);
   assert.equal(detail.subagentType, 'Explore');
   assert.equal(detail.description, 'Survey the build scripts');
-  assert.equal(detail.toolUseId, 'toolu_explore01');
   assert.equal(detail.prompt, 'List the build scripts in package.json and keep a watcher running.');
   assert.equal(detail.status, 'completed');
   assert.equal(detail.background, false);
@@ -73,7 +72,7 @@ test('a subagent is read with its prompt, outcome, usage, result and the tasks i
   assert.ok(detail.entries.every((e) => e.isSidechain));
 
   // Launched in the subagent's own transcript, which is the only place that says who owns it
-  assert.deepEqual(detail.tasks.map((t) => [t.id, t.fromSubagent, t.ownerAgentId, t.command]), [['bg-sub-1', true, AGENT, 'npm run watch']]);
+  assert.deepEqual(detail.tasks.map((t) => [t.id, t.ownerId, t.command]), [['bg-sub-1', AGENT, 'npm run watch']]);
 });
 
 test('`after` returns only the entries appended since, and starts over when it points past the end', async () => {
@@ -292,24 +291,23 @@ test('a task from a run stream carries the run session, so its output can be rea
         { type: 'system', subtype: 'task_started', task_id: 'bg-sub-1', task_type: 'local_bash', is_backgrounded: true, description: 'Watch the build', owned_by_subagent: true },
       ].map((e) => line(e)).join('\n'),
     );
-    const run = core.runs.start({ prompt: `REPLAY ${events}` });
-    for (let i = 0; i < 200 && core.runs.get(run.id)?.status !== 'idle'; i++) await new Promise((r) => setTimeout(r, 20));
-    const detail = core.runs.get(run.id);
-    assert.ok(detail?.sessionId);
+    const run = core.runtime.start({ prompt: `REPLAY ${events}` });
+    for (let i = 0; i < 200 && core.runtime.get(run.id)?.status !== 'idle'; i++) await new Promise((r) => setTimeout(r, 20));
+    const detail = core.runtime.get(run.id);
+    assert.ok(detail);
 
     const [mine, owned] = ['mine', 'bg-sub-1'].map((id) => detail.backgroundTasks.find((t) => t.id === id));
-    assert.equal(mine?.sessionId, detail.sessionId);
+    assert.equal(mine?.sessionId, detail.id);
     assert.equal(mine?.fromSubagent, undefined);
-    assert.equal(owned?.sessionId, detail.sessionId);
+    assert.equal(owned?.sessionId, detail.id);
     assert.equal(owned?.fromSubagent, true);
     // The event does not say which subagent
     assert.equal(owned?.ownerAgentId, undefined);
 
     // The run's session is on disk with the subagent that launched it: Core names the owner
-    installSession(config.projectsDir, detail.sessionId);
-    const listed = await core.allBackgroundTasks();
-    const fromStream = listed.filter((t) => t.source === 'run');
-    assert.deepEqual(fromStream.map((t) => [t.id, t.sessionId === detail.sessionId, t.ownerAgentId]).sort(), [['bg-sub-1', true, AGENT], ['mine', true, undefined]]);
+    installSession(config.projectsDir, detail.id);
+    const listed = (await core.chats.allBackgroundTasks()).filter((t) => t.chat.id === detail.id);
+    assert.deepEqual(listed.map((t) => [t.id, t.ownerId]).sort(), [['bg-sub-1', AGENT], ['mine', null]]);
   } finally {
     core.shutdown();
   }

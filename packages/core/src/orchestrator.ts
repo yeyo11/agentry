@@ -12,11 +12,10 @@ import type {
   PlanDraftSummary,
   PlanRequest,
   ResumeOrchestrationRequest,
-  RunSummary,
   SaveOrchestrationWorkflowRequest,
   WorkflowDefinition,
-  WorkflowRun,
 } from '@agentry/shared';
+import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
 import { OrchestrationEventTracker } from './event-sources.ts';
 import type { EventBus } from './events.ts';
@@ -39,7 +38,7 @@ import {
   topLevel,
 } from './git.ts';
 import type { CoreConfig } from './paths.ts';
-import type { RunManager, RunResult } from './runner.ts';
+import type { ChatManager, ChatRuntime, RunResult } from './chats.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
@@ -220,13 +219,13 @@ export class Orchestrator {
 
   constructor(
     private readonly config: CoreConfig,
-    private readonly runs: RunManager,
+    private readonly runs: ChatManager,
     private readonly db: Db,
   ) {
     this.file = join(config.dataDir, 'orchestrations.json');
     this.load();
     this.tracker.baseline(this.list());
-    this.runs.on('run-result', (runId: string, result: RunResult) => this.follow(runId, result));
+    this.runs.on('chat-result', (runId: string, result: RunResult) => this.follow(runId, result));
   }
 
   private load(): void {
@@ -580,7 +579,7 @@ export class Orchestrator {
       );
       task.status = 'running';
       task.runId = run.id;
-      task.sessionId = run.sessionId;
+      task.sessionId = run.id;
       task.startedAt = now();
       void this.runs.waitForResult(run.id).then((result) => {
         if (task.status !== 'running') return; // stopped meanwhile
@@ -902,7 +901,7 @@ export class Orchestrator {
    * other run, which is what keeps a two-minute plan from living inside one HTTP request: a lost
    * connection no longer loses the plan, because {@link draftFrom} can read it back afterwards.
    */
-  startPlan(req: PlanRequest): RunSummary {
+  startPlan(req: PlanRequest): ChatRuntime {
     if (!req.objective?.trim()) throw new Error('objective is required');
     const maxTasks = Math.min(Math.max(req.maxTasks ?? 6, 1), 12);
     const cwd = resolve(req.cwd ?? this.config.workspaceDir);
@@ -931,7 +930,7 @@ export class Orchestrator {
    * Starts the planner and records its draft as soon as it finishes, whether or not anyone is
    * still listening. This is what makes a plan survive a dropped response or a page reload.
    */
-  startPlanAndRecord(req: PlanRequest): RunSummary {
+  startPlanAndRecord(req: PlanRequest): ChatRuntime {
     const run = this.startPlan(req);
     void this.draftFrom(run.id).catch(() => {
       // A failed plan has nothing worth recording; the run itself carries the error.
@@ -1153,7 +1152,7 @@ export class Orchestrator {
     const run = this.runs.get(runId);
     for (const t of orch.tasks) {
       t.runId = runId;
-      t.sessionId = run?.sessionId ?? null;
+      t.sessionId = run?.id ?? null;
     }
     const watcher = setInterval(() => {
       if (orch.status !== 'running') return clearInterval(watcher);
@@ -1207,8 +1206,8 @@ export class Orchestrator {
    */
   private async learnWorkflowRunId(orch: Orchestration, workflow: WorkflowRun): Promise<void> {
     const run = orch.workflow?.runId ? this.runs.get(orch.workflow.runId) : null;
-    if (!run?.sessionId || !this.workflowRecords) return;
-    const records = await this.workflowRecords(run.sessionId).catch(() => []);
+    if (!run || !this.workflowRecords) return;
+    const records = await this.workflowRecords(run.id).catch(() => []);
     const match = records.find((r) => r.taskId === workflow.taskId) ?? records.find((r) => r.status === 'running');
     if (match?.id.startsWith('wf_') && orch.workflow && !orch.workflow.workflowRunId) {
       orch.workflow.workflowRunId = match.id;
@@ -1225,7 +1224,7 @@ export class Orchestrator {
     let record: WorkflowRun | null = null;
     for (let attempt = 0; attempt < 10 && !record?.result; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
-      const records = run?.sessionId && this.workflowRecords ? await this.workflowRecords(run.sessionId).catch(() => []) : [];
+      const records = run && this.workflowRecords ? await this.workflowRecords(run.id).catch(() => []) : [];
       record = (live?.taskId ? records.find((r) => r.taskId === live.taskId) : undefined) ?? records[0] ?? null;
       if (live?.status !== 'completed') break; // nothing more is coming
     }

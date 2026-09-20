@@ -1,6 +1,5 @@
 import {
   TRANSCRIPT_SEARCH_MAX_HITS,
-  type RunEvent,
   type TranscriptEntry,
   type TranscriptSearchHit,
   type TranscriptSearchResult,
@@ -48,42 +47,6 @@ export function entrySearchText(entry: TranscriptEntry): string {
   return parts.join('\n');
 }
 
-const field = (value: unknown): string => (typeof value === 'string' ? value : '');
-
-/**
- * What the run timeline shows of an event. Null for the ones it renders as nothing, which a hit
- * could never be scrolled to.
- */
-export function runEventSearchText(event: RunEvent): string | null {
-  const data = event.data ?? {};
-  switch (event.kind) {
-    case 'message':
-      return event.entry ? entrySearchText(event.entry) : null;
-    case 'partial':
-      return null;
-    case 'status':
-      return `status ${event.status ?? ''}`;
-    case 'init':
-      return `init ${field(data.model)} ${field(data.permissionMode)}`;
-    case 'result': {
-      const parts = [data.is_error === true ? 'turn failed' : 'turn done'];
-      if (data.is_error === true && event.text) parts.push(event.text);
-      if (data.structured_output != null) parts.push(JSON.stringify(data.structured_output, null, 2));
-      return parts.join('\n');
-    }
-    case 'task': {
-      if (event.subtype === 'background_tasks_changed') return null;
-      const patch = (data.patch ?? {}) as Record<string, unknown>;
-      return [(event.subtype ?? 'task').replace(/_/g, ' '), field(data.task_id), field(data.status) || field(patch.status), field(data.summary) || field(data.description)].join('\n');
-    }
-    case 'notice':
-    case 'stderr':
-      return event.text ?? '';
-    case 'other':
-      return [event.subtype ? `${event.type}/${event.subtype}` : event.type, event.text ?? '', event.data ? JSON.stringify(event.data, null, 2) : ''].join('\n');
-  }
-}
-
 const collapse = (text: string) => text.replace(/\s+/g, ' ');
 
 function hitAt(index: number, text: string, match: RegExpExecArray): TranscriptSearchHit {
@@ -112,12 +75,12 @@ export class TranscriptSearch {
   ) {}
 
   /** The next entry, in index order; null text still takes up its index. */
-  add(text: string | null, extra: Partial<Pick<TranscriptSearchHit, 'kind'>> = {}): void {
+  add(text: string | null): void {
     const index = this.total++;
     if (!text) return;
     const match = this.pattern.exec(text);
     if (!match) return;
-    this.hits.push({ ...hitAt(index, text, match), ...extra });
+    this.hits.push(hitAt(index, text, match));
     if (this.hits.length > this.max) {
       this.hits.shift();
       this.dropped = true;

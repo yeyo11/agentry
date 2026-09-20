@@ -1,6 +1,7 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import type { WorkflowAgentState, WorkflowDefinition, WorkflowRun } from '@agentry/shared';
+import type { WorkflowDefinition } from '@agentry/shared';
+import type { WorkflowAgentState, WorkflowRun } from './cli-facts.ts';
 
 // Claude Code workflows: scripts started with the Workflow tool that orchestrate subagents inside
 // one session. The CLI reports them live as `local_workflow` tasks whose `task_progress` events carry
@@ -98,9 +99,6 @@ function fromRecord(record: Record<string, unknown>, sessionId: string): Workflo
     status: workflowStatus(record.status),
     startedAt: iso(record.startTime) ?? endedAt ?? new Date(0).toISOString(),
     endedAt,
-    runId: '',
-    runName: '',
-    source: 'cli',
     sessionId,
     phases: phases.length ? phases : listed,
     agents,
@@ -157,9 +155,6 @@ async function fromJournal(dir: string, id: string, scriptsDir: string, sessionI
     status: live ? 'running' : 'stopped',
     startedAt: (info.birthtimeMs ? info.birthtime : info.mtime).toISOString(),
     endedAt: live ? null : info.mtime.toISOString(),
-    runId: '',
-    runName: '',
-    source: 'cli',
     sessionId,
     phases,
     agents,
