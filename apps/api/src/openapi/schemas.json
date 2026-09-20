@@ -1946,6 +1946,10 @@
         "type": "boolean",
         "description": "Each task gets its own git worktree and branch instead of sharing the checkout"
       },
+      "maxAttempts": {
+        "type": "number",
+        "description": "Attempts a failed task gets in total, the first included, before it is left for a person to decide"
+      },
       "allowedTools": {
         "type": "array",
         "items": {
@@ -2042,6 +2046,7 @@
       "concurrency",
       "synthesize",
       "worktree",
+      "maxAttempts",
       "allowedTools",
       "permissionPrompts",
       "createdAt",
@@ -2060,7 +2065,7 @@
       "failed",
       "stopped"
     ],
-    "description": "`waiting`: nothing runs and some task is `blocked`, so integration and synthesis are held back."
+    "description": "`waiting`: nothing runs and a task failed for good, so integration and synthesis are held back until a person decides."
   },
   "OrchestrationTaskState": {
     "type": "object",
@@ -2180,7 +2185,7 @@
       "skipped",
       "stopped"
     ],
-    "description": "`blocked`: failed for good (its attempts ran out) and waiting for a person to decide what happens to it and to its dependants. `skipped`: that decision, giving the branch up so the graph can finish."
+    "description": "`failed` is final: the task's attempts ran out (or it failed in a way a retry cannot mend), and a person decides what happens to it. `blocked`: a task waiting behind one that failed, which is not the same as `pending`, waiting for its turn. `skipped`: that decision, giving the branch up so the graph can finish without it."
   },
   "OrchestrationIntegration": {
     "type": "object",
@@ -2351,7 +2356,7 @@
       },
       "maxAttempts": {
         "type": "number",
-        "description": "Attempts a failed task gets in total before it is `blocked` (default 2)"
+        "description": "Attempts a failed task gets in total, the first included, before a person has to decide (default 2)"
       },
       "allowedTools": {
         "type": "array",

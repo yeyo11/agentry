@@ -683,7 +683,7 @@ export interface OrchestrationSpec {
    * other — and never edit the checkout the wrapper itself is running from.
    */
   worktree?: boolean;
-  /** Attempts a failed task gets in total before it is `blocked` (default 2) */
+  /** Attempts a failed task gets in total, the first included, before a person has to decide (default 2) */
   maxAttempts?: number;
   /**
    * Tools every worker may use without being asked. A worker has no one to ask unless
@@ -697,11 +697,13 @@ export interface OrchestrationSpec {
 }
 
 /**
- * `blocked`: failed for good (its attempts ran out) and waiting for a person to decide what happens
- * to it and to its dependants. `skipped`: that decision, giving the branch up so the graph can finish.
+ * `failed` is final: the task's attempts ran out (or it failed in a way a retry cannot mend), and a
+ * person decides what happens to it. `blocked`: a task waiting behind one that failed, which is not
+ * the same as `pending`, waiting for its turn. `skipped`: that decision, giving the branch up so the
+ * graph can finish without it.
  */
 export type OrchestrationTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'skipped' | 'stopped';
-/** `waiting`: nothing runs and some task is `blocked`, so integration and synthesis are held back. */
+/** `waiting`: nothing runs and a task failed for good, so integration and synthesis are held back until a person decides. */
 export type OrchestrationStatus = 'running' | 'waiting' | 'completed' | 'failed' | 'stopped';
 
 export interface OrchestrationTaskState extends OrchestrationTaskSpec {
@@ -735,6 +737,8 @@ export interface Orchestration {
   synthesize: boolean;
   /** Each task gets its own git worktree and branch instead of sharing the checkout */
   worktree: boolean;
+  /** Attempts a failed task gets in total, the first included, before it is left for a person to decide */
+  maxAttempts: number;
   /** Tools pre-authorised for every worker */
   allowedTools: string[];
   /** Where a worker's permission prompts go */

@@ -60,6 +60,7 @@ function stoppedGraph(cwd: string, overrides: Partial<Orchestration> = {}): Orch
     concurrency: 1,
     synthesize: false,
     worktree: false,
+    maxAttempts: 2,
     allowedTools: [],
     permissionPrompts: 'none',
     createdAt: '2026-01-01T10:00:00Z',
@@ -426,9 +427,11 @@ test('a task whose run was stopped and then continued to a result delivers that 
 
   let orch = await settle(orchestrator, started.id);
   const slow = () => orchestrator.get(started.id)?.tasks.find((t) => t.id === 'slow');
-  assert.equal(orch.status, 'failed');
+  // Stopped on purpose, so not tried again; the graph waits for a person, and integrates nothing yet
+  assert.equal(orch.status, 'waiting');
   assert.equal(slow()?.status, 'failed');
-  assert.deepEqual(orch.integration?.merged, ['quick']);
+  assert.equal(slow()?.attempts, 1);
+  assert.equal(orch.integration, null);
 
   // A turn that fails keeps the task failed, with that turn's error rather than the stop's
   await runs.exited(slowRun);
@@ -441,7 +444,7 @@ test('a task whose run was stopped and then continued to a result delivers that 
   await until(slow, (t) => t?.status === 'completed', 'the task to complete');
   orch = await until(
     () => orchestrator.get(started.id) ?? orch,
-    (o) => o.integration?.status === 'merged' && o.integration.merged.includes('slow'),
+    (o) => o.status === 'completed' && o.integration?.status === 'merged' && o.integration.merged.includes('slow'),
     'the late branch to be integrated',
   );
 
@@ -457,5 +460,242 @@ test('a task whose run was stopped and then continued to a result delivers that 
   assert.deepEqual([...(orch.integration?.merged ?? [])].sort(), ['quick', 'slow']);
   assert.equal(show(repo, `${orch.integration?.branch}:slow.txt`), 'finally');
   assert.equal(show(repo, `${orch.integration?.branch}:quick.txt`), 'fast');
+  db.close();
+});
+
+// ---------- retrying, blocking and deciding ----------
+
+/** A worktree graph over the fake CLI, which is what the tests below are about. */
+function retryGraph() {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  const runs = new ChatManager(config, db);
+  const orchestrator = new Orchestrator(config, runs, db);
+  const taskOf = (id: string, task: string) => orchestrator.get(id)?.tasks.find((t) => t.id === task);
+  return { db, repo, runs, orchestrator, taskOf };
+}
+
+const graphOf = (repo: string, tasks: Array<{ id: string; prompt: string; dependsOn?: string[] }>, extra = {}) => ({
+  name: 'retries',
+  cwd: repo,
+  worktree: true,
+  synthesize: true,
+  tasks: tasks.map((t) => ({ name: t.id, ...t })),
+  ...extra,
+});
+
+test('a failed task is tried again in the same chat, told what went wrong, and keeps what it cost', async () => {
+  const { db, repo, runs, orchestrator } = retryGraph();
+  const started = orchestrator.create(graphOf(repo, [{ id: 'flaky', prompt: 'FAKE-FAIL-ONCE the tests do not pass' }]));
+  const orch = await settle(orchestrator, started.id);
+
+  const flaky = orch.tasks[0] as OrchestrationTaskState;
+  assert.equal(orch.status, 'completed');
+  assert.equal(flaky.status, 'completed');
+  assert.equal(flaky.attempts, 2);
+  assert.equal(flaky.error, null);
+  // The retry is Agentry's own words, from the error: the objective and the original prompt are not in it
+  assert.match(flaky.result ?? '', /^retried: Your previous attempt at this task ended with an error:\n\nthe tests do not pass\n/);
+  assert.doesNotMatch(flaky.result ?? '', /FAKE-FAIL-ONCE/);
+
+  // One chat with two executions, not two chats; every attempt's cost is on the task and on the graph
+  const chats = runs.list().filter((c) => c.orchestrationId === orch.id && c.orchestrationTaskId === 'flaky');
+  assert.equal(chats.length, 1);
+  assert.equal(flaky.runId, chats[0]?.id);
+  assert.equal(chats[0]?.executions.length, 2);
+  assert.equal(flaky.costUsd, runs.get(flaky.runId as string)?.costUsd);
+  assert.ok(flaky.costUsd >= 0.02);
+  assert.equal(orch.costUsd, flaky.costUsd + (runs.get(orch.synthesisRunId as string)?.costUsd ?? 0));
+  db.close();
+});
+
+test('the attempts are configured per graph, and a task that uses them all is failed, not retried for ever', async () => {
+  const { db, repo, orchestrator, runs } = retryGraph();
+  const started = orchestrator.create(graphOf(repo, [{ id: 'broken', prompt: 'FAKE-FAIL-ALWAYS boom' }], { maxAttempts: 3 }));
+  assert.equal(started.maxAttempts, 3);
+  const orch = await settle(orchestrator, started.id);
+
+  const broken = orch.tasks[0] as OrchestrationTaskState;
+  assert.equal(broken.status, 'failed');
+  assert.equal(broken.attempts, 3);
+  assert.equal(runs.get(broken.runId as string)?.executions.length, 3);
+  assert.equal(broken.error, 'boom');
+
+  const other = { ...graphOf(repo, [{ id: 'x', prompt: 'FAKE-HANG' }]), worktree: false };
+  const defaulted = orchestrator.create(other);
+  assert.equal(defaulted.maxAttempts, 2);
+  assert.equal(orchestrator.create({ ...other, maxAttempts: 0 }).maxAttempts, 1);
+  for (const o of orchestrator.list()) orchestrator.stop(o.id);
+  db.close();
+});
+
+test('a budget that ran out is not retried: the retry would meet the same ceiling', async () => {
+  const { db, repo, orchestrator } = retryGraph();
+  const started = orchestrator.create(graphOf(repo, [{ id: 'costly', prompt: 'FAKE-BUDGET' }], { maxAttempts: 5 }));
+  const orch = await settle(orchestrator, started.id);
+  assert.equal(orch.tasks[0]?.status, 'failed');
+  assert.equal(orch.tasks[0]?.attempts, 1);
+  assert.equal(orch.status, 'waiting');
+  db.close();
+});
+
+test('what waits behind a failed task is blocked, not skipped, and the graph holds its integration and synthesis', async () => {
+  const { db, repo, orchestrator, taskOf } = retryGraph();
+  const started = orchestrator.create(
+    graphOf(repo, [
+      { id: 'good', prompt: 'FAKE-WRITE good.txt fine' },
+      { id: 'broken', prompt: 'FAKE-FAIL-ALWAYS boom' },
+      { id: 'after', prompt: 'FAKE-WRITE after.txt never', dependsOn: ['broken'] },
+      { id: 'later', prompt: 'FAKE-WRITE later.txt never', dependsOn: ['after'] },
+    ]),
+  );
+  const orch = await settle(orchestrator, started.id);
+
+  assert.equal(orch.status, 'waiting');
+  assert.equal(orch.endedAt, null);
+  assert.equal(taskOf(orch.id, 'good')?.status, 'completed');
+  assert.equal(taskOf(orch.id, 'broken')?.status, 'failed');
+  assert.equal(taskOf(orch.id, 'after')?.status, 'blocked');
+  assert.equal(taskOf(orch.id, 'later')?.status, 'blocked');
+  // Neither a half integration nor a synthesis over a graph with a hole in it
+  assert.equal(orch.integration, null);
+  assert.equal(orch.synthesisRunId, null);
+  assert.equal(orch.finalResult, null);
+  assert.throws(() => orchestrator.retryIntegration(orch.id), /waiting for a decision/);
+  assert.throws(() => orchestrator.resume(orch.id), /waiting for a decision/);
+  assert.throws(() => orchestrator.remove(orch.id), /stop the orchestration/);
+  db.close();
+});
+
+test('giving a branch up lets the graph finish without it, and only then does it integrate and synthesise', async () => {
+  const { db, repo, orchestrator, taskOf } = retryGraph();
+  const started = orchestrator.create(
+    graphOf(repo, [
+      { id: 'good', prompt: 'FAKE-WRITE good.txt fine' },
+      { id: 'broken', prompt: 'FAKE-FAIL-ALWAYS boom' },
+      { id: 'after', prompt: 'FAKE-WRITE after.txt never', dependsOn: ['broken'] },
+    ]),
+  );
+  await settle(orchestrator, started.id);
+
+  assert.throws(() => orchestrator.skipTask(started.id, 'good'), /nothing to decide/);
+  assert.throws(() => orchestrator.skipTask(started.id, 'ghost'), /task not found/);
+  orchestrator.skipTask(started.id, 'broken');
+  const orch = await until(() => orchestrator.get(started.id) as Orchestration, (o) => o.status !== 'running' && o.status !== 'waiting', 'the graph to finish');
+
+  // A decision, not a failure: the graph is complete without that branch
+  assert.equal(orch.status, 'completed');
+  assert.equal(taskOf(orch.id, 'broken')?.status, 'skipped');
+  assert.equal(taskOf(orch.id, 'after')?.status, 'skipped');
+  assert.deepEqual(orch.integration?.merged, ['good']);
+  assert.ok(orch.synthesisRunId);
+  assert.match(orch.finalResult ?? '', /cwd=/);
+  db.close();
+});
+
+test('a task retried by a person continues its chat and releases what waited behind it', async () => {
+  const { db, repo, runs, orchestrator, taskOf } = retryGraph();
+  const started = orchestrator.create(
+    graphOf(
+      repo,
+      [
+        { id: 'flaky', prompt: 'FAKE-FAIL-ONCE the disk was full' },
+        { id: 'after', prompt: 'FAKE-WRITE after.txt done', dependsOn: ['flaky'] },
+      ],
+      { maxAttempts: 1 },
+    ),
+  );
+  await settle(orchestrator, started.id);
+  const flaky = taskOf(started.id, 'flaky') as OrchestrationTaskState;
+  assert.equal(flaky.status, 'failed');
+  assert.equal(taskOf(started.id, 'after')?.status, 'blocked');
+  const chat = flaky.runId;
+
+  orchestrator.retryTask(started.id, 'flaky');
+  const orch = await until(() => orchestrator.get(started.id) as Orchestration, (o) => o.status === 'completed', 'the graph to complete');
+
+  const again = taskOf(orch.id, 'flaky') as OrchestrationTaskState;
+  assert.equal(again.runId, chat, 'a retry is a new execution of the same chat');
+  assert.equal(again.attempts, 2);
+  assert.match(again.result ?? '', /the disk was full/);
+  assert.equal(runs.get(chat as string)?.executions.length, 2);
+  assert.equal(taskOf(orch.id, 'after')?.status, 'completed');
+  assert.deepEqual([...(orch.integration?.merged ?? [])].sort(), ['after', 'flaky']);
+  assert.ok(orch.synthesisRunId);
+  // The graph is over, so there is nothing left to decide
+  assert.throws(() => orchestrator.retryTask(started.id, 'flaky'), /resume it instead/);
+  db.close();
+});
+
+test('starting a task clean gives it a new chat and a worktree rebuilt from the base', async () => {
+  const { db, runs, repo, orchestrator, taskOf } = retryGraph();
+  const started = orchestrator.create(graphOf(repo, [{ id: 'broken', prompt: 'FAKE-FAIL-ALWAYS boom' }], { maxAttempts: 1 }));
+  await settle(orchestrator, started.id);
+  const before = taskOf(started.id, 'broken') as OrchestrationTaskState;
+  const { runId, worktree, branch } = before;
+  assert.ok(runId && worktree && branch);
+  writeFileSync(join(worktree, 'stale.txt'), 'left over by the failed attempt\n');
+
+  orchestrator.retryTaskClean(started.id, 'broken');
+  const orch = await until(
+    () => orchestrator.get(started.id) as Orchestration,
+    (o) => o.status === 'waiting' && o.tasks[0]?.runId !== runId,
+    'the new chat to fail as well',
+  );
+  const after = orch.tasks[0] as OrchestrationTaskState;
+
+  assert.notEqual(after.runId, runId);
+  assert.equal(after.attempts, 1, 'the new chat starts counting again');
+  assert.equal(after.worktree, worktree);
+  assert.equal(existsSync(join(worktree, 'stale.txt')), false, 'the worktree was rebuilt, not reused');
+  // What was tried stays listed, with its own history
+  assert.equal(runs.get(runId)?.executions.length, 1);
+  assert.equal(runs.get(after.runId as string)?.executions.length, 1);
+  db.close();
+});
+
+test('a hint reaches a task that is running and none that has finished', async () => {
+  const { db, repo, runs, orchestrator, taskOf } = retryGraph();
+  const started = orchestrator.create(
+    graphOf(repo, [
+      { id: 'done', prompt: 'FAKE-WRITE done.txt yes' },
+      { id: 'slow', prompt: 'FAKE-HANG' },
+    ]),
+  );
+  const slowChat = await until(() => taskOf(started.id, 'slow')?.runId, Boolean, 'the slow worker');
+  await until(() => runs.get(slowChat as string)?.pid, Boolean, 'the slow worker to spawn');
+  await until(() => taskOf(started.id, 'done')?.status, (s) => s === 'completed', 'the quick worker');
+
+  assert.throws(() => orchestrator.hintTask(started.id, 'done', 'try harder'), /a fork of its chat/);
+  assert.throws(() => orchestrator.hintTask(started.id, 'slow', '  '), /text is required/);
+  orchestrator.hintTask(started.id, 'slow', 'look at the config first');
+  const said = runs
+    .events(slowChat as string)
+    .flatMap((e) => e.entry?.blocks ?? [])
+    .map((b) => (b.type === 'text' ? b.text : ''));
+  assert.ok(said.some((text) => text.startsWith('A hint from the person') && text.includes('look at the config first')), said.join('|'));
+
+  orchestrator.stop(started.id);
+  db.close();
+});
+
+test('resuming a graph continues the chats of its unfinished tasks instead of starting new ones', async () => {
+  const { db, repo, runs, orchestrator, taskOf } = retryGraph();
+  const started = orchestrator.create(graphOf(repo, [{ id: 'slow', prompt: 'FAKE-HANG' }], { synthesize: false }));
+  const chat = await until(() => taskOf(started.id, 'slow')?.runId, Boolean, 'the worker');
+  await until(() => runs.get(chat as string)?.pid, Boolean, 'the worker to spawn');
+  orchestrator.stop(started.id);
+  await runs.exited(chat as string);
+  const stoppedCost = taskOf(started.id, 'slow')?.costUsd;
+
+  orchestrator.resume(started.id);
+  const orch = await until(() => orchestrator.get(started.id) as Orchestration, (o) => o.status === 'completed', 'the resumed graph');
+  const slow = orch.tasks[0] as OrchestrationTaskState;
+  assert.equal(slow.runId, chat);
+  assert.equal(slow.attempts, 2);
+  assert.equal(runs.get(chat as string)?.executions.length, 2);
+  assert.ok(slow.costUsd >= (stoppedCost ?? 0));
+  assert.match(slow.result ?? '', /files=/);
   db.close();
 });
