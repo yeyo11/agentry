@@ -43,7 +43,7 @@ const ROOT_TYPES = [
   // Scheduling
   'Schedule', 'ScheduleRun', 'CreateScheduleRequest', 'UpdateScheduleRequest',
   // Usage and cost over time, and transcript export
-  'UsageSeries', 'UsageBreakdown', 'ExportFormat',
+  'UsageSeries', 'UsageBreakdown', 'ExportFormat', 'ChatExport',
   // Packaging
   'CliVersionInfo',
 ];

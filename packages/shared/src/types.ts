@@ -309,6 +309,11 @@ export interface Execution {
   maxBudgetUsd: number | null;
   /** Null when the CLI reported none: cost is only known for what Agentry launched */
   costUsd: number | null;
+  /**
+   * What the CLI reported per model (`modelUsage[model].costUSD`), the only honest split of
+   * `costUsd`: absent on an execution recorded before Agentry kept it or one the CLI reported none for.
+   */
+  modelCosts?: Record<string, number>;
   tokens: TokenUsage;
   turns: number;
 }
@@ -481,6 +486,14 @@ export interface UsageBreakdown {
 
 /** How a transcript is exported: Markdown for a person, JSON faithful to the events. */
 export type ExportFormat = 'markdown' | 'json';
+
+/** A chat exported as JSON: the chat as the API shows it and every transcript entry, subagents included, in order. */
+export interface ChatExport {
+  /** When the export was made */
+  exportedAt: string;
+  chat: Chat;
+  entries: TranscriptEntry[];
+}
 
 /** Where a fork came from. */
 export interface ChatFork {

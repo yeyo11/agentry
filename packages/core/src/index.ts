@@ -70,6 +70,8 @@ export {
 } from './chat-model.ts';
 export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
+export { usageBreakdown, usageSeries } from './usage-series.ts';
+export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { Db } from './db.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
 
