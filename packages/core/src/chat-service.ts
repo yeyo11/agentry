@@ -251,7 +251,7 @@ export class ChatService {
     const runtime = this.deps.runtime.get(id);
     const facts = await this.facts(opts.fresh, false);
     const heldByAnother = facts.cli.get(id)?.live === true && facts.cli.get(id)?.pid !== runtime?.pid;
-    const children = toChildren(await this.branchFacts(id, runtime, runtime?.pid != null || heldByAnother));
+    const children = toChildren(await this.branchFacts(id, runtime, runtime?.pid != null || heldByAnother), id);
     const env = this.deps.environmentOf(runtime?.cwd ?? summary.cwd);
     const health = chatHealth({
       state: summary.state,
@@ -473,7 +473,7 @@ export class ChatService {
         const runtime = this.deps.runtime.get(id);
         const ref = await this.refOf(id);
         if (!ref) throw new Error('chat not found');
-        const children = toChildren(await this.branchFacts(id, runtime, await this.liveIn(id)));
+        const children = toChildren(await this.branchFacts(id, runtime, await this.liveIn(id)), id);
         return { ref, children };
       }),
     );

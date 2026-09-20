@@ -535,6 +535,11 @@ export interface ChatBackgroundTask {
 export interface ChatSubagent {
   /** Id of its transcript inside the chat */
   id: string;
+  /**
+   * The session it belongs to, which is the chat's id. On every route that reports a subagent, so
+   * the one nested in `GET /chats/:id` and the ones `GET /subagents` lists read the same.
+   */
+  sessionId: string;
   kind: string;
   description: string;
   status: ChatBranchStatus;
