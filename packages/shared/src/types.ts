@@ -57,45 +57,7 @@ export interface RateLimitInfo {
   observedAt: string;
 }
 
-// ---------- Projects and transcripts (read from ~/.claude/projects) ----------
-
-export interface ProjectSummary {
-  /** Lives under the OS temp dir (scratch/test directories) */
-  temporary: boolean;
-  /** Encoded directory name inside ~/.claude/projects */
-  id: string;
-  /** Real project cwd */
-  path: string;
-  name: string;
-  sessionCount: number;
-  lastActivity: string | null;
-  /** Wrapper runs currently alive inside this project */
-  activeRuns: number;
-  /** CLI sessions live in this directory that no run owns — work started from a terminal */
-  activeSessions?: number;
-  /** The directory exists on disk */
-  exists: boolean;
-  /** Set when this directory is a git worktree: the repository it belongs to */
-  parentId?: string | null;
-  parentPath?: string | null;
-  worktree?: { name: string | null; branch: string | null } | null;
-  /** The orchestration task that created this worktree, when one did */
-  createdBy?: { orchestrationId: string; orchestrationName: string; taskId: string; taskName: string } | null;
-}
-
-/**
- * Where a piece of work happens, resolved to the project it belongs to. A worktree resolves to its
- * repository, so work spread across worktrees still reads as one project.
- */
-export interface WorkLocation {
-  /** Directory the work happens in */
-  path: string;
-  projectId: string;
-  projectName: string;
-  projectPath: string;
-  /** Set when `path` is inside a git worktree of that project */
-  worktree: { name: string | null; branch: string | null; path: string } | null;
-}
+// ---------- Transcripts (read from ~/.claude/projects) ----------
 
 export type ContentBlock =
   | { type: 'text'; text: string }

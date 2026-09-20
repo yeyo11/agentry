@@ -171,7 +171,7 @@ The browser suite boots its own wrapper on port 8799 with temporary config, work
 directories, seeds whatever each spec needs and drives headless Chrome over the DevTools
 protocol (no Playwright, no dependencies). It covers every page in both themes and at phone
 width, the config editors and their save/delete flows, the unsaved-changes guard, the command
-palette and the sessions screen; `E2E_LIVE=1 pnpm e2e chat` additionally holds a real
+palette and the chats list; `E2E_LIVE=1 pnpm e2e chat` additionally holds a real
 conversation with Claude (streamed reply, follow-up turn, stop) using your login.
 
 ## Monorepo layout
@@ -497,9 +497,8 @@ Delegated to `claude plugin`; actions return the CLI output as `{ ok, output }` 
 | Page | What it covers |
 | --- | --- |
 | Home | The selected project's page. **Activity** is an inbox: what waits for a person first (chats stopped for a permission or a question, blocked orchestration tasks, merge conflicts, a command running for long, a missing CLI or credential), each with its action, then what runs now with its context and cost, what the day has cost per model, subscription usage limits and the chats to pick up again — the first block is absent when nothing waits. With a project selected it also has **Settings**, **Memory**, **Resources** (agents, skills, commands, output styles, rules and saved workflows, each workflow with a **Run** button) and **Worktrees** tabs; with All projects only Activity remains |
-| Agents | Runs in progress, their subagents, and every live CLI session on the machine. A subagent's **Details** opens a side panel (also from a run's side card and a workflow's agents): its prompt, status, duration, tokens, full transcript, result and the background tasks it launched, updating while it runs |
-| Run view | Live chat over SSE: messages, thinking, tool calls/results, background tasks, subagents, what Claude loaded |
-| Sessions | Full history across projects, transcripts (with subagent sidechains), resume into a run, delete |
+| Chats | Every conversation in one list, whoever started it: its state (working, waiting for you, idle), whether Agentry can continue it or only read it, where it came from, and how full its context is. Workers of an orchestration and housekeeping chats are hidden unless asked for |
+| Chat | One conversation, live over SSE: messages, thinking, tool calls and results, the context and cost card, its executions, and the branches it launched (subagents, background tasks, workflows) with a side panel each: prompt, status, duration, tokens, transcript and result, updating while it runs (`?detail=…`). What it can do follows its control: send, interrupt, resume, or continue in a copy |
 | Projects | The management screen: import a directory by hand, create or clone one in the workspace, rename, remove (harmless) or purge what Claude Code keeps about it (irreversible). On a first start with none imported it offers the directories holding the most chats |
 | Orchestration | Auto-planned or manual task DAG, live board by stage, per-task results, synthesis |
 | Accounts | Registered accounts with 5h/7d (and per-model) usage, manual switch, add/remove, enable/disable, auto-rotation settings and the rotation log |

@@ -401,12 +401,8 @@ export const useAccounts = () =>
 export const useAccountEvents = (enabled: boolean) =>
   useQuery({ queryKey: keys.accountEvents, queryFn: () => api.accountEvents(), refetchInterval: 10_000, enabled });
 
-export const useTasks = () => useQuery({ queryKey: keys.tasks, queryFn: api.tasks, refetchInterval: useFallbackInterval() });
 
-export const useSubagents = () =>
-  useQuery({ queryKey: keys.subagents, queryFn: api.subagents, refetchInterval: useFallbackInterval() });
 
-export const useWorkflows = () => useQuery({ queryKey: keys.workflows, queryFn: api.workflows, refetchInterval: useFallbackInterval() });
 
 export const useOrchestrations = () =>
   useQuery({ queryKey: keys.orchestrations, queryFn: api.orchestrations, refetchInterval: useFallbackInterval() });

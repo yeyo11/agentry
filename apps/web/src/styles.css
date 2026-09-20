@@ -1,7 +1,7 @@
 /* ==========================================================================
    Agentry — design system
    1. Tokens   2. Base   3. Shell   4. Primitives   5. Status & feedback
-   6. Dashboard   7. Lists & tables   8. Chat / transcript   9. Run view
+   7. Lists & tables   8. Chat / transcript   9. Chat view
    10. Orchestration   11. Editors & config   12. Overlays   13. Motion
    14. Responsive   15. Reduced motion
    ========================================================================== */
@@ -396,15 +396,6 @@ svg.lucide {
   flex-direction: column;
   gap: 2px;
 }
-.nav-group-label {
-  padding: 0 10px 5px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  white-space: nowrap;
-}
 .nav-link {
   position: relative;
   display: flex;
@@ -547,17 +538,6 @@ svg.lucide {
 .shell-rail .sidebar-head {
   flex-direction: column;
   gap: 10px;
-}
-.shell-rail .nav-group-label {
-  height: 1px;
-  margin: 0 12px 6px;
-  padding: 0;
-  overflow: hidden;
-  background: var(--border);
-  color: transparent;
-}
-.shell-rail .nav-group:first-child .nav-group-label {
-  display: none;
 }
 .shell-rail .nav-link {
   justify-content: center;
@@ -765,17 +745,6 @@ svg.lucide {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: auto;
-}
-.card-interactive {
-  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base), box-shadow var(--dur-base);
-}
-.card-interactive:hover {
-  transform: translateY(-2px);
-  border-color: var(--border-strong);
-  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-md);
-}
-.card-interactive.is-live {
-  border-color: var(--ring);
 }
 
 .grid-2 {
@@ -1254,13 +1223,6 @@ input.is-invalid {
   font-weight: 500;
   color: var(--text-muted);
   white-space: nowrap;
-}
-.pill-accent {
-  color: var(--accent);
-  border-color: var(--ring);
-  background: var(--accent-soft);
-  font-weight: 600;
-  text-transform: capitalize;
 }
 
 .count {
@@ -1757,16 +1719,6 @@ a.list-row:hover {
   flex: 1;
   min-width: 0;
   border-bottom: 0;
-}
-.list-row-action {
-  flex: none;
-  padding: 0 4px;
-  opacity: 0.65;
-  transition: opacity var(--dur-fast);
-}
-.list-row-wrap:hover .list-row-action,
-.list-row-action:focus-within {
-  opacity: 1;
 }
 
 .table-wrap {
@@ -2305,10 +2257,6 @@ a.list-row:hover {
 .fold-result.is-error .fold-icon {
   color: var(--bad);
 }
-.evt.fold > .collapsible-content {
-  flex-basis: 100%;
-  min-width: 0;
-}
 .fold[data-state='open']:not(.fold-tool, .fold-result, .fold-thinking) > .collapsible-trigger {
   margin-bottom: 6px;
 }
@@ -2365,40 +2313,12 @@ a.list-row:hover {
   font-size: 12.5px;
   color: var(--text-muted);
 }
-.evt-label {
-  font-size: 10.5px;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-faint);
-}
-.evt-text {
-  overflow-wrap: anywhere;
-  min-width: 0;
-}
-.evt.is-error,
-.evt.is-error .evt-label {
-  color: var(--bad);
-}
-.evt-result {
-  position: relative;
-  padding-top: 12px;
-}
-.evt-result::before {
-  content: '';
-  position: absolute;
-  left: 38px;
-  right: 0;
-  top: 0;
-  height: 1px;
-  background: linear-gradient(90deg, var(--border-strong), transparent);
-}
 .evt-working {
   color: var(--text-muted);
   gap: 10px;
 }
 
-/* ---------- 9. Run view ---------- */
+/* ---------- 9. Chat view ---------- */
 .run-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
@@ -3099,9 +3019,6 @@ button.master-item-on:hover {
   margin: 0 4px;
   color: var(--text-faint);
 }
-.memory-main {
-  min-width: 0;
-}
 
 .project-head {
   display: flex;
@@ -3120,40 +3037,6 @@ button.master-item-on:hover {
   font-size: 14.5px;
   font-weight: 650;
   letter-spacing: -0.01em;
-}
-
-/* Where a piece of work happens: project, then worktree branch */
-.location {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 8px;
-  min-width: 0;
-  max-width: 100%;
-}
-/* Names that can run long (branches, orchestration:task) must not take the table's width */
-.cell-clip {
-  max-width: 15rem;
-}
-.cell-clip > a,
-.cell-clip .location-project {
-  display: inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: bottom;
-}
-.location-branch {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--text-muted);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* A card with its worktrees open must not stretch the rest of its row */
@@ -3505,16 +3388,6 @@ button.master-item-on:hover {
   .shell-rail .sidebar-head {
     flex-direction: row;
   }
-  .shell-rail .nav-group-label {
-    height: auto;
-    margin: 0;
-    padding: 0 10px 5px;
-    background: none;
-    color: var(--text-faint);
-  }
-  .shell-rail .nav-group:first-child .nav-group-label {
-    display: block;
-  }
   .shell-rail .nav-link {
     justify-content: flex-start;
     padding: 7px 10px;
@@ -3572,9 +3445,6 @@ button.master-item-on:hover {
   }
   .evt {
     padding-left: 14px;
-  }
-  .evt-result::before {
-    left: 14px;
   }
   .board-track {
     gap: 26px;

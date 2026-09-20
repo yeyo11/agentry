@@ -21,7 +21,6 @@ import type {
   SwitchResult,
   SystemInfo,
   WorkflowDefinition,
-  WorkLocation,
 } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
@@ -256,15 +255,6 @@ export class Core {
       };
     }
     return { ...this.systemCache.value, uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
-  }
-
-  /** Where a directory's work belongs: its project, and the worktree when it is one. */
-  locate(dir: string): WorkLocation {
-    const location = this.locator.locate(dir);
-    const attached = this.attach(dir);
-    return attached
-      ? { ...location, projectId: attached.project.id, projectName: attached.project.name, projectPath: attached.project.path }
-      : location;
   }
 
   private attach(dir: string) {

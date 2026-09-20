@@ -1,7 +1,7 @@
 // Reusable motion primitives. Everything here degrades to a static render when the user asks
 // for reduced motion (both through CSS and motion's useReducedMotion).
-import { animate, AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Children, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { Children, useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react';
 
 export const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 export const SPRING = { type: 'spring', stiffness: 520, damping: 38, mass: 0.7 } as const;
@@ -54,58 +54,6 @@ export function Stagger({
         </motion.div>
       ))}
     </div>
-  );
-}
-
-/**
- * Rise-in for items appended to a live list (chat messages); never re-animates on re-render.
- * `entrance` off keeps the same element but skips the animation, for a row that is being restored
- * rather than added — one scrolled back into a windowed list.
- */
-export function RiseIn({ children, className, entrance = true }: { children: ReactNode; className?: string; entrance?: boolean }) {
-  const reduced = useReducedMotion();
-  return (
-    <motion.div
-      className={className}
-      initial={reduced || !entrance ? false : { opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.24, ease: EASE_OUT }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-/** Animated integer; polls that do not change the value do not restart the animation. */
-export function CountUp({ value, className }: { value: number; className?: string }) {
-  const reduced = useReducedMotion();
-  const ref = useRef<HTMLSpanElement>(null);
-  const shown = useRef(0);
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    if (reduced || shown.current === value) {
-      node.textContent = String(value);
-      shown.current = value;
-      return;
-    }
-    const controls = animate(shown.current, value, {
-      duration: 0.7,
-      ease: EASE_OUT,
-      onUpdate: (latest) => {
-        shown.current = latest;
-        node.textContent = String(Math.round(latest));
-      },
-      onComplete: () => {
-        shown.current = value;
-      },
-    });
-    return () => controls.stop();
-  }, [value, reduced]);
-  return (
-    <span ref={ref} className={className}>
-      {value}
-    </span>
   );
 }
 
