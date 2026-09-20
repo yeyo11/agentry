@@ -33,8 +33,10 @@ let mode = flag('--permission-mode') ?? 'manual';
 /** The permission request this turn is blocked on */
 let pending = null;
 
+// The real CLI reports the window of every model that answered, variant suffix included
+const modelUsage = { 'claude-opus-5[1m]': { inputTokens: 1, outputTokens: 1, costUSD: 0.01, contextWindow: 1_000_000 } };
 const result = (text, extra = {}) =>
-  out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: text, ...extra });
+  out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, modelUsage, result: text, ...extra });
 const respond = (requestId, response) => out({ type: 'control_response', response: { subtype: 'success', request_id: requestId, response } });
 
 createInterface({ input: process.stdin }).on('line', (line) => {

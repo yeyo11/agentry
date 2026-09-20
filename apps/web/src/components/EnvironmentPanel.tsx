@@ -45,7 +45,7 @@ function EnvironmentBody({ env }: { env: EffectiveEnvironment }) {
         {env.cliVersion && <span>CLI {env.cliVersion}</span>}
         {env.permissionMode && <span>{env.permissionMode}</span>}
         {env.outputStyle && <span>style: {env.outputStyle}</span>}
-        <Link to={`/runs/${env.runId}`}>source run</Link>
+        <Link to={`/chats/${env.chatId}`}>source chat</Link>
       </div>
       <Collapsible
         className="env-group"
@@ -101,7 +101,7 @@ function EnvironmentBody({ env }: { env: EffectiveEnvironment }) {
 }
 
 /**
- * What Claude actually loaded in the latest wrapper run in `cwd`: the ground truth that the
+ * What Claude actually loaded in the latest wrapper chat in `cwd`: the ground truth that the
  * configuration files only describe. `live` keeps it refreshed while a run is in progress: the event
  * feed does it, and a slow poll stands in while the feed is down.
  */
@@ -117,6 +117,6 @@ export function EnvironmentPanel({ cwd, live = false }: { cwd: string; live?: bo
 
   if (isLoading) return <Skeleton rows={3} />;
   if (error) return <ErrorBox error={error} />;
-  if (!env) return <div className="small muted">Start a run in this project to see what Claude loads.</div>;
+  if (!env) return <div className="small muted">Start a chat in this project to see what Claude loads.</div>;
   return <EnvironmentBody env={env} />;
 }

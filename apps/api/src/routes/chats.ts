@@ -38,6 +38,13 @@ function listOf<T extends string>(value: string | undefined, known: readonly T[]
   });
 }
 
+/** An optional calendar day, `YYYY-MM-DD`. */
+function dayOf(value: string | undefined, name: string): string | undefined {
+  if (value === undefined || value === '') return undefined;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value))) throw new Error(`${name} must be a day as YYYY-MM-DD`);
+  return value;
+}
+
 export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   const { chats } = core;
 
@@ -50,6 +57,12 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
       ...(wanted ? { state: wanted } : {}),
       ...(count(limit, 'limit') ? { limit: count(limit, 'limit') as number } : {}),
     });
+  });
+
+  app.get<{ Querystring: { from?: string; to?: string } }>('/usage', (req) => {
+    const from = dayOf(req.query.from, 'from');
+    const to = dayOf(req.query.to, 'to');
+    return chats.usage({ ...(from ? { from } : {}), ...(to ? { to } : {}) });
   });
 
   app.post<{ Body: NewChatRequest }>('/chats', async (req, reply) => reply.status(201).send(await chats.create(req.body ?? ({} as NewChatRequest))));

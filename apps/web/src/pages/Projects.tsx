@@ -1,23 +1,82 @@
-import type { ProjectSummary } from '@agentry/shared';
-import { Brain, FolderGit2, GitBranch, History, Play, Plus, Settings2, Workflow } from 'lucide-react';
+import type { Project, ProjectCandidate } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArrowRight, Download, Eraser, FolderGit2, FolderPlus, GitBranch, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, keys, useProjects } from '../api';
-import { Checkbox, Collapsible } from '../components/controls';
-import { Card, Empty, ErrorBox, Field, Loading, PageHeader, Tag } from '../components/ui';
+import { api, keys, useProjectCandidates, useProjects } from '../api';
+import { Collapsible, Combobox } from '../components/controls';
+import { useConfirm } from '../components/Dialog';
 import { ICON_SM, Monogram } from '../components/icons';
 import { Stagger } from '../components/motion';
+import { useToast } from '../components/Toast';
+import { Card, Empty, ErrorBox, Field, Loading, PageHeader, Tag } from '../components/ui';
 import { timeAgo } from '../lib/format';
 
-function NewProjectForm({ onDone }: { onDone: () => void }) {
+/** What a change to the projects makes stale: the list, what is offered, and everything scoped by a project. */
+function useRefreshProjects() {
   const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: keys.projects });
+    void queryClient.invalidateQueries({ queryKey: keys.chats });
+    void queryClient.invalidateQueries({ queryKey: keys.overview });
+    void queryClient.invalidateQueries({ queryKey: keys.memoryProjects });
+  };
+}
+
+function ImportForm({ candidates, onDone }: { candidates: ProjectCandidate[]; onDone: () => void }) {
+  const refresh = useRefreshProjects();
+  const [path, setPath] = useState('');
+  const [name, setName] = useState('');
+  const add = useMutation({
+    mutationFn: () => api.importProject({ path: path.trim(), ...(name.trim() ? { name: name.trim() } : {}) }),
+    onSuccess: () => {
+      refresh();
+      onDone();
+    },
+  });
+  return (
+    <Card title="Import a directory">
+      <form
+        className="form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          add.mutate();
+        }}
+      >
+        <Field label="Directory" hint="An absolute path. Every chat that ran under it becomes part of the project. A git worktree is refused: import its repository.">
+          <Combobox
+            aria-label="Directory"
+            placeholder="/home/you/code/my-project"
+            value={path}
+            onChange={setPath}
+            options={candidates.map((c) => ({ value: c.path, label: c.name, hint: `${c.chatCount} chats · ${c.path}` }))}
+          />
+        </Field>
+        <Field label="Name (optional)" hint="Defaults to the directory's name.">
+          <input value={name} placeholder="my-project" onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <ErrorBox error={add.error} title="Could not import the directory" />
+        <div className="form-actions">
+          <button type="submit" className="btn btn-primary" disabled={!path.trim() || add.isPending}>
+            {add.isPending ? 'Importing…' : 'Import'}
+          </button>
+          <button type="button" className="btn" onClick={onDone}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+function NewProjectForm({ onDone }: { onDone: () => void }) {
+  const refresh = useRefreshProjects();
   const [name, setName] = useState('');
   const [gitUrl, setGitUrl] = useState('');
   const create = useMutation({
     mutationFn: () => api.createProject({ name: name.trim(), gitUrl: gitUrl.trim() || undefined }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: keys.projects });
+      refresh();
       onDone();
     },
   });
@@ -44,162 +103,225 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-const liveIn = (p: ProjectSummary) => p.activeRuns + (p.activeSessions ?? 0);
-
-/** One worktree of a project: its branch, who made it, and whether anything is working in it now. */
-function WorktreeRow({ worktree }: { worktree: ProjectSummary }) {
-  const live = liveIn(worktree);
-  const creator = worktree.createdBy;
+/** The directories with the most chats: what a first start offers instead of an empty screen. */
+function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; first: boolean }) {
+  const refresh = useRefreshProjects();
+  const toast = useToast();
+  const add = useMutation({
+    mutationFn: (candidate: ProjectCandidate) => api.importProject({ path: candidate.path }),
+    onSuccess: (project) => {
+      refresh();
+      toast.success(`Imported ${project.name}`, `${project.chatCount} chats adopted`);
+    },
+    onError: (error) => toast.error('Could not import the directory', error),
+  });
+  const list = (
+    <ul className="candidate-list">
+      {candidates.map((c) => (
+        <li key={c.path} className="candidate-row">
+          <div className="candidate-main">
+            <strong className="ellipsis">{c.name}</strong>
+            <span className="mono small muted ellipsis" title={c.path}>
+              {c.path}
+            </span>
+            <span className="small muted">
+              {c.chatCount} chat{c.chatCount === 1 ? '' : 's'}
+              {c.lastActivity ? ` · last ${timeAgo(c.lastActivity)}` : ''}
+            </span>
+          </div>
+          <button className="btn btn-small" disabled={add.isPending} onClick={() => add.mutate(c)} aria-label={`Import ${c.name}`}>
+            <Download {...ICON_SM} /> Import
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+  if (first) {
+    return (
+      <Card title="Start with the directories you already work in">
+        <p className="muted">
+          Claude Code has run in these directories the most. Import the ones that are projects: their chats join them, and the rest stay
+          out of the way. You can import any other directory by hand.
+        </p>
+        {list}
+      </Card>
+    );
+  }
   return (
-    <li className={`worktree-row ${live > 0 ? 'is-live' : ''}`}>
-      <div className="worktree-main">
-        <span className="worktree-branch mono ellipsis" title={worktree.path}>
-          <GitBranch {...ICON_SM} aria-hidden />
-          {worktree.worktree?.branch ?? worktree.worktree?.name ?? worktree.name}
-        </span>
-        <span className="small muted meta">
-          {creator ? (
-            <Link to={`/orchestration/${creator.orchestrationId}`} className="meta-icon" title="Created by this orchestration task">
-              <Workflow size={12} strokeWidth={1.75} aria-hidden /> {creator.orchestrationName} · {creator.taskName}
-            </Link>
-          ) : null}
-          <span>
-            {worktree.sessionCount} session{worktree.sessionCount === 1 ? '' : 's'}
-          </span>
-          {worktree.lastActivity && <span>{timeAgo(worktree.lastActivity)}</span>}
-        </span>
+    <Collapsible className="card fold-card" title={<span className="fold-card-title">Other directories with chats ({candidates.length})</span>}>
+      {list}
+    </Collapsible>
+  );
+}
+
+function ProjectCard({ project }: { project: Project }) {
+  const refresh = useRefreshProjects();
+  const confirm = useConfirm();
+  const toast = useToast();
+  const [renaming, setRenaming] = useState<string | null>(null);
+
+  const rename = useMutation({
+    mutationFn: (name: string) => api.renameProject(project.id, name),
+    onSuccess: () => {
+      refresh();
+      setRenaming(null);
+    },
+    onError: (error) => toast.error('Could not rename the project', error),
+  });
+  const remove = useMutation({
+    mutationFn: () => api.removeProject(project.id),
+    onSuccess: () => {
+      refresh();
+      toast.success(`Removed ${project.name}`, 'Nothing on disk changed');
+    },
+    onError: (error) => toast.error('Could not remove the project', error),
+  });
+  const purge = useMutation({
+    mutationFn: () => api.purgeProject(project.id),
+    onSuccess: (done) => {
+      refresh();
+      toast.success(`Purged what Claude Code kept about ${project.name}`, done.detail);
+    },
+    onError: (error) => toast.error('Could not purge the project', error),
+  });
+
+  const askRemove = async () => {
+    const ok = await confirm({
+      title: `Remove ${project.name}?`,
+      body: (
+        <>
+          Agentry forgets this directory. Nothing on disk changes, and importing it again brings its {project.chatCount} chats back.
+        </>
+      ),
+      confirmLabel: 'Remove project',
+    });
+    if (ok) remove.mutate();
+  };
+  const askPurge = async () => {
+    const ok = await confirm({
+      title: `Purge what Claude Code keeps about ${project.name}?`,
+      body: (
+        <>
+          This deletes its transcripts, background tasks, file history and its entry in Claude Code&apos;s configuration
+          (<code>claude project purge</code>), so its {project.chatCount} chats are gone for good. Your files are not touched. The
+          project stays imported. <strong>This cannot be undone.</strong>
+        </>
+      ),
+      confirmLabel: 'Purge for good',
+      danger: true,
+    });
+    if (ok) purge.mutate();
+  };
+
+  return (
+    <div className="card project-card">
+      <div className="project-head">
+        <Monogram name={project.name} />
+        <div className="project-head-text">
+          {renaming === null ? (
+            <div className="project-name ellipsis" title={project.name}>
+              {project.name}
+            </div>
+          ) : (
+            <form
+              className="rename-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (renaming.trim()) rename.mutate(renaming.trim());
+              }}
+            >
+              <input aria-label="Project name" value={renaming} onChange={(e) => setRenaming(e.target.value)} autoFocus />
+              <button type="submit" className="btn btn-small btn-primary" disabled={!renaming.trim() || rename.isPending}>
+                Save
+              </button>
+              <button type="button" className="btn btn-small" onClick={() => setRenaming(null)}>
+                Cancel
+              </button>
+            </form>
+          )}
+          <div className="mono small muted ellipsis" title={project.path}>
+            {project.path}
+          </div>
+        </div>
+        {!project.exists && <Tag tone="warn">missing on disk</Tag>}
       </div>
-      <div className="worktree-tags">
-        {live > 0 && <Tag tone="active">{live} active</Tag>}
-        {!worktree.exists && <Tag tone="warn">removed</Tag>}
-        {worktree.sessionCount > 0 && (
-          <Link to={`/sessions?project=${encodeURIComponent(worktree.id)}`} className="btn btn-small" aria-label={`Sessions in ${worktree.name}`}>
-            <History {...ICON_SM} />
-          </Link>
+      <div className="meta">
+        <span>
+          {project.chatCount} chat{project.chatCount === 1 ? '' : 's'}
+        </span>
+        <span>last activity {timeAgo(project.lastActivity)}</span>
+        {project.worktrees.length > 0 && (
+          <span className="meta-icon">
+            <GitBranch size={12} strokeWidth={1.75} aria-hidden /> {project.worktrees.length} worktree{project.worktrees.length === 1 ? '' : 's'}
+          </span>
         )}
       </div>
-    </li>
+      <div className="card-foot">
+        <Link to={`/?project=${encodeURIComponent(project.id)}`} className="btn btn-small btn-primary">
+          Open <ArrowRight {...ICON_SM} />
+        </Link>
+        <button className="btn btn-small" onClick={() => setRenaming(project.name)} disabled={renaming !== null}>
+          <Pencil {...ICON_SM} /> Rename
+        </button>
+        <button className="btn btn-small" onClick={() => void askRemove()} disabled={remove.isPending}>
+          <Trash2 {...ICON_SM} /> Remove
+        </button>
+        <button className="btn btn-small btn-danger" onClick={() => void askPurge()} disabled={purge.isPending}>
+          <Eraser {...ICON_SM} /> Purge Claude Code state
+        </button>
+      </div>
+    </div>
   );
 }
 
 export function Projects() {
-  const [creating, setCreating] = useState(false);
-  const [showTemporary, setShowTemporary] = useState(false);
+  const [adding, setAdding] = useState<'import' | 'create' | null>(null);
   const { data, error, isLoading } = useProjects();
-  const allProjects = data ?? [];
-  const temporaryCount = allProjects.filter((p) => p.temporary).length;
-  const visible = showTemporary ? allProjects : allProjects.filter((p) => !p.temporary);
-  // Worktrees nest under their repository; one whose repository is filtered out stands on its own
-  const ids = new Set(visible.map((p) => p.id));
-  const worktreesOf = new Map<string, ProjectSummary[]>();
-  for (const p of visible) {
-    if (p.parentId && ids.has(p.parentId)) worktreesOf.set(p.parentId, [...(worktreesOf.get(p.parentId) ?? []), p]);
-  }
-  const projects = visible.filter((p) => !(p.parentId && ids.has(p.parentId)));
+  const projects = data ?? [];
+  // Candidates are always there to offer; the page decides how loudly, and only asks once it knows
+  const candidates = useProjectCandidates(!isLoading);
+  const offered = candidates.data ?? [];
+  const first = !isLoading && projects.length === 0;
 
   return (
     <>
       <PageHeader
         title="Projects"
-        subtitle={`${projects.length} projects · workspace directories and directories with Claude Code history; worktrees are listed under their repository`}
+        subtitle={`${projects.length} imported · a project is a directory you import by hand; its worktrees belong to it`}
         actions={
-          <>
-            {temporaryCount > 0 && (
-              <Checkbox checked={showTemporary} onChange={setShowTemporary} tooltip="Projects under the OS temp directory">
-                Show temporary ({temporaryCount})
-              </Checkbox>
-            )}
-            {!creating && (
-            <button className="btn btn-primary" onClick={() => setCreating(true)}>
-              <Plus size={14} strokeWidth={2} aria-hidden />
-              New project
-            </button>
-          )}
-          </>
+          adding === null && (
+            <>
+              <button className="btn" onClick={() => setAdding('create')}>
+                <Plus size={14} strokeWidth={2} aria-hidden />
+                New project
+              </button>
+              <button className="btn btn-primary" onClick={() => setAdding('import')}>
+                <FolderPlus size={14} strokeWidth={2} aria-hidden />
+                Import a directory
+              </button>
+            </>
+          )
         }
       />
-      {creating && <NewProjectForm onDone={() => setCreating(false)} />}
+      {adding === 'import' && <ImportForm candidates={offered} onDone={() => setAdding(null)} />}
+      {adding === 'create' && <NewProjectForm onDone={() => setAdding(null)} />}
       <ErrorBox error={error} />
       {isLoading ? (
         <Loading />
       ) : projects.length === 0 ? (
-        <Empty icon={FolderGit2} title="No projects yet">
-          Projects appear once a session has run in a directory.
-        </Empty>
+        offered.length === 0 && (
+          <Empty icon={FolderGit2} title="No projects yet">
+            Import a directory to make it a project, or create one in the workspace.
+          </Empty>
+        )
       ) : (
         <Stagger className="cards project-cards">
-          {projects.map((project) => {
-            const worktrees = worktreesOf.get(project.id) ?? [];
-            // Work in a worktree is work in this project
-            const live = liveIn(project) + worktrees.reduce((n, w) => n + liveIn(w), 0);
-            const liveWorktrees = worktrees.filter((w) => liveIn(w) > 0).length;
-            return (
-            <div key={project.id} className={`card card-interactive project-card ${live > 0 ? 'is-live' : ''}`}>
-              <div className="project-head">
-                <Monogram name={project.name} />
-                <div className="project-head-text">
-                  <div className="project-name ellipsis" title={project.name}>
-                    {project.name}
-                  </div>
-                  <div className="mono small muted ellipsis" title={project.path}>
-                    {project.path}
-                  </div>
-                </div>
-                {project.temporary && <Tag>temporary</Tag>}
-                {project.worktree && <Tag>worktree</Tag>}
-                {live > 0 && <Tag tone="active">{live} active</Tag>}
-                {!project.exists && <Tag tone="warn">missing on disk</Tag>}
-              </div>
-              <div className="meta">
-                <span>{project.sessionCount} sessions</span>
-                <span>last activity {timeAgo(project.lastActivity)}</span>
-                {project.worktree && project.parentPath && (
-                  <span className="mono ellipsis" title={project.parentPath}>
-                    worktree of {project.parentPath}
-                  </span>
-                )}
-              </div>
-              {worktrees.length > 0 && (
-                <Collapsible
-                  className="fold worktree-fold"
-                  defaultOpen={liveWorktrees > 0}
-                  title={
-                    <span>
-                      {worktrees.length} worktree{worktrees.length === 1 ? '' : 's'}
-                      {liveWorktrees > 0 && <span className="muted"> · {liveWorktrees} in use</span>}
-                    </span>
-                  }
-                >
-                  <ul className="worktree-list">
-                    {[...worktrees]
-                      .sort((a, b) => liveIn(b) - liveIn(a) || (b.lastActivity ?? '').localeCompare(a.lastActivity ?? ''))
-                      .map((w) => (
-                        <WorktreeRow key={w.id} worktree={w} />
-                      ))}
-                  </ul>
-                </Collapsible>
-              )}
-              <div className="card-foot">
-                <Link to={`/sessions?project=${encodeURIComponent(project.id)}`} className="btn btn-small">
-                  <History {...ICON_SM} /> Sessions
-                </Link>
-                <Link to={`/config?project=${encodeURIComponent(project.id)}`} className="btn btn-small">
-                  <Settings2 {...ICON_SM} /> Config
-                </Link>
-                <Link to={`/memory?project=${encodeURIComponent(project.id)}`} className="btn btn-small">
-                  <Brain {...ICON_SM} /> Memory
-                </Link>
-                {project.exists && (
-                  <Link to={`/runs/new?cwd=${encodeURIComponent(project.path)}`} className="btn btn-small btn-primary">
-                    <Play {...ICON_SM} /> New run here
-                  </Link>
-                )}
-              </div>
-            </div>
-            );
-          })}
+          {projects.map((project) => (
+            <ProjectCard key={project.id} project={project} />
+          ))}
         </Stagger>
       )}
+      {offered.length > 0 && <Candidates candidates={offered} first={first} />}
     </>
   );
 }

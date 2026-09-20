@@ -1,15 +1,22 @@
 import { existsSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { readdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import type {
   AccountsOverview,
   AuthVerification,
+  ChatProject,
   ChatSummary,
+  ChatWorktree,
   ConfigFileRoot,
+  ImportProjectRequest,
+  MemoryFile,
   MemoryProjectSummary,
   Overview,
   PermissionDecision,
   PermissionRequest,
-  ProjectSummary,
+  Project,
+  ProjectCandidate,
+  ProjectWorktree,
   RunWorkflowRequest,
   SwitchResult,
   SystemInfo,
@@ -38,7 +45,8 @@ import { UploadStore } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
 import { Orchestrator } from './orchestrator.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
-import { isTemporaryPath, SessionStore } from './sessions.ts';
+import { attachProject, projectCandidates, ProjectStore, type ChatPlace } from './projects.ts';
+import { SessionStore } from './sessions.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
 
@@ -62,6 +70,7 @@ export {
   type SessionHolder,
 } from './chat-model.ts';
 export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
+export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 export { Db } from './db.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
 
@@ -69,6 +78,9 @@ export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
 // package.json files, and never has to rewrite source to bump a version.
 const AGENTRY_VERSION = pkg.version;
 const SYSTEM_TTL_MS = 30_000;
+
+/** A session's directory: the worktree the CLI recorded when it ran in one, else where it started. */
+const placeOf = (s: TranscriptSummary): ChatPlace => ({ cwd: s.worktree?.path ?? s.projectPath, updatedAt: s.updatedAt });
 
 /** Facade wiring every core service together; the API layer only talks to this. */
 export class Core {
@@ -94,6 +106,7 @@ export class Core {
   readonly accounts: AccountManager;
   readonly workspace: Workspace;
   readonly locator = new Locator();
+  private readonly projectStore: ProjectStore;
   private readonly startedAt = Date.now();
   private readonly sessionsWatcher: SessionsWatcher;
   private systemCache: { at: number; value: Omit<SystemInfo, 'uptimeSec'> } | null = null;
@@ -105,6 +118,7 @@ export class Core {
     // Must run before anything spawns the CLI: it injects stored credentials into process.env
     this.credentials = new CredentialStore(config);
     this.workspace = new Workspace(config);
+    this.projectStore = new ProjectStore(config);
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db);
     this.runtime.permissions = this.permissions;
@@ -138,6 +152,7 @@ export class Core {
       orchestrator: this.orchestrator,
       place: (dir, recorded) => this.place(dir, recorded),
       environmentOf: (dir) => this.runtime.environments.get(dir),
+      windowOf: (model) => this.db.modelWindow(model),
     });
     this.files = new SettingsFiles();
     this.explorer = new ConfigExplorer();
@@ -245,7 +260,28 @@ export class Core {
 
   /** Where a directory's work belongs: its project, and the worktree when it is one. */
   locate(dir: string): WorkLocation {
-    return this.locator.locate(dir);
+    const location = this.locator.locate(dir);
+    const attached = this.attach(dir);
+    return attached
+      ? { ...location, projectId: attached.project.id, projectName: attached.project.name, projectPath: attached.project.path }
+      : location;
+  }
+
+  private attach(dir: string) {
+    return attachProject(this.projectStore.list(), dir, (d) => this.locator.worktreeOf(d));
+  }
+
+  /**
+   * The project a directory belongs to and the worktree it is in, which is what a chat records. The
+   * project is null when the directory is under none that was imported: a loose chat.
+   */
+  projectOf(dir: string): { project: ChatProject | null; worktree: ChatWorktree | null } {
+    const attached = this.attach(dir);
+    const facts = attached ? attached.worktree : this.locator.worktreeOf(dir);
+    return {
+      project: attached ? { id: attached.project.id, name: attached.project.name } : null,
+      worktree: facts ? { path: facts.path, name: facts.name, branch: facts.branch } : null,
+    };
   }
 
   /**
@@ -254,11 +290,7 @@ export class Core {
    */
   private place(dir: string, recorded: TranscriptSummary['worktree']): Placement {
     if (recorded) this.locator.learn(recorded);
-    const location = this.locate(dir);
-    return {
-      project: { id: location.projectId, name: location.projectName },
-      worktree: location.worktree,
-    };
+    return this.projectOf(dir);
   }
 
   /** Saved workflows the Workflow tool can run by name, for a project directory and the user. */
@@ -296,10 +328,13 @@ export class Core {
 
   /**
    * Deletes every trace Claude Code keeps of a project: transcripts, tasks, file history and its
-   * config entry. The CLI owns that layout, so it does the deleting.
+   * config entry. The CLI owns that layout, so it does the deleting. Irreversible, and separate
+   * from `removeProject`, which only makes Agentry forget the directory.
    */
-  async purgeProject(path: string): Promise<{ detail: string }> {
-    const res = await execCli(this.config, ['project', 'purge', path, '--yes'], { timeoutMs: 60_000 });
+  async purgeProject(id: string): Promise<{ detail: string }> {
+    const project = this.projectStore.get(id);
+    if (!project) throw new Error('project not found');
+    const res = await execCli(this.config, ['project', 'purge', project.path, '--yes'], { timeoutMs: 60_000 });
     if (res.code !== 0) throw new Error(res.stderr.trim() || 'claude project purge failed');
     this.sessions.invalidate();
     return { detail: res.stdout.trim() };
@@ -311,28 +346,36 @@ export class Core {
    */
   async resolveScope(projectId?: string): Promise<ConfigScope> {
     if (!projectId || projectId === 'user') return userScope(this.config);
-    const project = (await this.projects()).find((p) => p.id === projectId);
+    const project = this.projectStore.get(projectId);
     if (!project) throw new Error('project not found');
-    if (!project.exists) throw new Error('project directory is missing on disk');
+    if (!existsSync(project.path)) throw new Error('project directory is missing on disk');
     return projectScope(project.path);
   }
 
-  /** Memory is keyed by project id; only known projects are accepted. */
-  async memoryProject(projectId: string): Promise<string> {
-    const known = (await this.projects()).some((p) => p.id === projectId) || (await this.memory.projectIds()).includes(projectId);
-    if (!known) throw new Error('project not found');
-    return projectId;
+  /** Claude Code keys a project's memory by its directory, not by the id Agentry gives the project. */
+  private memoryKey(projectId: string): string {
+    const project = this.projectStore.get(projectId);
+    if (!project) throw new Error('project not found');
+    return encodeProjectId(project.path);
+  }
+
+  async memoryFiles(projectId: string): Promise<MemoryFile[]> {
+    const files = await this.memory.list(this.memoryKey(projectId));
+    return files.map((f) => ({ ...f, projectId }));
+  }
+
+  async saveMemory(projectId: string, name: string, content: unknown): Promise<MemoryFile> {
+    return { ...(await this.memory.save(this.memoryKey(projectId), name, content)), projectId };
+  }
+
+  removeMemory(projectId: string, name: string): Promise<void> {
+    return this.memory.remove(this.memoryKey(projectId), name);
   }
 
   async memoryOverview(): Promise<MemoryProjectSummary[]> {
-    const projects: Array<{ id: string; path: string; name: string }> = await this.projects();
-    // Memory can exist for a directory that has no sessions left; its real path is unknown then
-    for (const id of await this.memory.projectIds()) {
-      if (!projects.some((p) => p.id === id)) projects.push({ id, path: '', name: id.replace(/^-+/, '').split('-').slice(-2).join('-') });
-    }
     const summaries = await Promise.all(
-      projects.map(async (p) => {
-        const files = await this.memory.list(p.id);
+      this.projectStore.list().map(async (p) => {
+        const files = await this.memory.list(encodeProjectId(p.path));
         const lastUpdated = files.map((f) => f.updatedAt ?? '').sort().at(-1) || null;
         return { projectId: p.id, projectPath: p.path, projectName: p.name, fileCount: files.length, lastUpdated };
       }),
@@ -343,8 +386,8 @@ export class Core {
   async configFileRoots(): Promise<ConfigFileRoot[]> {
     const user = userScope(this.config);
     const roots: ConfigFileRoot[] = [{ id: 'user', label: 'User', path: user.claudeDir, exists: existsSync(user.claudeDir) }];
-    for (const project of await this.projects()) {
-      if (!project.exists) continue;
+    for (const project of this.projectStore.list()) {
+      if (!existsSync(project.path)) continue;
       const { claudeDir } = projectScope(project.path);
       roots.push({ id: project.id, label: project.name, path: claudeDir, exists: existsSync(claudeDir) });
     }
@@ -378,91 +421,96 @@ export class Core {
     return { ok: !result.isError, detail: result.result.slice(0, 500), auth };
   }
 
-  async projects(): Promise<ProjectSummary[]> {
-    const projects = await this.sessions.listProjects();
-    // Workspace directories that have no sessions yet are projects too
-    const known = new Set(projects.map((p) => p.path));
-    const bare = (path: string): ProjectSummary => ({
-      id: encodeProjectId(path),
-      path,
-      name: basename(path),
-      sessionCount: 0,
-      lastActivity: null,
-      activeRuns: 0,
-      exists: existsSync(path),
-      temporary: isTemporaryPath(path),
-    });
-    for (const path of await this.workspace.list()) {
-      if (!known.has(path)) projects.push(bare(path));
-      known.add(path);
+  /**
+   * The projects the person imported, each with the chats under it and its worktrees. Nothing is
+   * discovered here: a directory Claude Code has run in is a project only once it is imported.
+   */
+  async projects(): Promise<Project[]> {
+    const places = await this.chatPlaces();
+    const worktrees = new Map<string, Map<string, ProjectWorktree>>();
+    const stats = new Map<string, { chatCount: number; lastActivity: string | null }>();
+    const addWorktree = (path: string, creator: ProjectWorktree['createdBy'] = null) => {
+      const attached = this.attach(path);
+      const facts = this.locator.worktreeOf(path);
+      if (!attached || facts?.path !== path) return;
+      const known = worktrees.get(attached.project.id) ?? new Map<string, ProjectWorktree>();
+      known.set(path, { path, name: facts.name, branch: facts.branch, createdBy: creator ?? known.get(path)?.createdBy ?? null });
+      worktrees.set(attached.project.id, known);
+    };
+
+    for (const place of places) {
+      const attached = this.attach(place.cwd);
+      if (!attached) continue;
+      const stat = stats.get(attached.project.id) ?? { chatCount: 0, lastActivity: null };
+      stat.chatCount += 1;
+      if (place.updatedAt && (!stat.lastActivity || place.updatedAt > stat.lastActivity)) stat.lastActivity = place.updatedAt;
+      stats.set(attached.project.id, stat);
+      if (attached.worktree) addWorktree(attached.worktree.path);
     }
 
-    // A worktree is part of its repository, not a project of its own: link it to its parent
-    for (const p of projects) {
-      if (p.parentPath) {
-        this.locator.learn({ path: p.path, parentPath: p.parentPath, name: p.worktree?.name ?? null, branch: p.worktree?.branch ?? null });
-      } else {
-        const facts = this.locator.worktreeOf(p.path);
-        if (facts?.path === p.path) {
-          p.parentPath = facts.parentPath;
-          p.worktree = { name: facts.name, branch: facts.branch };
-        }
-      }
-      if (!p.parentPath) continue;
-      p.parentId = encodeProjectId(p.parentPath);
-      // A repository only ever worked on through worktrees still has to exist for them to nest under
-      if (!known.has(p.parentPath)) {
-        projects.push(bare(p.parentPath));
-        known.add(p.parentPath);
-      }
-    }
-
-    // The orchestration task that created each worktree, which says more than its name does
-    const creators = new Map<string, NonNullable<ProjectSummary['createdBy']>>();
+    // The orchestration task that created a worktree says more about it than its name does, and a
+    // worktree no chat has run in yet is only known from there
     for (const orch of this.orchestrator.list()) {
       for (const task of orch.tasks) {
         if (!task.branch) continue;
         const path = task.worktree ?? join(orch.cwd, '.claude', 'worktrees', task.branch.replace(/^worktree-/, ''));
-        creators.set(path, { orchestrationId: orch.id, orchestrationName: orch.name, taskId: task.id, taskName: task.name });
+        addWorktree(path, { orchestrationId: orch.id, orchestrationName: orch.name, taskId: task.id, taskName: task.name });
       }
     }
 
-    // Live work counts where it happens: the deepest project containing it, so a worker in a
-    // worktree lights up the worktree, and one elsewhere in the repository lights up the repository
-    const owner = (dir: string): string | undefined => {
-      let best: ProjectSummary | undefined;
-      for (const p of projects) {
-        if ((dir === p.path || dir.startsWith(`${p.path}/`)) && p.path.length > (best?.path.length ?? -1)) best = p;
-      }
-      return best?.id;
-    };
-    const runsBy = new Map<string, number>();
-    for (const r of this.runtime.list()) {
-      if (r.pid === null) continue;
-      const id = owner(r.workingDir ?? r.cwd);
-      if (id) runsBy.set(id, (runsBy.get(id) ?? 0) + 1);
+    // Where the CLI puts the worktrees it makes, for those nothing above has met
+    for (const project of this.projectStore.list()) {
+      const root = join(project.path, '.claude', 'worktrees');
+      for (const name of await readdir(root).catch(() => [] as string[])) addWorktree(join(root, name));
     }
-    // A project someone is working in from a terminal is active too, not only one with a run
-    const cliBy = new Map<string, number>();
-    const driven = new Set(this.runtime.list().map((r) => r.id));
-    for (const a of await this.chats.cliSessions()) {
-      if (!a.live || driven.has(a.sessionId)) continue;
-      const id = owner(a.cwd);
-      if (id) cliBy.set(id, (cliBy.get(id) ?? 0) + 1);
-    }
-    return projects.map((p) => ({
-      ...p,
-      parentId: p.parentId ?? null,
-      parentPath: p.parentPath ?? null,
-      worktree: p.worktree ?? null,
-      createdBy: creators.get(p.path) ?? null,
-      activeRuns: runsBy.get(p.id) ?? 0,
-      activeSessions: cliBy.get(p.id) ?? 0,
+
+    return this.projectStore.list().map((p) => ({
+      id: p.id,
+      name: p.name,
+      path: p.path,
+      // A worktree removed from disk is history, kept in the chats that ran there, not a place to go
+      worktrees: [...(worktrees.get(p.id)?.values() ?? [])].filter((w) => existsSync(w.path)).sort((a, b) => a.path.localeCompare(b.path)),
+      exists: existsSync(p.path),
+      chatCount: stats.get(p.id)?.chatCount ?? 0,
+      lastActivity: stats.get(p.id)?.lastActivity ?? null,
     }));
   }
 
+  /** The worktrees the CLI recorded in its transcripts are what let a chat in one find its repository. */
+  private async chatPlaces(): Promise<ChatPlace[]> {
+    const sessions = await this.sessions.listSessions();
+    for (const s of sessions) if (s.worktree) this.locator.learn(s.worktree);
+    return sessions.map(placeOf);
+  }
+
+  /** The directories with the most chats that are not projects yet: what a first start offers to import. */
+  async projectCandidates(): Promise<ProjectCandidate[]> {
+    return projectCandidates(this.projectStore.list(), await this.chatPlaces(), (d) => this.locator.worktreeOf(d));
+  }
+
+  async importProject(req: ImportProjectRequest): Promise<Project> {
+    const record = await this.projectStore.add(req, (d) => this.locator.worktreeOf(d));
+    return this.projectView(record.id);
+  }
+
+  async renameProject(id: string, name: string): Promise<Project> {
+    await this.projectStore.rename(id, name);
+    return this.projectView(id);
+  }
+
+  /** Forgets a project in Agentry. What Claude Code keeps about it is `purgeProject`, and is not touched. */
+  removeProject(id: string): Promise<void> {
+    return this.projectStore.remove(id);
+  }
+
+  private async projectView(id: string): Promise<Project> {
+    const project = (await this.projects()).find((p) => p.id === id);
+    if (!project) throw new Error('project not found');
+    return project;
+  }
+
   async overview(): Promise<Overview> {
-    const [system, projects, chats] = await Promise.all([this.system(), this.projects(), this.chats.list({ origins: ['agentry', 'external', 'orchestration'] })]);
+    const [system, chats] = await Promise.all([this.system(), this.chats.list({ origins: ['agentry', 'external', 'orchestration'] })]);
     // The same lists the screens show, so a count can never disagree with the page it links to
     const [tasks, subagents, workflows] = await Promise.all([this.chats.allBackgroundTasks(), this.chats.allSubagents(), this.chats.allWorkflows()]);
     return {
@@ -470,7 +518,7 @@ export class Core {
       rateLimit: this.runtime.lastRateLimit,
       accounts: this.accounts.snapshot(),
       counts: {
-        projects: projects.length,
+        projects: this.projectStore.list().length,
         chats: chats.length,
         chatsWorking: chats.filter((c) => c.state === 'working').length,
         chatsWaiting: chats.filter((c) => c.state === 'waiting').length,

@@ -11,7 +11,6 @@ import {
   TranscriptSearch,
   TRANSCRIPT_PAGE,
   TRANSCRIPT_PAGE_MAX,
-  type ProjectSummary,
   type AgentTranscript,
   type BackgroundTaskOutput,
   type TranscriptEntry,
@@ -22,6 +21,7 @@ import { AGENT_ID_RE, WORKFLOW_RUN_ID_RE, emptyAgentRead, readAgentFile } from '
 import type { BackgroundTask, SubagentInfo, TranscriptPage, TranscriptSummary, WorkflowRun } from './cli-facts.ts';
 import type { CoreConfig } from './paths.ts';
 import { EntryIndex, fingerprint, parseLine, readLines, scanLines, type JsonLine } from './transcript-index.ts';
+import { UsageFold } from './usage.ts';
 import { readSessionWorkflows, readWorkflowAgent } from './workflows.ts';
 
 /** The slash command inside a synthetic user message, e.g. `<command-name>/resume</command-name>`. */
@@ -29,9 +29,17 @@ const COMMAND_RE = /<command-name>\s*([^<]+)<\/command-name>/;
 
 /** A summary over the lines read so far, before what only the end of the file decides. */
 interface SummaryFold {
-  summary: TranscriptSummary;
+  /** `usage` is filled when the fold is finished; the running figures are in `spent` */
+  summary: Omit<TranscriptSummary, 'usage'>;
   customTitle: string | null;
   command: string | undefined;
+  spent: UsageFold;
+}
+
+/** A copy a half-written last line can be folded into without touching the original. */
+function cloneFold(fold: SummaryFold): SummaryFold {
+  const { spent, ...plain } = fold;
+  return { ...structuredClone(plain), spent: spent.clone() };
 }
 
 function foldLine(fold: SummaryFold, o: JsonLine, entry: TranscriptEntry | null): void {
@@ -58,6 +66,7 @@ function foldLine(fold: SummaryFold, o: JsonLine, entry: TranscriptEntry | null)
     }
   }
 
+  if (entry) fold.spent.add(o, entry);
   if (!entry || entry.isSidechain) return;
   summary.messageCount++;
   if (entry.model) summary.model = entry.model;
@@ -71,7 +80,7 @@ function foldLine(fold: SummaryFold, o: JsonLine, entry: TranscriptEntry | null)
 }
 
 function finishSummary(fold: SummaryFold, info: Stats): TranscriptSummary | null {
-  const summary = { ...fold.summary, sizeBytes: info.size };
+  const summary = { ...fold.summary, sizeBytes: info.size, usage: fold.spent.snapshot() };
   if (summary.messageCount === 0) return null;
   // A session with no user turn (the spare `claude attach` pre-warms) would otherwise be
   // titled with its own uuid, which reads like an id and tells nobody what it is.
@@ -233,11 +242,6 @@ export function pageSize(limit: number | undefined): number {
   return Math.min(Math.max(1, Math.trunc(limit)), TRANSCRIPT_PAGE_MAX);
 }
 
-export function isTemporaryPath(path: string): boolean {
-  const tmp = tmpdir();
-  return path === tmp || path.startsWith(`${tmp}/`) || path.startsWith('/tmp/') || path.startsWith('/var/tmp/');
-}
-
 /** Reads projects and sessions from ~/.claude/projects (.jsonl transcripts written by the CLI). */
 export class SessionStore {
   /** Transcript file → what reading it last left, pending while a read is under way */
@@ -281,7 +285,7 @@ export class SessionStore {
         old !== null && old.ino === info.ino && info.size > old.size && (await fingerprint(handle, old.end)).equals(old.fingerprint);
       const base = grew ? old : null;
       const fold: SummaryFold = base
-        ? structuredClone(base.fold)
+        ? cloneFold(base.fold)
         : {
             summary: {
               id: basename(file, '.jsonl'),
@@ -300,6 +304,7 @@ export class SessionStore {
             },
             customTitle: null,
             command: undefined,
+            spent: new UsageFold(),
           };
       const added: [number, number, boolean][] = [];
       const { end, tail } = await scanLines(handle, base?.end ?? 0, info.size, (o, start, lineEnd) => {
@@ -314,7 +319,7 @@ export class SessionStore {
       const tailEntry = tailLine ? normalizeMessage(tailLine) : null;
       let summary: TranscriptSummary | null;
       if (tailLine) {
-        const withTail = structuredClone(fold);
+        const withTail = cloneFold(fold);
         foldLine(withTail, tailLine, tailEntry);
         summary = finishSummary(withTail, info);
       } else summary = finishSummary(fold, info);
@@ -349,33 +354,6 @@ export class SessionStore {
       for (const s of summaries) if (s) all.push(s);
     }
     return all.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
-  }
-
-  async listProjects(): Promise<ProjectSummary[]> {
-    const sessions = await this.listSessions();
-    const byProject = new Map<string, TranscriptSummary[]>();
-    for (const s of sessions) {
-      const list = byProject.get(s.projectId) ?? [];
-      list.push(s);
-      byProject.set(s.projectId, list);
-    }
-    const projects: ProjectSummary[] = [];
-    for (const [id, list] of byProject) {
-      const path = list.find((s) => s.projectPath)?.projectPath ?? id;
-      const worktree = list.find((s) => s.worktree?.path === path)?.worktree;
-      projects.push({
-        ...(worktree ? { parentPath: worktree.parentPath, worktree: { name: worktree.name, branch: worktree.branch } } : {}),
-        id,
-        path,
-        name: basename(path) || path,
-        sessionCount: list.length,
-        lastActivity: list[0]?.updatedAt ?? null,
-        activeRuns: 0,
-        temporary: isTemporaryPath(path),
-        exists: existsSync(path),
-      });
-    }
-    return projects.sort((a, b) => (b.lastActivity ?? '').localeCompare(a.lastActivity ?? ''));
   }
 
   private async findFile(sessionId: string): Promise<{ projectId: string; file: string } | null> {

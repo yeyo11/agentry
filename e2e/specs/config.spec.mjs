@@ -1,6 +1,6 @@
-// Config: file explorer round trip (create, type, Ctrl+S, delete with confirmation) and guided settings.
+// Settings: file explorer round trip (create, type, Ctrl+S, delete with confirmation) and guided settings.
 export default async ({ page, api, check }) => {
-  await page.goto('/config?tab=files', 1500);
+  await page.goto('/settings?tab=files', 1500);
   await page.click('button', 'New file');
   await page.fill('input[placeholder="hooks/my-hook.sh"]', 'hooks/e2e.sh');
   await page.click('[role=dialog] button', 'Create in editor', 1200);
@@ -26,17 +26,17 @@ export default async ({ page, api, check }) => {
   check((await api.get('/config/files/content?root=user&path=hooks/e2e.sh')).status === 404, 'file deleted after confirmation');
 
   // Guided settings write the same JSON the raw editor shows
-  await page.goto('/config?tab=settings', 1500);
+  await page.goto('/settings?tab=settings', 1500);
   await page.fill('[role=tabpanel] input[placeholder="default"]', 'sonnet');
   await page.click('button', 'Save settings', 1200);
   check((await api.get('/config/settings')).body.settings.model === 'sonnet', 'guided settings saved the model');
   await page.click('button', 'Raw JSON', 800);
   check((await page.text('.cm-content')).includes('sonnet'), 'raw JSON reflects the guided edit');
 
-  // Project scope: inherited user servers are listed next to the project ones
+  // Project scope lives on the project page, not in Settings
   const project = (await api.post('/projects', { name: 'e2e-project' })).body;
   await api.put(`/config/instructions?project=${encodeURIComponent(project.id)}`, { content: '# E2E project rules\n' });
-  await page.goto(`/config?project=${encodeURIComponent(project.id)}&tab=instructions`, 1800);
+  await page.goto(`/?project=${encodeURIComponent(project.id)}&tab=settings`, 1800);
   check((await page.text('[role=tabpanel]')).includes('E2E project rules'), 'project-scope instructions shown');
   check(!(await page.text('[role=tablist]')).includes('Account'), 'Account tab is user-scope only');
 };

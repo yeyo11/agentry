@@ -183,6 +183,12 @@ the same family with a 1M context has a different window, and a session of 328k 
 a 200k window looks like a broken counter. When the model is unknown, tokens are still shown and the
 percentage of the window is not invented.
 
+The window is not a table kept in the code: whether a model has 200k or 1M depends on the variant
+and even on the account (`opus` and `opus[1m]` both reported 1M on the account this was checked
+with), so any table would be a guess. The CLI reports it with every result, in
+`modelUsage.<model id>.contextWindow`; Agentry stores the last value seen per exact model id and
+measures transcripts against it. A model no execution of Agentry has answered with yet has none.
+
 Where it is shown: the percentage of context in the chat list (what tells you a chat is about to
 compact), context, tokens and cost in the chat detail, the total per orchestration — what a large
 piece of work cost, which `orch.costUsd` already accumulates — and totals per project and per day on

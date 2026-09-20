@@ -992,129 +992,6 @@
       }
     }
   },
-  "ProjectSummary": {
-    "type": "object",
-    "properties": {
-      "temporary": {
-        "type": "boolean",
-        "description": "Lives under the OS temp dir (scratch/test directories)"
-      },
-      "id": {
-        "type": "string",
-        "description": "Encoded directory name inside ~/.claude/projects"
-      },
-      "path": {
-        "type": "string",
-        "description": "Real project cwd"
-      },
-      "name": {
-        "type": "string"
-      },
-      "sessionCount": {
-        "type": "number"
-      },
-      "lastActivity": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "activeRuns": {
-        "type": "number",
-        "description": "Wrapper runs currently alive inside this project"
-      },
-      "activeSessions": {
-        "type": "number",
-        "description": "CLI sessions live in this directory that no run owns — work started from a terminal"
-      },
-      "exists": {
-        "type": "boolean",
-        "description": "The directory exists on disk"
-      },
-      "parentId": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Set when this directory is a git worktree: the repository it belongs to"
-      },
-      "parentPath": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "worktree": {
-        "anyOf": [
-          {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "branch": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            },
-            "required": [
-              "name",
-              "branch"
-            ]
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "createdBy": {
-        "anyOf": [
-          {
-            "type": "object",
-            "properties": {
-              "orchestrationId": {
-                "type": "string"
-              },
-              "orchestrationName": {
-                "type": "string"
-              },
-              "taskId": {
-                "type": "string"
-              },
-              "taskName": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "orchestrationId",
-              "orchestrationName",
-              "taskId",
-              "taskName"
-            ]
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "The orchestration task that created this worktree, when one did"
-      }
-    },
-    "required": [
-      "temporary",
-      "id",
-      "path",
-      "name",
-      "sessionCount",
-      "lastActivity",
-      "activeRuns",
-      "exists"
-    ]
-  },
   "CreateProjectRequest": {
     "type": "object",
     "properties": {
@@ -5905,6 +5782,215 @@
       }
     },
     "description": "What can be changed on a live execution without restarting it."
+  },
+  "UsageReport": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The days asked for, inclusive; null when unbounded"
+      },
+      "to": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "total": {
+        "$ref": "#/components/schemas/UsageTotals"
+      },
+      "days": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/UsageDay"
+        },
+        "description": "Oldest first, only days something was spent on"
+      },
+      "projects": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/UsageProject"
+        },
+        "description": "Most spent first"
+      },
+      "orchestrations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/UsageOrchestration"
+        },
+        "description": "Most spent first; only the chats that work for an orchestration"
+      }
+    },
+    "required": [
+      "from",
+      "to",
+      "total",
+      "days",
+      "projects",
+      "orchestrations"
+    ],
+    "description": "What the chats spent, per day, per project and per orchestration."
+  },
+  "UsageTotals": {
+    "type": "object",
+    "properties": {
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Sum of what the CLI reported; null when it reported nothing for any chat in it: read as \"not available\""
+      },
+      "chatsWithoutCost": {
+        "type": "number",
+        "description": "Chats in these totals whose cost the CLI never reported (started from a terminal), so `costUsd` leaves them out"
+      },
+      "tokens": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatModelTokens"
+        }
+      },
+      "total": {
+        "$ref": "#/components/schemas/TokenUsage"
+      }
+    },
+    "required": [
+      "costUsd",
+      "chatsWithoutCost",
+      "tokens",
+      "total"
+    ],
+    "description": "What was spent over some stretch of chats. Tokens are real and cover every chat; the cost only covers the chats that reported one."
+  },
+  "UsageDay": {
+    "type": "object",
+    "properties": {
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Sum of what the CLI reported; null when it reported nothing for any chat in it: read as \"not available\""
+      },
+      "chatsWithoutCost": {
+        "type": "number",
+        "description": "Chats in these totals whose cost the CLI never reported (started from a terminal), so `costUsd` leaves them out"
+      },
+      "tokens": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatModelTokens"
+        }
+      },
+      "total": {
+        "$ref": "#/components/schemas/TokenUsage"
+      },
+      "day": {
+        "type": "string",
+        "description": "`YYYY-MM-DD`, in the server's time zone"
+      }
+    },
+    "required": [
+      "chatsWithoutCost",
+      "costUsd",
+      "day",
+      "tokens",
+      "total"
+    ]
+  },
+  "UsageProject": {
+    "type": "object",
+    "properties": {
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Sum of what the CLI reported; null when it reported nothing for any chat in it: read as \"not available\""
+      },
+      "chatsWithoutCost": {
+        "type": "number",
+        "description": "Chats in these totals whose cost the CLI never reported (started from a terminal), so `costUsd` leaves them out"
+      },
+      "tokens": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatModelTokens"
+        }
+      },
+      "total": {
+        "$ref": "#/components/schemas/TokenUsage"
+      },
+      "project": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatProject"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null for the chats under no imported project"
+      }
+    },
+    "required": [
+      "chatsWithoutCost",
+      "costUsd",
+      "project",
+      "tokens",
+      "total"
+    ]
+  },
+  "UsageOrchestration": {
+    "type": "object",
+    "properties": {
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Sum of what the CLI reported; null when it reported nothing for any chat in it: read as \"not available\""
+      },
+      "chatsWithoutCost": {
+        "type": "number",
+        "description": "Chats in these totals whose cost the CLI never reported (started from a terminal), so `costUsd` leaves them out"
+      },
+      "tokens": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatModelTokens"
+        }
+      },
+      "total": {
+        "$ref": "#/components/schemas/TokenUsage"
+      },
+      "orchestration": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      }
+    },
+    "required": [
+      "chatsWithoutCost",
+      "costUsd",
+      "orchestration",
+      "tokens",
+      "total"
+    ]
   },
   "TaskHintRequest": {
     "type": "object",

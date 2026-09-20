@@ -19,6 +19,7 @@ export const TAGS = [
   { name: 'System', description: 'CLI detection, health and the dashboard overview.' },
   { name: 'Account', description: 'Credential used by every `claude` process. The secret is never returned.' },
   { name: 'Accounts', description: 'Several Claude accounts through claude-swap (`cswap`), with usage per window and rotation when one runs out.' },
+  { name: 'Projects', description: 'Directories imported by hand. A chat belongs to the project whose directory holds it, worktrees included; under none it is loose.' },
   { name: 'Projects & sessions', description: 'Read from the transcripts Claude Code writes under `<configDir>/projects`.' },
   { name: 'Events', description: 'One Server-Sent Events stream announcing every change, so clients do not have to poll.' },
   { name: 'Chats', description: 'Claude Code conversations, one per session id: resumed in place, forked into copies, each with the executions Agentry ran on it.' },
@@ -71,10 +72,14 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /accounts/autoswitch': d('Accounts', 'Auto-rotation settings', { ok: ref('AutoSwitchSettings') }),
   'PUT /accounts/autoswitch': d('Accounts', 'Change the auto-rotation settings', { description: 'Enabling it supervises a `cswap auto --json` process that rotates before the active account reaches `threshold`. `rotateOnLimit` also rotates and resumes a run that died against its limit.', body: ref('AutoSwitchSettings'), ok: ref('AutoSwitchSettings') }),
 
-  // ---- Projects & sessions
-  'GET /projects': d('Projects & sessions', 'Workspace directories and directories with history', { ok: list('ProjectSummary') }),
-  'POST /projects': d('Projects & sessions', 'Create a project in the workspace', { description: 'Creates an empty directory, or clones `gitUrl` into it.', body: ref('CreateProjectRequest'), ok: ref('ProjectSummary'), created: true }),
-  'DELETE /projects/:id/state': d('Projects & sessions', 'Purge everything Claude Code keeps about a project', { description: 'Transcripts, tasks, file history and the config entry, through `claude project purge`. Irreversible.', ok: obj({ detail: str('What the CLI reported') }) }),
+  // ---- Projects
+  'GET /projects': d('Projects', 'Imported projects', { description: 'Only directories that were imported. Each carries its worktrees and the number of chats under it or them.', ok: list('Project') }),
+  'GET /projects/candidates': d('Projects', 'Directories worth importing', { description: 'Directories chats have run in that are not projects yet, the busiest first, with scratch and missing directories left out. What a first start offers instead of an empty screen.', ok: list('ProjectCandidate') }),
+  'POST /projects/import': d('Projects', 'Import a directory as a project', { description: 'Every chat under the directory belongs to it from then on, retroactively. A git worktree is refused: it belongs to its repository.', body: ref('ImportProjectRequest'), ok: ref('Project'), created: true }),
+  'POST /projects': d('Projects', 'Create a project in the workspace', { description: 'Creates an empty directory, or clones `gitUrl` into it, and imports it.', body: ref('CreateProjectRequest'), ok: ref('Project'), created: true }),
+  'PATCH /projects/:id': d('Projects', 'Rename a project', { params: obj({ id: str('Project id') }), body: ref('UpdateProjectRequest'), ok: ref('Project') }),
+  'DELETE /projects/:id': d('Projects', 'Remove a project from Agentry', { description: 'Harmless: nothing on disk changes, and importing the directory again adopts its chats again. Distinct from `DELETE /projects/:id/state`.', params: obj({ id: str('Project id') }), ok: OK }),
+  'DELETE /projects/:id/state': d('Projects', 'Purge everything Claude Code keeps about a project', { description: 'Transcripts, tasks, file history and the config entry, through `claude project purge`. Irreversible; the project stays imported.', params: obj({ id: str('Project id') }), ok: obj({ detail: str('What the CLI reported') }) }),
 
   // ---- Events
   'GET /events': d('Events', 'Live feed of everything that changes (Server-Sent Events)', {
@@ -97,6 +102,12 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
       limit: str('Max chats to return'),
     }),
     ok: list('ChatSummary'),
+  }),
+  'GET /usage': d('Chats', 'What the chats spent, per day, per project and per orchestration', {
+    description:
+      'Tokens come from the transcripts, so they cover every chat, subagents included, and are kept per model with the variant suffix whole. The cost is what the CLI reported (`total_cost_usd`), which exists only for chats Agentry launched: nothing is estimated from a price table, `costUsd` is `null` when nothing reported one, and `chatsWithoutCost` counts the chats a total leaves out. A day is a calendar day where the server runs; a cost is put on the day its execution ended.',
+    querystring: obj({ from: str('First day, `YYYY-MM-DD` (inclusive)'), to: str('Last day, `YYYY-MM-DD` (inclusive)') }),
+    ok: ref('UsageReport'),
   }),
   'POST /chats': d('Chats', 'Start a chat', { description: 'Spawns `claude -p` with stream-json I/O under a session id Agentry chooses. With `keepAlive` (default) the process stays up for follow-up turns.', body: ref('NewChatRequest'), ok: ref('ChatSummary'), created: true }),
   'GET /chats/:id': d('Chats', 'A chat and a window of its transcript', {
@@ -175,7 +186,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'DELETE /config/files/content': d('Config files', 'Delete a file or directory', { querystring: obj({ root: ROOT, path: str('Path relative to the root') }, ['path']), ok: OK }),
 
   // ---- Memory
-  'GET /memory': d('Memory', 'Projects with their memory file counts', { ok: list('MemoryProjectSummary') }),
+  'GET /memory': d('Memory', 'Imported projects with their memory file counts', { ok: list('MemoryProjectSummary') }),
   'GET /memory/:project': d('Memory', 'Memory files of a project', { description: '`MEMORY.md` (the index loaded into every session) comes first.', ok: list('MemoryFile') }),
   'PUT /memory/:project/:name': d('Memory', 'Create or overwrite a memory file', { description: '`name` must end in `.md`.', body: obj({ content: str() }, ['content']), ok: ref('MemoryFile') }),
   'DELETE /memory/:project/:name': d('Memory', 'Delete a memory file', { ok: OK }),

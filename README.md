@@ -284,9 +284,13 @@ Pinned chats keep writing their transcript to the shared config dir, so history 
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/projects` | Workspace directories plus every directory with Claude Code history, with active run counts |
-| POST | `/projects` | `{ name, gitUrl? }` — create an empty project in the workspace or clone a repository into it |
-| DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible |
+| GET | `/projects` | The projects you imported, each with its worktrees and the number of chats under it |
+| GET | `/projects/candidates` | Directories chats have run in that are not projects yet, the busiest first: what a first start offers to import |
+| POST | `/projects/import` | `{ path, name? }` — import a directory; every chat under it is adopted, retroactively. A git worktree is refused |
+| POST | `/projects` | `{ name, gitUrl? }` — create an empty project in the workspace or clone a repository into it, and import it |
+| PATCH | `/projects/:id` | `{ name }` — rename a project |
+| DELETE | `/projects/:id` | Remove a project from Agentry. Harmless: nothing on disk changes |
+| DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible, and separate from removing the project |
 
 ### Events
 
@@ -312,6 +316,7 @@ the reason and the way forward (`fork`, or `hint` for a task an orchestration is
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/chats?project=&loose=1&origin=&state=&limit=` | Chats, newest first. Workers of an orchestration and housekeeping chats are left out unless `origin` (comma-separated: `agentry`, `external`, `orchestration`, `internal`) asks for them; `loose=1` lists those under no project |
+| GET | `/usage?from=&to=` | What the chats spent, per day, per project and per orchestration (`from`/`to` are days, `YYYY-MM-DD`, inclusive). Tokens come from the transcripts, per model; the cost is what the CLI reported, so it is `null` for chats started from a terminal and `chatsWithoutCost` says how many a total leaves out |
 | POST | `/chats` | Start a chat. Body: `NewChatRequest` (`prompt` required; `cwd`, `model`, `permissionMode`, `effort`, `appendSystemPrompt`, `allowedTools`, `jsonSchema`, `maxBudgetUsd`, `worktree`, `permissionPrompts`, `account`, `attachments`) |
 | GET | `/chats/:id` | The chat with its branches and environment, and a window of its transcript: the newest 200 entries, or `?limit=` of them, with `from` and `total`; `?before=` the `from` of a page reads the one before it (`?sidechains=1` adds subagent messages) |
 | GET | `/chats/:id/search?q=&sidechains=1` | Search the whole transcript, pages not loaded included: the matching entries' indices (the space of `from`/`total`) with a snippet each, case-insensitive; at most 500, the newest, with `truncated` |
@@ -464,7 +469,7 @@ loaded into every session of that project.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/memory` | Projects with their memory file counts |
+| GET | `/memory` | Imported projects with their memory file counts |
 | GET | `/memory/:project` | Memory files of a project (index first), with parsed `description` and `type` |
 | PUT | `/memory/:project/:name` | Create or overwrite `name.md` — body `{ content }` |
 | DELETE | `/memory/:project/:name` | Delete a memory file |
@@ -487,22 +492,24 @@ Delegated to `claude plugin`; actions return the CLI output as `{ ok, output }` 
 
 | Page | What it covers |
 | --- | --- |
-| Dashboard | CLI detection, auth status, subscription usage limits, live runs, recent sessions |
+| Home | The selected project's page. **Activity** is an inbox: what waits for a person first (chats stopped for a permission or a question, blocked orchestration tasks, merge conflicts, a command running for long, a missing CLI or credential), each with its action, then what runs now with its context and cost, what the day has cost per model, subscription usage limits and the chats to pick up again — the first block is absent when nothing waits. With a project selected it also has **Settings**, **Memory**, **Resources** (agents, skills, commands, output styles, rules and saved workflows, each workflow with a **Run** button) and **Worktrees** tabs; with All projects only Activity remains |
 | Agents | Runs in progress, their subagents, and every live CLI session on the machine. A subagent's **Details** opens a side panel (also from a run's side card and a workflow's agents): its prompt, status, duration, tokens, full transcript, result and the background tasks it launched, updating while it runs |
 | Run view | Live chat over SSE: messages, thinking, tool calls/results, background tasks, subagents, what Claude loaded |
 | Sessions | Full history across projects, transcripts (with subagent sidechains), resume into a run, delete |
-| Background tasks | Tasks started by any run or session, with status and duration; those launched by a subagent are tagged. **Output** opens a side panel that follows the command's output while it runs. Panels are addressable (`?detail=…`), so a reload or a link brings them back |
-| Projects | Workspace directories and directories with history; create or clone a project |
+| Projects | The management screen: import a directory by hand, create or clone one in the workspace, rename, remove (harmless) or purge what Claude Code keeps about it (irreversible). On a first start with none imported it offers the directories holding the most chats |
 | Orchestration | Auto-planned or manual task DAG, live board by stage, per-task results, synthesis |
 | Accounts | Registered accounts with 5h/7d (and per-model) usage, manual switch, add/remove, enable/disable, auto-rotation settings and the rotation log |
-| Memory | Claude Code's per-project memory files and the `MEMORY.md` index |
-| Plugins | Installed plugins (enable/disable/uninstall/details), marketplace search and install, marketplaces |
-| Config | Scope selector (user or any project) over: Account, Instructions, Settings (guided editor + raw JSON), MCP servers (guided form, scopes, connection checks), Agents, Skills, Commands, Output styles, Rules, and a file explorer for everything else (hook scripts, skill files, keybindings…) |
+| Settings | User scope only, as tabs: Account, Instructions, Settings (guided editor + raw JSON), MCP servers (guided form, scopes, connection checks), Agents, Skills, Commands, Output styles, Rules, a file explorer for everything else (hook scripts, skill files, keybindings…), Memory (where each project's memory is) and Plugins (installed plugins, marketplace search and install, marketplaces). Everything that belongs to one project lives on its page instead |
 
 Across the app:
 
-- **Command palette** (`Ctrl/⌘ K`): fuzzy search over pages, config sections, projects, live runs,
-  recent sessions and actions (new run, theme, API reference…), with recents and full keyboard control.
+- **Project selector** (top bar, beside the palette): scopes Home, Chats and Orchestrations to one project
+  or All projects. The choice is remembered, and a `?project=<id>` in the address overrides it, so a link
+  to a project's page works from anywhere. Notifications ignore it: a chat waiting in another project
+  is still worth knowing about.
+- **Command palette** (`Ctrl/⌘ K`): fuzzy search over pages, settings tabs, projects and their tabs,
+  working and recent chats and actions (new chat, run a saved workflow, theme, API reference…), with
+  recents and full keyboard control.
 - **Themes**: light, dark or system, switchable from the top bar or the palette, applied before first paint.
 - **Live chat**: responses stream token by token; thinking, tool calls and results render as they arrive.
 - **Live updates**: one Server-Sent Events connection (`GET /api/events`) keeps every page current —
@@ -519,11 +526,11 @@ Across the app:
   to its side panel.
 - **Execution detail**: a subagent, a background task or a workflow agent opens in a side panel — prompt,
   type, status, duration, tokens, the full transcript, the result and, for a subagent, the tasks it
-  launched — from the Agents and Background tasks pages, a run's side card and a workflow's agents. It
+  launched — from the chat that holds it, a workflow's agents and the inbox. It
   follows the agent or the command's output while it runs, and it is part of the URL (`?detail=…`), so a
   reload or a link brings it back.
 - **Editors**: CodeMirror (JSON, Markdown, YAML, JS/TS) with `Ctrl/⌘ S`, unsaved-change guards
-  (tabs, scope switches, sidebar navigation, reload), confirmation dialogs for destructive actions
+  (tabs, sidebar navigation, reload), confirmation dialogs for destructive actions
   and toasts for every mutation.
 - **Form controls**: selects, suggestion lists, switches, checkboxes, sliders, number steppers,
   tooltips and collapsible sections are built on Radix primitives and styled with the app's theme

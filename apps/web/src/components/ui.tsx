@@ -9,6 +9,8 @@ const TONES: Record<string, string> = {
   starting: 'info',
   busy: 'active',
   running: 'active',
+  working: 'active',
+  blocked: 'bad',
   idle: 'idle',
   pending: 'muted',
   completed: 'ok',

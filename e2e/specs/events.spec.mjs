@@ -10,29 +10,24 @@ export default async ({ page, api, check }) => {
   check(first.includes('event: stream.hello'), 'the feed opens with stream.hello');
   controller.abort();
 
-  await page.goto('/agents', 1000);
-  await page.waitFor(`return document.querySelector('main')?.innerText.trim().length > 10`, { label: 'agents page' });
+  await page.goto('/', 1000);
+  await page.waitFor(`return document.querySelector('main')?.innerText.trim().length > 10`, { label: 'home page' });
   const footer = await page.eval(`return document.querySelector('.sidebar-foot')?.innerText ?? ''`);
   check(!/paused/i.test(footer), `the sidebar footer says live updates are paused: ${footer}`);
 
-  // The sandbox has no login, so the run goes nowhere; its creation is what has to reach the open
-  // page by itself. `internal` keeps the CLI from writing a transcript, which the sessions spec
-  // would then count.
-  const created = await api.post('/runs', { prompt: 'hello', name: 'e2e-live-feed', internal: true });
-  check(created.status === 201, `the run was created (${created.status})`);
+  // The sandbox has no login, so the chat goes nowhere; its creation is what has to reach the open
+  // page by itself, as working now or as one to pick up again.
+  const created = await api.post('/chats', { prompt: 'e2e-live-feed hello' });
+  check(created.status === 201, `the chat was created (${created.status})`);
   const appeared = await page.waitFor(`return document.querySelector('main').innerText.includes('e2e-live-feed')`, {
-    label: 'the new run to appear without a reload',
+    label: 'the new chat to appear without a reload',
   });
-  check(appeared, 'the run appears on the open Agents page');
-
-  // The background tasks page reads from the same feed and renders without a run
-  await page.goto('/tasks', 1000);
-  await page.waitFor(`return document.querySelector('main')?.innerText.trim().length > 5`, { label: 'tasks page' });
+  check(appeared, 'the chat appears on the open Home page');
 
   // Housekeeping so the next spec starts from the same state
-  await api.post(`/runs/${created.body.id}/stop`);
+  await api.post(`/chats/${created.body.id}/stop`);
   for (let i = 0; i < 40; i++) {
-    if ((await api.del(`/runs/${created.body.id}`)).status === 200) break;
+    if ((await api.del(`/chats/${created.body.id}`)).status === 200) break;
     await new Promise((r) => setTimeout(r, 250));
   }
 };

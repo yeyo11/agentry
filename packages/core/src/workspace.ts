@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readdir } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CoreConfig } from './paths.ts';
 
@@ -13,14 +13,9 @@ export function encodeProjectId(path: string): string {
   return path.replace(/[^a-zA-Z0-9]/g, '-');
 }
 
-/** Project directories inside the wrapper workspace (the default cwd for runs). */
+/** Creates the directories of the wrapper workspace (the default cwd for runs). */
 export class Workspace {
   constructor(private readonly config: CoreConfig) {}
-
-  async list(): Promise<string[]> {
-    const entries = await readdir(this.config.workspaceDir, { withFileTypes: true }).catch(() => []);
-    return entries.filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => join(this.config.workspaceDir, e.name));
-  }
 
   /** Creates an empty project directory, or clones `gitUrl` into it. Returns the absolute path. */
   async create(name: string, gitUrl?: string): Promise<string> {

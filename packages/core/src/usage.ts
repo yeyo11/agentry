@@ -24,6 +24,31 @@ interface MessageUsage {
   usage: TokenUsage;
   model: string | null;
   sidechain: boolean;
+  /** When the response was written: the day it was spent on */
+  at: string | null;
+}
+
+/** What was spent on one day with one model. */
+export interface DayTokens extends ChatModelTokens {
+  /** `YYYY-MM-DD`, in the server's time zone */
+  day: string;
+}
+
+/** What a transcript says about how much was used, in one piece so it can be kept with the transcript's summary. */
+export interface TranscriptUsage {
+  context: ContextSnapshot | null;
+  /** Everything spent, sidechains included, per model */
+  tokens: ChatModelTokens[];
+  total: TokenUsage;
+  days: DayTokens[];
+}
+
+/** The calendar day of a timestamp where the server runs: what a person means by "today". */
+export function localDay(iso: string): string | null {
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return null;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${String(t.getFullYear())}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
 }
 
 /**
@@ -60,7 +85,15 @@ export class UsageFold {
       // The CLI stamps the messages it makes up itself (a synthetic error, say) with a placeholder
       model: entry.model && !entry.model.startsWith('<') ? entry.model : null,
       sidechain: entry.isSidechain,
+      at: entry.timestamp,
     });
+  }
+
+  /** An independent copy: a fold kept with a transcript is extended by later passes, and a half-written last line must not leak into it. */
+  clone(): UsageFold {
+    const copy = new UsageFold();
+    for (const [id, m] of this.byMessage) copy.byMessage.set(id, m);
+    return copy;
   }
 
   /** Everything spent, sidechains included, per model. Models appear in the order they were first used. */
@@ -72,6 +105,24 @@ export class UsageFold {
       addTokenUsage(row, usage);
     }
     return [...byModel.values()];
+  }
+
+  /** What was spent on each day, per model, oldest day first. A response with no timestamp belongs to no day. */
+  days(): DayTokens[] {
+    const rows = new Map<string, DayTokens>();
+    for (const { usage, model, at } of this.byMessage.values()) {
+      const day = at ? localDay(at) : null;
+      if (!day) continue;
+      const key = `${day}\0${model ?? ''}`;
+      let row = rows.get(key);
+      if (!row) rows.set(key, (row = { day, model, ...emptyTokenUsage() }));
+      addTokenUsage(row, usage);
+    }
+    return [...rows.values()].sort((a, b) => a.day.localeCompare(b.day));
+  }
+
+  snapshot(): TranscriptUsage {
+    return { context: this.context(), tokens: this.tokens(), total: this.total(), days: this.days() };
   }
 
   total(): TokenUsage {
