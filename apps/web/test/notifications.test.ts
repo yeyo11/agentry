@@ -55,7 +55,7 @@ const apply = (items: AppNotification[], events: AgentryEvent[], prefs = default
   return { items: list, added };
 };
 
-test('a chat waiting for the person is the highest priority and links straight to the chat', () => {
+test('a run waiting for the person is the highest priority and links straight to the run', () => {
   const [n] = notificationsFor(waiting());
   assert.ok(n);
   assert.equal(n.priority, 'high');
@@ -187,9 +187,9 @@ test('finished tasks and subagents stay low priority unless they failed', () => 
     description: 'find things',
     status: 'completed',
   };
-  // The side panel is the most specific place; it works for a terminal session too
+  // The side panel is the most specific place; it opens over the chat, which a terminal's chat has too
   assert.equal(notificationsFor(sub)[0]?.href, '/chats/s9?detail=subagent%3As9%3Aa1');
-  // Without the agent's id there is no panel to open: the session is the next best place
+  // Without the agent's id there is no panel to open: the chat is the next best place
   assert.equal(notificationsFor({ ...sub, agentId: null })[0]?.href, '/chats/s9');
 });
 
@@ -229,7 +229,7 @@ test('a hidden tab or another page is never redundant', () => {
   assert.ok(n);
   assert.equal(isRedundant(n, '/chats/run1', false), false);
   assert.equal(isRedundant(n, '/chats/run2', true), false);
-  assert.equal(isRedundant(n, '/projects', true), false);
+  assert.equal(isRedundant(n, '/chats', true), false);
 });
 
 test('saved notifications and preferences survive a round trip', () => {

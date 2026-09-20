@@ -1,24 +1,21 @@
-import type { WorkflowAgentState, WorkflowRun } from '@agentry/shared';
-import { Link } from 'react-router-dom';
+import type { ChatWorkflow, ChatWorkflowAgent } from '@agentry/shared';
 import { useDetailPanel } from '../lib/detail';
 import { durationBetween, formatDuration, truncate } from '../lib/format';
+import { BranchStatus } from './ChatBadges';
 import { CodeBlock } from './CodeBlock';
-// Direct import: the run view that renders this is in the shell bundle
+// Direct import: the chat page that renders this is in the shell bundle
 import { Collapsible } from './controls/Collapsible';
-import { Location } from './Location';
-import { StatusBadge } from './ui';
 
 const tokens = (n: number | null) => (n === null ? null : n >= 1000 ? `${(n / 1000).toFixed(1)}k tokens` : `${n} tokens`);
 
-/** The CLI's agent states, in the tones the rest of the panel uses. */
-const tone = (state: string) => (state === 'done' ? 'ok' : state === 'error' ? 'bad' : 'active');
+const TONE: Record<ChatWorkflowAgent['status'], string> = { completed: 'ok', failed: 'bad', running: 'active' };
 
-/** `open` is set when the agent's transcript can be read: it needs the session and the workflow's `wf_…` id. */
-function AgentRow({ agent, open }: { agent: WorkflowAgentState; open: (() => void) | null }) {
-  const preview = agent.state === 'done' ? agent.resultPreview : agent.promptPreview;
+/** `open` is set when the agent's transcript can be read. */
+function AgentRow({ agent, open }: { agent: ChatWorkflowAgent; open: (() => void) | null }) {
+  const preview = agent.status === 'completed' ? agent.resultPreview : agent.promptPreview;
   return (
     <li className="wf-agent">
-      <span className={`wf-dot wf-dot-${tone(agent.state)}`} aria-label={agent.state} />
+      <span className={`wf-dot wf-dot-${TONE[agent.status]}`} aria-hidden />
       {open ? (
         <button type="button" className="link-btn wf-agent-label" onClick={open}>
           {agent.label}
@@ -27,53 +24,39 @@ function AgentRow({ agent, open }: { agent: WorkflowAgentState; open: (() => voi
         <span className="wf-agent-label">{agent.label}</span>
       )}
       <span className="muted small wf-agent-meta">
-        {[agent.state === 'done' || agent.state === 'error' ? null : agent.state, agent.durationMs !== null ? formatDuration(agent.durationMs) : null, tokens(agent.tokens)]
-          .filter(Boolean)
-          .join(' · ')}
+        {[agent.status, agent.durationMs !== null ? formatDuration(agent.durationMs) : null, tokens(agent.tokens)].filter(Boolean).join(' · ')}
       </span>
-      {preview && <span className="wf-agent-preview">{agent.state === 'done' ? '→ ' : ''}{truncate(preview.replace(/\s+/g, ' '), 140)}</span>}
+      {preview && <span className="wf-agent-preview">{agent.status === 'completed' ? '→ ' : ''}{truncate(preview.replace(/\s+/g, ' '), 140)}</span>}
     </li>
   );
 }
 
 /** Agents under the phase they ran in, in the order the script declared the phases. */
-function byPhase(workflow: WorkflowRun): Array<[string | null, WorkflowAgentState[]]> {
-  const groups = new Map<string | null, WorkflowAgentState[]>();
+function byPhase(workflow: ChatWorkflow): Array<[string | null, ChatWorkflowAgent[]]> {
+  const groups = new Map<string | null, ChatWorkflowAgent[]>();
   for (const phase of workflow.phases) groups.set(phase, []);
   for (const agent of workflow.agents) {
-    const list = groups.get(agent.phaseTitle) ?? [];
+    const list = groups.get(agent.phase) ?? [];
     list.push(agent);
-    groups.set(agent.phaseTitle, list);
+    groups.set(agent.phase, list);
   }
   return [...groups.entries()].filter(([, agents]) => agents.length > 0);
 }
 
-/**
- * One run of a Claude Code workflow: its phases, where each agent is, and what it returned.
- * `compact` drops who started it, for places that already say so, like the run's own page.
- */
-export function WorkflowCard({ workflow, compact = false, sessionId }: { workflow: WorkflowRun; compact?: boolean; sessionId?: string }) {
+/** One run of a Claude Code workflow inside a chat: its phases, where each agent is, and what it returned. */
+export function WorkflowCard({ workflow, chatId }: { workflow: ChatWorkflow; chatId: string }) {
   const { open } = useDetailPanel();
-  // A run's workflows carry no session of their own; the page that knows the run passes it
-  const session = workflow.sessionId ?? sessionId;
-  const done = workflow.agents.filter((a) => a.state === 'done').length;
+  const done = workflow.agents.filter((a) => a.status === 'completed').length;
   const total = workflow.agents.length;
   const hasResult = workflow.result !== undefined && workflow.result !== null;
   return (
     <article className="wf-card">
       <header className="wf-head">
-        <StatusBadge status={workflow.status} />
+        <BranchStatus status={workflow.status} />
         <strong className="wf-name">{workflow.name ?? 'workflow'}</strong>
         <span className="muted small ellipsis">{workflow.description !== workflow.name ? workflow.description : ''}</span>
       </header>
       <div className="meta">
-        {!compact &&
-          (workflow.runId ? (
-            <Link to={`/runs/${workflow.runId}`}>{workflow.runName}</Link>
-          ) : (
-            <Link to={`/sessions/${workflow.sessionId ?? ''}`}>{workflow.runName || 'CLI session'}</Link>
-          ))}
-        {!compact && <Location location={workflow.location} />}
         <span>
           {done}/{total} agents done
         </span>
@@ -81,7 +64,7 @@ export function WorkflowCard({ workflow, compact = false, sessionId }: { workflo
         {workflow.totalTokens !== null && <span>{tokens(workflow.totalTokens)}</span>}
       </div>
       {total > 0 && (
-        <div className="wf-progress" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
+        <div className="wf-progress" role="progressbar" aria-label="Agents done" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
           <span style={{ width: `${(done / total) * 100}%` }} />
         </div>
       )}
@@ -91,13 +74,9 @@ export function WorkflowCard({ workflow, compact = false, sessionId }: { workflo
           <ul className="wf-agents">
             {agents.map((agent) => (
               <AgentRow
-                key={`${agent.index}:${agent.agentId ?? agent.label}`}
+                key={`${agent.index}:${agent.id ?? agent.label}`}
                 agent={agent}
-                open={
-                  session && agent.agentId && workflow.id.startsWith('wf_')
-                    ? () => open({ kind: 'workflow-agent', sessionId: session, runId: workflow.id, agentId: agent.agentId ?? '' })
-                    : null
-                }
+                open={agent.id && workflow.id.startsWith('wf_') ? () => open({ kind: 'workflow-agent', chatId, workflowId: workflow.id, agentId: agent.id ?? '' }) : null}
               />
             ))}
           </ul>

@@ -1,4 +1,4 @@
-// The UI follows the server through one event stream instead of polling: a run created behind the
+// The UI follows the server through one event stream instead of polling: a chat created behind the
 // page's back shows up without a reload, well inside the 30 s the fallback poll would take.
 
 export default async ({ page, api, check }) => {
@@ -10,19 +10,19 @@ export default async ({ page, api, check }) => {
   check(first.includes('event: stream.hello'), 'the feed opens with stream.hello');
   controller.abort();
 
-  await page.goto('/', 1000);
-  await page.waitFor(`return document.querySelector('main')?.innerText.trim().length > 10`, { label: 'home page' });
+  await page.goto('/chats', 1000);
+  await page.waitFor(`return document.querySelector('main')?.innerText.trim().length > 10`, { label: 'chats page' });
   const footer = await page.eval(`return document.querySelector('.sidebar-foot')?.innerText ?? ''`);
   check(!/paused/i.test(footer), `the sidebar footer says live updates are paused: ${footer}`);
 
   // The sandbox has no login, so the chat goes nowhere; its creation is what has to reach the open
-  // page by itself, as working now or as one to pick up again.
-  const created = await api.post('/chats', { prompt: 'e2e-live-feed hello' });
+  // page by itself. Housekeeping chats stay out of the list, so this one is an ordinary chat.
+  const created = await api.post('/chats', { prompt: 'hello', name: 'e2e-live-feed' });
   check(created.status === 201, `the chat was created (${created.status})`);
   const appeared = await page.waitFor(`return document.querySelector('main').innerText.includes('e2e-live-feed')`, {
     label: 'the new chat to appear without a reload',
   });
-  check(appeared, 'the chat appears on the open Home page');
+  check(appeared, 'the chat appears on the open Chats page');
 
   // Housekeeping so the next spec starts from the same state
   await api.post(`/chats/${created.body.id}/stop`);

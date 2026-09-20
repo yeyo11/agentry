@@ -65,15 +65,12 @@ export function defaultPrefs(): NotificationPrefs {
   return { kinds: Object.fromEntries(KINDS.map((kind) => [kind, true])) as Record<NotificationKind, boolean>, toasts: true, browser: false };
 }
 
-// A run is an execution of a chat and carries its id, so both name the same page
-const chatHref = (id: string) => `/chats/${encodeURIComponent(id)}`;
+// A run id on the wire is the id of the chat it works on
+const chatHref = (chatId: string) => `/chats/${encodeURIComponent(chatId)}`;
 const orchestrationHref = (id: string) => `/orchestration/${encodeURIComponent(id)}`;
 
-/** Where work delegated inside a chat is shown: the chat, which is the session, whoever started it. */
-function activityHref(runId: string, sessionId: string | null): string {
-  const chat = runId || sessionId;
-  return chat ? chatHref(chat) : '/';
-}
+/** Work delegated inside a chat says which chat by its session, or by its run when it has one of ours. */
+const activityChat = (runId: string, sessionId: string | null): string | null => sessionId || runId || null;
 
 // The event id alone would collide after a server restart, which restarts the ids
 const draft = (event: AgentryEvent, fields: DraftFields): NotificationDraft => ({
@@ -217,6 +214,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
       ];
 
     case 'task.ended': {
+      const chatOf = activityChat(event.runId, event.sessionId);
       const failed = ACTIVITY_FAILED.has(event.status);
       return [
         draft(event, {
@@ -226,13 +224,14 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'info',
           title: event.title,
           body: event.summary ?? (event.fromSubagent ? 'Started by a subagent.' : ''),
-          href: event.sessionId ? detailHref({ kind: 'task', sessionId: event.sessionId, taskId: event.taskId }, chatHref(event.sessionId)) : activityHref(event.runId, event.sessionId),
+          href: chatOf ? detailHref({ kind: 'task', chatId: chatOf, taskId: event.taskId }, chatHref(chatOf)) : null,
           runId: event.runId || null,
         }),
       ];
     }
 
     case 'subagent.ended': {
+      const chatOf = activityChat(event.runId, event.sessionId);
       const failed = event.status !== 'completed';
       return [
         draft(event, {
@@ -242,16 +241,14 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'info',
           title: event.title,
           body: event.description,
-          href:
-            event.sessionId && event.agentId
-              ? detailHref({ kind: 'subagent', sessionId: event.sessionId, agentId: event.agentId }, chatHref(event.sessionId))
-              : activityHref(event.runId, event.sessionId),
+          href: chatOf ? (event.agentId ? detailHref({ kind: 'subagent', chatId: chatOf, agentId: event.agentId }, chatHref(chatOf)) : chatHref(chatOf)) : null,
           runId: event.runId || null,
         }),
       ];
     }
 
     case 'workflow.ended': {
+      const chatOf = activityChat(event.runId, event.sessionId);
       const failed = event.status === 'failed';
       return [
         draft(event, {
@@ -261,7 +258,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'info',
           title: event.title,
           body: event.summary ?? '',
-          href: activityHref(event.runId, event.sessionId),
+          href: chatOf ? chatHref(chatOf) : null,
           runId: event.runId || null,
         }),
       ];

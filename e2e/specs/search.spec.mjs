@@ -34,10 +34,10 @@ export default async ({ page, api, check }) => {
   const { configDir } = (await api.get('/system')).body;
   seed(configDir);
   try {
-    const found = (await api.get(`/sessions/${SESSION}/search?q=PLATYPUS`)).body;
+    const found = (await api.get(`/chats/${SESSION}/search?q=PLATYPUS`)).body;
     check(found.total === ENTRIES && found.hits.map((h) => h.index).join() === '11,101,301,650', 'the API finds every hit, loaded or not');
 
-    await page.goto(`/sessions/${SESSION}`, 1500);
+    await page.goto(`/chats/${SESSION}`, 1500);
     await page.waitFor(`return !!document.querySelector('.transcript [data-index]')`, { label: 'the transcript' });
     check(!(await page.text('main')).includes('first Platypus'), 'the oldest hit is not on the page before searching');
 
@@ -89,7 +89,7 @@ export default async ({ page, api, check }) => {
     await page.click('button', 'Search');
     await page.waitFor(`return document.querySelector('.find-input')?.value === 'platypus'`, { label: 'the button reopens the search' });
   } finally {
-    // Later specs count the seeded sessions
-    await api.del(`/sessions/${SESSION}`);
+    // Later specs count the seeded chats
+    await api.del(`/chats/${SESSION}`);
   }
 };
