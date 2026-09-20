@@ -45,7 +45,7 @@ export default async ({ page, api, check, dirs }) => {
 
     await page.reduceMotion();
     await page.goto('/usage', 900);
-    await page.waitFor(`return document.querySelector('main svg[role=img]')`, { label: 'the chart' });
+    await page.waitFor(`return !!document.querySelector('main svg[role=img]')`, { label: 'the chart' });
 
     // ---------- the figures agree with the API, and are on the page as text ----------
     const series = (await api.get('/usage/series?bucket=day')).body;
@@ -117,20 +117,20 @@ export default async ({ page, api, check, dirs }) => {
     await noViolations(page, '/usage (dark)', check);
     await page.eval(`localStorage.setItem('agentry-theme', 'light'); return true`);
     await page.goto('/usage', 900);
-    await page.waitFor(`return document.querySelector('main svg[role=img]')`, { label: 'the chart in the light theme' });
+    await page.waitFor(`return !!document.querySelector('main svg[role=img]')`, { label: 'the chart in the light theme' });
     await noViolations(page, '/usage (light)', check);
     await page.shot('usage-light');
     await page.eval(`localStorage.removeItem('agentry-theme'); return true`);
     await page.viewport(420, 900);
     await page.goto('/usage', 900);
-    await page.waitFor(`return document.querySelector('main svg[role=img]')`, { label: 'the chart on a phone' });
+    await page.waitFor(`return !!document.querySelector('main svg[role=img]')`, { label: 'the chart on a phone' });
     const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
     check(overflow <= 1, `/usage scrolls sideways by ${overflow}px at 420px`);
     await page.viewport(1440, 900);
 
     // ---------- export ----------
     await page.goto(`/chats/${SESSION}`, 1200);
-    await page.waitFor(`return document.querySelector('main a[href$="format=markdown"]')`, { label: 'the export links' });
+    await page.waitFor(`return !!document.querySelector('main a[href$="format=markdown"]')`, { label: 'the export links' });
     const links = await page.eval(`return [...document.querySelectorAll('main a[download]')].map((a) => ({ href: a.getAttribute('href'), text: a.textContent.trim() }))`);
     check(links.some((l) => l.text === 'Export Markdown') && links.some((l) => l.text === 'Export JSON'), `both export links are on the chat (${links.map((l) => l.text).join(', ')})`);
 

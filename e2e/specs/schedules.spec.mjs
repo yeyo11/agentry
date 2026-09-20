@@ -24,7 +24,7 @@ export default async ({ page, api, check }) => {
 
     // ---------- the cron builder says what it will do ----------
     await page.click('main .page-actions button', 'New schedule');
-    await page.waitFor(`return document.querySelector('[role=dialog]')`, { label: 'the form' });
+    await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the form' });
     const preview = async () => page.eval(`return document.querySelector('[data-testid=cron-preview]')?.innerText ?? ''`);
     await page.waitFor(`return /At 09:00/.test(document.querySelector('[data-testid=cron-preview]')?.innerText ?? '')`, { label: 'the default timetable in words' });
 
@@ -99,14 +99,14 @@ export default async ({ page, api, check }) => {
     // ---------- light theme ----------
     await page.eval(`localStorage.setItem('agentry-theme', 'light'); return true`);
     await page.goto('/schedules', 900);
-    await page.waitFor(`return document.querySelector('.schedule-card')`, { label: 'the card in the light theme' });
+    await page.waitFor(`return !!document.querySelector('.schedule-card')`, { label: 'the card in the light theme' });
     await noViolations(page, '/schedules in the light theme', check);
     await page.eval(`localStorage.removeItem('agentry-theme'); return true`);
     await page.goto('/schedules', 900);
 
     // ---------- delete ----------
     await page.click(`.schedule-card button[aria-label="Delete ${NAME}"]`);
-    await page.waitFor(`return document.querySelector('[role=dialog]')`, { label: 'the confirmation' });
+    await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the confirmation' });
     await page.click('[role=dialog] button', 'Delete', 800);
     await page.waitFor(`return document.querySelector('main').innerText.includes('No schedules yet')`, { label: 'the empty state again' });
     check((await api.get('/schedules')).body.length === 0, 'the schedule is gone');
