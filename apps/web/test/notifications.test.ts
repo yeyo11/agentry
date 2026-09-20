@@ -271,3 +271,43 @@ test('storage keeps the entries that are valid and drops the ones that are not',
   assert.equal(restored.prefs.kinds.run, false);
   assert.equal(restored.prefs.kinds.waiting, true);
 });
+
+// ---------- a worker that looks stuck ----------
+
+const health = (
+  level: 'ok' | 'warn' | 'bad',
+  signals: Array<'hung-command' | 'loop' | 'weakened-test'>,
+  extra: Partial<Extract<AgentryEvent, { type: 'health.changed' }>> = {},
+): AgentryEvent => ({
+  type: 'health.changed',
+  ...base(`fix the build: ${level === 'ok' ? 'working normally again' : '`pnpm e2e` has been running for 5 min'}`),
+  ...run,
+  taskId: null,
+  taskName: null,
+  level,
+  previousLevel: 'ok',
+  reason: level === 'ok' ? 'Nothing unusual.' : '`pnpm e2e` has been running for 5 min, past the 3 min a command is expected to need.',
+  signals,
+  ...extra,
+});
+
+test('a chat that looks stuck is news with the reason in it, and one that recovers is not', () => {
+  const [stuck] = notificationsFor(health('warn', ['hung-command']));
+  assert.equal(stuck?.kind, 'health');
+  assert.equal(stuck?.priority, 'normal');
+  assert.equal(stuck?.tone, 'warn');
+  assert.match(stuck?.body ?? '', /`pnpm e2e` has been running for 5 min/);
+  assert.equal(stuck?.href, '/chats/run1');
+  // A problem is worth interrupting for
+  assert.equal(notificationsFor(health('bad', ['hung-command']))[0]?.priority, 'high');
+  assert.deepEqual(notificationsFor(health('ok', [])), []);
+  // Housekeeping runs are not something a person steps into
+  assert.deepEqual(notificationsFor(health('warn', ['loop'], { internal: true })), []);
+});
+
+test('the same signals within a minute are one notification, and new signals are new news', () => {
+  const first = apply([], [health('warn', ['hung-command']), health('warn', ['hung-command'])]);
+  assert.equal(first.items.length, 1);
+  const worse = apply(first.items, [health('warn', ['hung-command', 'loop'])]);
+  assert.equal(worse.items.length, 2);
+});

@@ -60,6 +60,7 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'orchestration.removed': true,
   'orchestration.task': true,
   'orchestration.conflict': true,
+  'health.changed': true,
   'sessions.changed': true,
 };
 
@@ -132,6 +133,12 @@ export function targetsFor(event: AgentryEvent): Target[] {
       return [[keys.orchestrations, NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW]];
     case 'orchestration.task':
       return [[keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW], [keys.chats, NOW]];
+    case 'health.changed':
+      // Health is read with the chat, and with the graph for a worker
+      return [
+        [keys.chats, NOW], [['chat', event.runId], NOW],
+        ...(event.orchestrationId ? ([[keys.orchestration(event.orchestrationId), NOW], [keys.orchestrations, NOW]] as Target[]) : []),
+      ];
     case 'sessions.changed':
       // Chats begun in a terminal are read from disk, so their tasks, subagents and workflows move with it
       return [

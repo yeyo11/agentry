@@ -26,6 +26,7 @@ import {
 } from '@agentry/shared';
 import { authFreeEnv } from './accounts.ts';
 import { executionOutcome } from './chat-model.ts';
+import { commandKind } from './commands.ts';
 import { chatsFromRuns, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
@@ -33,7 +34,8 @@ import { RunEventPublisher } from './event-sources.ts';
 import type { EventBus } from './events.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
-import { drivesSession, streamJsonProcesses } from './processes.ts';
+import { runningCommands, type ToolCall, type Trace } from './health.ts';
+import { cliProcessOf, commandRoots, drivesSession, processTable, streamJsonProcesses, terminateTree } from './processes.ts';
 import type { SessionStore } from './sessions.ts';
 import { composeContent, type UploadStore } from './uploads.ts';
 import { emptyTokenUsage } from './usage.ts';
@@ -147,6 +149,10 @@ export interface ChatRuntime {
 export interface RunningCommand {
   command: string;
   startedAt: string;
+  /** The tool call, which is what cancelling one command is addressed by */
+  toolUseId: string;
+  /** The CLI's heartbeat for it: how long it says the command has run, as of `at` */
+  heartbeat?: { elapsedSeconds: number; at: string };
 }
 
 /** What the process working on a chat is doing right now. */
@@ -230,6 +236,12 @@ class LiveChat {
   pendingPrompts = 0;
   /** The turn is ending because someone interrupted it, not because it failed */
   interruptRequested = false;
+  /** The CLI's `tool_progress` heartbeats for the commands still running, by tool call */
+  readonly heartbeats = new Map<string, { elapsedSeconds: number; at: string }>();
+  /** Foreground commands started and not answered, for the history of how long each kind takes */
+  readonly openCommands = new Map<string, { command: string; kind: string; startedAt: string }>();
+  /** Commands a person cancelled: their failed result is the person's doing, and says nothing about how long the command takes */
+  readonly cancelled = new Set<string>();
   /**
    * Messages that arrived while the process was on its way out (stopped, or its stdin closed and it
    * finishing background work): one process replaces it when it exits and gets all of them. Each
@@ -631,21 +643,85 @@ export class ChatManager extends EventEmitter {
    * live execution counts: a command a previous wrapper left unanswered is not running.
    */
   pulse(id: string): ChatPulse | null {
+    const trace = this.trace(id);
+    if (!trace) return null;
+    return {
+      lastEventAt: trace.lastEventAt,
+      commands: runningCommands(trace).map((call) => {
+        const beat = trace.heartbeats.get(call.id);
+        return {
+          command: typeof call.input.command === 'string' ? call.input.command : 'a command',
+          startedAt: call.at,
+          toolUseId: call.id,
+          ...(beat ? { heartbeat: beat } : {}),
+        };
+      }),
+    };
+  }
+
+  /**
+   * Every tool call the live execution has made and what came back, with the CLI's heartbeats for
+   * the ones still running: what the signals of a worker that is busy and getting nowhere are read
+   * from. Null when Agentry has no process on the chat. A turn that ended closes whatever was still
+   * open in it, so a call an interrupt left without an answer is not a command running for ever.
+   */
+  trace(id: string): Trace | null {
     const chat = this.chats.get(id);
     const live = chat?.execution;
     if (!chat || !live || !chat.alive) return null;
-    const open = new Map<string, RunningCommand>();
+    const calls = new Map<string, ToolCall>();
     for (const event of chat.events) {
       if (event.ts < live.startedAt) continue;
+      if (event.kind === 'result') {
+        for (const call of calls.values()) call.endedAt ??= event.ts;
+        continue;
+      }
       for (const block of event.entry?.blocks ?? []) {
-        if (block.type === 'tool_use' && block.name === 'Bash') {
-          const input = (block.input ?? {}) as Record<string, unknown>;
-          // A background command answers at once: what keeps running is the task, not the call
-          if (input.run_in_background !== true) open.set(block.id, { command: typeof input.command === 'string' ? input.command : 'a command', startedAt: event.ts });
-        } else if (block.type === 'tool_result') open.delete(block.toolUseId);
+        if (block.type === 'tool_use') {
+          const input = block.input && typeof block.input === 'object' ? (block.input as Record<string, unknown>) : {};
+          calls.set(block.id, { id: block.id, name: block.name, input, at: event.ts, endedAt: null, isError: false, result: '' });
+        } else if (block.type === 'tool_result') {
+          const call = calls.get(block.toolUseId);
+          if (call) Object.assign(call, { endedAt: event.ts, isError: block.isError, result: block.content.slice(0, 300) });
+        }
       }
     }
-    return { lastEventAt: chat.activityAt, commands: [...open.values()] };
+    return { executionStartedAt: live.startedAt, lastEventAt: chat.activityAt, calls: [...calls.values()], heartbeats: new Map(chat.heartbeats) };
+  }
+
+  /**
+   * Kills the process tree of one command a chat is running, and only that: the turn goes on, the
+   * CLI writes a failed result for the call and the worker carries on with it. Which processes are
+   * the command's is worked out from the tree under the CLI's pid and from when each started (see
+   * {@link commandRoots}); nothing is matched on a command line. Refuses rather than guesses when
+   * the command has no process of its own to be found.
+   */
+  cancelCommand(id: string, toolUseId: string): { command: string; processes: number } {
+    const chat = this.chats.get(id);
+    if (!chat) throw new Error('chat not found');
+    const trace = this.trace(id);
+    if (!trace || !chat.proc?.pid) throw new Error('the chat has no live process, so it runs no command');
+    const open = runningCommands(trace);
+    const at = open.findIndex((c) => c.id === toolUseId);
+    const call = open[at];
+    if (!call) throw new Error(`the call ${toolUseId} is not a command that is running: it may have ended already`);
+    const table = processTable();
+    if (table.length === 0) throw new Error('a command can only be cancelled where /proc lists the processes, which this system does not');
+    const cli = cliProcessOf(table, chat.proc.pid, chat.id);
+    if (!cli) throw new Error('the CLI process is gone');
+    const { roots, unclaimed } = commandRoots(table, cli.pid, open.map((c) => Date.parse(c.at)));
+    const root = roots[at];
+    if (!root) throw new Error('no process of this command was found: it has not started yet, or has ended');
+    // Never the CLI itself, whatever the clock says: that is stopping the chat, which has its own action
+    if (root.argv.includes('stream-json')) throw new Error('the process found for this command is a CLI, not a command');
+    // A background command also leaves a child of the CLI behind, and nothing says which one is whose
+    const earliest = Date.parse(open[0]?.at ?? call.at);
+    if (unclaimed > 0 && trace.calls.some((c) => c.name === 'Bash' && c.input.run_in_background === true && Date.parse(c.at) >= earliest - 2000)) {
+      throw new Error('cannot tell this command\'s process from a background command\'s started beside it: stop the chat or wait');
+    }
+    chat.cancelled.add(toolUseId);
+    const command = typeof call.input.command === 'string' ? call.input.command : 'a command';
+    return { command, processes: terminateTree(root, table) };
   }
 
   events(id: string, sinceSeq = 0): RunEvent[] {
@@ -1136,6 +1212,10 @@ export class ChatManager extends EventEmitter {
     chat.endedAt = null;
     chat.error = null;
     chat.rateLimited = false;
+    // Whatever the last process left open went with it
+    chat.heartbeats.clear();
+    chat.openCommands.clear();
+    chat.cancelled.clear();
     chat.beginExecution();
     chat.setStatus('starting');
 
@@ -1324,10 +1404,21 @@ export class ChatManager extends EventEmitter {
       return;
     }
 
+    // The CLI's heartbeat for a command that is still running, every 30 s. It is kept for the health
+    // of the chat and not pushed as an event: it says a command is alive and how long it has run,
+    // which no transcript view needs and which would fill the buffer with one line per beat
+    if (type === 'tool_progress') {
+      const id = typeof raw.tool_use_id === 'string' ? raw.tool_use_id : typeof raw.parent_tool_use_id === 'string' ? raw.parent_tool_use_id : null;
+      if (id && typeof raw.elapsed_time_seconds === 'number') chat.heartbeats.set(id, { elapsedSeconds: raw.elapsed_time_seconds, at: now() });
+      chat.activityAt = now();
+      return;
+    }
+
     if (type === 'assistant' || type === 'user') {
       const entry = normalizeMessage(raw);
       if (!entry) return;
       this.trackSubagents(chat, entry);
+      this.trackCommands(chat, entry);
       // The CLI can start a turn on its own (e.g. after a background task notification)
       if (entry.role === 'assistant' && chat.status === 'idle') {
         if (chat.idleTimer) clearTimeout(chat.idleTimer);
@@ -1439,6 +1530,32 @@ export class ChatManager extends EventEmitter {
     }
 
     chat.push({ kind: 'other', type, subtype, data: raw });
+  }
+
+  /**
+   * Notes how long each shell command took, by kind, once its result arrives: the history that
+   * "far longer than usual" is measured against. A command a person cancelled is recorded as such,
+   * and one that failed is too: neither says how long the command takes when it works.
+   */
+  private trackCommands(chat: LiveChat, entry: NonNullable<ReturnType<typeof normalizeMessage>>): void {
+    for (const block of entry.blocks) {
+      if (block.type === 'tool_use' && block.name === 'Bash') {
+        const input = (block.input ?? {}) as Record<string, unknown>;
+        const kind = typeof input.command === 'string' ? commandKind(input.command) : '';
+        if (kind && input.run_in_background !== true) chat.openCommands.set(block.id, { command: String(input.command), kind, startedAt: now() });
+      } else if (block.type === 'tool_result') {
+        chat.heartbeats.delete(block.toolUseId);
+        const open = chat.openCommands.get(block.toolUseId);
+        if (!open) continue;
+        chat.openCommands.delete(block.toolUseId);
+        const outcome = chat.cancelled.delete(block.toolUseId) ? 'cancelled' : block.isError ? 'error' : 'ok';
+        try {
+          this.db.recordCommand({ kind: open.kind, chatId: chat.id, toolUseId: block.toolUseId, startedAt: open.startedAt, durationMs: Date.now() - Date.parse(open.startedAt), outcome });
+        } catch {
+          // the history only loses one run of a command
+        }
+      }
+    }
   }
 
   private trackSubagents(chat: LiveChat, entry: NonNullable<ReturnType<typeof normalizeMessage>>): void {

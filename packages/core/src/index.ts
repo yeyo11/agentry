@@ -24,6 +24,7 @@ import type {
 } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
+import { stateFromRun } from './chat-model.ts';
 import { ChatService, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatRuntime } from './chats.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
@@ -32,6 +33,7 @@ import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
 import { Db } from './db.ts';
+import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
 import { EventBus } from './events.ts';
 import { Locator } from './locations.ts';
@@ -94,6 +96,9 @@ export class Core {
   readonly chats: ChatService;
   readonly sessions: SessionStore;
   readonly orchestrator: Orchestrator;
+  /** What a chat's health is read from: the calls it made, the history of how long commands take */
+  readonly health: HealthService;
+  private readonly healthMonitor: HealthMonitor;
   readonly files: SettingsFiles;
   readonly explorer: ConfigExplorer;
   readonly plugins: Plugins;
@@ -144,7 +149,30 @@ export class Core {
     this.orchestrator = new Orchestrator(config, this.runtime, this.db);
     this.orchestrator.bus = this.events;
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
+    this.health = new HealthService(this.runtime, this.db);
+    this.orchestrator.health = (task) => {
+      const chat = task.runId ? this.runtime.get(task.runId) : null;
+      const context = task.runId ? this.orchestrator.taskContext(task.runId) : null;
+      if (!chat || !context) return null;
+      return this.health.read(chat.id, {
+        state: stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }),
+        lastEnded: null,
+        context: null,
+        failedBranches: 0,
+        limits: context.limits,
+        taskElapsedMs: context.elapsedMs,
+        taskSpentUsd: context.spentUsd,
+      });
+    };
+    this.healthMonitor = new HealthMonitor({
+      runtime: this.runtime,
+      health: this.health,
+      emit: (event) => this.events.emit(event),
+      taskOf: (chat) => this.orchestrator.taskContext(chat.id),
+    });
+    this.healthMonitor.start();
     this.chats = new ChatService({
+      health: this.health,
       config,
       runtime: this.runtime,
       sessions: this.sessions,
@@ -530,6 +558,8 @@ export class Core {
   }
 
   shutdown(): void {
+    this.healthMonitor.stop();
+    this.orchestrator.close();
     this.sessionsWatcher.close();
     this.permissions.close();
     this.accounts.shutdown();
