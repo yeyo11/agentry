@@ -158,6 +158,11 @@ export function commitAll(dir: string, message: string): string | null {
   return headCommit(dir);
 }
 
+/** Deletes a branch whose work is being thrown away; one that is not there is already gone. */
+export function deleteBranch(repo: string, branch: string): void {
+  if (branchExists(repo, branch)) git(repo, ['branch', '-D', branch]);
+}
+
 /** `git worktree remove`, unlocking first: the CLI locks the worktrees it runs in. */
 export function removeWorktree(repo: string, path: string, force = false): void {
   try {

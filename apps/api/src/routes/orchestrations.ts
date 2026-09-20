@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
-import type { OrchestrationSpec, PlanRequest, ResumeOrchestrationRequest, SaveOrchestrationWorkflowRequest } from '@agentry/shared';
+import type { OrchestrationSpec, PlanRequest, ResumeOrchestrationRequest, SaveOrchestrationWorkflowRequest, TaskHintRequest } from '@agentry/shared';
 
 export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.get('/orchestrations', () => core.orchestrator.list());
@@ -40,6 +40,24 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
   // where it was instead of starting the whole thing over.
   app.post<{ Params: { id: string }; Body: ResumeOrchestrationRequest }>('/orchestrations/:id/resume', (req) =>
     core.orchestrator.resume(req.params.id, req.body ?? {}),
+  );
+
+  // What a person decides once a task has used its attempts: try it again, start it over, or give
+  // its branch up. And the one thing a running worker takes from the board: a hint.
+  app.post<{ Params: { id: string; taskId: string } }>('/orchestrations/:id/tasks/:taskId/retry', (req) =>
+    core.orchestrator.retryTask(req.params.id, req.params.taskId),
+  );
+
+  app.post<{ Params: { id: string; taskId: string } }>('/orchestrations/:id/tasks/:taskId/retry-clean', (req) =>
+    core.orchestrator.retryTaskClean(req.params.id, req.params.taskId),
+  );
+
+  app.post<{ Params: { id: string; taskId: string } }>('/orchestrations/:id/tasks/:taskId/skip', (req) =>
+    core.orchestrator.skipTask(req.params.id, req.params.taskId),
+  );
+
+  app.post<{ Params: { id: string; taskId: string }; Body: TaskHintRequest }>('/orchestrations/:id/tasks/:taskId/hint', (req) =>
+    core.orchestrator.hintTask(req.params.id, req.params.taskId, req.body?.text ?? ''),
   );
 
   app.delete<{ Params: { id: string } }>('/orchestrations/:id', (req) => {

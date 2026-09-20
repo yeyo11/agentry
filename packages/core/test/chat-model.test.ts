@@ -65,6 +65,13 @@ test('where a chat was born does not decide what can be done with it', () => {
   assert.deepEqual(chatControl({ holder: 'agentry', origin: 'external' }), { mode: 'interactive' });
 });
 
+test('the synthesis of an orchestration is answered in place, whatever else is closed', () => {
+  assert.deepEqual(chatControl({ holder: 'nobody', origin: 'orchestration', deliverable: true }), { mode: 'resumable' });
+  assert.deepEqual(chatControl({ holder: 'agentry', origin: 'orchestration', deliverable: true }), { mode: 'interactive' });
+  // A terminal that holds it still closes it: the guard is about the session, not about the origin
+  assert.equal(chatControl({ holder: 'terminal', origin: 'orchestration', deliverable: true }).mode, 'readOnly');
+});
+
 test('an orchestration chat takes a hint while its task runs and a fork afterwards', () => {
   const running = chatControl({ holder: 'agentry', origin: 'orchestration', taskRunning: true });
   assert.equal(running.mode === 'readOnly' && running.action, 'hint');
