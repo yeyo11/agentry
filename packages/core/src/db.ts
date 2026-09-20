@@ -9,6 +9,8 @@ import type {
   Orchestration,
   OrchestrationSpec,
   PlanDraftSummary,
+  UsageHistoryPoint,
+  UsageWindowKind,
 } from '@agentry/shared';
 import { chatsFromRuns, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { CoreConfig } from './paths.ts';
@@ -92,6 +94,21 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      observed_at TEXT NOT NULL
    );`,
 
+  // How long each kind of shell command took, and how it ended, so that "far longer than usual" is
+  // measured on this machine's own history and not guessed. One row per command a worker ran; the
+  // index serves the only question asked of it: the recent runs of one kind.
+  `CREATE TABLE command_durations (
+     id          INTEGER PRIMARY KEY AUTOINCREMENT,
+     kind        TEXT NOT NULL,
+     chat_id     TEXT NOT NULL,
+     tool_use_id TEXT NOT NULL,
+     started_at  TEXT NOT NULL,
+     duration_ms INTEGER NOT NULL,
+     outcome     TEXT NOT NULL
+   );
+   CREATE INDEX command_durations_kind ON command_durations (kind, id DESC);
+   CREATE UNIQUE INDEX command_durations_call ON command_durations (chat_id, tool_use_id);`,
+
   // Every mutating request, so exposing the port leaves a trail. The body is deliberately not a
   // column: it carries prompts, credentials and MCP secrets, and an audit log nobody can share is
   // worth less than one that records who did what to which route.
@@ -105,10 +122,35 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      summary TEXT NOT NULL
    );
    CREATE INDEX audit_path ON audit (path);`,
+  // What claude-swap reports about each account's windows, one row per reading: the panel draws a
+  // line from them, and "how fast does this account burn" has no other source. The key makes a
+  // second reading of the same instant a no-op instead of a duplicate.
+  `CREATE TABLE usage_history (
+     account INTEGER NOT NULL,
+     window  TEXT NOT NULL,
+     at      TEXT NOT NULL,
+     pct     REAL NOT NULL,
+     PRIMARY KEY (account, window, at)
+   );
+   CREATE INDEX usage_history_at ON usage_history (at);`,
 ];
 
 /** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
 const KEEP_EVENTS = 20_000;
+/** Command runs kept across every kind; the newest few dozen of a kind are all "usual" ever looks at. */
+const KEEP_COMMANDS = 10_000;
+
+/** How a command ended: `cancelled` is a person's decision, and a command that hung and was cancelled is that. */
+export type CommandOutcome = 'ok' | 'error' | 'cancelled';
+
+export interface CommandRun {
+  kind: string;
+  chatId: string;
+  toolUseId: string;
+  startedAt: string;
+  durationMs: number;
+  outcome: CommandOutcome;
+}
 /** The same for the audit log, which grows with every write a person or a worker makes. */
 const KEEP_AUDIT = 50_000;
 /** Pruning on every insert would cost a delete per request; this is often enough to bound it. */
@@ -340,6 +382,57 @@ export class Db {
     return Number(result.changes);
   }
 
+  // ---------- usage history ----------
+
+  /** Appends readings; one already stored for the same account, window and instant is left as it was. */
+  appendUsagePoints(points: readonly UsageHistoryPoint[]): void {
+    if (!points.length) return;
+    const insert = this.db.prepare('INSERT OR IGNORE INTO usage_history (account, window, at, pct) VALUES (?, ?, ?, ?)');
+    this.tx(() => {
+      for (const p of points) insert.run(p.account, p.window, p.at, p.pct);
+    });
+  }
+
+  /** The newest reading of one account's window, so a sampler can tell whether anything moved. */
+  latestUsagePoint(account: number, window: UsageWindowKind): UsageHistoryPoint | null {
+    const row = this.db
+      .prepare('SELECT account, window, at, pct FROM usage_history WHERE account = ? AND window = ? ORDER BY at DESC LIMIT 1')
+      .get(account, window) as unknown as UsageHistoryPoint | undefined;
+    return row ? { at: row.at, pct: row.pct, window: row.window, account: row.account } : null;
+  }
+
+  /** Oldest first, so a chart can draw it as it comes. `limit` keeps the newest rows of the range. */
+  usageHistory(opts: { account?: number; window?: UsageWindowKind; since?: string; until?: string; limit?: number } = {}): UsageHistoryPoint[] {
+    const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 5_000), 1), 50_000);
+    const where: string[] = [];
+    const params: SQLInputValue[] = [];
+    if (opts.account !== undefined) {
+      where.push('account = ?');
+      params.push(opts.account);
+    }
+    if (opts.window) {
+      where.push('window = ?');
+      params.push(opts.window);
+    }
+    if (opts.since) {
+      where.push('at >= ?');
+      params.push(opts.since);
+    }
+    if (opts.until) {
+      where.push('at <= ?');
+      params.push(opts.until);
+    }
+    const rows = this.db
+      .prepare(`SELECT account, window, at, pct FROM usage_history ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY at DESC LIMIT ?`)
+      .all(...params, limit) as unknown as UsageHistoryPoint[];
+    return rows.map((r) => ({ at: r.at, pct: r.pct, window: r.window, account: r.account })).reverse();
+  }
+
+  /** Drops readings older than `before`. Returns how many went. */
+  pruneUsageHistory(before: string): number {
+    return Number(this.db.prepare('DELETE FROM usage_history WHERE at < ?').run(before).changes);
+  }
+
   // ---------- chats, executions and orchestrations ----------
 
   /**
@@ -461,6 +554,28 @@ export class Db {
   modelWindow(model: string): number | null {
     const row = this.db.prepare('SELECT context FROM model_windows WHERE model = ?').get(model) as { context: number } | undefined;
     return row?.context ?? null;
+  }
+
+  // ---------- command durations ----------
+
+  /** Records one command that ended; a call already recorded (a replayed event) is left as it was. */
+  recordCommand(run: CommandRun): void {
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO command_durations (kind, chat_id, tool_use_id, started_at, duration_ms, outcome)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(run.kind, run.chatId, run.toolUseId, run.startedAt, Math.round(run.durationMs), run.outcome);
+    // Old runs say little about how long a command takes now, and the table must not grow for ever
+    this.db.prepare('DELETE FROM command_durations WHERE id <= (SELECT MAX(id) FROM command_durations) - ?').run(KEEP_COMMANDS);
+  }
+
+  /** The newest runs of a kind, newest first. */
+  commandRuns(kind: string, limit = 50): Array<{ durationMs: number; outcome: CommandOutcome; startedAt: string }> {
+    const rows = this.db
+      .prepare('SELECT duration_ms, outcome, started_at FROM command_durations WHERE kind = ? ORDER BY id DESC LIMIT ?')
+      .all(kind, Math.min(Math.max(Math.trunc(limit), 1), 500)) as unknown as Array<{ duration_ms: number; outcome: CommandOutcome; started_at: string }>;
+    return rows.map((r) => ({ durationMs: r.duration_ms, outcome: r.outcome, startedAt: r.started_at }));
   }
 
   // ---------- effective environments ----------

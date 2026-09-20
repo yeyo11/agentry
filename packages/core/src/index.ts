@@ -25,8 +25,10 @@ import type {
 } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
+import { stateFromRun } from './chat-model.ts';
 import { ChatService, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatRuntime } from './chats.ts';
+import { Connectors } from './connectors.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
 import { CliVersionWatch } from './cli-version.ts';
@@ -36,6 +38,7 @@ import { ChangeWatcher } from './change-watcher.ts';
 import { Changes } from './changes.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
 import { Db } from './db.ts';
+import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
 import { EventBus } from './events.ts';
 import { Locator } from './locations.ts';
@@ -51,6 +54,7 @@ import { Orchestrator } from './orchestrator.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { attachProject, projectCandidates, ProjectStore, type ChatPlace } from './projects.ts';
 import { AuthStore } from './security/auth.ts';
+import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
@@ -78,10 +82,14 @@ export {
 } from './chat-model.ts';
 export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
+export { usageBreakdown, usageSeries } from './usage-series.ts';
+export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { Db } from './db.ts';
 export { AuthStore } from './security/auth.ts';
 export { OidcVerifier, type FetchLike } from './security/oidc.ts';
 export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
+export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
+export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
 
 // Read from the package rather than written into this file: the release tooling then only edits
@@ -107,12 +115,17 @@ export class Core {
   readonly orchestrator: Orchestrator;
   /** What a task, the integration branch or a chat has changed on disk */
   readonly changes: Changes;
+  /** What a chat's health is read from: the calls it made, the history of how long commands take */
+  readonly health: HealthService;
+  private readonly healthMonitor: HealthMonitor;
+  readonly schedules: Scheduler;
   readonly files: SettingsFiles;
   readonly explorer: ConfigExplorer;
   readonly plugins: Plugins;
   readonly memory: MemoryStore;
   readonly mcp: McpConfig;
   readonly toolPresets: ToolPresetStore;
+  readonly connectors: Connectors;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
   /** How the API is guarded: the auth mode, the token hash and read-only */
@@ -166,7 +179,30 @@ export class Core {
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
     this.mcp = new McpConfig(config);
     this.toolPresets = new ToolPresetStore(config);
+    this.health = new HealthService(this.runtime, this.db);
+    this.orchestrator.health = (task) => {
+      const chat = task.runId ? this.runtime.get(task.runId) : null;
+      const context = task.runId ? this.orchestrator.taskContext(task.runId) : null;
+      if (!chat || !context) return null;
+      return this.health.read(chat.id, {
+        state: stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }),
+        lastEnded: null,
+        context: null,
+        failedBranches: 0,
+        limits: context.limits,
+        taskElapsedMs: context.elapsedMs,
+        taskSpentUsd: context.spentUsd,
+      });
+    };
+    this.healthMonitor = new HealthMonitor({
+      runtime: this.runtime,
+      health: this.health,
+      emit: (event) => this.events.emit(event),
+      taskOf: (chat) => this.orchestrator.taskContext(chat.id),
+    });
+    this.healthMonitor.start();
     this.chats = new ChatService({
+      health: this.health,
       config,
       runtime: this.runtime,
       tools: new ChatTools(config, this.mcp, this.toolPresets),
@@ -184,10 +220,21 @@ export class Core {
     this.plugins = new Plugins(config);
     this.memory = new MemoryStore(config);
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
-    void this.runtime.restore(this.sessions).finally(() => this.orchestrator.recover());
+    // Started last of all, once the chats it may resume or start are restored, so a slot judged at
+    // boot finds the runtime it launches into ready
+    this.schedules = new Scheduler(config, {
+      chat: (request) => this.chats.create(request),
+      orchestration: (spec) => this.orchestrator.create(spec),
+    });
+    void this.runtime.restore(this.sessions).finally(() => {
+      this.orchestrator.recover();
+      this.schedules.start();
+    });
+    this.connectors = new Connectors(config);
     this.resources = new ConfigResources();
     this.accounts = new AccountManager(config, this.db);
     this.runtime.accounts = this.accounts;
+    this.accounts.projectOf = (cwd) => this.attach(cwd)?.project.id ?? null;
     this.accounts.on('switched', (result: SwitchResult) => {
       this.systemCache = null; // the active account (and its email) changed
       this.events.emit({
@@ -223,7 +270,9 @@ export class Core {
   private async rotateAndResume(run: ChatRuntime): Promise<void> {
     if (!this.accounts.autoSwitch.rotateOnLimit || !this.accounts.managed) return;
     try {
-      const result = await this.accounts.rotate(`run ${run.name} hit its rate limit`);
+      // A project with a rotation policy moves within it; everything else uses the global rotation
+      const reason = `run ${run.name} hit its rate limit`;
+      const result = (await this.accounts.rotateWithinPolicy({ account: run.account, cwd: run.cwd }, reason)) ?? (await this.accounts.rotate(reason));
       if (!result.switched) {
         this.runtime.notice(run.id, `Rate limit reached and no account with quota left${result.reason ? ` (${result.reason})` : ''}.`);
         return;
@@ -567,6 +616,9 @@ export class Core {
 
   shutdown(): void {
     this.cliVersion.stop();
+    this.healthMonitor.stop();
+    this.orchestrator.close();
+    this.schedules.close();
     this.sessionsWatcher.close();
     this.changeWatcher.close();
     this.permissions.close();

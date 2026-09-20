@@ -28,22 +28,22 @@ const ROOT_TYPES = [
   // What a chat or a task changed on disk, and how to open it in an editor
   'ChangeSummary', 'FileDiff', 'ChatChanges', 'Checklist', 'EditorSettings',
   // Stepping in on a worker that is stuck
-  'Health', 'TaskLimits', 'HintRequest', 'CancelCommandRequest',
+  'Health', 'TaskLimits', 'HintRequest', 'CancelCommandRequest', 'CancelCommandResult',
   // Orchestration v2 and the verification phase
-  'VerificationSpec', 'VerificationState', 'RelaunchOrchestrationRequest', 'OrchestrationTemplate',
+  'VerificationSpec', 'VerificationState', 'VerifyOrchestrationRequest', 'RelaunchOrchestrationRequest', 'OrchestrationTemplate',
   'SaveOrchestrationTemplateRequest', 'UpdateOrchestrationTemplateRequest', 'LaunchOrchestrationTemplateRequest',
   // Security
   'AuthConfig', 'UpdateAuthConfigRequest', 'SetAuthTokenRequest', 'AuthTokenResult', 'AuditEntry', 'AuditPage',
   // Per-chat MCP servers and tool presets
   'McpSelection', 'ToolPreset', 'ChatToolConfig',
   // claude.ai connectors
-  'Connector', 'ConnectorAction',
+  'Connector', 'ConnectorAction', 'ConnectorGuide', 'ConnectorLimit', 'ConnectorsOverview',
   // Multi-account: a config dir and a rotation policy per account, usage kept over time
-  'AccountConfig', 'RotationPolicy', 'UpdateAccountConfigRequest', 'UsageHistoryPoint',
+  'AccountConfig', 'RotationPolicy', 'RotationPolicyRequest', 'UpdateAccountConfigRequest', 'UsageHistoryPoint',
   // Scheduling
-  'Schedule', 'ScheduleRun', 'CreateScheduleRequest', 'UpdateScheduleRequest',
+  'Schedule', 'ScheduleRun', 'SchedulePreview', 'CreateScheduleRequest', 'UpdateScheduleRequest',
   // Usage and cost over time, and transcript export
-  'UsageSeries', 'UsageBreakdown', 'ExportFormat',
+  'UsageSeries', 'UsageBreakdown', 'ExportFormat', 'ChatExport',
   // Packaging
   'CliVersionInfo',
 ];

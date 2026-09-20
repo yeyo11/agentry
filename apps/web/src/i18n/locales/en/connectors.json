@@ -1,0 +1,38 @@
+{
+  "nav": "Connectors",
+  "title": "Connectors",
+  "subtitle": "As the CLI reported them {{when}}",
+  "subtitleLoading": "Asking the CLI…",
+  "intro": "The claude.ai connectors of the signed-in account, as Claude Code lists them. Agentry only reads this list: it cannot authorise, change or call a connector itself.",
+  "refresh": "Ask the CLI again",
+  "refreshing": "Asking…",
+  "cliFailed": "The CLI could not list its connectors",
+  "none": "No claude.ai connectors listed",
+  "noneHint": "The CLI lists none for this account. Connect Docs, Gmail or Calendar in claude.ai's connector settings and ask again.",
+  "notListed": "Not listed by the CLI: {{kinds}}.",
+  "kinds": {
+    "docs": "Docs",
+    "gmail": "Gmail",
+    "calendar": "Calendar",
+    "other": "Other"
+  },
+  "status": {
+    "connected": "Connected",
+    "needsAuth": "Needs authorisation"
+  },
+  "cliSays": "The CLI says: {{detail}}",
+  "ask": {
+    "title": "Ask Claude",
+    "named": "{{action}} ({{connector}})",
+    "starting": "Starting…",
+    "hint": "Opens a new chat with the prompt already written. The prompt only asks Claude to read, and any permission the connector's tools need is asked for in that chat.",
+    "none": "No prepared prompts for this connector."
+  },
+  "authorise": {
+    "title": "How to authorise a connector"
+  },
+  "unavailable": {
+    "title": "Out of reach",
+    "intro": "Agentry talks to Claude Code only through its CLI, so anything the CLI has no command for stays out of reach:"
+  }
+}

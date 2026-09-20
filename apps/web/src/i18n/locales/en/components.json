@@ -2,6 +2,8 @@
   "nav": {
     "projects": "Projects",
     "accounts": "Accounts",
+    "schedules": "Schedules",
+    "usage": "Usage",
     "apiReference": "API reference",
     "home": "Home",
     "chats": "Chats",
@@ -130,7 +132,8 @@
       "orchestration": "An orchestration finished or failed",
       "conflict": "An integration conflict",
       "limit": "A rate limit or account rotation",
-      "activity": "A background task, subagent or workflow finished"
+      "activity": "A background task, subagent or workflow finished",
+      "health": "A run looks stuck or off track"
     }
   },
   "environment": {
@@ -345,6 +348,9 @@
     "keepEditing": "Keep editing"
   },
   "notificationText": {
+    "waitingPermission": "{{name}} needs your approval to use {{tool}}",
+    "waitingQuestion": "{{name}} is asking you a question",
+    "waitingPlan": "{{name}} has a plan for you to approve",
     "permission": "Approve or deny {{tool}} to let it continue.",
     "question": "It is waiting for your answer.",
     "plan": "Review the plan and approve it, or ask for changes.",

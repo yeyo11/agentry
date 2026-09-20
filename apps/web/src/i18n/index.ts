@@ -11,9 +11,16 @@
  *    - `projects`: Projects and the project tabs (memory, worktrees, settings, resources)
  *    - `orchestration`: the Orchestrations list and the task board
  *    - `orchestrationDetail`: one orchestration's page
+ *    - `observe`: what an agent is really doing: its changes, checklist, health actions and the
+ *      editor links (components/observe/*, the Editor tab of Settings)
+ *    - `orchestrationV2`: relaunch, re-run, templates, per-task limits and the verification card
+ *    - `accountsConfig`: an account's config directory, the rotation policies and the usage history
+ *    - `connectors`: the Connectors page
  *    - `config`: pages/config/* (settings, MCP, resources, files, plugins), Accounts and the
  *      wording of the previous Orchestration pages that the two above still reuse
  *    - `components`: components/**, the App.tsx shell and navigation, CommandPalette, notifications
+ *    - `schedules`: the Schedules page and its form (pages/Schedules, pages/schedules/*)
+ *    - `usage`: the Usage page (pages/Usage)
  *    - `work`: what is left of the pages the chats redesign removed (Dashboard, Agents, Sessions…)
  * 2. Add the key to `locales/en/<ns>.json` with today's English text, byte for byte (the e2e specs
  *    find elements by it), and the same key to `locales/es/<ns>.json`. Group keys by screen or

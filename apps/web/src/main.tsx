@@ -12,6 +12,7 @@ import './i18n'; // picks the language and sets <html lang> before the first ren
 import './lib/theme'; // applies the stored theme before the first paint
 import './styles.css';
 import './controls.css';
+import './observe.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {

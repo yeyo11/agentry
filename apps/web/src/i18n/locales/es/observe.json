@@ -1,0 +1,112 @@
+{
+  "editor": {
+    "tab": "Editor",
+    "title": "Enlaces a tu editor",
+    "intro": "Un archivo cambiado o un worktree tiene un enlace que lo abre en tu editor. Estos ajustes se guardan en este navegador, porque el editor se ejecuta en esta máquina y el servidor no puede saber cómo llegar a él.",
+    "template": "Plantilla del enlace",
+    "templateHint": "Se rellenan {path}, {line} y {column}. Para VS Code: vscode://file/{path}:{line}. Para Cursor: cursor://file/{path}:{line}.",
+    "diffCommand": "Comando de diff en paralelo (opcional)",
+    "diffCommandHint": "Añade un botón que copia este comando con {left} y {right} rellenados: el archivo del checkout principal y el del worktree. Un navegador no puede ejecutarlo por ti, así que pégalo en una terminal.",
+    "pathMap": "Rutas del contenedor a las del host",
+    "pathMapHint": "Cuando Agentry se ejecuta en un contenedor, las rutas que informa son las del contenedor. Cada fila reescribe un directorio a donde está en esta máquina. Gana la primera fila que coincide.",
+    "from": "Ruta en el contenedor",
+    "to": "Ruta en esta máquina",
+    "fromRow": "Ruta del contenedor de la fila {{n}}",
+    "toRow": "Ruta del host de la fila {{n}}",
+    "removeRow": "Quita la fila {{n}}",
+    "addRow": "Añade una ruta",
+    "preview": "Vista previa",
+    "previewPath": "Ruta que informa Agentry",
+    "previewHost": "Ruta en esta máquina",
+    "previewLink": "Enlace",
+    "previewDiff": "Comando de diff",
+    "save": "Guarda",
+    "saved": "Ajustes del editor guardados",
+    "reset": "Restablece el valor por defecto",
+    "problem": {
+      "empty": "La plantilla está vacía.",
+      "scheme": "La plantilla tiene que empezar por un esquema que tu sistema abra, como vscode://.",
+      "unsafe": "Ese esquema no está permitido: nunca se construye un enlace que ejecute un script o abra un archivo dentro de la página.",
+      "path": "La plantilla no tiene {path}, así que no podría decir qué archivo abrir."
+    },
+    "openWorktree": "Abre el worktree en el editor",
+    "copyDiffCommand": "Copia el comando de diff",
+    "openFile": "Abre {{path}} en el editor",
+    "openAtLine": "Abre {{path}} en la línea {{line}} del editor"
+  },
+  "changes": {
+    "title": "Cambios",
+    "integrationTitle": "Lo que cambia la rama de integración",
+    "hunks": "Lugares cambiados en este archivo",
+    "atLine": "línea {{line}}",
+    "counts": "{{additions}} líneas añadidas, {{deletions}} líneas quitadas",
+    "status": {
+      "added": "añadido",
+      "modified": "modificado",
+      "deleted": "eliminado",
+      "renamed": "renombrado"
+    },
+    "renamedFrom": "renombrado desde {{path}}",
+    "detached": "head desacoplado",
+    "base": "desde {{base}}",
+    "ahead_one": "{{count}} commit por delante",
+    "ahead_other": "{{count}} commits por delante",
+    "nothing": "Aún no ha cambiado nada: ni commits ni archivos editados.",
+    "commits": "Commits",
+    "files": "Archivos cambiados",
+    "uncommitted": "Sin commit todavía",
+    "emptyDiff": "No hay diferencia de texto que mostrar para este archivo.",
+    "noWorktree": "Este grafo no da a cada worker su propio worktree, así que no hay rama con la que comparar. Lanza un grafo con worktrees para ver qué cambió cada worker.",
+    "touched": "Archivos que escribió este chat",
+    "touchedIntro": "Este chat no está en un worktree de git propio, así que los archivos que escribió se leen de su transcripción.",
+    "nothingTouched": "Este chat no ha escrito ningún archivo."
+  },
+  "checklist": {
+    "title": "Su lista de tareas",
+    "none": "No ha escrito una lista de tareas.",
+    "progress": "{{done}} de {{total}} hechas",
+    "onIt": "trabajando en: {{text}}",
+    "status": {
+      "completed": "Hecha",
+      "in_progress": "En curso",
+      "pending": "Por hacer"
+    }
+  },
+  "health": {
+    "title": "Salud",
+    "word": {
+      "ok": "Bien",
+      "slow": "Lento",
+      "stuck": "Atascado",
+      "looping": "En bucle"
+    },
+    "level": {
+      "warn": "Aviso",
+      "bad": "Problema"
+    },
+    "cancel": "Cancela el comando",
+    "cancelTitle": "¿Cancelar este comando?",
+    "cancelBody": "Solo se detienen los procesos de este comando. El turno sigue: el worker recibe un resultado fallido del comando y decide qué hacer después.",
+    "cancelled": "Comando cancelado",
+    "hint": "Envía una pista",
+    "hintLabel": "Pista para el worker",
+    "hintExplained": "Está escrita para esta señal; edítala antes de enviarla. Se añade a lo que el worker está haciendo ahora, y el worker sigue.",
+    "hintSent": "Pista enviada",
+    "sendHint": "Envía la pista",
+    "sending": "Enviando…",
+    "interrupt": "Interrumpe",
+    "interruptHint": "Interrumpe el turno en curso. El chat sigue abierto y espera lo que envíes a continuación."
+  },
+  "activity": {
+    "title": "Qué hace ahora",
+    "runningNow": "Ejecutando {{tool}}:",
+    "for": "desde hace {{time}}",
+    "thinking": "No hay ningún comando en marcha: está pensando o escribiendo.",
+    "lastEvent": "Último evento de la transcripción hace {{time}}."
+  },
+  "task": {
+    "title": "Trabajo de {{name}}",
+    "close": "Cierra",
+    "notStarted": "Esta tarea no ha empezado, así que aún no ha hecho nada."
+  }
+}

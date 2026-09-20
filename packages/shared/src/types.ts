@@ -311,6 +311,11 @@ export interface Execution {
   maxBudgetUsd: number | null;
   /** Null when the CLI reported none: cost is only known for what Agentry launched */
   costUsd: number | null;
+  /**
+   * What the CLI reported per model (`modelUsage[model].costUSD`), the only honest split of
+   * `costUsd`: absent on an execution recorded before Agentry kept it or one the CLI reported none for.
+   */
+  modelCosts?: Record<string, number>;
   tokens: TokenUsage;
   turns: number;
 }
@@ -484,6 +489,14 @@ export interface UsageBreakdown {
 /** How a transcript is exported: Markdown for a person, JSON faithful to the events. */
 export type ExportFormat = 'markdown' | 'json';
 
+/** A chat exported as JSON: the chat as the API shows it and every transcript entry, subagents included, in order. */
+export interface ChatExport {
+  /** When the export was made */
+  exportedAt: string;
+  chat: Chat;
+  entries: TranscriptEntry[];
+}
+
 /** Where a fork came from. */
 export interface ChatFork {
   chatId: string;
@@ -537,6 +550,11 @@ export interface ChatBackgroundTask {
 export interface ChatSubagent {
   /** Id of its transcript inside the chat */
   id: string;
+  /**
+   * The session it belongs to, which is the chat's id. On every route that reports a subagent, so
+   * the one nested in `GET /chats/:id` and the ones `GET /subagents` lists read the same.
+   */
+  sessionId: string;
   kind: string;
   description: string;
   status: ChatBranchStatus;
@@ -786,8 +804,21 @@ export type TaskHintRequest = HintRequest;
  * failed tool result and carries on. Which call is in the path.
  */
 export interface CancelCommandRequest {
-  /** Shown to the worker in the failed tool result, so it knows a person stopped it and why */
+  /**
+   * Told to the worker as its next message, so it knows a person stopped the command and why. The
+   * CLI writes the failed tool result itself (an exit status, nothing more), so the reason cannot
+   * ride in it.
+   */
   reason?: string;
+}
+
+/** What cancelling a command did. */
+export interface CancelCommandResult {
+  toolUseId: string;
+  /** The command, as the worker wrote it */
+  command: string;
+  /** How many processes of its tree were signalled */
+  processes: number;
 }
 
 /** A git worktree of a project. */
@@ -1025,6 +1056,14 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   costUsd: number;
   /** Computed while it runs, from the same signals as a chat's; absent once it has ended */
   health?: Health | null;
+  /**
+   * Where the task's time limit counts from: when it first started, or when a person last sent it
+   * around again. `startedAt` cannot serve, since it survives a retry and the limit would trip the
+   * moment the person decided the task was worth another go.
+   */
+  clockStartedAt?: string | null;
+  /** What the task had cost when that clock started, so a cost limit counts from the same moment */
+  clockCostUsd?: number;
 }
 
 export interface Orchestration {
@@ -1062,6 +1101,8 @@ export interface Orchestration {
   workflow?: OrchestrationWorkflow | null;
   /** Default ceiling for every task that does not set its own */
   limits?: TaskLimits | null;
+  /** The checks the graph asked for, kept so a relaunch, a template and a re-run of the checks start from them */
+  verificationSpec?: VerificationSpec | null;
   /** What the checks on the integration branch did; absent when the graph asked for none */
   verification?: VerificationState | null;
   /** The orchestration this one was relaunched from, when it was */
@@ -1085,6 +1126,14 @@ export interface VerificationSpec {
   maxAttempts: number;
   /** Model for the fixer; the graph's when absent */
   model?: string;
+  /** Minutes each command may run before it is killed and counts as failed (default 20) */
+  timeoutMinutes?: number;
+}
+
+/** Runs the checks on a finished graph's integration branch, or runs them again. */
+export interface VerifyOrchestrationRequest {
+  /** Replaces the checks the graph was launched with; required for a graph launched without any */
+  verification?: VerificationSpec;
 }
 
 /** `fixed`: it failed, the fixer mended it, and the re-run passed. */
@@ -1105,6 +1154,8 @@ export interface VerificationState {
   commands: VerificationCommand[];
   /** What the fixer committed on the integration branch */
   commits: Commit[];
+  /** The head of the integration branch the checks last ran on; when it moves, they are stale */
+  commit?: string | null;
   /** What happened, in words: shown before the pull request is offered */
   report: string;
 }
@@ -1236,10 +1287,13 @@ export interface OrchestrationTemplate {
   updatedAt: string;
 }
 
+/** The graph to save is given as a spec (a draft plan) or named by the orchestration it is taken from. */
 export interface SaveOrchestrationTemplateRequest {
   name: string;
   description?: string;
-  spec: OrchestrationSpec;
+  spec?: OrchestrationSpec;
+  /** Id of an orchestration whose graph is saved, as it was launched */
+  fromOrchestration?: string;
 }
 
 export interface UpdateOrchestrationTemplateRequest {
@@ -1554,7 +1608,9 @@ export interface Connector {
   status: ConnectorStatus;
   /** What it was granted, when the CLI reports it */
   scopes?: string[];
-  /** Prepared prompts for this connector */
+  /** The CLI's own words for the state (`Connected`, `Needs authentication`, a failure…) */
+  detail?: string;
+  /** Prepared prompts for this connector; none while it needs authorisation */
   actions?: ConnectorAction[];
 }
 
@@ -1563,6 +1619,31 @@ export interface ConnectorAction {
   id: string;
   label: string;
   prompt: string;
+}
+
+/** Something the CLI offers no command for. Said in the page, not left as a silent gap. */
+export interface ConnectorLimit {
+  id: 'web-artifacts' | 'claude-ai-memory';
+  name: string;
+  reason: string;
+}
+
+/** What a person has to do: Agentry cannot authorise a connector on anyone's behalf. */
+export interface ConnectorGuide {
+  steps: string[];
+  links: Array<{ label: string; url: string }>;
+}
+
+export interface ConnectorsOverview {
+  /** The claude.ai connectors `claude mcp list` reports, in the CLI's order */
+  connectors: Connector[];
+  /** Docs, Gmail and Calendar are the kinds Agentry has prepared actions for: those not listed at all */
+  notListed: ConnectorKind[];
+  authorisation: ConnectorGuide;
+  unavailable: ConnectorLimit[];
+  checkedAt: string;
+  /** Set when the CLI could not be asked, so an empty list is not read as "no connectors" */
+  error?: string;
 }
 
 // ---------- Accounts (claude-swap) ----------
@@ -1659,6 +1740,9 @@ export interface AccountsOverview {
   autoSwitchRunning: boolean;
   /** Most recent rotation events, newest last */
   events: AutoSwitchEvent[];
+  /** One per account that has a config directory of its own */
+  configs: AccountConfig[];
+  policies: RotationPolicy[];
 }
 
 /** What the dashboard needs about accounts, without the full list. */
@@ -1689,14 +1773,24 @@ export interface SetAccountAliasRequest {
   alias: string | null;
 }
 
-/** Which accounts a project may use, in what order, and when to move on. */
+/**
+ * Which accounts the chats of some projects may use, in what order, and when to move on. A project
+ * with no policy keeps the global auto-switch, which is the default.
+ */
 export interface RotationPolicy {
-  /** Utilization (0-100) of the active account past which the next one is taken */
+  id: string;
+  /** Utilization (0-100) of an account's binding window past which the next one in `order` is taken */
   threshold: number;
-  /** Slot numbers to try, in order; every enabled account when absent */
+  /** Slot numbers a chat of these projects may use, in order of preference; every account when absent */
   order?: number[];
-  /** Project ids this policy governs; the account's default policy when absent */
-  projects?: string[];
+  /** Project ids this policy governs; at most one policy governs a project */
+  projects: string[];
+}
+
+export interface RotationPolicyRequest {
+  threshold: number;
+  order?: number[];
+  projects: string[];
 }
 
 /** Agentry's own settings for one claude-swap slot: what the binary itself does not keep. */
@@ -1706,17 +1800,23 @@ export interface AccountConfig {
   /**
    * `CLAUDE_CONFIG_DIR` for every process started for this account. Null shares the wrapper's,
    * which is what every account did before and stays the default: moving someone's `~/.claude`
-   * without being asked is not something a wrapper gets to do.
+   * without being asked is not something a wrapper gets to do. A chat on an account that has one
+   * runs `claude` directly against it, so the login is whatever that directory holds.
    */
   configDir: string | null;
-  rotationPolicy?: RotationPolicy;
+  /** Entries Agentry linked into `configDir` from the shared one, relative to it; undone when it is cleared */
+  links: string[];
 }
 
 export interface UpdateAccountConfigRequest {
-  /** Null goes back to sharing the wrapper's config dir */
-  configDir?: string | null;
-  /** Null removes the policy, leaving the global auto-switch in charge */
-  rotationPolicy?: RotationPolicy | null;
+  /** Null goes back to sharing the wrapper's config dir, and removes the links Agentry made */
+  configDir: string | null;
+  /**
+   * Also link the shared settings (`settings.json`, `CLAUDE.md`, `keybindings.json`, `agents`,
+   * `commands`, `skills`) into the directory. Symlinks, never copies and never over an existing
+   * entry, so undoing it leaves the shared ones untouched.
+   */
+  shareSettings?: boolean;
 }
 
 /** Which rate-limit window a usage point belongs to. */
@@ -1769,11 +1869,27 @@ export type ScheduleRunStatus = 'started' | 'failed' | 'skipped';
 export interface ScheduleRun {
   id: string;
   scheduleId: string;
+  /** When this row was written: the moment it fired, or the moment the wrapper noticed it had skipped */
   at: string;
+  /** The cron slot this run answers, as an ISO time; absent for a run started by hand */
+  slot?: string;
   status: ScheduleRunStatus;
   chatId?: string;
   orchestrationId?: string;
   error?: string;
+}
+
+/** What an expression will do, for a form to show before it is saved. */
+export interface SchedulePreview {
+  valid: boolean;
+  /** Which field is wrong, when it is not valid */
+  error?: string;
+  /** The expression in words */
+  description?: string;
+  /** The zone it was read in */
+  timezone: string;
+  /** The next fires, ISO times */
+  next: string[];
 }
 
 export interface CreateScheduleRequest {
@@ -2020,6 +2136,12 @@ export interface WorkflowEndedEvent extends AgentryEventBase, ActivityEventRef {
   type: 'workflow.ended';
   workflowId: string;
   taskId: string | null;
+  /**
+   * The agent that ended it, so a link can open that agent instead of the whole workflow: the one
+   * that failed when the workflow failed, otherwise the last one to report back. Null when no
+   * agent has a transcript of its own.
+   */
+  agentId: string | null;
   name: string | null;
   status: 'completed' | 'failed' | 'stopped';
   summary: string | null;
@@ -2034,6 +2156,8 @@ export interface OrchestrationUpdatedEvent extends AgentryEventBase {
   status: OrchestrationStatus;
   previousStatus: OrchestrationStatus | null;
   integrationStatus: IntegrationStatus | null;
+  /** Where the checks on the integration branch stand; set on the event that announces their change */
+  verificationStatus?: VerificationStatus | null;
   costUsd: number;
 }
 
@@ -2084,6 +2208,23 @@ export interface ChangesUpdatedEvent extends AgentryEventBase {
   uncommitted: number;
 }
 
+/**
+ * A chat or an orchestration task moved to another level of health, or its signals changed while it
+ * stayed at one. Sent when a worker starts to look stuck and again when it recovers, never once per
+ * check: the notification centre shows each of them as news.
+ */
+export interface HealthChangedEvent extends AgentryEventBase, RunEventRef {
+  type: 'health.changed';
+  /** Set for a worker of an orchestration */
+  taskId: string | null;
+  taskName: string | null;
+  level: HealthLevel;
+  previousLevel: HealthLevel;
+  /** The first (worst) signal's line, or `Nothing unusual.` when the chat recovered */
+  reason: string;
+  signals: HealthSignalKind[];
+}
+
 /** Files under the CLI's projects directory changed: a session was created, grew or ended. */
 export interface SessionsChangedEvent extends AgentryEventBase {
   type: 'sessions.changed';
@@ -2113,6 +2254,7 @@ export type AgentryEvent =
   | OrchestrationTaskEvent
   | OrchestrationConflictEvent
   | ChangesUpdatedEvent
+  | HealthChangedEvent
   | SessionsChangedEvent;
 
 export type AgentryEventType = AgentryEvent['type'];

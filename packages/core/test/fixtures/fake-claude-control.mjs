@@ -6,11 +6,15 @@
 //
 //   ASK <tool>     asks permission for <tool> and ends the turn with the decision it got back
 //   BASH <command> starts that shell command and never answers it, like one that hangs
+//   SLEEP <seconds> runs `sleep` as a real child process tree (`sh -c 'sleep N & wait'`) for a Bash call,
+//                  reports a heartbeat for it, and answers the call with an error result when the tree
+//                  is killed, or a plain one when it ends: what a hung command a person cancels looks like
 //   REPLAY <file>  writes each JSON line of <file> to stdout, then ends the turn
 //   … scriptPath "<file>" …  runs that workflow script as the Workflow tool would, with agents that
 //                  answer "done:<label>" (or nothing, for a task whose prompt says FAIL-ONCE on a
 //                  first run), and writes its record to $FAKE_WORKFLOW_DIR/<session>.json
 //   (anything)     ends the turn at once
+import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
@@ -63,6 +67,32 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     const bash = /^BASH (.+)$/m.exec(prompt);
     if (bash) {
       out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id: `toolu_bash_${randomUUID()}`, name: 'Bash', input: { command: bash[1] } }] } });
+      return;
+    }
+    const sleep = /^SLEEP (\d+)/m.exec(prompt);
+    if (sleep) {
+      const id = `toolu_sleep_${randomUUID()}`;
+      out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id, name: 'Bash', input: { command: `sleep ${sleep[1]}` } }] } });
+      // Its own process group, so that the fake going away takes the tree with it and no test leaves a `sleep` behind
+      const child = spawn('sh', ['-c', `sleep ${sleep[1]} & wait`], { stdio: 'ignore', detached: true });
+      const reap = () => {
+        try {
+          process.kill(-child.pid, 'SIGKILL');
+        } catch {
+          // already gone
+        }
+      };
+      process.once('SIGTERM', () => {
+        reap();
+        process.exit(143);
+      });
+      process.once('exit', reap);
+      out({ type: 'tool_progress', tool_use_id: id, tool_name: 'Bash', parent_tool_use_id: null, elapsed_time_seconds: 90, heartbeat: true });
+      child.on('exit', (code, signal) => {
+        const failed = signal !== null || code !== 0;
+        out({ type: 'user', session_id: sessionId, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: failed ? `Exit code ${code ?? 143}` : 'done', is_error: failed }] } });
+        result(failed ? 'carried on after the command failed' : 'the command finished');
+      });
       return;
     }
     const replay = /^REPLAY (\S+)/.exec(prompt);

@@ -822,6 +822,13 @@
         ],
         "description": "Null when the CLI reported none: cost is only known for what Agentry launched"
       },
+      "modelCosts": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "number"
+        },
+        "description": "What the CLI reported per model (`modelUsage[model].costUSD`), the only honest split of `costUsd`: absent on an execution recorded before Agentry kept it or one the CLI reported none for."
+      },
       "tokens": {
         "$ref": "#/components/schemas/TokenUsage"
       },
@@ -2036,6 +2043,17 @@
         ],
         "description": "Default ceiling for every task that does not set its own"
       },
+      "verificationSpec": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/VerificationSpec"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The checks the graph asked for, kept so a relaunch, a template and a re-run of the checks start from them"
+      },
       "verification": {
         "anyOf": [
           {
@@ -2206,6 +2224,17 @@
           }
         ],
         "description": "Computed while it runs, from the same signals as a chat's; absent once it has ended"
+      },
+      "clockStartedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Where the task's time limit counts from: when it first started, or when a person last sent it around again. `startedAt` cannot serve, since it survives a retry and the limit would trip the moment the person decided the task was worth another go."
+      },
+      "clockCostUsd": {
+        "type": "number",
+        "description": "What the task had cost when that clock started, so a cost limit counts from the same moment"
       }
     },
     "required": [
@@ -2474,6 +2503,40 @@
       "workflowRunId"
     ]
   },
+  "VerificationSpec": {
+    "type": "object",
+    "properties": {
+      "commands": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Run in order on the integration branch, each one under a timeout"
+      },
+      "fixer": {
+        "type": "boolean",
+        "description": "Launch an agent to fix what fails, instead of only reporting it"
+      },
+      "maxAttempts": {
+        "type": "number",
+        "description": "Fixer attempts per failing command before it stops and reports"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model for the fixer; the graph's when absent"
+      },
+      "timeoutMinutes": {
+        "type": "number",
+        "description": "Minutes each command may run before it is killed and counts as failed (default 20)"
+      }
+    },
+    "required": [
+      "commands",
+      "fixer",
+      "maxAttempts"
+    ],
+    "description": "Checks to run once the graph is integrated, and what may happen to what fails."
+  },
   "VerificationState": {
     "type": "object",
     "properties": {
@@ -2496,6 +2559,13 @@
           "$ref": "#/components/schemas/Commit"
         },
         "description": "What the fixer committed on the integration branch"
+      },
+      "commit": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The head of the integration branch the checks last ran on; when it moves, they are stale"
       },
       "report": {
         "type": "string",
@@ -2646,36 +2716,6 @@
       "name",
       "tasks"
     ]
-  },
-  "VerificationSpec": {
-    "type": "object",
-    "properties": {
-      "commands": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "Run in order on the integration branch, each one under a timeout"
-      },
-      "fixer": {
-        "type": "boolean",
-        "description": "Launch an agent to fix what fails, instead of only reporting it"
-      },
-      "maxAttempts": {
-        "type": "number",
-        "description": "Fixer attempts per failing command before it stops and reports"
-      },
-      "model": {
-        "type": "string",
-        "description": "Model for the fixer; the graph's when absent"
-      }
-    },
-    "required": [
-      "commands",
-      "fixer",
-      "maxAttempts"
-    ],
-    "description": "Checks to run once the graph is integrated, and what may happen to what fails."
   },
   "OrchestrationTaskSpec": {
     "type": "object",
@@ -3483,6 +3523,19 @@
           "$ref": "#/components/schemas/AutoSwitchEvent"
         },
         "description": "Most recent rotation events, newest last"
+      },
+      "configs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AccountConfig"
+        },
+        "description": "One per account that has a config directory of its own"
+      },
+      "policies": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RotationPolicy"
+        }
       }
     },
     "required": [
@@ -3491,7 +3544,9 @@
       "activeNumber",
       "autoSwitch",
       "autoSwitchRunning",
-      "events"
+      "events",
+      "configs",
+      "policies"
     ]
   },
   "CswapInfo": {
@@ -3605,6 +3660,67 @@
       "event"
     ],
     "description": "One `cswap auto --json` line, plus the rotations the wrapper drives itself."
+  },
+  "AccountConfig": {
+    "type": "object",
+    "properties": {
+      "number": {
+        "type": "number",
+        "description": "Slot number, the same identifier  {@link  AccountSummary }  uses"
+      },
+      "configDir": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "`CLAUDE_CONFIG_DIR` for every process started for this account. Null shares the wrapper's, which is what every account did before and stays the default: moving someone's `~/.claude` without being asked is not something a wrapper gets to do. A chat on an account that has one runs `claude` directly against it, so the login is whatever that directory holds."
+      },
+      "links": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Entries Agentry linked into `configDir` from the shared one, relative to it; undone when it is cleared"
+      }
+    },
+    "required": [
+      "number",
+      "configDir",
+      "links"
+    ],
+    "description": "Agentry's own settings for one claude-swap slot: what the binary itself does not keep."
+  },
+  "RotationPolicy": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "threshold": {
+        "type": "number",
+        "description": "Utilization (0-100) of an account's binding window past which the next one in `order` is taken"
+      },
+      "order": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "description": "Slot numbers a chat of these projects may use, in order of preference; every account when absent"
+      },
+      "projects": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Project ids this policy governs; at most one policy governs a project"
+      }
+    },
+    "required": [
+      "id",
+      "threshold",
+      "projects"
+    ],
+    "description": "Which accounts the chats of some projects may use, in what order, and when to move on. A project with no policy keeps the global auto-switch, which is the default."
   },
   "SwitchAccountRequest": {
     "type": "object",
@@ -3760,6 +3876,9 @@
       },
       {
         "$ref": "#/components/schemas/ChangesUpdatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/HealthChangedEvent"
       },
       {
         "$ref": "#/components/schemas/SessionsChangedEvent"
@@ -4873,6 +4992,13 @@
           "null"
         ]
       },
+      "agentId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The agent that ended it, so a link can open that agent instead of the whole workflow: the one that failed when the workflow failed, otherwise the last one to report back. Null when no agent has a transcript of its own."
+      },
       "name": {
         "type": [
           "string",
@@ -4901,6 +5027,7 @@
       }
     },
     "required": [
+      "agentId",
       "at",
       "id",
       "name",
@@ -4962,6 +5089,17 @@
             "type": "null"
           }
         ]
+      },
+      "verificationStatus": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/VerificationStatus"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Where the checks on the integration branch stand; set on the event that announces their change"
       },
       "costUsd": {
         "type": "number"
@@ -5193,6 +5331,97 @@
       "uncommitted"
     ],
     "description": "A worker committed, or its uncommitted work moved: what `GET …/changes` answers is stale. Sent for a running task and for the integration branch while it is built, at most once per few seconds each, so a commit is one event and a burst of edits is not many."
+  },
+  "HealthChangedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "health.changed"
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "taskName": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "level": {
+        "$ref": "#/components/schemas/HealthLevel"
+      },
+      "previousLevel": {
+        "$ref": "#/components/schemas/HealthLevel"
+      },
+      "reason": {
+        "type": "string",
+        "description": "The first (worst) signal's line, or `Nothing unusual.` when the chat recovered"
+      },
+      "signals": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/HealthSignalKind"
+        }
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "internal",
+      "level",
+      "orchestrationId",
+      "previousLevel",
+      "reason",
+      "runId",
+      "runName",
+      "sessionId",
+      "signals",
+      "taskId",
+      "taskName",
+      "title",
+      "type"
+    ],
+    "description": "A chat or an orchestration task moved to another level of health, or its signals changed while it stayed at one. Sent when a worker starts to look stuck and again when it recovers, never once per check: the notification centre shows each of them as news."
   },
   "SessionsChangedEvent": {
     "type": "object",
@@ -5495,6 +5724,10 @@
         "type": "string",
         "description": "Id of its transcript inside the chat"
       },
+      "sessionId": {
+        "type": "string",
+        "description": "The session it belongs to, which is the chat's id. On every route that reports a subagent, so the one nested in `GET /chats/:id` and the ones `GET /subagents` lists read the same."
+      },
       "kind": {
         "type": "string"
       },
@@ -5535,6 +5768,7 @@
     },
     "required": [
       "id",
+      "sessionId",
       "kind",
       "description",
       "status",
@@ -5965,6 +6199,10 @@
         "type": "string",
         "description": "Id of its transcript inside the chat"
       },
+      "sessionId": {
+        "type": "string",
+        "description": "The session it belongs to, which is the chat's id. On every route that reports a subagent, so the one nested in `GET /chats/:id` and the ones `GET /subagents` lists read the same."
+      },
       "kind": {
         "type": "string"
       },
@@ -6011,6 +6249,7 @@
       "id",
       "kind",
       "lastActivityAt",
+      "sessionId",
       "startedAt",
       "status",
       "tasks"
@@ -6980,10 +7219,42 @@
     "properties": {
       "reason": {
         "type": "string",
-        "description": "Shown to the worker in the failed tool result, so it knows a person stopped it and why"
+        "description": "Told to the worker as its next message, so it knows a person stopped the command and why. The CLI writes the failed tool result itself (an exit status, nothing more), so the reason cannot ride in it."
       }
     },
     "description": "Kills one command's process tree without ending the turn: the descendants of the CLI process that belong to that tool call, found by pid, never by matching a command line. The worker gets a failed tool result and carries on. Which call is in the path."
+  },
+  "CancelCommandResult": {
+    "type": "object",
+    "properties": {
+      "toolUseId": {
+        "type": "string"
+      },
+      "command": {
+        "type": "string",
+        "description": "The command, as the worker wrote it"
+      },
+      "processes": {
+        "type": "number",
+        "description": "How many processes of its tree were signalled"
+      }
+    },
+    "required": [
+      "toolUseId",
+      "command",
+      "processes"
+    ],
+    "description": "What cancelling a command did."
+  },
+  "VerifyOrchestrationRequest": {
+    "type": "object",
+    "properties": {
+      "verification": {
+        "$ref": "#/components/schemas/VerificationSpec",
+        "description": "Replaces the checks the graph was launched with; required for a graph launched without any"
+      }
+    },
+    "description": "Runs the checks on a finished graph's integration branch, or runs them again."
   },
   "RelaunchOrchestrationRequest": {
     "type": "object",
@@ -7112,12 +7383,16 @@
       },
       "spec": {
         "$ref": "#/components/schemas/OrchestrationSpec"
+      },
+      "fromOrchestration": {
+        "type": "string",
+        "description": "Id of an orchestration whose graph is saved, as it was launched"
       }
     },
     "required": [
-      "name",
-      "spec"
-    ]
+      "name"
+    ],
+    "description": "The graph to save is given as a spec (a draft plan) or named by the orchestration it is taken from."
   },
   "UpdateOrchestrationTemplateRequest": {
     "type": "object",
@@ -7338,12 +7613,16 @@
         },
         "description": "What it was granted, when the CLI reports it"
       },
+      "detail": {
+        "type": "string",
+        "description": "The CLI's own words for the state (`Connected`, `Needs authentication`, a failure…)"
+      },
       "actions": {
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/ConnectorAction"
         },
-        "description": "Prepared prompts for this connector"
+        "description": "Prepared prompts for this connector; none while it needs authorisation"
       }
     },
     "required": [
@@ -7391,56 +7670,129 @@
     ],
     "description": "A button that opens a new chat with a prompt already written. Nothing more magic than that."
   },
-  "AccountConfig": {
+  "ConnectorGuide": {
     "type": "object",
     "properties": {
-      "number": {
-        "type": "number",
-        "description": "Slot number, the same identifier  {@link  AccountSummary }  uses"
+      "steps": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
       },
-      "configDir": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "`CLAUDE_CONFIG_DIR` for every process started for this account. Null shares the wrapper's, which is what every account did before and stays the default: moving someone's `~/.claude` without being asked is not something a wrapper gets to do."
-      },
-      "rotationPolicy": {
-        "$ref": "#/components/schemas/RotationPolicy"
+      "links": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "url"
+          ]
+        }
       }
     },
     "required": [
-      "number",
-      "configDir"
+      "steps",
+      "links"
     ],
-    "description": "Agentry's own settings for one claude-swap slot: what the binary itself does not keep."
+    "description": "What a person has to do: Agentry cannot authorise a connector on anyone's behalf."
   },
-  "RotationPolicy": {
+  "ConnectorLimit": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "enum": [
+          "web-artifacts",
+          "claude-ai-memory"
+        ]
+      },
+      "name": {
+        "type": "string"
+      },
+      "reason": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "reason"
+    ],
+    "description": "Something the CLI offers no command for. Said in the page, not left as a silent gap."
+  },
+  "ConnectorsOverview": {
+    "type": "object",
+    "properties": {
+      "connectors": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Connector"
+        },
+        "description": "The claude.ai connectors `claude mcp list` reports, in the CLI's order"
+      },
+      "notListed": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ConnectorKind"
+        },
+        "description": "Docs, Gmail and Calendar are the kinds Agentry has prepared actions for: those not listed at all"
+      },
+      "authorisation": {
+        "$ref": "#/components/schemas/ConnectorGuide"
+      },
+      "unavailable": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ConnectorLimit"
+        }
+      },
+      "checkedAt": {
+        "type": "string"
+      },
+      "error": {
+        "type": "string",
+        "description": "Set when the CLI could not be asked, so an empty list is not read as \"no connectors\""
+      }
+    },
+    "required": [
+      "connectors",
+      "notListed",
+      "authorisation",
+      "unavailable",
+      "checkedAt"
+    ]
+  },
+  "RotationPolicyRequest": {
     "type": "object",
     "properties": {
       "threshold": {
-        "type": "number",
-        "description": "Utilization (0-100) of the active account past which the next one is taken"
+        "type": "number"
       },
       "order": {
         "type": "array",
         "items": {
           "type": "number"
-        },
-        "description": "Slot numbers to try, in order; every enabled account when absent"
+        }
       },
       "projects": {
         "type": "array",
         "items": {
           "type": "string"
-        },
-        "description": "Project ids this policy governs; the account's default policy when absent"
+        }
       }
     },
     "required": [
-      "threshold"
-    ],
-    "description": "Which accounts a project may use, in what order, and when to move on."
+      "threshold",
+      "projects"
+    ]
   },
   "UpdateAccountConfigRequest": {
     "type": "object",
@@ -7450,20 +7802,16 @@
           "string",
           "null"
         ],
-        "description": "Null goes back to sharing the wrapper's config dir"
+        "description": "Null goes back to sharing the wrapper's config dir, and removes the links Agentry made"
       },
-      "rotationPolicy": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/RotationPolicy"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "Null removes the policy, leaving the global auto-switch in charge"
+      "shareSettings": {
+        "type": "boolean",
+        "description": "Also link the shared settings (`settings.json`, `CLAUDE.md`, `keybindings.json`, `agents`, `commands`, `skills`) into the directory. Symlinks, never copies and never over an existing entry, so undoing it leaves the shared ones untouched."
       }
-    }
+    },
+    "required": [
+      "configDir"
+    ]
   },
   "UsageHistoryPoint": {
     "type": "object",
@@ -7599,7 +7947,12 @@
         "type": "string"
       },
       "at": {
-        "type": "string"
+        "type": "string",
+        "description": "When this row was written: the moment it fired, or the moment the wrapper noticed it had skipped"
+      },
+      "slot": {
+        "type": "string",
+        "description": "The cron slot this run answers, as an ISO time; absent for a run started by hand"
       },
       "status": {
         "$ref": "#/components/schemas/ScheduleRunStatus"
@@ -7629,6 +7982,39 @@
       "skipped"
     ],
     "description": "`started`: it launched, and what happened next belongs to the chat or the orchestration. `skipped`: the slot passed while the wrapper was down."
+  },
+  "SchedulePreview": {
+    "type": "object",
+    "properties": {
+      "valid": {
+        "type": "boolean"
+      },
+      "error": {
+        "type": "string",
+        "description": "Which field is wrong, when it is not valid"
+      },
+      "description": {
+        "type": "string",
+        "description": "The expression in words"
+      },
+      "timezone": {
+        "type": "string",
+        "description": "The zone it was read in"
+      },
+      "next": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The next fires, ISO times"
+      }
+    },
+    "required": [
+      "valid",
+      "timezone",
+      "next"
+    ],
+    "description": "What an expression will do, for a form to show before it is saved."
   },
   "CreateScheduleRequest": {
     "type": "object",
@@ -7798,6 +8184,30 @@
       "json"
     ],
     "description": "How a transcript is exported: Markdown for a person, JSON faithful to the events."
+  },
+  "ChatExport": {
+    "type": "object",
+    "properties": {
+      "exportedAt": {
+        "type": "string",
+        "description": "When the export was made"
+      },
+      "chat": {
+        "$ref": "#/components/schemas/Chat"
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TranscriptEntry"
+        }
+      }
+    },
+    "required": [
+      "exportedAt",
+      "chat",
+      "entries"
+    ],
+    "description": "A chat exported as JSON: the chat as the API shows it and every transcript entry, subagents included, in order."
   },
   "CliVersionInfo": {
     "type": "object",

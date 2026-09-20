@@ -45,10 +45,11 @@ export function toChatTask(task: BackgroundTask): ChatBackgroundTask {
 /** The id a subagent goes by inside its chat: its transcript's, or its launching call's until it has one. */
 const subagentId = (sub: SubagentInfo): string => sub.agentId ?? sub.toolUseId;
 
-export function toChatSubagent(sub: SubagentInfo, tasks: ChatBackgroundTask[]): ChatSubagent {
+export function toChatSubagent(sub: SubagentInfo, tasks: ChatBackgroundTask[], sessionId: string): ChatSubagent {
   const id = subagentId(sub);
   return {
     id,
+    sessionId,
     kind: sub.subagentType,
     description: sub.description,
     status: sub.status,
@@ -107,13 +108,13 @@ export interface BranchFacts {
  * A chat's branches. A command a subagent launched belongs to that subagent and is listed under
  * it; the chat's own are the ones nobody else launched. Running work comes first.
  */
-export function toChildren({ subagents, tasks, workflows }: BranchFacts): ChatChildren {
+export function toChildren({ subagents, tasks, workflows }: BranchFacts, sessionId: string): ChatChildren {
   const mapped = tasks.map(toChatTask);
   const owners = new Set(subagents.map(subagentId));
   const running = (a: { status: string; startedAt: string }, b: { status: string; startedAt: string }) =>
     Number(b.status === 'running') - Number(a.status === 'running') || b.startedAt.localeCompare(a.startedAt);
   return {
-    subagents: subagents.map((s) => toChatSubagent(s, mapped)).sort(running),
+    subagents: subagents.map((s) => toChatSubagent(s, mapped, sessionId)).sort(running),
     backgroundTasks: mapped.filter((t) => t.ownerId === null || !owners.has(t.ownerId)).sort(running),
     workflows: workflows.map(toChatWorkflow).sort(running),
   };

@@ -11,8 +11,10 @@ import {
   GitFork,
   Hand,
   Hourglass,
+  ListChecks,
   MessageSquare,
   RotateCcw,
+  RefreshCcw,
   Send,
   SkipForward,
   Square,
@@ -26,9 +28,11 @@ import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { attemptLabel, blockedBy, decisionsOn, waitingSummary } from '../lib/orchestration-board';
 import { durationBetween, formatCost } from '../lib/format';
+import { canRerun, dependantsOf } from '../lib/orchestration-v2';
 import { Collapsible } from './controls';
 import { useConfirm } from './Dialog';
 import { ICON_SM } from './icons';
+import { HealthBadge } from './observe/Health';
 import { motion, ProgressRing, useReducedMotion } from './motion';
 import { useToast } from './Toast';
 import { RichText } from './Transcript';
@@ -161,6 +165,7 @@ function HintForm({ orchId, task, onDone }: { orchId: string; task: Orchestratio
 
 function TaskActions({ orch, task }: { orch: Orchestration; task: OrchestrationTaskState }) {
   const { t } = useTranslation('orchestration');
+  const { t: tv } = useTranslation('orchestrationV2');
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const [hinting, setHinting] = useState(false);
@@ -174,10 +179,18 @@ function TaskActions({ orch, task }: { orch: Orchestration; task: OrchestrationT
           : api.skipOrchestrationTask(orch.id, task.id),
     onSuccess: (next) => queryClient.setQueryData(keys.orchestration(orch.id), next),
   });
+  // A finished graph starts over from a task, which retrying a failed one in a running graph does not
+  const rerunnable = canRerun(orch);
+  const rerun = useMutation({
+    mutationFn: () => api.rerunOrchestrationTask(orch.id, task.id),
+    onSuccess: (next) => queryClient.setQueryData(keys.orchestration(orch.id), next),
+  });
   const name = task.name || task.id;
   const behind = orch.tasks.filter((t) => t.status === 'blocked').length;
+  // The task itself is not counted among what depends on it
+  const dependants = dependantsOf(orch.tasks, task.id).length - 1;
 
-  if (!decisions.retry && !decisions.skip && !decisions.hint) return null;
+  if (!decisions.retry && !decisions.skip && !decisions.hint && !rerunnable) return null;
   return (
     <div className="stack-tight">
       <div className="task-actions">
@@ -230,6 +243,25 @@ function TaskActions({ orch, task }: { orch: Orchestration; task: OrchestrationT
             <SkipForward {...ICON_SM} /> {t('board.skip')}
           </button>
         )}
+        {rerunnable && (
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={rerun.isPending}
+            onClick={() =>
+              void confirm({
+                title: tv('rerun.title', { name }),
+                body: dependants > 0 ? tv('rerun.bodyWithDependants', { count: dependants }) : tv('rerun.bodyAlone'),
+                confirmLabel: tv('rerun.confirm'),
+                danger: true,
+              }).then((ok) => {
+                if (ok) rerun.mutate();
+              })
+            }
+          >
+            <RefreshCcw {...ICON_SM} /> {tv('rerun.button')}
+          </button>
+        )}
         {decisions.hint && !hinting && (
           <button type="button" className="btn btn-small" onClick={() => setHinting(true)}>
             <Send {...ICON_SM} /> {t('board.sendAHint')}
@@ -237,12 +269,23 @@ function TaskActions({ orch, task }: { orch: Orchestration; task: OrchestrationT
         )}
       </div>
       {hinting && decisions.hint && <HintForm orchId={orch.id} task={task} onDone={() => setHinting(false)} />}
-      <ErrorBox error={decide.error} />
+      <ErrorBox error={decide.error ?? rerun.error} />
     </div>
   );
 }
 
-export function TaskCard({ orch, task }: { orch: Orchestration; task: OrchestrationTaskState }) {
+export function TaskCard({
+  orch,
+  task,
+  inspected = false,
+  onInspect,
+}: {
+  orch: Orchestration;
+  task: OrchestrationTaskState;
+  /** Its work is open under the board */
+  inspected?: boolean;
+  onInspect?: () => void;
+}) {
   const { t } = useTranslation('orchestration');
   const reduced = useReducedMotion();
   const previousError = usePreviousError(task);
@@ -266,6 +309,12 @@ export function TaskCard({ orch, task }: { orch: Orchestration; task: Orchestrat
         <BoardStatusBadge status={task.status} />
         <span className="muted small">{task.startedAt ? durationBetween(task.startedAt, task.endedAt) : ''}</span>
       </div>
+      {task.status === 'running' && task.health && task.health.level !== 'ok' && (
+        <div className="stack-tight">
+          <HealthBadge health={task.health} />
+          <div className="small">{task.health.reason}</div>
+        </div>
+      )}
       <h4 id={titleId} className="board-task-name">
         {task.name || task.id}
       </h4>
@@ -319,6 +368,11 @@ export function TaskCard({ orch, task }: { orch: Orchestration; task: Orchestrat
       )}
       <TaskActions orch={orch} task={task} />
       <div className="meta">
+        {onInspect && task.status !== 'pending' && task.status !== 'blocked' && (
+          <button type="button" className="btn btn-small" aria-pressed={inspected} onClick={onInspect}>
+            <ListChecks {...ICON_SM} /> {t('board.work')}
+          </button>
+        )}
         {chat && (
           <Link to={chat} className="meta-icon">
             <MessageSquare size={12} strokeWidth={1.75} aria-hidden /> {t('board.chat')}

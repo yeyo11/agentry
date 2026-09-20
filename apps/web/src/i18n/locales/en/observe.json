@@ -1,0 +1,112 @@
+{
+  "editor": {
+    "tab": "Editor",
+    "title": "Links into your editor",
+    "intro": "A changed file or a worktree gets a link that opens it in your editor. These settings are kept in this browser, because the editor runs on this machine and the server cannot know how to reach it.",
+    "template": "Link template",
+    "templateHint": "{path}, {line} and {column} are filled in. For VS Code: vscode://file/{path}:{line}. For Cursor: cursor://file/{path}:{line}.",
+    "diffCommand": "Side-by-side diff command (optional)",
+    "diffCommandHint": "Adds a button that copies this command with {left} and {right} filled in: the file in the main checkout and the file in the worktree. A browser cannot run it for you, so paste it in a terminal.",
+    "pathMap": "Container to host paths",
+    "pathMapHint": "When Agentry runs in a container, the paths it reports are the container's. Each row rewrites a directory to where it is on this machine. The first row that matches wins.",
+    "from": "Path in the container",
+    "to": "Path on this machine",
+    "fromRow": "Container path of row {{n}}",
+    "toRow": "Host path of row {{n}}",
+    "removeRow": "Remove row {{n}}",
+    "addRow": "Add a path",
+    "preview": "Preview",
+    "previewPath": "Path Agentry reports",
+    "previewHost": "Path on this machine",
+    "previewLink": "Link",
+    "previewDiff": "Diff command",
+    "save": "Save",
+    "saved": "Editor settings saved",
+    "reset": "Reset to the default",
+    "problem": {
+      "empty": "The template is empty.",
+      "scheme": "The template has to start with a scheme your system opens, such as vscode://.",
+      "unsafe": "That scheme is not allowed: a link that runs script or opens a file inside the page is never built.",
+      "path": "The template has no {path}, so it could not say which file to open."
+    },
+    "openWorktree": "Open worktree in editor",
+    "copyDiffCommand": "Copy the diff command",
+    "openFile": "Open {{path}} in the editor",
+    "openAtLine": "Open {{path}} at line {{line}} in the editor"
+  },
+  "changes": {
+    "title": "Changes",
+    "integrationTitle": "What the integration branch changes",
+    "hunks": "Changed places in this file",
+    "atLine": "line {{line}}",
+    "counts": "{{additions}} lines added, {{deletions}} lines removed",
+    "status": {
+      "added": "added",
+      "modified": "modified",
+      "deleted": "deleted",
+      "renamed": "renamed"
+    },
+    "renamedFrom": "renamed from {{path}}",
+    "detached": "detached head",
+    "base": "from {{base}}",
+    "ahead_one": "{{count}} commit ahead",
+    "ahead_other": "{{count}} commits ahead",
+    "nothing": "Nothing changed yet: no commits and no edited files.",
+    "commits": "Commits",
+    "files": "Changed files",
+    "uncommitted": "Not committed yet",
+    "emptyDiff": "There is no text difference to show for this file.",
+    "noWorktree": "This graph does not give each worker its own worktree, so there is no branch to compare. Start a graph with worktrees to see what each worker changed.",
+    "touched": "Files this chat wrote",
+    "touchedIntro": "This chat is not in a git worktree of its own, so the files it wrote are read from its transcript.",
+    "nothingTouched": "This chat has not written any file."
+  },
+  "checklist": {
+    "title": "Its checklist",
+    "none": "It has not written a checklist.",
+    "progress": "{{done}} of {{total}} done",
+    "onIt": "working on: {{text}}",
+    "status": {
+      "completed": "Done",
+      "in_progress": "In progress",
+      "pending": "To do"
+    }
+  },
+  "health": {
+    "title": "Health",
+    "word": {
+      "ok": "OK",
+      "slow": "Slow",
+      "stuck": "Stuck",
+      "looping": "Looping"
+    },
+    "level": {
+      "warn": "Warning",
+      "bad": "Problem"
+    },
+    "cancel": "Cancel the command",
+    "cancelTitle": "Cancel this command?",
+    "cancelBody": "Only this command's processes are stopped. The turn goes on: the worker gets a failed result for the command and decides what to do next.",
+    "cancelled": "Command cancelled",
+    "hint": "Send a hint",
+    "hintLabel": "Hint for the worker",
+    "hintExplained": "Written for this signal; edit it before sending. It is added to what the worker is doing now, and the worker carries on.",
+    "hintSent": "Hint sent",
+    "sendHint": "Send the hint",
+    "sending": "Sending…",
+    "interrupt": "Interrupt",
+    "interruptHint": "Interrupts the turn that is running. The chat stays open and waits for what you send next."
+  },
+  "activity": {
+    "title": "Doing now",
+    "runningNow": "Running {{tool}}:",
+    "for": "for {{time}}",
+    "thinking": "No command is running: it is thinking or writing.",
+    "lastEvent": "Last event in the transcript {{time}} ago."
+  },
+  "task": {
+    "title": "Work of {{name}}",
+    "close": "Close",
+    "notStarted": "This task has not started, so it has done nothing yet."
+  }
+}

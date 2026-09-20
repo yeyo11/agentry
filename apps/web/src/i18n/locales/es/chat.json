@@ -11,6 +11,12 @@
     "streamReconnecting": "Reconectando…",
     "subagentMessages": "Mensajes de subagents",
     "interruptHint": "Termina este turno y mantén el chat abierto para tu siguiente mensaje",
+    "export": {
+      "markdown": "Exporta Markdown",
+      "markdownHint": "Descarga la conversación como un documento legible: turnos, llamadas a herramientas plegadas, coste y modelo en la cabecera",
+      "json": "Exporta JSON",
+      "jsonHint": "Descarga el chat y cada entrada de la transcripción, subagents incluidos, tal como las registraron los eventos"
+    },
     "fork": "Fork",
     "forkHint": "Continúa en una copia de este chat, que deja este tal como está",
     "deleteLive": "No se puede eliminar un chat con un proceso trabajando en él",

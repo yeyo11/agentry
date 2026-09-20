@@ -1,7 +1,10 @@
 # Plan: finish the roadmap
 
-Status: **in progress**, run as one orchestration on top of `main` at `f78fab7`
-(`feat!: chats, projects and Agentry's own model`).
+Status: **built; final verification pending**. Run as one orchestration on top of `main` at
+`f78fab7` (`feat!: chats, projects and Agentry's own model`). Every task below has landed except the
+pieces listed under [Outcome](#outcome-what-landed-and-what-did-not). `pnpm typecheck` and
+`pnpm test` are green on the integrated branch; **no task ran `pnpm e2e`** (the rules forbade it), so the
+browser specs the tasks wrote are unrun until the verification task at the end runs the suite.
 
 This document is the source of truth for every task of that orchestration. It closes the whole
 **Next** section of [ROADMAP.md](../../ROADMAP.md): agent observability, security, richer chat
@@ -348,6 +351,71 @@ Depends on every web task.
 - `docs/plans/agent-observability.md` and this file: mark what landed, keep what did not and say
   why.
 - **Never edit `CHANGELOG.md`**: release-please writes it from the commits.
+
+## Outcome: what landed and what did not
+
+Written by the `docs` task from what the branches actually contain, not from this plan. Where a
+section above says otherwise, the code and this section win.
+
+### Landed
+
+| Section | What shipped |
+| --- | --- |
+| Shared types | Every type in one commit; later tasks added `ChatSubagent.sessionId`, `WorkflowEndedEvent.agentId`, `CliVersionInfo.error`, `VerificationSpec.timeoutMinutes`, `VerificationState.commit`, `orchestration.updated`'s `verificationStatus` and `ChatStartOptions.mcp: null` |
+| 1 `git-changes` | Changes, diff and checklist routes for a task, the integration branch and a chat; `changes.updated` on the feed |
+| 1 `stuck-signals` | Seven signals, `health.changed`, cancel one command, hint, per-task time and cost limits, a notification |
+| 1 `e2e-harness` | A limit per spec and per run, and Chrome and the server closed by pid on every way out, proved by `e2e/harness.test.mjs` |
+| 1 `verification-phase` | The checks once on the integration branch, a fixer with Agentry's rules and a cap, the outcome on the graph, `POST /orchestrations/:id/verify`, and the split of checks in every worker prompt |
+| 1 `pending-gaps` | Six fixes, one commit each (below) |
+| 2 `security` | `none`, `token` and `oidc`; hashed token; read-only; redaction in `GET /config/mcp` and `GET /config/settings`; audit log; `?token=` on three GETs; the web client sends the credential and a `401` is a sign-in screen |
+| 3 `chat-mcp-tools` | `toolPreset` and `mcp` on start, resume and fork; three editable default presets in `tool-presets.json`; the chat shows what it runs with |
+| 4 `orchestration-v2` | Re-run a task of a finished graph, relaunch with corrections, templates |
+| 5 `connectors` | `GET /connectors` from `claude mcp list`, prepared prompts, authorisation steps, the out-of-reach sentence |
+| 6 `accounts-config` | Config directory per account, rotation policies per project, usage history per account |
+| 7 `scheduling` | Cron schedules with a hand-written parser (no dependency: none is in the lockfile, and a package that owns a timer is the opposite of one that restarts cleanly), a run table, run now, preview, skipped-not-replayed |
+| 8 `usage-cost` | `GET /usage/series`, `GET /usage/breakdown`, per-model cost from the CLI's own `modelUsage`, transcript export as Markdown or JSON |
+| 9 `packaging` | Pinned CLI and an update check, a Helm chart, a `tls` compose profile with Caddy, healthcheck-driven restarts, `docs/deploy.md` |
+| 10 `web-observability` | Work panel, health actions, Changes and Doing-now cards, editor links and their settings tab |
+| 10 `web-security` | The Security tab: mode, token shown once, OIDC fields, read-only, audit log |
+| 10 `web-schedules-usage` | Schedules page with a cron builder, Usage page with an accessible SVG chart, export links on a chat |
+| 10 `web-orchestration-v2` | Re-run, relaunch, templates, limits and the verification card; config directory, policies and usage history on the accounts page; the Connectors page |
+| 11 `docs` | README (features, security and deployment guidance, UI, limitations), SECURITY.md, ROADMAP.md and the two plans |
+
+The six `pending-gaps`: a chat already waiting raises a notification on load; a waiting notification opens
+the prompt (`?prompt=<id>`); a chat cut off by a restart records why and when it stopped; `workflow.ended`
+carries `agentId`; `sessionId` is on every subagent; `apps/web/test/detail.test.ts`.
+
+### Left out, and why
+
+- **The Haiku supervisor.** Out of scope by the plan. Each signal already carries a hint text Agentry
+  writes; a second model to pay for, watch and trust would add little. Still open.
+- **Health levels `slow`, `stuck`, `looping`.** The types kept `ok`, `warn`, `bad`: the plan's names mix a
+  severity with three kinds of signal. The badge maps them for the person.
+- **Editor settings on the server.** They are per browser (`agentry-editor:v1`): they describe the
+  machine the editor runs on, and a server copy needs a route and a schema for one person's
+  preference. `code --diff` is a copied command, not a button that runs it: a browser cannot.
+- **Answering a permission from the notification.** The link opens the prompt, scrolled into view and
+  focused; the toast still opens the chat.
+- **Plugin and connector servers in a chat's MCP selection.** They are in no file Agentry can read, and
+  `--strict-mcp-config` drops them. Forks do not inherit the source chat's tools, a resume keeps the
+  MCP config as picked, and there is no named default preset and no "restore the shipped presets".
+- **A sign-in through an identity provider.** `oidc` only validates a JWT. The audit log has no method or
+  status filter and its path filter does not escape `%` and `_`; there is no banner on every page while
+  read-only is on.
+- **Verification.** No cost limit for the fixer, no install step Agentry adds itself, and a failed
+  verification does not fail the graph.
+- **Scheduling.** No overlap policy, no `schedule.*` event (the page refetches every 30 s), and no
+  import of an existing orchestration into the form.
+- **Usage.** No project export (core has no route), and the custom range is typed, not picked.
+- **Packaging.** No Helm Ingress template, the chart is not wired into release-please, and the image
+  build, the Caddy profile and the chart were checked with `helm lint`, `helm template` and
+  `docker compose config`, not run.
+- **Web-orchestration-v2.** Server-written strings (authorisation steps, link labels, out-of-reach
+  reasons) are shown in English, and a template cannot be renamed without opening its graph.
+- **Cancelling a command off Linux.** It reads `/proc`.
+- **Browser coverage.** No task ran `pnpm e2e`. Specs were written for observability, security, schedules,
+  usage, tool presets, connectors, accounts config and orchestration v2, and the health action buttons
+  need a live process, so they have unit tests of their rules but no spec.
 
 ## What "done" means for this orchestration
 
