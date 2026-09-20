@@ -1,5 +1,5 @@
 import type { ChatFork, ChatOrigin, Execution, PermissionMode } from '@agentry/shared';
-import { executionOutcome } from './chat-model.ts';
+import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import { emptyTokenUsage } from './usage.ts';
 
 /**
@@ -102,7 +102,7 @@ export function chatsFromRuns(runs: readonly LegacyRun[]): ConvertedRuns {
         startedAt: run.createdAt,
         endedAt: run.endedAt ?? run.updatedAt,
         outcome,
-        error: run.error,
+        error: run.error ?? (outcome === 'interrupted' ? INTERRUPTED_BY_RESTART : null),
         permissionMode: run.permissionMode,
         model: run.model,
         account: run.account,
