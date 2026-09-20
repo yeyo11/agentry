@@ -352,6 +352,44 @@ export interface ChatCost {
   total: TokenUsage;
 }
 
+/** What was spent over some stretch of chats. Tokens are real and cover every chat; the cost only covers the chats that reported one. */
+export interface UsageTotals {
+  /** Sum of what the CLI reported; null when it reported nothing for any chat in it: read as "not available" */
+  costUsd: number | null;
+  /** Chats in these totals whose cost the CLI never reported (started from a terminal), so `costUsd` leaves them out */
+  chatsWithoutCost: number;
+  tokens: ChatModelTokens[];
+  total: TokenUsage;
+}
+
+export interface UsageDay extends UsageTotals {
+  /** `YYYY-MM-DD`, in the server's time zone */
+  day: string;
+}
+
+export interface UsageProject extends UsageTotals {
+  /** Null for the chats under no imported project */
+  project: ChatProject | null;
+}
+
+export interface UsageOrchestration extends UsageTotals {
+  orchestration: { id: string; name: string };
+}
+
+/** What the chats spent, per day, per project and per orchestration. */
+export interface UsageReport {
+  /** The days asked for, inclusive; null when unbounded */
+  from: string | null;
+  to: string | null;
+  total: UsageTotals;
+  /** Oldest first, only days something was spent on */
+  days: UsageDay[];
+  /** Most spent first */
+  projects: UsageProject[];
+  /** Most spent first; only the chats that work for an orchestration */
+  orchestrations: UsageOrchestration[];
+}
+
 /** Where a fork came from. */
 export interface ChatFork {
   chatId: string;

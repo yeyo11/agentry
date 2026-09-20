@@ -4,6 +4,7 @@
 // CLI writes differently tomorrow reaches no browser.
 
 import type { TranscriptEntry } from '@agentry/shared';
+import type { TranscriptUsage } from './usage.ts';
 
 /** One transcript folded into what a list needs, before Agentry adds what it knows itself. */
 export interface TranscriptSummary {
@@ -22,6 +23,8 @@ export interface TranscriptSummary {
   gitBranch: string | null;
   cliVersion: string | null;
   sizeBytes: number;
+  /** Tokens spent and how full the context is, folded from the same pass */
+  usage: TranscriptUsage;
   /** From the CLI's own record, when the session ran in a worktree it created */
   worktree: { name: string | null; branch: string | null; path: string; parentPath: string } | null;
 }

@@ -62,6 +62,7 @@ export {
   type SessionHolder,
 } from './chat-model.ts';
 export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
+export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 export { Db } from './db.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
 
@@ -138,6 +139,7 @@ export class Core {
       orchestrator: this.orchestrator,
       place: (dir, recorded) => this.place(dir, recorded),
       environmentOf: (dir) => this.runtime.environments.get(dir),
+      windowOf: (model) => this.db.modelWindow(model),
     });
     this.files = new SettingsFiles();
     this.explorer = new ConfigExplorer();

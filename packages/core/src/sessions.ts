@@ -22,6 +22,7 @@ import { AGENT_ID_RE, WORKFLOW_RUN_ID_RE, emptyAgentRead, readAgentFile } from '
 import type { BackgroundTask, SubagentInfo, TranscriptPage, TranscriptSummary, WorkflowRun } from './cli-facts.ts';
 import type { CoreConfig } from './paths.ts';
 import { EntryIndex, fingerprint, parseLine, readLines, scanLines, type JsonLine } from './transcript-index.ts';
+import { UsageFold } from './usage.ts';
 import { readSessionWorkflows, readWorkflowAgent } from './workflows.ts';
 
 /** The slash command inside a synthetic user message, e.g. `<command-name>/resume</command-name>`. */
@@ -29,9 +30,17 @@ const COMMAND_RE = /<command-name>\s*([^<]+)<\/command-name>/;
 
 /** A summary over the lines read so far, before what only the end of the file decides. */
 interface SummaryFold {
-  summary: TranscriptSummary;
+  /** `usage` is filled when the fold is finished; the running figures are in `spent` */
+  summary: Omit<TranscriptSummary, 'usage'>;
   customTitle: string | null;
   command: string | undefined;
+  spent: UsageFold;
+}
+
+/** A copy a half-written last line can be folded into without touching the original. */
+function cloneFold(fold: SummaryFold): SummaryFold {
+  const { spent, ...plain } = fold;
+  return { ...structuredClone(plain), spent: spent.clone() };
 }
 
 function foldLine(fold: SummaryFold, o: JsonLine, entry: TranscriptEntry | null): void {
@@ -58,6 +67,7 @@ function foldLine(fold: SummaryFold, o: JsonLine, entry: TranscriptEntry | null)
     }
   }
 
+  if (entry) fold.spent.add(o, entry);
   if (!entry || entry.isSidechain) return;
   summary.messageCount++;
   if (entry.model) summary.model = entry.model;
@@ -71,7 +81,7 @@ function foldLine(fold: SummaryFold, o: JsonLine, entry: TranscriptEntry | null)
 }
 
 function finishSummary(fold: SummaryFold, info: Stats): TranscriptSummary | null {
-  const summary = { ...fold.summary, sizeBytes: info.size };
+  const summary = { ...fold.summary, sizeBytes: info.size, usage: fold.spent.snapshot() };
   if (summary.messageCount === 0) return null;
   // A session with no user turn (the spare `claude attach` pre-warms) would otherwise be
   // titled with its own uuid, which reads like an id and tells nobody what it is.
@@ -281,7 +291,7 @@ export class SessionStore {
         old !== null && old.ino === info.ino && info.size > old.size && (await fingerprint(handle, old.end)).equals(old.fingerprint);
       const base = grew ? old : null;
       const fold: SummaryFold = base
-        ? structuredClone(base.fold)
+        ? cloneFold(base.fold)
         : {
             summary: {
               id: basename(file, '.jsonl'),
@@ -300,6 +310,7 @@ export class SessionStore {
             },
             customTitle: null,
             command: undefined,
+            spent: new UsageFold(),
           };
       const added: [number, number, boolean][] = [];
       const { end, tail } = await scanLines(handle, base?.end ?? 0, info.size, (o, start, lineEnd) => {
@@ -314,7 +325,7 @@ export class SessionStore {
       const tailEntry = tailLine ? normalizeMessage(tailLine) : null;
       let summary: TranscriptSummary | null;
       if (tailLine) {
-        const withTail = structuredClone(fold);
+        const withTail = cloneFold(fold);
         foldLine(withTail, tailLine, tailEntry);
         summary = finishSummary(withTail, info);
       } else summary = finishSummary(fold, info);
