@@ -73,7 +73,15 @@ export interface RunResult {
   structuredOutput: unknown;
   /** What the chat has cost across every execution so far */
   costUsd: number;
+  /**
+   * Why a failed result is not one to try again blindly: the budget ran out (the retry meets the same
+   * ceiling), the account hit its limit (rotating accounts is the runner's job) or someone stopped it.
+   */
+  cause?: 'budget' | 'rate-limit' | 'stopped';
 }
+
+/** The CLI's result subtype for a ceiling set with `--max-budget-usd`. */
+const BUDGET_SUBTYPE = 'error_max_budget_usd';
 
 /** What starts a chat, beyond what the API takes: the housekeeping knobs the wrapper's own callers use. */
 export interface NewChat extends NewChatRequest {
@@ -940,11 +948,17 @@ export class ChatManager extends EventEmitter {
   private static settled(chat: LiveChat): RunResult | null {
     if (chat.lastResult) return chat.lastResult;
     if (!['completed', 'failed', 'stopped'].includes(chat.status)) return null;
+    return ChatManager.ended(chat, chat.status);
+  }
+
+  /** What a chat whose process ended without a result stands for. */
+  private static ended(chat: LiveChat, status: string): RunResult {
     return {
       isError: true,
-      result: chat.error ?? `The process ended (${chat.status}) without a result`,
+      result: chat.error ?? `The process ended (${status}) without a result`,
       structuredOutput: undefined,
       costUsd: chat.costUsd,
+      ...(chat.stopRequested ? { cause: 'stopped' as const } : chat.rateLimited ? { cause: 'rate-limit' as const } : {}),
     };
   }
 
@@ -968,9 +982,7 @@ export class ChatManager extends EventEmitter {
         if (event.kind === 'result' && chat.lastResult && chat.lastResult !== before) finish(chat.lastResult);
         else if (event.kind === 'status' && ['completed', 'failed', 'stopped'].includes(event.status ?? '') && !chat.respawnQueued) {
           finish(
-            chat.lastResult && chat.lastResult !== before
-              ? chat.lastResult
-              : { isError: true, result: chat.error ?? `The process ended (${event.status}) without a result`, structuredOutput: undefined, costUsd: chat.costUsd },
+            chat.lastResult && chat.lastResult !== before ? chat.lastResult : ChatManager.ended(chat, event.status ?? 'ended'),
           );
         }
       };
@@ -994,14 +1006,7 @@ export class ChatManager extends EventEmitter {
       const onEvent = (event: RunEvent) => {
         if (event.kind === 'result' && chat.lastResult) finish(chat.lastResult);
         else if (event.kind === 'status' && ['completed', 'failed', 'stopped'].includes(event.status ?? '')) {
-          finish(
-            chat.lastResult ?? {
-              isError: true,
-              result: chat.error ?? `The process ended (${event.status}) without a result`,
-              structuredOutput: undefined,
-              costUsd: chat.costUsd,
-            },
-          );
+          finish(chat.lastResult ?? ChatManager.ended(chat, event.status ?? 'ended'));
         }
       };
       const finish = (result: RunResult) => {
@@ -1358,7 +1363,8 @@ export class ChatManager extends EventEmitter {
       const isError = raw.is_error === true;
       const result = typeof raw.result === 'string' ? raw.result : '';
       if (isError && (raw.api_error_status === 429 || RATE_LIMIT_RE.test(result))) chat.rateLimited = true;
-      chat.lastResult = { isError, result, structuredOutput: raw.structured_output, costUsd: chat.costUsd };
+      const cause = !isError ? undefined : chat.interruptRequested || chat.stopRequested ? 'stopped' : subtype === BUDGET_SUBTYPE ? 'budget' : chat.rateLimited ? 'rate-limit' : undefined;
+      chat.lastResult = { isError, result, structuredOutput: raw.structured_output, costUsd: chat.costUsd, ...(cause ? { cause } : {}) };
       // An interrupted turn ends as an error by the CLI's account, but nothing went wrong
       if (isError && !chat.interruptRequested) chat.error = result || String(subtype ?? 'error');
       chat.interruptRequested = false;
