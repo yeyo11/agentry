@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, useAccounts, useOverview, useProjects } from '../api';
 import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
+import { ChatToolsPicker, type ToolChoices } from '../components/ChatToolsPicker';
 import { Combobox, Select, Switch } from '../components/controls';
 import { useProjectScope } from '../lib/project-scope';
 import { Card, ErrorBox, Field, MODEL_OPTIONS, PageHeader, PERMISSION_MODES } from '../components/ui';
@@ -26,6 +27,9 @@ export function NewChat() {
   const [appendSystemPrompt, setAppendSystemPrompt] = useState('');
   const [account, setAccount] = useState('');
   const accounts = useAccounts();
+  const [tools, setTools] = useState<ToolChoices>({});
+  // The servers offered are the ones the chat will see from its directory
+  const toolScope = { projectId: (projects.data ?? []).find((p) => p.path === cwd.trim())?.id };
 
   const start = useMutation({
     mutationFn: () => {
@@ -36,6 +40,8 @@ export function NewChat() {
       if (permissionMode) opts.permissionMode = permissionMode;
       if (appendSystemPrompt.trim()) opts.appendSystemPrompt = appendSystemPrompt.trim();
       if (account) opts.account = account;
+      if (tools.toolPreset) opts.toolPreset = tools.toolPreset;
+      if (tools.mcp) opts.mcp = tools.mcp;
       return api.createChat(opts);
     },
     onSuccess: (chat) => navigate(`/chats/${chat.id}`),
@@ -117,6 +123,7 @@ export function NewChat() {
           <Field label={t('new.appendSystemPrompt')} hint={t('new.optional')}>
             <textarea rows={2} value={appendSystemPrompt} onChange={(e) => setAppendSystemPrompt(e.target.value)} />
           </Field>
+          <ChatToolsPicker value={tools} onChange={setTools} scope={toolScope} />
           <Switch checked={askHere} onChange={setAskHere}>
             {t('new.askHere')}
           </Switch>

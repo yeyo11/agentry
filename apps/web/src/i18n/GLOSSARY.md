@@ -40,6 +40,7 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | MCP, MCP server | el servidor MCP, los servidores MCP |
 | skill | la skill, las skills |
 | plugin | el plugin, los plugins |
+| preset, tool preset | el preset, los presets (de herramientas) |
 | marketplace | el marketplace |
 | workflow | el workflow, los workflows |
 | token | el token, los tokens |

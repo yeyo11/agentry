@@ -13,6 +13,7 @@ import { McpTab } from './config/McpTab';
 import { PluginsTab } from './config/PluginsTab';
 import { ResourcesTab } from './config/ResourcesTab';
 import { SettingsTab } from './config/SettingsTab';
+import { ToolPresetsTab } from './config/ToolPresetsTab';
 
 const RESOURCE_TABS: ResourceKind[] = ['agents', 'skills', 'commands', 'output-styles', 'rules', 'workflows'];
 
@@ -22,6 +23,7 @@ const TABS = [
   { id: 'instructions', label: 'config:config.tabs.instructions' },
   { id: 'settings', label: 'config:config.tabs.settings' },
   { id: 'mcp', label: 'config:config.tabs.mcp' },
+  { id: 'tools', label: 'config:config.tabs.tools' },
   { id: 'agents', label: 'config:config.tabs.agents' },
   { id: 'skills', label: 'config:config.tabs.skills' },
   { id: 'commands', label: 'config:config.tabs.commands' },
@@ -135,6 +137,7 @@ function SettingsInner() {
         {tab === 'instructions' && <InstructionsTab scope={USER_SCOPE} scopeKey="user" />}
         {tab === 'settings' && <SettingsTab scope={USER_SCOPE} scopeKey="user" filesHref="/settings?tab=files" />}
         {tab === 'mcp' && <McpTab scope={USER_SCOPE} />}
+        {tab === 'tools' && <ToolPresetsTab />}
         {RESOURCE_TABS.includes(tab as ResourceKind) && <ResourcesTab scope={USER_SCOPE} kind={tab as ResourceKind} />}
         {tab === 'files' && <FilesTab scope={USER_SCOPE} />}
         {tab === 'memory' && <MemoryOverview />}
