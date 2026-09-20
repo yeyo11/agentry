@@ -2,7 +2,8 @@ import type { PermissionDecision, PermissionRequest, PermissionUpdate } from '@a
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCheck, ChevronLeft, ChevronRight, ClipboardList, MessageCircleQuestion, ShieldQuestion, X } from 'lucide-react';
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
-import { chatApi, chatKeys, useChatPermissions } from '../lib/chats';
+import { api, keys } from '../api';
+import { useChatPermissions } from '../lib/chats';
 import { ICON_SM } from './icons';
 import { RichText } from './Transcript';
 import { ErrorBox, TabPanel, Tabs, useTabGroup } from './ui';
@@ -35,10 +36,10 @@ function useAnswer(request: PermissionRequest) {
   const queryClient = useQueryClient();
   return useMutation({
     // `runId` on a request is the chat it belongs to
-    mutationFn: (decision: PermissionDecision) => chatApi.answerPermission(request.runId, request.id, decision),
+    mutationFn: (decision: PermissionDecision) => api.answerPermission(request.runId, request.id, decision),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: chatKeys.permissions(request.runId) });
-      void queryClient.invalidateQueries({ queryKey: chatKeys.lists });
+      void queryClient.invalidateQueries({ queryKey: keys.chatPermissions(request.runId) });
+      void queryClient.invalidateQueries({ queryKey: keys.chats });
     },
   });
 }

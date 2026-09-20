@@ -71,6 +71,13 @@ const detail = (delay: number): Target[] => [
   [keys.taskOutput, delay],
 ];
 
+// Work delegated inside a chat names the chat by its session when no process of ours runs it. The
+// chat's page shows that work as its branches, so it reads again when the work moves.
+const chatOf = (event: { runId: string; sessionId: string | null }): Target[] => {
+  const id = event.runId || event.sessionId;
+  return id ? [[keys.chatScope(id), NOW]] : [];
+};
+
 const activity = (delay: number): Target[] => [
   [keys.tasks, delay],
   [keys.subagents, delay],
@@ -106,25 +113,25 @@ export function targetsFor(event: AgentryEvent): Target[] {
       return [[keys.accounts, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, NOW]];
     case 'task.started':
     case 'task.ended':
-      return [[keys.tasks, NOW], ...detail(NOW), [keys.overview, OVERVIEW]];
+      return [[keys.tasks, NOW], ...detail(NOW), ...chatOf(event), [keys.chats, NOW], [keys.overview, OVERVIEW]];
     case 'subagent.started':
     case 'subagent.ended':
-      return [[keys.subagents, NOW], ...detail(NOW), [keys.overview, OVERVIEW]];
+      return [[keys.subagents, NOW], ...detail(NOW), ...chatOf(event), [keys.chats, NOW], [keys.overview, OVERVIEW]];
     case 'subagent.updated':
-      return [[keys.subagents, NOW], [keys.agentDetail, NOW]];
+      return [[keys.subagents, NOW], [keys.agentDetail, NOW], ...chatOf(event)];
     case 'workflow.progress':
-      return [[keys.workflows, NOW], [keys.agentDetail, NOW]];
+      return [[keys.workflows, NOW], [keys.agentDetail, NOW], ...chatOf(event)];
     case 'workflow.ended':
-      return [[keys.workflows, NOW], [keys.agentDetail, NOW], [keys.overview, OVERVIEW]];
+      return [[keys.workflows, NOW], [keys.agentDetail, NOW], ...chatOf(event), [keys.overview, OVERVIEW]];
     case 'orchestration.updated':
     case 'orchestration.conflict':
       return [
-        [keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW],
+        [keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW], [keys.chats, NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW],
       ];
     case 'orchestration.removed':
       return [[keys.orchestrations, NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW]];
     case 'orchestration.task':
-      return [[keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW]];
+      return [[keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW], [keys.chats, NOW]];
     case 'sessions.changed':
       // Chats begun in a terminal are read from disk, so their tasks, subagents and workflows move with it
       return [

@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Combobox, Select } from '../../components/controls';
 import { ErrorBox, MODEL_OPTIONS, PERMISSION_MODES } from '../../components/ui';
-import { chatApi, chatKeys } from '../../lib/chats';
+import { api, keys } from '../../api';
 import type { StartChoices } from './Composer';
 
 /*
@@ -15,10 +15,10 @@ export function LiveSettings({ chat }: { chat: Chat }) {
   const queryClient = useQueryClient();
   const [model, setModel] = useState('');
   const update = useMutation({
-    mutationFn: (change: { permissionMode?: PermissionMode; model?: string }) => chatApi.update(chat.id, change),
+    mutationFn: (change: { permissionMode?: PermissionMode; model?: string }) => api.updateChat(chat.id, change),
     onSuccess: () => {
       setModel('');
-      void queryClient.invalidateQueries({ queryKey: chatKeys.chat(chat.id) });
+      void queryClient.invalidateQueries({ queryKey: keys.chatScope(chat.id) });
     },
   });
   const current = chat.execution;

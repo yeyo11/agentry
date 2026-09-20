@@ -212,6 +212,15 @@ a:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+/* A link in running text cannot be told from it by colour alone: the accent against the text is under 3:1 */
+p a:not([class]),
+.state a:not([class]),
+.small a:not([class]),
+.muted a:not([class]),
+.field-hint a:not([class]) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 code,
 .mono {

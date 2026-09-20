@@ -16,7 +16,7 @@ import { Link } from 'react-router-dom';
 import { api, keys, useChats, useOrchestrations, useOverview, useUsage } from '../../api';
 import { ICON_SM } from '../../components/icons';
 import { ProgressRing } from '../../components/motion';
-import { Card, Empty, Skeleton, StatusBadge } from '../../components/ui';
+import { Card, Empty, Skeleton, StatusBadge, Tag } from '../../components/ui';
 import { detailHref } from '../../lib/detail';
 import { formatCost, formatDuration, timeAgo, timeUntil, truncate } from '../../lib/format';
 import { inProject } from '../../lib/project-scope';
@@ -112,7 +112,7 @@ function Waiting({ rows }: { rows: InboxRow[] }) {
     <section className="card inbox" aria-labelledby="inbox-title">
       <div className="card-head">
         <h2 id="inbox-title">Waiting for you</h2>
-        <span className="badge badge-bad">{rows.length}</span>
+        <Tag tone="bad">{rows.length}</Tag>
       </div>
       <ul className="inbox-list">
         {rows.map((row) => (

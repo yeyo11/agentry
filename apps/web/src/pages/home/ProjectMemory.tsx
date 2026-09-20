@@ -127,7 +127,8 @@ function MemoryFiles({ projectId }: { projectId: string }) {
       )}
       <ErrorBox error={error} />
       <div className="master-detail">
-        <div className="master" role="list" aria-label="Memory files">
+        {/* An empty list has no items to hold, so it is not announced as one */}
+        <div className="master" {...(files.length > 0 || draft?.isNew ? { role: 'list', 'aria-label': 'Memory files' } : {})}>
           {naming !== null && (
             <form
               className="master-new"

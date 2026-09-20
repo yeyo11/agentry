@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { AttachButton, AttachmentTray, useAttachments } from '../../components/Attachments';
 import { ICON_SM } from '../../components/icons';
 import { ErrorBox } from '../../components/ui';
-import { chatApi, chatKeys } from '../../lib/chats';
+import { api, keys } from '../../api';
 
 // Its Select and Combobox are Radix controls kept out of the shell bundle this page lives in
 const StartOptions = lazy(() => import('./Controls').then((m) => ({ default: m.StartOptions })));
@@ -47,17 +47,17 @@ export function Composer({ chat, kind, onSent }: { chat: Chat; kind: ComposerKin
   const submit = useMutation({
     mutationFn: (message: string) => {
       const attachments = files.ids.length ? { attachments: files.ids } : {};
-      if (kind === 'send') return chatApi.send(chat.id, { text: message, ...attachments });
+      if (kind === 'send') return api.sendMessage(chat.id, { text: message, ...attachments });
       // A chat resumed or forked from here is answered here: permissions would otherwise be denied unasked
       const request = { prompt: message, ...attachments, permissionPrompts: 'host' as const, ...choices };
-      return kind === 'resume' ? chatApi.resume(chat.id, request) : chatApi.fork(chat.id, request);
+      return kind === 'resume' ? api.resumeChat(chat.id, request) : api.forkChat(chat.id, request);
     },
     onSuccess: (result) => {
       setText('');
       files.clear();
       onSent();
-      void queryClient.invalidateQueries({ queryKey: chatKeys.lists });
-      void queryClient.invalidateQueries({ queryKey: chatKeys.chat(chat.id) });
+      void queryClient.invalidateQueries({ queryKey: keys.chats });
+      void queryClient.invalidateQueries({ queryKey: keys.chatScope(chat.id) });
       if (kind === 'fork') navigate(`/chats/${result.id}`);
     },
   });

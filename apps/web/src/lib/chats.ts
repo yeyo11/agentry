@@ -1,208 +1,19 @@
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { TRANSCRIPT_PAGE_MAX } from '@agentry/shared';
-import type {
-  AgentTranscript,
-  ApiError,
-  BackgroundTaskOutput,
-  Chat,
-  ChatBackgroundTask,
-  ChatDetail,
-  ChatMessageRequest,
-  ChatOrigin,
-  ChatSettingsUpdate,
-  ChatSummary,
-  ForkChatRequest,
-  PermissionDecision,
-  PermissionRequest,
-  ResumeChatRequest,
-  RunEvent,
-  TranscriptSearchResult,
-} from '@agentry/shared';
-import { ApiRequestError } from '../api';
-import { useAgentryEvents, useFallbackInterval } from './feed';
-
-/*
- * Everything the web asks the server about chats. The routes are `/chats/*`; nothing here knows
- * what a run or a session is.
- */
-
-const BASE = '/api';
-const REQUEST_TIMEOUT_MS = 120_000;
-const enc = encodeURIComponent;
-
-async function call<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
-  const hasBody = init.body !== undefined;
-  let res: Response;
-  try {
-    res = await fetch(`${BASE}${path}`, {
-      method: init.method ?? 'GET',
-      headers: hasBody ? { 'content-type': 'application/json' } : undefined,
-      body: hasBody ? JSON.stringify(init.body) : undefined,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'TimeoutError') {
-      throw new ApiRequestError('The server did not answer in time. It may still be working — reload to see the current state.', 408);
-    }
-    throw err;
-  }
-  const text = await res.text();
-  let json: unknown = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    // non-JSON body (e.g. proxy error page)
-  }
-  if (!res.ok) {
-    const err = json as Partial<ApiError> | null;
-    throw new ApiRequestError(err?.error ?? `HTTP ${res.status} ${res.statusText}`, res.status, err?.detail);
-  }
-  return json as T;
-}
-
-function qs(params: Record<string, string | undefined>): string {
-  const pairs = Object.entries(params).filter((e): e is [string, string] => e[1] !== undefined && e[1] !== '');
-  return pairs.length ? `?${pairs.map(([k, v]) => `${k}=${enc(v)}`).join('&')}` : '';
-}
-
-const num = (value: number | undefined) => (value === undefined ? undefined : String(value));
-
-/** Which chats a list asks for. `project: null` is the loose ones; leave it out for every project. */
-export interface ChatQuery {
-  origins: readonly ChatOrigin[];
-  project?: string | null;
-}
-
-export const chatApi = {
-  list: (query: ChatQuery) =>
-    call<ChatSummary[]>(
-      `/chats${qs({ origin: query.origins.join(','), ...(query.project === null ? { loose: '1' } : { project: query.project }) })}`,
-    ),
-  detail: (id: string, sidechains: boolean, page: { limit?: number; before?: number } = {}) =>
-    call<ChatDetail>(`/chats/${enc(id)}${qs({ sidechains: sidechains ? '1' : undefined, limit: num(page.limit), before: num(page.before) })}`),
-  search: (id: string, q: string, sidechains: boolean) =>
-    call<TranscriptSearchResult>(`/chats/${enc(id)}/search${qs({ q, sidechains: sidechains ? '1' : undefined })}`),
-  resume: (id: string, request: ResumeChatRequest) => call<ChatSummary>(`/chats/${enc(id)}/resume`, { method: 'POST', body: request }),
-  fork: (id: string, request: ForkChatRequest) => call<ChatSummary>(`/chats/${enc(id)}/fork`, { method: 'POST', body: request }),
-  send: (id: string, message: ChatMessageRequest) => call<ChatSummary>(`/chats/${enc(id)}/messages`, { method: 'POST', body: message }),
-  stop: (id: string) => call<ChatSummary>(`/chats/${enc(id)}/stop`, { method: 'POST' }),
-  interrupt: (id: string) => call<ChatSummary>(`/chats/${enc(id)}/interrupt`, { method: 'POST' }),
-  update: (id: string, update: ChatSettingsUpdate) => call<ChatSummary>(`/chats/${enc(id)}`, { method: 'PATCH', body: update }),
-  remove: (id: string) => call<{ ok: true }>(`/chats/${enc(id)}`, { method: 'DELETE' }),
-  permissions: (id: string) => call<PermissionRequest[]>(`/chats/${enc(id)}/permissions`),
-  answerPermission: (id: string, requestId: string, decision: PermissionDecision) =>
-    call<PermissionRequest>(`/chats/${enc(id)}/permissions/${enc(requestId)}`, { method: 'POST', body: decision }),
-  tasks: (id: string) => call<ChatBackgroundTask[]>(`/chats/${enc(id)}/tasks`),
-  taskOutput: (id: string, taskId: string, offset?: number) =>
-    call<BackgroundTaskOutput>(`/chats/${enc(id)}/tasks/${enc(taskId)}/output${qs({ offset: num(offset) })}`),
-  subagent: (id: string, agentId: string, after?: number) =>
-    call<AgentTranscript>(`/chats/${enc(id)}/subagents/${enc(agentId)}${qs({ after: num(after) })}`),
-  workflowAgent: (id: string, workflowId: string, agentId: string, after?: number) =>
-    call<AgentTranscript>(`/chats/${enc(id)}/workflows/${enc(workflowId)}/agents/${enc(agentId)}${qs({ after: num(after) })}`),
-};
-
-export const chatKeys = {
-  /** Prefix of every list, whatever it asks for */
-  lists: ['chats'] as const,
-  list: (query: ChatQuery) => ['chats', [...query.origins].sort().join(','), query.project === undefined ? 'all' : (query.project ?? 'loose')] as const,
-  /** Prefix of a chat's page and everything read for it */
-  chat: (id: string) => ['chat', id] as const,
-  detail: (id: string, sidechains: boolean) => ['chat', id, 'detail', sidechains] as const,
-  permissions: (id: string) => ['chat', id, 'permissions'] as const,
-  tasks: (id: string) => ['chat', id, 'tasks'] as const,
-  agent: (id: string, workflowId: string, agentId: string) => ['chat', id, 'agent', workflowId, agentId] as const,
-  taskOutput: (id: string, taskId: string) => ['chat', id, 'task-output', taskId] as const,
-};
-
-// ---------- staying fresh ----------
-
-// Delays fold a burst of events into one refetch. A transcript being written makes the server say
-// "changed" every second, and the list is the expensive thing to read.
-const NOW = 100;
-const SLOW = 2500;
-
-/** Marks chat queries stale as the server's events say so; a query nobody has mounted is only marked, not fetched. */
-function invalidateFor(client: QueryClient, timers: Map<string, ReturnType<typeof setTimeout>>) {
-  return (key: readonly unknown[], delay: number) => {
-    const id = JSON.stringify(key);
-    if (timers.has(id)) return;
-    timers.set(
-      id,
-      setTimeout(() => {
-        timers.delete(id);
-        void client.invalidateQueries({ queryKey: key });
-      }, delay),
-    );
-  };
-}
-
-/**
- * Keeps the chat queries of the page fresh from the app's one event connection, so no page polls
- * while it is open. Mount it in every page that reads chats.
- */
-export function useChatFeed(): void {
-  const client = useQueryClient();
-  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  const schedule = invalidateFor(client, timers.current);
-  useEffect(() => {
-    const pending = timers.current;
-    return () => {
-      for (const timer of pending.values()) clearTimeout(timer);
-      pending.clear();
-    };
-  }, []);
-
-  useAgentryEvents((event) => {
-    // Work delegated inside a chat names the chat by its session when it has no process of ours
-    const chat = 'runId' in event ? (event.runId || ('sessionId' in event ? event.sessionId : null)) : null;
-    switch (event.type) {
-      case 'run.created':
-      case 'run.updated':
-      case 'run.ended':
-      case 'run.removed':
-      case 'run.waiting':
-      case 'permission.requested':
-      case 'permission.resolved':
-      case 'run.rateLimited':
-      case 'run.accountRotated':
-      case 'task.started':
-      case 'task.ended':
-      case 'subagent.started':
-      case 'subagent.updated':
-      case 'subagent.ended':
-      case 'workflow.progress':
-      case 'workflow.ended':
-        schedule(chatKeys.lists, NOW);
-        if (chat) schedule(chatKeys.chat(chat), NOW);
-        return;
-      case 'orchestration.task':
-      case 'orchestration.updated':
-        // Whether a worker may be written to depends on its task
-        schedule(chatKeys.lists, NOW);
-        return;
-      case 'sessions.changed':
-        schedule(chatKeys.lists, SLOW);
-        schedule(['chat'], SLOW);
-        return;
-      default:
-        return;
-    }
-  });
-}
+import type { AgentTranscript, Chat, RunEvent } from '@agentry/shared';
+import { api, BASE, enc, keys } from '../api';
+import { useFallbackInterval } from './feed';
 
 // ---------- reads ----------
 
-export const useChats = (query: ChatQuery) =>
-  useQuery({ queryKey: chatKeys.list(query), queryFn: () => chatApi.list(query), refetchInterval: useFallbackInterval() });
-
 /** A chat's own tasks, for the panel that shows one of them: it may be open on a page that holds no chat. */
 export const useChatTasks = (id: string) =>
-  useQuery({ queryKey: chatKeys.tasks(id), queryFn: () => chatApi.tasks(id), refetchInterval: useFallbackInterval() });
+  useQuery({ queryKey: keys.chatTasks(id), queryFn: () => api.chatTasks(id), refetchInterval: useFallbackInterval() });
 
 export const useChatPermissions = (id: string, live: boolean) => {
   const fallback = useFallbackInterval();
-  return useQuery({ queryKey: chatKeys.permissions(id), queryFn: () => chatApi.permissions(id), refetchInterval: live ? fallback : false });
+  return useQuery({ queryKey: keys.chatPermissions(id), queryFn: () => api.chatPermissions(id), refetchInterval: live ? fallback : false });
 };
 
 export interface Paged<T> {
@@ -316,13 +127,13 @@ function usePages<T>(
 export function useChatTranscript(id: string, sidechains: boolean) {
   const fallback = useFallbackInterval();
   const query = useQuery({
-    queryKey: chatKeys.detail(id, sidechains),
-    queryFn: () => chatApi.detail(id, sidechains),
+    queryKey: keys.chat(id, sidechains),
+    queryFn: () => api.chat(id, sidechains),
     // Only a chat something is working on changes by itself; the events say when, and this covers the feed being down
     refetchInterval: (q) => (q.state.data && (q.state.data.chat.execution || q.state.data.chat.state !== 'idle') ? fallback : false),
   });
   const fetchBefore = useCallback(
-    (before: number, limit?: number) => chatApi.detail(id, sidechains, { before, limit }).then((d) => ({ items: d.entries, from: d.from, total: d.total })),
+    (before: number, limit?: number) => api.chat(id, sidechains, { before, limit }).then((d) => ({ items: d.entries, from: d.from, total: d.total })),
     [id, sidechains],
   );
   const page = query.data ? { items: query.data.entries, from: query.data.from, total: query.data.total } : undefined;
@@ -387,7 +198,7 @@ export function useChatStream(id: string, enabled: boolean): { partial: Streamin
         next = null;
         // Wait for the CLI to write what was just said before asking for it
         clearTimeout(stale);
-        stale = setTimeout(() => void client.invalidateQueries({ queryKey: chatKeys.chat(id) }), 400);
+        stale = setTimeout(() => void client.invalidateQueries({ queryKey: ['chat', id] }), 400);
       } else {
         return;
       }
@@ -432,14 +243,14 @@ export interface AgentRef {
 export function useAgentDetail(ref: AgentRef, running: boolean) {
   const client = useQueryClient();
   const fallback = useFallbackInterval();
-  const key = chatKeys.agent(ref.chatId, ref.workflowId ?? '', ref.agentId);
+  const key = keys.agent(ref.chatId, ref.workflowId ?? '', ref.agentId);
   return useQuery({
     queryKey: key,
     queryFn: async (): Promise<AgentTranscript> => {
       const before = client.getQueryData<AgentTranscript>(key);
       const next = ref.workflowId
-        ? await chatApi.workflowAgent(ref.chatId, ref.workflowId, ref.agentId, before?.total)
-        : await chatApi.subagent(ref.chatId, ref.agentId, before?.total);
+        ? await api.workflowAgent(ref.chatId, ref.workflowId, ref.agentId, before?.total)
+        : await api.subagent(ref.chatId, ref.agentId, before?.total);
       // `from` is 0 when the server had to start over (the file was rewritten): then it is all there is
       if (!before || next.from === 0) return next;
       return { ...next, entries: [...before.entries.slice(0, next.from), ...next.entries], from: 0 };
@@ -465,7 +276,7 @@ export interface FollowedOutput {
 export function useTaskOutput(chatId: string, taskId: string, running: boolean) {
   const client = useQueryClient();
   const fallback = useFallbackInterval();
-  const key = chatKeys.taskOutput(chatId, taskId);
+  const key = keys.output(chatId, taskId);
   return useQuery({
     queryKey: key,
     queryFn: async (): Promise<FollowedOutput> => {
@@ -475,7 +286,7 @@ export function useTaskOutput(chatId: string, taskId: string, running: boolean) 
       let offset = before?.offset;
       let bytes = before?.bytes ?? 0;
       for (let i = 0; i < MAX_OUTPUT_CHUNKS; i++) {
-        const chunk = await chatApi.taskOutput(chatId, taskId, offset);
+        const chunk = await api.taskOutput(chatId, taskId, offset);
         if (offset === undefined || chunk.reset) {
           text = chunk.output;
           cutHead = chunk.truncated;

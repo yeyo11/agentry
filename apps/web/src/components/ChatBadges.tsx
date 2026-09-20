@@ -3,7 +3,6 @@ import { CircleCheck, CirclePause, Cog, Hand, Lock, Network, OctagonX, Play, Ter
 import { contextLevel, contextShare, formatPercent, formatTokens, lastEnded, ORIGIN_LABEL, OUTCOME_LABEL, STATE_LABEL } from '../lib/chat-model';
 import '../chats.css';
 import { Tooltip } from './controls/Tooltip';
-import { ICON_SM } from './icons';
 
 /*
  * What a chat is, said the same way wherever it appears: in words and with an icon, never with a

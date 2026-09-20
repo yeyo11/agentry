@@ -6,7 +6,7 @@ import { Checkbox, Select } from '../components/controls';
 import { ContextMeter, ControlBadge, LastOutcome, OriginBadge, StateBadge } from '../components/ChatBadges';
 import { ICON_SM } from '../components/icons';
 import { Card, Empty, ErrorBox, PageHeader, Segmented, Skeleton } from '../components/ui';
-import { useChatFeed, useChats } from '../lib/chats';
+import { useChats } from '../api';
 import {
   ALL_ORIGINS,
   formatUsd,
@@ -80,7 +80,6 @@ function ChatRow({ chat }: { chat: ChatSummary }) {
 }
 
 export function Chats() {
-  useChatFeed();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [shown, setShown] = useState(PAGE);
@@ -99,7 +98,7 @@ export function Chats() {
   const project = scope === null ? undefined : scope === 'loose' ? null : scope;
 
   const filters: ChatFilters = { origins, state, workers, internal, search };
-  const chats = useChats({ origins: originsToFetch(filters), ...(project !== undefined ? { project } : {}) });
+  const chats = useChats({ origin: originsToFetch(filters), ...(project !== undefined ? { project } : {}) });
 
   const patch = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(params);
