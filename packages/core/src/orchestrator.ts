@@ -341,6 +341,7 @@ export class Orchestrator {
         cwd: t.cwd,
         model: t.model,
         status: 'pending',
+        attempts: 0,
         runId: null,
         sessionId: null,
         result: null,

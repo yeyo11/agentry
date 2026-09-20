@@ -52,6 +52,19 @@ export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { loadConfig, type CoreConfig } from './paths.ts';
 export type { RunResult } from './runner.ts';
 export { DEFAULT_AUTO_SWITCH } from './accounts.ts';
+export {
+  chatControl,
+  chatState,
+  executionOutcome,
+  sessionHolder,
+  stateFromCliAgent,
+  stateFromRun,
+  type CliAgentFacts,
+  type ControlFacts,
+  type RunFacts,
+  type SessionHolder,
+} from './chat-model.ts';
+export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
 export { Db } from './db.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
 

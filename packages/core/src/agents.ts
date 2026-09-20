@@ -1,6 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
-import { entryText, normalizeMessage, type AgentTokenUsage, type TranscriptEntry } from '@agentry/shared';
+import { entryText, normalizeMessage, type TokenUsage, type TranscriptEntry } from '@agentry/shared';
+import { emptyTokenUsage, UsageFold } from './usage.ts';
 
 // A subagent's conversation is kept beside its session's transcript, one file per agent:
 //
@@ -20,7 +21,7 @@ export const WORKFLOW_RUN_ID_RE = /^wf_[A-Za-z0-9_-]{1,128}$/;
 export interface AgentFileRead {
   /** Every normalised entry, in order */
   entries: TranscriptEntry[];
-  usage: AgentTokenUsage;
+  usage: TokenUsage;
   toolCalls: number;
   model: string | null;
   cwd: string | null;
@@ -36,7 +37,7 @@ export interface AgentFileRead {
 export function emptyAgentRead(): AgentFileRead {
   return {
     entries: [],
-    usage: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },
+    usage: emptyTokenUsage(),
     toolCalls: 0,
     model: null,
     cwd: null,
@@ -47,18 +48,13 @@ export function emptyAgentRead(): AgentFileRead {
   };
 }
 
-const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-
 /**
  * One agent's transcript in one pass: the normalised conversation plus what is summed or picked
  * out of it. Lines still being written by a live agent are skipped, not fatal.
  */
 export async function readAgentFile(file: string): Promise<AgentFileRead> {
   const read = emptyAgentRead();
-  // The CLI writes one line per content block of an assistant message, each carrying the whole
-  // message's usage: summing lines would count a message once per block. The last line of an id
-  // holds its final figures.
-  const usageByMessage = new Map<string, Record<string, unknown>>();
+  const fold = new UsageFold();
   const rl = createInterface({ input: createReadStream(file, 'utf8'), crlfDelay: Infinity });
   for await (const line of rl) {
     if (!line) continue;
@@ -84,18 +80,8 @@ export async function readAgentFile(file: string): Promise<AgentFileRead> {
     read.toolCalls += entry.blocks.filter((b) => b.type === 'tool_use').length;
     const text = entryText(entry).trim();
     if (text) read.result = text;
-    const message = o.message as { id?: unknown; usage?: unknown } | undefined;
-    if (message?.usage && typeof message.usage === 'object') {
-      usageByMessage.set(typeof message.id === 'string' ? message.id : entry.uuid, message.usage as Record<string, unknown>);
-    }
+    fold.add(o, entry);
   }
-  for (const u of usageByMessage.values()) {
-    read.usage.input += num(u.input_tokens);
-    read.usage.output += num(u.output_tokens);
-    read.usage.cacheRead += num(u.cache_read_input_tokens);
-    read.usage.cacheCreation += num(u.cache_creation_input_tokens);
-  }
-  const { input, output, cacheRead, cacheCreation } = read.usage;
-  read.usage.total = input + output + cacheRead + cacheCreation;
+  read.usage = fold.total();
   return read;
 }
