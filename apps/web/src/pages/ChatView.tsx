@@ -18,6 +18,7 @@ import { api, keys } from '../api';
 import { useChatStream, useChatTranscript } from '../lib/chats';
 import { formatDateTime } from '../lib/format';
 import { Composer, type ComposerKind } from './chat/Composer';
+import { ChatActivityCard, ChatChangesCard } from '../components/observe/Work';
 import { BranchesCard, EnvironmentCard, ExecutionsCard, FactsCard, HealthCard, UsageCard } from './chat/Side';
 import { ToolsCard } from './chat/ToolsCard';
 
@@ -260,6 +261,8 @@ export function ChatView() {
         <BranchesCard chat={chat} />
         <HealthCard chat={chat} />
         <ToolsCard chat={chat} />
+        <ChatActivityCard chat={chat} entries={transcript.items} />
+        <ChatChangesCard chat={chat} />
         <EnvironmentCard chat={chat} />
       </aside>
     </div>

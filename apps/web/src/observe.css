@@ -1,0 +1,206 @@
+/* ---------- what an agent is really doing: changes, checklist, health, editor links ---------- */
+
+.obs-panel {
+  scroll-margin-top: calc(var(--topbar-h) + 12px);
+}
+.obs-panel-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.obs-section {
+  padding-top: 4px;
+}
+.obs-head,
+.obs-subhead {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.obs-subhead {
+  text-transform: none;
+  font-size: 13px;
+  letter-spacing: 0;
+  color: var(--text);
+}
+
+/* Added and removed lines: the sign carries the meaning, the colour only reinforces it */
+.obs-add {
+  color: var(--ok);
+}
+.obs-del {
+  color: var(--bad);
+}
+.obs-counts {
+  white-space: nowrap;
+}
+
+/* Files and commits */
+.obs-files,
+.obs-commits,
+.obs-checklist,
+.obs-signals,
+.obs-hunks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.obs-file {
+  min-width: 0;
+}
+.obs-file-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.obs-file-name {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+span.obs-file-name {
+  cursor: default;
+}
+button.obs-file-name:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.obs-commits li {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.obs-commit-subject {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.obs-diff {
+  margin: 6px 0 4px;
+  min-width: 0;
+}
+.obs-diff .code-block {
+  max-height: 60vh;
+  overflow: auto;
+}
+.obs-hunks {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.obs-hunks li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* The worker's own plan */
+.obs-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+}
+.obs-check svg {
+  flex: none;
+  margin-top: 2px;
+}
+.obs-check-completed svg {
+  color: var(--ok);
+}
+.obs-check-completed {
+  color: var(--text-muted);
+}
+.obs-check-in_progress svg {
+  color: var(--info);
+}
+.obs-check-in_progress {
+  font-weight: 600;
+}
+
+/* What it is doing now */
+.obs-now p {
+  margin: 0;
+}
+.obs-running {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.obs-running svg {
+  flex: none;
+  margin-top: 3px;
+}
+
+/* Health and the ways to step in */
+.obs-health-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.obs-signals {
+  gap: 10px;
+}
+.obs-signal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-strong);
+}
+.obs-signal-warn {
+  border-left-color: var(--warn);
+}
+.obs-signal-bad {
+  border-left-color: var(--bad);
+}
+.obs-signal-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+}
+.obs-signal-line svg {
+  flex: none;
+  margin-top: 2px;
+}
+.obs-signal-warn .obs-signal-line svg {
+  color: var(--warn);
+}
+.obs-signal-bad .obs-signal-line svg {
+  color: var(--bad);
+}
+
+/* The editor settings */
+.obs-map {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.obs-map-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.obs-map-row input {
+  flex: 1 1 0;
+  min-width: 0;
+}

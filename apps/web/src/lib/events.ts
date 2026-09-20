@@ -60,6 +60,7 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'orchestration.removed': true,
   'orchestration.task': true,
   'orchestration.conflict': true,
+  'changes.updated': true,
   'health.changed': true,
   'sessions.changed': true,
 };
@@ -133,6 +134,9 @@ export function targetsFor(event: AgentryEvent): Target[] {
       return [[keys.orchestrations, NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW]];
     case 'orchestration.task':
       return [[keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW], [keys.chats, NOW]];
+    case 'changes.updated':
+      // Whatever the board reads about this graph's branches sits under its key, changes included
+      return [[keys.orchestration(event.orchestrationId), NOW]];
     case 'health.changed':
       // Health is read with the chat, and with the graph for a worker
       return [

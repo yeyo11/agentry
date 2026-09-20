@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ChevronRight, Combine, ExternalLink, GitMerge, GitPullRequest, MessageSquare, Play, RotateCw, Save, Square, Target, Trash2, Waypoints } from 'lucide-react';
 import { useId, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, keys, useOrchestration } from '../api';
 import { Collapsible, Switch } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
@@ -11,6 +11,7 @@ import { useToast } from '../components/Toast';
 import { ICON, ICON_SM } from '../components/icons';
 import { BoardStatusBadge, StageHead, TaskCard, WaitingNotice } from '../components/OrchestrationBoard';
 import { CodeBlock } from '../components/CodeBlock';
+import { IntegrationChanges, TaskWork } from '../components/observe/Work';
 import { RichText } from '../components/Transcript';
 import { Card, ErrorBox, Field, Loading, PageHeader, StatusBadge } from '../components/ui';
 import { durationBetween, formatCost, formatDateTime, shortPath } from '../lib/format';
@@ -45,7 +46,7 @@ function layerTasks(tasks: OrchestrationTaskState[]): OrchestrationTaskState[][]
  * where it stands and offers the steps that stay a person's call: publishing it, and cleaning up.
  */
 function IntegrationCard({ orch }: { orch: Orchestration }) {
-  const { t } = useTranslation(['orchestrationDetail', 'config', 'common']);
+  const { t } = useTranslation(['orchestrationDetail', 'config', 'common', 'observe']);
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
@@ -170,6 +171,11 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
             </ul>
           )}
           {integration.error && <div className="alert alert-warn small">{integration.error}</div>}
+          {integration.worktree && (
+            <Collapsible className="fold" title={t('observe:changes.integrationTitle')}>
+              <IntegrationChanges orch={orch} />
+            </Collapsible>
+          )}
         </>
       ) : (
         <p className="muted small">{t('config:detail.legacy', { count: branches })}</p>
@@ -334,6 +340,7 @@ export function OrchestrationDetail() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const boardId = useId();
+  const [params, setParams] = useSearchParams();
   const [resuming, setResuming] = useState(false);
   const resume = useMutation({
     mutationFn: (changes: ResumeOrchestrationRequest) => api.resumeOrchestration(id, changes),
@@ -354,6 +361,9 @@ export function OrchestrationDetail() {
   if (!orch) return <ErrorBox error={error ?? new Error(t('config:detail.notFound'))} />;
 
   const layers = layerTasks(orch.tasks);
+  // Which task's work is open under the board: in the address, so a link to it opens the same panel
+  const inspected = orch.tasks.find((task) => task.id === params.get('task')) ?? null;
+  const inspect = (taskId: string | null) => setParams(taskId ? { task: taskId } : {}, { replace: true });
   const { other } = costSplit(orch);
   // Workers die with the wrapper, so an interrupted graph can be picked up from where it stopped.
   const unfinished = orch.tasks.filter((t) => t.status !== 'completed').length;
@@ -470,7 +480,7 @@ export function OrchestrationDetail() {
               )}
               <StageHead title={level === 0 ? t('config:detail.firstStage') : t('config:detail.stage', { n: level + 1 })} tasks={layer} />
               {layer.map((task) => (
-                <TaskCard key={task.id} orch={orch} task={task} />
+                <TaskCard key={task.id} orch={orch} task={task} inspected={inspected?.id === task.id} onInspect={() => inspect(inspected?.id === task.id ? null : task.id)} />
               ))}
             </li>
           ))}
@@ -500,6 +510,8 @@ export function OrchestrationDetail() {
           )}
         </ol>
       </section>
+
+      {inspected && <TaskWork orch={orch} task={inspected} onClose={() => inspect(null)} />}
 
       {orch.engine === 'workflow' ? <WorkflowCard orch={orch} /> : <IntegrationCard orch={orch} />}
 

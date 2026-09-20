@@ -119,6 +119,19 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
     ok: ref('ChatDetail'),
   }),
   'GET /chats/:id/search': d('Chats', 'Search the whole transcript', { description: 'Case-insensitive plain-text match over what the transcript view shows of each entry: text, thinking, tool names and inputs, tool results. Any run of whitespace in `q` matches any run in the text. One hit per matching entry, `index` in the same space as a page\'s `from` and `total`, so a hit on a page not loaded yet is reached by reading back to it. At most 500 hits, the newest; `truncated` says older ones were left out.', querystring: obj({ q: str('Text to find (required, up to 200 characters)'), sidechains: str('`1` includes subagent messages, as the page read with it does') }, ['q']), ok: ref('TranscriptSearchResult') }),
+  'GET /chats/:id/changes': d('Chats', 'What a chat changed on disk', {
+    description: 'For a chat in a git worktree, the branch, its base, the commits and the files it changed against that base, and what it has not committed yet. Any chat also gets the files its `Write`/`Edit`/`NotebookEdit` calls touched, read from the transcript, so a chat outside git still answers. A worker of an orchestration is measured from where its own branch was cut.',
+    ok: ref('ChatChanges'),
+  }),
+  'GET /chats/:id/changes/diff': d('Chats', 'The diff of one file of a chat in a worktree', {
+    description: "Everything the branch did to the file since its base, committed or not. A file created and not yet added shows as all new. Refused for a chat with no worktree of its own.",
+    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    ok: ref('FileDiff'),
+  }),
+  'GET /chats/:id/checklist': d('Chats', "The chat's own checklist", {
+    description: 'The plan the agent kept with its `TaskCreate`/`TaskUpdate` or `TodoWrite` calls, as of its last update. Empty for one that never planned.',
+    ok: ref('Checklist'),
+  }),
   'GET /chats/:id/stream': d('Chats', 'Live event stream (Server-Sent Events)', {
     description:
       'Replays buffered events with `seq > since` (or `Last-Event-ID`), then streams live ones. Each message is `data: <RunEvent JSON>`. Ephemeral `partial` events carry the text generated so far (token streaming); they have no SSE id and are never replayed. Only a chat Agentry has driven has a stream; to follow one, take the last event\'s `seq` from the page you hold and pass it as `since`.',
@@ -172,6 +185,27 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /orchestrations/templates/:templateId/launch': d('Orchestration', 'Launch an orchestration template', { description: "Launches the template's graph with a new `objective`, `cwd`, `name` or `model`; what is given applies to this run only, and the template is not changed. The orchestration records the template in `templateId`.", body: ref('LaunchOrchestrationTemplateRequest'), ok: ref('Orchestration'), created: true }),
   'POST /orchestrations/:id/tasks/:taskId/skip': d('Orchestration', 'Give a branch up', { description: 'Skips a failed or blocked task and every task that depends on it, so the graph can finish without them. Nothing is deleted. A graph waiting on nothing else then integrates and synthesises.', ok: ref('Orchestration') }),
   'POST /orchestrations/:id/tasks/:taskId/hint': d('Orchestration', 'Send a hint to a running worker', { description: 'A nudge for a worker whose task is still running, delivered as a message to its chat. Refused for a task that finished: its result already fed the tasks that depend on it, and its way forward is a fork of its chat.', body: ref('TaskHintRequest'), ok: ref('Orchestration') }),
+  'GET /orchestrations/:id/tasks/:taskId/changes': d('Orchestration', 'What a task changed on disk', {
+    description: "The task's branch, the commit it started from (its dependencies' work is not counted as its own), the commits and the files it changed since, and what it has not committed yet. Refused for a graph without worktrees. A task that has not started has an empty summary. Announced by a `changes.updated` event while the worker runs.",
+    ok: ref('ChangeSummary'),
+  }),
+  'GET /orchestrations/:id/tasks/:taskId/changes/diff': d('Orchestration', 'The diff of one file of a task', {
+    description: 'Everything the task did to the file since it started, committed or not. A file created and not yet added shows as all new.',
+    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    ok: ref('FileDiff'),
+  }),
+  'GET /orchestrations/:id/tasks/:taskId/checklist': d('Orchestration', "A task's own checklist", {
+    description: "The plan the worker kept with its `TaskCreate`/`TaskUpdate` or `TodoWrite` calls, read from its chat's transcript, as of its last update. Empty for a worker that never planned or one that has not started.",
+    ok: ref('Checklist'),
+  }),
+  'GET /orchestrations/:id/integration/changes': d('Orchestration', 'What the integration branch changed', {
+    description: "The same summary for the branch that merges every task's work, against the graph's base commit. Empty until the graph starts integrating.",
+    ok: ref('ChangeSummary'),
+  }),
+  'GET /orchestrations/:id/integration/changes/diff': d('Orchestration', 'The diff of one file of the integration branch', {
+    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    ok: ref('FileDiff'),
+  }),
   'DELETE /orchestrations/:id': d('Orchestration', 'Delete an orchestration', { description: 'Refused while it runs. Removes its worktrees and keeps their branches; refused if one holds uncommitted work, so a deletion never takes it.', ok: OK }),
   'POST /orchestrations/:id/integrate': d('Orchestration', 'Integrate the task branches again', { description: "Merges every completed task's branch into the graph's integration branch (`agentry/<name>-<id>`), handing conflicts to an integrator agent. Runs by itself when a worktree graph finishes; this retries it after resolving by hand, or integrates a graph that finished before orchestrations did so. Returns at once; follow `integration.status`.", ok: ref('Orchestration') }),
   'GET /orchestrations/:id/workflow': d('Orchestration', 'The graph as a workflow script', { description: 'The script a graph with `engine: "workflow"` runs: generated from its tasks, dependencies, concurrency and synthesis. For a graph that never ran as a workflow it is generated on the spot.', ok: obj({ path: str('Where the wrapper keeps it'), script: str() }) }),

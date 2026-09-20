@@ -20,6 +20,7 @@ import { toChatTask } from './chat-branches.ts';
 import { AGENT_ID_RE, WORKFLOW_RUN_ID_RE, emptyAgentRead, readAgentFile } from './agents.ts';
 import type { BackgroundTask, SubagentInfo, TranscriptPage, TranscriptSummary, WorkflowRun } from './cli-facts.ts';
 import type { CoreConfig } from './paths.ts';
+import { toolCallsOf, type ToolCall } from './tool-calls.ts';
 import { EntryIndex, fingerprint, parseLine, readLines, scanLines, type JsonLine } from './transcript-index.ts';
 import { UsageFold } from './usage.ts';
 import { readSessionWorkflows, readWorkflowAgent } from './workflows.ts';
@@ -752,6 +753,31 @@ export class SessionStore {
       // The file was rewritten between indexing it and reading the page: index it again, once
       if (attempt > 0) return { summary: state.summary, entries, from, total };
     }
+  }
+
+  /**
+   * Every call of the tools in `names` across a whole transcript, with its result, oldest first.
+   * Null when there is no such session. A line is parsed only when it mentions a tool at all, and
+   * whatever is not a call or a result is dropped at once, so a transcript of many megabytes is
+   * read for what a checklist or a file list needs and no more.
+   */
+  async toolCalls(sessionId: string, names: ReadonlySet<string>): Promise<ToolCall[] | null> {
+    const found = await this.findFile(sessionId);
+    if (!found) return null;
+    const entries: TranscriptEntry[] = [];
+    const rl = createInterface({ input: createReadStream(found.file, 'utf8'), crlfDelay: Infinity });
+    for await (const line of rl) {
+      if (!line.includes('tool_use')) continue;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(line);
+      } catch {
+        continue; // a half-written line of a live session
+      }
+      const entry = parsed && typeof parsed === 'object' ? normalizeMessage(parsed as Record<string, unknown>) : null;
+      if (entry?.blocks.some((b) => b.type === 'tool_use' || b.type === 'tool_result')) entries.push(entry);
+    }
+    return toolCallsOf(entries, names);
   }
 
   /**

@@ -11,6 +11,7 @@ import {
   GitFork,
   Hand,
   Hourglass,
+  ListChecks,
   MessageSquare,
   RotateCcw,
   Send,
@@ -29,6 +30,7 @@ import { durationBetween, formatCost } from '../lib/format';
 import { Collapsible } from './controls';
 import { useConfirm } from './Dialog';
 import { ICON_SM } from './icons';
+import { HealthBadge } from './observe/Health';
 import { motion, ProgressRing, useReducedMotion } from './motion';
 import { useToast } from './Toast';
 import { RichText } from './Transcript';
@@ -242,7 +244,18 @@ function TaskActions({ orch, task }: { orch: Orchestration; task: OrchestrationT
   );
 }
 
-export function TaskCard({ orch, task }: { orch: Orchestration; task: OrchestrationTaskState }) {
+export function TaskCard({
+  orch,
+  task,
+  inspected = false,
+  onInspect,
+}: {
+  orch: Orchestration;
+  task: OrchestrationTaskState;
+  /** Its work is open under the board */
+  inspected?: boolean;
+  onInspect?: () => void;
+}) {
   const { t } = useTranslation('orchestration');
   const reduced = useReducedMotion();
   const previousError = usePreviousError(task);
@@ -266,6 +279,12 @@ export function TaskCard({ orch, task }: { orch: Orchestration; task: Orchestrat
         <BoardStatusBadge status={task.status} />
         <span className="muted small">{task.startedAt ? durationBetween(task.startedAt, task.endedAt) : ''}</span>
       </div>
+      {task.status === 'running' && task.health && task.health.level !== 'ok' && (
+        <div className="stack-tight">
+          <HealthBadge health={task.health} />
+          <div className="small">{task.health.reason}</div>
+        </div>
+      )}
       <h4 id={titleId} className="board-task-name">
         {task.name || task.id}
       </h4>
@@ -319,6 +338,11 @@ export function TaskCard({ orch, task }: { orch: Orchestration; task: Orchestrat
       )}
       <TaskActions orch={orch} task={task} />
       <div className="meta">
+        {onInspect && task.status !== 'pending' && task.status !== 'blocked' && (
+          <button type="button" className="btn btn-small" aria-pressed={inspected} onClick={onInspect}>
+            <ListChecks {...ICON_SM} /> {t('board.work')}
+          </button>
+        )}
         {chat && (
           <Link to={chat} className="meta-icon">
             <MessageSquare size={12} strokeWidth={1.75} aria-hidden /> {t('board.chat')}

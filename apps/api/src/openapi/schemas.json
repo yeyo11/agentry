@@ -2150,6 +2150,13 @@
         ],
         "description": "Branch created for that worktree"
       },
+      "baseCommit": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The commit the worker started from: where its branch was cut, after any dependencies' branches were merged in. What it changed is everything since; absent on graphs older than this field, which are compared against the graph's `baseCommit`."
+      },
       "commit": {
         "type": [
           "string",
@@ -3785,6 +3792,9 @@
         "$ref": "#/components/schemas/OrchestrationConflictEvent"
       },
       {
+        "$ref": "#/components/schemas/ChangesUpdatedEvent"
+      },
+      {
         "$ref": "#/components/schemas/HealthChangedEvent"
       },
       {
@@ -5181,6 +5191,63 @@
       "type"
     ],
     "description": "Merging the tasks' branches conflicted; `paths` are what could not be merged."
+  },
+  "ChangesUpdatedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "changes.updated"
+      },
+      "orchestrationId": {
+        "type": "string"
+      },
+      "orchestrationName": {
+        "type": "string"
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null for the integration branch"
+      },
+      "branch": {
+        "type": "string"
+      },
+      "ahead": {
+        "type": "number",
+        "description": "Commits on the branch that its base lacks"
+      },
+      "uncommitted": {
+        "type": "number",
+        "description": "Files with changes that are in no commit"
+      }
+    },
+    "required": [
+      "ahead",
+      "at",
+      "branch",
+      "id",
+      "orchestrationId",
+      "orchestrationName",
+      "taskId",
+      "title",
+      "type",
+      "uncommitted"
+    ],
+    "description": "A worker committed, or its uncommitted work moved: what `GET …/changes` answers is stale. Sent for a running task and for the integration branch while it is built, at most once per few seconds each, so a commit is one event and a burst of edits is not many."
   },
   "HealthChangedEvent": {
     "type": "object",
