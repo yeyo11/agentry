@@ -92,6 +92,9 @@ export default async ({ page, api, check }) => {
     check(changes.status === 200 && changes.body.summary?.branch === 'feature/greeting', `the chat's summary is its branch (${changes.status})`);
     check(changes.body.summary.uncommitted.some((f) => f.path === 'fresh.ts'), 'a file git has never seen is among the uncommitted ones');
 
+    // Storage belongs to an origin: the settings can only be cleared once a page of the app is
+    // open, and before the chat renders, because the editor settings are read as it mounts
+    await page.goto('/', 500);
     await page.eval(`localStorage.removeItem(${JSON.stringify(EDITOR_KEY)}); return true`);
     await page.goto(`/chats/${SESSION}`, 1500);
     await page.waitFor(`return !!document.querySelector('.obs-changes')`, { label: 'the changes card' });
