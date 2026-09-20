@@ -11,7 +11,6 @@ import {
   TranscriptSearch,
   TRANSCRIPT_PAGE,
   TRANSCRIPT_PAGE_MAX,
-  type ProjectSummary,
   type SessionDetail,
   type BackgroundTask,
   type AgentTranscript,
@@ -236,11 +235,6 @@ export function pageSize(limit: number | undefined): number {
   return Math.min(Math.max(1, Math.trunc(limit)), TRANSCRIPT_PAGE_MAX);
 }
 
-export function isTemporaryPath(path: string): boolean {
-  const tmp = tmpdir();
-  return path === tmp || path.startsWith(`${tmp}/`) || path.startsWith('/tmp/') || path.startsWith('/var/tmp/');
-}
-
 /** Reads projects and sessions from ~/.claude/projects (.jsonl transcripts written by the CLI). */
 export class SessionStore {
   /** Transcript file → what reading it last left, pending while a read is under way */
@@ -352,33 +346,6 @@ export class SessionStore {
       for (const s of summaries) if (s) all.push(s);
     }
     return all.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
-  }
-
-  async listProjects(): Promise<ProjectSummary[]> {
-    const sessions = await this.listSessions();
-    const byProject = new Map<string, SessionSummary[]>();
-    for (const s of sessions) {
-      const list = byProject.get(s.projectId) ?? [];
-      list.push(s);
-      byProject.set(s.projectId, list);
-    }
-    const projects: ProjectSummary[] = [];
-    for (const [id, list] of byProject) {
-      const path = list.find((s) => s.projectPath)?.projectPath ?? id;
-      const worktree = list.find((s) => s.worktree?.path === path)?.worktree;
-      projects.push({
-        ...(worktree ? { parentPath: worktree.parentPath, worktree: { name: worktree.name, branch: worktree.branch } } : {}),
-        id,
-        path,
-        name: basename(path) || path,
-        sessionCount: list.length,
-        lastActivity: list[0]?.updatedAt ?? null,
-        activeRuns: 0,
-        temporary: isTemporaryPath(path),
-        exists: existsSync(path),
-      });
-    }
-    return projects.sort((a, b) => (b.lastActivity ?? '').localeCompare(a.lastActivity ?? ''));
   }
 
   private async findFile(sessionId: string): Promise<{ projectId: string; file: string } | null> {

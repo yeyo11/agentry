@@ -94,7 +94,7 @@ test('workspace projects', async () => {
   const workspace = new Workspace(config);
   const path = await workspace.create('my-app');
   assert.equal(path, join(config.workspaceDir, 'my-app'));
-  assert.deepEqual(await workspace.list(), [path]);
+  assert.equal(statSync(path).isDirectory(), true);
   await assert.rejects(workspace.create('my-app'), /already exists/);
   await assert.rejects(workspace.create('../escape'), /invalid project name/);
   await assert.rejects(workspace.create('repo', 'file:///etc'), /invalid git url/);

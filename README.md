@@ -287,9 +287,14 @@ transcript to the shared config dir, so sessions and history behave as usual.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/projects` | Workspace directories plus every directory with Claude Code history, with active run counts |
-| POST | `/projects` | `{ name, gitUrl? }` — create an empty project in the workspace or clone a repository into it |
-| GET | `/projects/:id/sessions` | Sessions of one project |
+| GET | `/projects` | The projects you imported, each with its worktrees and the number of chats under it |
+| GET | `/projects/candidates` | Directories chats have run in that are not projects yet, the busiest first: what a first start offers to import |
+| POST | `/projects/import` | `{ path, name? }` — import a directory; every chat under it is adopted, retroactively. A git worktree is refused |
+| POST | `/projects` | `{ name, gitUrl? }` — create an empty project in the workspace or clone a repository into it, and import it |
+| PATCH | `/projects/:id` | `{ name }` — rename a project |
+| DELETE | `/projects/:id` | Remove a project from Agentry. Harmless: nothing on disk changes |
+| GET | `/projects/:id/sessions` | Sessions under one project, its worktrees included |
+| GET | `/projects/loose/sessions` | Sessions whose directory is under no project |
 | GET | `/sessions?limit=N` | All sessions, newest first, flagged when live |
 | GET | `/sessions/:id?sidechains=1` | A window of the transcript: the newest 200 entries, or `?limit=` of them, with `from` and `total`; `?before=` the `from` of a page reads the one before it (optionally with subagent messages) |
 | DELETE | `/sessions/:id` | Delete a transcript (refused while the session is live) |
@@ -299,7 +304,7 @@ transcript to the shared config dir, so sessions and history behave as usual.
 | GET | `/sessions/:id/tasks/:taskId/output` | What one of them printed: the last 64 KiB, or with `?offset=` only what came after that byte |
 | GET | `/sessions/:id/subagents/:agentId` | One subagent: prompt, outcome, token usage and full transcript (`?after=` to append) |
 | GET | `/sessions/:id/workflows/:runId/agents/:agentId` | The same for an agent a workflow launched |
-| DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible |
+| DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible, and separate from removing the project |
 
 ### Events
 
@@ -463,7 +468,7 @@ loaded into every session of that project.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/memory` | Projects with their memory file counts |
+| GET | `/memory` | Imported projects with their memory file counts |
 | GET | `/memory/:project` | Memory files of a project (index first), with parsed `description` and `type` |
 | PUT | `/memory/:project/:name` | Create or overwrite `name.md` — body `{ content }` |
 | DELETE | `/memory/:project/:name` | Delete a memory file |

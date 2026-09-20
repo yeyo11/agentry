@@ -32,18 +32,6 @@ export class MemoryStore {
     return join(this.dir(projectId), name);
   }
 
-  /** Project ids that have a non-empty memory dir, including projects without any session yet. */
-  async projectIds(): Promise<string[]> {
-    const entries = await readdir(this.config.projectsDir, { withFileTypes: true }).catch(() => []);
-    const ids: string[] = [];
-    for (const entry of entries) {
-      if (!entry.isDirectory() || !PROJECT_RE.test(entry.name)) continue;
-      const names = await readdir(join(this.config.projectsDir, entry.name, 'memory')).catch(() => [] as string[]);
-      if (names.some((n) => NAME_RE.test(n))) ids.push(entry.name);
-    }
-    return ids;
-  }
-
   async list(projectId: string): Promise<MemoryFile[]> {
     const dir = this.dir(projectId);
     if (!existsSync(dir)) return [];

@@ -13,6 +13,7 @@ import { memoryRoutes } from './routes/memory.ts';
 import { orchestrationRoutes } from './routes/orchestrations.ts';
 import { pluginRoutes } from './routes/plugins.ts';
 import { runRoutes } from './routes/runs.ts';
+import { projectRoutes } from './routes/projects.ts';
 import { sessionRoutes } from './routes/sessions.ts';
 import { systemRoutes } from './routes/system.ts';
 import { uploadRoutes } from './routes/uploads.ts';
@@ -47,6 +48,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
     async (api) => {
       await api.register(systemRoutes, { core });
     await api.register(accountRoutes, { core });
+      await api.register(projectRoutes, { core });
       await api.register(sessionRoutes, { core });
       await api.register(eventRoutes, { core });
       await api.register(runRoutes, { core });
