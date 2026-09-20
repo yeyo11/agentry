@@ -1,4 +1,4 @@
-import type { AgentryEvent } from '@agentry/shared';
+import type { AgentryEvent, ChatSummary, PermissionRequest, RunWaitingReason } from '@agentry/shared';
 import i18n from '../i18n';
 import { detailHref } from './detail';
 
@@ -85,6 +85,40 @@ const WAITING_BODY = {
 } as const;
 
 const ACTIVITY_FAILED = new Set(['failed', 'killed', 'stopped', 'error']);
+
+/** AskUserQuestion and ExitPlanMode reach the host as tool permission requests like any other. */
+const reasonOf = (toolName: string): RunWaitingReason => (toolName === 'AskUserQuestion' ? 'question' : toolName === 'ExitPlanMode' ? 'plan' : 'permission');
+
+const WAITING_TITLE = {
+  permission: (name: string, tool: string) => i18n.t('components:notificationText.waitingPermission', { name, tool }),
+  question: (name: string) => i18n.t('components:notificationText.waitingQuestion', { name }),
+  plan: (name: string) => i18n.t('components:notificationText.waitingPlan', { name }),
+} as const;
+
+/**
+ * The `waiting` notifications for prompts a chat was already holding when the page loaded: their
+ * `run.waiting` events came before there was anyone to hear them. The key is the live event's, so a
+ * prompt that is in the list already is not told twice.
+ */
+export function waitingDrafts(chat: Pick<ChatSummary, 'id' | 'title' | 'orchestration'>, requests: readonly PermissionRequest[]): NotificationDraft[] {
+  return requests.map((request) => {
+    const reason = reasonOf(request.toolName);
+    return {
+      id: `${request.requestedAt}#${request.id}`,
+      at: request.requestedAt,
+      dedupeMs: 0,
+      key: `wait:${chat.id}:${request.id}`,
+      kind: 'waiting',
+      priority: 'high',
+      tone: 'warn',
+      title: reason === 'permission' ? WAITING_TITLE.permission(chat.title, request.toolName) : WAITING_TITLE[reason](chat.title),
+      body: WAITING_BODY[reason](request.toolName),
+      href: chatHref(chat.id),
+      runId: chat.id,
+      orchestrationId: chat.orchestration?.id ?? null,
+    };
+  });
+}
 
 /** The notifications an event calls for; empty for nearly all of them. */
 export function notificationsFor(event: AgentryEvent): NotificationDraft[] {

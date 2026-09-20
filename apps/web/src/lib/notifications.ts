@@ -98,7 +98,22 @@ export function ingest(event: AgentryEvent, seen: (draft: NotificationDraft) => 
   return { added: applied.added.filter((n) => !n.read), settled };
 }
 
-function update(change: (items: AppNotification[]) => AppNotification[]): void {
+/**
+ * Brings the list in line with the prompts chats hold right now, for a page that has just loaded:
+ * the ones it never heard about are added, and a `waiting` notification whose prompt is gone (it
+ * was answered while no page was open) is settled. Notifications newer than `checkedAt` are left
+ * alone, because the live feed may have told of a prompt the read did not see yet.
+ */
+export function seedWaiting(drafts: NotificationDraft[], checkedAt: number, seen: (draft: NotificationDraft) => boolean): Ingested {
+  const current = load();
+  const pending = new Set(drafts.map((d) => d.key));
+  const { items, changed } = settle(current.items, (n) => n.kind === 'waiting' && !pending.has(n.key) && Date.parse(n.at) < checkedAt);
+  const applied = addNotifications(items, drafts, current.prefs, seen);
+  if (changed.length > 0 || applied.added.length > 0) commit({ ...current, items: applied.items });
+  return { added: applied.added.filter((n) => !n.read), settled: changed };
+}
+
+function update(change:(items: AppNotification[]) => AppNotification[]): void {
   const current = load();
   commit({ ...current, items: change(current.items) });
 }

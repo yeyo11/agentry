@@ -17,6 +17,7 @@ const {
   settle,
   settlesWaiting,
   unreadCount,
+  waitingDrafts,
 } = await import('../src/lib/notifications-model.ts');
 type AppNotification = import('../src/lib/notifications-model.ts').AppNotification;
 type NotificationDraft = import('../src/lib/notifications-model.ts').NotificationDraft;
@@ -270,4 +271,31 @@ test('storage keeps the entries that are valid and drops the ones that are not',
   assert.equal(restored.prefs.browser, true);
   assert.equal(restored.prefs.kinds.run, false);
   assert.equal(restored.prefs.kinds.waiting, true);
+});
+
+test('a prompt a chat was already holding when the page loaded becomes the same notification its event would have made', () => {
+  const chat = { id: 'run1', title: 'fix the build', orchestration: null };
+  const request = { id: 'p1', runId: 'run1', toolName: 'Bash', toolUseId: 'tu1', input: {}, requestedAt: at(-5000) };
+  const [seeded] = waitingDrafts(chat, [request]);
+  assert.ok(seeded);
+  assert.equal(seeded.kind, 'waiting');
+  assert.equal(seeded.priority, 'high');
+  assert.equal(seeded.at, at(-5000));
+  assert.match(seeded.title, /fix the build needs your approval to use Bash/);
+  assert.equal(seeded.key, notificationsFor(waiting('p1'))[0]?.key);
+
+  // The live event arriving after the seed does not double it
+  const { items } = apply(addNotifications([], [seeded], defaultPrefs(), () => false).items, [waiting('p1')]);
+  assert.equal(items.length, 1);
+});
+
+test('seeded questions and plans read as such, and carry the orchestration they work for', () => {
+  const chat = { id: 'run1', title: 'plan the work', orchestration: { id: 'o1', name: 'graph', taskId: 't1', taskName: 'plan' } };
+  const [question, plan] = waitingDrafts(chat, [
+    { id: 'q', runId: 'run1', toolName: 'AskUserQuestion', toolUseId: 'a', input: {}, requestedAt: at() },
+    { id: 'pl', runId: 'run1', toolName: 'ExitPlanMode', toolUseId: 'b', input: {}, requestedAt: at() },
+  ]);
+  assert.match(question?.title ?? '', /asking you a question/);
+  assert.match(plan?.title ?? '', /plan for you to approve/);
+  assert.equal(question?.orchestrationId, 'o1');
 });
