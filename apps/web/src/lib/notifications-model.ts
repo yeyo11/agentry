@@ -11,7 +11,7 @@ import { detailHref } from './detail';
  * stored with the words it was born with, the way the browser's own notifications are.
  */
 
-export type NotificationKind = 'waiting' | 'run' | 'orchestration' | 'conflict' | 'limit' | 'activity';
+export type NotificationKind = 'waiting' | 'run' | 'orchestration' | 'conflict' | 'limit' | 'activity' | 'health';
 /** `high` needs the person, `normal` is worth knowing, `low` stays in the center without a toast. */
 export type NotificationPriority = 'high' | 'normal' | 'low';
 export type NotificationTone = 'ok' | 'bad' | 'warn' | 'info';
@@ -52,7 +52,7 @@ export interface NotificationPrefs {
 }
 
 /** In the order the preferences list them; their labels are `components:notificationPanel.kinds`. */
-export const KINDS: NotificationKind[] = ['waiting', 'run', 'orchestration', 'conflict', 'limit', 'activity'];
+export const KINDS: NotificationKind[] = ['waiting', 'run', 'orchestration', 'conflict', 'limit', 'activity', 'health'];
 
 export const MAX_NOTIFICATIONS = 200;
 const DEDUPE_MS = 60_000;
@@ -193,6 +193,25 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           title: i18n.t(failed ? 'components:notificationText.orchestrationFailed' : 'components:notificationText.orchestrationFinished', { name: event.orchestrationName }),
           body: i18n.t(failed ? 'components:notificationText.orchestrationFailedBody' : 'components:notificationText.orchestrationDoneBody'),
           href: orchestrationHref(event.orchestrationId),
+          orchestrationId: event.orchestrationId,
+        }),
+      ];
+    }
+
+    case 'health.changed': {
+      // A recovery is not news, and housekeeping runs are not something a person steps into
+      if (event.internal || event.level === 'ok') return [];
+      return [
+        draft(event, {
+          // The signals, not the level: a worker that goes from slow to looping is new news
+          key: `health:${event.runId}:${event.signals.join(',')}`,
+          kind: 'health',
+          priority: event.level === 'bad' ? 'high' : 'normal',
+          tone: event.level === 'bad' ? 'bad' : 'warn',
+          title: event.title,
+          body: event.reason,
+          href: chatHref(event.runId),
+          runId: event.runId,
           orchestrationId: event.orchestrationId,
         }),
       ];

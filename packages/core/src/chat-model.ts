@@ -11,6 +11,8 @@ import {
   type HealthSignal,
   type RunStatus,
 } from '@agentry/shared';
+import { slowAfterMs, type UsualDuration } from './commands.ts';
+import { HINTS } from './health.ts';
 
 // The adapter between what the Claude Code CLI reports and Agentry's model. Everything the CLI says
 // in its own words (stream statuses, `claude agents --json` fields, who has a process on a session)
@@ -145,11 +147,27 @@ export const HUNG_COMMAND_BAD_MS = 10 * 60_000;
 export const SILENCE_MS = 3 * 60_000;
 export const SILENCE_BAD_MS = 10 * 60_000;
 
+/** A shell command a worker started and has had no answer to, with what is known about how long it should take. */
+export interface RunningCommandFacts {
+  command: string;
+  startedAt: string;
+  /** The call, so that the signal can name what to cancel */
+  toolUseId?: string;
+  /** The CLI's own heartbeat: how long it says the command has run, as of `at`. Preferred to the clock, which also counts time spent waiting for a permission */
+  heartbeat?: { elapsedSeconds: number; at: string };
+  /** What commands of its kind usually take, from the history; without it the fixed limit applies */
+  usual?: UsualDuration | null;
+}
+
 /** What health is read from. Every field is something Agentry already holds. */
 export interface HealthFacts {
   state: ChatState;
   /** What Agentry's process on the chat is doing; null while there is none, which is when nothing can be silent or hung */
-  live: { lastEventAt: string; commands: Array<{ command: string; startedAt: string }> } | null;
+  live: { lastEventAt: string; commands: RunningCommandFacts[] } | null;
+  /** Signals worked out elsewhere (`health.ts`) that only mean something while the chat is working: a loop, no progress */
+  extra?: HealthSignal[];
+  /** Signals that stay true while the process is up, waiting or not: a test made weaker, a limit coming close */
+  standing?: HealthSignal[];
   /** How the last execution ended, when none is live now */
   lastEnded: { outcome: ExecutionOutcome; error: string | null } | null;
   context: ChatContext | null;
@@ -167,6 +185,19 @@ export function lastEndedOf(executions: readonly Execution[]): HealthFacts['last
 }
 
 const minutes = (ms: number): string => `${Math.max(1, Math.round(ms / 60_000))} min`;
+/** Seconds up to a minute and a half, minutes after: what "usually 80 s" reads as */
+const durationText = (ms: number): string => (ms < 90_000 ? `${Math.max(1, Math.round(ms / 1000))} s` : minutes(ms));
+
+/**
+ * How long a command has been running. The CLI's heartbeat says so in its own clock, which does
+ * not count the time a permission prompt kept the call waiting to start; without one, the time
+ * since the call was made is the best there is.
+ */
+function commandAge(command: RunningCommandFacts, nowMs: number): number {
+  const beat = command.heartbeat;
+  if (beat) return beat.elapsedSeconds * 1000 + Math.max(0, nowMs - Date.parse(beat.at));
+  return nowMs - Date.parse(command.startedAt);
+}
 const oneLine = (text: string, max: number): string => {
   const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
@@ -181,14 +212,25 @@ export function chatHealth(facts: HealthFacts, nowMs = Date.now()): ChatHealth {
   const signals: HealthSignal[] = [];
   const working = facts.state === 'working' && facts.live !== null;
 
-  const oldest = [...(facts.live?.commands ?? [])].sort((a, b) => a.startedAt.localeCompare(b.startedAt))[0];
-  if (working && oldest) {
-    const age = nowMs - Date.parse(oldest.startedAt);
-    if (age >= HUNG_COMMAND_MS) {
+  const commands = [...(facts.live?.commands ?? [])].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  if (working && commands.length) {
+    // Each command is judged on its own: one that hung is the one to cancel, not its neighbours
+    for (const command of commands) {
+      const age = commandAge(command, nowMs);
+      const limit = command.usual ? slowAfterMs(command.usual) : HUNG_COMMAND_MS;
+      const badAt = command.usual ? 2 * limit : HUNG_COMMAND_BAD_MS;
+      if (age < limit) continue;
+      const expected = command.usual
+        ? `; commands like it usually take ${durationText(command.usual.medianMs)}`
+        : `, past the ${minutes(HUNG_COMMAND_MS)} a command is expected to need`;
       signals.push({
         kind: 'hung-command',
-        level: age >= HUNG_COMMAND_BAD_MS ? 'bad' : 'warn',
-        reason: `\`${oneLine(oldest.command, 60)}\` has been running for ${minutes(age)}, past the ${minutes(HUNG_COMMAND_MS)} a command is expected to need.`,
+        level: age >= badAt ? 'bad' : 'warn',
+        reason: `\`${oneLine(command.command, 60)}\` has been running for ${minutes(age)}${expected}.`,
+        since: command.startedAt,
+        detail: command.command,
+        hint: HINTS.hungCommand(command.command),
+        ...(command.toolUseId ? { toolUseId: command.toolUseId } : {}),
       });
     }
   } else if (working && facts.live) {
@@ -199,9 +241,13 @@ export function chatHealth(facts: HealthFacts, nowMs = Date.now()): ChatHealth {
         kind: 'silence',
         level: quiet >= SILENCE_BAD_MS ? 'bad' : 'warn',
         reason: `Nothing has happened for ${minutes(quiet)} and no command is running: the model or an API call may be stalled.`,
+        since: facts.live.lastEventAt,
+        hint: HINTS.silence(minutes(quiet)),
       });
     }
   }
+  if (working) signals.push(...(facts.extra ?? []));
+  if (facts.live) signals.push(...(facts.standing ?? []));
 
   const ended = facts.lastEnded;
   if (ended?.outcome === 'interrupted') signals.push({ kind: 'last-execution', level: 'bad', reason: 'The last execution was cut short: its process was lost.' });

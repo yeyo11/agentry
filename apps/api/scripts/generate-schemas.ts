@@ -28,7 +28,7 @@ const ROOT_TYPES = [
   // What a chat or a task changed on disk, and how to open it in an editor
   'ChangeSummary', 'FileDiff', 'ChatChanges', 'Checklist', 'EditorSettings',
   // Stepping in on a worker that is stuck
-  'Health', 'TaskLimits', 'HintRequest', 'CancelCommandRequest',
+  'Health', 'TaskLimits', 'HintRequest', 'CancelCommandRequest', 'CancelCommandResult',
   // Orchestration v2 and the verification phase
   'VerificationSpec', 'VerificationState', 'RelaunchOrchestrationRequest', 'OrchestrationTemplate',
   'SaveOrchestrationTemplateRequest', 'UpdateOrchestrationTemplateRequest', 'LaunchOrchestrationTemplateRequest',

@@ -2199,6 +2199,17 @@
           }
         ],
         "description": "Computed while it runs, from the same signals as a chat's; absent once it has ended"
+      },
+      "clockStartedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Where the task's time limit counts from: when it first started, or when a person last sent it around again. `startedAt` cannot serve, since it survives a retry and the limit would trip the moment the person decided the task was worth another go."
+      },
+      "clockCostUsd": {
+        "type": "number",
+        "description": "What the task had cost when that clock started, so a cost limit counts from the same moment"
       }
     },
     "required": [
@@ -3752,6 +3763,9 @@
         "$ref": "#/components/schemas/OrchestrationConflictEvent"
       },
       {
+        "$ref": "#/components/schemas/HealthChangedEvent"
+      },
+      {
         "$ref": "#/components/schemas/SessionsChangedEvent"
       }
     ],
@@ -5126,6 +5140,97 @@
       "type"
     ],
     "description": "Merging the tasks' branches conflicted; `paths` are what could not be merged."
+  },
+  "HealthChangedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "health.changed"
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "taskName": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "level": {
+        "$ref": "#/components/schemas/HealthLevel"
+      },
+      "previousLevel": {
+        "$ref": "#/components/schemas/HealthLevel"
+      },
+      "reason": {
+        "type": "string",
+        "description": "The first (worst) signal's line, or `Nothing unusual.` when the chat recovered"
+      },
+      "signals": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/HealthSignalKind"
+        }
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "internal",
+      "level",
+      "orchestrationId",
+      "previousLevel",
+      "reason",
+      "runId",
+      "runName",
+      "sessionId",
+      "signals",
+      "taskId",
+      "taskName",
+      "title",
+      "type"
+    ],
+    "description": "A chat or an orchestration task moved to another level of health, or its signals changed while it stayed at one. Sent when a worker starts to look stuck and again when it recovers, never once per check: the notification centre shows each of them as news."
   },
   "SessionsChangedEvent": {
     "type": "object",
@@ -6892,10 +6997,32 @@
     "properties": {
       "reason": {
         "type": "string",
-        "description": "Shown to the worker in the failed tool result, so it knows a person stopped it and why"
+        "description": "Told to the worker as its next message, so it knows a person stopped the command and why. The CLI writes the failed tool result itself (an exit status, nothing more), so the reason cannot ride in it."
       }
     },
     "description": "Kills one command's process tree without ending the turn: the descendants of the CLI process that belong to that tool call, found by pid, never by matching a command line. The worker gets a failed tool result and carries on. Which call is in the path."
+  },
+  "CancelCommandResult": {
+    "type": "object",
+    "properties": {
+      "toolUseId": {
+        "type": "string"
+      },
+      "command": {
+        "type": "string",
+        "description": "The command, as the worker wrote it"
+      },
+      "processes": {
+        "type": "number",
+        "description": "How many processes of its tree were signalled"
+      }
+    },
+    "required": [
+      "toolUseId",
+      "command",
+      "processes"
+    ],
+    "description": "What cancelling a command did."
   },
   "RelaunchOrchestrationRequest": {
     "type": "object",
