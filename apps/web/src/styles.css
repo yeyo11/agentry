@@ -1834,55 +1834,6 @@ a.list-row:hover {
   opacity: 1;
 }
 
-.row-card {
-  display: flex;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-sunken);
-  transition: border-color var(--dur-base), transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base);
-}
-.row-card:hover {
-  border-color: var(--border-strong);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
-}
-.row-card.is-busy {
-  border-color: var(--ring);
-  background: linear-gradient(90deg, var(--accent-soft), transparent 50%), var(--bg-sunken);
-}
-.row-card-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.row-card-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.row-card-title > a.strong {
-  color: var(--text);
-}
-.row-card-text {
-  color: var(--text-muted);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  max-height: 4.6em;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(#000 60%, transparent);
-  mask-image: linear-gradient(#000 60%, transparent);
-}
-.row-card-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .table-wrap {
   overflow: auto;
   max-height: 72vh;
@@ -1968,225 +1919,12 @@ a.list-row:hover {
   transform: scale(0.97);
 }
 
-.ssections {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.ssection {
-  padding: 0;
-  gap: 0;
-  overflow: hidden;
-}
-.ssection.is-live {
-  border-color: var(--ring);
-}
-.ssection-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px 10px 8px;
-}
-.ssection-toggle,
-.sorch-toggle {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 6px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--dur-fast);
-}
-.ssection-toggle:hover,
-.sorch-toggle:hover {
-  background: var(--bg-hover);
-}
-.ssection-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.35;
-}
-.ssection-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-}
-.ssection-body {
-  display: flex;
-  flex-direction: column;
-  padding: 2px 8px 8px;
-  border-top: 1px solid var(--border);
-}
 .scard {
   padding: 8px;
   gap: 0;
 }
 
-.srow {
-  position: relative;
-  display: flex;
-  align-items: center;
-  border-radius: var(--radius);
-  transition: background var(--dur-fast);
-}
-.srow + .srow,
-.srow + .sorch,
-.sorch + .srow,
-.sorch + .sorch {
-  box-shadow: 0 -1px 0 var(--border);
-}
-.srow:hover,
-.srow:focus-within {
-  background: var(--bg-hover);
-  box-shadow: none;
-}
-.srow:hover + .srow,
-.srow:hover + .sorch {
-  box-shadow: none;
-}
-.srow-link {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 11px 12px;
-  border-radius: var(--radius);
-  color: var(--text);
-}
-.srow-link:hover {
-  text-decoration: none;
-}
-.srow-status {
-  display: inline-flex;
-  padding-top: 7px;
-}
-.srow-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.srow-title {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  min-width: 0;
-}
-.srow-title-text {
-  font-weight: 600;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-}
-.srow-sub {
-  color: var(--text-muted);
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.srow .chip-static {
-  padding: 0 8px;
-  font-size: 11.5px;
-}
-.srow-time {
-  padding-top: 3px;
-  transition: opacity var(--dur-fast);
-}
-.srow-actions {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  translate: 0 -50%;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 4px 4px 28px;
-  background: linear-gradient(90deg, transparent, var(--bg-hover) 26px);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--dur-fast);
-}
-.srow:hover .srow-actions,
-.srow:focus-within .srow-actions {
-  opacity: 1;
-  pointer-events: auto;
-}
-.srow:hover .srow-time,
-.srow:focus-within .srow-time {
-  opacity: 0;
-}
-
-.sorch {
-  display: flex;
-  flex-direction: column;
-}
-.sorch-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 12px 6px 4px;
-}
-.sorch-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: var(--accent-2-soft);
-  color: var(--accent-2);
-}
-.sorch-title {
-  flex: 1;
-  font-weight: 600;
-}
 /* Tree guide for the nested workers */
-.sorch-children {
-  position: relative;
-  margin-left: 24px;
-  padding-left: 14px;
-}
-.sorch-children::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 22px;
-  width: 1px;
-  background: var(--border-strong);
-}
-.sorch-children .srow::before {
-  content: '';
-  position: absolute;
-  left: -14px;
-  top: 22px;
-  width: 12px;
-  height: 1px;
-  background: var(--border-strong);
-}
-.origin-trail {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
-}
 
 /* ---------- 8. Chat / transcript ---------- */
 .transcript {
@@ -3845,7 +3583,6 @@ button.tree-row-on:hover {
     justify-content: flex-start;
     padding: 10px;
   }
-
   .topbar {
     padding: 0 12px;
     gap: 8px;
@@ -3883,12 +3620,6 @@ button.tree-row-on:hover {
   .kv {
     grid-template-columns: 108px minmax(0, 1fr);
   }
-  .row-card {
-    flex-direction: column;
-  }
-  .row-card-actions {
-    flex-direction: row;
-  }
   .msg-sidechain,
   .msg-tool {
     margin-left: 14px;
@@ -3906,32 +3637,9 @@ button.tree-row-on:hover {
     left: -26px;
     width: 26px;
   }
-  .srow-actions {
-    position: static;
-    translate: none;
-    opacity: 1;
-    pointer-events: auto;
-    background: none;
-    padding: 0 8px 10px 32px;
-    flex-wrap: wrap;
-  }
-  .srow {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .srow:hover .srow-time,
-  .srow:focus-within .srow-time {
-    opacity: 1;
-  }
-  .ssection-time {
-    display: none;
-  }
   .filter-bar .select-trigger {
     max-width: none;
     flex: 1 1 140px;
-  }
-  .sorch-children {
-    margin-left: 12px;
   }
   .toasts {
     right: 12px;

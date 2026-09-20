@@ -1,5 +1,5 @@
 // Every page renders in both themes and at phone width without console errors.
-const PAGES = ['/', '/agents', '/tasks', '/sessions', '/projects', '/runs/new', '/orchestration', '/memory', '/plugins', '/accounts', '/config', '/config?tab=settings', '/config?tab=mcp', '/config?tab=files'];
+const PAGES = ['/', '/chats', '/tasks', '/projects', '/runs/new', '/orchestration', '/memory', '/plugins', '/accounts', '/config', '/config?tab=settings', '/config?tab=mcp', '/config?tab=files'];
 
 export default async ({ page, check }) => {
   for (const theme of ['dark', 'light']) {
