@@ -25,7 +25,8 @@ const seed = (items) =>
 export default async ({ page, check }) => {
   await page.goto('/', 1000);
   await page.waitFor(`return !!document.querySelector('.bell')`, { label: 'the bell' });
-  check((await page.eval(`return document.querySelector('.bell').getAttribute('aria-label')`)) === 'Notifications', 'the bell has no count when nothing is unread');
+  const label = await page.eval(`return document.querySelector('.bell').getAttribute('aria-label')`);
+  check(label === 'Notifications', `the bell has no count when nothing is unread (its label is "${label}", the store holds ${await page.eval(`return localStorage.getItem(${JSON.stringify(KEY)})`)})`);
   check(!(await page.eval(`return !!document.querySelector('.bell-badge')`)), 'no badge without unread notifications');
 
   await page.eval(seed([item('a', { kind: 'waiting', priority: 'high', tone: 'warn', title: 'fix the build needs your approval to use Bash' }), item('b', { read: true })]));
