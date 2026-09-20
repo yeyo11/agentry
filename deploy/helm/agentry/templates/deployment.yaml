@@ -1,0 +1,120 @@
+{{- $mode := .Values.auth.mode -}}
+{{- if not (has $mode (list "none" "token" "oidc")) -}}
+{{- fail (printf "auth.mode must be none, token or oidc, not %q" $mode) -}}
+{{- end -}}
+{{- if and (eq $mode "token") (not .Values.auth.token.existingSecret) (not .Values.auth.token.value) -}}
+{{- fail "auth.mode is token: set auth.token.existingSecret (preferred) or auth.token.value" -}}
+{{- end -}}
+{{- if and (eq $mode "oidc") (or (not .Values.auth.oidc.issuer) (not .Values.auth.oidc.audience)) -}}
+{{- fail "auth.mode is oidc: auth.oidc.issuer and auth.oidc.audience are required" -}}
+{{- end -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agentry.fullname" . }}
+  labels:
+    {{- include "agentry.labels" . | nindent 4 }}
+spec:
+  # One pod: the SQLite store is shared by the API and the CLI processes it starts
+  replicas: 1
+  # Recreate, never a rolling update: the old and the new pod would open the same volume (and the
+  # same database) at the same time
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "agentry.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "agentry.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: agentry
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+          env:
+            - name: PORT
+              value: {{ .Values.port | quote }}
+            - name: AGENTRY_AUTH_MODE
+              value: {{ $mode | quote }}
+            - name: AGENTRY_READ_ONLY
+              value: {{ ternary "1" "0" .Values.auth.readOnly | quote }}
+            {{- if eq $mode "token" }}
+            - name: AGENTRY_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agentry.tokenSecret" . }}
+                  key: {{ .Values.auth.token.key }}
+            {{- end }}
+            {{- if eq $mode "oidc" }}
+            - name: AGENTRY_OIDC_ISSUER
+              value: {{ .Values.auth.oidc.issuer | quote }}
+            - name: AGENTRY_OIDC_AUDIENCE
+              value: {{ .Values.auth.oidc.audience | quote }}
+            - name: AGENTRY_OIDC_CLIENT_ID
+              value: {{ .Values.auth.oidc.clientId | quote }}
+            {{- end }}
+            {{- range $name, $value := .Values.env }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- if .Values.claude.existingSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.claude.existingSecret }}
+          {{- end }}
+          # Kubernetes ignores the image's HEALTHCHECK, so the same probe is declared here. Unlike
+          # Docker, a failing liveness probe does restart the container.
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - { name: state, mountPath: /data, subPath: data }
+            - { name: state, mountPath: /home/node/.claude, subPath: claude }
+            - { name: state, mountPath: /home/node/.local/share/claude-swap, subPath: claude-swap }
+            - { name: state, mountPath: /workspace, subPath: workspace }
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: {{ include "agentry.claim" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

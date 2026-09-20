@@ -1,0 +1,87 @@
+image:
+  repository: ghcr.io/yeyo11/agentry
+  # A release (`0.13.1`) so that an upgrade is a decision; `latest` follows every release and `edge`
+  # every push to main. The Claude Code version is baked into the image, not chosen here.
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# The port the API listens on inside the pod and the one the Service exposes
+port: 8787
+
+service:
+  type: ClusterIP
+
+# Agentry keeps its state in a SQLite file shared by the API and the CLI processes it starts, so it
+# is one pod on one volume. More than one replica would corrupt that store: the chart has no knob.
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    # Every chat is a `claude` process inside this pod: size the memory for the number you run at
+    # once (AGENTRY_MAX_CONCURRENT_RUNS, 8 by default), not for the API
+    memory: 4Gi
+
+# One volume, mounted in four places by subPath: the wrapper state (/data), the account setup
+# (~/.claude), the claude-swap credentials and the projects (/workspace). Losing any of them on a
+# restart would mean signing in again or losing work.
+persistence:
+  size: 20Gi
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  # Use a claim you created yourself instead of letting the chart create one
+  existingClaim: ""
+
+# The Claude account. Either name a Secret holding CLAUDE_CODE_OAUTH_TOKEN and/or ANTHROPIC_API_KEY
+# (`claude setup-token` makes the first), or leave it empty and set the credential from the UI.
+claude:
+  existingSecret: ""
+
+# Authentication for the API. `none` is only for a cluster you fully trust: whoever reaches the
+# Service can run Claude on the account. Behind an Ingress, use `token` or `oidc`.
+auth:
+  mode: none # none | token | oidc
+  # Refuse every write except answering a permission prompt
+  readOnly: false
+  token:
+    # Name of a Secret with the token under `key`. Preferred: the value never passes through Helm
+    existingSecret: ""
+    key: token
+    # Or a plain value, which the chart stores in a Secret it creates. Ends up in the release
+    # history, so prefer existingSecret outside a test cluster.
+    value: ""
+  oidc:
+    issuer: ""
+    audience: ""
+    clientId: ""
+
+# Extra environment variables for the container (AGENTRY_MAX_CONCURRENT_RUNS, AGENTRY_CLI_UPDATE_CHECK...)
+env: {}
+
+# Seconds SIGTERM has to stop the chats and close the store before SIGKILL
+terminationGracePeriodSeconds: 30
+
+probes:
+  # Liveness restarts the container when the API stops answering; readiness takes the pod out of
+  # the Service meanwhile. Neither depends on the Claude login: /api/health answers 200 while logged
+  # out, because a restart would not fix that.
+  liveness:
+    periodSeconds: 30
+    failureThreshold: 3
+    timeoutSeconds: 10
+  startup:
+    periodSeconds: 5
+    failureThreshold: 24
+
+podSecurityContext:
+  # The image runs as `node` (uid 1000); fsGroup makes the volume writable for it
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  runAsNonRoot: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}

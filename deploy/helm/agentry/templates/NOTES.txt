@@ -1,0 +1,19 @@
+Agentry is starting in {{ .Release.Namespace }}.
+
+Reach it from your machine:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "agentry.fullname" . }} {{ .Values.port }}:{{ .Values.port }}
+
+then open http://localhost:{{ .Values.port }}.
+{{- if eq .Values.auth.mode "none" }}
+
+WARNING: auth.mode is "none". Anyone who can reach the Service can run Claude on your account.
+Keep it a ClusterIP behind port-forward, or set auth.mode to token or oidc before adding an Ingress.
+{{- end }}
+{{- if not .Values.claude.existingSecret }}
+
+No Claude credential was given (claude.existingSecret): set one from the UI, under Settings > Account.
+{{- end }}
+
+The auth settings only seed a fresh volume. Once the volume holds an auth.json, the values in the
+UI win; change them there, or delete the file to start over from the chart's values.
