@@ -1004,6 +1004,12 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   worktree?: string | null;
   /** Branch created for that worktree */
   branch?: string | null;
+  /**
+   * The commit the worker started from: where its branch was cut, after any dependencies' branches
+   * were merged in. What it changed is everything since; absent on graphs older than this field,
+   * which are compared against the graph's `baseCommit`.
+   */
+  baseCommit?: string | null;
   /** Commit the wrapper made of work the worker left uncommitted, when there was any */
   commit?: string | null;
   /** Executions of its chat so far, the first included */
@@ -2058,6 +2064,24 @@ export interface OrchestrationConflictEvent extends AgentryEventBase {
   resolving: boolean;
 }
 
+/**
+ * A worker committed, or its uncommitted work moved: what `GET …/changes` answers is stale. Sent for
+ * a running task and for the integration branch while it is built, at most once per few seconds each,
+ * so a commit is one event and a burst of edits is not many.
+ */
+export interface ChangesUpdatedEvent extends AgentryEventBase {
+  type: 'changes.updated';
+  orchestrationId: string;
+  orchestrationName: string;
+  /** Null for the integration branch */
+  taskId: string | null;
+  branch: string;
+  /** Commits on the branch that its base lacks */
+  ahead: number;
+  /** Files with changes that are in no commit */
+  uncommitted: number;
+}
+
 /** Files under the CLI's projects directory changed: a session was created, grew or ended. */
 export interface SessionsChangedEvent extends AgentryEventBase {
   type: 'sessions.changed';
@@ -2086,6 +2110,7 @@ export type AgentryEvent =
   | OrchestrationRemovedEvent
   | OrchestrationTaskEvent
   | OrchestrationConflictEvent
+  | ChangesUpdatedEvent
   | SessionsChangedEvent;
 
 export type AgentryEventType = AgentryEvent['type'];

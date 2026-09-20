@@ -2,6 +2,12 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
 import type { OrchestrationSpec, PlanRequest, ResumeOrchestrationRequest, SaveOrchestrationWorkflowRequest, TaskHintRequest } from '@agentry/shared';
 
+/** The file a diff is asked for: required, since a whole-branch diff is not what the panel opens. */
+const pathOf = (path: string | undefined): string => {
+  if (!path) throw new Error('path is required');
+  return path;
+};
+
 export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.get('/orchestrations', () => core.orchestrator.list());
 
@@ -58,6 +64,25 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
 
   app.post<{ Params: { id: string; taskId: string }; Body: TaskHintRequest }>('/orchestrations/:id/tasks/:taskId/hint', (req) =>
     core.orchestrator.hintTask(req.params.id, req.params.taskId, req.body?.text ?? ''),
+  );
+
+  // What a worker actually did on disk, from git and from its transcript rather than from what it says
+  app.get<{ Params: { id: string; taskId: string } }>('/orchestrations/:id/tasks/:taskId/changes', (req) =>
+    core.changes.taskChanges(req.params.id, req.params.taskId),
+  );
+
+  app.get<{ Params: { id: string; taskId: string }; Querystring: { path?: string } }>('/orchestrations/:id/tasks/:taskId/changes/diff', (req) =>
+    core.changes.taskDiff(req.params.id, req.params.taskId, pathOf(req.query.path)),
+  );
+
+  app.get<{ Params: { id: string; taskId: string } }>('/orchestrations/:id/tasks/:taskId/checklist', (req) =>
+    core.changes.taskChecklist(req.params.id, req.params.taskId),
+  );
+
+  app.get<{ Params: { id: string } }>('/orchestrations/:id/integration/changes', (req) => core.changes.integrationChanges(req.params.id));
+
+  app.get<{ Params: { id: string }; Querystring: { path?: string } }>('/orchestrations/:id/integration/changes/diff', (req) =>
+    core.changes.integrationDiff(req.params.id, pathOf(req.query.path)),
   );
 
   app.delete<{ Params: { id: string } }>('/orchestrations/:id', (req) => {
