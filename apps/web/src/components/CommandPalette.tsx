@@ -4,6 +4,8 @@ import {
   Activity,
   BookOpen,
   Brain,
+  CalendarClock,
+  ChartColumn,
   CornerDownLeft,
   FolderGit2,
   FolderPlus,
@@ -167,6 +169,8 @@ export function CommandPalette() {
       { id: 'nav:/orchestration', group: 'goTo', title: t('nav.orchestrations'), keywords: 'multi agent graph', icon: Network, run: go('/orchestration') },
       { id: 'nav:/projects', group: 'goTo', title: t('nav.projects'), keywords: 'import workspace directories', icon: FolderGit2, run: go('/projects') },
       { id: 'nav:/accounts', group: 'goTo', title: t('nav.accounts'), keywords: 'claude-swap multi account quota rotate switch limit', icon: Users, run: go('/accounts') },
+      { id: 'nav:/schedules', group: 'goTo', title: t('nav.schedules'), keywords: 'cron recurring timetable automatic every', icon: CalendarClock, run: go('/schedules') },
+      { id: 'nav:/usage', group: 'goTo', title: t('nav.usage'), keywords: 'cost spend tokens money chart model project', icon: ChartColumn, run: go('/usage') },
       { id: 'nav:/settings', group: 'goTo', title: t('nav.settings'), keywords: 'config preferences', icon: Settings2, run: go('/settings') },
     ];
     const tabs: Array<[string, string, string, LucideIcon]> = [

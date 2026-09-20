@@ -1,0 +1,74 @@
+{
+  "page": {
+    "title": "Uso",
+    "subtitle": "Lo que han gastado tus chats, a lo largo del tiempo, por proyecto y por modelo"
+  },
+  "range": {
+    "label": "Rango",
+    "7d": "7 días",
+    "30d": "30 días",
+    "90d": "90 días",
+    "all": "Todo",
+    "custom": "Personalizado",
+    "from": "Desde",
+    "to": "Hasta",
+    "order": "El inicio es posterior al final",
+    "invalid": "Escribe los dos días como AAAA-MM-DD"
+  },
+  "tiles": {
+    "cost": "Coste",
+    "tokens": "Tokens",
+    "chats": "Chats"
+  },
+  "metrics": {
+    "cost": "Coste",
+    "tokens": "Tokens",
+    "chats": "Chats"
+  },
+  "buckets": {
+    "day": "Día",
+    "week": "Semana"
+  },
+  "notReported": "Sin datos",
+  "weekOf": "Semana del {{day}}",
+  "over": {
+    "title": "A lo largo del tiempo",
+    "metric": "Qué mostrar",
+    "bucket": "Agrupar por",
+    "emptyTitle": "Nada en este rango",
+    "emptyBody": "Ningún chat gastó nada entre estos días. Elige un rango más amplio.",
+    "note": "El coste es lo que Claude Code informó de cada ejecución, contado el día en que terminó, en la zona horaria del servidor. Los chats iniciados desde una terminal solo informan de tokens, así que suman a los tokens y nunca al coste. Las semanas empiezan en lunes."
+  },
+  "chart": {
+    "label": "{{metric}} a lo largo del tiempo",
+    "summary": "Gráfico de barras de {{metric}}, {{count}} periodos ({{bucket}}) del {{from}} al {{to}}.",
+    "noFigures": "No se informó de ninguna cifra en este rango.",
+    "total": "Total {{total}}.",
+    "peak": "Máximo: {{value}} en {{period}}."
+  },
+  "readout": {
+    "tokens": "{{n}} tokens",
+    "chats_one": "{{count}} chat",
+    "chats_other": "{{count}} chats",
+    "hint": "Pasa el ratón por el gráfico para ver las cifras de un periodo, o abre la tabla de debajo"
+  },
+  "table": {
+    "show": "Mostrar las cifras como tabla",
+    "label": "Uso por periodo",
+    "caption": "Coste, tokens y chats de cada periodo ({{bucket}})",
+    "period": "Periodo"
+  },
+  "byProject": {
+    "title": "Por proyecto",
+    "what": "Gasto por proyecto"
+  },
+  "byModel": {
+    "title": "Por modelo",
+    "what": "Gasto por modelo",
+    "note": "El coste por modelo solo se registra en las ejecuciones de esta versión en adelante; las anteriores se cuentan en el modelo con el que se ejecutaron."
+  },
+  "other": "Otros ({{n}})",
+  "noSlices": "Nada que mostrar en este rango.",
+  "looseChats": "Sin proyecto",
+  "unknownModel": "Modelo desconocido"
+}

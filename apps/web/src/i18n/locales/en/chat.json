@@ -11,6 +11,12 @@
     "streamReconnecting": "Reconnecting…",
     "subagentMessages": "Subagent messages",
     "interruptHint": "End this turn and keep the chat open for your next message",
+    "export": {
+      "markdown": "Export Markdown",
+      "markdownHint": "Download the conversation as a document a person can read: turns, tool calls collapsed, cost and model in the header",
+      "json": "Export JSON",
+      "jsonHint": "Download the chat and every transcript entry, subagents included, as the events recorded them"
+    },
     "fork": "Fork",
     "forkHint": "Continue in a copy of this chat, which leaves this one as it is",
     "deleteLive": "A chat with a process working on it cannot be deleted",

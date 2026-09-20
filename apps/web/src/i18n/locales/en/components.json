@@ -2,6 +2,8 @@
   "nav": {
     "projects": "Projects",
     "accounts": "Accounts",
+    "schedules": "Schedules",
+    "usage": "Usage",
     "apiReference": "API reference",
     "home": "Home",
     "chats": "Chats",

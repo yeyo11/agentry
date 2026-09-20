@@ -1,0 +1,74 @@
+{
+  "page": {
+    "title": "Usage",
+    "subtitle": "What your chats spent, over time, by project and by model"
+  },
+  "range": {
+    "label": "Range",
+    "7d": "7 days",
+    "30d": "30 days",
+    "90d": "90 days",
+    "all": "All time",
+    "custom": "Custom",
+    "from": "From",
+    "to": "To",
+    "order": "The start comes after the end",
+    "invalid": "Write both days as YYYY-MM-DD"
+  },
+  "tiles": {
+    "cost": "Cost",
+    "tokens": "Tokens",
+    "chats": "Chats"
+  },
+  "metrics": {
+    "cost": "Cost",
+    "tokens": "Tokens",
+    "chats": "Chats"
+  },
+  "buckets": {
+    "day": "Day",
+    "week": "Week"
+  },
+  "notReported": "Not reported",
+  "weekOf": "Week of {{day}}",
+  "over": {
+    "title": "Over time",
+    "metric": "What to show",
+    "bucket": "Group by",
+    "emptyTitle": "Nothing in this range",
+    "emptyBody": "No chat spent anything between these days. Pick a wider range.",
+    "note": "Cost is what Claude Code reported for each execution, counted on the day it ended, in the server’s time zone. Chats started from a terminal report tokens only, so they add to the tokens and never to the cost. Weeks start on Monday."
+  },
+  "chart": {
+    "label": "{{metric}} over time",
+    "summary": "Bar chart of {{metric}}, {{count}} {{bucket}} periods from {{from}} to {{to}}.",
+    "noFigures": "No figures were reported in this range.",
+    "total": "Total {{total}}.",
+    "peak": "Highest: {{value}} in {{period}}."
+  },
+  "readout": {
+    "tokens": "{{n}} tokens",
+    "chats_one": "{{count}} chat",
+    "chats_other": "{{count}} chats",
+    "hint": "Move over the chart for the figures of one period, or open the table below"
+  },
+  "table": {
+    "show": "Show the figures as a table",
+    "label": "Usage by period",
+    "caption": "Cost, tokens and chats for each {{bucket}}",
+    "period": "Period"
+  },
+  "byProject": {
+    "title": "By project",
+    "what": "Spent per project"
+  },
+  "byModel": {
+    "title": "By model",
+    "what": "Spent per model",
+    "note": "Cost per model is only recorded for executions from this version on; earlier ones are counted under the model they ran."
+  },
+  "other": "Other ({{n}})",
+  "noSlices": "Nothing to show in this range.",
+  "looseChats": "No project",
+  "unknownModel": "Unknown model"
+}

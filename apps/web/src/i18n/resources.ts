@@ -9,6 +9,8 @@ import enObserve from './locales/en/observe.json';
 import enOrchestration from './locales/en/orchestration.json';
 import enOrchestrationDetail from './locales/en/orchestrationDetail.json';
 import enProjects from './locales/en/projects.json';
+import enSchedules from './locales/en/schedules.json';
+import enUsage from './locales/en/usage.json';
 import enWork from './locales/en/work.json';
 import esChat from './locales/es/chat.json';
 import esChats from './locales/es/chats.json';
@@ -20,6 +22,8 @@ import esObserve from './locales/es/observe.json';
 import esOrchestration from './locales/es/orchestration.json';
 import esOrchestrationDetail from './locales/es/orchestrationDetail.json';
 import esProjects from './locales/es/projects.json';
+import esSchedules from './locales/es/schedules.json';
+import esUsage from './locales/es/usage.json';
 import esWork from './locales/es/work.json';
 
 export const defaultNS = 'common';
@@ -36,6 +40,8 @@ export const en = {
   orchestration: enOrchestration,
   orchestrationDetail: enOrchestrationDetail,
   observe: enObserve,
+  schedules: enSchedules,
+  usage: enUsage,
 };
 
 export type Namespace = keyof typeof en;
@@ -55,6 +61,8 @@ export const es = {
   orchestration: esOrchestration,
   orchestrationDetail: esOrchestrationDetail,
   observe: esObserve,
+  schedules: esSchedules,
+  usage: esUsage,
 } satisfies Shape<typeof en>;
 
 // `satisfies` only catches keys Spanish lacks; a key only Spanish has is caught here instead, so a

@@ -53,6 +53,7 @@ import { Orchestrator } from './orchestrator.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { attachProject, projectCandidates, ProjectStore, type ChatPlace } from './projects.ts';
 import { AuthStore } from './security/auth.ts';
+import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
@@ -80,10 +81,14 @@ export {
 } from './chat-model.ts';
 export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
+export { usageBreakdown, usageSeries } from './usage-series.ts';
+export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { Db } from './db.ts';
 export { AuthStore } from './security/auth.ts';
 export { OidcVerifier, type FetchLike } from './security/oidc.ts';
 export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
+export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
+export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
 
 // Read from the package rather than written into this file: the release tooling then only edits
@@ -112,6 +117,7 @@ export class Core {
   /** What a chat's health is read from: the calls it made, the history of how long commands take */
   readonly health: HealthService;
   private readonly healthMonitor: HealthMonitor;
+  readonly schedules: Scheduler;
   readonly files: SettingsFiles;
   readonly explorer: ConfigExplorer;
   readonly plugins: Plugins;
@@ -212,7 +218,16 @@ export class Core {
     this.plugins = new Plugins(config);
     this.memory = new MemoryStore(config);
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
-    void this.runtime.restore(this.sessions).finally(() => this.orchestrator.recover());
+    // Started last of all, once the chats it may resume or start are restored, so a slot judged at
+    // boot finds the runtime it launches into ready
+    this.schedules = new Scheduler(config, {
+      chat: (request) => this.chats.create(request),
+      orchestration: (spec) => this.orchestrator.create(spec),
+    });
+    void this.runtime.restore(this.sessions).finally(() => {
+      this.orchestrator.recover();
+      this.schedules.start();
+    });
     this.resources = new ConfigResources();
     this.accounts = new AccountManager(config, this.db);
     this.runtime.accounts = this.accounts;
@@ -597,6 +612,7 @@ export class Core {
     this.cliVersion.stop();
     this.healthMonitor.stop();
     this.orchestrator.close();
+    this.schedules.close();
     this.sessionsWatcher.close();
     this.changeWatcher.close();
     this.permissions.close();

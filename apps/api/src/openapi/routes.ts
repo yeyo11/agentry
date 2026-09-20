@@ -24,6 +24,7 @@ export const TAGS = [
   { name: 'Events', description: 'One Server-Sent Events stream announcing every change, so clients do not have to poll.' },
   { name: 'Chats', description: 'Claude Code conversations, one per session id: resumed in place, forked into copies, each with the executions Agentry ran on it.' },
   { name: 'Orchestration', description: 'A DAG of tasks, each executed by its own Claude worker.' },
+  { name: 'Schedules', description: 'Cron-like recurring chats and orchestrations, with the history of what each run produced. A slot missed while Agentry was down is skipped, never replayed.' },
   { name: 'Configuration', description: 'Settings, instructions, MCP servers and markdown resources, per user or per project (`?project=`).' },
   { name: 'Config files', description: "Generic editor confined to a scope's Claude dir; secrets and runtime state are refused." },
   { name: 'Memory', description: "Claude Code's per-project file memory." },
@@ -111,6 +112,24 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
       'Tokens come from the transcripts, so they cover every chat, subagents included, and are kept per model with the variant suffix whole. The cost is what the CLI reported (`total_cost_usd`), which exists only for chats Agentry launched: nothing is estimated from a price table, `costUsd` is `null` when nothing reported one, and `chatsWithoutCost` counts the chats a total leaves out. A day is a calendar day where the server runs; a cost is put on the day its execution ended.',
     querystring: obj({ from: str('First day, `YYYY-MM-DD` (inclusive)'), to: str('Last day, `YYYY-MM-DD` (inclusive)') }),
     ok: ref('UsageReport'),
+  }),
+  'GET /usage/series': d('Chats', 'Cost and tokens over time, by day or by week', {
+    description:
+      'One point per bucket from `from` to `to`, empty buckets included so a chart has no gaps; without a range it spans the days that have something, up to today. A week starts on Monday and is named by that day. Days are cut by the range before they are bucketed, so the first week of a range that starts mid-week holds only the days asked for. `costUsd` is what the CLI reported and is `null` for a bucket where no chat reported one: nothing is estimated from token counts. At most 1000 points.',
+    querystring: obj({ bucket: str('Width of a point', { enum: ['day', 'week'] }), from: str('First day, `YYYY-MM-DD` (inclusive)'), to: str('Last day, `YYYY-MM-DD` (inclusive)') }),
+    ok: ref('UsageSeries'),
+  }),
+  'GET /usage/breakdown': d('Chats', 'What the chats spent, per project and per model', {
+    description:
+      'The same range cut two ways, most spent first. Tokens come from the transcripts and cover every chat. The cost per model is the CLI\'s own (`modelUsage[model].costUSD` of each result); an execution recorded before Agentry kept that split is put on the model it ran. `costUsd` is `null` for a slice no chat reported a cost for. Chats under no project are the slice `loose`; messages that named no model are the slice `unknown`.',
+    querystring: obj({ from: str('First day, `YYYY-MM-DD` (inclusive)'), to: str('Last day, `YYYY-MM-DD` (inclusive)') }),
+    ok: ref('UsageBreakdown'),
+  }),
+  'GET /chats/:id/export': d('Chats', 'Export a chat\'s transcript as Markdown or JSON', {
+    description:
+      'A download. `markdown` (default) is for a person: a header with the project, models, cost as the CLI reported it and tokens, then the turns, each tool call folded into a `<details>` block with its result (results over 4000 characters are cut) and subagent messages left out. `json` is a `ChatExport`: the chat and every transcript entry in order, subagents included, nothing cut.',
+    querystring: obj({ format: str('Output format', { enum: ['markdown', 'json'] }) }),
+    ok: ref('ChatExport'),
   }),
   'POST /chats': d('Chats', 'Start a chat', { description: 'Spawns `claude -p` with stream-json I/O under a session id Agentry chooses. With `keepAlive` (default) the process stays up for follow-up turns.', body: ref('NewChatRequest'), ok: ref('ChatSummary'), created: true }),
   'GET /chats/:id': d('Chats', 'A chat and a window of its transcript', {
@@ -269,6 +288,18 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /uploads': d('Uploads', 'Upload a file to attach', { description: 'The request body is the file itself, sent as `application/octet-stream`; `name` is its file name. The type is read from the bytes. Limits: images (PNG, JPEG, GIF, WebP) 5 MB, PDFs 32 MB, anything else 50 MB. Files are kept in the data dir, outside every project, and every run can read them.', querystring: obj({ name: str('File name') }), ok: ref('Attachment'), created: true }),
   'GET /uploads/:id': d('Uploads', "An upload's metadata", { ok: ref('Attachment') }),
   'GET /uploads/:id/content': d('Uploads', 'The uploaded file', { description: 'Images and PDFs are served inline; any other type as a download, never rendered.' }),
+
+  // ---- Schedules
+  'GET /schedules': d('Schedules', 'List schedules', { description: 'Oldest first, each with when it last fired and when it fires next (null while disabled).', ok: list('Schedule') }),
+  'GET /schedules/preview': d('Schedules', 'Say what a cron expression will do', { description: 'Nothing is saved. An invalid expression answers `valid: false` with the field that is wrong, so a form can show it while it is typed.', querystring: obj({ cron: str('Five fields, or `@hourly`, `@daily`, `@weekly`, `@monthly`, `@yearly`'), timezone: str('IANA zone; the server\'s when omitted'), count: { type: 'integer', description: 'How many upcoming fires to list (default 5, at most 20)' } }, ['cron']), ok: ref('SchedulePreview') }),
+  'POST /schedules': d('Schedules', 'Create a schedule', { description: 'The target is a chat (a `NewChatRequest`) or an orchestration (an `OrchestrationSpec`). It starts enabled unless `enabled` is false. The clock starts now: slots before creation are not missed windows.', body: ref('CreateScheduleRequest'), ok: ref('Schedule'), created: true }),
+  'GET /schedules/:id': d('Schedules', 'One schedule', { ok: ref('Schedule') }),
+  'PATCH /schedules/:id': d('Schedules', 'Edit a schedule', { description: 'Changing the expression or the zone, or switching it on, starts its clock afresh: the time it was off is not counted as missed.', body: ref('UpdateScheduleRequest'), ok: ref('Schedule') }),
+  'DELETE /schedules/:id': d('Schedules', 'Delete a schedule and its history', { description: 'Chats and orchestrations it already started are not touched.', ok: OK }),
+  'POST /schedules/:id/enable': d('Schedules', 'Switch a schedule on', { ok: ref('Schedule') }),
+  'POST /schedules/:id/disable': d('Schedules', 'Switch a schedule off', { ok: ref('Schedule') }),
+  'POST /schedules/:id/run': d('Schedules', 'Run a schedule now', { description: 'Starts its target immediately, whatever the timetable says and even while it is disabled. The run is recorded without a slot and does not affect when it fires next. A target that fails to start is a run with status `failed` and its error, not an HTTP error.', ok: ref('ScheduleRun'), created: true }),
+  'GET /schedules/:id/runs': d('Schedules', 'History of a schedule', { description: 'Newest first. `started` carries the chat or orchestration it produced; `failed` the error; `skipped` says that slots passed while Agentry was not running: those are never run late.', querystring: obj({ limit: { type: 'integer', description: 'At most 500, default 50' } }), ok: list('ScheduleRun') }),
 };
 
 /** Builds the Fastify route schema for a documented route; path params are derived from the URL. */

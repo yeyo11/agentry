@@ -3,6 +3,7 @@ import {
   entrySearchText,
   searchPattern,
   TranscriptSearch,
+  TRANSCRIPT_PAGE_MAX,
   type AgentTranscript,
   type BackgroundTaskOutput,
   type CancelCommandRequest,
@@ -22,14 +23,19 @@ import {
   type ChatSummary,
   type ChatWorkflowEntry,
   type ChatWorktree,
+  type ChatExport,
   type Execution,
   type ForkChatRequest,
   type HintRequest,
   type NewChatRequest,
   type ResumeChatRequest,
   type RunEvent,
+  type TranscriptEntry,
   type TranscriptSearchResult,
+  type UsageBreakdown,
+  type UsageBucket,
   type UsageReport,
+  type UsageSeries,
 } from '@agentry/shared';
 import { pageSize } from './sessions.ts';
 import { toChatEnvironment, toChildren, type BranchFacts } from './chat-branches.ts';
@@ -45,6 +51,7 @@ import { drivesSession, streamJsonProcesses, type CliProcess } from './processes
 import type { SessionStore } from './sessions.ts';
 import { emptyTokenUsage, localDay } from './usage.ts';
 import { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
+import { usageBreakdown, usageSeries } from './usage-series.ts';
 
 /** How long `claude agents --json` is trusted between reads: it is an exec, and lists poll. */
 const CLI_TTL_MS = 1_500;
@@ -228,6 +235,20 @@ export class ChatService {
    * execution ended (or today, while it runs), because the CLI reports it as one figure per process.
    */
   async usage(range: DayRange = {}): Promise<UsageReport> {
+    return usageReport(await this.spends(), range);
+  }
+
+  /** Cost and tokens over time, cut by day or by week. */
+  async usageSeries(bucket: UsageBucket, range: DayRange = {}): Promise<UsageSeries> {
+    return usageSeries(await this.spends(), bucket, range);
+  }
+
+  /** The same range cut by project and by model. */
+  async usageBreakdown(range: DayRange = {}): Promise<UsageBreakdown> {
+    return usageBreakdown(await this.spends(), range);
+  }
+
+  private async spends(): Promise<ChatSpend[]> {
     const transcripts = new Map((await this.deps.sessions.listSessions()).map((t) => [t.id, t]));
     const runtimes = new Map(this.deps.runtime.list().map((r) => [r.id, r]));
     const orchestrations = this.chatOrchestrations();
@@ -238,9 +259,14 @@ export class ChatService {
       const dir = summary?.worktree?.path ?? summary?.projectPath ?? runtime?.workingDir ?? runtime?.cwd ?? '';
       const orch = orchestrations.get(id);
       const costs: ChatSpend['costs'] = [];
+      const modelCosts: NonNullable<ChatSpend['modelCosts']> = [];
       for (const e of runtime?.executions ?? []) {
         const day = localDay(e.endedAt ?? new Date().toISOString());
-        if (e.costUsd !== null && day) costs.push({ day, usd: e.costUsd });
+        if (e.costUsd === null || !day) continue;
+        costs.push({ day, usd: e.costUsd });
+        const split = Object.entries(e.modelCosts ?? {});
+        if (split.length) for (const [model, usd] of split) modelCosts.push({ day, model, usd });
+        else modelCosts.push({ day, model: e.model, usd: e.costUsd });
       }
       spend.push({
         chatId: id,
@@ -248,9 +274,10 @@ export class ChatService {
         orchestration: orch ? { id: orch.id, name: orch.name } : null,
         days: summary?.usage.days ?? [],
         costs,
+        modelCosts,
       });
     }
-    return usageReport(spend, range);
+    return spend;
   }
 
   /** A chat as its own page shows it, branches and environment included. Null when there is none. */
@@ -296,6 +323,26 @@ export class ChatService {
     const until = opts.before !== undefined && Number.isFinite(opts.before) ? Math.max(0, Math.min(Math.trunc(opts.before), visible.length)) : visible.length;
     const from = Math.max(0, until - limit);
     return { chat, entries: visible.slice(from, until), from, total: visible.length };
+  }
+
+  /**
+   * Every entry of a chat's transcript, subagents included, with the chat: what an export is made
+   * of. Read a page at a time from the newest back, so a transcript of tens of megabytes is never
+   * one read. A chat with no transcript is read from what its process streamed.
+   */
+  async export(id: string): Promise<ChatExport> {
+    const chat = await this.get(id);
+    if (!chat) throw new Error('chat not found');
+    const pages: TranscriptEntry[][] = [];
+    let before: number | undefined;
+    for (;;) {
+      const page = await this.deps.sessions.getSession(id, { includeSidechains: true, limit: TRANSCRIPT_PAGE_MAX, ...(before !== undefined ? { before } : {}) });
+      if (!page) break;
+      pages.unshift(page.entries);
+      if (page.from === 0 || page.entries.length === 0) return { exportedAt: new Date().toISOString(), chat, entries: pages.flat() };
+      before = page.from;
+    }
+    return { exportedAt: new Date().toISOString(), chat, entries: this.deps.runtime.messages(id) ?? [] };
   }
 
   /** The whole transcript searched, in the index space `detail` pages in; a chat with none, over what its process streamed. */

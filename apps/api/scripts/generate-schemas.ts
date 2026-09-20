@@ -41,9 +41,9 @@ const ROOT_TYPES = [
   // Multi-account: a config dir and a rotation policy per account, usage kept over time
   'AccountConfig', 'RotationPolicy', 'UpdateAccountConfigRequest', 'UsageHistoryPoint',
   // Scheduling
-  'Schedule', 'ScheduleRun', 'CreateScheduleRequest', 'UpdateScheduleRequest',
+  'Schedule', 'ScheduleRun', 'SchedulePreview', 'CreateScheduleRequest', 'UpdateScheduleRequest',
   // Usage and cost over time, and transcript export
-  'UsageSeries', 'UsageBreakdown', 'ExportFormat',
+  'UsageSeries', 'UsageBreakdown', 'ExportFormat', 'ChatExport',
   // Packaging
   'CliVersionInfo',
 ];
