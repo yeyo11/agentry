@@ -1115,7 +1115,7 @@ export class ChatManager extends EventEmitter {
   private command(chat: LiveChat, args: string[]): [string, string[]] {
     const account = chat.opts.account;
     if (!account || !this.accounts?.managed || this.accounts.isActive(account)) return [this.config.claudeBin, args];
-    return [this.config.cswapBin, ['chat', account, '--share-history', '--', ...args]];
+    return [this.config.cswapBin, ['run', account, '--share-history', '--', ...args]];
   }
 
   /**
