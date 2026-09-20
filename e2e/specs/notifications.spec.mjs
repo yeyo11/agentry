@@ -12,7 +12,7 @@ const item = (id, patch) => ({
   tone: 'ok',
   title: `title ${id}`,
   body: '',
-  href: '/agents',
+  href: '/chats',
   runId: null,
   orchestrationId: null,
   read: false,

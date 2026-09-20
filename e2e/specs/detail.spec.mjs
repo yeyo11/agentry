@@ -1,5 +1,5 @@
 // Execution detail: a subagent and the background task it launched open in a side panel from the
-// Agents and Tasks pages, and the panel is part of the address. The session is laid out on disk the
+// chat that owns them, and the panel is part of the address. The session is laid out on disk the
 // way the CLI keeps it (fixtures shared with the core tests) and removed afterwards, because the
 // sessions spec counts what is in the sandbox.
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -35,29 +35,29 @@ export default async ({ page, api, check, dirs }) => {
     mkdirSync(join(tasksRoot, SESSION, 'tasks'), { recursive: true });
     writeFileSync(join(tasksRoot, SESSION, 'tasks', 'bg-sub-1.output'), 'watching the build\nrebuilt in 12ms\n');
 
-    const tasks = (await api.get('/tasks')).body;
-    const task = tasks.find((t) => t.id === 'bg-sub-1');
-    check(task?.sessionId === SESSION, 'the task carries its session, so its output can be read');
-    check(task?.fromSubagent === true, 'the task is marked as launched by a subagent');
+    const task = (await api.get('/tasks')).body.find((t) => t.id === 'bg-sub-1');
+    check(task?.chat.id === SESSION, 'the task carries its chat, so its output can be read');
+    check(typeof task?.ownerId === 'string', 'the task is marked as launched by a subagent');
+    const shown = task?.description || task?.id;
 
-    // Tasks page: the badge, and the output opens in a panel that the address remembers
-    await page.goto('/tasks', 1200);
-    await page.waitFor(`return document.querySelector('main').innerText.includes('from subagent')`, { label: 'the from-subagent badge' });
-    await page.click('main button', 'Output');
+    // The chat page: the task hangs off the subagent that launched it, and its output opens in a
+    // panel that the address remembers
+    await page.goto(`/chats/${SESSION}`, 1200);
+    await page.waitFor(`return document.querySelector('main').innerText.includes('Branches (')`, { label: 'the branches of the chat' });
+    await page.click('main .detail-task-link', shown);
     await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText.includes('rebuilt in 12ms')`, { label: 'the task output in the panel' });
     check((await page.eval('return location.search')).includes('detail=task'), 'the open panel is in the address');
     await page.shot('detail-task');
 
-    await page.goto(`/tasks${await page.eval('return location.search')}`, 1200);
+    await page.goto(`/chats/${SESSION}${await page.eval('return location.search')}`, 1200);
     await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText.includes('rebuilt in 12ms')`, { label: 'the panel back after a reload' });
 
     await page.key('Escape');
     check(!(await page.eval(`return document.querySelector('[role=dialog]') !== null`)), 'Escape closes the panel');
     check(!(await page.eval('return location.search')).includes('detail='), 'closing drops it from the address');
 
-    // Agents page: the subagent's prompt, result and transcript, and its task one click away
-    await page.goto('/agents', 1200);
-    await page.click('main tbody button', 'Details');
+    // The subagent's prompt, result and transcript, and its task one click away
+    await page.click('main .detail-task-link', 'Survey the build scripts');
     await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText.includes('List the build scripts')`, { label: 'the subagent prompt in the panel' });
     const panel = await page.text('[role=dialog]');
     check(panel.includes('Found 3 build scripts'), 'the panel shows what the subagent reported back');

@@ -1,9 +1,8 @@
 import type { PermissionDecision, PermissionRequest, PermissionUpdate } from '@agentry/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCheck, ChevronLeft, ChevronRight, ClipboardList, MessageCircleQuestion, ShieldQuestion, X } from 'lucide-react';
 import { useState } from 'react';
-import { api, keys } from '../api';
-import { useFallbackInterval } from '../lib/feed';
+import { chatApi, chatKeys, useChatPermissions } from '../lib/chats';
 import { ICON_SM } from './icons';
 import { RichText } from './Transcript';
 import { ErrorBox, Tabs } from './ui';
@@ -35,10 +34,11 @@ function describeSuggestion(update: PermissionUpdate): string {
 function useAnswer(request: PermissionRequest) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (decision: PermissionDecision) => api.answerPermission(request.runId, request.id, decision),
+    // `runId` on a request is the chat it belongs to
+    mutationFn: (decision: PermissionDecision) => chatApi.answerPermission(request.runId, request.id, decision),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: keys.runPermissions(request.runId) });
-      void queryClient.invalidateQueries({ queryKey: keys.runs });
+      void queryClient.invalidateQueries({ queryKey: chatKeys.permissions(request.runId) });
+      void queryClient.invalidateQueries({ queryKey: chatKeys.lists });
     },
   });
 }
@@ -312,17 +312,12 @@ function Prompt({ request }: { request: PermissionRequest }) {
 }
 
 /**
- * What the run is holding until someone decides: tool calls, questions, plans. Fetched rather than
+ * What the chat is holding until someone decides: tool calls, questions, plans. Fetched rather than
  * pushed: a request that arrives while the page is closed must still be waiting when it opens. The
  * event feed says when the list changes; a slow poll only covers the feed being down.
  */
-export function PermissionPrompts({ runId, live }: { runId: string; live: boolean }) {
-  const fallback = useFallbackInterval();
-  const { data } = useQuery({
-    queryKey: keys.runPermissions(runId),
-    queryFn: () => api.runPermissions(runId),
-    refetchInterval: live ? fallback : false,
-  });
+export function PermissionPrompts({ chatId, live }: { chatId: string; live: boolean }) {
+  const { data } = useChatPermissions(chatId, live);
   if (!data?.length) return null;
   return (
     <section className="permission-list" aria-label="Waiting for you">

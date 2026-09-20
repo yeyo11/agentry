@@ -60,7 +60,7 @@ test('a run waiting for the person is the highest priority and links straight to
   assert.ok(n);
   assert.equal(n.priority, 'high');
   assert.equal(n.kind, 'waiting');
-  assert.equal(n.href, '/runs/run1');
+  assert.equal(n.href, '/chats/run1');
   assert.match(n.body, /Bash/);
 });
 
@@ -187,10 +187,10 @@ test('finished tasks and subagents stay low priority unless they failed', () => 
     description: 'find things',
     status: 'completed',
   };
-  // The side panel is the most specific place; it works for a terminal session too
-  assert.equal(notificationsFor(sub)[0]?.href, '/agents?detail=subagent%3As9%3Aa1');
-  // Without the agent's id there is no panel to open: the session is the next best place
-  assert.equal(notificationsFor({ ...sub, agentId: null })[0]?.href, '/sessions/s9');
+  // The side panel is the most specific place; it opens over the chat, which a terminal's chat has too
+  assert.equal(notificationsFor(sub)[0]?.href, '/chats/s9?detail=subagent%3As9%3Aa1');
+  // Without the agent's id there is no panel to open: the chat is the next best place
+  assert.equal(notificationsFor({ ...sub, agentId: null })[0]?.href, '/chats/s9');
 });
 
 test('the same news inside the window is dropped, and comes back once the window has passed', () => {
@@ -217,7 +217,7 @@ test('a kind the person switched off is not recorded at all', () => {
 });
 
 test('what the person was already looking at arrives read', () => {
-  const seen = (d: NotificationDraft) => isRedundant(d, '/runs/run1', true);
+  const seen = (d: NotificationDraft) => isRedundant(d, '/chats/run1', true);
   const { items, added } = addNotifications([], notificationsFor(waiting()), defaultPrefs(), seen);
   assert.equal(items[0]?.read, true);
   assert.equal(unreadCount(items), 0);
@@ -227,9 +227,9 @@ test('what the person was already looking at arrives read', () => {
 test('a hidden tab or another page is never redundant', () => {
   const [n] = notificationsFor(waiting());
   assert.ok(n);
-  assert.equal(isRedundant(n, '/runs/run1', false), false);
-  assert.equal(isRedundant(n, '/runs/run2', true), false);
-  assert.equal(isRedundant(n, '/agents', true), false);
+  assert.equal(isRedundant(n, '/chats/run1', false), false);
+  assert.equal(isRedundant(n, '/chats/run2', true), false);
+  assert.equal(isRedundant(n, '/chats', true), false);
 });
 
 test('saved notifications and preferences survive a round trip', () => {
