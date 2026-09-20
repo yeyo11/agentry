@@ -129,7 +129,7 @@ Volumes:
 | --- | --- | --- |
 | `agentry-config` / `claude-config` | `/home/node/.claude` | The whole account setup: `settings.json`, `.claude.json` (MCP servers), `CLAUDE.md`, agents, skills, commands and session transcripts |
 | `./workspace` | `/workspace` | Projects Claude works on (default `cwd` for runs) |
-| `agentry-data` / `wrapper-data` | `/data` | Wrapper state: the SQLite store (`wrapper.db`: runs, orchestrations, plans, rotation log), `accounts.json` (auto-rotation settings), `credentials.json` (the runtime credential, mode 600) and `uploads/` (attachments) |
+| `agentry-data` / `wrapper-data` | `/data` | Wrapper state: the SQLite store (`wrapper.db`: chats and their executions, orchestrations, plans, rotation log), `accounts.json` (auto-rotation settings), `credentials.json` (the runtime credential, mode 600) and `uploads/` (attachments) |
 | `agentry-accounts` / `claude-swap` | `/home/node/.local/share/claude-swap` | Credentials of every registered account |
 
 The compose file keeps its original volume names so an existing setup keeps its data; `docker compose`
@@ -178,7 +178,7 @@ conversation with Claude (streamed reply, follow-up turn, stop) using your login
 
 ```
 packages/shared   Types and the message normalizer shared by every package (the API contract)
-packages/core     CLI communication: detection, auth, run manager, session store,
+packages/core     CLI communication: detection, auth, chat manager, transcript store,
                   orchestrator, accounts (claude-swap), config managers
 apps/api          Fastify REST API + SSE; serves the built UI in production
 apps/web          React + Vite UI
@@ -229,9 +229,6 @@ Types live in [`packages/shared/src/types.ts`](packages/shared/src/types.ts).
 | GET | `/health` | `{ ok, cli, loggedIn }` |
 | GET | `/system?refresh=1` | CLI detection, auth status, paths |
 | GET | `/overview` | Everything the dashboard needs in one call |
-| GET | `/active` | Live CLI sessions (`claude agents --json`), each marked `live` — a finished process or a pre-warmed spare is listed but not counted |
-| GET | `/active/:id/logs` | A background session's recent terminal output (`claude logs`) |
-| POST | `/active/:id/stop` | Stop a background session through `claude stop`, keeping it resumable |
 
 ### Account credentials
 
@@ -274,31 +271,21 @@ Rotation happens two ways:
 - **Proactive** — with `enabled`, the wrapper supervises a `cswap auto --json` process that
   switches when the active account's binding window reaches `threshold` (default 90 %), reusing
   claude-swap's cooldown, hysteresis and quarantine of dead refresh tokens.
-- **Reactive** — with `rotateOnLimit` (default on), a run that dies against its rate limit
+- **Reactive** — with `rotateOnLimit` (default on), a chat that dies against its rate limit
   (`rate_limit_event` rejection, a 429 result or a matching stderr line) triggers a rotation to
   the account with the most headroom, and the turn is replayed on the same session with
-  `--resume`. Once per run: a second failure is reported as a real one.
+  `--resume`. Once per chat: a second failure is reported as a real one.
 
-A run can also be pinned to one account with `RunOptions.account`, which spawns
-`cswap run <account> --share-history -- …` instead of `claude`. Pinned runs keep writing their
-transcript to the shared config dir, so sessions and history behave as usual.
+A chat can also be pinned to one account with `account` (on `NewChatRequest`, `ResumeChatRequest` or
+`ForkChatRequest`), which spawns `cswap run <account> --share-history -- …` instead of `claude`.
+Pinned chats keep writing their transcript to the shared config dir, so history behaves as usual.
 
-### Projects and sessions
+### Projects
 
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/projects` | Workspace directories plus every directory with Claude Code history, with active run counts |
 | POST | `/projects` | `{ name, gitUrl? }` — create an empty project in the workspace or clone a repository into it |
-| GET | `/projects/:id/sessions` | Sessions of one project |
-| GET | `/sessions?limit=N` | All sessions, newest first, flagged when live |
-| GET | `/sessions/:id?sidechains=1` | A window of the transcript: the newest 200 entries, or `?limit=` of them, with `from` and `total`; `?before=` the `from` of a page reads the one before it (optionally with subagent messages) |
-| DELETE | `/sessions/:id` | Delete a transcript (refused while the session is live) |
-| GET | `/sessions/:id/search?q=&sidechains=1` | Search the whole transcript, pages not loaded included: the matching entries' indices (the space of `from`/`total`) with a snippet each, case-insensitive; at most 500, the newest, with `truncated` |
-| GET | `/sessions/:id/subagents` | Background agents a session spawned, read from its files |
-| GET | `/sessions/:id/tasks` | Shell commands a session sent to the background |
-| GET | `/sessions/:id/tasks/:taskId/output` | What one of them printed: the last 64 KiB, or with `?offset=` only what came after that byte |
-| GET | `/sessions/:id/subagents/:agentId` | One subagent: prompt, outcome, token usage and full transcript (`?after=` to append) |
-| GET | `/sessions/:id/workflows/:runId/agents/:agentId` | The same for an agent a workflow launched |
 | DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible |
 
 ### Events
@@ -313,35 +300,49 @@ One Server-Sent Events stream for the whole app, so a client never has to poll.
 curl -N localhost:8787/api/events
 ```
 
-### Runs
+### Chats
 
-A run is a live conversation backed by a `claude -p` process.
+A chat is one Claude Code conversation, and its id is the session id: however many times it is
+resumed, and whoever started it, it is one chat. Each time Agentry has a `claude -p` process working
+on it, that is an **execution** of the chat, with its own outcome, cost and turns. `state` says what
+is happening (`working`, `waiting` for a person, `idle`) and `control` what can be done with the chat
+now: `interactive` (Agentry has a live execution), `resumable` (nothing holds it), or `readOnly` with
+the reason and the way forward (`fork`, or `hint` for a task an orchestration is still running).
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/runs` | All runs |
-| POST | `/runs` | Start a run. Body: `RunOptions` (`prompt` required; `cwd`, `model`, `permissionMode`, `resumeSessionId`, `forkSession` (continue a copy of that session), `name`, `effort`, `appendSystemPrompt`, `allowedTools`, `keepAlive`, `jsonSchema`, `maxBudgetUsd`, `worktree`, `permissionPrompts`, `attachments`) |
-| GET | `/runs/:id` | Run summary + a window of its events: the newest 200, or `?limit=` of them, with `from` and `total`; `?before=` reads further back |
-| GET | `/runs/:id/search?q=` | Search every event of the run: matching event indices (the space of `from`/`total`) with a snippet and the event `kind` each |
-| GET | `/runs/:id/stream?since=SEQ` | Server-Sent Events, one `RunEvent` per message (honours `Last-Event-ID`). Includes ephemeral `partial` events with the text generated so far (token streaming); they are never replayed |
-| POST | `/runs/:id/messages` | `{ text, attachments? }` — send another turn (resumes the session if the process ended). `attachments` are upload ids from `POST /uploads` |
-| POST | `/runs/:id/stop` | Stop the process; the conversation is kept |
-| POST | `/runs/:id/interrupt` | End the turn in progress and keep the process, which waits for the next message |
-| PATCH | `/runs/:id` | `{ permissionMode?, model? }` — a live process switches at once; an ended one on its next message |
-| GET | `/runs/:id/permissions` | What the run is waiting on: tool calls, questions (`AskUserQuestion`) and plans (`ExitPlanMode`). Only for runs started with `permissionPrompts: "host"` |
-| POST | `/runs/:id/permissions/:requestId` | `{ behavior: "allow" \| "deny", message?, updatedInput?, updatedPermissions? }` — answer one. A question is answered by allowing it with `updatedInput.answers` (question → chosen labels); `updatedPermissions` takes the request's `suggestions` to remember them. Unanswered requests are denied after ten minutes |
-| DELETE | `/runs/:id` | Forget an ended run |
-| GET | `/environments?cwd=` | What Claude actually loaded (tools, MCP status, agents, skills, plugins, commands, memory paths) per directory, from the latest run there |
-| GET | `/tasks` | Work sent to the background (commands, monitors, remote agents) by runs and by terminal sessions, live or ended in the last day. Survives a restart |
-| GET | `/subagents` | Agents spawned with the Agent tool, foreground or background, by runs and by terminal sessions. Survives a restart |
-| GET | `/workflows` | Claude Code workflows (the Workflow tool) with the progress of every agent they launched, from runs and terminal sessions |
+| GET | `/chats?project=&loose=1&origin=&state=&limit=` | Chats, newest first. Workers of an orchestration and housekeeping chats are left out unless `origin` (comma-separated: `agentry`, `external`, `orchestration`, `internal`) asks for them; `loose=1` lists those under no project |
+| POST | `/chats` | Start a chat. Body: `NewChatRequest` (`prompt` required; `cwd`, `model`, `permissionMode`, `effort`, `appendSystemPrompt`, `allowedTools`, `jsonSchema`, `maxBudgetUsd`, `worktree`, `permissionPrompts`, `account`, `attachments`) |
+| GET | `/chats/:id` | The chat with its branches and environment, and a window of its transcript: the newest 200 entries, or `?limit=` of them, with `from` and `total`; `?before=` the `from` of a page reads the one before it (`?sidechains=1` adds subagent messages) |
+| GET | `/chats/:id/search?q=&sidechains=1` | Search the whole transcript, pages not loaded included: the matching entries' indices (the space of `from`/`total`) with a snippet each, case-insensitive; at most 500, the newest, with `truncated` |
+| GET | `/chats/:id/stream?since=SEQ` | Server-Sent Events, one `RunEvent` per message (honours `Last-Event-ID`). Includes ephemeral `partial` events with the text generated so far (token streaming); they are never replayed |
+| POST | `/chats/:id/resume` | Body: `ResumeChatRequest` (`prompt`, same options as a new chat). Adds an execution to the same chat, which keeps its id. Decided on the server at this moment from the CLI's own session list and the process table: a chat born in a terminal that nothing holds is adopted and stays `external`; one a terminal holds, or that belongs to an orchestration, is refused with `409` and the reason |
+| POST | `/chats/:id/fork` | Body: `ForkChatRequest`. Continues in a copy: a new chat with the same history that records `derivedFrom` and leaves the original untouched. Allowed on any chat |
+| POST | `/chats/:id/messages` | `{ text, attachments? }` — another turn for a chat with a live execution (`409` otherwise: resume it). `attachments` are upload ids from `POST /uploads` |
+| POST | `/chats/:id/stop` | Stop what is working on it: the execution Agentry runs, or a background session the CLI holds (`claude stop`). The conversation is kept |
+| POST | `/chats/:id/interrupt` | End the turn in progress and keep the process, which waits for the next message |
+| PATCH | `/chats/:id` | `{ permissionMode?, model? }` — a live process switches at once; an ended one on its next execution |
+| DELETE | `/chats/:id` | Delete the transcript, its sidecar files and Agentry's record (`409` while something is running on it) |
+| GET | `/chats/:id/logs` | A background session's recent terminal output (`claude logs`) |
+| GET | `/chats/:id/permissions` | What the chat is waiting on: tool calls, questions (`AskUserQuestion`) and plans (`ExitPlanMode`). Only for chats started with `permissionPrompts: "host"` |
+| POST | `/chats/:id/permissions/:requestId` | `{ behavior: "allow" \| "deny", message?, updatedInput?, updatedPermissions? }` — answer one. A question is answered by allowing it with `updatedInput.answers` (question → chosen labels); `updatedPermissions` takes the request's `suggestions` to remember them. Unanswered requests are denied after ten minutes |
+| GET | `/chats/:id/subagents` | Subagents of the chat: branches of it, whose messages live in its transcript |
+| GET | `/chats/:id/subagents/:agentId` | One subagent: prompt, outcome, token usage and full transcript (`?after=` to append) |
+| GET | `/chats/:id/tasks` | Commands the chat sent to the background, with `ownerId` for those a subagent launched |
+| GET | `/chats/:id/tasks/:taskId/output` | What one of them printed: the last 64 KiB, or with `?offset=` only what came after that byte |
+| GET | `/chats/:id/workflows` | Workflow runs (the Workflow tool) of the chat, with the progress of every agent they launched |
+| GET | `/chats/:id/workflows/:workflowId/agents/:agentId` | The same as a subagent's, for an agent a workflow launched |
+| GET | `/environments?cwd=` | What Claude actually loaded (tools, MCP status, agents, skills, plugins, commands, memory paths) per directory, from the latest chat started there |
+| GET | `/tasks` | Commands sent to the background (monitors and remote agents too), each with the chat that sent it, from Agentry's chats and from terminal ones live or ended in the last day. The inbox sees a hung command wherever it is. Survives a restart |
+| GET | `/subagents` | Subagents of every chat, foreground or background, each with its chat. Survives a restart |
+| GET | `/workflows` | Workflow runs of every chat, each with its chat |
 | GET | `/workflows/saved?cwd=` | Saved workflows in the project's `.claude/workflows/` and the user's |
-| POST | `/workflows/saved/run` | `{ name, cwd?, args?, model? }` — start a run that runs a saved workflow |
+| POST | `/workflows/saved/run` | `{ name, cwd?, args?, model? }` — start a chat that runs a saved workflow |
 
 ```bash
-curl -X POST localhost:8787/api/runs -H 'content-type: application/json' \
+curl -X POST localhost:8787/api/chats -H 'content-type: application/json' \
   -d '{"prompt":"Summarize this repo","cwd":"/workspace/my-project","model":"sonnet"}'
-curl -N localhost:8787/api/runs/<id>/stream
+curl -N localhost:8787/api/chats/<id>/stream
 ```
 
 ### Orchestration
@@ -372,9 +373,9 @@ when the CLI has the Workflow tool; the draft shows why it chose either, and you
 | --- | --- | --- |
 | GET | `/orchestrations` | List |
 | POST | `/orchestrations` | Launch. Body: `OrchestrationSpec` |
-| POST | `/orchestrations/plan/start` | `{ objective, cwd?, model?, maxTasks? }` → the planner run, returned at once so it can be streamed |
+| POST | `/orchestrations/plan/start` | `{ objective, cwd?, model?, maxTasks? }` → the planner chat (housekeeping), returned at once so it can be streamed at `/chats/:id/stream` |
 | GET | `/orchestrations/plans` | Plans generated but not launched; each is kept when its planner finishes |
-| GET | `/orchestrations/plans/:runId` | The draft `OrchestrationSpec` a planner run produced |
+| GET | `/orchestrations/plans/:runId` | The draft `OrchestrationSpec` a planner chat produced (`:runId` is the planner chat's id) |
 | POST | `/orchestrations/plan` | Same as `plan/start` but waits for the draft — holds the request open for minutes |
 | GET | `/orchestrations/:id` | State of every task, results, cost |
 | POST | `/orchestrations/:id/stop` | Stop all workers |
@@ -405,7 +406,7 @@ when the CLI has the Workflow tool; the draft shows why it chose either, and you
 
 ### Uploads
 
-Files attached to a run's first message (`RunOptions.attachments`) or to a later turn. The file is
+Files attached to a chat's first message (`NewChatRequest.attachments`) or to a later turn. The file is
 the request body as is, not multipart. Images are capped at 5 MB, PDFs at 32 MB, anything else at
 50 MB, and the files live in `uploads/` under the data directory.
 
@@ -418,7 +419,7 @@ the request body as is, not multipart. Images are capped at 5 MB, PDFs at 32 MB,
 ```bash
 id=$(curl -s -X POST 'localhost:8787/api/uploads?name=diagram.png' \
   -H 'content-type: application/octet-stream' --data-binary @diagram.png | jq -r .id)
-curl -X POST localhost:8787/api/runs -H 'content-type: application/json' \
+curl -X POST localhost:8787/api/chats -H 'content-type: application/json' \
   -d "{\"prompt\":\"Explain this diagram\",\"attachments\":[\"$id\"]}"
 ```
 

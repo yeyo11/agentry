@@ -7,13 +7,13 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { Core } from '@agentry/core';
 import { registerOpenApi } from './openapi/plugin.ts';
 import { accountRoutes } from './routes/accounts.ts';
+import { chatRoutes } from './routes/chats.ts';
 import { configRoutes } from './routes/config.ts';
 import { eventRoutes } from './routes/events.ts';
 import { memoryRoutes } from './routes/memory.ts';
 import { orchestrationRoutes } from './routes/orchestrations.ts';
 import { pluginRoutes } from './routes/plugins.ts';
-import { runRoutes } from './routes/runs.ts';
-import { sessionRoutes } from './routes/sessions.ts';
+import { projectRoutes } from './routes/projects.ts';
 import { systemRoutes } from './routes/system.ts';
 import { uploadRoutes } from './routes/uploads.ts';
 
@@ -47,9 +47,9 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
     async (api) => {
       await api.register(systemRoutes, { core });
     await api.register(accountRoutes, { core });
-      await api.register(sessionRoutes, { core });
+      await api.register(projectRoutes, { core });
+      await api.register(chatRoutes, { core });
       await api.register(eventRoutes, { core });
-      await api.register(runRoutes, { core });
       await api.register(orchestrationRoutes, { core });
       await api.register(configRoutes, { core });
       await api.register(pluginRoutes, { core });

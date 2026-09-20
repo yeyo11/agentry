@@ -11,10 +11,10 @@ const out = resolve(here, '../src/openapi/schemas.json');
 
 // Root types used by the routes; everything they reference is pulled in automatically.
 const ROOT_TYPES = [
-  'ApiError', 'SystemInfo', 'Overview', 'AuthStatus', 'AuthVerification', 'SetCredentialsRequest', 'ActiveCliSession',
-  'ProjectSummary', 'CreateProjectRequest', 'SessionSummary', 'SessionDetail', 'TranscriptSearchResult',
-  'RunOptions', 'RunSummary', 'RunDetail', 'RunEvent', 'EffectiveEnvironment', 'BackgroundTask', 'BackgroundTaskOutput', 'SubagentInfo', 'AgentTranscript', 'WorkflowRun', 'WorkflowDefinition', 'RunWorkflowRequest', 'SaveOrchestrationWorkflowRequest',
-  'Orchestration', 'OrchestrationSpec', 'PlanRequest', 'PlanDraftSummary', 'PermissionRequest', 'PermissionDecision', 'RunSettingsUpdate', 'ResumeOrchestrationRequest',
+  'ApiError', 'SystemInfo', 'Overview', 'AuthStatus', 'AuthVerification', 'SetCredentialsRequest',
+  'ProjectSummary', 'CreateProjectRequest', 'TranscriptSearchResult',
+  'RunEvent', 'EffectiveEnvironment', 'BackgroundTaskOutput', 'AgentTranscript', 'WorkflowDefinition', 'RunWorkflowRequest', 'SaveOrchestrationWorkflowRequest',
+  'Orchestration', 'OrchestrationSpec', 'PlanRequest', 'PlanDraftSummary', 'PermissionRequest', 'PermissionDecision', 'ResumeOrchestrationRequest',
   'SettingsDoc', 'InstructionsDoc', 'McpServerEntry', 'McpServerHealth', 'MarkdownResource',
   'ConfigFileRoot', 'ConfigFileNode', 'ConfigFileContent', 'WriteConfigFileRequest',
   'MemoryFile', 'MemoryProjectSummary', 'PluginsOverview', 'AvailablePlugin', 'PluginActionRequest', 'CliTextResult',
@@ -22,7 +22,7 @@ const ROOT_TYPES = [
   'SetAccountAliasRequest', 'AutoSwitchSettings', 'AutoSwitchEvent',
   'AgentryEvent', 'StreamHelloEvent', 'StreamResyncEvent',
   // Agentry's own model: chats, executions, projects
-  'Chat', 'ChatDetail', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatSettingsUpdate',
+  'Chat', 'ChatSummary', 'ChatDetail', 'ChatBackgroundTaskEntry', 'ChatSubagentEntry', 'ChatWorkflowEntry', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatSettingsUpdate',
   'TaskHintRequest', 'Project', 'ProjectCandidate', 'ImportProjectRequest', 'UpdateProjectRequest',
 ];
 

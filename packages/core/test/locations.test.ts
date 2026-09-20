@@ -81,8 +81,8 @@ test('a session run in a worktree carries the CLI record, and its project nests 
   assert.equal(child?.parentId, encodeProjectId(parent));
   assert.deepEqual(child?.worktree, { name: '1234-api', branch: 'worktree-1234-api' });
   assert.equal(projects.find((p) => p.path === parent)?.parentId, null);
-  // Asking for the repository's sessions includes the worktree's
-  const ids = (await core.sessionsWithLive(encodeProjectId(parent))).map((s) => s.id).sort();
+  // Asking for the repository's chats includes the worktree's
+  const ids = (await core.chats.list({ project: encodeProjectId(parent), origins: ['agentry', 'external'] })).map((c) => c.id).sort();
   assert.deepEqual(ids, ['p-1', 'w-1']);
   core.db.close();
 });

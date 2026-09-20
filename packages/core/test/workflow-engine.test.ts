@@ -4,10 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { Orchestration, WorkflowRun } from '@agentry/shared';
+import type { Orchestration } from '@agentry/shared';
+import type { WorkflowRun } from '../src/cli-facts.ts';
 import { Db } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
-import { RunManager } from '../src/runner.ts';
+import { ChatManager } from '../src/chats.ts';
 import { compileWorkflow, readCompiledResult, workflowName, type CompileInput } from '../src/workflow-engine.ts';
 import { scriptMeta } from '../src/workflows.ts';
 import { tempConfig } from './helpers.ts';
@@ -109,14 +110,14 @@ test('names and prompts that are not plain survive the trip into the script', as
 // ---------- the orchestrator on the workflow engine ----------
 
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude-control.mjs', import.meta.url));
-const resultText = (runs: RunManager, id: string) => runs.events(id).filter((e) => e.kind === 'result').at(-1)?.text ?? '';
+const resultText = (runs: ChatManager, id: string) => runs.events(id).filter((e) => e.kind === 'result').at(-1)?.text ?? '';
 
 function setup() {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const records = mkdtempSync(join(tmpdir(), 'agentry-wf-records-'));
   process.env.FAKE_WORKFLOW_DIR = records;
   const db = new Db(config);
-  const runs = new RunManager(config, db);
+  const runs = new ChatManager(config, db);
   const orchestrator = new Orchestrator(config, runs, db);
   // Where the fake CLI leaves each session's record, standing in for the files beside a transcript
   orchestrator.workflowRecords = async (sessionId) => {
@@ -200,7 +201,8 @@ test('a failed workflow resumes in the same session from its run id, keeping wha
       ['after', 'skipped'],
     ],
   );
-  const session = runs.get(failed.workflow?.runId ?? '')?.sessionId;
+  // The workflow's chat: resuming the graph adds an execution to it and never makes another
+  const chatId = failed.workflow?.runId;
 
   orchestrator.resume(failed.id);
   const resumed = await settle(orchestrator, failed.id);
@@ -214,7 +216,7 @@ test('a failed workflow resumes in the same session from its run id, keeping wha
     ],
   );
   const run = runs.get(resumed.workflow?.runId ?? '');
-  assert.equal(run?.sessionId, session);
+  assert.equal(run?.id, chatId);
   assert.match(resultText(runs, run?.id ?? ''), /workflow wf_fake-001 completed/);
   runs.stopAll();
   db.close();
