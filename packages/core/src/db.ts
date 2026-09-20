@@ -361,6 +361,17 @@ export class Db {
     return out;
   }
 
+  /** When a stored chat was last heard from, which is when an execution a restart cut off stopped. */
+  chatUpdatedAt(id: string): string | null {
+    const row = this.db.prepare('SELECT json FROM chats WHERE id = ?').get(id) as JsonRow | undefined;
+    if (!row) return null;
+    try {
+      return (JSON.parse(row.json) as ChatRecord).updatedAt;
+    } catch {
+      return null;
+    }
+  }
+
   saveOrchestrations(items: Orchestration[]): void {
     this.saveDocs(
       'orchestrations',

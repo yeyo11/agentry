@@ -1,4 +1,4 @@
-import { Ban, Check, CircleX, CirclePause, Plus, Square } from 'lucide-react';
+import { Ban, Check, CircleX, CirclePause, Plus, Square, Zap } from 'lucide-react';
 import type { OrchestrationEngine, OrchestrationSpec, OrchestrationTaskSpec, PermissionMode } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -495,6 +495,7 @@ export function Orchestration() {
               // "5/5" over a graph that had finished two tasks and been interrupted.
               const completed = orch.tasks.filter((t) => t.status === 'completed').length;
               const stopped = orch.tasks.filter((t) => t.status === 'stopped').length;
+              const interrupted = orch.tasks.filter((t) => t.status === 'interrupted').length;
               const skipped = orch.tasks.filter((t) => t.status === 'skipped').length;
               const blocked = orch.tasks.filter((t) => t.status === 'blocked').length;
               const failed = orch.tasks.filter((t) => t.status === 'failed').length;
@@ -521,6 +522,12 @@ export function Orchestration() {
                         <span className="text-warn meta-icon">
                           <Square size={12} strokeWidth={2} aria-hidden />
                           {stopped} not run
+                        </span>
+                      )}
+                      {interrupted > 0 && (
+                        <span className="text-warn meta-icon">
+                          <Zap size={12} strokeWidth={2} aria-hidden />
+                          {interrupted} interrupted by a restart
                         </span>
                       )}
                       {failed > 0 && (

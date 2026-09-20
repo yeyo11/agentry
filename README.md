@@ -46,7 +46,7 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
   dependency context and a synthesis step. Every worker can get its own git worktree and branch,
   so parallel agents never write over each other. An auto-planner drafts the graph; plans are kept,
   so one lost to a closed tab is reloaded instead of paid for twice, and a graph interrupted by a
-  restart resumes where it stopped.
+  restart goes on where it stopped.
 - **Multi-account rotation** — usage per window, proactive switching before an account runs out,
   and a run that hits its limit is rotated and resumed on the next account. Every rotation is
   recorded, so "why did my account change" has an answer that survives a restart.
@@ -555,8 +555,10 @@ the effective environment — is available to any run.
 - Run metadata is persisted and conversations are rebuilt from the session transcripts after a
   restart, and so are background tasks and subagents, which are read back from the files the CLI
   writes. What exists only in a run's live stream is lost: its stderr, and the rate-limit notice.
-  Workers do not survive a restart either: an orchestration caught by one stops, and resumes on
-  request.
+  Workers do not survive a restart either: a task caught by one is `interrupted` (not `stopped`,
+  which is someone's decision), and its chat goes on in a new execution once the wrapper is back,
+  while the task has attempts left. A stopped task is never continued on its own, and a workflow
+  or a graph caught while integrating waits for `resume`.
 - A background task's output lives in the CLI's temp dir, which a reboot clears. Its command,
   status and summary stay in the transcript.
 - Running the API with a file watcher (`pnpm dev`) while an orchestration edits this same repo

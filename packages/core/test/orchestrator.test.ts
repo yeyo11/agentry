@@ -9,6 +9,7 @@ import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
 import { Db } from '../src/db.ts';
 import { Orchestrator, validateTasks } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';
+import { SessionStore } from '../src/sessions.ts';
 import { tempConfig } from './helpers.ts';
 
 const task = (id: string, dependsOn: string[] = []) => ({ id, name: id, prompt: 'do it', dependsOn });
@@ -697,5 +698,169 @@ test('resuming a graph continues the chats of its unfinished tasks instead of st
   assert.equal(runs.get(chat as string)?.executions.length, 2);
   assert.ok(slow.costUsd >= (stoppedCost ?? 0));
   assert.match(slow.result ?? '', /files=/);
+  db.close();
+});
+
+// ---------- a restart is not a decision to stop ----------
+
+const HEARD = '2026-01-01T10:20:00.000Z';
+
+/**
+ * What a wrapper that went away mid-graph leaves in the store: a chat per task, the executions of
+ * the ones that were running still open, and the graph itself still `running`.
+ */
+function seedRestart(cwd: string, tasks: Array<{ id: string; status: OrchestrationTaskState['status']; attempts: number; dependsOn?: string[]; stoppedByPerson?: boolean }>, maxAttempts = 2) {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const execution = (chat: string, live: boolean, outcome: 'stopped' | null) => ({
+    id: `${chat}-x1`,
+    startedAt: '2026-01-01T10:00:00.000Z',
+    endedAt: live ? null : HEARD,
+    outcome,
+    error: null,
+    permissionMode: 'acceptEdits' as const,
+    model: null,
+    account: null,
+    maxBudgetUsd: null,
+    costUsd: null,
+    tokens: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },
+    turns: 1,
+  });
+  const chats = tasks
+    .filter((t) => t.status === 'running' || t.status === 'stopped')
+    .map((t) => ({
+      record: {
+        id: `chat-${t.id}`,
+        name: `restart:${t.id}`,
+        cwd,
+        workingDir: cwd,
+        origin: 'orchestration' as const,
+        orchestrationId: 'graph-r',
+        orchestrationTaskId: t.id,
+        derivedFrom: null,
+        prompt: 'work',
+        lastText: null,
+        model: null,
+        permissionMode: 'acceptEdits' as const,
+        account: null,
+        permissionPrompts: 'none' as const,
+        createdAt: '2026-01-01T10:00:00.000Z',
+        updatedAt: HEARD,
+      },
+      executions: [t.status === 'running' ? execution(`chat-${t.id}`, true, null) : execution(`chat-${t.id}`, false, 'stopped')],
+    }));
+  db.saveChats(chats, 100);
+  const graph = stoppedGraph(cwd, {
+    id: 'graph-r',
+    status: 'running',
+    endedAt: null,
+    maxAttempts,
+    synthesize: false,
+    tasks: tasks.map((t) => ({
+      id: t.id,
+      name: t.id,
+      prompt: `do ${t.id}`,
+      dependsOn: t.dependsOn ?? [],
+      status: t.status,
+      attempts: t.attempts,
+      runId: t.status === 'running' || t.status === 'stopped' ? `chat-${t.id}` : null,
+      sessionId: t.status === 'running' || t.status === 'stopped' ? `chat-${t.id}` : null,
+      result: t.status === 'completed' ? `${t.id} done` : null,
+      error: null,
+      startedAt: '2026-01-01T10:00:00.000Z',
+      endedAt: t.status === 'stopped' ? HEARD : null,
+      costUsd: 0,
+    })),
+  });
+  db.saveOrchestrations([graph]);
+  return { config, db };
+}
+
+test('a task a restart cut off is interrupted when its chat was last heard from and goes on in its chat; one someone stopped stays stopped', async () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'agentry-restart-'));
+  const { config, db } = seedRestart(cwd, [
+    { id: 'cut', status: 'running', attempts: 1 },
+    { id: 'after', status: 'pending', attempts: 0, dependsOn: ['cut'] },
+    { id: 'mine', status: 'stopped', attempts: 1 },
+    { id: 'behind', status: 'pending', attempts: 0, dependsOn: ['mine'] },
+  ]);
+  const runs = new ChatManager(config, db);
+  const orchestrator = new Orchestrator(config, runs, db);
+  const taskOf = (id: string) => orchestrator.get('graph-r')?.tasks.find((t) => t.id === id) as OrchestrationTaskState;
+
+  // Not the moment the wrapper came back: the moment the chat last did anything
+  assert.equal(taskOf('cut').status, 'interrupted');
+  assert.equal(taskOf('cut').endedAt, HEARD);
+  assert.equal(taskOf('mine').status, 'stopped');
+  assert.equal(orchestrator.get('graph-r')?.status, 'running');
+
+  await runs.restore(new SessionStore(config));
+  orchestrator.recover();
+  const orch = await until(() => orchestrator.get('graph-r') as Orchestration, (o) => o.status !== 'running', 'the graph to settle');
+
+  // The chat continued in a new execution, and the one the restart cut is on record as such
+  const cut = taskOf('cut');
+  assert.equal(cut.status, 'completed', cut.error ?? '');
+  assert.equal(cut.runId, 'chat-cut');
+  assert.equal(cut.attempts, 2);
+  const executions = runs.get('chat-cut')?.executions ?? [];
+  assert.equal(executions.length, 2);
+  assert.equal(executions[0]?.outcome, 'interrupted');
+  assert.equal(executions[0]?.endedAt, HEARD);
+  assert.equal(runs.list().filter((c) => c.orchestrationTaskId === 'cut').length, 1);
+  assert.equal(taskOf('after').status, 'completed');
+  // Nobody continued what a person stopped, and what waits behind it waits for a decision
+  assert.equal(taskOf('mine').status, 'stopped');
+  assert.equal(runs.get('chat-mine')?.executions.length, 1);
+  assert.equal(taskOf('behind').status, 'blocked');
+  assert.equal(orch.status, 'waiting');
+  runs.stopAll();
+  db.close();
+});
+
+test('an interrupted task that has used its attempts is failed for a person to decide, not retried again', async () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'agentry-restart-'));
+  const { config, db } = seedRestart(cwd, [
+    { id: 'cut', status: 'running', attempts: 2 },
+    { id: 'after', status: 'pending', attempts: 0, dependsOn: ['cut'] },
+  ]);
+  const runs = new ChatManager(config, db);
+  const orchestrator = new Orchestrator(config, runs, db);
+  await runs.restore(new SessionStore(config));
+  orchestrator.recover();
+
+  const orch = orchestrator.get('graph-r') as Orchestration;
+  const cut = orch.tasks.find((t) => t.id === 'cut') as OrchestrationTaskState;
+  assert.equal(cut.status, 'failed');
+  assert.match(cut.error ?? '', /interrupted by a restart, with no attempts left/);
+  assert.equal(cut.endedAt, HEARD);
+  assert.equal(runs.get('chat-cut')?.executions.length, 1);
+  assert.equal(orch.tasks.find((t) => t.id === 'after')?.status, 'blocked');
+  assert.equal(orch.status, 'waiting');
+  db.close();
+});
+
+test('stopping a graph in the moment after a restart is a decision: the interrupted task is stopped and stays so', async () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'agentry-restart-'));
+  const { config, db } = seedRestart(cwd, [{ id: 'cut', status: 'running', attempts: 1 }]);
+  const runs = new ChatManager(config, db);
+  const orchestrator = new Orchestrator(config, runs, db);
+  orchestrator.stop('graph-r');
+  await runs.restore(new SessionStore(config));
+  orchestrator.recover();
+  assert.equal(orchestrator.get('graph-r')?.tasks[0]?.status, 'stopped');
+  assert.equal(orchestrator.get('graph-r')?.status, 'stopped');
+  assert.equal(runs.get('chat-cut')?.executions.length, 1);
+  db.close();
+});
+
+test('a graph that had finished its tasks when the wrapper went away waits for a person instead of starting over', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'agentry-restart-'));
+  const { config, db } = seedRestart(cwd, [{ id: 'done', status: 'completed', attempts: 1 }]);
+  const finishing = { ...(db.loadOrchestrations()[0] as Orchestration), endedAt: '2026-01-01T10:25:00.000Z' };
+  db.saveOrchestrations([finishing]);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+  assert.equal(orchestrator.get('graph-r')?.status, 'stopped');
+  assert.equal(orchestrator.get('graph-r')?.endedAt, '2026-01-01T10:25:00.000Z');
   db.close();
 });

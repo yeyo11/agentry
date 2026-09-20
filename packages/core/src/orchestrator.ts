@@ -256,14 +256,40 @@ export class Orchestrator {
         o.integration.status = 'failed';
         o.integration.error = 'interrupted by a restart; integrate again to finish it';
       }
-      // Workers do not survive a wrapper restart
-      if (o.status === 'running') {
-        o.status = 'stopped';
-        o.endedAt ??= now();
-        for (const t of o.tasks) if (t.status === 'running' || t.status === 'pending') t.status = 'stopped';
-      }
+      if (o.status === 'running') this.interrupt(o);
       this.items.set(o.id, o);
     }
+  }
+
+  /**
+   * Workers do not survive a wrapper restart, but a restart is not a decision to stop: what was
+   * running is `interrupted`, at the moment its chat was last heard from and not when the wrapper
+   * came back, and `stopped` stays for what a person stopped. A graph with work left stays running,
+   * and `recover()` continues it once the chats are back; one that had already finished its tasks
+   * (it was integrating or synthesising) and a workflow, which is one session the CLI replays from
+   * its cache, wait for `resume()`.
+   */
+  private interrupt(orch: Orchestration): void {
+    let lastHeard = '';
+    for (const task of orch.tasks) {
+      if (task.status !== 'running') continue;
+      task.status = 'interrupted';
+      task.endedAt = (task.runId ? this.db.chatUpdatedAt(task.runId) : null) ?? task.startedAt ?? now();
+      if (task.endedAt > lastHeard) lastHeard = task.endedAt;
+    }
+    const goesOn = orch.engine === 'graph' && !orch.endedAt && orch.tasks.some((t) => t.status === 'pending' || t.status === 'interrupted');
+    if (goesOn) return;
+    orch.status = 'stopped';
+    orch.endedAt ??= lastHeard || (orch.workflow?.runId ? this.db.chatUpdatedAt(orch.workflow.runId) : null) || now();
+  }
+
+  /**
+   * Puts back to work the graphs a restart cut off. The chats their tasks were working in are
+   * restored asynchronously, so this waits for them: a task whose chat is not there yet would start
+   * a new conversation instead of continuing its own.
+   */
+  recover(): void {
+    for (const orch of this.items.values()) if (orch.status === 'running' && orch.engine === 'graph') this.schedule(orch);
   }
 
   /** Carries a pre-SQLite `orchestrations.json` into the store once, then renames it away. */
@@ -378,7 +404,7 @@ export class Orchestrator {
     if (orch.workflow?.runId && this.runs.get(orch.workflow.runId)?.pid) this.runs.stop(orch.workflow.runId);
     for (const t of orch.tasks) {
       if (t.status === 'running' && t.runId && orch.engine !== 'workflow') this.runs.stop(t.runId);
-      if (t.status === 'pending' || t.status === 'running' || t.status === 'blocked') t.status = 'stopped';
+      if (t.status === 'pending' || t.status === 'running' || t.status === 'blocked' || t.status === 'interrupted') t.status = 'stopped';
     }
     // The last steps run agents too, and stopping the graph has to stop them
     for (const runId of [orch.integration?.integratorRunId, orch.synthesisRunId]) {
@@ -495,6 +521,14 @@ export class Orchestrator {
     if (orch.status !== 'running') return;
     const byId = new Map(orch.tasks.map((t) => [t.id, t]));
 
+    // A restart cut a task off: it goes on while it has attempts left, as a failure would. A stopped
+    // one never comes here, because someone chose that.
+    for (const t of orch.tasks) {
+      if (t.status !== 'interrupted' || t.attempts < orch.maxAttempts) continue;
+      t.status = 'failed';
+      t.error = `interrupted by a restart, with no attempts left (${t.attempts} of ${orch.maxAttempts})`;
+    }
+
     // What waits behind a task decides its own state, until nothing changes: a branch given up takes
     // its dependants with it, and one that failed for good holds them for a person to decide. A
     // task that stops being held (its blocker was retried, or completed late) goes back to pending.
@@ -522,13 +556,13 @@ export class Orchestrator {
     let running = orch.tasks.filter((t) => t.status === 'running').length;
     for (const t of orch.tasks) {
       if (running >= orch.concurrency) break;
-      if (t.status !== 'pending') continue;
+      if (t.status !== 'pending' && t.status !== 'interrupted') continue;
       if (!(t.dependsOn ?? []).every((d) => byId.get(d)?.status === 'completed')) continue;
       if (this.launch(orch, t)) running++;
       else break;
     }
 
-    if (orch.tasks.every((t) => !['pending', 'running'].includes(t.status))) {
+    if (orch.tasks.every((t) => !['pending', 'running', 'interrupted'].includes(t.status))) {
       // A synthesis written over a graph that is missing a branch reads like the final report, so
       // nothing that summarises it runs until a person has decided about what failed
       if (orch.tasks.some((t) => t.status === 'failed' || t.status === 'blocked')) orch.status = 'waiting';

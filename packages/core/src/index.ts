@@ -157,7 +157,8 @@ export class Core {
     this.explorer = new ConfigExplorer();
     this.plugins = new Plugins(config);
     this.memory = new MemoryStore(config);
-    void this.runtime.restore(this.sessions);
+    // The graphs a restart cut off go on in the chats it restores, so only once those are back
+    void this.runtime.restore(this.sessions).finally(() => this.orchestrator.recover());
     this.mcp = new McpConfig(config);
     this.resources = new ConfigResources();
     this.accounts = new AccountManager(config, this.db);

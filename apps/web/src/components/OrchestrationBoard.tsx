@@ -16,6 +16,7 @@ import {
   Send,
   SkipForward,
   Square,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { useId, useState } from 'react';
@@ -45,6 +46,7 @@ const STATUS: Record<BoardStatus, { icon: LucideIcon; tone: string; label: strin
   blocked: { icon: CirclePause, tone: 'warn', label: 'blocked' },
   skipped: { icon: Ban, tone: 'muted', label: 'skipped' },
   stopped: { icon: Square, tone: 'warn', label: 'stopped' },
+  interrupted: { icon: Zap, tone: 'warn', label: 'interrupted' },
   waiting: { icon: Hand, tone: 'warn', label: 'waiting for you' },
   held: { icon: Hourglass, tone: 'warn', label: 'held' },
 };
@@ -59,7 +61,7 @@ export function BoardStatusBadge({ status, title }: { status: BoardStatus; title
   );
 }
 
-const DONE = new Set(['completed', 'failed', 'skipped', 'stopped']);
+const DONE = new Set(['completed', 'failed', 'skipped', 'stopped', 'interrupted']);
 
 export function StageHead({ title, tasks }: { title: string; tasks: OrchestrationTaskState[] }) {
   const done = tasks.filter((t) => DONE.has(t.status)).length;

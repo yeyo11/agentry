@@ -700,9 +700,11 @@ export interface OrchestrationSpec {
  * `failed` is final: the task's attempts ran out (or it failed in a way a retry cannot mend), and a
  * person decides what happens to it. `blocked`: a task waiting behind one that failed, which is not
  * the same as `pending`, waiting for its turn. `skipped`: that decision, giving the branch up so the
- * graph can finish without it.
+ * graph can finish without it. `stopped` is someone's decision and is never retried on its own;
+ * `interrupted` is a task whose execution a wrapper restart cut off, which is: the chat goes on in a
+ * new execution, in the worktree it left, while attempts remain.
  */
-export type OrchestrationTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'skipped' | 'stopped';
+export type OrchestrationTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'skipped' | 'stopped' | 'interrupted';
 /** `waiting`: nothing runs and a task failed for good, so integration and synthesis are held back until a person decides. */
 export type OrchestrationStatus = 'running' | 'waiting' | 'completed' | 'failed' | 'stopped';
 

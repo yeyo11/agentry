@@ -2060,9 +2060,10 @@
       "failed",
       "blocked",
       "skipped",
-      "stopped"
+      "stopped",
+      "interrupted"
     ],
-    "description": "`failed` is final: the task's attempts ran out (or it failed in a way a retry cannot mend), and a person decides what happens to it. `blocked`: a task waiting behind one that failed, which is not the same as `pending`, waiting for its turn. `skipped`: that decision, giving the branch up so the graph can finish without it."
+    "description": "`failed` is final: the task's attempts ran out (or it failed in a way a retry cannot mend), and a person decides what happens to it. `blocked`: a task waiting behind one that failed, which is not the same as `pending`, waiting for its turn. `skipped`: that decision, giving the branch up so the graph can finish without it. `stopped` is someone's decision and is never retried on its own; `interrupted` is a task whose execution a wrapper restart cut off, which is: the chat goes on in a new execution, in the worktree it left, while attempts remain."
   },
   "OrchestrationIntegration": {
     "type": "object",
