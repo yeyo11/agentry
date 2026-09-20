@@ -784,8 +784,21 @@ export type TaskHintRequest = HintRequest;
  * failed tool result and carries on. Which call is in the path.
  */
 export interface CancelCommandRequest {
-  /** Shown to the worker in the failed tool result, so it knows a person stopped it and why */
+  /**
+   * Told to the worker as its next message, so it knows a person stopped the command and why. The
+   * CLI writes the failed tool result itself (an exit status, nothing more), so the reason cannot
+   * ride in it.
+   */
   reason?: string;
+}
+
+/** What cancelling a command did. */
+export interface CancelCommandResult {
+  toolUseId: string;
+  /** The command, as the worker wrote it */
+  command: string;
+  /** How many processes of its tree were signalled */
+  processes: number;
 }
 
 /** A git worktree of a project. */
@@ -1023,6 +1036,14 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   costUsd: number;
   /** Computed while it runs, from the same signals as a chat's; absent once it has ended */
   health?: Health | null;
+  /**
+   * Where the task's time limit counts from: when it first started, or when a person last sent it
+   * around again. `startedAt` cannot serve, since it survives a retry and the limit would trip the
+   * moment the person decided the task was worth another go.
+   */
+  clockStartedAt?: string | null;
+  /** What the task had cost when that clock started, so a cost limit counts from the same moment */
+  clockCostUsd?: number;
 }
 
 export interface Orchestration {
@@ -2082,6 +2103,23 @@ export interface ChangesUpdatedEvent extends AgentryEventBase {
   uncommitted: number;
 }
 
+/**
+ * A chat or an orchestration task moved to another level of health, or its signals changed while it
+ * stayed at one. Sent when a worker starts to look stuck and again when it recovers, never once per
+ * check: the notification centre shows each of them as news.
+ */
+export interface HealthChangedEvent extends AgentryEventBase, RunEventRef {
+  type: 'health.changed';
+  /** Set for a worker of an orchestration */
+  taskId: string | null;
+  taskName: string | null;
+  level: HealthLevel;
+  previousLevel: HealthLevel;
+  /** The first (worst) signal's line, or `Nothing unusual.` when the chat recovered */
+  reason: string;
+  signals: HealthSignalKind[];
+}
+
 /** Files under the CLI's projects directory changed: a session was created, grew or ended. */
 export interface SessionsChangedEvent extends AgentryEventBase {
   type: 'sessions.changed';
@@ -2111,6 +2149,7 @@ export type AgentryEvent =
   | OrchestrationTaskEvent
   | OrchestrationConflictEvent
   | ChangesUpdatedEvent
+  | HealthChangedEvent
   | SessionsChangedEvent;
 
 export type AgentryEventType = AgentryEvent['type'];

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import type {
+  Health,
   Orchestration,
   OrchestrationEngine,
   OrchestrationIntegration,
@@ -40,6 +41,8 @@ import {
 } from './git.ts';
 import type { CoreConfig } from './paths.ts';
 import type { ChatManager, ChatRuntime, RunResult } from './chats.ts';
+import { effectiveLimits, elapsedMs, normalizeLimits, pastHardLimit, pastSoftLimit, remainingUsd, spentUsd, startClock, timeWarning } from './task-limits.ts';
+import type { TaskContext } from './health-service.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
@@ -53,6 +56,8 @@ const MAX_DEP_CONTEXT = 6000;
 const DEFAULT_ATTEMPTS = 2;
 const MAX_ATTEMPTS = 10;
 const MAX_ERROR_QUOTE = 2000;
+/** How often running tasks are checked against their time limit; the limits are in minutes */
+const LIMITS_CHECK_MS = Number(process.env.AGENTRY_LIMITS_INTERVAL_MS ?? 10_000);
 const now = () => new Date().toISOString();
 
 const attemptsOf = (requested: number | undefined) =>
@@ -225,6 +230,11 @@ export class Orchestrator {
   private readonly lateArrivals = new Set<string>();
   /** Tasks between the decision to run their chat again and the process that does: they take no hint yet */
   private readonly relaunching = new Set<string>();
+  /** Reads a running task's health; set by Core, which owns what health is read from */
+  health: ((task: OrchestrationTaskState) => Health | null) | null = null;
+  /** Tasks whose worker was told it is nearly out of time, by the clock it was told on, so a retry is warned again */
+  private readonly warned = new Set<string>();
+  private limitsTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly config: CoreConfig,
@@ -235,6 +245,14 @@ export class Orchestrator {
     this.load();
     this.tracker.baseline(this.list());
     this.runs.on('chat-result', (runId: string, result: RunResult) => this.follow(runId, result));
+    this.limitsTimer = setInterval(() => this.enforceLimits(), LIMITS_CHECK_MS);
+    this.limitsTimer.unref();
+  }
+
+  /** Stops the clock that enforces time limits; a process about to exit has no use for it. */
+  close(): void {
+    if (this.limitsTimer) clearInterval(this.limitsTimer);
+    this.limitsTimer = null;
   }
 
   private load(): void {
@@ -329,6 +347,65 @@ export class Orchestrator {
     return this.items.get(id) ?? null;
   }
 
+  /**
+   * The orchestration as a client reads it: each running task carries its health, which is a fact of
+   * the clock and so is worked out when it is read, never stored. A copy, so nothing that is
+   * persisted grows a field that only means something for a moment.
+   */
+  view(orch: Orchestration): Orchestration {
+    const read = this.health;
+    if (!read || !orch.tasks.some((t) => t.status === 'running' && t.runId)) return orch;
+    return { ...orch, tasks: orch.tasks.map((t) => (t.status === 'running' && t.runId ? { ...t, health: read(t) } : t)) };
+  }
+
+  /** The graph and task a chat works for, with the limits that apply to it; null for a chat that is not a running task. */
+  taskContext(chatId: string, nowMs = Date.now()): TaskContext | null {
+    for (const orch of this.items.values()) {
+      const task = orch.tasks.find((t) => t.runId === chatId);
+      if (!task || task.status !== 'running') continue;
+      return { taskId: task.id, taskName: task.name, limits: effectiveLimits(orch.limits, task.limits), elapsedMs: elapsedMs(task, nowMs), spentUsd: spentUsd(task) };
+    }
+    return null;
+  }
+
+  /**
+   * Holds running tasks to their time limit. Past most of it the worker is told to wrap up, once;
+   * past all of it the task is stopped and fails with the reason, so a person decides what happens
+   * to what it did. The clock is a parameter because a limit is a fact of it.
+   */
+  enforceLimits(nowMs = Date.now()): void {
+    let changed = false;
+    for (const orch of this.items.values()) {
+      if (orch.status !== 'running' || orch.engine !== 'graph') continue;
+      for (const task of orch.tasks) {
+        if (task.status !== 'running' || !task.runId) continue;
+        const limits = effectiveLimits(orch.limits, task.limits);
+        if (limits?.maxMinutes === undefined) continue;
+        const elapsed = elapsedMs(task, nowMs);
+        if (pastHardLimit(elapsed, limits)) {
+          const runId = task.runId;
+          task.status = 'failed';
+          task.error = `stopped at its time limit of ${String(limits.maxMinutes)} min`;
+          task.endedAt = now();
+          this.runs.notice(runId, `Agentry stopped this task at its time limit of ${String(limits.maxMinutes)} min.`);
+          if (this.runs.get(runId)?.pid) this.runs.stop(runId);
+          this.schedule(orch);
+          changed = true;
+        } else if (pastSoftLimit(elapsed, limits)) {
+          const key = `${orch.id}:${task.id}:${task.clockStartedAt ?? task.startedAt ?? ''}`;
+          if (this.warned.has(key) || !this.runs.get(task.runId)?.pid || this.relaunching.has(`${orch.id}:${task.id}`)) continue;
+          this.warned.add(key);
+          try {
+            this.runs.send(task.runId, `A note from Agentry:\n\n${timeWarning(elapsed, limits)}`);
+          } catch {
+            // the worker is between two processes: the health signal still tells the person
+          }
+        }
+      }
+    }
+    if (changed) this.persist();
+  }
+
   runningCount(): number {
     return this.list().filter((o) => o.status === 'running').length;
   }
@@ -344,6 +421,13 @@ export class Orchestrator {
     }
     if (spec.worktree === true && !isGitRepo(root)) {
       throw new Error(`per-task worktrees need a git repository, and ${root} is not one`);
+    }
+    const limits = normalizeLimits(spec.limits, 'limits');
+    const taskLimits = spec.tasks.map((t) => normalizeLimits(t.limits, `task '${t.id}' limits`));
+    // A workflow runs every task as a subagent of one session: there is no worker of its own to stop
+    // at a time or to hold to a budget, and a limit that is silently not kept is worse than none
+    if (engine === 'workflow' && (limits || taskLimits.some(Boolean))) {
+      throw new Error('limits apply to the graph engine, where each task is a worker of its own; a workflow runs its tasks inside one session');
     }
     const orch: Orchestration = {
       id: randomUUID(),
@@ -370,7 +454,9 @@ export class Orchestrator {
       engine,
       engineReason: spec.engineReason?.trim() || null,
       workflow: null,
-      tasks: spec.tasks.map<OrchestrationTaskState>((t) => ({
+      limits: limits ?? null,
+      tasks: spec.tasks.map<OrchestrationTaskState>((t, i) => ({
+        ...(taskLimits[i] ? { limits: taskLimits[i] } : {}),
         id: t.id,
         name: t.name?.trim() || t.id,
         prompt: t.prompt,
@@ -628,6 +714,7 @@ export class Orchestrator {
     if (task.runId && this.runs.get(task.runId)) return this.continueChat(orch, task, task.runId);
     try {
       const isolated = orch.worktree && !task.cwd;
+      const limits = effectiveLimits(orch.limits, task.limits);
       const name = worktreeName(orch, task);
       const prepared = isolated ? this.prepareWorktree(orch, task, name) : null;
       const run = this.runs.start(
@@ -642,6 +729,8 @@ export class Orchestrator {
           ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
           name: `${orch.name}:${task.id}`.slice(0, 60),
           keepAlive: false,
+          // The CLI ends the turn itself when this is spent
+          ...(limits?.maxCostUsd !== undefined ? { maxBudgetUsd: limits.maxCostUsd } : {}),
         },
         { orchestrationId: orch.id, orchestrationTaskId: task.id },
       );
@@ -652,6 +741,7 @@ export class Orchestrator {
       // The cost of a chat that is gone (its record deleted) stays in the graph's total, not here
       task.costUsd = 0;
       task.startedAt = now();
+      startClock(task, task.startedAt);
       void this.runs.waitForResult(run.id).then((result) => this.settle(orch, task, result));
       return true;
     } catch (err) {
@@ -669,9 +759,16 @@ export class Orchestrator {
     try {
       if (orch.worktree && !task.cwd) this.prepareWorktree(orch, task, worktreeName(orch, task));
       const prompt = this.continuation(task);
+      const limits = effectiveLimits(orch.limits, task.limits);
+      // The CLI's ceiling is per process, so an attempt gets what the allowance has left, not all of it again
+      const remaining = remainingUsd(limits, task);
+      if (remaining !== null && remaining <= 0) {
+        throw new Error(`its cost limit of $${(limits?.maxCostUsd ?? 0).toFixed(2)} is spent`);
+      }
       task.status = 'running';
       task.attempts += 1;
       task.startedAt ??= now();
+      if (!task.clockStartedAt) startClock(task, now());
       task.endedAt = null;
       this.relaunching.add(key);
       // The previous process may still be on its way out, and a chat has one process at most
@@ -679,7 +776,7 @@ export class Orchestrator {
         this.relaunching.delete(key);
         if (task.status !== 'running') return; // stopped meanwhile
         try {
-          this.runs.resume(chatId, { prompt });
+          this.runs.resume(chatId, { prompt, ...(remaining !== null ? { maxBudgetUsd: remaining } : {}) });
           // The chat has answered before: only a result after this call is this attempt's
           void this.runs.nextResult(chatId).then((result) => this.settle(orch, task, result));
           task.error = null;
@@ -1253,6 +1350,8 @@ ${quoted}
     task.status = 'pending';
     task.result = null;
     task.endedAt = null;
+    // The person decided it is worth another go, and that is a new allowance of time and money
+    task.clockStartedAt = null;
     return this.reopen(orch);
   }
 
@@ -1283,6 +1382,8 @@ ${quoted}
       costUsd: 0,
       startedAt: null,
       endedAt: null,
+      clockStartedAt: null,
+      clockCostUsd: 0,
     });
     return this.reopen(orch);
   }

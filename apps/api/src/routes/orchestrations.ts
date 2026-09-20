@@ -9,7 +9,7 @@ const pathOf = (path: string | undefined): string => {
 };
 
 export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
-  app.get('/orchestrations', () => core.orchestrator.list());
+  app.get('/orchestrations', () => core.orchestrator.list().map((o) => core.orchestrator.view(o)));
 
   app.post<{ Body: OrchestrationSpec }>('/orchestrations', async (req, reply) =>
     reply.status(201).send(core.orchestrator.create(req.body ?? ({} as OrchestrationSpec))),
@@ -37,7 +37,7 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
   app.get<{ Params: { id: string } }>('/orchestrations/:id', (req) => {
     const orch = core.orchestrator.get(req.params.id);
     if (!orch) throw new Error('orchestration not found');
-    return orch;
+    return core.orchestrator.view(orch);
   });
 
   app.post<{ Params: { id: string } }>('/orchestrations/:id/stop', (req) => core.orchestrator.stop(req.params.id));

@@ -130,7 +130,8 @@
       "orchestration": "An orchestration finished or failed",
       "conflict": "An integration conflict",
       "limit": "A rate limit or account rotation",
-      "activity": "A background task, subagent or workflow finished"
+      "activity": "A background task, subagent or workflow finished",
+      "health": "A run looks stuck or off track"
     }
   },
   "environment": {

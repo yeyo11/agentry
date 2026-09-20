@@ -4,6 +4,8 @@ import {
   TranscriptSearch,
   type AgentTranscript,
   type BackgroundTaskOutput,
+  type CancelCommandRequest,
+  type CancelCommandResult,
   type Chat,
   type ChatBackgroundTaskEntry,
   type ChatControl,
@@ -21,6 +23,7 @@ import {
   type ChatWorktree,
   type Execution,
   type ForkChatRequest,
+  type HintRequest,
   type NewChatRequest,
   type ResumeChatRequest,
   type RunEvent,
@@ -29,9 +32,10 @@ import {
 } from '@agentry/shared';
 import { pageSize } from './sessions.ts';
 import { toChatEnvironment, toChildren, type BranchFacts } from './chat-branches.ts';
-import { chatControl, chatHealth, chatState, lastEndedOf, sessionHolder, type SessionHolder } from './chat-model.ts';
+import { chatControl, chatState, lastEndedOf, sessionHolder, type SessionHolder } from './chat-model.ts';
 import type { AdoptedChat, ChatManager, ChatRuntime } from './chats.ts';
 import type { CliSession, TranscriptSummary } from './cli-facts.ts';
+import type { HealthService } from './health-service.ts';
 import { backgroundLogs, isLiveCliSession, listActiveCliSessions, stopBackgroundSession } from './cli.ts';
 import type { Orchestrator } from './orchestrator.ts';
 import type { CoreConfig } from './paths.ts';
@@ -82,6 +86,7 @@ export interface ChatServiceDeps {
   environmentOf: (dir: string) => Parameters<typeof toChatEnvironment>[0] | undefined;
   /** The context window the CLI reported for this exact model id; null when it never has */
   windowOf: (model: string) => number | null;
+  health: HealthService;
 }
 
 export interface ChatFilter {
@@ -253,12 +258,13 @@ export class ChatService {
     const heldByAnother = facts.cli.get(id)?.live === true && facts.cli.get(id)?.pid !== runtime?.pid;
     const children = toChildren(await this.branchFacts(id, runtime, runtime?.pid != null || heldByAnother));
     const env = this.deps.environmentOf(runtime?.cwd ?? summary.cwd);
-    const health = chatHealth({
+    const task = this.deps.orchestrator.taskContext(id);
+    const health = this.deps.health.read(id, {
       state: summary.state,
-      live: this.deps.runtime.pulse(id),
       lastEnded: lastEndedOf(summary.executions),
       context: summary.context,
       failedBranches: [...children.subagents, ...children.backgroundTasks, ...children.workflows].filter((b) => b.status === 'failed').length,
+      ...(task ? { limits: task.limits, taskElapsedMs: task.elapsedMs, taskSpentUsd: task.spentUsd } : {}),
     });
     return { ...summary, children, environment: env ? toChatEnvironment(env) : null, health };
   }
@@ -307,6 +313,47 @@ export class ChatService {
   async create(request: NewChatRequest): Promise<ChatSummary> {
     const started = this.deps.runtime.start(request);
     return this.require(started.id);
+  }
+
+  /**
+   * Sends a live chat a nudge: the text reaches the worker as its next user message, with no more
+   * ceremony than that. It is for a chat whose process is up; anything else would start one, which
+   * is what a message to a resumable chat is for, and a person should choose that knowing it.
+   */
+  async hint(id: string, request: HintRequest): Promise<ChatSummary> {
+    const text = request?.text?.trim();
+    if (!text) throw new Error('text is required');
+    const runtime = this.deps.runtime.get(id);
+    if (!runtime) throw new Error('chat not found');
+    if (runtime.pid === null) throw new ChatConflictError('The chat has no live process to nudge. Send it a message to continue it.', null);
+    this.deps.runtime.send(id, `A hint from the person following this chat:\n\n${text}`);
+    return this.require(id);
+  }
+
+  /**
+   * Stops one command a chat is running without ending its turn: the command's process tree is
+   * killed, the CLI hands the worker a failed result for that call, and the worker goes on. The worker
+   * is told a person did it, since a bare exit status looks like the command's own crash.
+   */
+  async cancelCommand(id: string, toolUseId: string, request: CancelCommandRequest = {}): Promise<CancelCommandResult> {
+    if (!this.deps.runtime.get(id)) throw new Error('chat not found');
+    let cancelled: { command: string; processes: number };
+    try {
+      cancelled = this.deps.runtime.cancelCommand(id, toolUseId);
+    } catch (err) {
+      throw new ChatConflictError(err instanceof Error ? err.message : String(err), null);
+    }
+    const reason = request?.reason?.trim();
+    this.deps.runtime.notice(id, `A person cancelled the command \`${cancelled.command.slice(0, 120)}\`${reason ? `: ${reason}` : '.'}`, { toolUseId });
+    try {
+      this.deps.runtime.send(
+        id,
+        `A person cancelled the command \`${cancelled.command.slice(0, 200)}\` while it was running${reason ? `: ${reason}` : '.'} It did not fail by itself.`,
+      );
+    } catch {
+      // the process went with it: there is nobody left to tell
+    }
+    return { toolUseId, command: cancelled.command, processes: cancelled.processes };
   }
 
   /**
