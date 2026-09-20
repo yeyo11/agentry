@@ -61,8 +61,12 @@ export function defaultPrefs(): NotificationPrefs {
   return { kinds: Object.fromEntries(KINDS.map((kind) => [kind, true])) as Record<NotificationKind, boolean>, toasts: true, browser: false };
 }
 
-// A run id on the wire is the id of the chat it works on
-const chatHref = (chatId: string) => `/chats/${encodeURIComponent(chatId)}`;
+/** The search param that names the prompt a chat page should bring into view. */
+export const PROMPT_PARAM = 'prompt';
+
+// A run id on the wire is the id of the chat it works on. With `promptId`, the chat opens scrolled
+// to that prompt instead of at the end of the transcript.
+const chatHref = (chatId: string, promptId?: string) => `/chats/${encodeURIComponent(chatId)}${promptId ? `?${PROMPT_PARAM}=${encodeURIComponent(promptId)}` : ''}`;
 const orchestrationHref = (id: string) => `/orchestration/${encodeURIComponent(id)}`;
 
 /** Work delegated inside a chat says which chat by its session, or by its run when it has one of ours. */
@@ -113,7 +117,7 @@ export function waitingDrafts(chat: Pick<ChatSummary, 'id' | 'title' | 'orchestr
       tone: 'warn',
       title: reason === 'permission' ? WAITING_TITLE.permission(chat.title, request.toolName) : WAITING_TITLE[reason](chat.title),
       body: WAITING_BODY[reason](request.toolName),
-      href: chatHref(chat.id),
+      href: chatHref(chat.id, request.id),
       runId: chat.id,
       orchestrationId: chat.orchestration?.id ?? null,
     };
@@ -136,7 +140,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: 'warn',
           title: event.title,
           body: WAITING_BODY[event.reason](event.toolName),
-          href: chatHref(event.runId),
+          href: chatHref(event.runId, event.permissionId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,
         }),

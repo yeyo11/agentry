@@ -65,7 +65,8 @@ test('a run waiting for the person is the highest priority and links straight to
   assert.ok(n);
   assert.equal(n.priority, 'high');
   assert.equal(n.kind, 'waiting');
-  assert.equal(n.href, '/chats/run1');
+  // Naming the prompt lets the chat page scroll to it instead of leaving the person to find it
+  assert.equal(n.href, '/chats/run1?prompt=p1');
   assert.match(n.body, /Bash/);
 });
 
@@ -283,6 +284,7 @@ test('a prompt a chat was already holding when the page loaded becomes the same 
   assert.equal(seeded.at, at(-5000));
   assert.match(seeded.title, /fix the build needs your approval to use Bash/);
   assert.equal(seeded.key, notificationsFor(waiting('p1'))[0]?.key);
+  assert.equal(seeded.href, notificationsFor(waiting('p1'))[0]?.href);
 
   // The live event arriving after the seed does not double it
   const { items } = apply(addNotifications([], [seeded], defaultPrefs(), () => false).items, [waiting('p1')]);
