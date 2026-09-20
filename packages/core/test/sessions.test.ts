@@ -279,8 +279,6 @@ test('a CLI session\'s background agents are read from its files, with their rea
   assert.equal(byId.back?.status, 'running');
   assert.equal(byId.back?.endedAt, null);
   assert.equal(byId.done?.startedAt, '2026-01-01T10:00:01Z');
-  assert.equal(byId.done?.source, 'cli');
-  assert.equal(byId.done?.sessionId, sid);
   // Each agent's own directory, not its parent session's
   assert.equal(byId.done?.cwd, '/work/agents');
   assert.equal(byId.busy?.cwd, '/work/agents/.claude/worktrees/agent-busy');

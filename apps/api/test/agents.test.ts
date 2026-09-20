@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
-import type { AgentTranscript, BackgroundTask, BackgroundTaskOutput, SessionDetail, TranscriptSearchResult } from '@agentry/shared';
+import type { AgentTranscript, BackgroundTaskOutput, ChatBackgroundTaskEntry, ChatDetail, TranscriptSearchResult } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
 
 // Subagent and workflow-agent transcripts and task output over HTTP, against synthetic sessions
@@ -60,7 +60,7 @@ after(async () => {
 });
 
 test('a subagent comes back with its prompt, usage, result and the tasks it launched', async () => {
-  const res = await app.inject(`/api/sessions/${SESSION}/subagents/${AGENT}`);
+  const res = await app.inject(`/api/chats/${SESSION}/subagents/${AGENT}`);
   assert.equal(res.statusCode, 200);
   const detail = res.json<AgentTranscript>();
   assert.equal(detail.kind, 'subagent');
@@ -72,13 +72,13 @@ test('a subagent comes back with its prompt, usage, result and the tasks it laun
   assert.deepEqual(detail.tasks.map((t) => t.id), ['bg-sub-1']);
 
   // The panel appends: only what it does not have yet
-  const tail = (await app.inject(`/api/sessions/${SESSION}/subagents/${AGENT}?after=4`)).json<AgentTranscript>();
+  const tail = (await app.inject(`/api/chats/${SESSION}/subagents/${AGENT}?after=4`)).json<AgentTranscript>();
   assert.equal(tail.from, 4);
   assert.equal(tail.entries.length, 1);
 });
 
 test('a workflow agent is served under its run', async () => {
-  const res = await app.inject(`/api/sessions/${SESSION}/workflows/${WF_RUN}/agents/${WF_AGENT}`);
+  const res = await app.inject(`/api/chats/${SESSION}/workflows/${WF_RUN}/agents/${WF_AGENT}`);
   assert.equal(res.statusCode, 200);
   const detail = res.json<AgentTranscript>();
   assert.equal(detail.kind, 'workflow');
@@ -89,10 +89,10 @@ test('a workflow agent is served under its run', async () => {
 
 test('an agent, run or session that is not there is a 404', async () => {
   for (const url of [
-    `/api/sessions/${SESSION}/subagents/ffffffffffffffff`,
-    `/api/sessions/no-such-session/subagents/${AGENT}`,
-    `/api/sessions/${SESSION}/workflows/wf_missing/agents/${WF_AGENT}`,
-    `/api/sessions/${SESSION}/workflows/${WF_RUN}/agents/ffffffffffffffff`,
+    `/api/chats/${SESSION}/subagents/ffffffffffffffff`,
+    `/api/chats/no-such-session/subagents/${AGENT}`,
+    `/api/chats/${SESSION}/workflows/wf_missing/agents/${WF_AGENT}`,
+    `/api/chats/${SESSION}/workflows/${WF_RUN}/agents/ffffffffffffffff`,
   ]) {
     assert.equal((await app.inject(url)).statusCode, 404, url);
   }
@@ -100,47 +100,47 @@ test('an agent, run or session that is not there is a 404', async () => {
 
 test('ids that could leave the agent directories, and a bad `after`, are a 400', async () => {
   for (const url of [
-    `/api/sessions/${SESSION}/subagents/..%2F..%2Fsess`,
-    `/api/sessions/${SESSION}/subagents/a.b`,
-    `/api/sessions/${SESSION}/workflows/..%2Fx/agents/${WF_AGENT}`,
-    `/api/sessions/${SESSION}/workflows/notaworkflow/agents/${WF_AGENT}`,
-    `/api/sessions/${SESSION}/workflows/${WF_RUN}/agents/..%2Fx`,
-    `/api/sessions/${SESSION}/subagents/${AGENT}?after=-1`,
-    `/api/sessions/${SESSION}/subagents/${AGENT}?after=abc`,
-    `/api/sessions/${SESSION}/tasks/bg-sub-1/output?offset=1.5`,
+    `/api/chats/${SESSION}/subagents/..%2F..%2Fsess`,
+    `/api/chats/${SESSION}/subagents/a.b`,
+    `/api/chats/${SESSION}/workflows/..%2Fx/agents/${WF_AGENT}`,
+    `/api/chats/${SESSION}/workflows/notaworkflow/agents/${WF_AGENT}`,
+    `/api/chats/${SESSION}/workflows/${WF_RUN}/agents/..%2Fx`,
+    `/api/chats/${SESSION}/subagents/${AGENT}?after=-1`,
+    `/api/chats/${SESSION}/subagents/${AGENT}?after=abc`,
+    `/api/chats/${SESSION}/tasks/bg-sub-1/output?offset=1.5`,
   ]) {
     assert.equal((await app.inject(url)).statusCode, 400, url);
   }
 });
 
 test('a task launched by a subagent is listed with its owner and can be followed live', async () => {
-  const [task] = (await app.inject(`/api/sessions/${SESSION}/tasks`)).json<BackgroundTask[]>();
-  assert.equal(task?.fromSubagent, true);
-  assert.equal(task?.ownerAgentId, AGENT);
+  const [task] = (await app.inject(`/api/chats/${SESSION}/tasks`)).json<ChatBackgroundTaskEntry[]>();
+  assert.equal(task?.ownerId, AGENT);
+  assert.equal(task?.chat.id, SESSION);
 
-  const first = (await app.inject(`/api/sessions/${SESSION}/tasks/bg-sub-1/output`)).json<BackgroundTaskOutput>();
+  const first = (await app.inject(`/api/chats/${SESSION}/tasks/bg-sub-1/output`)).json<BackgroundTaskOutput>();
   assert.equal(first.output, 'watching…\nrebuilt\n');
   assert.equal(first.offset, first.bytes);
 
   writeFileSync(join(tasksRoot, SESSION, 'tasks', 'bg-sub-1.output'), 'done\n', { flag: 'a' });
-  const more = (await app.inject(`/api/sessions/${SESSION}/tasks/bg-sub-1/output?offset=${String(first.offset)}`)).json<BackgroundTaskOutput>();
+  const more = (await app.inject(`/api/chats/${SESSION}/tasks/bg-sub-1/output?offset=${String(first.offset)}`)).json<BackgroundTaskOutput>();
   assert.equal(more.output, 'done\n');
   assert.equal(more.truncated, false);
   assert.equal(more.offset, more.bytes);
 });
 
 test('a session is searched whole over HTTP, and a search without a query or a target is refused', async () => {
-  const res = await app.inject(`/api/sessions/${SESSION}/search?q=${encodeURIComponent('SURVEY the')}`);
+  const res = await app.inject(`/api/chats/${SESSION}/search?q=${encodeURIComponent('SURVEY the')}`);
   assert.equal(res.statusCode, 200);
   const result = res.json<TranscriptSearchResult>();
-  assert.equal(result.total, (await app.inject(`/api/sessions/${SESSION}`)).json<SessionDetail>().total);
+  assert.equal(result.total, (await app.inject(`/api/chats/${SESSION}`)).json<ChatDetail>().total);
   assert.deepEqual(result.hits.map((h) => h.index), [0]);
   assert.equal(result.hits[0]?.snippet, 'survey the build');
   assert.equal(result.truncated, false);
 
-  assert.equal((await app.inject(`/api/sessions/${SESSION}/search`)).statusCode, 400);
-  assert.equal((await app.inject(`/api/sessions/${SESSION}/search?q=%20`)).statusCode, 400);
-  assert.equal((await app.inject('/api/sessions/no-such-session/search?q=x')).statusCode, 404);
-  assert.equal((await app.inject('/api/runs/ghost/search?q=x')).statusCode, 404);
-  assert.equal((await app.inject('/api/runs/ghost/search')).statusCode, 400);
+  assert.equal((await app.inject(`/api/chats/${SESSION}/search`)).statusCode, 400);
+  assert.equal((await app.inject(`/api/chats/${SESSION}/search?q=%20`)).statusCode, 400);
+  assert.equal((await app.inject('/api/chats/no-such-session/search?q=x')).statusCode, 404);
+  assert.equal((await app.inject('/api/chats/ghost/search?q=x')).statusCode, 404);
+  assert.equal((await app.inject('/api/chats/ghost/search')).statusCode, 400);
 });

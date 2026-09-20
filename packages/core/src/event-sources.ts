@@ -1,16 +1,14 @@
 import { watch, type FSWatcher } from 'node:fs';
 import type {
-  BackgroundTask,
   IntegrationStatus,
   Orchestration,
   OrchestrationTaskStatus,
   PermissionRequest,
   RunEventRef,
-  RunSummary,
   RunWaitingReason,
-  SubagentInfo,
-  WorkflowRun,
 } from '@agentry/shared';
+import type { ChatRuntime } from './chats.ts';
+import type { BackgroundTask, SubagentInfo, WorkflowRun } from './cli-facts.ts';
 import type { AgentryEventInput, EventBus } from './events.ts';
 
 /*
@@ -26,16 +24,16 @@ export const SESSIONS_COALESCE_MS = 1000;
 
 const TERMINAL = new Set(['completed', 'failed', 'stopped']);
 
-export const runRef = (run: RunSummary): RunEventRef => ({
+export const runRef = (run: ChatRuntime): RunEventRef => ({
   runId: run.id,
   runName: run.name,
-  sessionId: run.sessionId,
+  sessionId: run.id,
   orchestrationId: run.orchestrationId,
-  internal: run.internal,
+  internal: run.origin === 'internal',
 });
 
 /** The run may be gone by the time its prompt is answered; the id still says which one it was. */
-export const runRefOr = (runId: string, run: RunSummary | null): RunEventRef =>
+export const runRefOr = (runId: string, run: ChatRuntime | null): RunEventRef =>
   run ? runRef(run) : { runId, runName: runId, sessionId: null, orchestrationId: null, internal: false };
 
 /** AskUserQuestion and ExitPlanMode reach the host as tool permission requests like any other. */
@@ -53,7 +51,7 @@ export function waitingTitle(runName: string, reason: RunWaitingReason, toolName
 
 export function permissionEvents(
   request: PermissionRequest,
-  run: RunSummary | null,
+  run: ChatRuntime | null,
 ): Array<Extract<AgentryEventInput, { type: 'run.waiting' | 'permission.requested' }>> {
   const reason = waitingReason(request.toolName);
   const ref = runRefOr(request.runId, run);
@@ -79,19 +77,18 @@ const workflowCounts = (w: WorkflowRun) => ({
 });
 
 interface RunSnapshot {
-  status: RunSummary['status'];
+  status: ChatRuntime['status'];
   turns: number;
   costUsd: number;
   pendingPrompts: number;
   lastText: string | null;
-  sessionId: string | null;
   name: string;
   tasks: Map<string, string>;
   subagents: Map<string, { status: SubagentInfo['status']; agentId: string | undefined; background: boolean }>;
   workflows: Map<string, { status: WorkflowRun['status']; key: string }>;
   timer: NodeJS.Timeout | null;
   /** Latest summary and the workflows whose progress is waiting for the timer */
-  latest: RunSummary;
+  latest: ChatRuntime;
   dirty: boolean;
   progress: Set<string>;
 }
@@ -110,14 +107,13 @@ export class RunEventPublisher {
   ) {}
 
   /** Records where a run stands without announcing it: what happens from here on is the news. */
-  baseline(run: RunSummary): void {
+  baseline(run: ChatRuntime): void {
     this.snapshots.set(run.id, {
       status: run.status,
       turns: run.turns,
       costUsd: run.costUsd,
       pendingPrompts: run.pendingPrompts ?? 0,
       lastText: run.lastText,
-      sessionId: run.sessionId,
       name: run.name,
       tasks: new Map(run.backgroundTasks.map((t) => [t.id, t.status])),
       subagents: new Map(run.subagents.map((s) => [s.toolUseId, { status: s.status, agentId: s.agentId, background: s.background === true }])),
@@ -129,7 +125,7 @@ export class RunEventPublisher {
     });
   }
 
-  created(run: RunSummary): void {
+  created(run: ChatRuntime): void {
     this.baseline(run);
     this.emit({ type: 'run.created', title: `${run.name} started`, ...runRef(run), status: run.status });
   }
@@ -145,12 +141,12 @@ export class RunEventPublisher {
   }
 
   /** Compares the run with what was last announced and emits the difference. */
-  observe(run: RunSummary): void {
+  observe(run: ChatRuntime): void {
     const snap = this.snapshots.get(run.id);
     if (!snap) return this.baseline(run);
     snap.latest = run;
     const ref = runRef(run);
-    const at = { runId: run.id, runName: run.name, sessionId: run.sessionId };
+    const at = { runId: run.id, runName: run.name, sessionId: run.id };
 
     this.diffTasks(run, snap, at);
     this.diffSubagents(run, snap, at);
@@ -180,7 +176,6 @@ export class RunEventPublisher {
       run.costUsd !== snap.costUsd ||
       (run.pendingPrompts ?? 0) !== snap.pendingPrompts ||
       run.lastText !== snap.lastText ||
-      run.sessionId !== snap.sessionId ||
       run.name !== snap.name;
     if (changed) snap.dirty = true;
     if ((snap.dirty || snap.progress.size > 0) && !snap.timer) {
@@ -189,7 +184,7 @@ export class RunEventPublisher {
     }
   }
 
-  private updated(run: RunSummary, previousStatus: RunSummary['status'] | null): AgentryEventInput {
+  private updated(run: ChatRuntime, previousStatus: ChatRuntime['status'] | null): AgentryEventInput {
     return {
       type: 'run.updated',
       title: `${run.name} is ${run.status}`,
@@ -203,7 +198,7 @@ export class RunEventPublisher {
   }
 
   /** Marks everything a run-level event carries as announced. */
-  private settle(snap: RunSnapshot, run: RunSummary): void {
+  private settle(snap: RunSnapshot, run: ChatRuntime): void {
     if (snap.timer) clearTimeout(snap.timer);
     snap.timer = null;
     snap.dirty = false;
@@ -213,7 +208,6 @@ export class RunEventPublisher {
       costUsd: run.costUsd,
       pendingPrompts: run.pendingPrompts ?? 0,
       lastText: run.lastText,
-      sessionId: run.sessionId,
       name: run.name,
     });
   }
@@ -234,7 +228,7 @@ export class RunEventPublisher {
     }
   }
 
-  private diffTasks(run: RunSummary, snap: RunSnapshot, at: { runId: string; runName: string; sessionId: string | null }): void {
+  private diffTasks(run: ChatRuntime, snap: RunSnapshot, at: { runId: string; runName: string; sessionId: string | null }): void {
     for (const task of run.backgroundTasks) {
       const before = snap.tasks.get(task.id);
       if (before === undefined) {
@@ -266,7 +260,7 @@ export class RunEventPublisher {
     }
   }
 
-  private diffSubagents(run: RunSummary, snap: RunSnapshot, at: { runId: string; runName: string; sessionId: string | null }): void {
+  private diffSubagents(run: ChatRuntime, snap: RunSnapshot, at: { runId: string; runName: string; sessionId: string | null }): void {
     for (const sub of run.subagents) {
       const before = snap.subagents.get(sub.toolUseId);
       const background = sub.background === true;
@@ -309,7 +303,7 @@ export class RunEventPublisher {
     }
   }
 
-  private diffWorkflows(run: RunSummary, snap: RunSnapshot, at: { runId: string; runName: string; sessionId: string | null }): void {
+  private diffWorkflows(run: ChatRuntime, snap: RunSnapshot, at: { runId: string; runName: string; sessionId: string | null }): void {
     for (const wf of run.workflows ?? []) {
       const before = snap.workflows.get(wf.id);
       const key = workflowKey(wf);
@@ -338,14 +332,14 @@ export class RunEventPublisher {
     }
   }
 
-  private progress(run: RunSummary, wf: WorkflowRun): AgentryEventInput {
+  private progress(run: ChatRuntime, wf: WorkflowRun): AgentryEventInput {
     const counts = workflowCounts(wf);
     return {
       type: 'workflow.progress',
       title: `Workflow ${wf.name ?? wf.description}: ${counts.agentsDone}/${counts.agentsTotal} agents done`,
       runId: run.id,
       runName: run.name,
-      sessionId: run.sessionId,
+      sessionId: run.id,
       workflowId: wf.id,
       taskId: wf.taskId,
       name: wf.name,

@@ -11,19 +11,17 @@ import {
   TranscriptSearch,
   TRANSCRIPT_PAGE,
   TRANSCRIPT_PAGE_MAX,
-  type SessionDetail,
-  type BackgroundTask,
   type AgentTranscript,
   type BackgroundTaskOutput,
-  type SessionSummary,
-  type SubagentInfo,
   type TranscriptEntry,
   type TranscriptSearchResult,
-  type WorkflowRun,
 } from '@agentry/shared';
+import { toChatTask } from './chat-branches.ts';
 import { AGENT_ID_RE, WORKFLOW_RUN_ID_RE, emptyAgentRead, readAgentFile } from './agents.ts';
+import type { BackgroundTask, SubagentInfo, TranscriptPage, TranscriptSummary, WorkflowRun } from './cli-facts.ts';
 import type { CoreConfig } from './paths.ts';
 import { EntryIndex, fingerprint, parseLine, readLines, scanLines, type JsonLine } from './transcript-index.ts';
+import { UsageFold } from './usage.ts';
 import { readSessionWorkflows, readWorkflowAgent } from './workflows.ts';
 
 /** The slash command inside a synthetic user message, e.g. `<command-name>/resume</command-name>`. */
@@ -31,9 +29,17 @@ const COMMAND_RE = /<command-name>\s*([^<]+)<\/command-name>/;
 
 /** A summary over the lines read so far, before what only the end of the file decides. */
 interface SummaryFold {
-  summary: SessionSummary;
+  /** `usage` is filled when the fold is finished; the running figures are in `spent` */
+  summary: Omit<TranscriptSummary, 'usage'>;
   customTitle: string | null;
   command: string | undefined;
+  spent: UsageFold;
+}
+
+/** A copy a half-written last line can be folded into without touching the original. */
+function cloneFold(fold: SummaryFold): SummaryFold {
+  const { spent, ...plain } = fold;
+  return { ...structuredClone(plain), spent: spent.clone() };
 }
 
 function foldLine(fold: SummaryFold, o: JsonLine, entry: TranscriptEntry | null): void {
@@ -60,6 +66,7 @@ function foldLine(fold: SummaryFold, o: JsonLine, entry: TranscriptEntry | null)
     }
   }
 
+  if (entry) fold.spent.add(o, entry);
   if (!entry || entry.isSidechain) return;
   summary.messageCount++;
   if (entry.model) summary.model = entry.model;
@@ -72,8 +79,8 @@ function foldLine(fold: SummaryFold, o: JsonLine, entry: TranscriptEntry | null)
   }
 }
 
-function finishSummary(fold: SummaryFold, info: Stats): SessionSummary | null {
-  const summary = { ...fold.summary, sizeBytes: info.size };
+function finishSummary(fold: SummaryFold, info: Stats): TranscriptSummary | null {
+  const summary = { ...fold.summary, sizeBytes: info.size, usage: fold.spent.snapshot() };
   if (summary.messageCount === 0) return null;
   // A session with no user turn (the spare `claude attach` pre-warms) would otherwise be
   // titled with its own uuid, which reads like an id and tells nobody what it is.
@@ -99,7 +106,7 @@ interface TranscriptState {
   fold: SummaryFold;
   entries: EntryIndex;
   /** At this size, a half-written last line included if it already parses */
-  summary: SessionSummary | null;
+  summary: TranscriptSummary | null;
 }
 
 /** A line's text whether the CLI stored it as a plain string or as content blocks. */
@@ -251,7 +258,7 @@ export class SessionStore {
     return entries.filter((e) => e.isDirectory()).map((e) => e.name);
   }
 
-  private async summarize(projectId: string, file: string): Promise<SessionSummary | null> {
+  private async summarize(projectId: string, file: string): Promise<TranscriptSummary | null> {
     return (await this.transcript(projectId, file))?.summary ?? null;
   }
 
@@ -278,7 +285,7 @@ export class SessionStore {
         old !== null && old.ino === info.ino && info.size > old.size && (await fingerprint(handle, old.end)).equals(old.fingerprint);
       const base = grew ? old : null;
       const fold: SummaryFold = base
-        ? structuredClone(base.fold)
+        ? cloneFold(base.fold)
         : {
             summary: {
               id: basename(file, '.jsonl'),
@@ -293,10 +300,11 @@ export class SessionStore {
               gitBranch: null,
               cliVersion: null,
               sizeBytes: 0,
-              origin: { kind: 'cli' }, // refined by Core, which knows the wrapper's runs
+              worktree: null,
             },
             customTitle: null,
             command: undefined,
+            spent: new UsageFold(),
           };
       const added: [number, number, boolean][] = [];
       const { end, tail } = await scanLines(handle, base?.end ?? 0, info.size, (o, start, lineEnd) => {
@@ -309,9 +317,9 @@ export class SessionStore {
       // but stays out of the fold: the next pass reads it again once it is finished.
       const tailLine = parseLine(tail);
       const tailEntry = tailLine ? normalizeMessage(tailLine) : null;
-      let summary: SessionSummary | null;
+      let summary: TranscriptSummary | null;
       if (tailLine) {
-        const withTail = structuredClone(fold);
+        const withTail = cloneFold(fold);
         foldLine(withTail, tailLine, tailEntry);
         summary = finishSummary(withTail, info);
       } else summary = finishSummary(fold, info);
@@ -334,9 +342,9 @@ export class SessionStore {
     }
   }
 
-  async listSessions(projectId?: string): Promise<SessionSummary[]> {
+  async listSessions(projectId?: string): Promise<TranscriptSummary[]> {
     const dirs = projectId ? [projectId] : await this.projectDirs();
-    const all: SessionSummary[] = [];
+    const all: TranscriptSummary[] = [];
     for (const dir of dirs) {
       const full = join(this.config.projectsDir, dir);
       const files = await readdir(full).catch(() => [] as string[]);
@@ -363,7 +371,7 @@ export class SessionStore {
   }
 
   /** The cached summary of one session, without reading its transcript. */
-  async summary(sessionId: string): Promise<SessionSummary | null> {
+  async summary(sessionId: string): Promise<TranscriptSummary | null> {
     const found = await this.findFile(sessionId);
     return found ? this.summarize(found.projectId, found.file) : null;
   }
@@ -477,15 +485,11 @@ export class SessionStore {
       const state = agentState(activity.stops.get(agentId), transcript?.mtime ?? null, live);
       out.push({
         toolUseId: meta.toolUseId ?? '',
-        runId: '',
-        runName: '',
         subagentType: meta.agentType ?? 'agent',
         description: meta.description ?? agentId,
         status: state.status,
         startedAt: activity.agents.get(agentId) ?? lastActivityAt ?? new Date(0).toISOString(),
         endedAt: state.endedAt,
-        source: 'cli',
-        sessionId,
         agentId,
         lastActivityAt,
         cwd: cwd ?? null,
@@ -531,8 +535,6 @@ export class SessionStore {
       const expired = !stop && launch.expiresAt !== null && launch.expiresAt <= nowIso;
       out.push({
         id,
-        runId: '',
-        runName: '',
         type: launch.type,
         description: launch.description ?? launch.command ?? id,
         // A command whose session ended without reporting it back was taken down with it
@@ -541,7 +543,6 @@ export class SessionStore {
         startedAt: launch.at,
         endedAt: stop?.at ?? (expired ? launch.expiresAt : null),
         summary: stop?.summary ?? null,
-        source: 'disk',
         sessionId,
         command: launch.command,
         backgroundedByUser: launch.backgroundedByUser,
@@ -675,7 +676,6 @@ export class SessionStore {
       sessionId,
       kind: opts.runId ? 'workflow' : 'subagent',
       workflowRunId: opts.runId ?? null,
-      toolUseId: meta?.toolUseId ?? null,
       subagentType: meta?.agentType ?? null,
       description,
       workflowPhase,
@@ -694,7 +694,7 @@ export class SessionStore {
       entries: read.entries.slice(from),
       from,
       total,
-      tasks: opts.runId ? [] : (await this.backgroundTasks(sessionId, live)).filter((t) => t.ownerAgentId === agentId),
+      tasks: opts.runId ? [] : (await this.backgroundTasks(sessionId, live)).filter((t) => t.ownerAgentId === agentId).map(toChatTask),
     };
   }
 
@@ -718,7 +718,7 @@ export class SessionStore {
   async getSession(
     sessionId: string,
     opts: { includeSidechains?: boolean; limit?: number; before?: number } = {},
-  ): Promise<SessionDetail | null> {
+  ): Promise<TranscriptPage | null> {
     const found = await this.findFile(sessionId);
     if (!found) return null;
     const limit = pageSize(opts.limit);

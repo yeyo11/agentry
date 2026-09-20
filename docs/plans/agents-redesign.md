@@ -43,9 +43,11 @@ Chat
   health        from the observability plan
 ```
 
-The id never goes missing: Agentry already generates the session id for its own chats and imposes it
-on the CLI (`runner.ts:815`, `randomUUID()` + `--session-id`). The one gap is a fork, whose new id
-the CLI decides and reports in its first event (`runner.ts:415`, `:1080`).
+The id never goes missing: Agentry generates the session id for its own chats and imposes it on the
+CLI (`randomUUID()` + `--session-id`). That holds for a fork too: the CLI accepts `--session-id`
+beside `--resume` and `--fork-session` (2.1.278 was checked, and the copy is written under the id
+given), so a fork's id is chosen before the process starts and there is no window in which the chat
+has none.
 
 ## Executions, resume and fork
 
@@ -180,6 +182,12 @@ Tokens are kept **per model**, because a chat can change model mid-conversation
 the same family with a 1M context has a different window, and a session of 328k tokens read against
 a 200k window looks like a broken counter. When the model is unknown, tokens are still shown and the
 percentage of the window is not invented.
+
+The window is not a table kept in the code: whether a model has 200k or 1M depends on the variant
+and even on the account (`opus` and `opus[1m]` both reported 1M on the account this was checked
+with), so any table would be a guess. The CLI reports it with every result, in
+`modelUsage.<model id>.contextWindow`; Agentry stores the last value seen per exact model id and
+measures transcripts against it. A model no execution of Agentry has answered with yet has none.
 
 Where it is shown: the percentage of context in the chat list (what tells you a chat is about to
 compact), context, tokens and cost in the chat detail, the total per orchestration — what a large

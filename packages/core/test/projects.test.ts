@@ -166,9 +166,10 @@ test('importing adopts the chats already there, worktrees included; removing let
   write(stray, 'stray', '2026-01-04T10:00:00Z');
 
   const core = new Core(config);
+  const chatsIn = (project: string | null) => core.chats.list({ project, origins: ['agentry', 'external'] });
   try {
     assert.deepEqual(await core.projects(), [], 'nothing is a project until it is imported');
-    assert.equal((await core.sessionsWithLive(null)).length, 4);
+    assert.equal((await chatsIn(null)).length, 4);
 
     await assert.rejects(core.importProject({ path: wt }), /git worktree of .* import that instead/);
     const imported = await core.importProject({ path: root, name: 'Shop' });
@@ -183,9 +184,9 @@ test('importing adopts the chats already there, worktrees included; removing let
 
     // The worktree is not a project of its own
     assert.deepEqual((await core.projects()).map((p) => p.path), [root]);
-    assert.deepEqual((await core.sessionsWithLive(imported.id)).map((s) => s.id).sort(), ['in-root', 'in-sub', 'in-worktree']);
-    assert.deepEqual((await core.sessionsWithLive(null)).map((s) => s.id), ['stray']);
-    await assert.rejects(core.sessionsWithLive('nope'), /project not found/);
+    assert.deepEqual((await chatsIn(imported.id)).map((c) => c.id).sort(), ['in-root', 'in-sub', 'in-worktree']);
+    assert.deepEqual((await chatsIn(null)).map((c) => c.id), ['stray']);
+    assert.deepEqual(await chatsIn('nope'), [], 'a project that does not exist holds nothing');
 
     // What a chat resolves to
     assert.deepEqual(core.projectOf(join(root, 'sub')), { project: { id: imported.id, name: 'Shop' }, worktree: null });
@@ -203,7 +204,7 @@ test('importing adopts the chats already there, worktrees included; removing let
     // Removing is harmless: the chats are still there, loose again
     await core.removeProject(imported.id);
     assert.deepEqual(await core.projects(), []);
-    assert.equal((await core.sessionsWithLive(null)).length, 4);
+    assert.equal((await chatsIn(null)).length, 4);
     await assert.rejects(core.purgeProject(imported.id), /project not found/);
   } finally {
     core.db.close();

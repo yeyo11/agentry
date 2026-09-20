@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { RunSummary } from '@agentry/shared';
+import type { Execution } from '@agentry/shared';
+import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
 import { Db } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
-import { RunManager } from '../src/runner.ts';
+import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -82,87 +83,137 @@ test('two connections on one data dir both write, as two wrapper processes would
   b.close();
 });
 
-const run = (id: string, createdAt: string): RunSummary =>
-  ({
+const execution = (id: string, startedAt: string, extra: Partial<Execution> = {}): Execution => ({
+  id,
+  startedAt,
+  endedAt: startedAt,
+  outcome: 'completed',
+  error: null,
+  permissionMode: 'plan',
+  model: null,
+  account: null,
+  maxBudgetUsd: null,
+  costUsd: 0.5,
+  tokens: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },
+  turns: 1,
+  ...extra,
+});
+
+const chat = (id: string, createdAt: string, executions: Execution[] = [execution(`${id}-1`, createdAt)]): StoredChat => ({
+  record: {
     id,
     name: id,
-    sessionId: null,
     cwd: '/tmp',
-    model: null,
-    permissionMode: 'plan',
-    status: 'completed',
-    pid: null,
-    createdAt,
-    updatedAt: createdAt,
-    endedAt: createdAt,
-    turns: 1,
-    costUsd: 0,
-    prompt: 'hi',
-    lastText: 'ok',
-    error: null,
+    workingDir: null,
+    origin: 'agentry',
     orchestrationId: null,
     orchestrationTaskId: null,
-    internal: false,
+    derivedFrom: null,
+    prompt: 'hi',
+    lastText: 'ok',
+    model: null,
+    permissionMode: 'plan',
     account: null,
-    backgroundTasks: [],
-    subagents: [],
-  }) as unknown as RunSummary;
+    permissionPrompts: 'none',
+    createdAt,
+    updatedAt: createdAt,
+  },
+  executions,
+});
 
-test('runs round-trip, newest first, and the cap drops the oldest', () => {
+/** A run as the wrapper stored it before a run became an execution of a chat. */
+const legacyRun = (id: string, sessionId: string | null, createdAt: string, extra: Partial<LegacyRun> = {}): LegacyRun => ({
+  id,
+  name: id,
+  sessionId,
+  cwd: '/tmp',
+  model: null,
+  permissionMode: 'plan',
+  status: 'completed',
+  createdAt,
+  updatedAt: createdAt,
+  endedAt: createdAt,
+  turns: 1,
+  costUsd: 0.25,
+  prompt: 'hi',
+  lastText: 'ok',
+  error: null,
+  orchestrationId: null,
+  orchestrationTaskId: null,
+  internal: false,
+  account: null,
+  ...extra,
+});
+
+test('chats round-trip with their executions, newest first, and the cap drops the oldest with theirs', () => {
   const db = new Db(tempConfig());
-  db.saveRuns([run('a', '2026-09-18T10:00:00Z'), run('b', '2026-09-18T11:00:00Z')], 200);
+  db.saveChats([chat('a', '2026-09-18T10:00:00Z'), chat('b', '2026-09-18T11:00:00Z', [execution('b-1', '2026-09-18T11:00:00Z'), execution('b-2', '2026-09-18T11:30:00Z', { turns: 4 })])], 200);
   assert.deepEqual(
-    db.loadRuns().map((r) => r.id),
+    db.loadChats().map((c) => c.record.id),
     ['b', 'a'],
   );
+  // The history of one chat is what it says, oldest first, however often it was saved
+  assert.deepEqual(db.loadChats()[0]?.executions.map((e) => [e.id, e.turns]), [['b-1', 1], ['b-2', 4]]);
 
-  db.saveRuns([run('c', '2026-09-18T12:00:00Z')], 2);
+  db.saveChats([chat('c', '2026-09-18T12:00:00Z')], 2);
   assert.deepEqual(
-    db.loadRuns().map((r) => r.id),
+    db.loadChats().map((c) => c.record.id),
     ['c', 'b'],
   );
 
-  db.deleteRun('c');
+  db.deleteChat('c');
   assert.deepEqual(
-    db.loadRuns().map((r) => r.id),
+    db.loadChats().map((c) => c.record.id),
     ['b'],
   );
   db.close();
 });
 
-test('a save never drops the runs another process owns', () => {
+test('saving a chat again updates its executions in place instead of adding a second history', () => {
+  const db = new Db(tempConfig());
+  const live = execution('e1', '2026-09-18T10:00:00Z', { endedAt: null, outcome: null, costUsd: null });
+  db.saveChats([chat('a', '2026-09-18T10:00:00Z', [live])], 200);
+  db.saveChats([chat('a', '2026-09-18T10:00:00Z', [{ ...live, endedAt: '2026-09-18T10:05:00Z', outcome: 'completed', costUsd: 0.3 }])], 200);
+
+  const [stored] = db.loadChats();
+  assert.equal(stored?.executions.length, 1);
+  assert.deepEqual([stored?.executions[0]?.outcome, stored?.executions[0]?.costUsd], ['completed', 0.3]);
+  db.close();
+});
+
+test('a save never drops the chats another process owns', () => {
   const config = tempConfig();
   const a = new Db(config);
   const b = new Db(config);
-  a.saveRuns([run('from-a', '2026-09-18T10:00:00Z')], 200);
-  // b knows nothing about a's run — the old whole-file write erased it here
-  b.saveRuns([run('from-b', '2026-09-18T11:00:00Z')], 200);
+  a.saveChats([chat('from-a', '2026-09-18T10:00:00Z')], 200);
+  // b knows nothing about a's chat — the old whole-file write erased it here
+  b.saveChats([chat('from-b', '2026-09-18T11:00:00Z')], 200);
   assert.deepEqual(
-    a.loadRuns().map((r) => r.id),
+    a.loadChats().map((c) => c.record.id),
     ['from-b', 'from-a'],
   );
   a.close();
   b.close();
 });
 
-test('a pre-SQLite runs.json is carried into the store once', async () => {
+test('a pre-SQLite runs.json is carried into the store once, as chats', async () => {
   const config = tempConfig();
   const legacy = join(config.dataDir, 'runs.json');
-  writeFileSync(legacy, JSON.stringify([run('old', '2026-09-18T09:00:00Z')]));
+  writeFileSync(legacy, JSON.stringify([legacyRun('old', 'session-old', '2026-09-18T09:00:00Z')]));
 
   const db = new Db(config);
-  const manager = new RunManager(config, db);
+  const manager = new ChatManager(config, db);
   await manager.restore(new SessionStore(config));
 
   assert.deepEqual(
     manager.list().map((r) => r.id),
-    ['old'],
+    ['session-old'],
   );
   assert.deepEqual(
-    db.loadRuns().map((r) => r.id),
-    ['old'],
+    db.loadChats().map((c) => c.record.id),
+    ['session-old'],
   );
-  // Renamed away, so a second boot cannot resurrect runs the user deleted since
+  // Renamed away, so a second boot cannot resurrect chats the user deleted since
   assert.equal(existsSync(legacy), false);
   assert.equal(existsSync(`${legacy}.migrated`), true);
   db.close();
@@ -201,18 +252,19 @@ test('a planner draft outlives the response that was supposed to carry it', () =
   second.close();
 });
 
-test('an internal run survives a restart, because the planner is one', async () => {
+test('an internal chat survives a restart, because the planner is one', async () => {
   const config = tempConfig();
   const db = new Db(config);
   // What the orchestration planner looks like in the store: internal, but real paid work
-  db.saveRuns([{ ...run('planner', '2026-09-18T20:57:00Z'), name: 'orchestration-planner', internal: true }], 200);
+  const planner = chat('planner', '2026-09-18T20:57:00Z');
+  db.saveChats([{ ...planner, record: { ...planner.record, name: 'orchestration-planner', origin: 'internal' } }], 200);
 
-  const manager = new RunManager(config, db);
+  const manager = new ChatManager(config, db);
   await manager.restore(new SessionStore(config));
   const restored = manager.list();
   assert.equal(restored.length, 1);
   assert.equal(restored[0]?.name, 'orchestration-planner');
-  assert.equal(restored[0]?.internal, true);
+  assert.equal(restored[0]?.origin, 'internal');
   db.close();
 });
 
@@ -239,7 +291,7 @@ test('an orchestration stored before a field existed still schedules', () => {
     } as unknown as Parameters<Db['saveOrchestrations']>[0][number],
   ]);
 
-  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
   const loaded = orchestrator.get('old-1');
   // Reading `.length` off an absent array threw inside launch(), where a bare catch swallowed it
   // and retried every three seconds for ever: the graph reported itself running with nothing running.
@@ -254,7 +306,7 @@ test('what Claude loaded in a directory survives a restart', () => {
   first.saveEnvironment({
     cwd: '/work/app',
     observedAt: '2026-01-01T10:00:00Z',
-    runId: 'r1',
+    chatId: 'r1',
     cliVersion: '2.1.277',
     model: 'claude-opus-5',
     permissionMode: 'acceptEdits',

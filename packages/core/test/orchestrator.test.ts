@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
 import { Db } from '../src/db.ts';
 import { Orchestrator, validateTasks } from '../src/orchestrator.ts';
-import { RunManager } from '../src/runner.ts';
+import { ChatManager } from '../src/chats.ts';
 import { tempConfig } from './helpers.ts';
 
 const task = (id: string, dependsOn: string[] = []) => ({ id, name: id, prompt: 'do it', dependsOn });
@@ -82,7 +82,7 @@ test('resuming corrects the settings that stopped a graph and keeps the finished
   const db = new Db(config);
   db.saveOrchestrations([stoppedGraph(repo)]);
 
-  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
   const next = orchestrator.resume('graph-1', { worktree: true, permissionPrompts: 'host', allowedTools: ['Bash', 'Edit'] });
 
   // Started without worktrees and with nobody to ask: resuming like that would stop the same way
@@ -102,7 +102,7 @@ test('resuming with worktrees refuses a directory that is not a git repository',
   const plain = mkdtempSync(join(tmpdir(), 'agentry-plain-'));
   const db = new Db(config);
   db.saveOrchestrations([stoppedGraph(plain)]);
-  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
   assert.throws(() => orchestrator.resume('graph-1', { worktree: true }), /need a git repository/);
   // Refused before anything changed
   assert.equal(orchestrator.get('graph-1')?.status, 'stopped');
@@ -113,13 +113,13 @@ test('a graph that is not running can be deleted, and stays deleted', () => {
   const config = offlineConfig();
   const db = new Db(config);
   db.saveOrchestrations([stoppedGraph(tmpdir()), stoppedGraph(tmpdir(), { id: 'graph-2', status: 'running' })]);
-  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
 
   assert.throws(() => orchestrator.remove('nope'), /not found/);
   orchestrator.remove('graph-1');
   assert.equal(orchestrator.get('graph-1'), null);
   // A fresh process reads the store, not memory: deleting has to reach it
-  assert.equal(new Orchestrator(config, new RunManager(config, db), db).get('graph-1'), null);
+  assert.equal(new Orchestrator(config, new ChatManager(config, db), db).get('graph-1'), null);
   db.close();
 });
 
@@ -155,7 +155,7 @@ test('dependent tasks build on their dependencies and the graph ends on one bran
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
   const repo = repoWithCommit();
-  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
 
   const started = orchestrator.create({
     name: 'Linux app',
@@ -201,7 +201,7 @@ test('a graph in a subdirectory gets its worktrees where the CLI looks, and work
   writeFileSync(join(repo, 'app', 'main.txt'), 'main\n');
   execFileSync('git', ['-C', repo, 'add', '-A']);
   execFileSync('git', ['-C', repo, 'commit', '-q', '-m', 'app']);
-  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
 
   const started = orchestrator.create({
     name: 'in app',
@@ -243,7 +243,7 @@ test('a graph started from a linked worktree builds on that worktree, with its w
   writeFileSync(join(linked, 'feature.txt'), 'feature\n');
   execFileSync('git', ['-C', linked, 'add', '-A']);
   execFileSync('git', ['-C', linked, 'commit', '-q', '-m', 'feature']);
-  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
 
   const started = orchestrator.create({
     name: 'from linked',
@@ -276,7 +276,7 @@ test('a graph in an ignored subdirectory works at the top of its worktrees, wher
   execFileSync('git', ['-C', repo, 'add', '-A']);
   execFileSync('git', ['-C', repo, 'commit', '-q', '-m', 'ignore']);
   mkdirSync(join(repo, 'workspace'));
-  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
 
   const started = orchestrator.create({
     name: 'in workspace',
@@ -314,7 +314,7 @@ test('resuming a graph whose worktrees were put in its subdirectory moves them w
       tasks: [{ ...failed, prompt: 'FAKE-WRITE api.txt server', status: 'failed', worktree: stale, branch: 'worktree-graph-1-api' }],
     }),
   ]);
-  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
 
   orchestrator.resume('graph-1', {});
   const orch = await settle(orchestrator, 'graph-1');
@@ -330,7 +330,7 @@ test('branches that conflict are merged by an integrator agent', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
   const repo = repoWithCommit();
-  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
 
   const started = orchestrator.create({
     name: 'clash',
@@ -377,7 +377,7 @@ test('a finished graph from before integration existed can be integrated afterwa
       })) as OrchestrationTaskState[],
     }),
   ]);
-  const orchestrator = new Orchestrator(config, new RunManager(config, db), db);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
 
   orchestrator.retryIntegration('graph-1');
   let orch = orchestrator.get('graph-1');
@@ -407,7 +407,7 @@ test('a task whose run was stopped and then continued to a result delivers that 
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
   const repo = repoWithCommit();
-  const runs = new RunManager(config, db);
+  const runs = new ChatManager(config, db);
   const orchestrator = new Orchestrator(config, runs, db);
 
   const started = orchestrator.create({

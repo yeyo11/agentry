@@ -78,7 +78,8 @@ test('a session run in a worktree carries the CLI record, and stays loose until 
   // Nothing is a project until it is imported: the sessions are loose
   const core = new Core(config);
   assert.deepEqual(await core.projects(), []);
-  assert.deepEqual((await core.sessionsWithLive(null)).map((s) => s.id).sort(), ['p-1', 'w-1']);
+  const loose = await core.chats.list({ project: null, origins: ['agentry', 'external'] });
+  assert.deepEqual(loose.map((c) => c.id).sort(), ['p-1', 'w-1']);
 
   core.db.close();
 });

@@ -20,11 +20,6 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     return reply.status(201).send(await core.importProject({ path }));
   });
 
-  // Chats whose directory is under no project
-  app.get('/projects/loose/sessions', () => core.sessionsWithLive(null));
-
-  app.get<{ Params: { id: string } }>('/projects/:id/sessions', (req) => core.sessionsWithLive(req.params.id));
-
   app.patch<{ Params: { id: string }; Body: UpdateProjectRequest }>('/projects/:id', (req) =>
     core.renameProject(req.params.id, req.body?.name ?? ''),
   );

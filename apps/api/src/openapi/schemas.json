@@ -167,21 +167,18 @@
           "projects": {
             "type": "number"
           },
-          "sessions": {
+          "chats": {
             "type": "number"
           },
-          "activeRuns": {
+          "chatsWorking": {
             "type": "number"
           },
-          "activeCliSessions": {
+          "chatsWaiting": {
             "type": "number"
-          },
-          "liveSessions": {
-            "type": "number",
-            "description": "Sessions with a live process, from either source: what the Sessions page lists as active"
           },
           "backgroundTasks": {
-            "type": "number"
+            "type": "number",
+            "description": "Commands and agents running in the background, whichever chat sent them"
           },
           "subagents": {
             "type": "number"
@@ -196,25 +193,19 @@
         },
         "required": [
           "projects",
-          "sessions",
-          "activeRuns",
-          "activeCliSessions",
-          "liveSessions",
+          "chats",
+          "chatsWorking",
+          "chatsWaiting",
           "backgroundTasks",
           "subagents",
+          "workflows",
           "orchestrationsRunning"
         ]
       },
-      "runs": {
+      "recentChats": {
         "type": "array",
         "items": {
-          "$ref": "#/components/schemas/RunSummary"
-        }
-      },
-      "recentSessions": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/SessionSummary"
+          "$ref": "#/components/schemas/ChatSummary"
         }
       }
     },
@@ -223,8 +214,7 @@
       "rateLimit",
       "accounts",
       "counts",
-      "runs",
-      "recentSessions"
+      "recentChats"
     ]
   },
   "RateLimitInfo": {
@@ -440,656 +430,12 @@
     ],
     "description": "One rate-limit window as claude-swap reports it."
   },
-  "RunSummary": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      },
-      "name": {
-        "type": "string"
-      },
-      "sessionId": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "cwd": {
-        "type": "string"
-      },
-      "model": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "permissionMode": {
-        "$ref": "#/components/schemas/PermissionMode"
-      },
-      "status": {
-        "$ref": "#/components/schemas/RunStatus"
-      },
-      "pid": {
-        "type": [
-          "number",
-          "null"
-        ]
-      },
-      "createdAt": {
-        "type": "string"
-      },
-      "updatedAt": {
-        "type": "string"
-      },
-      "endedAt": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "turns": {
-        "type": "number"
-      },
-      "costUsd": {
-        "type": "number"
-      },
-      "prompt": {
-        "type": "string"
-      },
-      "lastText": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "error": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "orchestrationId": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "orchestrationTaskId": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "internal": {
-        "type": "boolean"
-      },
-      "account": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "claude-swap account this run is pinned to, when it is not using the active one"
-      },
-      "backgroundTasks": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/BackgroundTask"
-        }
-      },
-      "subagents": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/SubagentInfo"
-        }
-      },
-      "workflows": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/WorkflowRun"
-        },
-        "description": "Claude Code workflows it ran (the Workflow tool), with each agent's progress"
-      },
-      "workingDir": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Directory the CLI actually works in, which differs from `cwd` when it runs in a worktree"
-      },
-      "location": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/WorkLocation"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "permissionPrompts": {
-        "type": "string",
-        "enum": [
-          "host",
-          "none"
-        ],
-        "description": "Where its prompts go; kept so a resumed run asks the same way"
-      },
-      "pendingPrompts": {
-        "type": "number",
-        "description": "Prompts waiting for someone right now: the run is stuck until they are answered"
-      }
-    },
-    "required": [
-      "id",
-      "name",
-      "sessionId",
-      "cwd",
-      "model",
-      "permissionMode",
-      "status",
-      "pid",
-      "createdAt",
-      "updatedAt",
-      "endedAt",
-      "turns",
-      "costUsd",
-      "prompt",
-      "lastText",
-      "error",
-      "orchestrationId",
-      "orchestrationTaskId",
-      "internal",
-      "account",
-      "backgroundTasks",
-      "subagents"
-    ]
-  },
-  "RunStatus": {
-    "type": "string",
-    "enum": [
-      "starting",
-      "busy",
-      "idle",
-      "completed",
-      "failed",
-      "stopped"
-    ]
-  },
-  "BackgroundTask": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      },
-      "runId": {
-        "type": "string",
-        "description": "Empty when the task belongs to a CLI session rather than a run"
-      },
-      "runName": {
-        "type": "string"
-      },
-      "type": {
-        "type": "string"
-      },
-      "description": {
-        "type": "string"
-      },
-      "status": {
-        "type": "string"
-      },
-      "toolUseId": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "startedAt": {
-        "type": "string"
-      },
-      "endedAt": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "summary": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "source": {
-        "type": "string",
-        "enum": [
-          "run",
-          "disk"
-        ],
-        "description": "`run` when read from a run's live stream, `disk` when read from its session's files"
-      },
-      "sessionId": {
-        "type": "string",
-        "description": "Session that launched it"
-      },
-      "command": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "The shell command, when it is a backgrounded Bash call"
-      },
-      "backgroundedByUser": {
-        "type": "boolean",
-        "description": "Sent to the background by the person at the terminal rather than by the model"
-      },
-      "fromSubagent": {
-        "type": "boolean",
-        "description": "Launched by a subagent rather than by the main agent (`owned_by_subagent` on the stream event)"
-      },
-      "ownerAgentId": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "The subagent that launched it, when known. The stream event only says a subagent did, so this comes from the subagent's own transcript, where the launch result is recorded."
-      },
-      "location": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/WorkLocation"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      }
-    },
-    "required": [
-      "id",
-      "runId",
-      "runName",
-      "type",
-      "description",
-      "status",
-      "toolUseId",
-      "startedAt",
-      "endedAt",
-      "summary"
-    ],
-    "description": "Work the CLI runs in the background: a Bash command sent there (by the model or by the person at the terminal), a monitor, a remote agent. The CLI calls every delegated piece of work a task, and reports foreground commands that way too; those are left out, and so are subagents and workflows, which have lists of their own."
-  },
-  "WorkLocation": {
-    "type": "object",
-    "properties": {
-      "path": {
-        "type": "string",
-        "description": "Directory the work happens in"
-      },
-      "projectId": {
-        "type": "string"
-      },
-      "projectName": {
-        "type": "string"
-      },
-      "projectPath": {
-        "type": "string"
-      },
-      "worktree": {
-        "anyOf": [
-          {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "branch": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "path": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "name",
-              "branch",
-              "path"
-            ]
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "Set when `path` is inside a git worktree of that project"
-      }
-    },
-    "required": [
-      "path",
-      "projectId",
-      "projectName",
-      "projectPath",
-      "worktree"
-    ],
-    "description": "Where a piece of work happens, resolved to the project it belongs to. A worktree resolves to its repository, so work spread across worktrees still reads as one project."
-  },
-  "SubagentInfo": {
-    "type": "object",
-    "properties": {
-      "toolUseId": {
-        "type": "string"
-      },
-      "runId": {
-        "type": "string",
-        "description": "Empty when the subagent belongs to a CLI session rather than a run"
-      },
-      "runName": {
-        "type": "string"
-      },
-      "subagentType": {
-        "type": "string"
-      },
-      "description": {
-        "type": "string"
-      },
-      "status": {
-        "type": "string",
-        "enum": [
-          "running",
-          "completed",
-          "failed",
-          "stopped"
-        ],
-        "description": "`stopped` when its session ended before the agent reported back"
-      },
-      "startedAt": {
-        "type": "string"
-      },
-      "endedAt": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "source": {
-        "type": "string",
-        "enum": [
-          "run",
-          "cli"
-        ],
-        "description": "`run` when read from a run's live stream, `cli` when read from a session's files on disk"
-      },
-      "sessionId": {
-        "type": "string",
-        "description": "Session that spawned it; always set for `cli` subagents"
-      },
-      "agentId": {
-        "type": "string",
-        "description": "The CLI's own id for the agent"
-      },
-      "lastActivityAt": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Last time the agent wrote to its transcript"
-      },
-      "cwd": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Directory the agent works in, from its own transcript: a worktree when started with isolation"
-      },
-      "location": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/WorkLocation"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "background": {
-        "type": "boolean",
-        "description": "Launched to run in the background, rather than awaited by its parent"
-      }
-    },
-    "required": [
-      "toolUseId",
-      "runId",
-      "runName",
-      "subagentType",
-      "description",
-      "status",
-      "startedAt",
-      "endedAt"
-    ],
-    "description": "An agent a session spawned with the Agent tool, in the foreground or the background."
-  },
-  "WorkflowRun": {
+  "ChatSummary": {
     "type": "object",
     "properties": {
       "id": {
         "type": "string",
-        "description": "The CLI's workflow run id (`wf_…`) when known, the task id otherwise"
-      },
-      "taskId": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "name": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "The `name` in the script's meta"
-      },
-      "description": {
-        "type": "string"
-      },
-      "status": {
-        "type": "string",
-        "enum": [
-          "running",
-          "completed",
-          "failed",
-          "stopped"
-        ],
-        "description": "`stopped` when its session ended before the workflow reported back"
-      },
-      "startedAt": {
-        "type": "string"
-      },
-      "endedAt": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "runId": {
-        "type": "string",
-        "description": "Empty when the workflow belongs to a CLI session rather than a run"
-      },
-      "runName": {
-        "type": "string"
-      },
-      "source": {
-        "type": "string",
-        "enum": [
-          "run",
-          "cli"
-        ],
-        "description": "`run` when read from a run's live stream, `cli` when read from a session's files on disk"
-      },
-      "sessionId": {
-        "type": "string"
-      },
-      "phases": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        }
-      },
-      "agents": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/WorkflowAgentState"
-        }
-      },
-      "result": {
-        "description": "What the script returned, once it finished"
-      },
-      "summary": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "totalTokens": {
-        "type": [
-          "number",
-          "null"
-        ]
-      },
-      "script": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "location": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/WorkLocation"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      }
-    },
-    "required": [
-      "id",
-      "taskId",
-      "name",
-      "description",
-      "status",
-      "startedAt",
-      "endedAt",
-      "runId",
-      "runName",
-      "source",
-      "phases",
-      "agents",
-      "summary",
-      "totalTokens",
-      "script"
-    ],
-    "description": "A run of a Claude Code workflow: a script started with the Workflow tool that orchestrates subagents inside one session. Read from a run's live stream (`local_workflow` tasks) or from the files the CLI keeps beside the session's transcript."
-  },
-  "WorkflowAgentState": {
-    "type": "object",
-    "properties": {
-      "index": {
-        "type": "number"
-      },
-      "label": {
-        "type": "string"
-      },
-      "state": {
-        "type": "string",
-        "description": "As the CLI reports it: `start`, `progress`, `done` or `error`"
-      },
-      "agentId": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "phaseTitle": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "model": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "startedAt": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "durationMs": {
-        "type": [
-          "number",
-          "null"
-        ]
-      },
-      "tokens": {
-        "type": [
-          "number",
-          "null"
-        ]
-      },
-      "toolCalls": {
-        "type": [
-          "number",
-          "null"
-        ]
-      },
-      "promptPreview": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "resultPreview": {
-        "type": [
-          "string",
-          "null"
-        ]
-      }
-    },
-    "required": [
-      "index",
-      "label",
-      "state",
-      "agentId",
-      "phaseTitle",
-      "model",
-      "startedAt",
-      "durationMs",
-      "tokens",
-      "toolCalls",
-      "promptPreview",
-      "resultPreview"
-    ],
-    "description": "One agent a workflow launched, as its progress reports it."
-  },
-  "SessionSummary": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      },
-      "projectId": {
-        "type": "string"
-      },
-      "projectPath": {
-        "type": "string"
+        "description": "The session id"
       },
       "title": {
         "type": "string"
@@ -1121,148 +467,498 @@
           "null"
         ]
       },
-      "gitBranch": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
       "cliVersion": {
         "type": [
           "string",
           "null"
         ]
       },
-      "sizeBytes": {
-        "type": "number"
-      },
-      "live": {
-        "$ref": "#/components/schemas/SessionLive"
-      },
-      "origin": {
-        "$ref": "#/components/schemas/SessionOrigin"
-      },
-      "worktree": {
+      "project": {
         "anyOf": [
           {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "branch": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "path": {
-                "type": "string"
-              },
-              "parentPath": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "name",
-              "branch",
-              "path",
-              "parentPath"
-            ]
+            "$ref": "#/components/schemas/ChatProject"
           },
           {
             "type": "null"
           }
         ],
-        "description": "From the CLI's own record, when the session ran in a worktree it created"
+        "description": "Null for a loose chat: its directory is under no imported project"
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "worktree": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatWorktree"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "origin": {
+        "$ref": "#/components/schemas/ChatOrigin"
+      },
+      "orchestration": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatOrchestration"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The orchestration it works for, when its origin is `orchestration`"
+      },
+      "derivedFrom": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatFork"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set on a fork: where it started from"
+      },
+      "state": {
+        "$ref": "#/components/schemas/ChatState"
+      },
+      "control": {
+        "$ref": "#/components/schemas/ChatControl"
+      },
+      "execution": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Execution"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The live execution, when Agentry has a process on the chat; also the last of `executions`"
+      },
+      "executions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Execution"
+        },
+        "description": "Every execution, oldest first"
+      },
+      "context": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatContext"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null until the chat has had a response"
+      },
+      "cost": {
+        "$ref": "#/components/schemas/ChatCost"
       }
     },
     "required": [
       "id",
-      "projectId",
-      "projectPath",
       "title",
       "firstPrompt",
       "messageCount",
       "startedAt",
       "updatedAt",
       "model",
-      "gitBranch",
       "cliVersion",
-      "sizeBytes",
-      "origin"
-    ]
+      "project",
+      "cwd",
+      "worktree",
+      "origin",
+      "orchestration",
+      "derivedFrom",
+      "state",
+      "control",
+      "execution",
+      "executions",
+      "context",
+      "cost"
+    ],
+    "description": "A chat as the list shows it: everything but what only its own page needs, which costs a read of its transcript and its sidecar files per chat."
   },
-  "SessionLive": {
+  "ChatProject": {
     "type": "object",
     "properties": {
-      "source": {
-        "$ref": "#/components/schemas/SessionLiveSource"
-      },
-      "status": {
+      "id": {
         "type": "string"
       },
-      "runId": {
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "name"
+    ],
+    "description": "The project a chat belongs to."
+  },
+  "ChatWorktree": {
+    "type": "object",
+    "properties": {
+      "path": {
         "type": "string"
       },
-      "pid": {
+      "name": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "path",
+      "name",
+      "branch"
+    ],
+    "description": "The git worktree a chat works in, when it is not the project's own checkout."
+  },
+  "ChatOrigin": {
+    "type": "string",
+    "enum": [
+      "agentry",
+      "external",
+      "orchestration",
+      "internal"
+    ],
+    "description": "Where a chat was born. Never changes, even when resuming adopts the chat."
+  },
+  "ChatOrchestration": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null for the synthesis report, which belongs to no task"
+      },
+      "taskName": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "taskId",
+      "taskName"
+    ],
+    "description": "The orchestration a chat works for."
+  },
+  "ChatFork": {
+    "type": "object",
+    "properties": {
+      "chatId": {
+        "type": "string"
+      },
+      "at": {
+        "type": "string",
+        "description": "When it was forked"
+      }
+    },
+    "required": [
+      "chatId",
+      "at"
+    ],
+    "description": "Where a fork came from."
+  },
+  "ChatState": {
+    "type": "string",
+    "enum": [
+      "working",
+      "waiting",
+      "idle"
+    ],
+    "description": "What is happening in a chat right now, whoever is driving it."
+  },
+  "ChatControl": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "const": "interactive"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "const": "resumable"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "const": "readOnly"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "fork",
+              "hint"
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "reason",
+          "action"
+        ]
+      }
+    ],
+    "description": "What a person can do with a chat right now, and why not when they cannot. Where the chat was born says nothing about this: an `external` chat nobody holds is `resumable`.\n\n`readOnly` always says why in words a person reads, and names the one way forward: `fork` continues in a copy, `hint` (a task that is still running) sends the worker a nudge from the orchestration board without typing into its conversation."
+  },
+  "Execution": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null while it is live"
+      },
+      "outcome": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ExecutionOutcome"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null while it is live"
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Why it failed, when it did"
+      },
+      "permissionMode": {
+        "$ref": "#/components/schemas/PermissionMode"
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "account": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Pinned claude-swap account, when it did not use the active one"
+      },
+      "maxBudgetUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Ceiling on what it could spend"
+      },
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Null when the CLI reported none: cost is only known for what Agentry launched"
+      },
+      "tokens": {
+        "$ref": "#/components/schemas/TokenUsage"
+      },
+      "turns": {
         "type": "number"
       }
     },
     "required": [
-      "source",
-      "status"
-    ]
+      "id",
+      "startedAt",
+      "endedAt",
+      "outcome",
+      "error",
+      "permissionMode",
+      "model",
+      "account",
+      "maxBudgetUsd",
+      "costUsd",
+      "tokens",
+      "turns"
+    ],
+    "description": "One stretch of a chat during which Agentry had a process working on it; a chat has several and at most one is live."
   },
-  "SessionLiveSource": {
+  "ExecutionOutcome": {
     "type": "string",
     "enum": [
-      "wrapper",
-      "cli"
-    ]
+      "completed",
+      "failed",
+      "stopped",
+      "interrupted"
+    ],
+    "description": "How an execution ended. `interrupted`: its process was lost (the wrapper restarted or crashed) rather than stopped or finished."
   },
-  "SessionOrigin": {
+  "TokenUsage": {
     "type": "object",
     "properties": {
-      "kind": {
-        "$ref": "#/components/schemas/SessionOriginKind"
+      "input": {
+        "type": "number"
       },
-      "runId": {
-        "type": "string"
+      "output": {
+        "type": "number"
       },
-      "runName": {
-        "type": "string"
+      "cacheRead": {
+        "type": "number"
       },
-      "orchestrationId": {
-        "type": "string"
+      "cacheCreation": {
+        "type": "number"
       },
-      "orchestrationName": {
-        "type": "string"
-      },
-      "taskId": {
-        "type": "string",
-        "description": "Task id inside the orchestration; `__synthesis__` for the final report"
-      },
-      "taskName": {
-        "type": "string"
+      "total": {
+        "type": "number",
+        "description": "`input + output + cacheRead + cacheCreation`"
       }
     },
     "required": [
-      "kind"
-    ]
-  },
-  "SessionOriginKind": {
-    "type": "string",
-    "enum": [
-      "cli",
-      "run",
-      "orchestration",
-      "internal"
+      "input",
+      "output",
+      "cacheRead",
+      "cacheCreation",
+      "total"
     ],
-    "description": "Who created a session, so the UI can group the wrapper's own sessions under their parent:   cli           started outside the wrapper (terminal, IDE…)   run           a run started from the wrapper (UI or API)   orchestration a worker (or the synthesis step) of an orchestration   internal      housekeeping runs of the wrapper itself (planner, auth check); hidden by default"
+    "description": "Tokens counted in the four ways the API bills them."
+  },
+  "ChatContext": {
+    "type": "object",
+    "properties": {
+      "used": {
+        "type": "number",
+        "description": "Tokens the last response read: `input + cache`. A snapshot, so compaction shows as a drop."
+      },
+      "window": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The model's context window; null when the model is not known, so no percentage is invented"
+      }
+    },
+    "required": [
+      "used",
+      "window"
+    ],
+    "description": "How full the conversation is, as of its last response."
+  },
+  "ChatCost": {
+    "type": "object",
+    "properties": {
+      "usd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Null when there is no figure to give (a chat started from a terminal): read as \"not available\""
+      },
+      "tokens": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatModelTokens"
+        },
+        "description": "Everything the chat spent, subagents included, split by model"
+      },
+      "total": {
+        "$ref": "#/components/schemas/TokenUsage",
+        "description": "The same, summed over models"
+      }
+    },
+    "required": [
+      "usd",
+      "tokens",
+      "total"
+    ],
+    "description": "What a chat has cost. Only real data: nothing is estimated from a price table."
+  },
+  "ChatModelTokens": {
+    "type": "object",
+    "properties": {
+      "input": {
+        "type": "number"
+      },
+      "output": {
+        "type": "number"
+      },
+      "cacheRead": {
+        "type": "number"
+      },
+      "cacheCreation": {
+        "type": "number"
+      },
+      "total": {
+        "type": "number",
+        "description": "`input + output + cacheRead + cacheCreation`"
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Model id, variant suffix included; null for messages that did not say"
+      }
+    },
+    "required": [
+      "cacheCreation",
+      "cacheRead",
+      "input",
+      "model",
+      "output",
+      "total"
+    ],
+    "description": "Tokens counted the four ways the API bills them, for one model."
   },
   "AuthVerification": {
     "type": "object",
@@ -1296,65 +992,6 @@
       }
     }
   },
-  "ActiveCliSession": {
-    "type": "object",
-    "properties": {
-      "pid": {
-        "type": "number"
-      },
-      "cwd": {
-        "type": "string"
-      },
-      "kind": {
-        "type": "string"
-      },
-      "startedAt": {
-        "type": "number"
-      },
-      "sessionId": {
-        "type": "string"
-      },
-      "name": {
-        "type": "string"
-      },
-      "status": {
-        "type": "string"
-      },
-      "state": {
-        "type": "string",
-        "description": "What the CLI reports for a background agent: `done`, `blocked`…"
-      },
-      "live": {
-        "type": "boolean",
-        "description": "Whether this is a session actually open for work. A process the CLI reports as `done`, and a pre-warmed spare that never received a user turn, are both listed but not live: they still hold a pid worth seeing, yet counting them was what made the panel claim sessions nobody had."
-      },
-      "runId": {
-        "type": "string",
-        "description": "Set when it maps to a run managed by the wrapper"
-      },
-      "location": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/WorkLocation"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      }
-    },
-    "required": [
-      "pid",
-      "cwd",
-      "kind",
-      "startedAt",
-      "sessionId",
-      "name",
-      "status",
-      "live"
-    ],
-    "description": "CLI sessions alive on the machine/container (`claude agents --json`)"
-  },
   "CreateProjectRequest": {
     "type": "object",
     "properties": {
@@ -1370,34 +1007,125 @@
       "name"
     ]
   },
-  "SessionDetail": {
+  "TranscriptSearchResult": {
     "type": "object",
     "properties": {
-      "summary": {
-        "$ref": "#/components/schemas/SessionSummary"
+      "query": {
+        "type": "string"
       },
-      "entries": {
+      "hits": {
         "type": "array",
         "items": {
-          "$ref": "#/components/schemas/TranscriptEntry"
+          "$ref": "#/components/schemas/TranscriptSearchHit"
         },
-        "description": "The window of the transcript this page carries, oldest first"
-      },
-      "from": {
-        "type": "number",
-        "description": "Index of the first entry in `entries` within the whole transcript"
+        "description": "Hits in transcript order, oldest first: one per entry, however many times it matches"
       },
       "total": {
         "type": "number",
-        "description": "Entries the transcript holds in total, so a caller knows what is still above `from`"
+        "description": "Entries searched, the same `total` a page of the transcript reports"
+      },
+      "truncated": {
+        "type": "boolean",
+        "description": "More entries matched than `hits` carries; the oldest ones were left out"
       }
     },
     "required": [
-      "summary",
-      "entries",
-      "from",
-      "total"
+      "query",
+      "hits",
+      "total",
+      "truncated"
     ]
+  },
+  "TranscriptSearchHit": {
+    "type": "object",
+    "properties": {
+      "index": {
+        "type": "number",
+        "description": "Index of the entry or event, in the same index space as `from` and `total` of a page"
+      },
+      "snippet": {
+        "type": "string",
+        "description": "The text around the first match, whitespace collapsed"
+      },
+      "start": {
+        "type": "number",
+        "description": "Where the match starts within `snippet`"
+      },
+      "length": {
+        "type": "number",
+        "description": "Length of the match within `snippet`"
+      }
+    },
+    "required": [
+      "index",
+      "snippet",
+      "start",
+      "length"
+    ],
+    "description": "One entry whose text contains the query."
+  },
+  "RunEvent": {
+    "type": "object",
+    "properties": {
+      "seq": {
+        "type": "number"
+      },
+      "ts": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/RunEventKind"
+      },
+      "type": {
+        "type": "string",
+        "description": "Original type/subtype of the stream-json event"
+      },
+      "subtype": {
+        "type": "string"
+      },
+      "entry": {
+        "$ref": "#/components/schemas/TranscriptEntry"
+      },
+      "status": {
+        "$ref": "#/components/schemas/RunStatus"
+      },
+      "text": {
+        "type": "string"
+      },
+      "block": {
+        "type": "string",
+        "enum": [
+          "text",
+          "thinking"
+        ],
+        "description": "For `partial` events: which kind of block is streaming"
+      },
+      "data": {
+        "type": "object",
+        "additionalProperties": {}
+      }
+    },
+    "required": [
+      "seq",
+      "ts",
+      "kind",
+      "type"
+    ]
+  },
+  "RunEventKind": {
+    "type": "string",
+    "enum": [
+      "message",
+      "init",
+      "result",
+      "task",
+      "status",
+      "stderr",
+      "notice",
+      "other",
+      "partial"
+    ],
+    "description": "`partial` events are ephemeral: they carry the text generated so far for the block being streamed, reuse the seq of the last stored event, are never buffered or replayed, and are superseded by the next `message` event."
   },
   "TranscriptEntry": {
     "type": "object",
@@ -1577,239 +1305,15 @@
       }
     ]
   },
-  "TranscriptSearchResult": {
-    "type": "object",
-    "properties": {
-      "query": {
-        "type": "string"
-      },
-      "hits": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/TranscriptSearchHit"
-        },
-        "description": "Hits in transcript order, oldest first: one per entry, however many times it matches"
-      },
-      "total": {
-        "type": "number",
-        "description": "Entries (or events) searched, the same `total` a page of the transcript reports"
-      },
-      "truncated": {
-        "type": "boolean",
-        "description": "More entries matched than `hits` carries; the oldest ones were left out"
-      }
-    },
-    "required": [
-      "query",
-      "hits",
-      "total",
-      "truncated"
-    ]
-  },
-  "TranscriptSearchHit": {
-    "type": "object",
-    "properties": {
-      "index": {
-        "type": "number",
-        "description": "Index of the entry or event, in the same index space as `from` and `total` of a page"
-      },
-      "snippet": {
-        "type": "string",
-        "description": "The text around the first match, whitespace collapsed"
-      },
-      "start": {
-        "type": "number",
-        "description": "Where the match starts within `snippet`"
-      },
-      "length": {
-        "type": "number",
-        "description": "Length of the match within `snippet`"
-      },
-      "kind": {
-        "$ref": "#/components/schemas/RunEventKind",
-        "description": "For a run, the kind of event the hit is in, so a view that hides some kinds can skip them"
-      }
-    },
-    "required": [
-      "index",
-      "snippet",
-      "start",
-      "length"
-    ],
-    "description": "One entry (or run event) whose text contains the query."
-  },
-  "RunEventKind": {
+  "RunStatus": {
     "type": "string",
     "enum": [
-      "message",
-      "init",
-      "result",
-      "task",
-      "status",
-      "stderr",
-      "notice",
-      "other",
-      "partial"
-    ],
-    "description": "`partial` events are ephemeral: they carry the text generated so far for the block being streamed, reuse the seq of the last stored event, are never buffered or replayed, and are superseded by the next `message` event."
-  },
-  "RunOptions": {
-    "type": "object",
-    "properties": {
-      "prompt": {
-        "type": "string"
-      },
-      "attachments": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "Uploads (`POST /uploads`) attached to the first message"
-      },
-      "cwd": {
-        "type": "string",
-        "description": "Working directory; defaults to the wrapper workspace"
-      },
-      "name": {
-        "type": "string"
-      },
-      "model": {
-        "type": "string"
-      },
-      "effort": {
-        "type": "string"
-      },
-      "permissionMode": {
-        "$ref": "#/components/schemas/PermissionMode"
-      },
-      "resumeSessionId": {
-        "type": "string",
-        "description": "Resume an existing session"
-      },
-      "forkSession": {
-        "type": "boolean",
-        "description": "With `resumeSessionId`: continue in a copy (`--fork-session`), a new session with the same history, leaving the original untouched. The way to pick up a session that is still open in a terminal without two processes writing the same conversation."
-      },
-      "appendSystemPrompt": {
-        "type": "string"
-      },
-      "allowedTools": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        }
-      },
-      "worktree": {
-        "type": "string",
-        "description": "Run inside a new git worktree of this name, created and managed by the CLI (`--worktree`)"
-      },
-      "maxBudgetUsd": {
-        "type": "number",
-        "description": "Hard ceiling on what this run may spend, enforced by the CLI (`--max-budget-usd`)"
-      },
-      "permissionPrompts": {
-        "type": "string",
-        "enum": [
-          "host",
-          "none"
-        ],
-        "description": "Who answers what the CLI would ask a person: tool permissions, `AskUserQuestion`, plan approval. `host` sends them to the panel (`GET /runs/:id/permissions`); `none`, the default, denies them, which is the only safe choice for a client that is not going to answer."
-      },
-      "keepAlive": {
-        "type": "boolean",
-        "description": "Keep the process alive after each turn so more messages can be sent (default true)"
-      },
-      "jsonSchema": {
-        "description": "JSON Schema for structured output"
-      },
-      "internal": {
-        "type": "boolean",
-        "description": "Housekeeping run: no transcript is written (`--no-session-persistence`), so it cannot be resumed"
-      },
-      "account": {
-        "type": "string",
-        "description": "Pin the run to a claude-swap account (slot number, email or alias) instead of the active one. Runs through `cswap run`, which needs claude-swap installed."
-      }
-    },
-    "required": [
-      "prompt"
-    ]
-  },
-  "RunDetail": {
-    "type": "object",
-    "properties": {
-      "run": {
-        "$ref": "#/components/schemas/RunSummary"
-      },
-      "events": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/RunEvent"
-        },
-        "description": "The window of the run's events this page carries, oldest first"
-      },
-      "from": {
-        "type": "number",
-        "description": "Index of the first event in `events` within everything the run has emitted"
-      },
-      "total": {
-        "type": "number",
-        "description": "Events the run has emitted in total"
-      }
-    },
-    "required": [
-      "run",
-      "events",
-      "from",
-      "total"
-    ]
-  },
-  "RunEvent": {
-    "type": "object",
-    "properties": {
-      "seq": {
-        "type": "number"
-      },
-      "ts": {
-        "type": "string"
-      },
-      "kind": {
-        "$ref": "#/components/schemas/RunEventKind"
-      },
-      "type": {
-        "type": "string",
-        "description": "Original type/subtype of the stream-json event"
-      },
-      "subtype": {
-        "type": "string"
-      },
-      "entry": {
-        "$ref": "#/components/schemas/TranscriptEntry"
-      },
-      "status": {
-        "$ref": "#/components/schemas/RunStatus"
-      },
-      "text": {
-        "type": "string"
-      },
-      "block": {
-        "type": "string",
-        "enum": [
-          "text",
-          "thinking"
-        ],
-        "description": "For `partial` events: which kind of block is streaming"
-      },
-      "data": {
-        "type": "object",
-        "additionalProperties": {}
-      }
-    },
-    "required": [
-      "seq",
-      "ts",
-      "kind",
-      "type"
+      "starting",
+      "busy",
+      "idle",
+      "completed",
+      "failed",
+      "stopped"
     ]
   },
   "EffectiveEnvironment": {
@@ -1821,8 +1325,9 @@
       "observedAt": {
         "type": "string"
       },
-      "runId": {
-        "type": "string"
+      "chatId": {
+        "type": "string",
+        "description": "The chat whose start reported it"
       },
       "cliVersion": {
         "type": [
@@ -1923,7 +1428,7 @@
     "required": [
       "cwd",
       "observedAt",
-      "runId",
+      "chatId",
       "cliVersion",
       "model",
       "permissionMode",
@@ -1936,7 +1441,7 @@
       "plugins",
       "memoryPaths"
     ],
-    "description": "What Claude Code actually loaded for a directory, taken from the `init` event of the most recent wrapper run there (the CLI only reports it when a session starts)."
+    "description": "What Claude Code actually loaded for a directory, taken from the `init` event of the most recent chat Agentry started there (the CLI only reports it when a session starts)."
   },
   "BackgroundTaskOutput": {
     "type": "object",
@@ -1996,13 +1501,6 @@
           "null"
         ],
         "description": "The workflow run (`wf_…`) a workflow agent belongs to"
-      },
-      "toolUseId": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "The Agent tool call that spawned it; workflow agents have none"
       },
       "subagentType": {
         "type": [
@@ -2111,7 +1609,7 @@
       "tasks": {
         "type": "array",
         "items": {
-          "$ref": "#/components/schemas/BackgroundTask"
+          "$ref": "#/components/schemas/ChatBackgroundTask"
         },
         "description": "Background tasks this agent launched, where the transcripts say so (subagents only)"
       }
@@ -2121,7 +1619,6 @@
       "sessionId",
       "kind",
       "workflowRunId",
-      "toolUseId",
       "subagentType",
       "description",
       "workflowPhase",
@@ -2144,34 +1641,78 @@
     ],
     "description": "Everything one subagent or workflow agent did, from the transcript and meta the CLI keeps for it beside the session's transcript: what it was asked, how it went, and its whole conversation."
   },
-  "TokenUsage": {
+  "ChatBackgroundTask": {
     "type": "object",
     "properties": {
-      "input": {
-        "type": "number"
+      "id": {
+        "type": "string"
       },
-      "output": {
-        "type": "number"
+      "kind": {
+        "type": "string"
       },
-      "cacheRead": {
-        "type": "number"
+      "description": {
+        "type": "string"
       },
-      "cacheCreation": {
-        "type": "number"
+      "command": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The shell command, when it is a backgrounded Bash call"
       },
-      "total": {
-        "type": "number",
-        "description": "`input + output + cacheRead + cacheCreation`"
+      "status": {
+        "$ref": "#/components/schemas/ChatBranchStatus"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "summary": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "byPerson": {
+        "type": "boolean",
+        "description": "Sent to the background by the person, not by the model"
+      },
+      "ownerId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The subagent that launched it; null when the chat itself did"
       }
     },
     "required": [
-      "input",
-      "output",
-      "cacheRead",
-      "cacheCreation",
-      "total"
+      "id",
+      "kind",
+      "description",
+      "command",
+      "status",
+      "startedAt",
+      "endedAt",
+      "summary",
+      "byPerson",
+      "ownerId"
     ],
-    "description": "Tokens counted in the four ways the API bills them."
+    "description": "A command or agent a chat sent off to run beside it."
+  },
+  "ChatBranchStatus": {
+    "type": "string",
+    "enum": [
+      "running",
+      "completed",
+      "failed",
+      "stopped"
+    ],
+    "description": "How far a piece of work a chat delegated has got."
   },
   "WorkflowDefinition": {
     "type": "object",
@@ -2226,7 +1767,7 @@
     "required": [
       "name"
     ],
-    "description": "Starts a run that runs a saved workflow."
+    "description": "Starts a chat that runs a saved workflow."
   },
   "SaveOrchestrationWorkflowRequest": {
     "type": "object",
@@ -2891,18 +2432,6 @@
     "required": [
       "behavior"
     ]
-  },
-  "RunSettingsUpdate": {
-    "type": "object",
-    "properties": {
-      "permissionMode": {
-        "$ref": "#/components/schemas/PermissionMode"
-      },
-      "model": {
-        "type": "string"
-      }
-    },
-    "description": "What can be changed on a run without restarting it. A live process takes it at once."
   },
   "ResumeOrchestrationRequest": {
     "type": "object",
@@ -5418,352 +4947,6 @@
     ],
     "description": "One Claude Code conversation: the root entity of the product. Always exactly one session id, which is also the chat's id. Subagents and workflows are branches of a chat, not chats."
   },
-  "ChatProject": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      },
-      "name": {
-        "type": "string"
-      }
-    },
-    "required": [
-      "id",
-      "name"
-    ],
-    "description": "The project a chat belongs to."
-  },
-  "ChatWorktree": {
-    "type": "object",
-    "properties": {
-      "path": {
-        "type": "string"
-      },
-      "name": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "branch": {
-        "type": [
-          "string",
-          "null"
-        ]
-      }
-    },
-    "required": [
-      "path",
-      "name",
-      "branch"
-    ],
-    "description": "The git worktree a chat works in, when it is not the project's own checkout."
-  },
-  "ChatOrigin": {
-    "type": "string",
-    "enum": [
-      "agentry",
-      "external",
-      "orchestration",
-      "internal"
-    ],
-    "description": "Where a chat was born. Never changes, even when resuming adopts the chat."
-  },
-  "ChatOrchestration": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      },
-      "name": {
-        "type": "string"
-      },
-      "taskId": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Null for the synthesis report, which belongs to no task"
-      },
-      "taskName": {
-        "type": [
-          "string",
-          "null"
-        ]
-      }
-    },
-    "required": [
-      "id",
-      "name",
-      "taskId",
-      "taskName"
-    ],
-    "description": "The orchestration a chat works for."
-  },
-  "ChatFork": {
-    "type": "object",
-    "properties": {
-      "chatId": {
-        "type": "string"
-      },
-      "at": {
-        "type": "string",
-        "description": "When it was forked"
-      }
-    },
-    "required": [
-      "chatId",
-      "at"
-    ],
-    "description": "Where a fork came from."
-  },
-  "ChatState": {
-    "type": "string",
-    "enum": [
-      "working",
-      "waiting",
-      "idle"
-    ],
-    "description": "What is happening in a chat right now, whoever is driving it."
-  },
-  "ChatControl": {
-    "anyOf": [
-      {
-        "type": "object",
-        "properties": {
-          "mode": {
-            "type": "string",
-            "const": "interactive"
-          }
-        },
-        "required": [
-          "mode"
-        ]
-      },
-      {
-        "type": "object",
-        "properties": {
-          "mode": {
-            "type": "string",
-            "const": "resumable"
-          }
-        },
-        "required": [
-          "mode"
-        ]
-      },
-      {
-        "type": "object",
-        "properties": {
-          "mode": {
-            "type": "string",
-            "const": "readOnly"
-          },
-          "reason": {
-            "type": "string"
-          },
-          "action": {
-            "type": "string",
-            "enum": [
-              "fork",
-              "hint"
-            ]
-          }
-        },
-        "required": [
-          "mode",
-          "reason",
-          "action"
-        ]
-      }
-    ],
-    "description": "What a person can do with a chat right now, and why not when they cannot. Where the chat was born says nothing about this: an `external` chat nobody holds is `resumable`.\n\n`readOnly` always says why in words a person reads, and names the one way forward: `fork` continues in a copy, `hint` (a task that is still running) sends the worker a nudge from the orchestration board without typing into its conversation."
-  },
-  "Execution": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      },
-      "startedAt": {
-        "type": "string"
-      },
-      "endedAt": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Null while it is live"
-      },
-      "outcome": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/ExecutionOutcome"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "Null while it is live"
-      },
-      "error": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Why it failed, when it did"
-      },
-      "permissionMode": {
-        "$ref": "#/components/schemas/PermissionMode"
-      },
-      "model": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "account": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Pinned claude-swap account, when it did not use the active one"
-      },
-      "maxBudgetUsd": {
-        "type": [
-          "number",
-          "null"
-        ],
-        "description": "Ceiling on what it could spend"
-      },
-      "costUsd": {
-        "type": [
-          "number",
-          "null"
-        ],
-        "description": "Null when the CLI reported none: cost is only known for what Agentry launched"
-      },
-      "tokens": {
-        "$ref": "#/components/schemas/TokenUsage"
-      },
-      "turns": {
-        "type": "number"
-      }
-    },
-    "required": [
-      "id",
-      "startedAt",
-      "endedAt",
-      "outcome",
-      "error",
-      "permissionMode",
-      "model",
-      "account",
-      "maxBudgetUsd",
-      "costUsd",
-      "tokens",
-      "turns"
-    ],
-    "description": "One stretch of a chat during which Agentry had a process working on it; a chat has several and at most one is live."
-  },
-  "ExecutionOutcome": {
-    "type": "string",
-    "enum": [
-      "completed",
-      "failed",
-      "stopped",
-      "interrupted"
-    ],
-    "description": "How an execution ended. `interrupted`: its process was lost (the wrapper restarted or crashed) rather than stopped or finished."
-  },
-  "ChatContext": {
-    "type": "object",
-    "properties": {
-      "used": {
-        "type": "number",
-        "description": "Tokens the last response read: `input + cache`. A snapshot, so compaction shows as a drop."
-      },
-      "window": {
-        "type": [
-          "number",
-          "null"
-        ],
-        "description": "The model's context window; null when the model is not known, so no percentage is invented"
-      }
-    },
-    "required": [
-      "used",
-      "window"
-    ],
-    "description": "How full the conversation is, as of its last response."
-  },
-  "ChatCost": {
-    "type": "object",
-    "properties": {
-      "usd": {
-        "type": [
-          "number",
-          "null"
-        ],
-        "description": "Null when there is no figure to give (a chat started from a terminal): read as \"not available\""
-      },
-      "tokens": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/ChatModelTokens"
-        },
-        "description": "Everything the chat spent, subagents included, split by model"
-      },
-      "total": {
-        "$ref": "#/components/schemas/TokenUsage",
-        "description": "The same, summed over models"
-      }
-    },
-    "required": [
-      "usd",
-      "tokens",
-      "total"
-    ],
-    "description": "What a chat has cost. Only real data: nothing is estimated from a price table."
-  },
-  "ChatModelTokens": {
-    "type": "object",
-    "properties": {
-      "input": {
-        "type": "number"
-      },
-      "output": {
-        "type": "number"
-      },
-      "cacheRead": {
-        "type": "number"
-      },
-      "cacheCreation": {
-        "type": "number"
-      },
-      "total": {
-        "type": "number",
-        "description": "`input + output + cacheRead + cacheCreation`"
-      },
-      "model": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Model id, variant suffix included; null for messages that did not say"
-      }
-    },
-    "required": [
-      "cacheCreation",
-      "cacheRead",
-      "input",
-      "model",
-      "output",
-      "total"
-    ],
-    "description": "Tokens counted the four ways the API bills them, for one model."
-  },
   "ChatChildren": {
     "type": "object",
     "properties": {
@@ -5850,79 +5033,6 @@
       "tasks"
     ],
     "description": "A branch of a chat that works on its own: its messages live inside the chat's transcript."
-  },
-  "ChatBranchStatus": {
-    "type": "string",
-    "enum": [
-      "running",
-      "completed",
-      "failed",
-      "stopped"
-    ],
-    "description": "How far a piece of work a chat delegated has got."
-  },
-  "ChatBackgroundTask": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      },
-      "kind": {
-        "type": "string"
-      },
-      "description": {
-        "type": "string"
-      },
-      "command": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "The shell command, when it is a backgrounded Bash call"
-      },
-      "status": {
-        "$ref": "#/components/schemas/ChatBranchStatus"
-      },
-      "startedAt": {
-        "type": "string"
-      },
-      "endedAt": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "summary": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "byPerson": {
-        "type": "boolean",
-        "description": "Sent to the background by the person, not by the model"
-      },
-      "ownerId": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "The subagent that launched it; null when the chat itself did"
-      }
-    },
-    "required": [
-      "id",
-      "kind",
-      "description",
-      "command",
-      "status",
-      "startedAt",
-      "endedAt",
-      "summary",
-      "byPerson",
-      "ownerId"
-    ],
-    "description": "A command or agent a chat sent off to run beside it."
   },
   "ChatWorkflow": {
     "type": "object",
@@ -6224,6 +5334,257 @@
     ],
     "description": "A page of a chat's transcript with the chat it belongs to."
   },
+  "ChatBackgroundTaskEntry": {
+    "type": "object",
+    "properties": {
+      "chat": {
+        "$ref": "#/components/schemas/ChatRef"
+      },
+      "id": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "command": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The shell command, when it is a backgrounded Bash call"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ChatBranchStatus"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "summary": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "byPerson": {
+        "type": "boolean",
+        "description": "Sent to the background by the person, not by the model"
+      },
+      "ownerId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The subagent that launched it; null when the chat itself did"
+      }
+    },
+    "required": [
+      "byPerson",
+      "chat",
+      "command",
+      "description",
+      "endedAt",
+      "id",
+      "kind",
+      "ownerId",
+      "startedAt",
+      "status",
+      "summary"
+    ],
+    "description": "A background command or agent, listed with the chat that sent it off."
+  },
+  "ChatRef": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "project": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatProject"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "worktree": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatWorktree"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "title",
+      "project",
+      "cwd",
+      "worktree"
+    ],
+    "description": "Which chat a branch belongs to, for the aggregates that list branches of many chats together."
+  },
+  "ChatSubagentEntry": {
+    "type": "object",
+    "properties": {
+      "chat": {
+        "$ref": "#/components/schemas/ChatRef"
+      },
+      "id": {
+        "type": "string",
+        "description": "Id of its transcript inside the chat"
+      },
+      "kind": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ChatBranchStatus"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "lastActivityAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "cwd": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Where it works, when that is not the chat's directory (a worktree)"
+      },
+      "tasks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatBackgroundTask"
+        }
+      }
+    },
+    "required": [
+      "chat",
+      "cwd",
+      "description",
+      "endedAt",
+      "id",
+      "kind",
+      "lastActivityAt",
+      "startedAt",
+      "status",
+      "tasks"
+    ],
+    "description": "A subagent, listed with the chat it belongs to."
+  },
+  "ChatWorkflowEntry": {
+    "type": "object",
+    "properties": {
+      "chat": {
+        "$ref": "#/components/schemas/ChatRef"
+      },
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "description": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ChatBranchStatus"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "phases": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "agents": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatWorkflowAgent"
+        }
+      },
+      "result": {
+        "description": "What the script returned, once it finished"
+      },
+      "summary": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "totalTokens": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "script": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "agents",
+      "chat",
+      "description",
+      "endedAt",
+      "id",
+      "name",
+      "phases",
+      "script",
+      "startedAt",
+      "status",
+      "summary",
+      "totalTokens"
+    ],
+    "description": "A workflow run, listed with the chat it belongs to."
+  },
   "NewChatRequest": {
     "type": "object",
     "properties": {
@@ -6421,6 +5782,215 @@
       }
     },
     "description": "What can be changed on a live execution without restarting it."
+  },
+  "UsageReport": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The days asked for, inclusive; null when unbounded"
+      },
+      "to": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "total": {
+        "$ref": "#/components/schemas/UsageTotals"
+      },
+      "days": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/UsageDay"
+        },
+        "description": "Oldest first, only days something was spent on"
+      },
+      "projects": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/UsageProject"
+        },
+        "description": "Most spent first"
+      },
+      "orchestrations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/UsageOrchestration"
+        },
+        "description": "Most spent first; only the chats that work for an orchestration"
+      }
+    },
+    "required": [
+      "from",
+      "to",
+      "total",
+      "days",
+      "projects",
+      "orchestrations"
+    ],
+    "description": "What the chats spent, per day, per project and per orchestration."
+  },
+  "UsageTotals": {
+    "type": "object",
+    "properties": {
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Sum of what the CLI reported; null when it reported nothing for any chat in it: read as \"not available\""
+      },
+      "chatsWithoutCost": {
+        "type": "number",
+        "description": "Chats in these totals whose cost the CLI never reported (started from a terminal), so `costUsd` leaves them out"
+      },
+      "tokens": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatModelTokens"
+        }
+      },
+      "total": {
+        "$ref": "#/components/schemas/TokenUsage"
+      }
+    },
+    "required": [
+      "costUsd",
+      "chatsWithoutCost",
+      "tokens",
+      "total"
+    ],
+    "description": "What was spent over some stretch of chats. Tokens are real and cover every chat; the cost only covers the chats that reported one."
+  },
+  "UsageDay": {
+    "type": "object",
+    "properties": {
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Sum of what the CLI reported; null when it reported nothing for any chat in it: read as \"not available\""
+      },
+      "chatsWithoutCost": {
+        "type": "number",
+        "description": "Chats in these totals whose cost the CLI never reported (started from a terminal), so `costUsd` leaves them out"
+      },
+      "tokens": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatModelTokens"
+        }
+      },
+      "total": {
+        "$ref": "#/components/schemas/TokenUsage"
+      },
+      "day": {
+        "type": "string",
+        "description": "`YYYY-MM-DD`, in the server's time zone"
+      }
+    },
+    "required": [
+      "chatsWithoutCost",
+      "costUsd",
+      "day",
+      "tokens",
+      "total"
+    ]
+  },
+  "UsageProject": {
+    "type": "object",
+    "properties": {
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Sum of what the CLI reported; null when it reported nothing for any chat in it: read as \"not available\""
+      },
+      "chatsWithoutCost": {
+        "type": "number",
+        "description": "Chats in these totals whose cost the CLI never reported (started from a terminal), so `costUsd` leaves them out"
+      },
+      "tokens": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatModelTokens"
+        }
+      },
+      "total": {
+        "$ref": "#/components/schemas/TokenUsage"
+      },
+      "project": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatProject"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null for the chats under no imported project"
+      }
+    },
+    "required": [
+      "chatsWithoutCost",
+      "costUsd",
+      "project",
+      "tokens",
+      "total"
+    ]
+  },
+  "UsageOrchestration": {
+    "type": "object",
+    "properties": {
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Sum of what the CLI reported; null when it reported nothing for any chat in it: read as \"not available\""
+      },
+      "chatsWithoutCost": {
+        "type": "number",
+        "description": "Chats in these totals whose cost the CLI never reported (started from a terminal), so `costUsd` leaves them out"
+      },
+      "tokens": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatModelTokens"
+        }
+      },
+      "total": {
+        "$ref": "#/components/schemas/TokenUsage"
+      },
+      "orchestration": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      }
+    },
+    "required": [
+      "chatsWithoutCost",
+      "costUsd",
+      "orchestration",
+      "tokens",
+      "total"
+    ]
   },
   "TaskHintRequest": {
     "type": "object",

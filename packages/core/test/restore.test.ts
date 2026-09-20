@@ -5,9 +5,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { RunEvent, RunSummary } from '@agentry/shared';
+import type { RunEvent } from '@agentry/shared';
 import { Db } from '../src/db.ts';
-import { RunManager } from '../src/runner.ts';
+import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -46,49 +46,67 @@ function spawned(log: string): Array<{ pid: number; argv: string }> {
     .map((line) => ({ pid: Number(line.slice(0, line.indexOf(' '))), argv: line.slice(line.indexOf(' ') + 1) }));
 }
 
-/** A store holding one run that was live when the previous wrapper process went away. */
-function previousWrapper(sessionId: string, pid: number | null = null) {
+/** A store holding one chat whose execution was live when the previous wrapper process went away. */
+function previousWrapper(sessionId: string) {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
-  const saved: RunSummary = {
-    id: randomUUID(),
-    name: 'coordinator',
+  const startedAt = new Date(Date.now() - 60_000).toISOString();
+  const saved = {
+    // A chat is its session id
+    id: sessionId,
     sessionId,
-    cwd: config.workspaceDir,
-    model: null,
-    permissionMode: 'bypassPermissions',
-    status: 'busy',
-    pid,
-    createdAt: new Date(Date.now() - 60_000).toISOString(),
-    updatedAt: new Date().toISOString(),
-    endedAt: null,
-    turns: 3,
-    costUsd: 0,
-    prompt: 'coordinate',
-    lastText: null,
-    error: null,
-    orchestrationId: null,
-    orchestrationTaskId: null,
-    internal: false,
-    account: null,
-    backgroundTasks: [],
-    subagents: [],
-    workflows: [],
-    workingDir: config.workspaceDir,
-    permissionPrompts: 'none',
-    pendingPrompts: 0,
   };
   const before = new Db(config);
-  before.saveRuns([saved], 200);
+  before.saveChats(
+    [
+      {
+        record: {
+          id: sessionId,
+          name: 'coordinator',
+          cwd: config.workspaceDir,
+          workingDir: config.workspaceDir,
+          origin: 'agentry',
+          orchestrationId: null,
+          orchestrationTaskId: null,
+          derivedFrom: null,
+          prompt: 'coordinate',
+          lastText: null,
+          model: null,
+          permissionMode: 'bypassPermissions',
+          account: null,
+          permissionPrompts: 'none',
+          createdAt: startedAt,
+          updatedAt: new Date().toISOString(),
+        },
+        executions: [
+          {
+            id: randomUUID(),
+            startedAt,
+            endedAt: null,
+            outcome: null,
+            error: null,
+            permissionMode: 'bypassPermissions',
+            model: null,
+            account: null,
+            maxBudgetUsd: null,
+            costUsd: null,
+            tokens: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },
+            turns: 3,
+          },
+        ],
+      },
+    ],
+    200,
+  );
   before.close();
   const log = join(config.dataDir, 'spawns.log');
   process.env.FAKE_CLAUDE_SPAWNS = log;
   const db = new Db(config);
-  const runs = new RunManager(config, db);
+  const runs = new ChatManager(config, db);
   return { config, db, runs, saved, log };
 }
 
 /** Kills what this test spawned, through the manager or by hand, and nothing else. */
-function cleanUp(runs: RunManager, db: Db, log: string, extra: number[] = []): void {
+function cleanUp(runs: ChatManager, db: Db, log: string, extra: number[] = []): void {
   runs.stopAll();
   for (const { pid } of spawned(log)) if (alive(pid)) process.kill(pid, 'SIGKILL');
   for (const pid of extra) if (alive(pid)) process.kill(pid, 'SIGKILL');
@@ -97,11 +115,13 @@ function cleanUp(runs: RunManager, db: Db, log: string, extra: number[] = []): v
   delete process.env.FAKE_CLAUDE_LINGER_MS;
 }
 
-test('a restored run resumed from several places at once starts one process', async () => {
+test('a restored chat resumed from several places at once starts one process', async () => {
   const { config, db, runs, saved, log } = previousWrapper(randomUUID());
   try {
     await runs.restore(new SessionStore(config));
     assert.equal(runs.get(saved.id)?.status, 'stopped');
+    // Its execution was live when the wrapper went away and nobody stopped it: it is not "stopped"
+    assert.deepEqual(runs.get(saved.id)?.executions.map((e) => e.outcome), ['interrupted']);
 
     // The panel, a retried request and whatever else resumes the run, all in the same tick
     runs.send(saved.id, 'one');
@@ -182,21 +202,21 @@ test('a CLI process a previous wrapper left behind is reported, and never gets a
   // Spawned here, not by the manager: it plays the process the previous API left running
   const leftover = spawn(FAKE_CLAUDE, ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--resume', sessionId], { stdio: 'pipe' });
   assert.ok(leftover.pid);
-  const { config, db, runs, saved, log } = previousWrapper(sessionId, leftover.pid);
+  const { config, db, runs, saved, log } = previousWrapper(sessionId);
   try {
     await until(() => existsSync(`/proc/${leftover.pid}/cmdline`) && readFileSync(`/proc/${leftover.pid}/cmdline`, 'utf8').includes(sessionId), 'the leftover to start');
     await runs.restore(new SessionStore(config));
 
-    assert.deepEqual(runs.strays(), [{ runId: saved.id, sessionId, pid: leftover.pid }]);
+    assert.deepEqual(runs.strays(), [{ chatId: saved.id, pid: leftover.pid }]);
     const notice = runs.events(saved.id).find((e) => e.kind === 'notice');
     assert.match(notice?.text ?? '', new RegExp(`${leftover.pid}`));
     assert.equal(runs.get(saved.id)?.status, 'stopped');
 
     assert.throws(() => runs.send(saved.id, 'carry on'), /still running/);
-    // Continuing the same session as a new run is the same second process, by another door
+    // Resuming the chat is the same second process, by another door
     const before = runs.list().length;
-    assert.throws(() => runs.start({ prompt: 'carry on', resumeSessionId: sessionId }), /still running/);
-    assert.equal(runs.list().length, before, 'a refused start leaves no run behind');
+    assert.throws(() => runs.resume(sessionId, { prompt: 'carry on' }), /still running/);
+    assert.equal(runs.list().length, before, 'a refused resume leaves no chat behind');
     await new Promise((r) => setTimeout(r, 200));
     assert.equal(spawned(log).length, 0, 'no second process on a conversation that already has one');
 
