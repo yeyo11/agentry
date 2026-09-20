@@ -27,8 +27,10 @@ export async function registerOpenApi(app: FastifyInstance, version: string): Pr
         version,
         description:
           'REST + SSE API over the Claude Code CLI: runs, sessions, orchestration, plugins, memory and every ' +
-          'piece of user or project configuration.\n\nErrors are `{ "error": "…" }` with a 4xx status. ' +
-          'There is no authentication: keep the port private.',
+          'piece of user or project configuration.\n\nErrors are `{ "error": "…" }` with a 4xx status.\n\n' +
+          'Authentication is off by default (`mode: none`), which is what a local install wants. With `token` ' +
+          'or `oidc` (see the Security tag) every route needs `Authorization: Bearer …` except `GET /api/health`; ' +
+          'Agentry never terminates TLS itself, so put a reverse proxy in front before exposing the port.',
       },
       servers: [{ url: '/', description: 'This wrapper' }],
       tags: TAGS,
