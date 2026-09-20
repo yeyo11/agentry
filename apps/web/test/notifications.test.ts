@@ -321,6 +321,7 @@ test('seeded questions and plans read as such, and carry the orchestration they 
   assert.match(question?.title ?? '', /asking you a question/);
   assert.match(plan?.title ?? '', /plan for you to approve/);
   assert.equal(question?.orchestrationId, 'o1');
+});
 
 // ---------- a worker that looks stuck ----------
 
