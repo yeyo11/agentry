@@ -60,7 +60,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
     async (api) => {
       await api.register(systemRoutes, { core });
       await api.register(securityRoutes, { core });
-    await api.register(accountRoutes, { core });
+      await api.register(accountRoutes, { core });
       await api.register(projectRoutes, { core });
       await api.register(chatRoutes, { core });
       await api.register(eventRoutes, { core });
