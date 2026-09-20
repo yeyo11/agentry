@@ -11,6 +11,8 @@
  *    - `projects`: Projects and the project tabs (memory, worktrees, settings, resources)
  *    - `orchestration`: the Orchestrations list and the task board
  *    - `orchestrationDetail`: one orchestration's page
+ *    - `observe`: what an agent is really doing: its changes, checklist, health actions and the
+ *      editor links (components/observe/*, the Editor tab of Settings)
  *    - `config`: pages/config/* (settings, MCP, resources, files, plugins), Accounts and the
  *      wording of the previous Orchestration pages that the two above still reuse
  *    - `components`: components/**, the App.tsx shell and navigation, CommandPalette, notifications

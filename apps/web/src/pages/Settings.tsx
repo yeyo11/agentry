@@ -7,6 +7,7 @@ import { Card, Empty, ErrorBox, PageHeader, Skeleton, TabPanel, Tabs, useTabGrou
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
 import { timeAgo } from '../lib/format';
 import { AccountTab } from './config/AccountTab';
+import { EditorTab } from './config/EditorTab';
 import { FilesTab } from './config/FilesTab';
 import { InstructionsTab } from './config/InstructionsTab';
 import { McpTab } from './config/McpTab';
@@ -31,6 +32,7 @@ const TABS = [
   { id: 'files', label: 'config:config.tabs.files' },
   { id: 'memory', label: 'home:settings.tabs.memory' },
   { id: 'plugins', label: 'home:settings.tabs.plugins' },
+  { id: 'editor', label: 'observe:editor.tab' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -109,7 +111,7 @@ function MemoryOverview() {
 }
 
 function SettingsInner() {
-  const { t } = useTranslation(['home', 'config', 'work']);
+  const { t } = useTranslation(['home', 'config', 'work', 'observe']);
   const [params, setParams] = useSearchParams();
   const dirtyKeys = useDirtyKeys();
   const guard = useLeaveGuard();
@@ -139,6 +141,7 @@ function SettingsInner() {
         {tab === 'files' && <FilesTab scope={USER_SCOPE} />}
         {tab === 'memory' && <MemoryOverview />}
         {tab === 'plugins' && <PluginsTab />}
+        {tab === 'editor' && <EditorTab />}
       </TabPanel>
     </>
   );

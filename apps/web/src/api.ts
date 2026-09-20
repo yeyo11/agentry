@@ -11,6 +11,11 @@ import type {
   AutoSwitchSettings,
   AvailablePlugin,
   BackgroundTaskOutput,
+  CancelCommandRequest,
+  CancelCommandResult,
+  ChangeSummary,
+  ChatChanges,
+  Checklist,
   ChatBackgroundTask,
   ChatBackgroundTaskEntry,
   ChatDetail,
@@ -27,7 +32,9 @@ import type {
   ConfigFileRoot,
   ConfigFileVariant,
   CreateProjectRequest,
+  FileDiff,
   ForkChatRequest,
+  HintRequest,
   ImportProjectRequest,
   NewChatRequest,
   EffectiveEnvironment,
@@ -234,6 +241,19 @@ export const api = {
     request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/skip`, { method: 'POST' }),
   hintOrchestrationTask: (id: string, taskId: string, req: TaskHintRequest) =>
     request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/hint`, { method: 'POST', body: req }),
+  // What a worker changed on disk, and the plan it kept for itself (see docs: agent observability)
+  taskChanges: (id: string, taskId: string) => request<ChangeSummary>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes`),
+  taskDiff: (id: string, taskId: string, path: string) =>
+    request<FileDiff>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes/diff${qs({ path })}`),
+  taskChecklist: (id: string, taskId: string) => request<Checklist>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/checklist`),
+  integrationChanges: (id: string) => request<ChangeSummary>(`/orchestrations/${enc(id)}/integration/changes`),
+  integrationDiff: (id: string, path: string) => request<FileDiff>(`/orchestrations/${enc(id)}/integration/changes/diff${qs({ path })}`),
+  chatChanges: (id: string) => request<ChatChanges>(`/chats/${enc(id)}/changes`),
+  chatDiff: (id: string, path: string) => request<FileDiff>(`/chats/${enc(id)}/changes/diff${qs({ path })}`),
+  chatChecklist: (id: string) => request<Checklist>(`/chats/${enc(id)}/checklist`),
+  hintChat: (id: string, req: HintRequest) => request<ChatSummary>(`/chats/${enc(id)}/hint`, { method: 'POST', body: req }),
+  cancelCommand: (id: string, toolUseId: string, req: CancelCommandRequest = {}) =>
+    request<CancelCommandResult>(`/chats/${enc(id)}/commands/${enc(toolUseId)}/cancel`, { method: 'POST', body: req }),
   /** The executions of a chat, without the transcript: how each attempt of a task ended. */
   chatExecutions: (id: string) => request<ChatDetail>(`/chats/${enc(id)}?limit=1`).then((detail) => detail.chat.executions),
   deleteOrchestration: (id: string) => request<{ ok: true }>(`/orchestrations/${enc(id)}`, { method: 'DELETE' }),

@@ -5,6 +5,7 @@ import enCommon from './locales/en/common.json';
 import enComponents from './locales/en/components.json';
 import enConfig from './locales/en/config.json';
 import enHome from './locales/en/home.json';
+import enObserve from './locales/en/observe.json';
 import enOrchestration from './locales/en/orchestration.json';
 import enOrchestrationDetail from './locales/en/orchestrationDetail.json';
 import enProjects from './locales/en/projects.json';
@@ -15,6 +16,7 @@ import esCommon from './locales/es/common.json';
 import esComponents from './locales/es/components.json';
 import esConfig from './locales/es/config.json';
 import esHome from './locales/es/home.json';
+import esObserve from './locales/es/observe.json';
 import esOrchestration from './locales/es/orchestration.json';
 import esOrchestrationDetail from './locales/es/orchestrationDetail.json';
 import esProjects from './locales/es/projects.json';
@@ -33,6 +35,7 @@ export const en = {
   projects: enProjects,
   orchestration: enOrchestration,
   orchestrationDetail: enOrchestrationDetail,
+  observe: enObserve,
 };
 
 export type Namespace = keyof typeof en;
@@ -51,6 +54,7 @@ export const es = {
   projects: esProjects,
   orchestration: esOrchestration,
   orchestrationDetail: esOrchestrationDetail,
+  observe: esObserve,
 } satisfies Shape<typeof en>;
 
 // `satisfies` only catches keys Spanish lacks; a key only Spanish has is caught here instead, so a
