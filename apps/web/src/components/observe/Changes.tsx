@@ -95,9 +95,9 @@ function FileList({
   if (files.length === 0) return null;
   return (
     <div className="stack-tight">
-      <h4 className="obs-subhead">
+      <h3 className="obs-subhead">
         {label} <span className="count">{files.length}</span>
-      </h4>
+      </h3>
       <ul className="obs-files" aria-label={label}>
         {files.map((file) => {
           const expanded = inline && open === file.path;
@@ -160,9 +160,9 @@ export function SummaryView({ summary, source, inline }: { summary: ChangeSummar
 
       {summary.commits.length > 0 && (
         <div className="stack-tight">
-          <h4 className="obs-subhead">
+          <h3 className="obs-subhead">
             {t('changes.commits')} <span className="count">{summary.commits.length}</span>
-          </h4>
+          </h3>
           <ol className="obs-commits" aria-label={t('changes.commits')}>
             {summary.commits.map((commit) => (
               <li key={commit.hash}>
