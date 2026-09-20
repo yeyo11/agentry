@@ -275,7 +275,7 @@ function orchestration(over: Partial<Orchestration> = {}): Orchestration {
   const task = { id: 'a', name: 'Task A', prompt: 'p', dependsOn: [], status: 'pending' as const, attempts: 0, runId: null, sessionId: null, result: null, error: null, startedAt: null, endedAt: null, costUsd: 0 };
   return {
     id: 'o1', name: 'graph', objective: null, status: 'running', cwd: '/tmp', model: null, permissionMode: 'manual', concurrency: 1,
-    synthesize: false, worktree: true, allowedTools: [], permissionPrompts: 'none', createdAt: '', endedAt: null, tasks: [task], finalResult: null, costUsd: 0,
+    synthesize: false, worktree: true, maxAttempts: 2, allowedTools: [], permissionPrompts: 'none', createdAt: '', endedAt: null, tasks: [task], finalResult: null, costUsd: 0,
     ...over,
   };
 }

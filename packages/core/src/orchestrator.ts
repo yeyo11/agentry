@@ -26,6 +26,7 @@ import {
   commitAll,
   conflictedPaths,
   contains,
+  deleteBranch,
   git,
   headCommit,
   isGitRepo,
@@ -49,7 +50,13 @@ export const PLANNER_RUN_NAME = 'orchestration-planner';
 const PROMPT_HEAD = 'Plan a multi-agent orchestration for this objective:\n\n';
 const PROMPT_TAIL = '\n\nSplit it into at most ';
 const MAX_DEP_CONTEXT = 6000;
+const DEFAULT_ATTEMPTS = 2;
+const MAX_ATTEMPTS = 10;
+const MAX_ERROR_QUOTE = 2000;
 const now = () => new Date().toISOString();
+
+const attemptsOf = (requested: number | undefined) =>
+  Number.isFinite(requested) ? Math.min(Math.max(Math.trunc(requested as number), 1), MAX_ATTEMPTS) : DEFAULT_ATTEMPTS;
 
 /** Unique per orchestration: two graphs sharing a task id would otherwise collide on one worktree. */
 function worktreeName(orch: Orchestration, task: OrchestrationTaskState): string {
@@ -216,6 +223,8 @@ export class Orchestrator {
   private readonly tracker = new OrchestrationEventTracker();
   /** Graphs a task result reached after their integration had started, which integrate again */
   private readonly lateArrivals = new Set<string>();
+  /** Tasks between the decision to run their chat again and the process that does: they take no hint yet */
+  private readonly relaunching = new Set<string>();
 
   constructor(
     private readonly config: CoreConfig,
@@ -234,6 +243,8 @@ export class Orchestrator {
       // Records written before a field existed come back without it; normalise on the way in so
       // the rest of the code never has to ask whether an orchestration is old.
       o.worktree ??= false;
+      o.maxAttempts ??= DEFAULT_ATTEMPTS;
+      for (const t of o.tasks) t.attempts ??= t.runId ? 1 : 0;
       o.allowedTools ??= [];
       o.permissionPrompts ??= 'none';
       o.integration ??= null;
@@ -319,6 +330,7 @@ export class Orchestrator {
       concurrency: Math.min(Math.max(spec.concurrency ?? 3, 1), this.config.maxConcurrentRuns),
       synthesize: spec.synthesize ?? false,
       worktree: spec.worktree === true,
+      maxAttempts: attemptsOf(spec.maxAttempts),
       allowedTools: (spec.allowedTools ?? []).map(String).filter(Boolean),
       permissionPrompts: spec.permissionPrompts === 'host' ? 'host' : 'none',
       createdAt: now(),
@@ -359,14 +371,14 @@ export class Orchestrator {
   stop(id: string): Orchestration {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
-    if (orch.status !== 'running') return orch;
+    if (orch.status !== 'running' && orch.status !== 'waiting') return orch;
     orch.status = 'stopped';
     orch.endedAt = now();
     // One process runs every task of a workflow
     if (orch.workflow?.runId && this.runs.get(orch.workflow.runId)?.pid) this.runs.stop(orch.workflow.runId);
     for (const t of orch.tasks) {
       if (t.status === 'running' && t.runId && orch.engine !== 'workflow') this.runs.stop(t.runId);
-      if (t.status === 'pending' || t.status === 'running') t.status = 'stopped';
+      if (t.status === 'pending' || t.status === 'running' || t.status === 'blocked') t.status = 'stopped';
     }
     // The last steps run agents too, and stopping the graph has to stop them
     for (const runId of [orch.integration?.integratorRunId, orch.synthesisRunId]) {
@@ -386,13 +398,15 @@ export class Orchestrator {
    * threw away every task still in flight and every one waiting behind it.
    *
    * Completed tasks and their results are kept, so the work already paid for is not repeated and
-   * dependants still receive their context. Everything else — stopped, failed, or skipped because
-   * a dependency never completed — goes back to pending and is attempted again.
+   * dependants still receive their context. Everything else — stopped, failed, blocked or given up —
+   * goes back to pending and is attempted again: a task that already has a chat continues it, in a
+   * new execution, in the worktree it left, and keeps what it cost.
    */
   resume(id: string, changes: ResumeOrchestrationRequest = {}): Orchestration {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
     if (orch.status === 'running') return orch;
+    if (orch.status === 'waiting') throw new Error('the orchestration is waiting for a decision on its tasks: retry or skip them instead');
     const unfinished = orch.tasks.filter((t) => t.status !== 'completed');
     if (unfinished.length === 0) throw new Error('every task already completed');
     // A graph that died for lack of permissions, or by editing the checkout the wrapper runs from,
@@ -404,6 +418,8 @@ export class Orchestrator {
       throw new Error(`per-task worktrees need a git repository, and ${orch.cwd} is not one`);
     }
     const base = changes.worktree === true && !orch.baseCommit ? baseOf(orch.cwd) : undefined;
+    // Chats that worked in the shared checkout cannot move into a worktree: those tasks start over
+    const isolating = changes.worktree === true && !orch.worktree;
     if (changes.worktree !== undefined) orch.worktree = changes.worktree;
     if (orch.worktree) orch.baseCommit ??= base ?? baseOf(orch.cwd);
     if (changes.permissionPrompts !== undefined) orch.permissionPrompts = changes.permissionPrompts === 'host' ? 'host' : 'none';
@@ -411,14 +427,12 @@ export class Orchestrator {
     if (changes.permissionMode !== undefined) orch.permissionMode = changes.permissionMode;
     for (const task of unfinished) {
       task.status = 'pending';
-      task.runId = null;
-      task.sessionId = null;
       task.result = null;
-      task.error = null;
       task.startedAt = null;
       task.endedAt = null;
-      // The graph already counted what the last attempt cost; the task counts the run it gets now
-      task.costUsd = 0;
+      if (isolating && orch.engine === 'graph') Object.assign(task, { runId: null, sessionId: null, attempts: 0, costUsd: 0 });
+      // What failed is what the chat is told when it goes on; a task that never ran has nothing to say
+      if (!task.runId || orch.engine === 'workflow') task.error = null;
     }
     orch.status = 'running';
     orch.endedAt = null;
@@ -481,18 +495,27 @@ export class Orchestrator {
     if (orch.status !== 'running') return;
     const byId = new Map(orch.tasks.map((t) => [t.id, t]));
 
-    // A task whose dependency did not complete can never run
+    // What waits behind a task decides its own state, until nothing changes: a branch given up takes
+    // its dependants with it, and one that failed for good holds them for a person to decide. A
+    // task that stops being held (its blocker was retried, or completed late) goes back to pending.
     let changed = true;
     while (changed) {
       changed = false;
       for (const t of orch.tasks) {
-        if (t.status !== 'pending') continue;
-        const blocked = (t.dependsOn ?? []).some((d) => ['failed', 'skipped', 'stopped'].includes(byId.get(d)?.status ?? ''));
-        if (blocked) {
+        if (t.status !== 'pending' && t.status !== 'blocked') continue;
+        const deps = (t.dependsOn ?? []).map((d) => byId.get(d)?.status);
+        const held = deps.some((s) => s === 'failed' || s === 'blocked' || s === 'stopped');
+        if (deps.includes('skipped')) {
           t.status = 'skipped';
-          t.error = 'a dependency did not complete';
-          changed = true;
-        }
+          t.error = 'a task it depends on was given up';
+        } else if (t.status === 'pending' && held) {
+          t.status = 'blocked';
+          t.error = 'waiting for a decision on a task it depends on';
+        } else if (t.status === 'blocked' && !held) {
+          t.status = 'pending';
+          t.error = null;
+        } else continue;
+        changed = true;
       }
     }
 
@@ -505,7 +528,12 @@ export class Orchestrator {
       else break;
     }
 
-    if (orch.tasks.every((t) => !['pending', 'running'].includes(t.status))) void this.finish(orch);
+    if (orch.tasks.every((t) => !['pending', 'running'].includes(t.status))) {
+      // A synthesis written over a graph that is missing a branch reads like the final report, so
+      // nothing that summarises it runs until a person has decided about what failed
+      if (orch.tasks.some((t) => t.status === 'failed' || t.status === 'blocked')) orch.status = 'waiting';
+      else void this.finish(orch);
+    }
     this.persist();
   }
 
@@ -558,6 +586,8 @@ export class Orchestrator {
   }
 
   private launch(orch: Orchestration, task: OrchestrationTaskState): boolean {
+    // A task that has a chat goes on in it: a new execution, never a new conversation
+    if (task.runId && this.runs.get(task.runId)) return this.continueChat(orch, task, task.runId);
     try {
       const isolated = orch.worktree && !task.cwd;
       const name = worktreeName(orch, task);
@@ -580,33 +610,120 @@ export class Orchestrator {
       task.status = 'running';
       task.runId = run.id;
       task.sessionId = run.id;
+      task.attempts = 1;
+      // The cost of a chat that is gone (its record deleted) stays in the graph's total, not here
+      task.costUsd = 0;
       task.startedAt = now();
-      void this.runs.waitForResult(run.id).then((result) => {
-        if (task.status !== 'running') return; // stopped meanwhile
-        this.record(orch, task, result);
-        this.schedule(orch);
-      });
+      void this.runs.waitForResult(run.id).then((result) => this.settle(orch, task, result));
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      // The global run limit is the one transient failure: stay pending and try again shortly.
-      if (message.includes('Concurrent run limit')) {
-        setTimeout(() => this.schedule(orch), 3000).unref();
-        return false;
-      }
-      // Everything else used to be swallowed and retried for ever, which left a graph reporting
-      // itself as running with nothing running and no way to find out why. Fail it visibly.
-      task.status = 'failed';
-      task.error = `could not start the worker: ${message}`;
-      task.endedAt = now();
-      setTimeout(() => this.schedule(orch), 0).unref();
-      return false;
+      return this.refuse(orch, task, err, 'start the worker');
     }
   }
 
   /**
-   * Puts a result of the task's run on the task. The first one decides how the task ended; a later
-   * one comes from someone continuing the run by hand, and is the task's work all the same.
+   * Runs a task's chat again: a new execution of the same session, which keeps its worktree and
+   * everything the previous execution did. What it is told comes from what happened to it (the
+   * error, or the interruption), never from the objective.
+   */
+  private continueChat(orch: Orchestration, task: OrchestrationTaskState, chatId: string): boolean {
+    const key = `${orch.id}:${task.id}`;
+    try {
+      if (orch.worktree && !task.cwd) this.prepareWorktree(orch, task, worktreeName(orch, task));
+      const prompt = this.continuation(task);
+      task.status = 'running';
+      task.attempts += 1;
+      task.startedAt ??= now();
+      task.endedAt = null;
+      this.relaunching.add(key);
+      // The previous process may still be on its way out, and a chat has one process at most
+      void this.runs.exited(chatId).then(() => {
+        this.relaunching.delete(key);
+        if (task.status !== 'running') return; // stopped meanwhile
+        try {
+          this.runs.resume(chatId, { prompt });
+          // The chat has answered before: only a result after this call is this attempt's
+          void this.runs.nextResult(chatId).then((result) => this.settle(orch, task, result));
+          task.error = null;
+        } catch (err) {
+          task.status = 'pending';
+          task.attempts -= 1;
+          this.refuse(orch, task, err, 'run the task again');
+        }
+        this.persist();
+      });
+      return true;
+    } catch (err) {
+      return this.refuse(orch, task, err, 'run the task again');
+    }
+  }
+
+  /**
+   * What a failed launch does. The global run limit is the one transient failure: the task stays
+   * pending and is tried again shortly. Everything else used to be swallowed and retried for ever,
+   * which left a graph reporting itself as running with nothing running and no way to find out why;
+   * it fails visibly, and a person decides.
+   */
+  private refuse(orch: Orchestration, task: OrchestrationTaskState, err: unknown, doing: string): false {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('Concurrent run limit')) {
+      setTimeout(() => this.schedule(orch), 3000).unref();
+      return false;
+    }
+    task.status = 'failed';
+    task.error = `could not ${doing}: ${message}`;
+    task.endedAt = now();
+    setTimeout(() => this.schedule(orch), 0).unref();
+    return false;
+  }
+
+  /** What a chat is told when its task goes on after an execution that did not finish it. */
+  private continuation(task: OrchestrationTaskState): string {
+    const closing = 'Finish with a concise report of what you did and found; it is handed to the next workers.';
+    if (!task.error) {
+      return (
+        'This orchestration was interrupted before you finished your task. Everything you did is still in place, in the same ' +
+        `working directory. Check where you stopped and carry on from there instead of starting over. ${closing}`
+      );
+    }
+    const quoted = task.error.length > MAX_ERROR_QUOTE ? `${task.error.slice(0, MAX_ERROR_QUOTE)}…` : task.error;
+    return (
+      `Your previous attempt at this task ended with an error:
+
+${quoted}
+
+` +
+      'Everything you did is still in place, in the same working directory. Work out what went wrong, fix it, and carry on from ' +
+      `where you stopped instead of starting over. ${closing}`
+    );
+  }
+
+  /**
+   * Takes what an execution of a task produced. A failure is tried again, in the same chat, until
+   * the task has used its attempts; what a retry cannot mend (a budget that ran out, a task stopped
+   * on purpose, a rate limit that account rotation handles) is not tried again at all.
+   */
+  private settle(orch: Orchestration, task: OrchestrationTaskState, result: RunResult): void {
+    if (task.status !== 'running') return; // stopped meanwhile
+    if (result.isError && !result.cause && task.attempts < orch.maxAttempts && task.runId) {
+      this.charge(orch, task, result);
+      task.error = result.result;
+      this.continueChat(orch, task, task.runId);
+      return this.persist();
+    }
+    this.record(orch, task, result);
+    this.schedule(orch);
+  }
+
+  /** The chat's total, so the graph adds only what this execution cost on top of what it already counted. */
+  private charge(orch: Orchestration, task: OrchestrationTaskState, result: RunResult): void {
+    orch.costUsd += result.costUsd - task.costUsd;
+    task.costUsd = result.costUsd;
+  }
+
+  /**
+   * Puts a result of the task's chat on the task. The first one decides how the task ended; a later
+   * one comes from someone continuing the chat by hand, and is the task's work all the same.
    */
   private record(orch: Orchestration, task: OrchestrationTaskState, result: RunResult): void {
     // A turn that fails after the work was delivered does not take the delivery back
@@ -615,26 +732,37 @@ export class Orchestrator {
       task.result = result.isError ? null : result.result;
       task.error = result.isError ? result.result : null;
     }
-    // The run's total, so the graph adds only what this turn cost on top of what it already counted
-    orch.costUsd += result.costUsd - task.costUsd;
-    task.costUsd = result.costUsd;
+    this.charge(orch, task, result);
     task.endedAt = now();
     if (!result.isError) this.commitTask(orch, task);
   }
 
   /**
-   * Keeps a task on its run for as long as the run lives. A stopped worker ends its task failed,
+   * Keeps a task on its chat for as long as the chat lives. A stopped worker ends its task failed,
    * but it can be continued by hand, finish the work and commit it on the task's branch; a graph
    * that only heard the first result left that work out of its status, its cost and its branch.
    */
-  private follow(runId: string, result: RunResult): void {
-    const orch = [...this.items.values()].find((o) => o.engine === 'graph' && o.tasks.some((t) => t.runId === runId));
-    const task = orch?.tasks.find((t) => t.runId === runId);
-    // The first result of a running task is the launch's to record
+  private follow(chatId: string, result: RunResult): void {
+    const orch = [...this.items.values()].find((o) => o.engine === 'graph' && o.tasks.some((t) => t.runId === chatId));
+    const task = orch?.tasks.find((t) => t.runId === chatId);
+    // The result of a running task is settle's to record
     if (!orch || !task || task.status === 'running') return;
+    // A branch given up stays given up, whatever the chat does; only its cost is still owed
+    if (task.status === 'skipped') {
+      this.charge(orch, task, result);
+      return this.persist();
+    }
+    // Waiting for a turn, or behind a task that failed: the chat is not producing this task's work
+    if (task.status === 'pending' || task.status === 'blocked') return;
     this.record(orch, task, result);
     if (orch.status === 'running' && !orch.endedAt) return this.schedule(orch);
-    if (orch.status === 'running') {
+    if (orch.status === 'waiting') {
+      // Work delivered by hand while a person had yet to decide: what waited behind it goes on
+      if (task.status === 'completed') {
+        orch.status = 'running';
+        return this.schedule(orch);
+      }
+    } else if (orch.status === 'running') {
       // Finishing: the integration may already have passed this task by, so it runs again after
       this.lateArrivals.add(orch.id);
     } else {
@@ -787,9 +915,10 @@ export class Orchestrator {
     if (orch.worktree) await this.integrate(orch);
     if (orch.status !== 'running') return; // stopped meanwhile
     if (orch.synthesize && orch.tasks.some((t) => t.status === 'completed')) await this.synthesize(orch);
-    // Read at the end: a task continued by hand can complete while the graph is finishing
-    const anyFailed = orch.tasks.some((t) => t.status === 'failed' || t.status === 'skipped');
-    if (orch.status === 'running') orch.status = anyFailed ? 'failed' : 'completed';
+    // Read at the end: a task continued by hand can fail or complete while the graph is finishing. A
+    // branch given up is a decision, not a failure, so the graph finishes without it.
+    const undone = orch.tasks.some((t) => t.status === 'failed' || t.status === 'stopped') || !orch.tasks.some((t) => t.status === 'completed');
+    if (orch.status === 'running') orch.status = undone ? 'failed' : 'completed';
     orch.endedAt = now();
     this.persist();
     if (this.lateArrivals.delete(orch.id) && orch.worktree) this.integrateLate(orch);
@@ -810,6 +939,9 @@ export class Orchestrator {
               : integration
                 ? `Merging the tasks' branches into ${integration.branch} did not finish (${integration.error ?? integration.status}). Say so in the report.\n\n`
                 : '') +
+            (orch.tasks.some((t) => t.status === 'skipped')
+              ? 'Tasks marked skipped were given up on purpose by a person: say what is missing because of them.\n\n'
+              : '') +
             orch.tasks
               .map((t) => `<task id="${t.id}" name="${t.name}" status="${t.status}">\n${(t.result ?? t.error ?? '').slice(0, MAX_DEP_CONTEXT)}\n</task>`)
               .join('\n'),
@@ -843,6 +975,7 @@ export class Orchestrator {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
     if (orch.status === 'running') throw new Error('the orchestration is still running');
+    if (orch.status === 'waiting') throw new Error('the orchestration is waiting for a decision on its tasks, and integrates once they are settled');
     if (orch.integration && ['merging', 'resolving'].includes(orch.integration.status)) return orch;
     if (!orch.tasks.some((t) => t.status === 'completed' && t.branch)) throw new Error('no task has a branch to integrate');
     if (!isGitRepo(orch.cwd)) throw new Error(`${orch.cwd} is not a git repository`);
@@ -998,7 +1131,7 @@ export class Orchestrator {
   pruneWorktrees(id: string, opts: { force?: boolean } = {}): Array<{ task: string; removed: boolean; detail: string }> {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
-    if (orch.status === 'running') throw new Error('stop the orchestration before removing its worktrees');
+    if (orch.status === 'running' || orch.status === 'waiting') throw new Error('stop the orchestration before removing its worktrees');
     const out: Array<{ task: string; removed: boolean; detail: string }> = [];
     const places: Array<{ id: string; path: string | null | undefined; branch: string | null | undefined; clear: () => void }> = [
       ...orch.tasks.map((t) => ({ id: t.id, path: t.worktree, branch: t.branch, clear: () => (t.worktree = null) })),
@@ -1029,7 +1162,7 @@ export class Orchestrator {
   remove(id: string): void {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
-    if (orch.status === 'running') throw new Error('stop the orchestration before deleting it');
+    if (orch.status === 'running' || orch.status === 'waiting') throw new Error('stop the orchestration before deleting it');
     const kept = this.pruneWorktrees(id, { force: false }).filter((r) => !r.removed);
     if (kept.length > 0) {
       throw new Error(
@@ -1044,6 +1177,100 @@ export class Orchestrator {
   /** Plans that can still be launched, newest first. */
   drafts(limit?: number): PlanDraftSummary[] {
     return this.db.planDrafts(limit);
+  }
+
+  // ---------- decisions about a failed task ----------
+
+  /** The task a decision is about, in a graph that can take one: only the graph engine has tasks to decide on. */
+  private decidable(
+    id: string,
+    taskId: string,
+    allowed: OrchestrationTaskState['status'][],
+    refusal = (task: OrchestrationTaskState) => `task ${task.id} is ${task.status}, so there is nothing to decide about it`,
+  ): { orch: Orchestration; task: OrchestrationTaskState } {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    if (orch.engine !== 'graph') throw new Error('a workflow runs its tasks as one session: resume it instead');
+    if (orch.status !== 'running' && orch.status !== 'waiting') throw new Error(`the orchestration is ${orch.status}: resume it instead`);
+    const task = orch.tasks.find((t) => t.id === taskId);
+    if (!task) throw new Error('task not found');
+    if (!allowed.includes(task.status)) throw new Error(refusal(task));
+    return { orch, task };
+  }
+
+  /** Puts the graph back to work after a decision: what waited behind the task goes on. */
+  private reopen(orch: Orchestration): Orchestration {
+    orch.status = 'running';
+    orch.endedAt = null;
+    this.schedule(orch);
+    return orch;
+  }
+
+  /**
+   * Runs a failed task again in its own chat, with its worktree, once more than its attempts allowed:
+   * this is the person deciding it is worth it. What waited behind it stops waiting.
+   */
+  retryTask(id: string, taskId: string): Orchestration {
+    const { orch, task } = this.decidable(id, taskId, ['failed']);
+    task.status = 'pending';
+    task.result = null;
+    task.endedAt = null;
+    return this.reopen(orch);
+  }
+
+  /**
+   * Starts a failed task over: a new chat, in a worktree rebuilt from the base. What the old chat did
+   * is thrown away, its branch with it, and it stays listed as the record of what was tried.
+   */
+  retryTaskClean(id: string, taskId: string): Orchestration {
+    const { orch, task } = this.decidable(id, taskId, ['failed']);
+    if (task.runId && this.runs.get(task.runId)?.pid) throw new Error('the task still has a process running: stop it first');
+    if (task.worktree || task.branch) {
+      const { root } = checkoutOf(orch.cwd);
+      if (task.worktree && existsSync(task.worktree)) removeWorktree(root, task.worktree, true);
+      if (task.branch) deleteBranch(root, task.branch);
+    }
+    Object.assign(task, {
+      status: 'pending',
+      runId: null,
+      sessionId: null,
+      worktree: null,
+      branch: null,
+      commit: null,
+      result: null,
+      error: null,
+      attempts: 0,
+      // The chat that is left behind keeps its cost in the graph's total; the task counts its new one
+      costUsd: 0,
+      startedAt: null,
+      endedAt: null,
+    });
+    return this.reopen(orch);
+  }
+
+  /**
+   * Gives a branch up so the graph can finish without it: the task and everything that depends on it
+   * are skipped. The chat keeps whatever it did; nothing is deleted.
+   */
+  skipTask(id: string, taskId: string): Orchestration {
+    const { orch, task } = this.decidable(id, taskId, ['failed', 'blocked']);
+    task.status = 'skipped';
+    task.endedAt ??= now();
+    return this.reopen(orch);
+  }
+
+  /**
+   * A nudge for a worker whose task is still running, sent from the orchestration board. A finished
+   * task takes none: its result already fed the tasks that depend on it, so its way forward is a fork.
+   */
+  hintTask(id: string, taskId: string, text: string): Orchestration {
+    const { orch, task } = this.decidable(id, taskId, ['running'], (t) =>
+      `task ${t.id} is ${t.status}: a hint reaches a worker that is still running, and the way forward for a finished task is a fork of its chat`,
+    );
+    if (!text?.trim()) throw new Error('text is required');
+    if (!task.runId || this.relaunching.has(`${orch.id}:${task.id}`)) throw new Error('the worker is between two executions: try again in a moment');
+    this.runs.send(task.runId, `A hint from the person following this orchestration:\n\n${text.trim()}`);
+    return orch;
   }
 
   // ---------- the workflow engine ----------

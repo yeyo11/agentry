@@ -417,3 +417,28 @@ test('opening a store written before chats rewrites it once, and the documents t
   assert.equal(again.loadChats()[0]?.executions.length, 2);
   again.close();
 });
+
+test('the synthesis of an orchestration is answered in place, while its workers stay closed', async () => {
+  const { core, config } = setup();
+  try {
+    const started = core.orchestrator.create({ name: 'report', cwd: config.workspaceDir, synthesize: true, tasks: [{ id: 'a', name: 'a', prompt: 'work' }] });
+    const orch = await until(() => {
+      const current = core.orchestrator.get(started.id);
+      return current?.status === 'completed' ? current : null;
+    }, 'the graph to finish');
+    const synthesis = orch.synthesisRunId;
+    assert.ok(synthesis);
+    await core.runtime.exited(synthesis);
+
+    // Nothing follows its run and it is the deliverable, so a person can go on with it
+    assert.equal((await core.chats.get(synthesis))?.control.mode, 'resumable');
+    await core.chats.resume(synthesis, { prompt: 'expand on the second point' });
+    assert.equal(core.runtime.get(synthesis)?.executions.length, 2, 'the same chat, one more execution');
+
+    const worker = orch.tasks[0]?.sessionId;
+    assert.ok(worker);
+    assert.equal((await core.chats.get(worker))?.control.mode, 'readOnly');
+  } finally {
+    core.shutdown();
+  }
+});

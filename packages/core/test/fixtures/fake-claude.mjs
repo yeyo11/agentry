@@ -6,6 +6,11 @@
 //   (integrator prompt)           merges the listed branches, taking the incoming side on conflict
 //   FAKE-HANG                     never answers, like a worker someone has to stop
 //   FAKE-FAIL <message>           ends the turn with an error result
+//   FAKE-FAIL-ONCE <message>      fails like that, and every later turn of the session succeeds and
+//                                 answers `retried: <the prompt it got>`
+//   FAKE-FAIL-ALWAYS <message>    fails like that, and so does every later turn of the session: a
+//                                 fault a retry cannot mend, which the resumed prompt no longer names
+//   FAKE-BUDGET                   ends the turn as the CLI does when --max-budget-usd ran out
 //
 //   FAKE_CLAUDE_SPAWNS=<file>     appends `<pid> <argv>` to <file> as it starts, so a test can count
 //                                 every process spawned, tracked or not
@@ -15,7 +20,8 @@
 // It reports the files it could see and its working directory, which is what the tests check.
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, existsSync, readdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 
@@ -60,6 +66,23 @@ lines.on('line', (line) => {
   }
 
   if (/^FAKE-HANG$/m.test(prompt)) return;
+  if (/^FAKE-BUDGET$/m.test(prompt)) {
+    out({ type: 'result', subtype: 'error_max_budget_usd', is_error: true, num_turns: 1, total_cost_usd: 0.01, result: 'budget reached' });
+    return;
+  }
+  // What a session was told to keep failing with outlives the process, as its history does
+  const fault = join(tmpdir(), `fake-claude-fault-${sessionId}`);
+  const sticky = /^FAKE-FAIL-(ONCE|ALWAYS) (.*)$/m.exec(prompt);
+  if (sticky) writeFileSync(fault, JSON.stringify({ mode: sticky[1], message: sticky[2] }));
+  const known = existsSync(fault) ? JSON.parse(readFileSync(fault, 'utf8')) : null;
+  if (known && (sticky || known.mode === 'ALWAYS')) {
+    out({ type: 'result', subtype: 'error_during_execution', is_error: true, num_turns: 1, total_cost_usd: 0.01, result: known.message });
+    return;
+  }
+  if (known && !sticky) {
+    out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: `retried: ${prompt}` });
+    return;
+  }
   const failure = /^FAKE-FAIL (.*)$/m.exec(prompt);
   if (failure) {
     out({ type: 'result', subtype: 'error_during_execution', is_error: true, num_turns: 1, total_cost_usd: 0.01, result: failure[1] });

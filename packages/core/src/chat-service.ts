@@ -157,7 +157,7 @@ export class ChatService {
     const orchestration = facts.orchestrations.get(id) ?? null;
     const origin: ChatOrigin = runtime?.origin ?? (orchestration ? 'orchestration' : 'external');
     const holder: SessionHolder = sessionHolder({ ownProcess: own, foreignProcess });
-    const control: ChatControl = chatControl({ holder, origin, taskRunning: orchestration?.taskRunning === true });
+    const control: ChatControl = chatControl({ holder, origin, taskRunning: orchestration?.taskRunning === true, deliverable: orchestration !== null && orchestration.taskId === null });
 
     const dir = summary?.worktree?.path ?? summary?.projectPath ?? runtime?.workingDir ?? runtime?.cwd ?? '';
     const placement = this.deps.place(dir, summary?.worktree ?? null);

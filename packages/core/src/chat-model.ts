@@ -83,16 +83,20 @@ export interface ControlFacts {
   origin: ChatOrigin;
   /** For an orchestration chat: its task is still running, so the graph is waiting on its next result */
   taskRunning?: boolean;
+  /** The synthesis of an orchestration: no task depends on it and it is the report, so it can be answered */
+  deliverable?: boolean;
 }
 
 /**
  * What can be done with a chat now. Where it was born matters only for a chat an orchestration
  * drives: its finished result feeds tasks that already started, so it is closed for good and a
- * fork is the way forward, while a running one takes a hint from the board. For any other chat the
- * one question is who holds its session, which the server answers at resume time.
+ * fork is the way forward, while a running one takes a hint from the board. The synthesis is the
+ * exception: nothing follows its run, and it is the deliverable, so it is answered in place like any
+ * chat. For any other chat the one question is who holds its session, which the server answers at
+ * resume time.
  */
-export function chatControl({ holder, origin, taskRunning = false }: ControlFacts): ChatControl {
-  if (origin === 'orchestration') {
+export function chatControl({ holder, origin, taskRunning = false, deliverable = false }: ControlFacts): ChatControl {
+  if (origin === 'orchestration' && !deliverable) {
     return taskRunning
       ? {
           mode: 'readOnly',
