@@ -28,6 +28,7 @@ import { AccountManager } from './accounts.ts';
 import { stateFromRun } from './chat-model.ts';
 import { ChatService, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatRuntime } from './chats.ts';
+import { Connectors } from './connectors.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
 import { CliVersionWatch } from './cli-version.ts';
@@ -124,6 +125,7 @@ export class Core {
   readonly memory: MemoryStore;
   readonly mcp: McpConfig;
   readonly toolPresets: ToolPresetStore;
+  readonly connectors: Connectors;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
   /** How the API is guarded: the auth mode, the token hash and read-only */
@@ -228,9 +230,11 @@ export class Core {
       this.orchestrator.recover();
       this.schedules.start();
     });
+    this.connectors = new Connectors(config);
     this.resources = new ConfigResources();
     this.accounts = new AccountManager(config, this.db);
     this.runtime.accounts = this.accounts;
+    this.accounts.projectOf = (cwd) => this.attach(cwd)?.project.id ?? null;
     this.accounts.on('switched', (result: SwitchResult) => {
       this.systemCache = null; // the active account (and its email) changed
       this.events.emit({
@@ -266,7 +270,9 @@ export class Core {
   private async rotateAndResume(run: ChatRuntime): Promise<void> {
     if (!this.accounts.autoSwitch.rotateOnLimit || !this.accounts.managed) return;
     try {
-      const result = await this.accounts.rotate(`run ${run.name} hit its rate limit`);
+      // A project with a rotation policy moves within it; everything else uses the global rotation
+      const reason = `run ${run.name} hit its rate limit`;
+      const result = (await this.accounts.rotateWithinPolicy({ account: run.account, cwd: run.cwd }, reason)) ?? (await this.accounts.rotate(reason));
       if (!result.switched) {
         this.runtime.notice(run.id, `Rate limit reached and no account with quota left${result.reason ? ` (${result.reason})` : ''}.`);
         return;

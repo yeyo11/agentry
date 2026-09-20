@@ -9,6 +9,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Play,
+  Plug,
   Plus,
   SearchX,
   Settings2,
@@ -40,6 +41,7 @@ import { Home } from './pages/Home';
 // Only the landing pages ship in the main bundle; everything else loads on first visit
 const Accounts = lazy(() => import('./pages/Accounts').then((m) => ({ default: m.Accounts })));
 const ChatView = lazy(() => import('./pages/ChatView').then((m) => ({ default: m.ChatView })));
+const Connectors = lazy(() => import('./pages/Connectors').then((m) => ({ default: m.Connectors })));
 const Chats = lazy(() => import('./pages/Chats').then((m) => ({ default: m.Chats })));
 const NewChat = lazy(() => import('./pages/NewChat').then((m) => ({ default: m.NewChat })));
 const Orchestration = lazy(() => import('./pages/Orchestration').then((m) => ({ default: m.Orchestration })));
@@ -91,7 +93,7 @@ function Shell() {
   const { project } = useProjectScope();
   const { pathname } = useLocation();
   const reduced = useReducedMotion();
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'connectors']);
   const overview = useOverview();
   // The one connection that keeps every page current; the sidebar footer shows when it is down
   const feed = useEventFeed();
@@ -161,6 +163,7 @@ function Shell() {
     { to: '/accounts', label: t('nav.accounts'), icon: Users },
     { to: '/schedules', label: t('nav.schedules'), icon: CalendarClock },
     { to: '/usage', label: t('nav.usage'), icon: ChartColumn },
+    { to: '/connectors', label: t('connectors:nav'), icon: Plug },
     { to: '/settings', label: t('nav.settings'), icon: Settings2 },
   ];
 
@@ -348,6 +351,7 @@ function Shell() {
               <Route path="/accounts" element={<Accounts />} />
               <Route path="/schedules" element={<Schedules />} />
               <Route path="/usage" element={<Usage />} />
+              <Route path="/connectors" element={<Connectors />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Empty icon={SearchX} title={t('shell.pageNotFound')} />} />
             </Routes>

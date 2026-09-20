@@ -1,0 +1,38 @@
+{
+  "nav": "Conectores",
+  "title": "Conectores",
+  "subtitle": "Tal como los informó el CLI {{when}}",
+  "subtitleLoading": "Preguntando al CLI…",
+  "intro": "Los conectores de claude.ai de la cuenta con la sesión iniciada, tal como los lista Claude Code. Agentry solo lee esta lista: no puede autorizar, cambiar ni llamar a un conector por sí mismo.",
+  "refresh": "Pregunta al CLI otra vez",
+  "refreshing": "Preguntando…",
+  "cliFailed": "El CLI no pudo listar sus conectores",
+  "none": "No hay conectores de claude.ai en la lista",
+  "noneHint": "El CLI no lista ninguno para esta cuenta. Conecta Docs, Gmail o Calendar en los ajustes de conectores de claude.ai y pregunta de nuevo.",
+  "notListed": "El CLI no lista: {{kinds}}.",
+  "kinds": {
+    "docs": "Docs",
+    "gmail": "Gmail",
+    "calendar": "Calendar",
+    "other": "Otro"
+  },
+  "status": {
+    "connected": "Conectado",
+    "needsAuth": "Necesita autorización"
+  },
+  "cliSays": "El CLI dice: {{detail}}",
+  "ask": {
+    "title": "Pregunta a Claude",
+    "named": "{{action}} ({{connector}})",
+    "starting": "Iniciando…",
+    "hint": "Abre un chat nuevo con el prompt ya escrito. El prompt solo pide a Claude que lea, y cualquier permiso que necesiten las herramientas del conector se pide en ese chat.",
+    "none": "No hay prompts preparados para este conector."
+  },
+  "authorise": {
+    "title": "Cómo autorizar un conector"
+  },
+  "unavailable": {
+    "title": "Fuera de alcance",
+    "intro": "Agentry habla con Claude Code solo a través de su CLI, así que todo aquello para lo que el CLI no tiene comando queda fuera de alcance:"
+  }
+}

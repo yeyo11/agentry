@@ -13,6 +13,9 @@
  *    - `orchestrationDetail`: one orchestration's page
  *    - `observe`: what an agent is really doing: its changes, checklist, health actions and the
  *      editor links (components/observe/*, the Editor tab of Settings)
+ *    - `orchestrationV2`: relaunch, re-run, templates, per-task limits and the verification card
+ *    - `accountsConfig`: an account's config directory, the rotation policies and the usage history
+ *    - `connectors`: the Connectors page
  *    - `config`: pages/config/* (settings, MCP, resources, files, plugins), Accounts and the
  *      wording of the previous Orchestration pages that the two above still reuse
  *    - `components`: components/**, the App.tsx shell and navigation, CommandPalette, notifications

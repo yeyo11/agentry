@@ -1,0 +1,26 @@
+/* The usage-history chart of the Accounts page: SVG drawn from readings, on the shared tokens. */
+
+.usage-chart {
+  margin: 12px 0 0;
+}
+
+.usage-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* A phone shows it smaller, not scrolled: the text stays legible down to about this width */
+  min-width: 320px;
+}
+
+.usage-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 8px;
+}
+
+.usage-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

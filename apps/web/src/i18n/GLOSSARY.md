@@ -101,6 +101,11 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | Background tasks | Tareas en segundo plano |
 | Projects / Project | Proyectos / Proyecto |
 | Orchestration | Orquestación |
+| Template | Plantilla |
+| Re-run (a task) / Relaunch (a graph) | Repite / Relanza |
+| Connector | Conector |
+| Rotation policy | Política de rotación |
+| Config directory | Directorio de configuración |
 | Accounts / Account | Cuentas / Cuenta |
 | Memory | Memoria |
 | Config | Configuración |

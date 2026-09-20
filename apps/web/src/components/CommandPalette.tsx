@@ -19,6 +19,7 @@ import {
   Moon,
   Network,
   Play,
+  Plug,
   Puzzle,
   Search,
   Settings2,
@@ -101,7 +102,7 @@ export function CommandPaletteTrigger() {
 
 export function CommandPalette() {
   const navigate = useNavigate();
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'connectors']);
   const { project: selected } = useProjectScope();
   const reduced = useReducedMotion();
   const [open, setOpen] = useState(false);
@@ -171,6 +172,7 @@ export function CommandPalette() {
       { id: 'nav:/accounts', group: 'goTo', title: t('nav.accounts'), keywords: 'claude-swap multi account quota rotate switch limit', icon: Users, run: go('/accounts') },
       { id: 'nav:/schedules', group: 'goTo', title: t('nav.schedules'), keywords: 'cron recurring timetable automatic every', icon: CalendarClock, run: go('/schedules') },
       { id: 'nav:/usage', group: 'goTo', title: t('nav.usage'), keywords: 'cost spend tokens money chart model project', icon: ChartColumn, run: go('/usage') },
+      { id: 'nav:/connectors', group: 'goTo', title: t('connectors:nav'), keywords: 'claude.ai docs gmail calendar mcp authorise', icon: Plug, run: go('/connectors') },
       { id: 'nav:/settings', group: 'goTo', title: t('nav.settings'), keywords: 'config preferences', icon: Settings2, run: go('/settings') },
     ];
     const tabs: Array<[string, string, string, LucideIcon]> = [

@@ -29,6 +29,7 @@ export const TAGS = [
   { name: 'Config files', description: "Generic editor confined to a scope's Claude dir; secrets and runtime state are refused." },
   { name: 'Memory', description: "Claude Code's per-project file memory." },
   { name: 'Plugins', description: 'Delegated to `claude plugin`; actions return the CLI output.' },
+  { name: 'Connectors', description: 'The claude.ai connectors (Docs, Gmail, Calendar) as the CLI reports them. Read-only: Agentry cannot authorise one.' },
   { name: 'Uploads', description: 'Files to attach to a message. Images and PDFs reach Claude as content blocks, any other file by its path.' },
   { name: 'Security', description: 'Who may call this API, whether it accepts changes, and the trail every change leaves.' },
 ];
@@ -72,6 +73,12 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /accounts/:number/enable': d('Accounts', 'Return an account to the rotation', { ok: OK }),
   'POST /accounts/:number/disable': d('Accounts', 'Hold an account out of the rotation', { ok: OK }),
   'PUT /accounts/:number/alias': d('Accounts', 'Set or clear the account alias', { body: ref('SetAccountAliasRequest'), ok: OK }),
+  'PUT /accounts/:number/config': d('Accounts', 'Give an account its own config directory, or take it back', { description: 'Sets `CLAUDE_CONFIG_DIR` for every process started for the account; `null` goes back to sharing the wrapper\'s. Nothing is moved or copied: the directory is created empty and `projects/` (plus, with `shareSettings`, the shared settings) is symlinked into it. Clearing it removes only the symlinks Agentry made. A chat on such an account runs `claude` directly against the directory, so the login is whatever it holds.', body: ref('UpdateAccountConfigRequest'), ok: ref('AccountConfig') }),
+  'GET /accounts/policies': d('Accounts', 'Per-project rotation policies', { description: 'A project with no policy keeps the global auto-switch.', ok: list('RotationPolicy') }),
+  'POST /accounts/policies': d('Accounts', 'Create a rotation policy', { description: 'Which accounts the chats of some projects may use, in which order, and the usage threshold past which the next one is taken. A project is governed by at most one policy.', body: ref('RotationPolicyRequest'), ok: ref('RotationPolicy'), created: true }),
+  'PUT /accounts/policies/:id': d('Accounts', 'Replace a rotation policy', { body: ref('RotationPolicyRequest'), ok: ref('RotationPolicy') }),
+  'DELETE /accounts/policies/:id': d('Accounts', 'Delete a rotation policy', { ok: OK }),
+  'GET /accounts/usage': d('Accounts', 'Usage history per account', { description: 'Readings of the 5h and 7d windows as claude-swap reported them, kept as rows, oldest first: one series per account and window.', querystring: obj({ account: str('Slot number'), window: str('`5h` or `7d`'), since: str('ISO-8601 lower bound'), until: str('ISO-8601 upper bound'), limit: str('Max readings (default 5000, keeps the newest)') }), ok: list('UsageHistoryPoint') }),
   'GET /accounts/events': d('Accounts', 'Rotation history', { description: 'Every poll, switch and failure claude-swap reported, persisted across restarts. `GET /accounts` carries only the last 200.', querystring: obj({ limit: str('Max events to return (default 200, max 5000)'), since: str('ISO-8601 timestamp; only newer events are returned') }), ok: list('AutoSwitchEvent') }),
   'GET /accounts/autoswitch': d('Accounts', 'Auto-rotation settings', { ok: ref('AutoSwitchSettings') }),
   'PUT /accounts/autoswitch': d('Accounts', 'Change the auto-rotation settings', { description: 'Enabling it supervises a `cswap auto --json` process that rotates before the active account reaches `threshold`. `rotateOnLimit` also rotates and resumes a run that died against its limit.', body: ref('AutoSwitchSettings'), ok: ref('AutoSwitchSettings') }),
@@ -264,6 +271,9 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /memory/:project': d('Memory', 'Memory files of a project', { description: '`MEMORY.md` (the index loaded into every session) comes first.', ok: list('MemoryFile') }),
   'PUT /memory/:project/:name': d('Memory', 'Create or overwrite a memory file', { description: '`name` must end in `.md`.', body: obj({ content: str() }, ['content']), ok: ref('MemoryFile') }),
   'DELETE /memory/:project/:name': d('Memory', 'Delete a memory file', { ok: OK }),
+
+  // ---- Connectors
+  'GET /connectors': d('Connectors', 'claude.ai connectors and their status', { description: 'Read from `claude mcp list` (it connects to every server, so it takes seconds and is cached for a minute). Only servers named `claude.ai …` count as connectors. Each has prepared prompts a client can open a new chat with; the answer also says what a person has to do to authorise one and which claude.ai features (web artifacts, claude.ai memory) have no CLI surface.', querystring: obj({ refresh: str('`true` skips the one-minute cache', { enum: ['true', 'false'] }) }), ok: ref('ConnectorsOverview') }),
 
   // ---- Plugins
   'GET /plugins': d('Plugins', 'Installed plugins and marketplaces', { ok: ref('PluginsOverview') }),
