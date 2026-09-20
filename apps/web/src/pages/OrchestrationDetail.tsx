@@ -1,6 +1,6 @@
 import type { Orchestration, OrchestrationTaskState, ResumeOrchestrationRequest } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ChevronRight, Combine, ExternalLink, GitMerge, GitPullRequest, MessageSquare, Play, RotateCw, Save, Square, Target, Trash2, Waypoints } from 'lucide-react';
+import { ArrowLeft, BookmarkPlus, ChevronRight, Combine, ExternalLink, GitMerge, GitPullRequest, MessageSquare, Play, RotateCw, Rocket, Save, Square, Target, Trash2, Waypoints } from 'lucide-react';
 import { useId, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -10,11 +10,15 @@ import { useConfirm } from '../components/Dialog';
 import { useToast } from '../components/Toast';
 import { ICON, ICON_SM } from '../components/icons';
 import { BoardStatusBadge, StageHead, TaskCard, WaitingNotice } from '../components/OrchestrationBoard';
+import { SaveTemplateDialog } from '../components/OrchestrationTemplates';
+import { RelaunchPanel } from '../components/RelaunchPanel';
+import { VerificationCard } from '../components/VerificationCard';
 import { CodeBlock } from '../components/CodeBlock';
 import { RichText } from '../components/Transcript';
 import { Card, ErrorBox, Field, Loading, PageHeader, StatusBadge } from '../components/ui';
 import { durationBetween, formatCost, formatDateTime, shortPath } from '../lib/format';
 import { costSplit } from '../lib/orchestration-board';
+import { canRelaunch, rerunBlockedByPullRequest } from '../lib/orchestration-v2';
 
 /** Groups tasks into columns by topological level (longest dependency chain). Cycles are tolerated. */
 function layerTasks(tasks: OrchestrationTaskState[]): OrchestrationTaskState[][] {
@@ -46,6 +50,7 @@ function layerTasks(tasks: OrchestrationTaskState[]): OrchestrationTaskState[][]
  */
 function IntegrationCard({ orch }: { orch: Orchestration }) {
   const { t } = useTranslation(['orchestrationDetail', 'config', 'common']);
+  const { t: tv } = useTranslation('orchestrationV2');
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
@@ -80,6 +85,8 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
   const busy = integration && ['merging', 'resolving'].includes(integration.status);
   const idle = !held && !busy;
   const hasWorktrees = orch.tasks.some((t) => t.worktree) || Boolean(integration?.worktree);
+  // The branch is offered once the checks have said what they found, not while they still run
+  const checking = orch.verification?.status === 'running' || orch.verification?.status === 'pending';
 
   return (
     <Card
@@ -100,7 +107,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
                 <button
                   type="button"
                   className="btn btn-small btn-primary"
-                  disabled={publish.isPending}
+                  disabled={publish.isPending || checking}
                   onClick={() =>
                     void confirm({
                       title: t('config:detail.pushTitle', { branch: integration.branch }),
@@ -152,6 +159,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
             <span>{t('config:detail.merged', { merged: integration.merged.length, count: branches })}</span>
             {integration.integratorRunId && <Link to={`/chats/${integration.integratorRunId}`}>{t('integratorChat')}</Link>}
           </div>
+          {checking && <p className="muted small">{tv('verification.holdsPush')}</p>}
           {integration.status === 'resolving' && (
             <p className="muted small">{t('config:detail.resolving')}</p>
           )}
@@ -324,6 +332,7 @@ function ResumePanel({
 
 export function OrchestrationDetail() {
   const { t } = useTranslation(['orchestrationDetail', 'config', 'common']);
+  const { t: tv } = useTranslation('orchestrationV2');
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const { data: orch, error, isLoading } = useOrchestration(id);
@@ -335,6 +344,8 @@ export function OrchestrationDetail() {
   const confirm = useConfirm();
   const boardId = useId();
   const [resuming, setResuming] = useState(false);
+  const [relaunching, setRelaunching] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const resume = useMutation({
     mutationFn: (changes: ResumeOrchestrationRequest) => api.resumeOrchestration(id, changes),
     onSuccess: (next) => {
@@ -388,6 +399,10 @@ export function OrchestrationDetail() {
             </span>
             <span>{durationBetween(orch.createdAt, orch.endedAt)}</span>
             <span>{t('config:detail.created', { date: formatDateTime(orch.createdAt) })}</span>
+            {orch.relaunchedFrom && (
+              <Link to={`/orchestration/${orch.relaunchedFrom}`}>{tv('origin.relaunchedFrom')}</Link>
+            )}
+            {orch.templateId && <span>{tv('origin.fromTemplate')}</span>}
           </span>
         }
         actions={
@@ -403,6 +418,14 @@ export function OrchestrationDetail() {
                   <Play {...ICON_SM} /> {t('config:detail.resume', { count: unfinished })}
                 </button>
               )}
+              {canRelaunch(orch) && !relaunching && (
+                <button className="btn" onClick={() => setRelaunching(true)}>
+                  <Rocket {...ICON_SM} /> {tv('relaunch.button')}
+                </button>
+              )}
+              <button className="btn" onClick={() => setSavingTemplate(true)}>
+                <BookmarkPlus {...ICON_SM} /> {tv('templates.saveAs')}
+              </button>
               <button
                 className="btn btn-danger"
                 disabled={remove.isPending}
@@ -434,6 +457,9 @@ export function OrchestrationDetail() {
           onCancel={() => setResuming(false)}
         />
       )}
+
+      {relaunching && <RelaunchPanel orch={orch} onCancel={() => setRelaunching(false)} />}
+      {savingTemplate && <SaveTemplateDialog fromOrchestration={orch.id} defaultName={orch.name} onClose={() => setSavingTemplate(false)} />}
 
       {orch.objective && (
         <Card
@@ -501,6 +527,9 @@ export function OrchestrationDetail() {
         </ol>
       </section>
 
+      {rerunBlockedByPullRequest(orch) && <p className="muted small">{tv('rerun.blockedByPullRequest')}</p>}
+
+      <VerificationCard orch={orch} />
       {orch.engine === 'workflow' ? <WorkflowCard orch={orch} /> : <IntegrationCard orch={orch} />}
 
       {orch.finalResult && (
