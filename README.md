@@ -34,9 +34,9 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
 
 ### What you get
 
-- **Every conversation, from anywhere** — start a run from the UI or the API, stream the tokens,
+- **Every conversation, from anywhere** — start a chat from the UI or the API, stream the tokens,
   answer follow-up turns, and pick up any session the CLI has ever written on that machine.
-- **Answer what Claude asks, as it asks** — a headless run has nobody to ask, so it is normally
+- **Answer what Claude asks, as it asks** — a headless chat has nobody to ask, so it is normally
   denied anything that needs permission. Agentry speaks the CLI's control protocol
   (`--permission-prompt-tool stdio`) and routes every prompt to the panel: tool calls with the exact
   command (allow, allow always, or deny with a reason the model reads), questions from
@@ -50,15 +50,46 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
 - **Multi-account rotation** — usage per window, proactive switching before an account runs out,
   and a run that hits its limit is rotated and resumed on the next account. Every rotation is
   recorded, so "why did my account change" has an answer that survives a restart.
+- **See what an agent really did, and step in** — for every orchestration task and every chat: the
+  branch and its commits, the files changed with `+/−` and a highlighted diff per file, what is
+  uncommitted, the worker's own checklist, and what it is running right now. A health badge notices
+  a hung or repeated command, a chat busy without progress, a loop, a test bent to pass, silence and
+  a blown budget, says why in one line and offers three ways in: cancel just that command's process
+  tree, send a hint, interrupt. Links open a worktree, a file or a changed line in your editor.
+- **Verify once, after integrating** — an orchestration can run its checks (build, the browser
+  suite) once on the merged branch, with a fixer agent held to rules Agentry writes and a cap on
+  attempts. Workers only run the type check and the unit tests; the outcome is on the graph before a
+  pull request is offered.
+- **Orchestration you can revise** — re-run one task of a finished graph with everything that
+  depends on it, edit and relaunch a graph as a new one, save graphs as templates, and give a task
+  or the whole graph a time and a cost limit.
+- **Tools and servers per chat** — start or resume a chat with a named preset of allowed and
+  disallowed tools (`read-only`, `no-network`, `everything`, all editable) and with only the MCP
+  servers you pick.
+- **Recurring work** — chats and orchestrations on a cron expression and a time zone, with a run
+  history. A window missed while Agentry was down is skipped, never run late.
+- **Cost and usage over time** — per day or week, per project and per model, from the cost the CLI
+  reports, and any transcript exported as Markdown or JSON.
 - **Spending limits** — cap any run with a budget the CLI enforces from inside.
+- **Several accounts, more control** — a config directory of its own per account, rotation policies
+  per project, and a usage history per account.
+- **claude.ai connectors** — the Docs, Gmail and Calendar connectors the CLI can see, their status
+  and prepared prompts that start a chat.
 - **The whole configuration surface** — settings, instructions, MCP servers, agents, skills,
   commands, output styles, memory, plugins and marketplaces, per user and per project.
-- **One container, one volume** — non-root, the CLI baked in, everything else on a data volume.
+- **Safe to expose** — token or OIDC authentication in front of every route, a read-only mode, secrets
+  in MCP `env` and `headers` never returned by the API, and an audit log of every write. See
+  [Securing it](#securing-it).
+- **One container, one volume** — non-root, the CLI baked in and pinned with an update check,
+  everything else on a data volume. Compose profiles, a TLS proxy and a Helm chart are in
+  [docs/deploy.md](docs/deploy.md).
 
 > [!IMPORTANT]
-> **Run it on localhost for now.** API authentication is the next thing being built; until it
-> lands, anyone who reaches the port can start a run on your account and read every transcript on
-> the machine. [SECURITY.md](SECURITY.md) spells out exactly what is and is not protected.
+> **Authentication is off until you turn it on.** That is right for a port bound to `127.0.0.1`, and
+> wrong for anything else: with `mode: none`, anyone who reaches the port can start a chat on your
+> account and read every transcript on the machine. Before publishing the port, set
+> `AGENTRY_AUTH_MODE=token` (or `oidc`) and put a TLS-terminating proxy in front — see
+> [Securing it](#securing-it). [SECURITY.md](SECURITY.md) spells out exactly what is and is not protected.
 
 ### Several accounts, rotated before they run out
 
@@ -78,7 +109,16 @@ The wrapper drives Claude **only through the CLI** — no SDK, no terminal scrap
 | Session history & projects | transcripts in `$CLAUDE_CONFIG_DIR/projects/*/*.jsonl` |
 | MCP servers | `claude mcp add-json` / `claude mcp remove` (user scope) |
 | Orchestration planner | `--json-schema` structured output |
-| Multiple accounts | [claude-swap](https://github.com/realiti4/claude-swap): `cswap list / switch / auto --json`, and `cswap run` for a run pinned to one account |
+| Multiple accounts | [claude-swap](https://github.com/realiti4/claude-swap): `cswap list / switch / auto --json`, and `cswap run` for a run pinned to one account; an account with its own config directory runs `claude` with that `CLAUDE_CONFIG_DIR` |
+| Tool presets and per-chat MCP servers | `--allowedTools` / `--disallowedTools`, and `--mcp-config` with `--strict-mcp-config` over a file holding only the chosen servers |
+| Spending and time limits | `--max-budget-usd` for a cost limit; the time limit is Agentry's own clock |
+| claude.ai connectors | `claude mcp list`: the servers it names `claude.ai …` |
+| What an agent changed on disk | `git` in the task's worktree, and the `Write`/`Edit` calls in the transcript |
+| Stopping one command | The process tree under the CLI's own pid; the CLI writes the failed tool result itself |
+
+The one thing Agentry reads that is not the CLI is the npm registry's metadata for
+`@anthropic-ai/claude-code`, to tell you when a newer version exists. It is a plain metadata read
+(no Anthropic API), done on demand and once a day, and `AGENTRY_CLI_UPDATE_CHECK=off` stops the daily one.
 
 ## Quick start
 
@@ -103,8 +143,9 @@ docker run -d --init -p 127.0.0.1:8787:8787 \
 The UI and the API reference are on <http://localhost:8787> — the panel at `/`, the interactive
 OpenAPI docs at `/docs`. Everything else is configured from the UI.
 
-The port is published on `127.0.0.1` only: the API has no authentication yet (see
-[SECURITY.md](SECURITY.md)), so do not drop that prefix unless you put real access control in front.
+The port is published on `127.0.0.1` only: authentication is off by default (see
+[Securing it](#securing-it) and [SECURITY.md](SECURITY.md)), so do not drop that prefix unless you
+turn it on and put TLS in front.
 
 <details>
 <summary>Building it yourself instead</summary>
@@ -116,10 +157,19 @@ cp .env.example .env        # paste the token into CLAUDE_CODE_OAUTH_TOKEN
 docker compose up --build
 ```
 
-`docker-compose.yml` pins the CLI version through `CLAUDE_CODE_VERSION` if you need a specific one,
-and publishes the port on `127.0.0.1` like the command above.
+The image pins the Claude Code it installs (`CLAUDE_CODE_VERSION`, defaulting to the version in
+`docker/Dockerfile`), so an image is the same tomorrow as today; set it in `.env` to move. Compose
+publishes the port on `127.0.0.1` like the command above, and adds a `tls` profile:
+
+```bash
+docker compose --profile tls up -d    # plus Caddy on :80 and :443, in front of Agentry
+```
 
 </details>
+
+More ways to run it, with the details — Compose profiles, the TLS proxy, a Helm chart, the pinned
+CLI and its update check, health-driven restarts and the signals the server handles — are in
+[docs/deploy.md](docs/deploy.md).
 
 Open <http://localhost:8787> for the UI; the API lives under `/api`.
 
@@ -129,7 +179,7 @@ Volumes:
 | --- | --- | --- |
 | `agentry-config` / `claude-config` | `/home/node/.claude` | The whole account setup: `settings.json`, `.claude.json` (MCP servers), `CLAUDE.md`, agents, skills, commands and session transcripts |
 | `./workspace` | `/workspace` | Projects Claude works on (default `cwd` for runs) |
-| `agentry-data` / `wrapper-data` | `/data` | Wrapper state: the SQLite store (`wrapper.db`: chats and their executions, orchestrations, plans, rotation log), `accounts.json` (auto-rotation settings), `credentials.json` (the runtime credential, mode 600) and `uploads/` (attachments) |
+| `agentry-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, the rotation log, account usage history, command durations, schedule runs and the audit log. Settings-shaped files: `accounts.json` (auto-rotation), `account-config.json` (config directories and rotation policies), `auth.json` (the auth mode and the hash of the token, mode 600), `credentials.json` (the runtime credential, mode 600), `tool-presets.json`, `orchestration-templates.json`, `schedules.json` and `cli-version.json`. `uploads/` holds attachments and `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets) |
 | `agentry-accounts` / `claude-swap` | `/home/node/.local/share/claude-swap` | Credentials of every registered account |
 
 The compose file keeps its original volume names so an existing setup keeps its data; `docker compose`
@@ -161,6 +211,7 @@ pnpm dev          # API on :8787, UI on :5173 (proxies /api)
 pnpm typecheck
 pnpm test         # core unit tests + API integration tests (node:test)
 pnpm build && pnpm e2e   # browser suite: isolated wrapper + headless Chrome, never touches ~/.claude
+                         # E2E_SPEC_TIMEOUT (180000 ms) and E2E_TIMEOUT (900000 ms) bound a spec and the run
 E2E_LIVE=1 pnpm e2e chat # specs that talk to Claude (logged-in CLI, costs a few tokens)
 ```
 
@@ -169,7 +220,9 @@ experiment with config writes safely.
 
 The browser suite boots its own wrapper on port 8799 with temporary config, workspace and data
 directories, seeds whatever each spec needs and drives headless Chrome over the DevTools
-protocol (no Playwright, no dependencies). It covers every page in both themes and at phone
+protocol (no Playwright, no dependencies). A spec and the whole run each have a time limit, and Chrome
+and the wrapper are closed on every way out (a pass, a failure, a timeout, `SIGINT`, `SIGTERM`, a crash),
+by the pid the harness itself started. It covers every page in both themes and at phone
 width, the config editors and their save/delete flows, the unsaved-changes guard, the command
 palette and the chats list; `E2E_LIVE=1 pnpm e2e chat` additionally holds a real
 conversation with Claude (streamed reply, follow-up turn, stop) using your login.
@@ -184,7 +237,9 @@ apps/api          Fastify REST API + SSE; serves the built UI in production
 apps/web          React + Vite UI
 apps/desktop      Electron shell: runs the API as a child process, packaged as AppImage and .deb
 e2e/              Browser suite (headless Chrome over CDP, no dependencies)
-docker/           Dockerfile
+docker/           Dockerfile and the healthcheck
+deploy/           Caddyfile for the `tls` compose profile, and the Helm chart
+docs/             Deployment and desktop guides, and the plans
 ```
 
 Packages export TypeScript sources directly and the API runs through `tsx`, so there is no
@@ -204,11 +259,87 @@ build step except for the UI.
 | `AGENTRY_DATA_DIR` | `./data` | Wrapper state |
 | `AGENTRY_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one |
 | `AGENTRY_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes |
+| `AGENTRY_AUTH_MODE` | `none` | `none`, `token` or `oidc`. **Seeds** an install that has no `auth.json` yet; after that the setting saved from the UI wins. See [Securing it](#securing-it) |
+| `AGENTRY_AUTH_TOKEN` | – | The bearer token to seed with when the mode is `token`. Only its SHA-256 is stored |
+| `AGENTRY_READ_ONLY` | `false` | Seeds read-only mode |
+| `AGENTRY_OIDC_ISSUER` / `_AUDIENCE` / `_CLIENT_ID` | – | Seed the OIDC settings: the issuer whose JWKS validates a JWT, the `aud` it must carry and the client id |
+| `AGENTRY_CLI_UPDATE_CHECK` | on | `off` stops the daily check for a newer Claude Code (the button in Settings keeps working) |
+| `AGENTRY_CLI_REGISTRY_URL` | the npm registry | Where that check reads the package metadata: a mirror, for an air-gapped install |
+| `AGENTRY_PID_FILE` | `/tmp/agentry.pid` in the image | Where the server writes its pid, so the image's healthcheck can end a wedged server |
+| `AGENTRY_HEALTH_RESTART_AFTER` | `3` | Consecutive failed health probes (30 s apart) after which the container restarts itself |
 | `AGENTRY_CORS_ORIGIN` | – (CORS off) | Comma-separated origins (or `*`) for external browser clients. The bundled UI never needs it: in dev it uses the Vite `/api` proxy, in production it is same-origin |
 | `VITE_API_TARGET` | `http://localhost:8787` | Where the Vite dev server proxies `/api` |
 | `AGENTRY_IDLE_TIMEOUT_MS` | `600000` | Idle runs are closed after this (they resume transparently) |
 | `AGENTRY_WEB_DIST` | `apps/web/dist` | Built UI the API serves (the desktop app points it at its bundled copy) |
 | `LOG_LEVEL` | `info` | Fastify/pino log level (`trace` … `fatal`, or `silent`) |
+
+## Securing it
+
+Agentry starts with authentication **off**, so a local install keeps working untouched. Turn it on
+before the port is reachable by anyone you do not trust, and put a TLS-terminating proxy in front.
+
+**Modes.** Set from Settings → Security, or seeded from the environment on a fresh install
+(`AGENTRY_AUTH_MODE`, `AGENTRY_AUTH_TOKEN`, `AGENTRY_OIDC_*`; once an `auth.json` exists in the data
+directory it wins over the environment).
+
+| Mode | What a request must carry |
+| --- | --- |
+| `none` | Nothing. The default |
+| `token` | `Authorization: Bearer <token>`. Only the SHA-256 of the token is stored; the token exists once, in the answer that created it, and can be rotated or removed but never read back |
+| `oidc` | A JWT that the issuer's JWKS validates, with the `aud` you configured and an unexpired `exp` |
+
+- **What stays open.** `GET /api/health`, so a probe needs no credential, and the built UI bundle,
+  which is what gives a `401` a sign-in screen instead of a blank page. `/docs` and `/openapi.json`
+  are guarded like everything else.
+- **`?token=`.** A browser cannot put a header on an `EventSource` or an `<img>`, so three GETs also
+  accept the credential in the query string: `/api/events`, `/api/chats/:id/stream` and
+  `/api/uploads/:id/content`. Nothing else does. A proxy's access log will record that token, so keep
+  query strings out of it for those routes.
+- **OIDC is validation only.** Agentry checks a JWT and never talks to a token endpoint or signs
+  anyone in; the browser UI signs in with a token, so in `oidc` mode clients bring a JWT their
+  identity provider issued (or you run an identity-aware proxy that adds it).
+- **Locked out.** Stop Agentry, delete `<data dir>/auth.json` and start it again. If the
+  environment still seeds a mode, it is applied afresh.
+- **Read-only mode.** Every mutating request answers `405`, except answering a permission prompt (a
+  person watching a chat can still unblock it) and the switch itself. It is for showing the panel to
+  someone.
+- **Secrets are not sent back.** `GET /config/mcp` and `GET /config/settings` return the names in a
+  server's `env` and `headers` (and in settings' `env`) with a placeholder instead of the value. A
+  write that sends the placeholder back keeps what is stored. The per-chat MCP config files Agentry
+  writes for `--mcp-config` do hold real values, so they are mode 600 in a mode 700 directory.
+- **Audit log.** Every mutating request is a row: when, who (a token id, an OIDC subject, or `local`
+  when nothing guards the API), method, path, status and a one-line summary taken from the route's
+  documentation. Bodies are never recorded, because they hold prompts and secrets. `GET /audit`, or
+  Settings → Security.
+
+**TLS.** Agentry does not terminate TLS itself: a proxy does it better, renews certificates and is
+already what you run elsewhere. The proxy must pass `Host` and set `X-Forwarded-For`,
+`X-Forwarded-Proto` and `X-Forwarded-Host`; must not buffer `/api/events` and the chat streams
+(`flush_interval -1` in Caddy, `proxy_buffering off` in nginx); and must not cut idle connections
+faster than the 15 s heartbeat those streams send. `docker compose --profile tls up -d` runs Caddy
+in front of Agentry with all of that already set (`deploy/Caddyfile`); a bare proxy in front of
+`mode: none` only encrypts, so **turn authentication on first**. What is still true with everything
+on: chats in the image default to `bypassPermissions`, there is one credential for everyone who
+holds it, and nothing isolates one person's chats from another's. [SECURITY.md](SECURITY.md) lists
+what is and is not protected.
+
+## Deploying
+
+[docs/deploy.md](docs/deploy.md) has the details; in short:
+
+- **Docker Compose**: `docker compose up -d` publishes Agentry on `127.0.0.1:8787`;
+  `--profile tls` adds the Caddy proxy on `:80` and `:443` (`AGENTRY_DOMAIN` picks the name).
+- **Kubernetes**: the Helm chart in `deploy/helm/agentry` is a Deployment (one replica, `Recreate`),
+  a Service and one PersistentVolumeClaim that outlives `helm uninstall`. Its values cover the image
+  tag, the port, resources, `auth.mode` (`none`, `token`, `oidc`) and `auth.readOnly`. There is no
+  Ingress template; bring your own.
+- **A pinned Claude Code**: the image installs a fixed version and Settings → Account says when a
+  newer one is published, with how to move. The check reads the npm registry on demand and once a
+  day.
+- **Restarts**: Docker only marks a container `unhealthy`, so the image's healthcheck ends the server
+  itself after three failed probes and Compose's `restart: unless-stopped` starts it again; the chart
+  uses ordinary liveness and readiness probes. `SIGTERM` is a clean stop: the chats' transcripts are
+  on disk and resume afterwards.
 
 ## REST API
 
@@ -303,6 +434,23 @@ A chat can also be pinned to one account with `account` (on `NewChatRequest`, `R
 `ForkChatRequest`), which spawns `cswap run <account> --share-history -- …` instead of `claude`.
 Pinned chats keep writing their transcript to the shared config dir, so history behaves as usual.
 
+**A config directory per account.** By default every account shares `~/.claude`, and an existing
+install changes in no way. Giving an account its own `CLAUDE_CONFIG_DIR` creates that directory
+empty and symlinks the shared `projects/` into it, so Agentry still reads every transcript; asked to,
+it links the shared settings too. Nothing is ever moved or copied out of `~/.claude`, and clearing
+it removes exactly the symlinks Agentry made. Agentry never copies credentials: the account needs its
+own login (`CLAUDE_CONFIG_DIR=<dir> claude`). A chat on such an account runs `claude` directly against
+its directory, because `cswap run` replaces `CLAUDE_CONFIG_DIR` with its own profile.
+
+**Rotation policies per project.** A policy names the accounts a project's chats may use, in which
+order, and the usage past which the next one is taken. The account is chosen when the chat spawns
+and the chat is pinned to it, so the credential every other chat shares is not swapped; a project
+with no policy keeps the global auto-switch, and a chat pinned by hand keeps its account.
+
+**Usage history.** Each reading claude-swap returns is a row per account and window, sampled every
+five minutes while `cswap` is installed and kept for 90 days, and drawn as a series per account with
+the auto-switch threshold as a reference line.
+
 ### Projects
 
 | Method | Route | Description |
@@ -321,7 +469,7 @@ One Server-Sent Events stream for the whole app, so a client never has to poll.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes; `sessions.changed`. Opens with `stream.hello`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
+| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes (`orchestration.updated` also carries `verificationStatus` while the checks run); `changes.updated` when a running task's or the integration branch's commits or uncommitted files move; `health.changed` when a chat's health changes; `sessions.changed`. Opens with `stream.hello`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
 
 ```bash
 curl -N localhost:8787/api/events
@@ -336,14 +484,28 @@ is happening (`working`, `waiting` for a person, `idle`) and `control` what can 
 now: `interactive` (Agentry has a live execution), `resumable` (nothing holds it), or `readOnly` with
 the reason and the way forward (`fork`, or `hint` for a task an orchestration is still running).
 
+**Health.** Every chat with a process of Agentry's, and every running orchestration task, carries a
+`health` of `ok`, `warn` or `bad` (the UI words them ok, slow, stuck and looping) with the signals
+behind it, each with a one-line reason and a suggested hint text. The signals are a `hung-command`
+(a command past its usual time), a `repeat-stall` (the same kind of command hanging or failing again),
+`no-progress` (busy with no commit or change), a `loop`, a `weakened-test` (an existing test edited
+until it asserts less), `silence`, a `budget` close to its limit, and facts such as a failed last
+execution or a nearly full context. "Longer than usual" is measured against the last runs of that
+kind of command on this machine (`pnpm e2e`, `cargo test`…), with a fixed 3 minutes until there are
+five; the rules prefer silence to a false alarm, so a changed expected value or a deleted test is not
+"bent to pass". A change of health is a `health.changed` event and a notification. To step in without
+ending the turn, `POST /chats/:id/commands/:toolUseId/cancel` kills that one command's process tree
+(found under the CLI's pid, never by matching a command line; Linux only), and
+`POST /chats/:id/hint` sends a message the worker reads at its next step.
+
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/chats?project=&loose=1&origin=&state=&limit=` | Chats, newest first. Workers of an orchestration and housekeeping chats are left out unless `origin` (comma-separated: `agentry`, `external`, `orchestration`, `internal`) asks for them; `loose=1` lists those under no project |
 | GET | `/usage?from=&to=` | What the chats spent, per day, per project and per orchestration (`from`/`to` are days, `YYYY-MM-DD`, inclusive). Tokens come from the transcripts, per model; the cost is what the CLI reported, so it is `null` for chats started from a terminal and `chatsWithoutCost` says how many a total leaves out |
 | GET | `/usage/series?bucket=&from=&to=` | Cost and tokens over time: one point per `day` (default) or `week` (Monday-based) of the range, empty ones included so a chart has no gaps. `costUsd` is the CLI's figure and `null` where none was reported; at most 1000 points |
 | GET | `/usage/breakdown?from=&to=` | The same range cut by project and by model, most spent first. The cost per model is the CLI's own `modelUsage[model].costUSD`; nothing is priced from token counts |
-| POST | `/chats` | Start a chat. Body: `NewChatRequest` (`prompt` required; `cwd`, `model`, `permissionMode`, `effort`, `appendSystemPrompt`, `allowedTools`, `jsonSchema`, `maxBudgetUsd`, `worktree`, `permissionPrompts`, `account`, `attachments`) |
-| GET | `/chats/:id` | The chat with its branches, environment and `health` (`ok`, `warn` or `bad`, each signal with a one-line reason: a command running past 3 min, a working chat silent for 3 min, and facts of the chat such as a failed last execution, a full context or a failed branch), and a window of its transcript: the newest 200 entries, or `?limit=` of them, with `from` and `total`; `?before=` the `from` of a page reads the one before it (`?sidechains=1` adds subagent messages) |
+| POST | `/chats` | Start a chat. Body: `NewChatRequest` (`prompt` required; `cwd`, `model`, `permissionMode`, `effort`, `appendSystemPrompt`, `allowedTools`, `disallowedTools`, `toolPreset`, `mcp`, `jsonSchema`, `maxBudgetUsd`, `worktree`, `permissionPrompts`, `account`, `attachments`). `toolPreset` (an id from `GET /config/tool-presets`) becomes `--allowedTools` / `--disallowedTools`, and an explicit list wins over the preset's; `mcp: { servers: [...] }` starts the chat with only those servers (`--mcp-config` with `--strict-mcp-config`), an empty list with none. Naming neither leaves the CLI's own defaults |
+| GET | `/chats/:id` | The chat with its branches, environment and `health` (`ok`, `warn` or `bad`, each signal with a one-line reason: a command running past 3 min, a working chat silent for 3 min, and facts of the chat such as a failed last execution, a full context or a failed branch), `tools` (the preset and MCP servers it was started with, `null` for a chat Agentry did not configure), and a window of its transcript: the newest 200 entries, or `?limit=` of them, with `from` and `total`; `?before=` the `from` of a page reads the one before it (`?sidechains=1` adds subagent messages) |
 | GET | `/chats/:id/search?q=&sidechains=1` | Search the whole transcript, pages not loaded included: the matching entries' indices (the space of `from`/`total`) with a snippet each, case-insensitive; at most 500, the newest, with `truncated` |
 | GET | `/chats/:id/changes` | What the chat changed on disk: for one in a git worktree its `summary` (branch, base, commits, files with `+/−`, uncommitted files), and for any chat the `touched` files of its `Write`/`Edit`/`NotebookEdit` calls, read from the transcript |
 | GET | `/chats/:id/changes/diff?path=` | The unified diff of one file of a chat in a worktree against its base, uncommitted work included |
@@ -404,6 +566,41 @@ concurrency and synthesis. It is cheaper, and a resume replays the tasks that ha
 CLI's cache, but every task works in the project directory, so it cannot take `worktree`. The
 planner picks it only when no task changes the repository (analysis, review, research), and only
 when the CLI has the Workflow tool; the draft shows why it chose either, and you can switch.
+
+**Limits.** A task, or the whole graph as a default, takes `limits: { maxMinutes?, maxCostUsd? }`. The
+cost limit goes to the CLI as `--max-budget-usd` (a retry gets only what is left, because the
+CLI's ceiling is per process); the time limit is Agentry's own clock, which tells the worker to wrap
+up at 80 % and ends the task with that reason at the limit. A workflow graph refuses limits rather
+than ignoring them.
+
+**Verification.** `verification: { commands, fixer, maxAttempts, model?, timeoutMinutes? }` runs the
+checks once, on the integration branch, after the merge and before the synthesis and the pull
+request, and needs `worktree: true` on the graph engine. Each command runs alone under its timeout
+(default 20 min), and a hung one has its whole process tree killed. With `fixer: true` a failing
+command goes to an agent whose rules Agentry writes: every long command under `timeout`, existing
+assertions never loosened (a behaviour that changed on purpose is stated as such), and at most
+`maxAttempts` per command, then it stops and reports. The outcome is on the orchestration —
+`passed`, `fixed` (with the fixer's commits) or `failed` (with the report and the checks that never
+ran) — and shown before a pull request is offered. It never turns the graph itself `failed`: the graph
+status is about its tasks. Agentry adds no install step, so a fresh worktree needs one in `commands`
+(`pnpm install --offline --frozen-lockfile`, say). Every worker's prompt also gets the split of
+checks: run the type check and the unit tests, leave the browser suite to the verification, run long
+commands under `timeout`. `POST /orchestrations/:id/verify` runs the checks by hand.
+
+**Revising a graph.** Any task of a finished graph on the graph engine can be **re-run**: it starts
+over with everything that depends on it, each in a new chat and a worktree rebuilt from what it now
+depends on, and the integration branch is rebuilt from the base. It is refused while the graph runs,
+for a workflow, and once the branch went into a pull request (relaunch instead). **Relaunch** makes a
+new orchestration from the spec the graph actually ran with, overridden by a partial spec and
+optionally a new task list, and records `relaunchedFrom`; the original stays as it was.
+**Templates** save a graph or a draft as a named, editable spec (`orchestration-templates.json`) that
+launches on a new objective and directory and records `templateId`.
+
+**What a worker really did.** A running task shows its branch and base, its commits, the files it
+changed with `+/−` and a diff per file, its uncommitted work, its own checklist (the `TaskCreate` /
+`TaskUpdate` / `TodoWrite` calls) and its health, measured from where its own branch was cut. The
+integration branch has the same summary. Changes are announced by a `changes.updated` event, checked
+every 3 s and only while a client listens.
 
 | Method | Route | Description |
 | --- | --- | --- |
@@ -508,9 +705,9 @@ Claude Code precedence is local > project > user.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET / PUT | `/config/settings?project=&variant=shared\|local` | `settings.json`, or `settings.local.json` with `variant=local` (project only) — body `{ settings }` |
+| GET / PUT | `/config/settings?project=&variant=shared\|local` | `settings.json`, or `settings.local.json` with `variant=local` (project only) — body `{ settings }`. Values in `env` are a placeholder on read, with the same round trip as MCP |
 | GET / PUT | `/config/instructions?project=&variant=shared\|local` | `CLAUDE.md` / `CLAUDE.local.md` — body `{ content }` |
-| GET | `/config/mcp?project=` | MCP servers tagged by scope. Project scope returns `local` + `project` (`.mcp.json`) + inherited `user` servers |
+| GET | `/config/mcp?project=` | MCP servers tagged by scope. Project scope returns `local` + `project` (`.mcp.json`) + inherited `user` servers. Values in `env` and `headers` come back as a placeholder; sending it back unchanged on a write keeps the stored value |
 | PUT | `/config/mcp/:name?project=` | Create or replace — body `{ config, scope? }`, e.g. `{"type":"http","url":"…"}` or `{"command":"npx","args":["-y","pkg"],"env":{}}` |
 | DELETE | `/config/mcp/:name?project=&scope=` | Remove |
 | GET | `/config/mcp/health?project=` | Real connection checks (`claude mcp list`); slow, call on demand |
@@ -563,6 +760,8 @@ Delegated to `claude plugin`; actions return the CLI output as `{ ok, output }` 
 
 ### Connectors
 
+The claude.ai connectors of the signed-in account, as the CLI reports them. Agentry cannot authorise one: the answer says what a person does (`/mcp` in an interactive session, or claude.ai's connector settings).
+
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/connectors?refresh=` | The claude.ai connectors (Docs, Gmail, Calendar) as `claude mcp list` reports them, with prepared prompts, what a person must do to authorise one and what has no CLI surface (web artifacts, claude.ai memory). Cached for a minute |
@@ -573,11 +772,14 @@ Delegated to `claude plugin`; actions return the CLI output as `{ ok, output }` 
 | --- | --- |
 | Home | The selected project's page. **Activity** is an inbox: what waits for a person first (chats stopped for a permission or a question, blocked orchestration tasks, merge conflicts, a command running for long, a missing CLI or credential), each with its action, then what runs now with its context and cost, what the day has cost per model, subscription usage limits and the chats to pick up again — the first block is absent when nothing waits. With a project selected it also has **Settings**, **Memory**, **Resources** (agents, skills, commands, output styles, rules and saved workflows, each workflow with a **Run** button) and **Worktrees** tabs; with All projects only Activity remains |
 | Chats | Every conversation in one list, whoever started it: its state (working, waiting for you, idle), whether Agentry can continue it or only read it, where it came from, and how full its context is. Workers of an orchestration and housekeeping chats are hidden unless asked for |
-| Chat | One conversation, live over SSE: messages, thinking, tool calls and results, the context and cost card, its executions, and the branches it launched (subagents, background tasks, workflows) with a side panel each: prompt, status, duration, tokens, transcript and result, updating while it runs (`?detail=…`). What it can do follows its control: send, interrupt, resume, or continue in a copy |
+| Chat | One conversation, live over SSE: messages, thinking, tool calls and results, the context and cost card, its executions, and the branches it launched (subagents, background tasks, workflows) with a side panel each: prompt, status, duration, tokens, transcript and result, updating while it runs (`?detail=…`). What it can do follows its control: send, interrupt, resume, or continue in a copy. Cards for its **health** (badge, reason and the actions that fit the signal: cancel the command, send a hint, interrupt), **what it is doing now** (the running command, time since its last event, its checklist), **what it changed** (a worktree's commits and files with `+/−`, or the files its own tool calls wrote, and a diff per file) and the **tools and servers** it runs with. Export as Markdown or JSON from the header. `?prompt=<id>` scrolls to a permission prompt |
 | Projects | The management screen: import a directory by hand, create or clone one in the workspace, rename, remove (harmless) or purge what Claude Code keeps about it (irreversible). On a first start with none imported it offers the directories holding the most chats |
-| Orchestration | Auto-planned or manual task DAG, live board by stage, per-task results, synthesis |
-| Accounts | Registered accounts with 5h/7d (and per-model) usage, manual switch, add/remove, enable/disable, auto-rotation settings and the rotation log |
-| Settings | User scope only, as tabs: Account, Instructions, Settings (guided editor + raw JSON), MCP servers (guided form, scopes, connection checks), Agents, Skills, Commands, Output styles, Rules, a file explorer for everything else (hook scripts, skill files, keybindings…), Memory (where each project's memory is) and Plugins (installed plugins, marketplace search and install, marketplaces). Everything that belongs to one project lives on its page instead |
+| Orchestration | Auto-planned or manual task DAG, live board by stage, per-task results, synthesis. Each task has a **Work** panel (`?task=<id>`: what it runs now, its health, checklist and changes) and, on a finished graph on the graph engine, **Re-run**. **Edit and relaunch** a graph, **templates** (save, launch on a new objective and directory, edit, delete), per-task and per-graph time and cost limits, and a **verification** card with each command's output and the fixer's commits, before the pull request. The integration card has the merged branch's changes |
+| Accounts | Registered accounts with 5h/7d (and per-model) usage, manual switch, add/remove, enable/disable, auto-rotation settings and the rotation log. Per account, an optional **config directory**; **rotation policies** per project; and a **usage history** chart per account and window with the auto-switch threshold |
+| Schedules | Recurring chats and orchestrations: each schedule with its cron expression in words, when it fires next and when it last ran, on/off, **Run now**, edit, delete, and a run history behind it (when, result, what it started or the error). The cron builder offers every few minutes to monthly or a custom expression, previews the next five fires as you type, and says that a window missed while Agentry was down is skipped, not replayed |
+| Usage | Cost, tokens or chats over time, per day or week, for 7, 30 or 90 days, all time or a range you type; by project and by model. An SVG chart with the same figures as a table, a text readout and a screen-reader description. A cost the CLI never reported reads "Not reported", never `$0.00` |
+| Connectors | The claude.ai connectors (Docs, Gmail, Calendar) the CLI can see, with their status and prepared prompts that start a chat, what to do to authorise one, and a sentence on what has no CLI surface (web artifacts, claude.ai memory) |
+| Settings | User scope only, as tabs: Account (with the Claude Code version card: in use, pinned, newest published, check now), Instructions, Settings (guided editor + raw JSON), MCP servers (guided form, scopes, connection checks), Agents, Skills, Commands, Output styles, Rules, a file explorer for everything else (hook scripts, skill files, keybindings…), Memory (where each project's memory is), Plugins (installed plugins, marketplace search and install, marketplaces), **Tool presets** (named allowed and disallowed tool sets), **Security** (auth mode, token, OIDC, read-only, audit log) and **Editor** (link template for your editor, an optional `code --diff` command, container-to-host path rows; kept in this browser). Everything that belongs to one project lives on its page instead |
 
 Across the app:
 
@@ -591,22 +793,28 @@ Across the app:
 - **Themes**: light, dark or system, switchable from the top bar or the palette, applied before first paint.
 - **Live chat**: responses stream token by token; thinking, tool calls and results render as they arrive.
 - **Live updates**: one Server-Sent Events connection (`GET /api/events`) keeps every page current —
-  runs, prompts waiting for you, background tasks, subagents, workflows, orchestrations, account
-  rotation — instead of each screen polling. If the stream drops, the sidebar status says so and the
+  chats, prompts waiting for you, background tasks, subagents, workflows, orchestrations, changes on
+  disk, health, account rotation — instead of each screen polling. If the stream drops, the sidebar status says so and the
   pages fall back to a slow poll until it returns.
-- **Notifications**: a bell in the top bar collects what needs you or is worth knowing — a run waiting
+- **Notifications**: a bell in the top bar collects what needs you or is worth knowing — a chat waiting
   for a permission, a question or a plan (always first, with a link to it, and settled once you
-  answer), a run or orchestration that finished or failed, an integration conflict, a rate limit or an
+  answer), a chat or orchestration that finished or failed, an integration conflict, a rate limit or an
   account rotation, and finished background tasks, subagents and workflows. All but those last
   ones also pop up as a toast (questions stay until you act); browser notifications are
   opt-in, ask for permission only when you turn them on, and appear only while the tab is hidden.
+  A chat already waiting when the page loads is notified too, and a waiting notification opens that
+  prompt, not just the chat. A worker that looks stuck (`health.changed`) is news with the reason in it.
   The list, read state and preferences are kept per browser. A finished task or subagent links straight
-  to its side panel.
+  to its side panel, and a finished workflow to the agent that ended it.
 - **Execution detail**: a subagent, a background task or a workflow agent opens in a side panel — prompt,
   type, status, duration, tokens, the full transcript, the result and, for a subagent, the tasks it
   launched — from the chat that holds it, a workflow's agents and the inbox. It
   follows the agent or the command's output while it runs, and it is part of the URL (`?detail=…`), so a
   reload or a link brings it back.
+- **Editor links**: the worktree of a chat or task, each changed file and each changed line (from the
+  diff's hunk headers) link into your editor through a template (`vscode://file/{path}:{line}` by
+  default; Cursor, Windsurf or JetBrains fit too). Where Agentry runs in a container, rows map its
+  paths to the host's. A browser cannot run `code --diff`, so that button copies the command.
 - **Editors**: CodeMirror (JSON, Markdown, YAML, JS/TS) with `Ctrl/⌘ S`, unsaved-change guards
   (tabs, sidebar navigation, reload), confirmation dialogs for destructive actions
   and toasts for every mutation.
@@ -621,12 +829,15 @@ Across the app:
 
 claude.ai cloud data (web artifacts, claude.ai chat memory and projects) has no public API and
 no CLI command, so the wrapper does not expose it. What Claude Code itself can reach from a
-session — claude.ai connectors such as Docs, Gmail or Calendar, shown under MCP servers and in
-the effective environment — is available to any run.
+session — claude.ai connectors such as Docs, Gmail or Calendar, listed on the Connectors page and
+shown in the effective environment — is available to any chat. Authorising one still happens in an
+interactive `claude` session (`/mcp`) or in claude.ai's connector settings: Agentry cannot do it.
 
 ## Known limitations
 
-- No API authentication, no TLS, no per-user isolation (by design for now).
+- Authentication is off by default, and there is one credential for everyone who holds it: no
+  per-user isolation, no per-user permissions. Agentry does not terminate TLS (see
+  [Securing it](#securing-it)) and does not sign anyone in with OIDC: it only validates a JWT.
 - Run metadata is persisted and conversations are rebuilt from the session transcripts after a
   restart, and so are background tasks and subagents, which are read back from the files the CLI
   writes. What exists only in a run's live stream is lost: its stderr, and the rate-limit notice.
@@ -638,7 +849,21 @@ the effective environment — is available to any run.
   status and summary stay in the transcript.
 - Running the API with a file watcher (`pnpm dev`) while an orchestration edits this same repo
   restarts it mid-flight. Use `worktree: true`, or serve with `pnpm start`.
-- Secrets inside MCP `env`/headers are returned as-is by `GET /config/mcp`.
+- Secrets in MCP `env` and `headers` are not returned, but they are stored in the CLI's own files as
+  the CLI needs them, and copied into a mode 600 config file for a chat that picks its servers.
+- A chat's own MCP selection covers the servers in the CLI's files. Plugin and claude.ai connector
+  servers are not in any file Agentry can read, and `--strict-mcp-config` drops them, so they cannot be
+  picked. A resume keeps the config as it was when picked, and a fork does not inherit the tools of
+  its source.
+- Usage: days are the server's own, weeks start on Monday, and a cost the CLI never reported (a chat
+  started from a terminal, or an execution older than the per-model figure) is missing, not zero.
+- A schedule has no overlap policy: a slot fires whether or not the last run has ended. The list
+  refreshes every 30 s, because no `schedule.*` event exists.
+- Verification, health and the changes views need what they read: the checks need `worktree: true`
+  on the graph engine, cancelling a command needs Linux, and "what it is doing now" is read from
+  the last unanswered tool call in the transcript, so the time since its last event keeps growing
+  during a long command that is alive.
+- Editor settings are kept in the browser, not on the server: they describe your machine.
 - A subscription token is meant for your own individual use; use an API key for anything
   shared or multi-user.
 - Switching accounts rewrites the shared credential file: runs already in flight keep the account

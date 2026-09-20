@@ -2,22 +2,40 @@
 
 ## Read this before you deploy anything
 
-Agentry is not hardened yet, and pretending otherwise would be the real vulnerability. As it
-stands today:
+Agentry can now guard the API, but it starts with the guard **off**, and turning it on is your job.
+What is and is not protected:
 
-- **The API has no authentication.** Every route is open to whoever can reach the port.
-- **Runs default to `bypassPermissions` inside the container**, so a run does what it is asked
-  without prompting.
-- **`GET /config/mcp` returns MCP server definitions verbatim**, including env vars and headers,
-  which is where people keep API keys.
-- **Account credentials live in the data volume** and the API can write them.
+**Protected once you turn it on** (Settings → Security, or `AGENTRY_AUTH_MODE` on a fresh install):
 
-Anyone who reaches the port can start a Claude Code run on your account, read every transcript on
-the machine and edit the files the container can see.
+- **Authentication in front of every route.** `token` needs `Authorization: Bearer …` and stores only
+  the SHA-256 of the token; `oidc` needs a JWT the issuer's JWKS validates, with the right `aud` and an
+  unexpired `exp`. Only `GET /api/health` and the built UI bundle stay open. `/docs` and
+  `/openapi.json` are guarded.
+- **Read-only mode**, which refuses every write except answering a permission prompt.
+- **Secrets in MCP `env` and `headers`** (and in settings' `env`) are not returned by the API: a
+  placeholder stands for the value.
+- **An audit log of writes**: who, what route, the status. Never the body.
 
-**Bind it to localhost. Do not expose it to a network you do not control, and do not put it behind
-a plain reverse proxy and call it done.** The authentication layer, the secret redaction and the
-audit log are the first block of [ROADMAP.md](ROADMAP.md) for exactly this reason.
+**Not protected, and still true with everything on:**
+
+- **Authentication is off by default.** With `mode: none`, every route is open to whoever can reach the
+  port: they can start a Claude Code chat on your account, read every transcript on the machine and
+  edit the files the container can see.
+- **Agentry does not terminate TLS.** A token sent over plain HTTP can be read on the way. Put a
+  TLS-terminating proxy in front (`docker compose --profile tls`, or the Helm chart behind your own
+  ingress) and see [docs/deploy.md](docs/deploy.md) for what it must pass.
+- **The token can travel in a query string** on three GETs a browser makes without headers
+  (`/api/events`, `/api/chats/:id/stream`, `/api/uploads/:id/content`), so a proxy's access log may
+  record it.
+- **There is one credential.** Everyone who holds the token is the same user; nothing isolates one
+  person's chats from another's. OIDC validates a JWT, it does not sign anyone in.
+- **Chats default to `bypassPermissions` inside the container**, so a chat does what it is asked
+  without prompting. The container is the sandbox.
+- **Account credentials live in the data volume**, and the API can write them.
+- **Per-chat MCP config files hold a server's real `env` and `headers`.** They are mode 600 in a
+  mode 700 directory of the data volume.
+
+**Bind it to localhost until the guard and a TLS proxy are both in place.**
 
 ## Supported versions
 
@@ -34,5 +52,5 @@ Useful reports say what an attacker gains, how they reach it, and what you alrea
 against someone else's deployment does not.
 
 Expect a first reply within a week. If a report turns out to describe one of the known gaps listed
-above, it will be closed as a duplicate of the roadmap — that is not a dismissal of the report,
-just an acknowledgement that the gap is already on the record.
+above, it will be closed as a duplicate — that is not a dismissal of the report, just an
+acknowledgement that the gap is already on the record.

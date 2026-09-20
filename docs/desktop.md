@@ -24,8 +24,9 @@ no boundary: Claude reads and writes your real files and runs commands with your
 starts in `acceptEdits`, where file edits are applied and anything else that needs permission is
 sent to the panel for you to allow or deny. A run can still choose another mode from the UI.
 
-The API has no authentication yet (see [SECURITY.md](../SECURITY.md)). The desktop server only
-listens on the loopback interface, but any process on your machine can reach that port.
+Authentication is off by default (see [SECURITY.md](../SECURITY.md)). The desktop server only
+listens on the loopback interface, but any process on your machine can reach that port. Turn on a
+token in Settings → Security if other users share the machine.
 
 ## Requirements
 
