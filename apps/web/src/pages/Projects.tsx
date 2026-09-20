@@ -120,16 +120,14 @@ function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; fir
       {candidates.map((c) => (
         <li key={c.path} className="candidate-row">
           <div className="candidate-main">
-            <strong className="ellipsis">{c.name}</strong>
-            <span className="mono small muted ellipsis" title={c.path}>
-              {c.path}
-            </span>
+            <strong className="break">{c.name}</strong>
+            <span className="mono small muted break">{c.path}</span>
             <span className="small muted">
               {c.chatCount} chat{c.chatCount === 1 ? '' : 's'}
               {c.lastActivity ? ` · last ${timeAgo(c.lastActivity)}` : ''}
             </span>
           </div>
-          <button className="btn btn-small" disabled={add.isPending} onClick={() => add.mutate(c)} aria-label={`Import ${c.name}`}>
+          <button type="button" className="btn btn-small" disabled={add.isPending} onClick={() => add.mutate(c)} aria-label={`Import ${c.name}`}>
             <Download {...ICON_SM} /> Import
           </button>
         </li>
@@ -219,9 +217,7 @@ function ProjectCard({ project }: { project: Project }) {
         <Monogram name={project.name} />
         <div className="project-head-text">
           {renaming === null ? (
-            <div className="project-name ellipsis" title={project.name}>
-              {project.name}
-            </div>
+            <h2 className="project-name break">{project.name}</h2>
           ) : (
             <form
               className="rename-form"
@@ -239,9 +235,7 @@ function ProjectCard({ project }: { project: Project }) {
               </button>
             </form>
           )}
-          <div className="mono small muted ellipsis" title={project.path}>
-            {project.path}
-          </div>
+          <div className="mono small muted break">{project.path}</div>
         </div>
         {!project.exists && <Tag tone="warn">missing on disk</Tag>}
       </div>
@@ -257,16 +251,16 @@ function ProjectCard({ project }: { project: Project }) {
         )}
       </div>
       <div className="card-foot">
-        <Link to={`/?project=${encodeURIComponent(project.id)}`} className="btn btn-small btn-primary">
+        <Link to={`/?project=${encodeURIComponent(project.id)}`} className="btn btn-small btn-primary" aria-label={`Open ${project.name}`}>
           Open <ArrowRight {...ICON_SM} />
         </Link>
-        <button className="btn btn-small" onClick={() => setRenaming(project.name)} disabled={renaming !== null}>
+        <button type="button" className="btn btn-small" onClick={() => setRenaming(project.name)} disabled={renaming !== null} aria-label={`Rename ${project.name}`}>
           <Pencil {...ICON_SM} /> Rename
         </button>
-        <button className="btn btn-small" onClick={() => void askRemove()} disabled={remove.isPending}>
+        <button type="button" className="btn btn-small" onClick={() => void askRemove()} disabled={remove.isPending} aria-label={`Remove ${project.name}`}>
           <Trash2 {...ICON_SM} /> Remove
         </button>
-        <button className="btn btn-small btn-danger" onClick={() => void askPurge()} disabled={purge.isPending}>
+        <button type="button" className="btn btn-small btn-danger" onClick={() => void askPurge()} disabled={purge.isPending} aria-label={`Purge Claude Code state of ${project.name}`}>
           <Eraser {...ICON_SM} /> Purge Claude Code state
         </button>
       </div>

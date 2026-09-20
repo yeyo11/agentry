@@ -333,7 +333,7 @@ export function FindBar({ find, className = '' }: { find: TranscriptFind; classN
           : `${position < 0 ? 0 : hits.length - position} of ${hits.length}${result.data?.truncated ? '+' : ''}`;
 
   return (
-    <div className={`find-bar ${className}`} role="search">
+    <div className={`find-bar ${className}`} role="search" aria-label="Transcript">
       <div className="find-row">
         <Search {...ICON_SM} className="find-icon" />
         <input

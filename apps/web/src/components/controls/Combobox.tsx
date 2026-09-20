@@ -98,7 +98,7 @@ export function Combobox({
           onInteractOutside={(e) => e.target === inputRef.current && e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          <div className="menu-viewport" role="listbox" id={listId} aria-label={ariaLabel}>
+          <div className="menu-viewport" role="listbox" id={listId} aria-label={ariaLabel ?? placeholder ?? 'Suggestions'}>
             {matches.map((option, i) => (
               <div
                 key={option.value}

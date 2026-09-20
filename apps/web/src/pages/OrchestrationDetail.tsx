@@ -1,7 +1,7 @@
 import type { Orchestration, OrchestrationTaskState, ResumeOrchestrationRequest } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ChevronRight, Combine, ExternalLink, GitMerge, GitPullRequest, MessageSquare, Play, RotateCw, Save, Square, Target, Trash2, Waypoints } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, keys, useOrchestration } from '../api';
 import { Collapsible, Switch } from '../components/controls';
@@ -328,6 +328,7 @@ export function OrchestrationDetail() {
   });
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const boardId = useId();
   const [resuming, setResuming] = useState(false);
   const resume = useMutation({
     mutationFn: (changes: ResumeOrchestrationRequest) => api.resumeOrchestration(id, changes),
@@ -449,47 +450,53 @@ export function OrchestrationDetail() {
         ))}
       </div>
 
-      <div className="board">
-        {layers.map((layer, level) => (
-          <div key={level} className="board-col">
-            {level > 0 && (
-              <span className={`board-link ${layer.some((t) => t.status === 'running') ? 'is-flowing' : ''}`} aria-hidden>
+      {/* Scrolls sideways on a wide graph, so it is a focusable, named region: a keyboard can scroll it */}
+      <section className="board" tabIndex={0} aria-labelledby={boardId}>
+        <h2 id={boardId} className="sr-only">
+          Task board
+        </h2>
+        <ol className="board-track">
+          {layers.map((layer, level) => (
+            <li key={level} className="board-col">
+              {level > 0 && (
+                <span className={`board-link ${layer.some((t) => t.status === 'running') ? 'is-flowing' : ''}`} aria-hidden>
+                  <ChevronRight size={12} strokeWidth={2} />
+                </span>
+              )}
+              <StageHead title={level === 0 ? 'Stage 1 · no dependencies' : `Stage ${level + 1}`} tasks={layer} />
+              {layer.map((task) => (
+                <TaskCard key={task.id} orch={orch} task={task} />
+              ))}
+            </li>
+          ))}
+          {orch.synthesize && (
+            <li className="board-col">
+              <span className="board-link" aria-hidden>
                 <ChevronRight size={12} strokeWidth={2} />
               </span>
-            )}
-            <StageHead title={level === 0 ? 'Stage 1 · no dependencies' : `Stage ${level + 1}`} tasks={layer} />
-            {layer.map((task) => (
-              <TaskCard key={task.id} orch={orch} task={task} />
-            ))}
-          </div>
-        ))}
-        {orch.synthesize && (
-          <div className="board-col">
-            <span className="board-link" aria-hidden>
-              <ChevronRight size={12} strokeWidth={2} />
-            </span>
-            <div className="board-col-head">
-              <Combine {...ICON_SM} />
-              <span className="board-col-title">Synthesis</span>
-            </div>
-            <div className={`board-task status-${synthesis}`}>
-              <BoardStatusBadge status={synthesis} />
-              <div className="small muted">
-                {synthesis === 'held'
-                  ? 'Held until the blocked tasks are retried or given up: a report over a graph with a hole in it would read as the final one.'
-                  : 'Final agent that reports on everything the tasks did.'}
+              <div className="board-col-head">
+                <Combine {...ICON_SM} />
+                <h3 className="board-col-title">Synthesis</h3>
               </div>
-              {orch.synthesisRunId && (
-                <div className="meta">
-                  <Link to={`/chats/${orch.synthesisRunId}`} className="meta-icon">
-                    <MessageSquare size={12} strokeWidth={1.75} aria-hidden /> Chat
-                  </Link>
+              <article className={`board-task status-${synthesis}`} aria-label="Synthesis">
+                <BoardStatusBadge status={synthesis} />
+                <div className="small muted">
+                  {synthesis === 'held'
+                    ? 'Held until the blocked tasks are retried or given up: a report over a graph with a hole in it would read as the final one.'
+                    : 'Final agent that reports on everything the tasks did.'}
                 </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+                {orch.synthesisRunId && (
+                  <div className="meta">
+                    <Link to={`/chats/${orch.synthesisRunId}`} className="meta-icon">
+                      <MessageSquare size={12} strokeWidth={1.75} aria-hidden /> Chat
+                    </Link>
+                  </div>
+                )}
+              </article>
+            </li>
+          )}
+        </ol>
+      </section>
 
       {orch.engine === 'workflow' ? <WorkflowCard orch={orch} /> : <IntegrationCard orch={orch} />}
 

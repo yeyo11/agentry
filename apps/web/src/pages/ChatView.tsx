@@ -1,6 +1,6 @@
 import type { TranscriptSearchHit } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ChevronLeft, CircleSlash, GitFork, Lock, MessageSquare, Square, Trash2 } from 'lucide-react';
+import { ArrowDown, ChevronLeft, CircleSlash, GitFork, Lock, MessageSquare, Radio, Square, Trash2, WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 // Direct imports: this page is in the shell bundle, and the barrel would pull the lazy form controls into it
@@ -10,10 +10,10 @@ import { ControlBadge, LastOutcome, OriginBadge, StateBadge } from '../component
 import { useDeleteChat } from '../components/ChatDelete';
 import { PermissionPrompts } from '../components/PermissionPrompts';
 import { ICON, ICON_SM } from '../components/icons';
-import { AnimatePresence, motion, StatusDot, ThinkingDots } from '../components/motion';
+import { AnimatePresence, motion, ThinkingDots } from '../components/motion';
 import { StreamingEntry, Transcript } from '../components/Transcript';
 import { FindBar, FindButton, useFindFocus, useFindHighlight, useTranscriptFind } from '../components/TranscriptSearch';
-import { Card, Empty, ErrorBox, Loading, usePageTitle } from '../components/ui';
+import { Card, Empty, ErrorBox, Loading, PageHeader, usePageTitle } from '../components/ui';
 import { chatApi, chatKeys, useChatFeed, useChatStream, useChatTranscript } from '../lib/chats';
 import { ORIGIN_LABEL } from '../lib/chat-model';
 import { formatDateTime } from '../lib/format';
@@ -78,6 +78,7 @@ export function ChatView() {
   if (!chat) {
     return (
       <>
+        <PageHeader title="Chat" />
         <ErrorBox error={transcript.query.error} />
         <Empty icon={MessageSquare} title="Chat not found">
           It may have been deleted. <Link to="/chats">Browse chats</Link> to find the conversation.
@@ -107,7 +108,12 @@ export function ChatView() {
             <StateBadge state={chat.state} />
             <ControlBadge control={control} />
             <LastOutcome chat={chat} />
-            {live && <StatusDot tone={stream.connected ? 'ok' : 'warn'} live={stream.connected} title={stream.connected ? 'Stream connected' : 'Stream reconnecting…'} />}
+            {live && (
+              <span className={`badge ${stream.connected ? 'badge-ok' : 'badge-warn'}`} title={stream.connected ? 'Stream connected' : 'Stream reconnecting…'}>
+                {stream.connected ? <Radio size={12} strokeWidth={2} aria-hidden /> : <WifiOff size={12} strokeWidth={2} aria-hidden />}
+                {stream.connected ? 'Live' : 'Reconnecting…'}
+              </span>
+            )}
           </div>
           <div className="page-actions">
             <FindButton find={find} />
@@ -176,8 +182,12 @@ export function ChatView() {
         <FindBar find={find} />
 
         <div className="run-stage">
+          {/* Focusable so the keyboard can scroll a transcript that holds nothing else to focus */}
           <div
             className="run-scroll"
+            role="region"
+            aria-label="Transcript"
+            tabIndex={0}
             data-scroll-root
             ref={scroller}
             onScroll={(e) => {

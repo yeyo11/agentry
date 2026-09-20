@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { CircleCheck, CircleHelp, CircleX, Plus, TriangleAlert, type LucideIcon } from 'lucide-react';
 import type { McpHealthStatus, McpScope, McpServerEntry, McpServerHealth } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -7,6 +7,7 @@ import { api, keys, type Scope } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { Select, Switch } from '../../components/controls';
 import { useConfirm } from '../../components/Dialog';
+import { ICON_SM } from '../../components/icons';
 import { KeyValueEditor, recordToRows, rowsToRecord, StringListEditor, type KeyValueRow } from '../../components/editors';
 import { useToast } from '../../components/Toast';
 import { Card, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '../../components/ui';
@@ -40,13 +41,19 @@ const SCOPE_INFO: Record<McpScope, { tone: string; hint: string }> = {
   local: { tone: 'warn', hint: 'Private to you within this project' },
 };
 
-const HEALTH_TONE: Record<McpHealthStatus, string> = {
-  connected: 'dot-ok',
-  failed: 'dot-bad',
-  'needs-auth': 'dot-warn',
-  pending: 'dot-warn',
-  unknown: '',
+// The state is an icon and its words, never a coloured dot alone
+const HEALTH_ICON: Record<McpHealthStatus, { icon: LucideIcon; tone: string }> = {
+  connected: { icon: CircleCheck, tone: 'text-ok' },
+  failed: { icon: CircleX, tone: 'text-bad' },
+  'needs-auth': { icon: TriangleAlert, tone: 'text-warn' },
+  pending: { icon: TriangleAlert, tone: 'text-warn' },
+  unknown: { icon: CircleHelp, tone: '' },
 };
+
+function HealthIcon({ status }: { status: McpHealthStatus }) {
+  const { icon: Icon, tone } = HEALTH_ICON[status];
+  return <Icon className={tone} {...ICON_SM} />;
+}
 
 function emptyForm(scope: McpScope): ServerForm {
   return { name: '', scope, transport: 'stdio', command: '', args: [], env: [], url: '', headers: [], extra: {} };
@@ -226,6 +233,7 @@ function ServerEditor({
                     allowDuplicates
                     placeholder="-y"
                     addLabel="Add argument"
+                    label="Arguments"
                     emptyText="No arguments"
                     onChange={(args) => patch({ args })}
                   />
@@ -326,16 +334,17 @@ export function McpTab({ scope }: { scope: Scope }) {
       title="MCP servers"
       actions={
         <div className="toolbar">
-          <button className="btn btn-small" disabled={check.isPending || servers.length === 0} onClick={() => check.mutate()}>
+          <button type="button" className="btn btn-small" disabled={check.isPending || servers.length === 0} onClick={() => check.mutate()}>
             {check.isPending ? (
               <>
-                <span className="spinner" /> Checking…
+                <span className="spinner" aria-hidden /> Checking…
               </>
             ) : (
               'Check connections'
             )}
           </button>
           <button
+            type="button"
             className="btn btn-small btn-primary"
             onClick={() => setEditing({ form: emptyForm(scope.projectId ? 'project' : 'user'), isNew: true })}
           >
@@ -346,14 +355,14 @@ export function McpTab({ scope }: { scope: Scope }) {
       }
     >
       <ErrorBox error={error} />
-      {check.isPending && <p className="small muted">Starting every server and testing the connection. This can take a while…</p>}
+      {check.isPending && <p className="small muted" role="status">Starting every server and testing the connection. This can take a while…</p>}
       {isLoading ? (
         <Skeleton rows={4} />
       ) : servers.length === 0 ? (
         <Empty
           title="No MCP servers"
           action={
-            <button className="btn btn-primary" onClick={() => setEditing({ form: emptyForm(scope.projectId ? 'project' : 'user'), isNew: true })}>
+            <button type="button" className="btn btn-primary" onClick={() => setEditing({ form: emptyForm(scope.projectId ? 'project' : 'user'), isNew: true })}>
               Add the first server
             </button>
           }
@@ -365,12 +374,14 @@ export function McpTab({ scope }: { scope: Scope }) {
           <table className="table">
             <thead>
               <tr>
-                <th>Server</th>
-                <th>Scope</th>
-                <th>Transport</th>
-                <th>Target</th>
-                <th>Connection</th>
-                <th />
+                <th scope="col">Server</th>
+                <th scope="col">Scope</th>
+                <th scope="col">Transport</th>
+                <th scope="col">Target</th>
+                <th scope="col">Connection</th>
+                <th scope="col">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -387,13 +398,15 @@ export function McpTab({ scope }: { scope: Scope }) {
                       {!editable(server) && <span className="small muted"> inherited</span>}
                     </td>
                     <td className="mono small">{transport}</td>
-                    <td className="mono small break" title={target(server.config)}>
+                    <td className="mono small break">
                       {target(server.config) || '—'}
                     </td>
                     <td className="nowrap">
                       {status ? (
-                        <span title={status.detail}>
-                          <span className={`dot ${HEALTH_TONE[status.status]}`} /> <span className="small">{status.detail || status.status}</span>
+                        <span className="meta-icon">
+                          <HealthIcon status={status.status} />
+                          <span className="sr-only">{status.status}: </span>
+                          <span className="small">{status.detail || status.status}</span>
                         </span>
                       ) : (
                         <span className="small muted">not checked</span>
@@ -403,11 +416,18 @@ export function McpTab({ scope }: { scope: Scope }) {
                       <div className="row-actions">
                         {editable(server) ? (
                           <>
-                            <button className="btn btn-small" onClick={() => setEditing({ form: formFromEntry(server), isNew: false })}>
+                            <button
+                              type="button"
+                              className="btn btn-small"
+                              aria-label={`Edit ${server.name}`}
+                              onClick={() => setEditing({ form: formFromEntry(server), isNew: false })}
+                            >
                               Edit
                             </button>
                             <button
+                              type="button"
                               className="btn btn-small btn-danger"
+                              aria-label={`Remove ${server.name}`}
                               disabled={remove.isPending}
                               onClick={() =>
                                 void confirm({
@@ -422,7 +442,7 @@ export function McpTab({ scope }: { scope: Scope }) {
                             </button>
                           </>
                         ) : (
-                          <Link className="btn btn-small" to="/settings?tab=mcp">
+                          <Link className="btn btn-small" to="/settings?tab=mcp" aria-label={`Edit ${server.name} in user scope`}>
                             Edit in user scope
                           </Link>
                         )}

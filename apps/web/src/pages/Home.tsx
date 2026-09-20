@@ -2,7 +2,7 @@ import type { Project } from '@agentry/shared';
 import { FolderX } from 'lucide-react';
 import { lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { PageHeader, PathLabel, Skeleton, Tabs } from '../components/ui';
+import { PageHeader, PathLabel, Skeleton, TabPanel, Tabs, useTabGroup } from '../components/ui';
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
 import { useProjectScope } from '../lib/project-scope';
 import { Activity } from './home/Activity';
@@ -27,6 +27,7 @@ function ProjectPage({ project }: { project: Project }) {
   const [params, setParams] = useSearchParams();
   const dirtyKeys = useDirtyKeys();
   const guard = useLeaveGuard();
+  const group = useTabGroup();
   const tab: TabId = TABS.find((t) => t.id === params.get('tab'))?.id ?? 'activity';
   // Every tab keeps its own sections in the address, so switching starts the next one clean
   const open = (id: TabId) => void guard().then((ok) => ok && setParams(id === 'activity' ? {} : { tab: id }, { replace: true }));
@@ -49,11 +50,12 @@ function ProjectPage({ project }: { project: Project }) {
       )}
       <Tabs
         label="Project sections"
+        group={group}
         value={tab}
         tabs={TABS.map((t) => ({ id: t.id, label: t.label, dirty: dirtyKeys.size > 0 && t.id === tab }))}
         onChange={open}
       />
-      <div className="tab-panel" role="tabpanel" key={`${project.id}:${tab}`}>
+      <TabPanel group={group} tab={tab} className="tab-panel" key={`${project.id}:${tab}`}>
         {tab === 'activity' && <Activity project={project} />}
         <Suspense fallback={<Skeleton rows={4} height={18} />}>
           {tab === 'settings' && <ProjectSettings project={project} />}
@@ -61,7 +63,7 @@ function ProjectPage({ project }: { project: Project }) {
           {tab === 'resources' && <ProjectResources project={project} />}
           {tab === 'worktrees' && <ProjectWorktrees project={project} />}
         </Suspense>
-      </div>
+      </TabPanel>
     </>
   );
 }

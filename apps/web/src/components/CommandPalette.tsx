@@ -27,7 +27,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { useProjectScope } from '../lib/project-scope';
@@ -300,6 +300,7 @@ export function CommandPalette() {
                 aria-controls="palette-list"
                 aria-activedescendant={results[active] ? `palette-option-${active}` : undefined}
                 aria-autocomplete="list"
+                aria-label="Search pages, projects, chats and actions"
                 placeholder="Search pages, projects, chats and actions…"
                 autoComplete="off"
                 spellCheck={false}
@@ -320,8 +321,12 @@ export function CommandPalette() {
                   const selected = index === active;
                   const showGroup = grouped && command.group !== results[index - 1]?.group;
                   return (
-                    <div key={`${command.group}:${command.id}`}>
-                      {showGroup && <div className="palette-group">{command.group}</div>}
+                    <Fragment key={`${command.group}:${command.id}`}>
+                      {showGroup && (
+                        <div className="palette-group" role="presentation">
+                          {command.group}
+                        </div>
+                      )}
                       <div
                         id={`palette-option-${index}`}
                         role="option"
@@ -347,7 +352,7 @@ export function CommandPalette() {
                         {!grouped && <span className="palette-option-group">{command.group}</span>}
                         {selected && <CornerDownLeft className="palette-option-enter" size={14} strokeWidth={1.75} aria-hidden />}
                       </div>
-                    </div>
+                    </Fragment>
                   );
                 })
               )}

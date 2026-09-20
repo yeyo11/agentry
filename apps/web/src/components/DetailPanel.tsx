@@ -115,7 +115,7 @@ function TaskBody({ chatId, taskId }: { chatId: string; taskId: string }) {
         ) : output.error ? (
           <ErrorBox error={output.error} title="No output to show" />
         ) : (
-          <div className="detail-output" ref={follow.ref} onScroll={follow.onScroll} data-scroll-root>
+          <div className="detail-output" ref={follow.ref} onScroll={follow.onScroll} data-scroll-root role="region" aria-label="Task output" tabIndex={0}>
             {output.data?.cutHead && <div className="muted small">Showing the end of {Math.round((output.data.bytes ?? 0) / 1024)} KiB of output.</div>}
             <pre className="task-output">{output.data?.text.trim() || '(no output yet)'}</pre>
             <ScrollJump screens={1} label="output" />

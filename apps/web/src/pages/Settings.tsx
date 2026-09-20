@@ -2,9 +2,9 @@ import type { ResourceKind } from '@agentry/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, keys, type Scope } from '../api';
-import { Card, Empty, ErrorBox, PageHeader, Skeleton, Tabs } from '../components/ui';
+import { Card, Empty, ErrorBox, PageHeader, Skeleton, TabPanel, Tabs, useTabGroup } from '../components/ui';
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
-import { shortPath, timeAgo } from '../lib/format';
+import { timeAgo } from '../lib/format';
 import { AccountTab } from './config/AccountTab';
 import { FilesTab } from './config/FilesTab';
 import { InstructionsTab } from './config/InstructionsTab';
@@ -64,10 +64,12 @@ function MemoryOverview() {
           <table className="table">
             <thead>
               <tr>
-                <th>Project</th>
-                <th>Files</th>
-                <th>Last update</th>
-                <th />
+                <th scope="col">Project</th>
+                <th scope="col">Files</th>
+                <th scope="col">Last update</th>
+                <th scope="col">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -75,9 +77,7 @@ function MemoryOverview() {
                 <tr key={project.projectId}>
                   <td>
                     <div className="strong">{project.projectName}</div>
-                    <div className="small muted mono ellipsis" title={project.projectPath}>
-                      {shortPath(project.projectPath, 48)}
-                    </div>
+                    <div className="small muted mono break">{project.projectPath}</div>
                   </td>
                   <td>
                     <span className={`count ${project.fileCount > 0 ? 'count-on' : ''}`}>{project.fileCount}</span>
@@ -108,6 +108,7 @@ function SettingsInner() {
   const [params, setParams] = useSearchParams();
   const dirtyKeys = useDirtyKeys();
   const guard = useLeaveGuard();
+  const group = useTabGroup();
 
   const tab: TabId = TABS.find((t) => t.id === params.get('tab'))?.id ?? 'account';
   const select = (next: TabId) => void guard().then((ok) => ok && setParams({ tab: next }, { replace: true }));
@@ -118,12 +119,13 @@ function SettingsInner() {
 
       <Tabs
         label="Settings sections"
+        group={group}
         value={tab}
         tabs={TABS.map((t) => ({ id: t.id, label: t.label, dirty: dirtyKeys.has(t.id) }))}
         onChange={select}
       />
 
-      <div className="tab-panel" role="tabpanel" key={tab}>
+      <TabPanel className="tab-panel" key={tab} group={group} tab={tab}>
         {tab === 'account' && <AccountTab />}
         {tab === 'instructions' && <InstructionsTab scope={USER_SCOPE} scopeKey="user" />}
         {tab === 'settings' && <SettingsTab scope={USER_SCOPE} scopeKey="user" filesHref="/settings?tab=files" />}
@@ -132,7 +134,7 @@ function SettingsInner() {
         {tab === 'files' && <FilesTab scope={USER_SCOPE} />}
         {tab === 'memory' && <MemoryOverview />}
         {tab === 'plugins' && <PluginsTab />}
-      </div>
+      </TabPanel>
     </>
   );
 }

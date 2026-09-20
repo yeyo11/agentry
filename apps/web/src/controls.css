@@ -25,9 +25,13 @@
 }
 .select-trigger:focus-visible,
 .select-trigger[data-state='open'] {
-  outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--ring);
+}
+/* The glow alone is too faint to be the focus indicator: a solid outline goes with it */
+.select-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .select-trigger:disabled {
   opacity: 0.55;
@@ -168,8 +172,8 @@
 }
 .checkbox:focus-visible,
 .switch:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--ring);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .checkbox:disabled,
 .switch:disabled {
@@ -256,8 +260,8 @@
   transform: scale(1.1);
 }
 .slider-thumb:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 4px var(--ring);
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 .slider[data-disabled] {
   opacity: 0.55;

@@ -1,9 +1,24 @@
-import { Check, CircleAlert, Copy, Inbox, type LucideIcon } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import {
+  Ban,
+  Check,
+  CircleAlert,
+  CircleCheck,
+  CirclePause,
+  Clock,
+  Copy,
+  Hand,
+  Inbox,
+  Info,
+  Minus,
+  OctagonX,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react';
+import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { errorMessage } from '../lib/format';
 import { Tooltip } from './controls/Tooltip';
 import { ICON, ICON_SM } from './icons';
-import { AnimatePresence, motion, SlidingIndicator, StatusDot, useIndicatorId, type DotTone } from './motion';
+import { AnimatePresence, motion, SlidingIndicator, useIndicatorId } from './motion';
 
 const TONES: Record<string, string> = {
   starting: 'info',
@@ -27,29 +42,68 @@ const TONES: Record<string, string> = {
   conflicted: 'warn',
 };
 
+/*
+ * A status is said in words and with a shape, never with a colour alone: the icon differs by
+ * meaning (done, failed, stopped, waiting...) so it still reads in greyscale or for a colour-blind
+ * person. `null` is the spinner of something that is happening now.
+ */
+const STATUS_ICON: Record<string, LucideIcon | null> = {
+  starting: null,
+  busy: null,
+  running: null,
+  working: null,
+  merging: null,
+  resolving: null,
+  blocked: CirclePause,
+  idle: CirclePause,
+  pending: Clock,
+  completed: CircleCheck,
+  success: CircleCheck,
+  merged: CircleCheck,
+  failed: TriangleAlert,
+  error: TriangleAlert,
+  killed: TriangleAlert,
+  stopped: OctagonX,
+  skipped: Ban,
+  waiting: Hand,
+  conflicted: TriangleAlert,
+};
+
+const TONE_ICON: Record<string, LucideIcon> = { ok: CircleCheck, warn: TriangleAlert, bad: TriangleAlert, info: Info, idle: CirclePause, muted: Minus };
+
+function StatusIcon({ icon: Icon }: { icon: LucideIcon | null }) {
+  return Icon ? <Icon size={12} strokeWidth={2} aria-hidden /> : <span className="spinner spinner-xs" aria-hidden />;
+}
+
 export function StatusBadge({ status, title }: { status: string; title?: string }) {
   const key = status.toLowerCase();
   const tone = TONES[key] ?? 'muted';
+  const icon = key in STATUS_ICON ? (STATUS_ICON[key] ?? null) : (TONE_ICON[tone] ?? Minus);
   return (
     <span className={`badge badge-${tone}`} title={title}>
-      {key === 'starting' ? (
-        <span className="spinner spinner-xs" aria-hidden />
-      ) : (
-        <StatusDot tone={tone as DotTone} live={tone === 'active'} />
-      )}
+      <StatusIcon icon={icon} />
       {status}
     </span>
   );
 }
 
+/** Tones that carry a verdict get its icon too; the others are labels and stay plain. */
+const TAG_ICON: Record<string, LucideIcon> = { ok: CircleCheck, warn: TriangleAlert, bad: TriangleAlert };
+
 export function Tag({ children, tone = 'muted' }: { children: ReactNode; tone?: string }) {
-  return <span className={`badge badge-${tone}`}>{children}</span>;
+  const Icon = TAG_ICON[tone];
+  return (
+    <span className={`badge badge-${tone}`}>
+      {Icon && <Icon size={12} strokeWidth={2} aria-hidden />}
+      {children}
+    </span>
+  );
 }
 
 export function Loading({ label = 'Loading…' }: { label?: string }) {
   return (
-    <div className="state">
-      <span className="spinner" /> {label}
+    <div className="state" role="status">
+      <span className="spinner" aria-hidden /> {label}
     </div>
   );
 }
@@ -80,9 +134,10 @@ export function Empty({
 /** Placeholder rows shown while the first response is on its way (no layout jump afterwards). */
 export function Skeleton({ rows = 3, height = 14 }: { rows?: number; height?: number }) {
   return (
-    <div className="skeleton-stack" aria-busy="true" aria-label="Loading">
+    <div className="skeleton-stack" role="status" aria-busy="true">
+      <span className="sr-only">Loading</span>
       {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="skeleton" style={{ height, width: `${92 - ((i * 17) % 40)}%` }} />
+        <div key={i} className="skeleton" aria-hidden style={{ height, width: `${92 - ((i * 17) % 40)}%` }} />
       ))}
     </div>
   );
@@ -101,7 +156,7 @@ export function CopyButton({ text, label = 'Copy' }: { text: string; label?: str
       <button
         type="button"
         className="icon-btn"
-        aria-label={label}
+        aria-label={copied ? 'Copied' : label}
         onClick={() => {
           void navigator.clipboard?.writeText(text).then(() => {
             setCopied(true);
@@ -138,6 +193,19 @@ export function PathLabel({ path }: { path: string }) {
   );
 }
 
+/** Arrow keys move through a set of options that share one tab stop (the ARIA radio and tab patterns). */
+function arrowTarget(event: KeyboardEvent<HTMLElement>, selector: string): HTMLElement | null {
+  const forward = event.key === 'ArrowRight' || event.key === 'ArrowDown';
+  const backward = event.key === 'ArrowLeft' || event.key === 'ArrowUp';
+  if (!forward && !backward && event.key !== 'Home' && event.key !== 'End') return null;
+  const items = [...(event.currentTarget.closest('[role=radiogroup], [role=tablist]')?.querySelectorAll<HTMLElement>(selector) ?? [])];
+  const at = items.indexOf(event.currentTarget);
+  if (at < 0) return null;
+  if (event.key === 'Home') return items[0] ?? null;
+  if (event.key === 'End') return items[items.length - 1] ?? null;
+  return items[(at + (forward ? 1 : -1) + items.length) % items.length] ?? null;
+}
+
 export function Segmented<T extends string>({
   value,
   options,
@@ -158,8 +226,16 @@ export function Segmented<T extends string>({
             type="button"
             role="radio"
             aria-checked={option.value === value}
+            tabIndex={option.value === value ? 0 : -1}
             className={`segment ${option.value === value ? 'segment-on' : ''}`}
             onClick={() => option.value !== value && onChange(option.value)}
+            onKeyDown={(event) => {
+              const target = arrowTarget(event, '[role=radio]');
+              if (!target) return;
+              event.preventDefault();
+              target.focus();
+              target.click();
+            }}
           >
             {option.value === value && <SlidingIndicator layoutId={indicator} className="segment-thumb" />}
             <span className="segment-label">{option.label}</span>
@@ -207,8 +283,12 @@ export function PageHeader({
   );
 }
 
+const tabId = (group: string, id: string) => `${group}-tab-${id}`;
+const panelId = (group: string) => `${group}-panel`;
+
 /**
- * Tab bar with a sliding underline. Keeps the ARIA tab pattern of the bars it replaces.
+ * Tab bar with a sliding underline, following the ARIA tabs pattern: one tab stop, arrow keys move
+ * and select. Pair it with a `TabPanel` of the same `group` so the panel is named by its tab.
  * `inline` renders the compact variant used inside card headers.
  */
 export function Tabs<T extends string>({
@@ -216,12 +296,15 @@ export function Tabs<T extends string>({
   value,
   onChange,
   label,
+  group,
   inline = false,
 }: {
   tabs: ReadonlyArray<{ id: T; label: ReactNode; dirty?: boolean }>;
   value: T;
   onChange: (id: T) => void;
   label: string;
+  /** Names the tabs and their panel for each other; unique on the page */
+  group?: string;
   inline?: boolean;
 }) {
   const indicator = useIndicatorId('tabs');
@@ -230,19 +313,44 @@ export function Tabs<T extends string>({
       {tabs.map((t) => (
         <button
           key={t.id}
+          id={group ? tabId(group, t.id) : undefined}
           type="button"
           role="tab"
           aria-selected={value === t.id}
+          aria-controls={group ? panelId(group) : undefined}
+          tabIndex={value === t.id ? 0 : -1}
           className={`tab ${value === t.id ? 'tab-on' : ''}`}
           onClick={() => value !== t.id && onChange(t.id)}
+          onKeyDown={(event) => {
+            const target = arrowTarget(event, '[role=tab]');
+            if (!target) return;
+            event.preventDefault();
+            target.focus();
+            target.click();
+          }}
         >
           {t.label}
-          {t.dirty && <span className="tab-dirty" title="Unsaved changes" aria-label="unsaved changes" />}
+          {t.dirty && <span className="tab-dirty" aria-hidden />}
+          {t.dirty && <span className="sr-only"> (unsaved changes)</span>}
           {value === t.id && <SlidingIndicator layoutId={indicator} className="tab-indicator" />}
         </button>
       ))}
     </div>
   );
+}
+
+/** The panel of the selected tab in a `Tabs` with the same `group`. */
+export function TabPanel({ group, tab, className, children }: { group: string; tab: string; className?: string; children: ReactNode }) {
+  return (
+    <div className={className} role="tabpanel" id={panelId(group)} aria-labelledby={tabId(group, tab)}>
+      {children}
+    </div>
+  );
+}
+
+/** A unique group for a `Tabs` and its `TabPanel`. */
+export function useTabGroup(): string {
+  return `tabs-${useId().replaceAll(':', '')}`;
 }
 
 export function Card({
@@ -260,7 +368,7 @@ export function Card({
     <section className={`card ${className}`}>
       {(title || actions) && (
         <div className="card-head">
-          <h2>{title}</h2>
+          {title ? <h2>{title}</h2> : <span />}
           {actions}
         </div>
       )}

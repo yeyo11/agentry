@@ -1,6 +1,6 @@
 import type { AccountSummary, AccountUsageWindow, AutoSwitchSettings } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleCheck, CirclePause, CirclePlay, KeyRound, RefreshCw, Trash2, Users } from 'lucide-react';
+import { CircleCheck, CirclePause, CirclePlay, CircleX, KeyRound, RefreshCw, Trash2, TriangleAlert, Users } from 'lucide-react';
 import { useState } from 'react';
 import { api, keys, useAccountEvents, useAccounts } from '../api';
 import { NumberInput, Select, Slider, Switch, Tooltip } from '../components/controls';
@@ -26,11 +26,19 @@ function Meter({ label, window: win }: { label: string; window: AccountUsageWind
           {label}
           {win.name ? ` · ${win.name}` : ''}
         </span>
-        <span className="muted">
-          {pct}% {win.countdown ? `· resets in ${win.countdown}` : ''}
+        <span className="muted meta-icon">
+          {/* The bar turns amber and red; the icon and the words say the same to anyone who cannot tell them apart */}
+          {pct >= 90 ? (
+            <CircleX className="text-bad" {...ICON_SM} />
+          ) : pct >= 70 ? (
+            <TriangleAlert className="text-warn" {...ICON_SM} />
+          ) : null}
+          {pct}% {pct >= 90 ? <span className="sr-only">used, nearly out </span> : pct >= 70 ? <span className="sr-only">used, running high </span> : null}
+          {win.countdown ? `· resets in ${win.countdown}` : ''}
+          {win.resetsAt && <span className="sr-only"> ({formatDateTime(win.resetsAt)})</span>}
         </span>
       </div>
-      <div className="meter-track" title={win.resetsAt ? `resets ${formatDateTime(win.resetsAt)}` : undefined}>
+      <div className="meter-track" aria-hidden>
         <div className={`meter-fill ${tone(pct)}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -54,7 +62,7 @@ function AccountCard({
     <Card
       title={
         <span className="meta">
-          <span className="strong ellipsis">{account.alias ?? account.email}</span>
+          <span className="strong break">{account.alias ?? account.email}</span>
           {account.active && <Tag tone="ok">active</Tag>}
           {account.disabled && <Tag tone="muted">out of rotation</Tag>}
           {account.usageStatus !== 'ok' && <StatusBadge status={account.usageStatus} />}
@@ -63,7 +71,7 @@ function AccountCard({
       actions={
         <span className="toolbar">
           {!account.active && (
-            <button type="button" className="btn btn-small" onClick={onSwitch} disabled={busy}>
+            <button type="button" className="btn btn-small" onClick={onSwitch} disabled={busy} aria-label={`Use ${account.alias ?? account.email}`}>
               <CirclePlay {...ICON_SM} /> Use
             </button>
           )}
@@ -73,13 +81,13 @@ function AccountCard({
               className="btn btn-small"
               onClick={onToggle}
               disabled={busy}
-              aria-label={account.disabled ? 'Return to the rotation' : 'Hold out of the rotation'}
+              aria-label={`${account.disabled ? 'Return to the rotation' : 'Hold out of the rotation'}: ${account.alias ?? account.email}`}
             >
               {account.disabled ? <CircleCheck {...ICON_SM} /> : <CirclePause {...ICON_SM} />}
             </button>
           </Tooltip>
           <Tooltip content="Remove the account">
-            <button type="button" className="btn btn-small btn-danger" onClick={onRemove} disabled={busy} aria-label="Remove the account">
+            <button type="button" className="btn btn-small btn-danger" onClick={onRemove} disabled={busy} aria-label={`Remove the account ${account.alias ?? account.email}`}>
               <Trash2 {...ICON_SM} />
             </button>
           </Tooltip>
@@ -89,8 +97,8 @@ function AccountCard({
       <div className="meters">
         <div className="meta small">
           <span className="mono">#{account.number}</span>
-          <span className="muted ellipsis">{account.email}</span>
-          {account.organizationName && <span className="muted ellipsis">{account.organizationName}</span>}
+          <span className="muted break">{account.email}</span>
+          {account.organizationName && <span className="muted break">{account.organizationName}</span>}
           {account.headroomPct !== null && <span>{account.headroomPct}% quota left</span>}
         </div>
         {account.usage ? (
@@ -359,7 +367,7 @@ export function Accounts() {
                     <span className="muted nowrap" title={formatDateTime(event.ts)}>
                       {timeAgo(event.ts)}
                     </span>
-                    <span className="ellipsis">
+                    <span className="break">
                       {event.from && event.to ? `${event.from} → ${event.to}` : (event.reason ?? event.detail ?? '')}
                       {event.from && event.to && event.reason ? ` · ${event.reason}` : ''}
                     </span>
