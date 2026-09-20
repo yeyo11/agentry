@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import type { McpHealthStatus, McpScope, McpServerEntry, McpServerHealth } from '@agentry/shared';
 import { execCli } from '../cli.ts';
 import type { CoreConfig } from '../paths.ts';
+import { restoreSecrets } from '../security/redact.ts';
 import { readJson } from './files.ts';
 import type { ConfigScope } from './scope.ts';
 
@@ -84,8 +85,12 @@ export class McpConfig {
     if (!serverConfig || typeof serverConfig !== 'object' || Array.isArray(serverConfig)) {
       throw new Error('config must be a JSON object, e.g. {"command":"npx","args":["-y","pkg"]} or {"type":"http","url":"…"}');
     }
-    if (name in (await this.read(scope, mcpScope))) await this.remove(scope, mcpScope, name);
-    const res = await execCli(this.config, ['mcp', 'add-json', '--scope', mcpScope, name, JSON.stringify(serverConfig)], {
+    // The API hands out a placeholder instead of every `env` and `headers` value, so an edit that
+    // did not touch a secret comes back carrying it: what is stored stays stored.
+    const existing = (await this.read(scope, mcpScope))[name];
+    const merged = restoreSecrets(serverConfig as Record<string, unknown>, existing);
+    if (existing) await this.remove(scope, mcpScope, name);
+    const res = await execCli(this.config, ['mcp', 'add-json', '--scope', mcpScope, name, JSON.stringify(merged)], {
       cwd: this.cwd(scope),
     });
     if (res.code !== 0) throw new Error((res.stderr || res.stdout).trim() || 'claude mcp add-json failed');

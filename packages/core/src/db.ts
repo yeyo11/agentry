@@ -1,6 +1,8 @@
 import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import type {
+  AuditEntry,
+  AuditPage,
   AutoSwitchEvent,
   EffectiveEnvironment,
   Execution,
@@ -89,10 +91,28 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      context     INTEGER NOT NULL,
      observed_at TEXT NOT NULL
    );`,
+
+  // Every mutating request, so exposing the port leaves a trail. The body is deliberately not a
+  // column: it carries prompts, credentials and MCP secrets, and an audit log nobody can share is
+  // worth less than one that records who did what to which route.
+  `CREATE TABLE audit (
+     id     INTEGER PRIMARY KEY AUTOINCREMENT,
+     at     TEXT NOT NULL,
+     actor  TEXT NOT NULL,
+     method TEXT NOT NULL,
+     path   TEXT NOT NULL,
+     status INTEGER NOT NULL,
+     summary TEXT NOT NULL
+   );
+   CREATE INDEX audit_path ON audit (path);`,
 ];
 
 /** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
 const KEEP_EVENTS = 20_000;
+/** The same for the audit log, which grows with every write a person or a worker makes. */
+const KEEP_AUDIT = 50_000;
+/** Pruning on every insert would cost a delete per request; this is often enough to bound it. */
+const AUDIT_PRUNE_EVERY = 500;
 
 interface JsonRow {
   json: string;
@@ -194,6 +214,7 @@ function toEvent(row: EventRow): AutoSwitchEvent {
 
 export class Db {
   private readonly db: DatabaseSync;
+  private auditWrites = 0;
 
   constructor(config: CoreConfig) {
     this.db = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
@@ -204,6 +225,7 @@ export class Db {
     this.db.exec('PRAGMA foreign_keys = ON');
     this.migrate();
     this.pruneRotationEvents();
+    this.pruneAudit();
   }
 
   private tx<T>(fn: () => T): T {
@@ -277,6 +299,43 @@ export class Db {
         `DELETE FROM rotation_events
          WHERE seq <= COALESCE((SELECT seq FROM rotation_events ORDER BY seq DESC LIMIT 1 OFFSET ?), -1)`,
       )
+      .run(keep);
+    return Number(result.changes);
+  }
+
+  // ---------- audit log ----------
+
+  /** Appends one mutating request. The caller builds the summary from the route, never from the body. */
+  appendAudit(entry: Omit<AuditEntry, 'id'>): AuditEntry {
+    const result = this.db
+      .prepare('INSERT INTO audit (at, actor, method, path, status, summary) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(entry.at, entry.actor, entry.method, entry.path, entry.status, entry.summary);
+    if (++this.auditWrites % AUDIT_PRUNE_EVERY === 0) this.pruneAudit();
+    return { ...entry, id: String(result.lastInsertRowid) };
+  }
+
+  /** Newest first. `path` matches anywhere in the path, which is how the panel filters by route. */
+  auditPage(opts: { limit?: number; from?: number; path?: string } = {}): AuditPage {
+    const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 50), 1), 500);
+    const from = Math.max(Math.trunc(opts.from ?? 0), 0);
+    const filter = opts.path?.trim();
+    const where = filter ? 'WHERE path LIKE ?' : '';
+    const params: SQLInputValue[] = filter ? [`%${filter}%`] : [];
+    const totalRow = this.db.prepare(`SELECT COUNT(*) AS n FROM audit ${where}`).get(...params) as { n: number } | undefined;
+    const rows = this.db
+      .prepare(`SELECT * FROM audit ${where} ORDER BY id DESC LIMIT ? OFFSET ?`)
+      .all(...params, limit, from) as unknown as Array<{ id: number; at: string; actor: string; method: string; path: string; status: number; summary: string }>;
+    return {
+      entries: rows.map((row) => ({ ...row, id: String(row.id) })),
+      total: totalRow?.n ?? 0,
+      from,
+    };
+  }
+
+  /** Drops everything but the newest `keep` rows. Returns how many went. */
+  pruneAudit(keep = KEEP_AUDIT): number {
+    const result = this.db
+      .prepare('DELETE FROM audit WHERE id <= COALESCE((SELECT id FROM audit ORDER BY id DESC LIMIT 1 OFFSET ?), -1)')
       .run(keep);
     return Number(result.changes);
   }
