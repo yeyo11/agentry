@@ -60,11 +60,11 @@ export default async ({ page, check }) => {
   await page.waitFor(`return !document.querySelector('.notif-item') && !!document.querySelector('.notif-empty')`, { label: 'clear empties the list' });
 
   // Clicking a notification marks it read, closes the panel and goes to its link
-  await page.eval(seed([item('c', { href: '/tasks' })]));
+  await page.eval(seed([item('c', { href: '/projects' })]));
   await page.goto('/', 1000);
   await page.click('.bell');
   await page.click('.notif-item');
-  await page.waitFor(`return location.pathname === '/tasks'`, { label: 'the notification navigates to its link' });
+  await page.waitFor(`return location.pathname === '/projects'`, { label: 'the notification navigates to its link' });
   check(!(await page.eval(`return !!document.querySelector('.notif-panel')`)), 'the panel closes on navigation');
   check(await page.eval(`return JSON.parse(localStorage.getItem(${JSON.stringify(KEY)})).items[0].read`), 'the clicked notification is read');
 

@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   Attachment,
   AccountsOverview,
-  ActiveCliSession,
   AgentTranscript,
   AddAccountTokenRequest,
   ApiError,
@@ -12,14 +11,25 @@ import type {
   AutoSwitchEvent,
   AutoSwitchSettings,
   AvailablePlugin,
-  BackgroundTask,
   BackgroundTaskOutput,
+  ChatBackgroundTaskEntry,
+  ChatDetail,
+  ChatMessageRequest,
+  ChatOrigin,
+  ChatSettingsUpdate,
+  ChatState,
+  ChatSubagentEntry,
+  ChatSummary,
+  ChatWorkflowEntry,
   CliTextResult,
   ConfigFileContent,
   ConfigFileNode,
   ConfigFileRoot,
   ConfigFileVariant,
   CreateProjectRequest,
+  ForkChatRequest,
+  ImportProjectRequest,
+  NewChatRequest,
   EffectiveEnvironment,
   InstructionsDoc,
   MarkdownResource,
@@ -38,27 +48,22 @@ import type {
   ResumeOrchestrationRequest,
   PluginActionRequest,
   PluginsOverview,
-  ProjectSummary,
+  Project,
+  ProjectCandidate,
   ResourceKind,
-  RunDetail,
+  ResumeChatRequest,
   RunEvent,
-  RunOptions,
-  RunSettingsUpdate,
-  RunSummary,
-  SessionDetail,
-  SessionSummary,
   SetCredentialsRequest,
   SwitchAccountRequest,
   SwitchResult,
   SettingsDoc,
-  SubagentInfo,
   RunWorkflowRequest,
   WorkflowDefinition,
-  WorkflowRun,
   SystemInfo,
   WriteConfigFileRequest,
   SaveOrchestrationWorkflowRequest,
   TranscriptSearchResult,
+  UsageReport,
 } from '@agentry/shared';
 import { TRANSCRIPT_PAGE_MAX } from '@agentry/shared';
 import { useFallbackInterval } from './lib/feed';
@@ -152,21 +157,43 @@ export const api = {
     request<AuthStatus>('/auth/credentials', { method: 'PUT', body: credentials }),
   clearCredentials: () => request<AuthStatus>('/auth/credentials', { method: 'DELETE' }),
   verifyAuth: () => request<AuthVerification>('/auth/verify', { method: 'POST' }),
-  projects: () => request<ProjectSummary[]>('/projects'),
-  createProject: (req: CreateProjectRequest) => request<ProjectSummary>('/projects', { method: 'POST', body: req }),
-  projectSessions: (id: string) => request<SessionSummary[]>(`/projects/${enc(id)}/sessions`),
-  sessions: (limit = 500) => request<SessionSummary[]>(`/sessions?limit=${limit}`),
-  session: (id: string, sidechains: boolean, page: { limit?: number; before?: number } = {}) =>
-    request<SessionDetail>(
-      `/sessions/${enc(id)}${qs({ sidechains: sidechains ? '1' : undefined, limit: num(page.limit), before: num(page.before) })}`,
+  projects: () => request<Project[]>('/projects'),
+  projectCandidates: () => request<ProjectCandidate[]>('/projects/candidates'),
+  importProject: (req: ImportProjectRequest) => request<Project>('/projects/import', { method: 'POST', body: req }),
+  createProject: (req: CreateProjectRequest) => request<Project>('/projects', { method: 'POST', body: req }),
+  renameProject: (id: string, name: string) => request<Project>(`/projects/${enc(id)}`, { method: 'PATCH', body: { name } }),
+  removeProject: (id: string) => request<{ ok: true }>(`/projects/${enc(id)}`, { method: 'DELETE' }),
+  purgeProject: (id: string) => request<{ detail: string }>(`/projects/${enc(id)}/state`, { method: 'DELETE' }),
+  chats: (filter: ChatFilter = {}) =>
+    request<ChatSummary[]>(
+      `/chats${qs({
+        // `null` is the chats under no project, which the route asks for with `loose`
+        project: filter.project ?? undefined,
+        loose: filter.project === null ? '1' : undefined,
+        origin: filter.origin?.join(','),
+        state: filter.state,
+        limit: num(filter.limit),
+      })}`,
     ),
-  runDetail: (id: string, page: { limit?: number; before?: number } = {}) =>
-    request<RunDetail>(`/runs/${enc(id)}${qs({ limit: num(page.limit), before: num(page.before) })}`),
-  searchSession: (id: string, sidechains: boolean, q: string) =>
-    request<TranscriptSearchResult>(`/sessions/${enc(id)}/search${qs({ q, sidechains: sidechains ? '1' : undefined })}`),
-  searchRun: (id: string, q: string) => request<TranscriptSearchResult>(`/runs/${enc(id)}/search${qs({ q })}`),
-  deleteSession: (id: string) => request<{ ok: true }>(`/sessions/${enc(id)}`, { method: 'DELETE' }),
-  active: () => request<ActiveCliSession[]>('/active'),
+  chat: (id: string, sidechains: boolean, page: { limit?: number; before?: number } = {}) =>
+    request<ChatDetail>(
+      `/chats/${enc(id)}${qs({ sidechains: sidechains ? '1' : undefined, limit: num(page.limit), before: num(page.before) })}`,
+    ),
+  searchChat: (id: string, sidechains: boolean, q: string) =>
+    request<TranscriptSearchResult>(`/chats/${enc(id)}/search${qs({ q, sidechains: sidechains ? '1' : undefined })}`),
+  createChat: (req: NewChatRequest) => request<ChatSummary>('/chats', { method: 'POST', body: req }),
+  resumeChat: (id: string, req: ResumeChatRequest) => request<ChatSummary>(`/chats/${enc(id)}/resume`, { method: 'POST', body: req }),
+  forkChat: (id: string, req: ForkChatRequest) => request<ChatSummary>(`/chats/${enc(id)}/fork`, { method: 'POST', body: req }),
+  sendMessage: (id: string, req: ChatMessageRequest) => request<ChatSummary>(`/chats/${enc(id)}/messages`, { method: 'POST', body: req }),
+  stopChat: (id: string) => request<ChatSummary>(`/chats/${enc(id)}/stop`, { method: 'POST' }),
+  interruptChat: (id: string) => request<ChatSummary>(`/chats/${enc(id)}/interrupt`, { method: 'POST' }),
+  updateChat: (id: string, update: ChatSettingsUpdate) => request<ChatSummary>(`/chats/${enc(id)}`, { method: 'PATCH', body: update }),
+  deleteChat: (id: string) => request<{ ok: true }>(`/chats/${enc(id)}`, { method: 'DELETE' }),
+  uploadFile: (file: File) => uploadFile(file),
+  chatPermissions: (id: string) => request<PermissionRequest[]>(`/chats/${enc(id)}/permissions`),
+  answerPermission: (id: string, requestId: string, decision: PermissionDecision) =>
+    request<PermissionRequest>(`/chats/${enc(id)}/permissions/${enc(requestId)}`, { method: 'POST', body: decision }),
+  usage: (range: { from?: string; to?: string } = {}) => request<UsageReport>(`/usage${qs(range)}`),
   environments: (cwd: string) => request<EffectiveEnvironment[]>(`/environments${qs({ cwd })}`),
   memoryProjects: () => request<MemoryProjectSummary[]>('/memory'),
   memoryFiles: (projectId: string) => request<MemoryFile[]>(`/memory/${enc(projectId)}`),
@@ -174,42 +201,26 @@ export const api = {
     request<MemoryFile>(`/memory/${enc(projectId)}/${enc(name)}`, { method: 'PUT', body: { content } }),
   deleteMemoryFile: (projectId: string, name: string) =>
     request<{ ok: true }>(`/memory/${enc(projectId)}/${enc(name)}`, { method: 'DELETE' }),
-  runs: () => request<RunSummary[]>('/runs'),
-  run: (id: string) => request<RunDetail>(`/runs/${enc(id)}`),
-  startRun: (opts: RunOptions) => request<RunSummary>('/runs', { method: 'POST', body: opts }),
-  sendMessage: (id: string, text: string, attachments: string[] = []) =>
-    request<RunSummary>(`/runs/${enc(id)}/messages`, { method: 'POST', body: attachments.length ? { text, attachments } : { text } }),
-  uploadFile: (file: File) => uploadFile(file),
-  stopRun: (id: string) => request<RunSummary>(`/runs/${enc(id)}/stop`, { method: 'POST' }),
-  interruptRun: (id: string) => request<RunSummary>(`/runs/${enc(id)}/interrupt`, { method: 'POST' }),
-  updateRun: (id: string, update: RunSettingsUpdate) => request<RunSummary>(`/runs/${enc(id)}`, { method: 'PATCH', body: update }),
-  deleteRun: (id: string) => request<{ ok: true }>(`/runs/${enc(id)}`, { method: 'DELETE' }),
-  tasks: () => request<BackgroundTask[]>('/tasks'),
-  taskOutput: (sessionId: string, taskId: string, offset?: number) =>
-    request<BackgroundTaskOutput>(
-      `/sessions/${enc(sessionId)}/tasks/${enc(taskId)}/output${qs({ offset: offset === undefined ? undefined : String(offset) })}`,
-    ),
-  subagent: (sessionId: string, agentId: string, after?: number) =>
-    request<AgentTranscript>(`/sessions/${enc(sessionId)}/subagents/${enc(agentId)}${qs({ after: after === undefined ? undefined : String(after) })}`),
-  workflowAgent: (sessionId: string, runId: string, agentId: string, after?: number) =>
-    request<AgentTranscript>(
-      `/sessions/${enc(sessionId)}/workflows/${enc(runId)}/agents/${enc(agentId)}${qs({ after: after === undefined ? undefined : String(after) })}`,
-    ),
-  subagents: () => request<SubagentInfo[]>('/subagents'),
-  workflows: () => request<WorkflowRun[]>('/workflows'),
+  tasks: () => request<ChatBackgroundTaskEntry[]>('/tasks'),
+  taskOutput: (chatId: string, taskId: string, offset?: number) =>
+    request<BackgroundTaskOutput>(`/chats/${enc(chatId)}/tasks/${enc(taskId)}/output${qs({ offset: num(offset) })}`),
+  subagent: (chatId: string, agentId: string, after?: number) =>
+    request<AgentTranscript>(`/chats/${enc(chatId)}/subagents/${enc(agentId)}${qs({ after: num(after) })}`),
+  workflowAgent: (chatId: string, workflowId: string, agentId: string, after?: number) =>
+    request<AgentTranscript>(`/chats/${enc(chatId)}/workflows/${enc(workflowId)}/agents/${enc(agentId)}${qs({ after: num(after) })}`),
+  subagents: () => request<ChatSubagentEntry[]>('/subagents'),
+  workflows: () => request<ChatWorkflowEntry[]>('/workflows'),
   savedWorkflows: (cwd?: string) => request<WorkflowDefinition[]>(`/workflows/saved${qs({ cwd })}`),
-  runWorkflow: (req: RunWorkflowRequest) => request<RunSummary>('/workflows/saved/run', { method: 'POST', body: req }),
+  /** Starts a chat that runs a saved workflow */
+  runWorkflow: (req: RunWorkflowRequest) => request<ChatSummary>('/workflows/saved/run', { method: 'POST', body: req }),
   orchestrations: () => request<Orchestration[]>('/orchestrations'),
   orchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}`),
   createOrchestration: (spec: OrchestrationSpec) =>
     request<Orchestration>('/orchestrations', { method: 'POST', body: spec }),
   planOrchestration: (req: PlanRequest) =>
     request<OrchestrationSpec>('/orchestrations/plan', { method: 'POST', body: req, timeoutMs: 10 * 60_000 }),
-  startPlan: (req: PlanRequest) => request<RunSummary>('/orchestrations/plan/start', { method: 'POST', body: req }),
+  startPlan: (req: PlanRequest) => request<ChatSummary>('/orchestrations/plan/start', { method: 'POST', body: req }),
   planDrafts: () => request<PlanDraftSummary[]>('/orchestrations/plans'),
-  runPermissions: (runId: string) => request<PermissionRequest[]>(`/runs/${enc(runId)}/permissions`),
-  answerPermission: (runId: string, requestId: string, decision: PermissionDecision) =>
-    request<PermissionRequest>(`/runs/${enc(runId)}/permissions/${enc(requestId)}`, { method: 'POST', body: decision }),
   planDraft: (runId: string) => request<OrchestrationSpec>(`/orchestrations/plans/${enc(runId)}`),
   stopOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/stop`, { method: 'POST' }),
   resumeOrchestration: (id: string, changes: ResumeOrchestrationRequest = {}) =>
@@ -297,10 +308,12 @@ export const keys = {
   overview: ['overview'] as const,
   auth: ['auth'] as const,
   projects: ['projects'] as const,
-  sessions: (projectId?: string) => ['sessions', projectId ?? 'all'] as const,
-  session: (id: string, sidechains: boolean) => ['session', id, sidechains] as const,
-  active: ['active'] as const,
-  runs: ['runs'] as const,
+  projectCandidates: ['projects', 'candidates'] as const,
+  // Prefixes the event feed invalidates: every list and every open chat sits under them
+  chats: ['chats'] as const,
+  chatList: (filter: ChatFilter) => ['chats', filter.project === undefined ? 'all' : (filter.project ?? 'loose'), filter.origin?.join(',') ?? '', filter.state ?? '', filter.limit ?? 0] as const,
+  chat: (id: string, sidechains: boolean) => ['chat', id, sidechains] as const,
+  usage: (range: { from?: string; to?: string }) => ['usage', range.from ?? '', range.to ?? ''] as const,
   tasks: ['tasks'] as const,
   subagents: ['subagents'] as const,
   workflows: ['workflows'] as const,
@@ -310,7 +323,7 @@ export const keys = {
   savedWorkflows: (cwd: string) => ['workflows', 'saved', cwd] as const,
   orchestrations: ['orchestrations'] as const,
   planDrafts: ['orchestrations', 'plans'] as const,
-  runPermissions: (id: string) => ['runs', id, 'permissions'] as const,
+  chatPermissions: (id: string) => ['chat', id, 'permissions'] as const,
   orchestration: (id: string) => ['orchestration', id] as const,
   settings: (scope: Scope, variant: ConfigFileVariant) =>
     ['config', 'settings', scope.projectId ?? 'user', variant] as const,
@@ -341,21 +354,38 @@ export const useProjects = (poll = true) => {
   return useQuery({ queryKey: keys.projects, queryFn: api.projects, refetchInterval: poll ? fallback : false });
 };
 
-export const useSessions = (projectId?: string) =>
-  useQuery({
-    queryKey: keys.sessions(projectId),
-    queryFn: () => (projectId ? api.projectSessions(projectId) : api.sessions()),
-    refetchInterval: useFallbackInterval(),
-  });
+/** Directories the person could import: what a first start offers instead of an empty screen. */
+export const useProjectCandidates = (enabled = true) =>
+  useQuery({ queryKey: keys.projectCandidates, queryFn: api.projectCandidates, enabled });
 
-export const useSession = (id: string, sidechains: boolean, live: boolean) => {
+/** Which chats a list asks for. `project`: undefined is every chat, a string one project, null the ones under none. */
+export interface ChatFilter {
+  project?: string | null;
+  /** Defaults to the chats a person started or adopted; workers and housekeeping stay out unless asked for */
+  origin?: ChatOrigin[];
+  state?: ChatState;
+  limit?: number;
+  /** The query waits, e.g. until the project it depends on is known */
+  enabled?: boolean;
+}
+
+export const useChats = (filter: ChatFilter = {}) => {
+  const { enabled = true, ...rest } = filter;
+  return useQuery({ queryKey: keys.chatList(rest), queryFn: () => api.chats(rest), refetchInterval: useFallbackInterval(), enabled });
+};
+
+export const useChat = (id: string, sidechains: boolean, live: boolean) => {
   const fallback = useFallbackInterval();
   return useQuery({
-    queryKey: keys.session(id, sidechains),
-    queryFn: () => api.session(id, sidechains),
+    queryKey: keys.chat(id, sidechains),
+    queryFn: () => api.chat(id, sidechains),
     refetchInterval: live ? fallback : false,
   });
 };
+
+/** What the chats spent over a range of days (`YYYY-MM-DD`, inclusive), or ever. */
+export const useUsage = (range: { from?: string; to?: string } = {}) =>
+  useQuery({ queryKey: keys.usage(range), queryFn: () => api.usage(range), refetchInterval: useFallbackInterval() });
 
 export interface Paged<T> {
   items: T[];
@@ -463,21 +493,17 @@ function usePages<T>(
   return { items, from, total, more: from > 0, loadingMore, loadEarlier, reach };
 }
 
-/** A session's transcript, newest page first, reading backwards on demand. */
-export const useSessionTranscript = (id: string, sidechains: boolean, live: boolean) => {
-  const query = useSession(id, sidechains, live);
+/** A chat's transcript, newest page first, reading backwards on demand. */
+export const useChatTranscript = (id: string, sidechains: boolean, live: boolean) => {
+  const query = useChat(id, sidechains, live);
   const fetchBefore = useCallback(
     (before: number, limit?: number) =>
-      api.session(id, sidechains, { before, limit }).then((d) => ({ items: d.entries, from: d.from, total: d.total })),
+      api.chat(id, sidechains, { before, limit }).then((d) => ({ items: d.entries, from: d.from, total: d.total })),
     [id, sidechains],
   );
   const page = query.data ? { items: query.data.entries, from: query.data.from, total: query.data.total } : undefined;
   return { query, ...usePages(page, fetchBefore, `${id}:${sidechains}`) };
 };
-
-export const useActive = () => useQuery({ queryKey: keys.active, queryFn: api.active, refetchInterval: useFallbackInterval() });
-
-export const useRuns = () => useQuery({ queryKey: keys.runs, queryFn: api.runs, refetchInterval: useFallbackInterval() });
 
 /** Usage refreshes on claude-swap's own cadence; polling faster would only re-read its cache. */
 export const useAccounts = () =>
@@ -606,12 +632,8 @@ export function useTaskOutput(sessionId: string, taskId: string, running: boolea
   });
 }
 
-// ---------- SSE run stream ----------
+// ---------- SSE chat stream ----------
 
-/**
- * Subscribes to a run's SSE stream. Events are deduplicated by `seq` and the
- * connection is re-established from the last seen seq when it drops.
- */
 /** Text generated so far for the block Claude is streaming right now (ephemeral, never stored). */
 export interface StreamingPartial {
   block: 'text' | 'thinking';
@@ -626,99 +648,22 @@ function endsPartial(event: RunEvent): boolean {
 }
 
 /**
- * A run's events: the newest page over REST, then the live stream from where that page ends, so
- * opening a run that has been going for hours does not replay every event it ever emitted.
- * `loadEarlier` reads the page before the one held.
+ * Subscribes to a chat's live event stream. Events are deduplicated by `seq` and the connection is
+ * re-established from the last seen seq when it drops. The transcript itself is paged through
+ * `useChatTranscript`; this carries what happens while a process works on the chat.
  */
-export function useRunStream(
+export function useChatStream(
   id: string | undefined,
   enabled = true,
-): {
-  events: RunEvent[];
-  connected: boolean;
-  partial: StreamingPartial | null;
-  /** Events held back before the first one on screen */
-  from: number;
-  more: boolean;
-  loadingMore: boolean;
-  loadEarlier: () => void;
-  /** Reads back until the event at `index` is held */
-  reach: (index: number) => Promise<void>;
-} {
+): { events: RunEvent[]; connected: boolean; partial: StreamingPartial | null } {
   const [events, setEvents] = useState<RunEvent[]>([]);
-  const [from, setFrom] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [connected, setConnected] = useState(false);
   const [partial, setPartial] = useState<StreamingPartial | null>(null);
-  const buffer = useRef<RunEvent[]>([]);
-  const olderBusy = useRef(false);
-  // Latest partial of the current frame; applied together with the stored events in flush()
-  const pendingPartial = useRef<StreamingPartial | null | undefined>(undefined);
-
-  const fromNow = useRef(from);
-  useEffect(() => {
-    fromNow.current = from;
-  }, [from]);
-  // The run a page was read for, so one landing after the reader moved on is dropped
-  const current = useRef(id);
-  useEffect(() => {
-    current.current = id;
-  }, [id]);
-
-  const readBefore = useCallback(
-    async (before: number, limit?: number): Promise<number> => {
-      if (!id) return before;
-      const older = await api.runDetail(id, { before, limit });
-      if (current.current !== id || older.events.length === 0) return before;
-      setEvents((held) => [...older.events, ...held]);
-      setFrom(older.from);
-      return older.from;
-    },
-    [id],
-  );
-
-  const loadEarlier = useCallback(() => {
-    if (!id || olderBusy.current || from <= 0) return;
-    olderBusy.current = true;
-    setLoadingMore(true);
-    void readBefore(from)
-      .catch(() => {
-        // the page stays as it is; the reader can ask again
-      })
-      .finally(() => {
-        olderBusy.current = false;
-        setLoadingMore(false);
-      });
-  }, [id, from, readBefore]);
-
-  const reach = useCallback(
-    async (index: number) => {
-      while (olderBusy.current) await new Promise((resolve) => setTimeout(resolve, 50));
-      olderBusy.current = true;
-      setLoadingMore(true);
-      try {
-        let at = fromNow.current;
-        while (at > index) {
-          const next = await readBefore(at, stretch(at, index));
-          if (next >= at) break;
-          at = next;
-        }
-      } finally {
-        olderBusy.current = false;
-        setLoadingMore(false);
-      }
-    },
-    [readBefore],
-  );
 
   useEffect(() => {
     setEvents([]);
-    setFrom(0);
     setConnected(false);
     setPartial(null);
-    buffer.current = [];
-    pendingPartial.current = undefined;
-    olderBusy.current = false;
     if (!id || !enabled) return;
 
     let lastSeq = 0;
@@ -726,35 +671,38 @@ export function useRunStream(
     let retry: ReturnType<typeof setTimeout> | undefined;
     let frame = 0;
     let closed = false;
+    let buffer: RunEvent[] = [];
+    // Latest partial of the current frame; applied together with the stored events in flush()
+    let pendingPartial: StreamingPartial | null | undefined;
 
     // Batch bursts (e.g. replay of a long history) into a single state update.
     const flush = () => {
       frame = 0;
-      const nextPartial = pendingPartial.current;
-      pendingPartial.current = undefined;
+      const nextPartial = pendingPartial;
+      pendingPartial = undefined;
       if (nextPartial !== undefined) setPartial(nextPartial);
-      const pending = buffer.current;
-      if (pending.length === 0) return;
-      buffer.current = [];
+      if (buffer.length === 0) return;
+      const pending = buffer;
+      buffer = [];
       setEvents((prev) => [...prev, ...pending]);
     };
 
     const connect = () => {
-      source = new EventSource(`${BASE}/runs/${enc(id)}/stream?since=${lastSeq}`);
+      source = new EventSource(`${BASE}/chats/${enc(id)}/stream?since=${lastSeq}`);
       source.onopen = () => setConnected(true);
       source.onmessage = (msg) => {
         try {
           const event = JSON.parse(String(msg.data)) as RunEvent;
           // Partials reuse the seq of the last stored event, so they must be handled before the dedupe
           if (event.kind === 'partial') {
-            pendingPartial.current = { block: event.block ?? 'text', text: event.text ?? '' };
+            pendingPartial = { block: event.block ?? 'text', text: event.text ?? '' };
             if (!frame) frame = requestAnimationFrame(flush);
             return;
           }
           if (typeof event.seq !== 'number' || event.seq <= lastSeq) return;
           lastSeq = event.seq;
-          if (endsPartial(event)) pendingPartial.current = null;
-          buffer.current.push(event);
+          if (endsPartial(event)) pendingPartial = null;
+          buffer.push(event);
           if (!frame) frame = requestAnimationFrame(flush);
         } catch {
           // ignore keep-alives / malformed frames
@@ -766,20 +714,7 @@ export function useRunStream(
         if (!closed) retry = setTimeout(connect, 1500);
       };
     };
-    // The newest page first, then the stream from where it ends. If the page cannot be had, the
-    // stream still replays everything, which is slower but never leaves the run blank.
-    void api
-      .runDetail(id, {})
-      .then((page) => {
-        if (closed) return;
-        setEvents(page.events);
-        setFrom(page.from);
-        lastSeq = page.events.at(-1)?.seq ?? 0;
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!closed) connect();
-      });
+    connect();
 
     return () => {
       closed = true;
@@ -789,5 +724,5 @@ export function useRunStream(
     };
   }, [id, enabled]);
 
-  return { events, connected, partial, from, more: from > 0, loadingMore, loadEarlier, reach };
+  return { events, connected, partial };
 }

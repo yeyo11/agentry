@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react';
 import type { McpHealthStatus, McpScope, McpServerEntry, McpServerHealth } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, keys, type Scope } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { Select, Switch } from '../../components/controls';
@@ -276,7 +277,7 @@ function ServerEditor({
   );
 }
 
-export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser: () => void }) {
+export function McpTab({ scope }: { scope: Scope }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -421,9 +422,9 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
                             </button>
                           </>
                         ) : (
-                          <button className="btn btn-small" onClick={onSwitchToUser}>
+                          <Link className="btn btn-small" to="/settings?tab=mcp">
                             Edit in user scope
-                          </button>
+                          </Link>
                         )}
                       </div>
                     </td>

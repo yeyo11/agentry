@@ -30,12 +30,12 @@ export {
 
 const RECONNECT_MAX_MS = 15_000;
 
-// Delays group the invalidations of a burst into one refetch. Sessions get the longest: a run
+// Delays group the invalidations of a burst into one refetch. Chats get the longest: a process
 // writing its transcript makes the server say "changed" every second, and the lists it touches
 // are the expensive ones to read.
 const NOW = 100;
 const OVERVIEW = 800;
-const SESSIONS = 2500;
+const CHATS = 2500;
 
 /** Every event name the server sends; typed as a record so a new event type cannot be forgotten. */
 const EVENT_TYPES: Record<AgentryEventType, true> = {
@@ -81,28 +81,29 @@ const activity = (delay: number): Target[] => [
 /** The cached queries an event makes stale, and how soon each should be refetched. */
 export function targetsFor(event: AgentryEvent): Target[] {
   switch (event.type) {
+    // A run is an execution of a chat, and its id is the chat's: what it changes is that chat
     case 'run.created':
-      return [[keys.runs, NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW]];
+      return [[keys.chats, NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW]];
     case 'run.updated':
-      // Only a status change moves counts elsewhere; the rest is a run's own numbers and text
+      // Only a status change moves counts elsewhere; the rest is a chat's own numbers and text
       return event.previousStatus === null
-        ? [[keys.runs, NOW], [['run', event.runId], NOW]]
-        : [[keys.runs, NOW], [['run', event.runId], NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW]];
+        ? [[keys.chats, NOW], [['chat', event.runId], NOW]]
+        : [[keys.chats, NOW], [['chat', event.runId], NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW]];
     case 'run.ended':
       return [
-        [keys.runs, NOW], [['run', event.runId], NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [keys.active, OVERVIEW],
-        [['environments'], NOW], [['sessions'], SESSIONS], ...activity(OVERVIEW),
+        [keys.chats, NOW], [['chat', event.runId], NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['usage'], OVERVIEW],
+        [['environments'], NOW], ...activity(OVERVIEW),
       ];
     case 'run.removed':
-      return [[keys.runs, NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['sessions'], SESSIONS]];
+      return [[keys.chats, NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['usage'], OVERVIEW]];
     case 'run.waiting':
     case 'permission.requested':
     case 'permission.resolved':
-      return [[keys.runPermissions(event.runId), NOW], [keys.runs, NOW]];
+      return [[keys.chatPermissions(event.runId), NOW], [keys.chats, NOW], [keys.overview, NOW]];
     case 'run.rateLimited':
     case 'run.accountRotated':
     case 'account.switched':
-      return [[keys.accounts, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.runs, NOW]];
+      return [[keys.accounts, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, NOW]];
     case 'task.started':
     case 'task.ended':
       return [[keys.tasks, NOW], ...detail(NOW), [keys.overview, OVERVIEW]];
@@ -125,10 +126,9 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'orchestration.task':
       return [[keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW]];
     case 'sessions.changed':
-      // Terminal sessions are read from disk, so their tasks, subagents and workflows move with it
+      // Chats begun in a terminal are read from disk, so their tasks, subagents and workflows move with it
       return [
-        [['sessions'], SESSIONS], [['session'], SESSIONS], [keys.projects, SESSIONS], [keys.active, SESSIONS], [keys.overview, SESSIONS],
-        ...activity(SESSIONS),
+        [keys.chats, CHATS], [['chat'], CHATS], [keys.projects, CHATS], [keys.overview, CHATS], [['usage'], CHATS], ...activity(CHATS),
       ];
   }
 }
