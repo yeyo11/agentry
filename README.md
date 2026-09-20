@@ -447,8 +447,8 @@ Claude Code precedence is local > project > user.
 | PUT | `/config/mcp/:name?project=` | Create or replace — body `{ config, scope? }`, e.g. `{"type":"http","url":"…"}` or `{"command":"npx","args":["-y","pkg"],"env":{}}` |
 | DELETE | `/config/mcp/:name?project=&scope=` | Remove |
 | GET | `/config/mcp/health?project=` | Real connection checks (`claude mcp list`); slow, call on demand |
-| GET | `/config/resources/:kind?project=` | `kind` = `agents` \| `skills` \| `commands` \| `output-styles` \| `rules` |
-| GET / PUT / DELETE | `/config/resources/:kind/:name?project=` | Markdown content — body `{ content }` |
+| GET | `/config/resources/:kind?project=` | `kind` = `agents` \| `skills` \| `commands` \| `output-styles` \| `rules` \| `workflows` |
+| GET / PUT / DELETE | `/config/resources/:kind/:name?project=` | Markdown content (a script for `workflows`, whose `format` is `javascript`) — body `{ content }` |
 
 ### Config file explorer
 

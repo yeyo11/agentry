@@ -2561,7 +2561,7 @@
       "unknown"
     ]
   },
-  "MarkdownResource": {
+  "ConfigResource": {
     "type": "object",
     "properties": {
       "kind": {
@@ -2572,6 +2572,9 @@
       },
       "path": {
         "type": "string"
+      },
+      "format": {
+        "$ref": "#/components/schemas/ResourceFormat"
       },
       "description": {
         "type": [
@@ -2593,6 +2596,7 @@
       "kind",
       "name",
       "path",
+      "format",
       "description",
       "content",
       "updatedAt"
@@ -2605,8 +2609,17 @@
       "skills",
       "commands",
       "output-styles",
-      "rules"
+      "rules",
+      "workflows"
     ]
+  },
+  "ResourceFormat": {
+    "type": "string",
+    "enum": [
+      "markdown",
+      "javascript"
+    ],
+    "description": "What a resource's file is, which is what an editor highlights it as."
   },
   "ConfigFileRoot": {
     "type": "object",

@@ -908,12 +908,26 @@ export interface McpServerHealth {
   detail: string;
 }
 
-export type ResourceKind = 'agents' | 'skills' | 'commands' | 'output-styles' | 'rules';
+export type ResourceKind = 'agents' | 'skills' | 'commands' | 'output-styles' | 'rules' | 'workflows';
 
-export interface MarkdownResource {
+/** What a resource's file is, which is what an editor highlights it as. */
+export type ResourceFormat = 'markdown' | 'javascript';
+
+/** Saved workflows are scripts; every other kind is markdown. */
+export const RESOURCE_FORMATS: Record<ResourceKind, ResourceFormat> = {
+  agents: 'markdown',
+  skills: 'markdown',
+  commands: 'markdown',
+  'output-styles': 'markdown',
+  rules: 'markdown',
+  workflows: 'javascript',
+};
+
+export interface ConfigResource {
   kind: ResourceKind;
   name: string;
   path: string;
+  format: ResourceFormat;
   description: string | null;
   content: string;
   updatedAt: string | null;

@@ -93,6 +93,12 @@ test('resources, memory and the file explorer validate their input', async () =>
   assert.equal((await app.inject('/api/config/resources/rules')).json().length, 0); // user scope untouched
   assert.equal((await app.inject('/api/config/resources/widgets')).statusCode, 400);
 
+  // A saved workflow is a script, and says so
+  res = await app.inject({ method: 'PUT', url: `/api/config/resources/workflows/audit?project=${projectId}`, ...json({ content: "export const meta = { name: 'audit', description: 'Audit' }\n" }) });
+  assert.equal(res.json().format, 'javascript');
+  assert.equal((await app.inject(`/api/config/resources/workflows/audit?project=${projectId}`)).json().description, 'Audit');
+  assert.equal((await app.inject(`/api/config/resources/rules/style?project=${projectId}`)).json().format, 'markdown');
+
   res = await app.inject({ method: 'PUT', url: `/api/memory/${projectId}/fact.md`, ...json({ content: '---\ndescription: d\n---\nx' }) });
   assert.equal(res.json().description, 'd');
   assert.equal((await app.inject(`/api/memory/${projectId}`)).json().length, 1);

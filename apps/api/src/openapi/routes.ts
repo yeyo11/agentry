@@ -12,7 +12,7 @@ const OK = obj({ ok: { type: 'boolean', const: true } }, ['ok']);
 const PROJECT = str("Project id from `GET /projects`. Omit for the user scope (the Claude config dir).");
 const VARIANT = str('`local` selects settings.local.json / CLAUDE.local.md (project scope only).', { enum: ['shared', 'local'], default: 'shared' });
 const scopeQuery = (extra: Json = {}): Json => obj({ project: PROJECT, ...extra });
-const KIND = str('Resource kind', { enum: ['agents', 'skills', 'commands', 'output-styles', 'rules'] });
+const KIND = str('Resource kind', { enum: ['agents', 'skills', 'commands', 'output-styles', 'rules', 'workflows'] });
 const ROOT = str("`user` or a project id (see `GET /config/files/roots`)");
 
 export const TAGS = [
@@ -177,9 +177,9 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /config/mcp/health': d('Configuration', 'Real MCP connection checks', { description: 'Runs `claude mcp list`; takes several seconds. Call on demand.', querystring: scopeQuery(), ok: list('McpServerHealth') }),
   'PUT /config/mcp/:name': d('Configuration', 'Create or replace an MCP server', { description: 'Written through `claude mcp add-json`. `config` is e.g. `{"type":"http","url":"…"}` or `{"command":"npx","args":["-y","pkg"],"env":{}}`.', querystring: scopeQuery(), body: obj({ config: { type: 'object', additionalProperties: true }, scope: ref('McpScope') }, ['config']), ok: ref('McpServerEntry') }),
   'DELETE /config/mcp/:name': d('Configuration', 'Remove an MCP server', { querystring: scopeQuery({ scope: ref('McpScope') }), ok: OK }),
-  'GET /config/resources/:kind': d('Configuration', 'List markdown resources', { params: obj({ kind: KIND }), querystring: scopeQuery(), ok: list('MarkdownResource') }),
-  'GET /config/resources/:kind/:name': d('Configuration', 'Read a resource', { params: obj({ kind: KIND, name: str() }), querystring: scopeQuery(), ok: ref('MarkdownResource') }),
-  'PUT /config/resources/:kind/:name': d('Configuration', 'Create or replace a resource', { description: 'Skills are stored as `skills/<name>/SKILL.md`; the other kinds as `<kind>/<name>.md`.', params: obj({ kind: KIND, name: str() }), querystring: scopeQuery(), body: obj({ content: str() }, ['content']), ok: ref('MarkdownResource') }),
+  'GET /config/resources/:kind': d('Configuration', 'List resources', { description: 'Saved workflows of the scope only: `GET /workflows/saved` also merges in the user\'s.', params: obj({ kind: KIND }), querystring: scopeQuery(), ok: list('ConfigResource') }),
+  'GET /config/resources/:kind/:name': d('Configuration', 'Read a resource', { params: obj({ kind: KIND, name: str() }), querystring: scopeQuery(), ok: ref('ConfigResource') }),
+  'PUT /config/resources/:kind/:name': d('Configuration', 'Create or replace a resource', { description: 'Skills are stored as `skills/<name>/SKILL.md`, workflows as the script `workflows/<name>.js` (an existing one keeps its own file, and is named by its `meta.name`), the other kinds as `<kind>/<name>.md`. `format` says which of the two the content is.', params: obj({ kind: KIND, name: str() }), querystring: scopeQuery(), body: obj({ content: str() }, ['content']), ok: ref('ConfigResource') }),
   'DELETE /config/resources/:kind/:name': d('Configuration', 'Delete a resource', { params: obj({ kind: KIND, name: str() }), querystring: scopeQuery(), ok: OK }),
 
   // ---- Config files

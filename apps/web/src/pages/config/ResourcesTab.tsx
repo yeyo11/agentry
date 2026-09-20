@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import type { ResourceKind } from '@agentry/shared';
+import { RESOURCE_FORMATS, type ResourceKind } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, keys, type Scope } from '../../api';
@@ -51,6 +51,13 @@ export const RESOURCE_INFO: Record<ResourceKind, KindInfo> = {
     hint: 'Modular instructions loaded next to CLAUDE.md. Optional `paths:` frontmatter limits a rule to matching files.',
     template: () => `---\npaths:\n  - "src/**/*.ts"\n---\n\n# Rule\n\n- …\n`,
   },
+  workflows: {
+    title: 'Workflows',
+    singular: 'workflow',
+    hint: 'Saved scripts the Workflow tool runs by name. The name in `meta` is the one Claude uses; run one from New chat.',
+    template: (name) =>
+      `export const meta = {\n  name: '${name}',\n  description: 'What this workflow does',\n  phases: [{title: 'Work'}],\n}\n\nconst result = await agent('Reply with only the word: done', {label: 'worker', phase: 'Work'})\n\nreturn { result }\n`,
+  },
 };
 
 interface Draft {
@@ -80,6 +87,7 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
     mutationFn: (d: Draft) => api.putResource(scope, kind, d.name, d.content),
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey });
+      if (kind === 'workflows') void queryClient.invalidateQueries({ queryKey: keys.savedWorkflowsAll });
       setDraft({ name: saved.name, content: saved.content, saved: saved.content, isNew: false });
       toast.success(`${info.singular} “${saved.name}” saved`, saved.path);
     },
@@ -90,6 +98,7 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
     mutationFn: (name: string) => api.deleteResource(scope, kind, name),
     onSuccess: (_result, name) => {
       void queryClient.invalidateQueries({ queryKey });
+      if (kind === 'workflows') void queryClient.invalidateQueries({ queryKey: keys.savedWorkflowsAll });
       setDraft(null);
       toast.success(`${info.singular} “${name}” deleted`);
     },
@@ -213,7 +222,7 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
               </div>
               <CodeEditor
                 key={`${draft.name}:${draft.isNew}`}
-                language="markdown"
+                language={resources.find((r) => r.name === draft.name)?.format ?? RESOURCE_FORMATS[kind]}
                 ariaLabel={`${info.singular} content`}
                 minHeight="380px"
                 value={draft.content}

@@ -13,7 +13,7 @@ import { PluginsTab } from './config/PluginsTab';
 import { ResourcesTab } from './config/ResourcesTab';
 import { SettingsTab } from './config/SettingsTab';
 
-const RESOURCE_TABS: ResourceKind[] = ['agents', 'skills', 'commands', 'output-styles', 'rules'];
+const RESOURCE_TABS: ResourceKind[] = ['agents', 'skills', 'commands', 'output-styles', 'rules', 'workflows'];
 
 const TABS = [
   { id: 'account', label: 'Account' },
@@ -25,6 +25,7 @@ const TABS = [
   { id: 'commands', label: 'Commands' },
   { id: 'output-styles', label: 'Output styles' },
   { id: 'rules', label: 'Rules' },
+  { id: 'workflows', label: 'Workflows' },
   { id: 'files', label: 'Files' },
   { id: 'memory', label: 'Memory' },
   { id: 'plugins', label: 'Plugins' },

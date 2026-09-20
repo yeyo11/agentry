@@ -37,7 +37,7 @@ import { EventBus } from './events.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
 import { McpConfig } from './config/mcp.ts';
-import { MarkdownResources } from './config/resources.ts';
+import { ConfigResources } from './config/resources.ts';
 import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
 import { Plugins } from './plugins.ts';
 import { UploadStore } from './uploads.ts';
@@ -99,7 +99,7 @@ export class Core {
   readonly plugins: Plugins;
   readonly memory: MemoryStore;
   readonly mcp: McpConfig;
-  readonly resources: MarkdownResources;
+  readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
   readonly uploads: UploadStore;
   readonly accounts: AccountManager;
@@ -159,7 +159,7 @@ export class Core {
     this.memory = new MemoryStore(config);
     void this.runtime.restore(this.sessions);
     this.mcp = new McpConfig(config);
-    this.resources = new MarkdownResources();
+    this.resources = new ConfigResources();
     this.accounts = new AccountManager(config, this.db);
     this.runtime.accounts = this.accounts;
     this.accounts.on('switched', (result: SwitchResult) => {

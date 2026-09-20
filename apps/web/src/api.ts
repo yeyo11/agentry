@@ -32,7 +32,7 @@ import type {
   NewChatRequest,
   EffectiveEnvironment,
   InstructionsDoc,
-  MarkdownResource,
+  ConfigResource,
   MemoryFile,
   MemoryProjectSummary,
   McpScope,
@@ -270,11 +270,11 @@ export const api = {
       method: 'DELETE',
     }),
   resources: (scope: Scope, kind: ResourceKind) =>
-    request<MarkdownResource[]>(`/config/resources/${kind}${scoped(scope)}`),
+    request<ConfigResource[]>(`/config/resources/${kind}${scoped(scope)}`),
   resource: (scope: Scope, kind: ResourceKind, name: string) =>
-    request<MarkdownResource>(`/config/resources/${kind}/${enc(name)}${scoped(scope)}`),
+    request<ConfigResource>(`/config/resources/${kind}/${enc(name)}${scoped(scope)}`),
   putResource: (scope: Scope, kind: ResourceKind, name: string, content: string) =>
-    request<MarkdownResource>(`/config/resources/${kind}/${enc(name)}${scoped(scope)}`, {
+    request<ConfigResource>(`/config/resources/${kind}/${enc(name)}${scoped(scope)}`, {
       method: 'PUT',
       body: { content },
     }),
@@ -335,6 +335,7 @@ export const keys = {
   taskOutput: ['task-output'] as const,
   output: (chatId: string, taskId: string) => ['task-output', chatId, taskId] as const,
   chatTasks: (chatId: string) => ['tasks', 'chat', chatId] as const,
+  savedWorkflowsAll: ['workflows', 'saved'] as const,
   savedWorkflows: (cwd: string) => ['workflows', 'saved', cwd] as const,
   orchestrations: ['orchestrations'] as const,
   planDrafts: ['orchestrations', 'plans'] as const,

@@ -219,27 +219,29 @@ export async function readWorkflowAgent(
   };
 }
 
+/** The scripts of one `.claude/workflows/` directory, named as the Workflow tool names them: by `meta.name`, else the file's. */
+export async function listWorkflowDirectory(dir: string, scope: WorkflowDefinition['scope']): Promise<WorkflowDefinition[]> {
+  const out: WorkflowDefinition[] = [];
+  const seen = new Set<string>();
+  for (const file of (await readdir(dir).catch(() => [] as string[])).sort()) {
+    if (!/\.(m?js)$/.test(file)) continue;
+    const path = join(dir, file);
+    const meta = scriptMeta(await readFile(path, 'utf8').catch(() => ''));
+    const name = meta.name ?? basename(file).replace(/\.m?js$/, '');
+    if (seen.has(name)) continue;
+    seen.add(name);
+    out.push({ name, description: meta.description, scope, path });
+  }
+  return out;
+}
+
 /**
  * Saved workflows the Workflow tool can run by name: the project's `.claude/workflows/` and the
  * user's. A project one shadows a user one of the same name, as the CLI resolves them.
  */
 export async function listWorkflowDefinitions(configDir: string, cwd?: string): Promise<WorkflowDefinition[]> {
-  const dirs: Array<[WorkflowDefinition['scope'], string]> = [
-    ...(cwd ? [['project', join(cwd, '.claude', 'workflows')] as [WorkflowDefinition['scope'], string]] : []),
-    ['user', join(configDir, 'workflows')],
-  ];
-  const seen = new Set<string>();
-  const out: WorkflowDefinition[] = [];
-  for (const [scope, dir] of dirs) {
-    for (const file of (await readdir(dir).catch(() => [] as string[])).sort()) {
-      if (!/\.(m?js)$/.test(file)) continue;
-      const path = join(dir, file);
-      const meta = scriptMeta(await readFile(path, 'utf8').catch(() => ''));
-      const name = meta.name ?? basename(file).replace(/\.m?js$/, '');
-      if (seen.has(name)) continue;
-      seen.add(name);
-      out.push({ name, description: meta.description, scope, path });
-    }
-  }
-  return out;
+  const project = cwd ? await listWorkflowDirectory(join(cwd, '.claude', 'workflows'), 'project') : [];
+  const taken = new Set(project.map((w) => w.name));
+  const user = (await listWorkflowDirectory(join(configDir, 'workflows'), 'user')).filter((w) => !taken.has(w.name));
+  return [...project, ...user];
 }
