@@ -110,6 +110,24 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
     querystring: obj({ from: str('First day, `YYYY-MM-DD` (inclusive)'), to: str('Last day, `YYYY-MM-DD` (inclusive)') }),
     ok: ref('UsageReport'),
   }),
+  'GET /usage/series': d('Chats', 'Cost and tokens over time, by day or by week', {
+    description:
+      'One point per bucket from `from` to `to`, empty buckets included so a chart has no gaps; without a range it spans the days that have something, up to today. A week starts on Monday and is named by that day. Days are cut by the range before they are bucketed, so the first week of a range that starts mid-week holds only the days asked for. `costUsd` is what the CLI reported and is `null` for a bucket where no chat reported one: nothing is estimated from token counts. At most 1000 points.',
+    querystring: obj({ bucket: str('Width of a point', { enum: ['day', 'week'] }), from: str('First day, `YYYY-MM-DD` (inclusive)'), to: str('Last day, `YYYY-MM-DD` (inclusive)') }),
+    ok: ref('UsageSeries'),
+  }),
+  'GET /usage/breakdown': d('Chats', 'What the chats spent, per project and per model', {
+    description:
+      'The same range cut two ways, most spent first. Tokens come from the transcripts and cover every chat. The cost per model is the CLI\'s own (`modelUsage[model].costUSD` of each result); an execution recorded before Agentry kept that split is put on the model it ran. `costUsd` is `null` for a slice no chat reported a cost for. Chats under no project are the slice `loose`; messages that named no model are the slice `unknown`.',
+    querystring: obj({ from: str('First day, `YYYY-MM-DD` (inclusive)'), to: str('Last day, `YYYY-MM-DD` (inclusive)') }),
+    ok: ref('UsageBreakdown'),
+  }),
+  'GET /chats/:id/export': d('Chats', 'Export a chat\'s transcript as Markdown or JSON', {
+    description:
+      'A download. `markdown` (default) is for a person: a header with the project, models, cost as the CLI reported it and tokens, then the turns, each tool call folded into a `<details>` block with its result (results over 4000 characters are cut) and subagent messages left out. `json` is a `ChatExport`: the chat and every transcript entry in order, subagents included, nothing cut.',
+    querystring: obj({ format: str('Output format', { enum: ['markdown', 'json'] }) }),
+    ok: ref('ChatExport'),
+  }),
   'POST /chats': d('Chats', 'Start a chat', { description: 'Spawns `claude -p` with stream-json I/O under a session id Agentry chooses. With `keepAlive` (default) the process stays up for follow-up turns.', body: ref('NewChatRequest'), ok: ref('ChatSummary'), created: true }),
   'GET /chats/:id': d('Chats', 'A chat and a window of its transcript', {
     description:

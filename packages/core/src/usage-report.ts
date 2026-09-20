@@ -10,6 +10,12 @@ export interface ChatSpend {
   days: DayTokens[];
   /** What the CLI reported, per day it was spent: only chats Agentry launched have any */
   costs: Array<{ day: string; usd: number }>;
+  /**
+   * The same money split by model, as the CLI reported it per model; a cost with no split (an
+   * execution recorded before the CLI's figure was kept) is put on the model the execution ran.
+   * Only the breakdown reads it, so the report's totals stay what `costs` says.
+   */
+  modelCosts?: Array<{ day: string; model: string | null; usd: number }>;
 }
 
 /** Days are `YYYY-MM-DD`, so comparing them as strings is comparing them as dates. */

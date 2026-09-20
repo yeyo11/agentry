@@ -505,6 +505,16 @@ export class ChatManager extends EventEmitter {
     for (const env of db.loadEnvironments()) this.environments.set(env.cwd, env);
   }
 
+  /** The CLI's per-model cost, cumulative over its process like the total, so it only ever grows. */
+  private learnModelCosts(execution: Execution, modelUsage: unknown): void {
+    if (!modelUsage || typeof modelUsage !== 'object') return;
+    for (const [model, entry] of Object.entries(modelUsage)) {
+      const usd = (entry as { costUSD?: unknown } | null)?.costUSD;
+      if (typeof usd !== 'number' || !Number.isFinite(usd)) continue;
+      execution.modelCosts = { ...execution.modelCosts, [model]: Math.max(execution.modelCosts?.[model] ?? 0, usd) };
+    }
+  }
+
   /** The context window the CLI reports for each model that answered: the only real source of one. */
   private learnWindows(modelUsage: unknown): void {
     if (!modelUsage || typeof modelUsage !== 'object') return;
@@ -1399,6 +1409,7 @@ export class ChatManager extends EventEmitter {
         execution.turns += typeof raw.num_turns === 'number' ? raw.num_turns : 1;
         // The CLI's total is over its process, so per execution it only ever grows
         if (typeof raw.total_cost_usd === 'number') execution.costUsd = Math.max(execution.costUsd ?? 0, raw.total_cost_usd);
+        this.learnModelCosts(execution, raw.modelUsage);
       }
       this.learnWindows(raw.modelUsage);
       const isError = raw.is_error === true;

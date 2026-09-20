@@ -71,6 +71,8 @@ export {
 } from './chat-model.ts';
 export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
+export { usageBreakdown, usageSeries } from './usage-series.ts';
+export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { Db } from './db.ts';
 export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
 export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
