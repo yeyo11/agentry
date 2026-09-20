@@ -29,13 +29,16 @@ function seedChat(configDir, projectId, sessionId, { cwd, title, at, inputTokens
   );
 }
 
-/** Clicks the checkbox inside the filter label with this text. */
-const toggle = (page, text) =>
-  page.waitFor(
-    `const l=[...document.querySelectorAll('label')].find(e=>e.textContent.trim().startsWith(${JSON.stringify(text)}));` +
-      `const i=l?.querySelector('[role=checkbox]');if(!i)return false;i.click();return true;`,
-    { label: `toggle ${text}` },
-  );
+/**
+ * Clicks the checkbox inside the filter label with this text and waits for it to render the new
+ * state. The URL changes before React re-renders, so a second click that only waited for the URL
+ * could land on the stale `checked` prop and toggle nothing.
+ */
+const toggle = async (page, text) => {
+  const find = `[...document.querySelectorAll('label')].find(e=>e.textContent.trim().startsWith(${JSON.stringify(text)}))?.querySelector('[role=checkbox]')`;
+  await page.waitFor(`const i=${find};if(!i)return false;window.__toggled=i.getAttribute('aria-checked');i.click();return true;`, { label: `toggle ${text}` });
+  await page.waitFor(`return ${find}?.getAttribute('aria-checked')!==window.__toggled`, { label: `${text} shows its new state` });
+};
 
 export default async ({ page, api, check }) => {
   const { configDir } = (await api.get('/system')).body;
