@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type {
   Attachment,
+  AccountConfig,
   AccountsOverview,
   AgentTranscript,
   AddAccountTokenRequest,
@@ -26,6 +27,8 @@ import type {
   ConfigFileNode,
   ConfigFileRoot,
   ConfigFileVariant,
+  ConnectorsOverview,
+  LaunchOrchestrationTemplateRequest,
   CreateProjectRequest,
   ForkChatRequest,
   ImportProjectRequest,
@@ -40,12 +43,21 @@ import type {
   McpServerHealth,
   Orchestration,
   OrchestrationSpec,
+  OrchestrationTemplate,
   Overview,
   PermissionDecision,
   PermissionRequest,
   PlanDraftSummary,
   PlanRequest,
+  RelaunchOrchestrationRequest,
   ResumeOrchestrationRequest,
+  RotationPolicy,
+  RotationPolicyRequest,
+  SaveOrchestrationTemplateRequest,
+  UpdateAccountConfigRequest,
+  UpdateOrchestrationTemplateRequest,
+  UsageHistoryPoint,
+  UsageWindowKind,
   PluginActionRequest,
   PluginsOverview,
   Project,
@@ -232,6 +244,19 @@ export const api = {
     request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/retry-clean`, { method: 'POST' }),
   skipOrchestrationTask: (id: string, taskId: string) =>
     request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/skip`, { method: 'POST' }),
+  rerunOrchestrationTask: (id: string, taskId: string) =>
+    request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/rerun`, { method: 'POST' }),
+  relaunchOrchestration: (id: string, req: RelaunchOrchestrationRequest) =>
+    request<Orchestration>(`/orchestrations/${enc(id)}/relaunch`, { method: 'POST', body: req }),
+  orchestrationTemplates: () => request<OrchestrationTemplate[]>('/orchestrations/templates'),
+  saveOrchestrationTemplate: (req: SaveOrchestrationTemplateRequest) =>
+    request<OrchestrationTemplate>('/orchestrations/templates', { method: 'POST', body: req }),
+  updateOrchestrationTemplate: (templateId: string, req: UpdateOrchestrationTemplateRequest) =>
+    request<OrchestrationTemplate>(`/orchestrations/templates/${enc(templateId)}`, { method: 'PATCH', body: req }),
+  deleteOrchestrationTemplate: (templateId: string) =>
+    request<{ ok: true }>(`/orchestrations/templates/${enc(templateId)}`, { method: 'DELETE' }),
+  launchOrchestrationTemplate: (templateId: string, req: LaunchOrchestrationTemplateRequest) =>
+    request<Orchestration>(`/orchestrations/templates/${enc(templateId)}/launch`, { method: 'POST', body: req }),
   hintOrchestrationTask: (id: string, taskId: string, req: TaskHintRequest) =>
     request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/hint`, { method: 'POST', body: req }),
   /** The executions of a chat, without the transcript: how each attempt of a task ended. */
@@ -300,6 +325,19 @@ export const api = {
     request<{ ok: true }>(`/accounts/${number}/alias`, { method: 'PUT', body: { alias } }),
   setAutoSwitch: (body: Partial<AutoSwitchSettings>) =>
     request<AutoSwitchSettings>('/accounts/autoswitch', { method: 'PUT', body }),
+  setAccountConfig: (number: number, body: UpdateAccountConfigRequest) =>
+    request<AccountConfig>(`/accounts/${number}/config`, { method: 'PUT', body }),
+  accountPolicies: () => request<RotationPolicy[]>('/accounts/policies'),
+  createAccountPolicy: (body: RotationPolicyRequest) => request<RotationPolicy>('/accounts/policies', { method: 'POST', body }),
+  updateAccountPolicy: (id: string, body: RotationPolicyRequest) =>
+    request<RotationPolicy>(`/accounts/policies/${enc(id)}`, { method: 'PUT', body }),
+  deleteAccountPolicy: (id: string) => request<{ ok: true }>(`/accounts/policies/${enc(id)}`, { method: 'DELETE' }),
+  accountUsageHistory: (query: { account?: number; window?: UsageWindowKind; since?: string; limit?: number } = {}) =>
+    request<UsageHistoryPoint[]>(
+      `/accounts/usage${qs({ account: num(query.account), window: query.window, since: query.since, limit: num(query.limit) })}`,
+    ),
+  /** `refresh` asks the CLI again instead of reading the 60 seconds it keeps the answer for */
+  connectors: (refresh = false) => request<ConnectorsOverview>(`/connectors${qs({ refresh: refresh ? 'true' : '' })}`, { timeoutMs: 60_000 }),
   plugins: () => request<PluginsOverview>('/plugins'),
   availablePlugins: (q: string) => request<AvailablePlugin[]>(`/plugins/available${qs({ q })}`),
   pluginAction: (action: 'install' | 'uninstall' | 'enable' | 'disable', req: PluginActionRequest) =>
@@ -356,6 +394,9 @@ export const keys = {
   memoryFiles: (projectId: string) => ['memory', projectId] as const,
   accounts: ['accounts'] as const,
   accountEvents: ['accounts', 'events'] as const,
+  accountUsage: (account: number | 'all', window: UsageWindowKind, since: string) => ['accounts', 'usage', account, window, since] as const,
+  orchestrationTemplates: ['orchestrations', 'templates'] as const,
+  connectors: ['connectors'] as const,
   plugins: ['plugins'] as const,
   availablePlugins: (q: string) => ['plugins', 'available', q] as const,
   pluginDetails: (plugin: string) => ['plugins', 'details', plugin] as const,
