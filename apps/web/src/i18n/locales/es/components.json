@@ -130,7 +130,8 @@
       "orchestration": "Orquestaciones que terminan o fallan",
       "conflict": "Conflictos de integración",
       "limit": "Límites de uso y rotaciones de cuenta",
-      "activity": "Tareas en segundo plano, subagents y workflows que terminan"
+      "activity": "Tareas en segundo plano, subagents y workflows que terminan",
+      "health": "Un run parece atascado o desviado"
     }
   },
   "environment": {

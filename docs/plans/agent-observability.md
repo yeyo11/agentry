@@ -116,6 +116,9 @@ What happens when one fires:
 - **Optional supervisor**: a cheap agent (Haiku) that only wakes when a signal fires, reads the
   worker's last steps and drafts the hint. Off by default; when on, it proposes and a person
   approves, unless set to send on its own.
+  Not built by the orchestration that finished the rest of this section (`roadmap-completion.md`):
+  every signal already carries a suggested hint text, written by Agentry, which covers the same
+  ground without a second model to pay for, watch and trust. Still open.
 
 ## 4. Prevent it in the first place
 

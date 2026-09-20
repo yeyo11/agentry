@@ -1,9 +1,20 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
-import type { OrchestrationSpec, PlanRequest, ResumeOrchestrationRequest, SaveOrchestrationWorkflowRequest, TaskHintRequest } from '@agentry/shared';
+import type {
+  LaunchOrchestrationTemplateRequest,
+  OrchestrationSpec,
+  PlanRequest,
+  RelaunchOrchestrationRequest,
+  ResumeOrchestrationRequest,
+  SaveOrchestrationTemplateRequest,
+  SaveOrchestrationWorkflowRequest,
+  TaskHintRequest,
+  UpdateOrchestrationTemplateRequest,
+  VerifyOrchestrationRequest,
+} from '@agentry/shared';
 
 export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
-  app.get('/orchestrations', () => core.orchestrator.list());
+  app.get('/orchestrations', () => core.orchestrator.list().map((o) => core.orchestrator.view(o)));
 
   app.post<{ Body: OrchestrationSpec }>('/orchestrations', async (req, reply) =>
     reply.status(201).send(core.orchestrator.create(req.body ?? ({} as OrchestrationSpec))),
@@ -28,10 +39,36 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
 
   app.get<{ Params: { runId: string } }>('/orchestrations/plans/:runId', (req) => core.orchestrator.draft(req.params.runId));
 
+  // Saved graphs. Static segments win over `:id`, so these sit beside `plans` without colliding.
+  app.get('/orchestrations/templates', () => core.orchestrator.templates.list());
+
+  app.post<{ Body: SaveOrchestrationTemplateRequest }>('/orchestrations/templates', (req, reply) =>
+    reply.status(201).send(core.orchestrator.saveTemplate(req.body ?? ({} as SaveOrchestrationTemplateRequest))),
+  );
+
+  app.get<{ Params: { templateId: string } }>('/orchestrations/templates/:templateId', (req) => {
+    const template = core.orchestrator.templates.get(req.params.templateId);
+    if (!template) throw new Error('template not found');
+    return template;
+  });
+
+  app.patch<{ Params: { templateId: string }; Body: UpdateOrchestrationTemplateRequest }>('/orchestrations/templates/:templateId', (req) =>
+    core.orchestrator.templates.update(req.params.templateId, req.body ?? {}),
+  );
+
+  app.delete<{ Params: { templateId: string } }>('/orchestrations/templates/:templateId', (req) => {
+    core.orchestrator.templates.remove(req.params.templateId);
+    return { ok: true };
+  });
+
+  app.post<{ Params: { templateId: string }; Body: LaunchOrchestrationTemplateRequest }>('/orchestrations/templates/:templateId/launch', (req, reply) =>
+    reply.status(201).send(core.orchestrator.launchTemplate(req.params.templateId, req.body ?? {})),
+  );
+
   app.get<{ Params: { id: string } }>('/orchestrations/:id', (req) => {
     const orch = core.orchestrator.get(req.params.id);
     if (!orch) throw new Error('orchestration not found');
-    return orch;
+    return core.orchestrator.view(orch);
   });
 
   app.post<{ Params: { id: string } }>('/orchestrations/:id/stop', (req) => core.orchestrator.stop(req.params.id));
@@ -52,12 +89,22 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
     core.orchestrator.retryTaskClean(req.params.id, req.params.taskId),
   );
 
+  // A finished graph's task, run again with what depends on it
+  app.post<{ Params: { id: string; taskId: string } }>('/orchestrations/:id/tasks/:taskId/rerun', (req) =>
+    core.orchestrator.rerunTask(req.params.id, req.params.taskId),
+  );
+
   app.post<{ Params: { id: string; taskId: string } }>('/orchestrations/:id/tasks/:taskId/skip', (req) =>
     core.orchestrator.skipTask(req.params.id, req.params.taskId),
   );
 
   app.post<{ Params: { id: string; taskId: string }; Body: TaskHintRequest }>('/orchestrations/:id/tasks/:taskId/hint', (req) =>
     core.orchestrator.hintTask(req.params.id, req.params.taskId, req.body?.text ?? ''),
+  );
+
+  // The same graph with corrections, as a new orchestration that records where it came from
+  app.post<{ Params: { id: string }; Body: RelaunchOrchestrationRequest }>('/orchestrations/:id/relaunch', (req, reply) =>
+    reply.status(201).send(core.orchestrator.relaunch(req.params.id, req.body ?? {})),
   );
 
   app.delete<{ Params: { id: string } }>('/orchestrations/:id', (req) => {
@@ -68,6 +115,11 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
   // Merges the task branches into the graph's integration branch again: after resolving by hand, or
   // for a graph that finished before orchestrations integrated their own work.
   app.post<{ Params: { id: string } }>('/orchestrations/:id/integrate', (req) => core.orchestrator.retryIntegration(req.params.id));
+
+  // Runs the graph's checks on the integration branch: by hand, or again after a change to it
+  app.post<{ Params: { id: string }; Body: VerifyOrchestrationRequest }>('/orchestrations/:id/verify', (req) =>
+    core.orchestrator.verify(req.params.id, req.body ?? {}),
+  );
 
   // The one step that leaves the machine, so it only ever happens on request
   app.post<{ Params: { id: string } }>('/orchestrations/:id/pull-request', (req) => core.orchestrator.pullRequest(req.params.id));

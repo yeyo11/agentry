@@ -2,11 +2,13 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
 import { DEFAULT_ORIGINS } from '@agentry/core';
 import type {
+  CancelCommandRequest,
   ChatMessageRequest,
   ChatOrigin,
   ChatSettingsUpdate,
   ChatState,
   ForkChatRequest,
+  HintRequest,
   NewChatRequest,
   PermissionDecision,
   PermissionMode,
@@ -95,6 +97,12 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
   app.post<{ Params: { id: string } }>('/chats/:id/stop', (req) => chats.stop(req.params.id));
 
   app.post<{ Params: { id: string } }>('/chats/:id/interrupt', (req) => chats.interrupt(req.params.id));
+
+  app.post<{ Params: { id: string }; Body: HintRequest }>('/chats/:id/hint', (req) => chats.hint(req.params.id, req.body ?? ({} as HintRequest)));
+
+  app.post<{ Params: { id: string; toolUseId: string }; Body: CancelCommandRequest }>('/chats/:id/commands/:toolUseId/cancel', (req) =>
+    chats.cancelCommand(req.params.id, req.params.toolUseId, req.body ?? {}),
+  );
 
   app.patch<{ Params: { id: string }; Body: ChatSettingsUpdate }>('/chats/:id', (req) => {
     const { permissionMode, model } = req.body ?? {};
