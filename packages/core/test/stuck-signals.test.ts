@@ -136,11 +136,12 @@ test('a command that ends well is recorded with how long it took, by kind', asyn
     assert.equal(run?.outcome, 'ok');
     assert.ok((run?.durationMs ?? 0) >= 900 && (run?.durationMs ?? 0) < 6000, `took ${String(run?.durationMs)} ms`);
     await until(() => core.runtime.get(chat.id)?.status === 'idle', 'the turn to end');
-    // The same event twice (a replay) is one run, not two
+    // The same event twice (a replay) is one run, not two. `commandRuns` does not return the tool
+    // use id, so the replay is told apart by a duration the real `sleep 1` above cannot produce
     core.db.recordCommand({ kind: 'sleep', chatId: chat.id, toolUseId: 'dup', startedAt: new Date().toISOString(), durationMs: 5, outcome: 'ok' });
-    core.db.recordCommand({ kind: 'sleep', chatId: chat.id, toolUseId: 'dup', startedAt: new Date().toISOString(), durationMs: 999, outcome: 'error' });
+    core.db.recordCommand({ kind: 'sleep', chatId: chat.id, toolUseId: 'dup', startedAt: new Date().toISOString(), durationMs: 7, outcome: 'error' });
     assert.equal(core.db.commandRuns('sleep').filter((r) => r.durationMs === 5).length, 1);
-    assert.equal(core.db.commandRuns('sleep').some((r) => r.durationMs === 999), false);
+    assert.equal(core.db.commandRuns('sleep').some((r) => r.durationMs === 7), false);
   } finally {
     core.shutdown();
   }
