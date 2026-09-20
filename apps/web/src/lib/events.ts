@@ -2,6 +2,7 @@ import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react
 import { useEffect } from 'react';
 import type { AgentryEvent, AgentryEventType, StreamHelloEvent, StreamResyncEvent } from '@agentry/shared';
 import { keys } from '../api';
+import { withToken } from './auth';
 import { dispatchEvent, setFeedState, useFeedState, type FeedState } from './feed';
 
 export {
@@ -204,7 +205,7 @@ function startEventFeed(client: QueryClient): () => void {
 
   const connect = () => {
     setFeedState('connecting');
-    const es = new EventSource(`/api/events${lastId ? `?since=${lastId}` : ''}`);
+    const es = new EventSource(withToken(`/api/events${lastId ? `?since=${lastId}` : ''}`));
     source = es;
     es.onopen = () => {
       attempts = 0;

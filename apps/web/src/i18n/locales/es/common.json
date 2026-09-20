@@ -35,5 +35,16 @@
     "unknown": "desconocido",
     "working": "trabajando",
     "blocked": "bloqueado"
+  },
+  "signIn": {
+    "title": "Este wrapper pide una credencial",
+    "tokenBody": "Agentry está funcionando con autenticación por token. Pega el token que te dieron al crearlo; solo se guarda en este navegador.",
+    "oidcBody": "Agentry está funcionando con autenticación OIDC. Pega un token de acceso de tu proveedor de identidad, o entra por el proxy que lo añade.",
+    "label": "Token",
+    "placeholder": "Pega el token",
+    "submit": "Entrar",
+    "rejected": "No se aceptó esa credencial. Comprueba que no ha caducado y que es la que conoce este wrapper.",
+    "failed": "No se pudo contactar con el wrapper para comprobar la credencial.",
+    "hint": "Un token se muestra una sola vez, al crearlo. ¿Lo has perdido? Rótalo desde la máquina donde corre Agentry."
   }
 }
