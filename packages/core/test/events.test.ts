@@ -4,12 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { AgentryEvent, Orchestration, RunSummary } from '@agentry/shared';
+import type { AgentryEvent, Orchestration } from '@agentry/shared';
 import { Core } from '../src/index.ts';
 import { Db } from '../src/db.ts';
 import { OrchestrationEventTracker, RunEventPublisher, SessionsWatcher } from '../src/event-sources.ts';
 import { EventBus, type AgentryEventInput } from '../src/events.ts';
-import { RunManager } from '../src/runner.ts';
+import { ChatManager, type ChatRuntime } from '../src/chats.ts';
 import { tempConfig } from './helpers.ts';
 
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude-control.mjs', import.meta.url));
@@ -100,12 +100,15 @@ test('the bus says when the first listener arrives and the last one leaves', () 
 
 // ---------- runs ----------
 
-function summary(over: Partial<RunSummary> = {}): RunSummary {
+function summary(over: Partial<ChatRuntime> = {}): ChatRuntime {
   return {
-    id: 'run-1',
+    // A chat is its session id: there is no second one to report
+    id: 'sess-1',
     name: 'demo',
-    sessionId: 'sess-1',
     cwd: '/tmp',
+    workingDir: '/tmp',
+    origin: 'agentry',
+    derivedFrom: null,
     model: null,
     permissionMode: 'manual',
     status: 'busy',
@@ -120,8 +123,10 @@ function summary(over: Partial<RunSummary> = {}): RunSummary {
     error: null,
     orchestrationId: null,
     orchestrationTaskId: null,
-    internal: false,
     account: null,
+    permissionPrompts: 'none',
+    pendingPrompts: 0,
+    executions: [],
     backgroundTasks: [],
     subagents: [],
     workflows: [],
@@ -160,7 +165,7 @@ test('a run ending is announced once, with why', () => {
     {
       type: 'run.ended',
       title: 'demo failed',
-      runId: 'run-1',
+      runId: 'sess-1',
       runName: 'demo',
       sessionId: 'sess-1',
       orchestrationId: null,
@@ -177,8 +182,8 @@ test('delegated work is announced when it starts and when it ends, however it go
   const seen: AgentryEventInput[] = [];
   const publisher = new RunEventPublisher((e) => seen.push(e), 5);
   publisher.baseline(summary());
-  const task = { id: 't1', runId: 'run-1', runName: 'demo', type: 'local_bash', description: 'tail -f log', status: 'running', toolUseId: null, startedAt: '', endedAt: null, summary: null };
-  const sub = { toolUseId: 'toolu_1', runId: 'run-1', runName: 'demo', subagentType: 'Explore', description: 'Look around', status: 'running' as const, startedAt: '', endedAt: null };
+  const task = { id: 't1', type: 'local_bash', description: 'tail -f log', status: 'running', toolUseId: null, startedAt: '', endedAt: null, summary: null };
+  const sub = { toolUseId: 'toolu_1', subagentType: 'Explore', description: 'Look around', status: 'running' as const, startedAt: '', endedAt: null };
 
   publisher.observe(summary({ backgroundTasks: [task], subagents: [sub] }));
   publisher.observe(summary({ backgroundTasks: [{ ...task, status: 'completed', summary: 'done' }], subagents: [{ ...sub, agentId: 'agent-1' }] }));
@@ -197,7 +202,7 @@ test('delegated work is announced when it starts and when it ends, however it go
 test('a run announces itself, its work and its end through the manager', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
-  const runs = new RunManager(config, db);
+  const runs = new ChatManager(config, db);
   const bus = new EventBus();
   runs.bus = bus;
   const seen: AgentryEvent[] = [];
@@ -250,7 +255,7 @@ test('a question, a plan and a tool call each say what the run is waiting for, a
   core.events.subscribe((e) => seen.push(e));
 
   for (const [tool, reason] of [['AskUserQuestion', 'question'], ['ExitPlanMode', 'plan'], ['Bash', 'permission']] as const) {
-    const run = core.runs.start({ prompt: `ASK ${tool}`, permissionPrompts: 'host' });
+    const run = core.runtime.start({ prompt: `ASK ${tool}`, permissionPrompts: 'host' });
     const asked = await until(() => core.permissions.list(run.id)[0], `the ${tool} prompt`);
     const waiting = seen.find((e) => e.type === 'run.waiting' && e.runId === run.id);
     assert.ok(waiting?.type === 'run.waiting');

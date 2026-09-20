@@ -12,11 +12,12 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
   // Runs a planner agent with structured output; can take a couple of minutes.
   app.post<{ Body: PlanRequest }>('/orchestrations/plan', (req) => core.orchestrator.plan(req.body ?? ({} as PlanRequest)));
 
-  // Starts the planner and returns its run at once, so the UI can stream the work instead of
+  // Starts the planner and returns its chat at once, so the UI can stream the work instead of
   // holding a request open for minutes. The draft is recorded when it finishes either way.
-  app.post<{ Body: PlanRequest }>('/orchestrations/plan/start', async (req, reply) =>
-    reply.status(201).send(core.orchestrator.startPlanAndRecord(req.body ?? ({} as PlanRequest))),
-  );
+  app.post<{ Body: PlanRequest }>('/orchestrations/plan/start', async (req, reply) => {
+    const planner = core.orchestrator.startPlanAndRecord(req.body ?? ({} as PlanRequest));
+    return reply.status(201).send(await core.chats.summaryOf(planner.id));
+  });
 
   // Plans that were generated and never launched — a plan is expensive, losing one should not
   // mean paying for it twice.

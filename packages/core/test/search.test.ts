@@ -4,8 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { searchPattern, TranscriptSearch } from '@agentry/shared';
-import { Db } from '../src/db.ts';
-import { RunManager } from '../src/runner.ts';
+import { Core } from '../src/index.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -88,11 +87,11 @@ test('searches a whole session in the index space of its pages, tool calls and r
   await assert.rejects(store.searchSession('find-1', '  '), /q is required/);
 });
 
-test('searches every event a run holds, in the index space of its pages', async () => {
+test('a chat that keeps no transcript is paged and searched over the messages its process streamed, in one index space', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
-  const db = new Db(config);
-  const runs = new RunManager(config, db);
+  const core = new Core(config);
   const file = join(config.dataDir, 'turn.jsonl');
+  mkdirSync(config.dataDir, { recursive: true });
   writeFileSync(
     file,
     [
@@ -101,19 +100,23 @@ test('searches every event a run holds, in the index space of its pages', async 
       assistant(3, [{ type: 'text', text: 'nothing here' }]),
     ].join('\n'),
   );
-  const run = runs.start({ prompt: `REPLAY ${file}` });
-  await until(() => runs.get(run.id)?.status === 'idle', 'the turn');
+  try {
+    // Housekeeping runs without persistence, so there is no transcript for the chat to be read from
+    const chat = core.runtime.start({ prompt: `REPLAY ${file}`, internal: true });
+    await until(() => core.runtime.get(chat.id)?.status === 'idle', 'the turn');
 
-  const result = runs.searchEvents(run.id, 'QUOKKA');
-  const page = runs.eventPage(run.id, { limit: 1000 });
-  assert.equal(result?.total, page.total);
-  assert.ok(result && result.hits.length >= 2, 'the text and the tool call');
-  for (const hit of result?.hits ?? []) {
-    const event = page.events[hit.index - page.from];
-    assert.equal(event?.kind, hit.kind);
-    assert.equal(event?.kind, 'message');
+    const result = await core.chats.search(chat.id, 'QUOKKA');
+    const page = await core.chats.detail(chat.id, { limit: 1000 });
+    assert.equal(result.total, page.total);
+    assert.equal(result.hits.length, 2, 'the text and the tool call');
+    for (const hit of result.hits) {
+      const entry = page.entries[hit.index - page.from];
+      assert.ok(entry, 'a hit points at an entry of the page it is read from');
+      assert.equal(entry.role, 'assistant');
+    }
+    await assert.rejects(core.chats.search('ghost', 'quokka'), /not found/);
+    await assert.rejects(core.chats.search(chat.id, '  '), /q is required/);
+  } finally {
+    core.shutdown();
   }
-  assert.equal(runs.searchEvents('ghost', 'quokka'), null);
-  runs.stopAll();
-  db.close();
 });

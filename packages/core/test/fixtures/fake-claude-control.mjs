@@ -15,15 +15,18 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
-// Core lists the CLI's own sessions with this; without an answer it waits for stdin to close
+// Core lists the CLI's own sessions with this; without an answer it waits for stdin to close.
+// $FAKE_CLAUDE_AGENTS names a file holding what `agents --json` should report, which is how a test
+// puts a session in a terminal that Agentry knows nothing about
 if (args[0] === 'agents') {
-  process.stdout.write('[]\n');
+  process.stdout.write(process.env.FAKE_CLAUDE_AGENTS ? readFileSync(process.env.FAKE_CLAUDE_AGENTS, 'utf8') : '[]\n');
   process.exit(0);
 }
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const out = (msg) => process.stdout.write(`${JSON.stringify(msg)}\n`);
-// Like the CLI, a fork resumes the history under a new id
-const sessionId = args.includes('--fork-session') ? randomUUID() : (flag('--session-id') ?? flag('--resume') ?? randomUUID());
+// Like the CLI (2.1.278), `--session-id` names the session, a fork's copy included; a fork given no
+// id makes up its own, and a plain resume keeps the one it resumes
+const sessionId = flag('--session-id') ?? (args.includes('--fork-session') ? randomUUID() : (flag('--resume') ?? randomUUID()));
 // Reports `manual` the way the real CLI does, as `default`
 const reported = (m) => (m === 'manual' ? 'default' : m);
 let mode = flag('--permission-mode') ?? 'manual';

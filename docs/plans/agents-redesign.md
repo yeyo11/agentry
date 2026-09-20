@@ -43,9 +43,11 @@ Chat
   health        from the observability plan
 ```
 
-The id never goes missing: Agentry already generates the session id for its own chats and imposes it
-on the CLI (`runner.ts:815`, `randomUUID()` + `--session-id`). The one gap is a fork, whose new id
-the CLI decides and reports in its first event (`runner.ts:415`, `:1080`).
+The id never goes missing: Agentry generates the session id for its own chats and imposes it on the
+CLI (`randomUUID()` + `--session-id`). That holds for a fork too: the CLI accepts `--session-id`
+beside `--resume` and `--fork-session` (2.1.278 was checked, and the copy is written under the id
+given), so a fork's id is chosen before the process starts and there is no window in which the chat
+has none.
 
 ## Executions, resume and fork
 
