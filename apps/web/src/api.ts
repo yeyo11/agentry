@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type {
   Attachment,
   AccountsOverview,
@@ -27,6 +27,8 @@ import type {
   ConfigFileRoot,
   ConfigFileVariant,
   CreateProjectRequest,
+  CreateScheduleRequest,
+  ExportFormat,
   ForkChatRequest,
   ImportProjectRequest,
   NewChatRequest,
@@ -52,6 +54,13 @@ import type {
   ProjectCandidate,
   ResourceKind,
   ResumeChatRequest,
+  Schedule,
+  SchedulePreview,
+  ScheduleRun,
+  UpdateScheduleRequest,
+  UsageBreakdown,
+  UsageBucket,
+  UsageSeries,
   SetCredentialsRequest,
   SwitchAccountRequest,
   SwitchResult,
@@ -195,6 +204,19 @@ export const api = {
   answerPermission: (id: string, requestId: string, decision: PermissionDecision) =>
     request<PermissionRequest>(`/chats/${enc(id)}/permissions/${enc(requestId)}`, { method: 'POST', body: decision }),
   usage: (range: { from?: string; to?: string } = {}) => request<UsageReport>(`/usage${qs(range)}`),
+  usageSeries: (range: UsageRange, bucket: UsageBucket) => request<UsageSeries>(`/usage/series${qs({ from: range.from, to: range.to, bucket })}`),
+  usageBreakdown: (range: UsageRange) => request<UsageBreakdown>(`/usage/breakdown${qs({ from: range.from, to: range.to })}`),
+  /** A link, not a fetch: the route answers with `Content-Disposition: attachment`, so the browser saves it. */
+  chatExportUrl: (id: string, format: ExportFormat) => `${BASE}/chats/${enc(id)}/export?format=${format}`,
+  schedules: () => request<Schedule[]>('/schedules'),
+  schedulePreview: (cron: string, timezone: string | undefined, count = 5) =>
+    request<SchedulePreview>(`/schedules/preview${qs({ cron, timezone, count: String(count) })}`),
+  createSchedule: (req: CreateScheduleRequest) => request<Schedule>('/schedules', { method: 'POST', body: req }),
+  updateSchedule: (id: string, req: UpdateScheduleRequest) => request<Schedule>(`/schedules/${enc(id)}`, { method: 'PATCH', body: req }),
+  deleteSchedule: (id: string) => request<{ ok: true }>(`/schedules/${enc(id)}`, { method: 'DELETE' }),
+  setScheduleEnabled: (id: string, enabled: boolean) => request<Schedule>(`/schedules/${enc(id)}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' }),
+  runScheduleNow: (id: string) => request<ScheduleRun>(`/schedules/${enc(id)}/run`, { method: 'POST' }),
+  scheduleRuns: (id: string, limit = 50) => request<ScheduleRun[]>(`/schedules/${enc(id)}/runs${qs({ limit: String(limit) })}`),
   environments: (cwd: string) => request<EffectiveEnvironment[]>(`/environments${qs({ cwd })}`),
   memoryProjects: () => request<MemoryProjectSummary[]>('/memory'),
   memoryFiles: (projectId: string) => request<MemoryFile[]>(`/memory/${enc(projectId)}`),
@@ -327,6 +349,11 @@ export const keys = {
   chatScope: (id: string) => ['chat', id] as const,
   chat: (id: string, sidechains: boolean) => ['chat', id, sidechains] as const,
   usage: (range: { from?: string; to?: string }) => ['usage', range.from ?? '', range.to ?? ''] as const,
+  usageSeries: (range: UsageRange, bucket: UsageBucket) => ['usage', 'series', range.from ?? '', range.to ?? '', bucket] as const,
+  usageBreakdown: (range: UsageRange) => ['usage', 'breakdown', range.from ?? '', range.to ?? ''] as const,
+  schedules: ['schedules'] as const,
+  schedulePreview: (cron: string, timezone: string | undefined) => ['schedules', 'preview', cron, timezone ?? ''] as const,
+  scheduleRuns: (id: string) => ['schedules', 'runs', id] as const,
   tasks: ['tasks'] as const,
   subagents: ['subagents'] as const,
   workflows: ['workflows'] as const,
@@ -394,6 +421,27 @@ export const useChats = (filter: ChatFilter = {}) => {
 /** What the chats spent over a range of days (`YYYY-MM-DD`, inclusive), or ever. */
 export const useUsage = (range: { from?: string; to?: string } = {}) =>
   useQuery({ queryKey: keys.usage(range), queryFn: () => api.usage(range), refetchInterval: useFallbackInterval() });
+
+export interface UsageRange {
+  from?: string;
+  to?: string;
+}
+
+// The previous range stays on screen while the next one loads, so picking a range does not blank the page
+export const useUsageSeries = (range: UsageRange, bucket: UsageBucket) =>
+  useQuery({ queryKey: keys.usageSeries(range, bucket), queryFn: () => api.usageSeries(range, bucket), refetchInterval: useFallbackInterval(), placeholderData: keepPreviousData });
+
+export const useUsageBreakdown = (range: UsageRange) =>
+  useQuery({ queryKey: keys.usageBreakdown(range), queryFn: () => api.usageBreakdown(range), refetchInterval: useFallbackInterval(), placeholderData: keepPreviousData });
+
+/**
+ * The schedule list. A fire launches a chat, which the event feed reports as `run.created`, but a
+ * schedule has no event of its own, so `nextRunAt` and `lastRunAt` would go stale without this.
+ */
+export const useSchedules = () => useQuery({ queryKey: keys.schedules, queryFn: api.schedules, refetchInterval: 30_000 });
+
+export const useScheduleRuns = (id: string, enabled: boolean) =>
+  useQuery({ queryKey: keys.scheduleRuns(id), queryFn: () => api.scheduleRuns(id), enabled, refetchInterval: enabled ? 30_000 : false });
 
 /** Usage refreshes on claude-swap's own cadence; polling faster would only re-read its cache. */
 export const useAccounts = () =>

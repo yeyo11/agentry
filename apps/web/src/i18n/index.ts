@@ -14,6 +14,8 @@
  *    - `config`: pages/config/* (settings, MCP, resources, files, plugins), Accounts and the
  *      wording of the previous Orchestration pages that the two above still reuse
  *    - `components`: components/**, the App.tsx shell and navigation, CommandPalette, notifications
+ *    - `schedules`: the Schedules page and its form (pages/Schedules, pages/schedules/*)
+ *    - `usage`: the Usage page (pages/Usage)
  *    - `work`: what is left of the pages the chats redesign removed (Dashboard, Agents, Sessions…)
  * 2. Add the key to `locales/en/<ns>.json` with today's English text, byte for byte (the e2e specs
  *    find elements by it), and the same key to `locales/es/<ns>.json`. Group keys by screen or

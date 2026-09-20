@@ -138,6 +138,12 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | Threshold | Umbral |
 | Language | Idioma |
 | Theme: system / light / dark | Tema del sistema / claro / oscuro |
+| Schedule (a recurring chat or orchestration) | Programación, las programaciones |
+| Cron expression | Expresión cron |
+| Slot (the moment a schedule was due) | Hueco |
+| Skipped (a slot missed while the wrapper was down) | Omitida |
+| Range (of days) | Rango |
+| Export (a transcript) | Exporta |
 | Workspace (the wrapper's) | Espacio de trabajo |
 | Working directory | Directorio de trabajo |
 | Default (value) | Predeterminado |

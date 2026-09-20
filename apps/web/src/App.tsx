@@ -1,5 +1,7 @@
 import {
   BookOpen,
+  CalendarClock,
+  ChartColumn,
   FolderGit2,
   House,
   Menu,
@@ -42,6 +44,8 @@ const Orchestration = lazy(() => import('./pages/Orchestration').then((m) => ({ 
 const OrchestrationDetail = lazy(() => import('./pages/OrchestrationDetail').then((m) => ({ default: m.OrchestrationDetail })));
 const Projects = lazy(() => import('./pages/Projects').then((m) => ({ default: m.Projects })));
 const RunWorkflowDialog = lazy(() => import('./components/RunWorkflowDialog').then((m) => ({ default: m.RunWorkflowDialog })));
+const Schedules = lazy(() => import('./pages/Schedules').then((m) => ({ default: m.Schedules })));
+const Usage = lazy(() => import('./pages/Usage').then((m) => ({ default: m.Usage })));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 
 interface NavItem {
@@ -149,6 +153,8 @@ function Shell() {
     { to: '/orchestration', label: t('nav.orchestrations'), icon: Workflow, count: { value: counts?.orchestrationsRunning, what: t('nav.badge.running') } },
     { to: '/projects', label: t('nav.projects'), icon: FolderGit2 },
     { to: '/accounts', label: t('nav.accounts'), icon: Users },
+    { to: '/schedules', label: t('nav.schedules'), icon: CalendarClock },
+    { to: '/usage', label: t('nav.usage'), icon: ChartColumn },
     { to: '/settings', label: t('nav.settings'), icon: Settings2 },
   ];
 
@@ -334,6 +340,8 @@ function Shell() {
               <Route path="/orchestration" element={<Orchestration />} />
               <Route path="/orchestration/:id" element={<OrchestrationDetail />} />
               <Route path="/accounts" element={<Accounts />} />
+              <Route path="/schedules" element={<Schedules />} />
+              <Route path="/usage" element={<Usage />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Empty icon={SearchX} title={t('shell.pageNotFound')} />} />
             </Routes>

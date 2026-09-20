@@ -2,6 +2,8 @@
   "nav": {
     "projects": "Proyectos",
     "accounts": "Cuentas",
+    "schedules": "Programaciones",
+    "usage": "Uso",
     "apiReference": "Referencia de la API",
     "home": "Inicio",
     "chats": "Chats",
