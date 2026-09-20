@@ -228,7 +228,7 @@ export function Activity({ project }: { project: Project | null }) {
         </>
       ),
       detail: task.command ?? task.description,
-      to: detailHref({ kind: 'task', sessionId: task.chat.id, taskId: task.id }, `/chats/${encodeURIComponent(task.chat.id)}`),
+      to: detailHref({ kind: 'task', chatId: task.chat.id, taskId: task.id }, `/chats/${encodeURIComponent(task.chat.id)}`),
       action: 'Open',
     });
   }

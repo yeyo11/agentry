@@ -149,16 +149,16 @@ function CreateForm({ onDone }: { onDone: () => void }) {
 
   const fallback = useFallbackInterval();
   const plannerRun = useQuery({
-    queryKey: ['run', plannerRunId],
-    queryFn: () => api.run(plannerRunId ?? ''),
+    queryKey: ['planner-executions', plannerRunId],
+    queryFn: () => api.chatExecutions(plannerRunId ?? ''),
     enabled: plannerRunId !== null,
-    refetchInterval: (query) => {
-      const status = query.state.data?.run.status;
-      return status && ['completed', 'failed', 'stopped'].includes(status) ? false : fallback;
-    },
+    refetchInterval: (query) => (query.state.data?.at(-1)?.outcome ? false : fallback),
   });
-  const plannerStatus = plannerRun.data?.run.status;
-  const planning = plannerRunId !== null && appliedRunId !== plannerRunId && plannerStatus !== 'failed' && plannerStatus !== 'stopped';
+  const plannerExecution = plannerRun.data?.at(-1);
+  // No outcome yet means the planner is still working
+  const plannerStatus = plannerExecution?.outcome ?? undefined;
+  const plannerEnded = plannerStatus === 'failed' || plannerStatus === 'stopped' || plannerStatus === 'interrupted';
+  const planning = plannerRunId !== null && appliedRunId !== plannerRunId && !plannerEnded;
 
   const draft = useMutation({
     mutationFn: (runId: string) => api.planDraft(runId),
@@ -298,15 +298,15 @@ function CreateForm({ onDone }: { onDone: () => void }) {
               <span className="muted small">
                 {planning ? (
                   <>
-                    {plannerRun.data?.run.turns ? `${plannerRun.data.run.turns} turns · ` : ''}
+                    {plannerExecution?.turns ? `${plannerExecution.turns} turns · ` : ''}
                     planner running —{' '}
                   </>
-                ) : plannerStatus === 'failed' || plannerStatus === 'stopped' ? (
+                ) : plannerEnded ? (
                   <>planner {plannerStatus} — </>
                 ) : (
                   <>plan ready — </>
                 )}
-                <Link to={`/runs/${plannerRunId}`}>watch the agent</Link>
+                <Link to={`/chats/${plannerRunId}`}>watch the agent</Link>
                 {draft.isPending && ' · loading the plan…'}
               </span>
             )}
@@ -315,7 +315,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         {/* The plan is stored server-side, so leaving this page never loses it. */}
         {plannerRunId && !planning && plannerStatus !== 'completed' && (
           <p className="muted small">
-            The planner {plannerStatus ?? 'ended'} without a plan. Its output is on the run page; you can re-plan or
+            The planner {plannerStatus ?? 'ended'} without a plan. Its conversation is on the chat page; you can re-plan or
             write the tasks by hand.
           </p>
         )}

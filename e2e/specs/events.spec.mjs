@@ -16,8 +16,8 @@ export default async ({ page, api, check }) => {
   check(!/paused/i.test(footer), `the sidebar footer says live updates are paused: ${footer}`);
 
   // The sandbox has no login, so the chat goes nowhere; its creation is what has to reach the open
-  // page by itself. Housekeeping chats stay out of the list, so this one is an ordinary chat.
-  const created = await api.post('/chats', { prompt: 'hello', name: 'e2e-live-feed' });
+  // page by itself. A chat is titled by its first prompt.
+  const created = await api.post('/chats', { prompt: 'e2e-live-feed hello' });
   check(created.status === 201, `the chat was created (${created.status})`);
   const appeared = await page.waitFor(`return document.querySelector('main').innerText.includes('e2e-live-feed')`, {
     label: 'the new chat to appear without a reload',
