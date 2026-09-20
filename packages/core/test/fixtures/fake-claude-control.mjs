@@ -12,10 +12,12 @@
 //                  first run), and writes its record to $FAKE_WORKFLOW_DIR/<session>.json
 //   (anything)     ends the turn at once
 import { randomUUID } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
+// $FAKE_CLAUDE_SPAWNS names a file each start appends `<pid> <argv>` to, so a test can read the flags a chat was given
+if (process.env.FAKE_CLAUDE_SPAWNS) appendFileSync(process.env.FAKE_CLAUDE_SPAWNS, `${process.pid} ${args.join(' ')}\n`);
 // Core lists the CLI's own sessions with this; without an answer it waits for stdin to close.
 // $FAKE_CLAUDE_AGENTS names a file holding what `agents --json` should report, which is how a test
 // puts a session in a terminal that Agentry knows nothing about

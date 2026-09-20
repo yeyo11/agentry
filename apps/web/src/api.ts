@@ -44,6 +44,7 @@ import type {
   McpScope,
   McpServerEntry,
   McpServerHealth,
+  ToolPreset,
   Orchestration,
   OrchestrationSpec,
   Overview,
@@ -280,6 +281,10 @@ export const api = {
     request<{ ok: true }>(`/config/mcp/${enc(name)}${qs({ project: scope.projectId, scope: mcpScope })}`, {
       method: 'DELETE',
     }),
+  toolPresets: () => request<ToolPreset[]>('/config/tool-presets'),
+  putToolPreset: (id: string, preset: Pick<ToolPreset, 'name' | 'description' | 'allowedTools' | 'disallowedTools'>) =>
+    request<ToolPreset>(`/config/tool-presets/${enc(id)}`, { method: 'PUT', body: preset }),
+  deleteToolPreset: (id: string) => request<{ ok: true }>(`/config/tool-presets/${enc(id)}`, { method: 'DELETE' }),
   resources: (scope: Scope, kind: ResourceKind) =>
     request<ConfigResource[]>(`/config/resources/${kind}${scoped(scope)}`),
   resource: (scope: Scope, kind: ResourceKind, name: string) =>
@@ -364,6 +369,7 @@ export const keys = {
   instructions: (scope: Scope, variant: ConfigFileVariant) =>
     ['config', 'instructions', scope.projectId ?? 'user', variant] as const,
   mcp: (scope: Scope) => ['config', 'mcp', scope.projectId ?? 'user'] as const,
+  toolPresets: ['config', 'tool-presets'] as const,
   resources: (scope: Scope, kind: ResourceKind) => ['config', 'resources', scope.projectId ?? 'user', kind] as const,
   fileRoots: ['config', 'files', 'roots'] as const,
   fileTree: (root: string) => ['config', 'files', 'tree', root] as const,

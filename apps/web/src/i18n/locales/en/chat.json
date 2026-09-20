@@ -44,6 +44,34 @@
     "asBefore": "As before ({{mode}})",
     "default": "Default"
   },
+  "tools": {
+    "preset": "Tool preset",
+    "presetHint": "Which tools it may use without asking and which it may not use at all. Edit the presets in Settings.",
+    "noPreset": "No preset",
+    "asBeforePreset": "As before ({{name}})",
+    "asBeforeNone": "As before (no preset)",
+    "servers": "MCP servers",
+    "serversHint": "Choosing servers starts the chat with only those: connectors from claude.ai and plugin servers are left out.",
+    "serversDefault": "As the CLI loads them",
+    "serversAsBeforeChosen_one": "As before ({{count}} chosen)",
+    "serversAsBeforeChosen_other": "As before ({{count}} chosen)",
+    "serversAsBeforeDefault": "As before (as the CLI loads them)",
+    "serversChoose": "Only the ones I choose",
+    "onlyThese": "Start with only these servers",
+    "noServers": "No MCP servers are configured.",
+    "noneChosen": "None chosen: the chat starts without any MCP server.",
+    "card": {
+      "title": "Tools and servers",
+      "noPreset": "no preset",
+      "allowed": "Allowed without asking",
+      "disallowed": "Blocked",
+      "none": "none",
+      "noServers": "none: the chat started without any MCP server",
+      "serversDefault": "as the CLI loads them",
+      "strictNote": "Only these servers load: nothing else is picked up from the project, the user or claude.ai.",
+      "frozenNote": "Fixed when the chat started or was last resumed. Editing a preset afterwards does not change it."
+    }
+  },
   "badges": {
     "state": {
       "working": "Working",

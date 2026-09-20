@@ -26,7 +26,8 @@
       "output-styles": "Output styles",
       "rules": "Rules",
       "files": "Files",
-      "workflows": "Workflows"
+      "workflows": "Workflows",
+      "tools": "Tool presets"
     }
   },
   "scope": {
@@ -273,6 +274,36 @@
     "editNamed": "Edit {{name}}",
     "editInUserNamed": "Edit {{name}} in user scope",
     "removeNamed": "Remove {{name}}"
+  },
+  "toolPresets": {
+    "intro": "Named sets of allowed and blocked tools. Pick one when you start or resume a chat; a chat keeps the set it was given even if you edit the preset later.",
+    "add": "New preset",
+    "new": "New preset",
+    "edit": "Edit {{name}}",
+    "name": "Name",
+    "idHint": "Identifier: {{id}}",
+    "clash": "A preset with the identifier {{id}} already exists",
+    "description": "Description",
+    "descriptionHint": "One line saying what it is for",
+    "allowed": "Allowed without asking",
+    "allowedHint": "Tool rules such as Read, Bash or Bash(git status:*)",
+    "disallowed": "Blocked",
+    "disallowedHint": "Tools the chat cannot use at all, in the same notation",
+    "addRule": "Add rule",
+    "noRules": "No rules",
+    "save": "Save preset",
+    "saved": "Saved {{name}}",
+    "saveFailed": "Could not save the preset",
+    "removed": "Removed {{name}}",
+    "removeFailed": "Could not remove the preset",
+    "shipped": "Shipped",
+    "editNamed": "Edit {{name}}",
+    "removeNamed": "Remove {{name}}",
+    "removeTitle": "Remove {{name}}?",
+    "removeBody": "Chats already running keep the tools they were given.",
+    "removeShippedBody": "This preset ships with Agentry. Once removed it stays removed; you can create it again by hand.",
+    "empty": "No presets",
+    "emptyHint": "Without a preset a chat uses the CLI's own defaults."
   },
   "resources": {
     "kinds": {

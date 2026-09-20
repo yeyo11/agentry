@@ -44,6 +44,34 @@
     "asBefore": "Como antes ({{mode}})",
     "default": "Predeterminado"
   },
+  "tools": {
+    "preset": "Preset de herramientas",
+    "presetHint": "Qué herramientas puede usar sin preguntar y cuáles no puede usar en absoluto. Edita los presets en Ajustes.",
+    "noPreset": "Sin preset",
+    "asBeforePreset": "Como antes ({{name}})",
+    "asBeforeNone": "Como antes (sin preset)",
+    "servers": "Servidores MCP",
+    "serversHint": "Si eliges servidores, el chat arranca solo con esos: los conectores de claude.ai y los servidores de plugins quedan fuera.",
+    "serversDefault": "Como los carga la CLI",
+    "serversAsBeforeChosen_one": "Como antes ({{count}} elegido)",
+    "serversAsBeforeChosen_other": "Como antes ({{count}} elegidos)",
+    "serversAsBeforeDefault": "Como antes (como los carga la CLI)",
+    "serversChoose": "Solo los que elija",
+    "onlyThese": "Arrancar solo con estos servidores",
+    "noServers": "No hay servidores MCP configurados.",
+    "noneChosen": "Ninguno elegido: el chat arranca sin ningún servidor MCP.",
+    "card": {
+      "title": "Herramientas y servidores",
+      "noPreset": "sin preset",
+      "allowed": "Permitidas sin preguntar",
+      "disallowed": "Bloqueadas",
+      "none": "ninguna",
+      "noServers": "ninguno: el chat arrancó sin ningún servidor MCP",
+      "serversDefault": "como los carga la CLI",
+      "strictNote": "Solo se cargan estos servidores: no se recoge nada más del proyecto, del usuario ni de claude.ai.",
+      "frozenNote": "Queda fijado cuando el chat arrancó o se reanudó por última vez. Editar un preset después no lo cambia."
+    }
+  },
   "badges": {
     "state": {
       "working": "Trabajando",

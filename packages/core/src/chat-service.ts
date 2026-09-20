@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import {
   entrySearchText,
   searchPattern,
@@ -30,6 +31,7 @@ import {
 import { pageSize } from './sessions.ts';
 import { toChatEnvironment, toChildren, type BranchFacts } from './chat-branches.ts';
 import { chatControl, chatHealth, chatState, lastEndedOf, sessionHolder, type SessionHolder } from './chat-model.ts';
+import type { ChatTools } from './chat-tools.ts';
 import type { AdoptedChat, ChatManager, ChatRuntime } from './chats.ts';
 import type { CliSession, TranscriptSummary } from './cli-facts.ts';
 import { backgroundLogs, isLiveCliSession, listActiveCliSessions, stopBackgroundSession } from './cli.ts';
@@ -75,6 +77,8 @@ export interface Placement {
 export interface ChatServiceDeps {
   config: CoreConfig;
   runtime: ChatManager;
+  /** Turns the tool preset and MCP servers a request picks into what the CLI is given */
+  tools: ChatTools;
   sessions: SessionStore;
   orchestrator: Orchestrator;
   place: (dir: string, recorded: TranscriptSummary['worktree']) => Placement;
@@ -260,7 +264,7 @@ export class ChatService {
       context: summary.context,
       failedBranches: [...children.subagents, ...children.backgroundTasks, ...children.workflows].filter((b) => b.status === 'failed').length,
     });
-    return { ...summary, children, environment: env ? toChatEnvironment(env) : null, health };
+    return { ...summary, children, environment: env ? toChatEnvironment(env) : null, health, tools: runtime?.tools ?? null };
   }
 
   /** The list's view of one chat, read fresh when a decision hangs on it. */
@@ -305,7 +309,8 @@ export class ChatService {
 
   /** Starts a new chat. */
   async create(request: NewChatRequest): Promise<ChatSummary> {
-    const started = this.deps.runtime.start(request);
+    const chosen = await this.deps.tools.resolve(request, resolve(request.cwd ?? this.deps.config.workspaceDir), null);
+    const started = this.deps.runtime.start({ ...request, ...chosen });
     return this.require(started.id);
   }
 
@@ -321,7 +326,9 @@ export class ChatService {
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to resume.', null);
     if (chat.control.mode === 'readOnly') throw new ChatConflictError(chat.control.reason, chat.control.action);
     if (chat.control.mode === 'interactive') throw new ChatConflictError('This chat already has a live execution: send it a message instead.', null);
-    this.deps.runtime.resume(id, request, await this.adoptionOf(chat));
+    const adoption = await this.adoptionOf(chat);
+    const chosen = await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null);
+    this.deps.runtime.resume(id, { ...request, ...chosen }, adoption);
     return this.require(id);
   }
 
@@ -330,7 +337,9 @@ export class ChatService {
     const chat = await this.summaryOf(id);
     if (!chat) throw new Error('chat not found');
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to fork.', null);
-    const forked = this.deps.runtime.fork(id, request, await this.adoptionOf(chat));
+    const adoption = await this.adoptionOf(chat);
+    const chosen = await this.deps.tools.resolve(request, adoption.cwd, null);
+    const forked = this.deps.runtime.fork(id, { ...request, ...chosen }, adoption);
     return this.require(forked.id);
   }
 

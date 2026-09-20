@@ -26,7 +26,8 @@
       "output-styles": "Output styles",
       "rules": "Reglas",
       "files": "Archivos",
-      "workflows": "Workflows"
+      "workflows": "Workflows",
+      "tools": "Presets de herramientas"
     }
   },
   "scope": {
@@ -273,6 +274,36 @@
     "editNamed": "Edita {{name}}",
     "editInUserNamed": "Edita {{name}} en el ámbito de usuario",
     "removeNamed": "Quita {{name}}"
+  },
+  "toolPresets": {
+    "intro": "Conjuntos con nombre de herramientas permitidas y bloqueadas. Elige uno al iniciar o reanudar un chat; el chat conserva el conjunto que recibió aunque edites el preset después.",
+    "add": "Nuevo preset",
+    "new": "Nuevo preset",
+    "edit": "Editar {{name}}",
+    "name": "Nombre",
+    "idHint": "Identificador: {{id}}",
+    "clash": "Ya existe un preset con el identificador {{id}}",
+    "description": "Descripción",
+    "descriptionHint": "Una línea que diga para qué sirve",
+    "allowed": "Permitidas sin preguntar",
+    "allowedHint": "Reglas de herramienta como Read, Bash o Bash(git status:*)",
+    "disallowed": "Bloqueadas",
+    "disallowedHint": "Herramientas que el chat no puede usar en absoluto, con la misma notación",
+    "addRule": "Añadir regla",
+    "noRules": "Sin reglas",
+    "save": "Guardar preset",
+    "saved": "{{name}} guardado",
+    "saveFailed": "No se pudo guardar el preset",
+    "removed": "{{name}} eliminado",
+    "removeFailed": "No se pudo eliminar el preset",
+    "shipped": "Incluido",
+    "editNamed": "Editar {{name}}",
+    "removeNamed": "Eliminar {{name}}",
+    "removeTitle": "¿Eliminar {{name}}?",
+    "removeBody": "Los chats que ya están en marcha conservan las herramientas que recibieron.",
+    "removeShippedBody": "Este preset viene con Agentry. Una vez eliminado, se queda eliminado; puedes volver a crearlo a mano.",
+    "empty": "Sin presets",
+    "emptyHint": "Sin preset, un chat usa los valores por defecto de la CLI."
   },
   "resources": {
     "kinds": {

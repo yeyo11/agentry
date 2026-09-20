@@ -4,6 +4,7 @@ import { GitFork, Play, SendHorizontal } from 'lucide-react';
 import { lazy, Suspense, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import type { ToolChoices } from '../../components/ChatToolsPicker';
 import { AttachButton, AttachmentTray, useAttachments } from '../../components/Attachments';
 import { ICON_SM } from '../../components/icons';
 import { ErrorBox } from '../../components/ui';
@@ -15,7 +16,7 @@ const StartOptions = lazy(() => import('./Controls').then((m) => ({ default: m.S
 /** What a message does: reaches a live process, resumes the chat in place, or continues a copy of it. */
 export type ComposerKind = 'send' | 'resume' | 'fork';
 
-export interface StartChoices {
+export interface StartChoices extends ToolChoices {
   permissionMode?: PermissionMode;
   model?: string;
 }

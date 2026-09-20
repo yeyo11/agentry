@@ -12,6 +12,7 @@ import {
   type ChatOrigin,
   type ChatSettingsUpdate,
   type ChatStartOptions,
+  type ChatToolConfig,
   type EffectiveEnvironment,
   type Execution,
   type NewChatRequest,
@@ -90,6 +91,15 @@ export interface NewChat extends NewChatRequest {
   keepAlive?: boolean;
   /** Housekeeping: no transcript is written (`--no-session-persistence`), so it cannot be resumed */
   internal?: boolean;
+  toolConfig?: ChatToolConfig | null;
+}
+
+/**
+ * What `ChatTools` made of the tool preset and MCP servers a request picked, next to the request:
+ * the lists and the config file the CLI is given, and the description of them a chat keeps.
+ */
+export interface ResolvedTools {
+  toolConfig?: ChatToolConfig | null;
 }
 
 export interface RunMeta {
@@ -137,6 +147,8 @@ export interface ChatRuntime {
   permissionPrompts: 'host' | 'none';
   /** Prompts waiting for someone right now: the chat is stuck until they are answered */
   pendingPrompts: number;
+  /** The tool preset and MCP servers Agentry started it with; null when it picked none */
+  tools?: ChatToolConfig | null;
   executions: Execution[];
   backgroundTasks: BackgroundTask[];
   subagents: SubagentInfo[];
@@ -287,6 +299,9 @@ class LiveChat {
         internal: record.origin === 'internal',
         ...(record.account ? { account: record.account } : {}),
         permissionPrompts: record.permissionPrompts,
+        // A resumed chat keeps the tools and servers it was given, not the ones the CLI would pick
+        ...(record.tools ? { toolConfig: record.tools, allowedTools: record.tools.allowedTools, disallowedTools: record.tools.disallowedTools } : {}),
+        ...(record.tools?.mcp?.config ? { mcp: record.tools.mcp } : {}),
       },
       { orchestrationId: record.orchestrationId ?? undefined, orchestrationTaskId: record.orchestrationTaskId ?? undefined },
       record.origin,
@@ -308,6 +323,17 @@ class LiveChat {
     chat.error = last?.error ?? null;
     chat.workingDir = record.workingDir;
     return chat;
+  }
+
+  /**
+   * What the chat runs with: what was resolved from a preset and servers, or, for a chat that only
+   * has tool lists (an orchestration worker), those lists, since they are what explains a refusal.
+   */
+  get tools(): ChatToolConfig | null {
+    const { toolConfig, allowedTools, disallowedTools } = this.opts;
+    if (toolConfig) return toolConfig;
+    if (!allowedTools?.length && !disallowedTools?.length) return null;
+    return { preset: null, allowedTools: allowedTools ?? [], disallowedTools: disallowedTools ?? [], mcp: null };
   }
 
   /** The live execution, when a process is working on the chat */
@@ -396,6 +422,7 @@ class LiveChat {
       account: this.opts.account ?? null,
       permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
       pendingPrompts: this.pendingPrompts,
+      tools: this.tools,
       executions: this.executions,
       backgroundTasks: [...this.tasks.values()],
       subagents: [...this.subagents.values()],
@@ -420,6 +447,7 @@ class LiveChat {
       permissionMode: this.permissionMode,
       account: this.opts.account ?? null,
       permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
+      tools: this.tools,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };
@@ -692,7 +720,7 @@ export class ChatManager extends EventEmitter {
    * something holds the session is checked again here, on the process table, whatever the caller
    * saw a moment ago.
    */
-  resume(id: string, request: ResumeChatRequest, adopt?: AdoptedChat): ChatRuntime {
+  resume(id: string, request: ResumeChatRequest & ResolvedTools, adopt?: AdoptedChat): ChatRuntime {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new Error('prompt is required');
     let chat = this.chats.get(id);
     if (chat?.alive) throw new Error('the chat already has a live execution; send it a message instead');
@@ -722,7 +750,7 @@ export class ChatManager extends EventEmitter {
    * The copy's id is chosen here and imposed on the CLI (`--session-id` beside `--fork-session`), so
    * the chat exists under its final id from the first instant and no other row can stand for it.
    */
-  fork(sourceId: string, request: ResumeChatRequest, source: AdoptedChat): ChatRuntime {
+  fork(sourceId: string, request: ResumeChatRequest & ResolvedTools, source: AdoptedChat): ChatRuntime {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new Error('prompt is required');
     this.admit(request);
     const attachments = this.resolveAttachments(request.attachments);
@@ -753,12 +781,16 @@ export class ChatManager extends EventEmitter {
   }
 
   /** What a request chooses for the execution it starts, on top of what the chat already had. */
-  private applyStartOptions(chat: LiveChat, options: ChatStartOptions): void {
+  private applyStartOptions(chat: LiveChat, options: ChatStartOptions & ResolvedTools): void {
     const { opts } = chat;
     chat.setSettings({ ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}), ...(options.model ? { model: options.model } : {}) });
-    for (const key of ['model', 'effort', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'maxBudgetUsd', 'permissionPrompts', 'account'] as const) {
+    for (const key of ['model', 'effort', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts', 'account'] as const) {
       if (options[key] !== undefined) Object.assign(opts, { [key]: options[key] });
     }
+    // `null` takes the chat back to the servers the CLI loads on its own
+    if (options.mcp === null) delete opts.mcp;
+    else if (options.mcp) opts.mcp = options.mcp;
+    if (options.toolConfig !== undefined) opts.toolConfig = options.toolConfig;
   }
 
   private begin(chat: LiveChat, prompt: string, attachments: Attachment[]): ChatRuntime {
@@ -1083,6 +1115,10 @@ export class ChatManager extends EventEmitter {
     if (opts.effort) args.push('--effort', opts.effort);
     if (opts.appendSystemPrompt) args.push('--append-system-prompt', opts.appendSystemPrompt);
     if (opts.allowedTools?.length) args.push(`--allowedTools=${opts.allowedTools.join(',')}`);
+    if (opts.disallowedTools?.length) args.push(`--disallowedTools=${opts.disallowedTools.join(',')}`);
+    // Strict, because the point of choosing servers is that no other one loads. The `=` form keeps
+    // the variadic flag from taking whatever follows it as another file.
+    if (opts.mcp?.config) args.push(`--mcp-config=${opts.mcp.config}`, '--strict-mcp-config');
     // Attached files live outside every project; this is what lets Claude open them by path
     if (this.uploads) args.push('--add-dir', this.uploads.dir);
     // The CLI creates, names and locks the worktree itself, and works in it for the session

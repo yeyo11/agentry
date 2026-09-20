@@ -17,6 +17,7 @@ import { pluginRoutes } from './routes/plugins.ts';
 import { projectRoutes } from './routes/projects.ts';
 import { securityRoutes } from './routes/security.ts';
 import { systemRoutes } from './routes/system.ts';
+import { toolPresetRoutes } from './routes/tool-presets.ts';
 import { uploadRoutes } from './routes/uploads.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -58,6 +59,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(eventRoutes, { core });
       await api.register(orchestrationRoutes, { core });
       await api.register(configRoutes, { core });
+      await api.register(toolPresetRoutes, { core });
       await api.register(pluginRoutes, { core });
       await api.register(memoryRoutes, { core });
       await api.register(uploadRoutes, { core });

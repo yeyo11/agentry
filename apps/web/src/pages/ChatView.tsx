@@ -19,6 +19,7 @@ import { useChatStream, useChatTranscript } from '../lib/chats';
 import { formatDateTime } from '../lib/format';
 import { Composer, type ComposerKind } from './chat/Composer';
 import { BranchesCard, EnvironmentCard, ExecutionsCard, FactsCard, HealthCard, UsageCard } from './chat/Side';
+import { ToolsCard } from './chat/ToolsCard';
 
 /** One chat: its conversation, what it has cost, what it has run and delegated, and what can be done with it now. */
 export function ChatView() {
@@ -258,6 +259,7 @@ export function ChatView() {
         <ExecutionsCard chat={chat} />
         <BranchesCard chat={chat} />
         <HealthCard chat={chat} />
+        <ToolsCard chat={chat} />
         <EnvironmentCard chat={chat} />
       </aside>
     </div>
