@@ -2,12 +2,12 @@ import type { CliTextResult, InstalledPlugin, PluginScope } from '@agentry/share
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { api, keys } from '../api';
-import { Collapsible, Select } from '../components/controls';
-import { Dialog, useConfirm } from '../components/Dialog';
-import { useToast } from '../components/Toast';
-import { Card, Empty, ErrorBox, PageHeader, Skeleton, Tabs, Tag } from '../components/ui';
-import { timeAgo } from '../lib/format';
+import { api, keys } from '../../api';
+import { Collapsible, Select } from '../../components/controls';
+import { Dialog, useConfirm } from '../../components/Dialog';
+import { useToast } from '../../components/Toast';
+import { Card, Empty, ErrorBox, Skeleton, TabPanel, Tabs, Tag, useTabGroup } from '../../components/ui';
+import { timeAgo } from '../../lib/format';
 
 const SCOPES: PluginScope[] = ['user', 'project', 'local'];
 
@@ -54,7 +54,9 @@ function OutputPanel({ output }: { output: { title: string; result: CliTextResul
         </span>
       }
     >
-      <pre className="code">{output.result.output}</pre>
+      <pre className="code" role="group" aria-label="CLI output" tabIndex={0}>
+        {output.result.output}
+      </pre>
     </Collapsible>
   );
 }
@@ -81,7 +83,13 @@ function DetailsDrawer({ plugin, onClose }: { plugin: InstalledPlugin; onClose: 
       </dl>
       <h3 className="dialog-section">Component inventory</h3>
       <ErrorBox error={error} />
-      {isLoading ? <Skeleton rows={8} /> : <pre className="code">{data?.output.trim() || 'No details reported by the CLI.'}</pre>}
+      {isLoading ? (
+        <Skeleton rows={8} />
+      ) : (
+        <pre className="code" role="group" aria-label="Component inventory" tabIndex={0}>
+          {data?.output.trim() || 'No details reported by the CLI.'}
+        </pre>
+      )}
     </Dialog>
   );
 }
@@ -105,13 +113,15 @@ function InstalledTab({ actions }: { actions: ReturnType<typeof usePluginAction>
           <table className="table">
             <thead>
               <tr>
-                <th>Plugin</th>
-                <th>Marketplace</th>
-                <th>Version</th>
-                <th>Scope</th>
-                <th>Updated</th>
-                <th>Enabled</th>
-                <th />
+                <th scope="col">Plugin</th>
+                <th scope="col">Marketplace</th>
+                <th scope="col">Version</th>
+                <th scope="col">Scope</th>
+                <th scope="col">Updated</th>
+                <th scope="col">Enabled</th>
+                <th scope="col">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -147,12 +157,14 @@ function InstalledTab({ actions }: { actions: ReturnType<typeof usePluginAction>
                     </td>
                     <td>
                       <div className="row-actions">
-                        {busy && <span className="spinner" aria-label="Working" />}
-                        <button className="btn btn-small" onClick={() => setDetails(plugin)}>
+                        {busy && <span className="spinner" role="img" aria-label="Working" />}
+                        <button type="button" className="btn btn-small" aria-label={`Details of ${plugin.name}`} onClick={() => setDetails(plugin)}>
                           Details
                         </button>
                         <button
+                          type="button"
                           className="btn btn-small btn-danger"
+                          aria-label={`Uninstall ${plugin.name}`}
                           disabled={mutation.isPending}
                           onClick={() =>
                             void confirm({
@@ -222,7 +234,7 @@ function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> })
           aria-label="Search plugins"
           onChange={(e) => setSearch(e.target.value)}
         />
-        {isFetching && <span className="spinner" aria-label="Searching" />}
+        {isFetching && <span className="spinner" role="img" aria-label="Searching" />}
       </div>
       <ErrorBox error={error} />
       {isLoading ? (
@@ -231,30 +243,32 @@ function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> })
         <Empty title="No plugins match">{query ? 'Try another search, or add a marketplace.' : 'Add a marketplace to browse its plugins.'}</Empty>
       ) : (
         <>
-          <div className="list">
+          <ul className="list">
             {plugins.map((plugin) => {
               const busy = busyPlugin === plugin.pluginId;
               return (
-                <div key={plugin.pluginId} className={`list-row ${busy ? 'row-busy' : ''}`}>
+                <li key={plugin.pluginId} className={`list-row ${busy ? 'row-busy' : ''}`}>
                   <div className="list-row-main">
                     <div className="list-row-title">
                       <span className="strong">{plugin.name}</span>
                       {plugin.version && <span className="mono small muted">{plugin.version}</span>}
                       {plugin.installed && <Tag tone="ok">installed</Tag>}
                     </div>
-                    <div className="small muted" title={plugin.description}>
+                    <div className="small muted">
                       {plugin.description || 'No description'}
                     </div>
                     <div className="small muted mono">{plugin.marketplaceName}</div>
                   </div>
                   <button
+                    type="button"
                     className="btn btn-small btn-primary"
+                    aria-label={busy ? undefined : `${plugin.installed ? 'Installed' : 'Install'} ${plugin.name}`}
                     disabled={plugin.installed || mutation.isPending}
                     onClick={() => mutation.mutate({ action: 'install', plugin: plugin.pluginId, scope })}
                   >
                     {busy ? (
                       <>
-                        <span className="spinner" /> Installing…
+                        <span className="spinner" aria-hidden /> Installing…
                       </>
                     ) : plugin.installed ? (
                       'Installed'
@@ -262,10 +276,10 @@ function BrowseTab({ actions }: { actions: ReturnType<typeof usePluginAction> })
                       'Install'
                     )}
                   </button>
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ul>
           {plugins.length >= 100 && <p className="small muted">Showing the first 100 results. Refine the search to see more.</p>}
         </>
       )}
@@ -313,10 +327,10 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
     <Card
       title="Marketplaces"
       actions={
-        <button className="btn btn-small" disabled={busy || marketplaces.length === 0} onClick={() => update.mutate(undefined)}>
+        <button type="button" className="btn btn-small" disabled={busy || marketplaces.length === 0} onClick={() => update.mutate(undefined)}>
           {update.isPending && update.variables === undefined ? (
             <>
-              <span className="spinner" /> Updating…
+              <span className="spinner" aria-hidden /> Updating…
             </>
           ) : (
             'Update all'
@@ -341,7 +355,7 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
         <button type="submit" className="btn btn-primary" disabled={!source.trim() || busy}>
           {add.isPending ? (
             <>
-              <span className="spinner" /> Adding…
+              <span className="spinner" aria-hidden /> Adding…
             </>
           ) : (
             'Add marketplace'
@@ -359,10 +373,12 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
           <table className="table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Source</th>
-                <th>Location</th>
-                <th />
+                <th scope="col">Name</th>
+                <th scope="col">Source</th>
+                <th scope="col">Location</th>
+                <th scope="col">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -375,17 +391,19 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
                     <td>
                       <Tag>{marketplace.source}</Tag>
                     </td>
-                    <td className="mono small break" title={marketplace.location}>
+                    <td className="mono small break">
                       {marketplace.location}
                     </td>
                     <td>
                       <div className="row-actions">
-                        {rowBusy && <span className="spinner" aria-label="Working" />}
-                        <button className="btn btn-small" disabled={busy} onClick={() => update.mutate(marketplace.name)}>
+                        {rowBusy && <span className="spinner" role="img" aria-label="Working" />}
+                        <button type="button" className="btn btn-small" aria-label={`Update ${marketplace.name}`} disabled={busy} onClick={() => update.mutate(marketplace.name)}>
                           Update
                         </button>
                         <button
+                          type="button"
                           className="btn btn-small btn-danger"
+                          aria-label={`Remove marketplace ${marketplace.name}`}
                           disabled={busy}
                           onClick={() =>
                             void confirm({
@@ -411,21 +429,40 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
   );
 }
 
-export function Plugins() {
+export function PluginsTab() {
   const [params, setParams] = useSearchParams();
-  const tab: TabId = TABS.find((t) => t.id === params.get('tab'))?.id ?? 'installed';
+  // `tab` belongs to the Settings page around this one, so the sections use their own parameter
+  const tab: TabId = TABS.find((t) => t.id === params.get('section'))?.id ?? 'installed';
   const actions = usePluginAction();
+  const group = useTabGroup();
 
   return (
     <>
-      <PageHeader
-        title="Plugins"
-        subtitle="Extensions for Claude Code: commands, agents, skills, hooks and MCP servers packaged together. Actions run the CLI and can take up to a minute."
+      <p className="small muted">
+        Extensions for Claude Code: commands, agents, skills, hooks and MCP servers packaged together. Actions run the CLI and can
+        take up to a minute.
+      </p>
+      <Tabs
+        label="Plugin sections"
+        group={group}
+        value={tab}
+        tabs={TABS}
+        onChange={(id) =>
+          setParams(
+            (previous) => {
+              const next = new URLSearchParams(previous);
+              next.set('section', id);
+              return next;
+            },
+            { replace: true },
+          )
+        }
       />
-      <Tabs label="Plugin sections" value={tab} tabs={TABS} onChange={(id) => setParams({ tab: id }, { replace: true })} />
-      {tab === 'installed' && <InstalledTab actions={actions} />}
-      {tab === 'browse' && <BrowseTab actions={actions} />}
-      {tab === 'marketplaces' && <MarketplacesTab report={actions.report} />}
+      <TabPanel group={group} tab={tab}>
+        {tab === 'installed' && <InstalledTab actions={actions} />}
+        {tab === 'browse' && <BrowseTab actions={actions} />}
+        {tab === 'marketplaces' && <MarketplacesTab report={actions.report} />}
+      </TabPanel>
       <OutputPanel output={actions.lastOutput} />
     </>
   );

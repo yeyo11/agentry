@@ -81,9 +81,11 @@ export default function CodeEditorImpl({
       ),
     ];
     if (wrap) list.push(EditorView.lineWrapping);
-    if (ariaLabel) list.push(EditorView.contentAttributes.of({ 'aria-label': ariaLabel }));
+    // Every editor is a textbox that needs a name, and a read-only one has to stay a tab stop or its
+    // long content cannot be scrolled from the keyboard
+    list.push(EditorView.contentAttributes.of({ 'aria-label': ariaLabel ?? 'Editor', ...(readOnly ? { tabindex: '0' } : {}) }));
     return list;
-  }, [language, wrap, ariaLabel]);
+  }, [language, wrap, ariaLabel, readOnly]);
 
   return (
     <div className={`code-editor ${invalid ? 'is-invalid' : ''} ${readOnly ? 'is-readonly' : ''}`}>

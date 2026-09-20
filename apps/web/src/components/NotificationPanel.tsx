@@ -1,5 +1,5 @@
 import * as Popover from '@radix-ui/react-popover';
-import { CircleAlert, CircleCheck, CircleHelp, Gauge, GitMerge, Timer, type LucideIcon } from 'lucide-react';
+import { CircleAlert, CircleCheck, CircleHelp, Gauge, GitMerge, Timer, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { useEffect, useState, type KeyboardEvent, type RefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { timeAgo } from '../lib/format';
@@ -34,7 +34,7 @@ function iconFor(n: AppNotification): LucideIcon {
     case 'activity':
       return n.tone === 'bad' ? CircleAlert : Timer;
     default:
-      return n.tone === 'bad' ? CircleAlert : CircleCheck;
+      return n.tone === 'bad' ? CircleAlert : n.tone === 'warn' ? TriangleAlert : CircleCheck;
   }
 }
 

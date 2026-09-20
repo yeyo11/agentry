@@ -3,6 +3,8 @@
 //   pnpm build && pnpm e2e              all specs
 //   pnpm e2e config palette             only some
 //   E2E_LIVE=1 pnpm e2e chat            specs that talk to Claude (needs a logged-in CLI; costs tokens)
+// A hung run cannot outlive its limits: E2E_SPEC_TIMEOUT (ms, per spec; a spec may export `timeout`)
+// and E2E_TIMEOUT (ms, whole run). The server and the browser are closed on every way out.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -15,6 +17,9 @@ const root = resolve(here, '..');
 const PORT = Number(process.env.E2E_PORT ?? 8799);
 const baseUrl = `http://127.0.0.1:${PORT}`;
 const live = process.env.E2E_LIVE === '1';
+// A run that hangs holds a browser and a server: both have a limit, and both are closed on the way out
+const SPEC_LIMIT_MS = Number(process.env.E2E_SPEC_TIMEOUT ?? 180_000);
+const RUN_LIMIT_MS = Number(process.env.E2E_TIMEOUT ?? 900_000);
 
 if (!existsSync(join(root, 'apps/web/dist/index.html'))) {
   console.error('apps/web/dist is missing: run `pnpm build` first.');
@@ -47,6 +52,26 @@ const stopServer = () => {
   }
 };
 process.on('exit', stopServer);
+// A signal ends the process through 'exit', which is where the server and the browser are closed
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(signal, () => {
+    console.error(`\n${signal}: stopping the e2e run`);
+    process.exit(130);
+  });
+}
+setTimeout(() => {
+  console.error(`\nthe e2e run exceeded ${RUN_LIMIT_MS / 1000}s: stopping it (set E2E_TIMEOUT to allow longer)`);
+  process.exit(1);
+}, RUN_LIMIT_MS).unref();
+
+/** Rejects when `work` outlives `ms`; the caller must not go on driving the browser afterwards. */
+function within(work, ms, what) {
+  let timer;
+  const limit = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} took longer than ${ms / 1000}s`)), ms);
+  });
+  return Promise.race([work, limit]).finally(() => clearTimeout(timer));
+}
 
 async function waitForServer() {
   for (let i = 0; i < 80; i++) {
@@ -95,9 +120,11 @@ try {
       continue;
     }
     const started = Date.now();
+    // A spec with a lot to scan says so with `export const timeout`
+    const limit = spec.timeout ?? SPEC_LIMIT_MS;
     try {
       browser.page.takeErrors();
-      await spec.default({ page: browser.page, api, check, dirs });
+      await within(spec.default({ page: browser.page, api, check, dirs }), limit, file);
       const errors = browser.page.takeErrors();
       check(errors.length === 0, `console errors:\n  ${[...new Set(errors)].join('\n  ')}`);
       console.log(`✓ ${file} (${((Date.now() - started) / 1000).toFixed(1)}s)`);
@@ -105,6 +132,11 @@ try {
       failed++;
       console.log(`✗ ${file}\n  ${error.message.replaceAll('\n', '\n  ')}`);
       await browser.page.shot(`FAILED-${file}`).catch(() => {});
+      // A spec that timed out is still running in the background: the browser is not safe to reuse
+      if (error.message.endsWith(`took longer than ${limit / 1000}s`)) {
+        console.log('- stopping: the timed-out spec may still be driving the browser');
+        break;
+      }
     }
   }
 } catch (error) {

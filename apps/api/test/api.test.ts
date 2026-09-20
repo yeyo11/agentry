@@ -284,3 +284,27 @@ test('the event feed streams what happens, replays what a reconnecting client mi
   await stale.until(/event: stream\.resync\ndata: .*"reason":"server-restarted"/);
   stale.close();
 });
+
+test('projects are imported by hand, renamed and removed without touching anything else', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'agentry-api-import-'));
+
+  const listed = (await app.inject('/api/projects')).json();
+  assert.deepEqual(listed.map((p: { id: string }) => p.id), [projectId]);
+  assert.deepEqual((await app.inject('/api/projects/candidates')).json(), []);
+
+  const imported = await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: dir, name: 'Imported' }) });
+  assert.equal(imported.statusCode, 201);
+  const { id } = imported.json();
+  assert.equal(imported.json().name, 'Imported');
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: dir }) })).statusCode, 400);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: join(dir, 'missing') }) })).statusCode, 400);
+
+  const renamed = await app.inject({ method: 'PATCH', url: `/api/projects/${id}`, ...json({ name: 'Shop' }) });
+  assert.equal(renamed.json().name, 'Shop');
+  assert.equal((await app.inject('/api/chats?loose=1')).statusCode, 200);
+  assert.deepEqual((await app.inject(`/api/chats?project=${id}`)).json(), []);
+
+  assert.deepEqual((await app.inject({ method: 'DELETE', url: `/api/projects/${id}` })).json(), { ok: true });
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/projects/${id}` })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/projects/${id}/state` })).statusCode, 404);
+});

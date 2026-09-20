@@ -1,64 +1,53 @@
 import {
-  Activity,
   BookOpen,
-  Brain,
   FolderGit2,
-  History,
-  LayoutDashboard,
+  House,
   Menu,
+  MessagesSquare,
   PanelLeftClose,
   PanelLeftOpen,
+  Play,
   Plus,
-  Puzzle,
   SearchX,
   Settings2,
-  Timer,
   Users,
-  Waypoints,
   Workflow,
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useOverview } from './api';
-import { CommandPalette, CommandPaletteTrigger } from './components/CommandPalette';
+import { CommandPalette, CommandPaletteTrigger, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
 import { DetailHost } from './components/DetailHost';
 import { Tooltip } from './components/controls/Tooltip';
 import { BrandMark, ICON } from './components/icons';
 import { NotificationBell, NotificationHost } from './components/Notifications';
 import { AnimatePresence, motion, PageTransition, SlidingIndicator, StatusDot, useReducedMotion } from './components/motion';
+import { ProjectSelector } from './components/ProjectSelector';
 import { Empty, Skeleton } from './components/ui';
 import { useEventFeed } from './lib/events';
+import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
 import { ThemeToggle } from './lib/theme';
-import { Agents } from './pages/Agents';
-import { Dashboard } from './pages/Dashboard';
-import { RunView } from './pages/RunView';
+import { Home } from './pages/Home';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
 const Accounts = lazy(() => import('./pages/Accounts').then((m) => ({ default: m.Accounts })));
-const Config = lazy(() => import('./pages/Config').then((m) => ({ default: m.Config })));
-const Memory = lazy(() => import('./pages/Memory').then((m) => ({ default: m.Memory })));
+const ChatView = lazy(() => import('./pages/ChatView').then((m) => ({ default: m.ChatView })));
+const Chats = lazy(() => import('./pages/Chats').then((m) => ({ default: m.Chats })));
+const NewChat = lazy(() => import('./pages/NewChat').then((m) => ({ default: m.NewChat })));
 const Orchestration = lazy(() => import('./pages/Orchestration').then((m) => ({ default: m.Orchestration })));
 const OrchestrationDetail = lazy(() => import('./pages/OrchestrationDetail').then((m) => ({ default: m.OrchestrationDetail })));
-const Plugins = lazy(() => import('./pages/Plugins').then((m) => ({ default: m.Plugins })));
 const Projects = lazy(() => import('./pages/Projects').then((m) => ({ default: m.Projects })));
-const SessionView = lazy(() => import('./pages/SessionView').then((m) => ({ default: m.SessionView })));
-const Sessions = lazy(() => import('./pages/Sessions').then((m) => ({ default: m.Sessions })));
-const Tasks = lazy(() => import('./pages/Tasks').then((m) => ({ default: m.Tasks })));
-const Workflows = lazy(() => import('./pages/Workflows').then((m) => ({ default: m.Workflows })));
-const NewRun = lazy(() => import('./pages/NewRun').then((m) => ({ default: m.NewRun })));
+const RunWorkflowDialog = lazy(() => import('./components/RunWorkflowDialog').then((m) => ({ default: m.RunWorkflowDialog })));
+const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 
 interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
-  count?: number;
-}
-
-interface NavGroup {
-  label: string;
-  items: NavItem[];
+  /** What the badge counts, for the screen reader */
+  count?: { value: number | undefined; what: string };
 }
 
 const RAIL_KEY = 'cw:sidebar-collapsed';
@@ -73,12 +62,21 @@ function readCollapsed(): boolean {
 
 function isActive(item: NavItem, pathname: string): boolean {
   if (item.to === '/') return pathname === '/';
-  if (item.to === '/agents' && pathname.startsWith('/runs')) return true;
   return pathname === item.to || pathname.startsWith(`${item.to}/`);
 }
 
 export function App() {
+  // The project selector scopes pages far from the top bar, so it lives above all of them
+  return (
+    <ProjectScopeProvider>
+      <Shell />
+    </ProjectScopeProvider>
+  );
+}
+
+function Shell() {
   const navigate = useNavigate();
+  const { project } = useProjectScope();
   const { pathname } = useLocation();
   const reduced = useReducedMotion();
   const overview = useOverview();
@@ -91,6 +89,7 @@ export function App() {
   const feedDown = feed !== 'open' && overview.data !== undefined;
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [mobileNav, setMobileNav] = useState(false);
+  const [workflowOpen, setWorkflowOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -103,36 +102,54 @@ export function App() {
   // The slide-over closes itself on navigation
   useEffect(() => setMobileNav(false), [pathname]);
 
-  const groups: NavGroup[] = [
-    {
-      label: 'Monitor',
-      items: [
-        { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-        { to: '/agents', label: 'Agents', icon: Activity, count: (counts?.activeRuns ?? 0) + (counts?.subagents ?? 0) },
-        { to: '/tasks', label: 'Background tasks', icon: Timer, count: counts?.backgroundTasks },
-        { to: '/workflows', label: 'Workflows', icon: Waypoints, count: counts?.workflows },
-      ],
-    },
-    {
-      label: 'Work',
-      items: [
-        { to: '/sessions', label: 'Sessions', icon: History, count: counts?.liveSessions },
-        { to: '/projects', label: 'Projects', icon: FolderGit2 },
-        { to: '/orchestration', label: 'Orchestration', icon: Workflow, count: counts?.orchestrationsRunning },
-      ],
-    },
-    {
-      label: 'Configure',
-      items: [
-        { to: '/accounts', label: 'Accounts', icon: Users },
-        { to: '/memory', label: 'Memory', icon: Brain },
-        { to: '/plugins', label: 'Plugins', icon: Puzzle },
-        { to: '/config', label: 'Config', icon: Settings2 },
-      ],
-    },
+  // A route change is silent to a screen reader and leaves keyboard focus on a link that may no
+  // longer be there, so focus moves to the page, unless the page already took it (an autofocus).
+  const mainRef = useRef<HTMLElement>(null);
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    const main = mainRef.current;
+    if (main && !main.contains(document.activeElement)) main.focus({ preventScroll: true });
+  }, [pathname]);
+
+  // The slide-over is a dialog in effect: focus goes in, Escape closes it and focus comes back
+  const menuRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!mobileNav) return;
+    closeRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileNav(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    const menu = menuRef.current;
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      // Navigating away moves focus to the page; only a plain close returns it to the menu button
+      if (!mainRef.current?.contains(document.activeElement)) menu?.focus();
+    };
+  }, [mobileNav]);
+
+  // The palette asks for the workflow dialog it cannot host itself
+  useEffect(() => {
+    const open = () => setWorkflowOpen(true);
+    window.addEventListener(RUN_WORKFLOW_EVENT, open);
+    return () => window.removeEventListener(RUN_WORKFLOW_EVENT, open);
+  }, []);
+
+  const items: NavItem[] = [
+    { to: '/', label: 'Home', icon: House, count: { value: counts?.chatsWaiting, what: 'waiting for you' } },
+    { to: '/chats', label: 'Chats', icon: MessagesSquare, count: { value: counts?.chatsWorking, what: 'working' } },
+    { to: '/orchestration', label: 'Orchestrations', icon: Workflow, count: { value: counts?.orchestrationsRunning, what: 'running' } },
+    { to: '/projects', label: 'Projects', icon: FolderGit2 },
+    { to: '/accounts', label: 'Accounts', icon: Users },
+    { to: '/settings', label: 'Settings', icon: Settings2 },
   ];
 
-  const current = groups.flatMap((g) => g.items.map((item) => ({ group: g.label, item }))).find(({ item }) => isActive(item, pathname));
+  const current = items.find((item) => isActive(item, pathname));
 
   const statusTone = overview.isError ? 'bad' : healthy && !feedDown ? 'ok' : 'warn';
   const statusTitle = overview.isError
@@ -154,13 +171,23 @@ export function App() {
         ? ''
         : !cli?.installed
           ? 'Install it or set CLAUDE_BIN'
-          : 'Add a credential in Config';
+          : 'Add a credential in Settings';
 
   // In the icon rail the labels are hidden, so they move into tooltips
   const railTip = (label: string) => (collapsed ? label : undefined);
 
   return (
     <div className={`shell ${collapsed ? 'shell-rail' : ''} ${mobileNav ? 'shell-nav-open' : ''}`}>
+      <a
+        href="#main"
+        className="skip-link"
+        onClick={(event) => {
+          event.preventDefault();
+          mainRef.current?.focus();
+        }}
+      >
+        Skip to content
+      </a>
       <AnimatePresence>
         {mobileNav && (
           <motion.div
@@ -169,12 +196,13 @@ export function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduced ? 0 : 0.18 }}
+            aria-hidden
             onClick={() => setMobileNav(false)}
           />
         )}
       </AnimatePresence>
 
-      <aside className="sidebar" aria-label="Sidebar">
+      <aside id="sidebar" className="sidebar" aria-label="Sidebar">
         <div className="sidebar-head">
           <Tooltip content={railTip('Agentry')} side="right">
             <NavLink to="/" className="brand" aria-label="Agentry">
@@ -192,38 +220,37 @@ export function App() {
               {collapsed ? <PanelLeftOpen {...ICON} /> : <PanelLeftClose {...ICON} />}
             </button>
           </Tooltip>
-          <button type="button" className="icon-btn sidebar-close" aria-label="Close navigation" onClick={() => setMobileNav(false)}>
+          <button ref={closeRef} type="button" className="icon-btn sidebar-close" aria-label="Close navigation" onClick={() => setMobileNav(false)}>
             <X {...ICON} />
           </button>
         </div>
 
         <nav className="nav" aria-label="Main">
-          {groups.map((group) => (
-            <div key={group.label} className="nav-group">
-              <div className="nav-group-label">{group.label}</div>
-              {group.items.map((item) => {
-                const active = isActive(item, pathname);
-                const Icon = item.icon;
-                return (
-                  <Tooltip key={item.to} content={railTip(item.label)} side="right">
-                    <NavLink to={item.to} end={item.to === '/'} className={`nav-link ${active ? 'is-active' : ''}`}>
-                      {active && <SlidingIndicator layoutId="nav-pill" className="nav-pill" />}
-                      <span className="nav-icon">
-                        <Icon {...ICON} />
+          <div className="nav-group">
+            {items.map((item) => {
+              const active = isActive(item, pathname);
+              const Icon = item.icon;
+              const badge = item.count?.value;
+              return (
+                <Tooltip key={item.to} content={railTip(item.label)} side="right">
+                  <NavLink to={item.to} end={item.to === '/'} className={`nav-link ${active ? 'is-active' : ''}`}>
+                    {active && <SlidingIndicator layoutId="nav-pill" className="nav-pill" />}
+                    <span className="nav-icon">
+                      <Icon {...ICON} />
+                    </span>
+                    <span className="nav-label">{item.label}</span>
+                    {badge ? (
+                      <span className="nav-count">
+                        <span className="nav-count-ping" aria-hidden />
+                        {badge}
+                        <span className="sr-only"> {item.count?.what}</span>
                       </span>
-                      <span className="nav-label">{item.label}</span>
-                      {item.count ? (
-                        <span className="nav-count" aria-label={`${item.count} active`}>
-                          <span className="nav-count-ping" aria-hidden />
-                          {item.count}
-                        </span>
-                      ) : null}
-                    </NavLink>
-                  </Tooltip>
-                );
-              })}
-            </div>
-          ))}
+                    ) : null}
+                  </NavLink>
+                </Tooltip>
+              );
+            })}
+          </div>
         </nav>
 
         <Tooltip content={railTip('API reference')} side="right">
@@ -236,7 +263,7 @@ export function App() {
         </Tooltip>
 
         <Tooltip content={`${statusTitle}${statusDetail ? ` · ${statusDetail}` : ''}`} side="right">
-          <NavLink to="/config?tab=account" className="sidebar-foot">
+          <NavLink to="/settings?tab=account" className="sidebar-foot">
             <StatusDot tone={statusTone} live={healthy && !feedDown} />
             <span className="sidebar-foot-text">
               <span className="sidebar-foot-title ellipsis">{statusTitle}</span>
@@ -246,55 +273,64 @@ export function App() {
         </Tooltip>
       </aside>
 
-      <div className="content">
+      <div className="content" inert={mobileNav}>
         <header className="topbar">
-          <button type="button" className="icon-btn topbar-menu" aria-label="Open navigation" onClick={() => setMobileNav(true)}>
+          <button
+            ref={menuRef}
+            type="button"
+            className="icon-btn topbar-menu"
+            aria-label="Open navigation"
+            aria-expanded={mobileNav}
+            aria-controls="sidebar"
+            onClick={() => setMobileNav(true)}
+          >
             <Menu {...ICON} />
           </button>
-          <div className="crumbs" aria-label="Breadcrumb">
-            {current ? (
+          <div className="crumbs">
+            <span className="crumb-page">{current?.label ?? 'Agentry'}</span>
+            {current?.to === '/' && project && (
               <>
-                <span className="crumb-group">{current.group}</span>
                 <span className="crumb-sep" aria-hidden>
                   /
                 </span>
-                <span className="crumb-page">{current.item.label}</span>
+                <span className="crumb-group ellipsis">{project.name}</span>
               </>
-            ) : (
-              <span className="crumb-page">Agentry</span>
             )}
           </div>
           <div className="topbar-actions">
+            <ProjectSelector />
             <CommandPaletteTrigger />
             <NotificationBell />
             <ThemeToggle />
-            <button className="btn btn-primary topbar-new" onClick={() => navigate('/runs/new')}>
-              <Plus {...ICON} />
-              <span className="topbar-new-label">New run</span>
+            <button type="button" className="btn topbar-workflow" onClick={() => setWorkflowOpen(true)}>
+              <Play {...ICON} aria-hidden />
+              <span className="topbar-new-label">Run workflow</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary topbar-new"
+              onClick={() => navigate(project?.exists ? `/chats/new?cwd=${encodeURIComponent(project.path)}` : '/chats/new')}
+            >
+              <Plus {...ICON} aria-hidden />
+              <span className="topbar-new-label">New chat</span>
             </button>
           </div>
         </header>
 
-        <main className="main">
+        <main id="main" ref={mainRef} tabIndex={-1} className="main">
           {/* Keyed by pathname only: tab and scope switches (query string) must not replay the transition */}
           <PageTransition key={pathname} className="page">
             <Suspense fallback={<Skeleton rows={5} height={18} />}>
             <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/agents" element={<Agents />} />
-              <Route path="/sessions" element={<Sessions />} />
-              <Route path="/sessions/:id" element={<SessionView />} />
-              <Route path="/runs/new" element={<NewRun />} />
-              <Route path="/runs/:id" element={<RunView />} />
-              <Route path="/tasks" element={<Tasks />} />
-              <Route path="/workflows" element={<Workflows />} />
+              <Route path="/" element={<Home />} />
+              <Route path="/chats" element={<Chats />} />
+              <Route path="/chats/new" element={<NewChat />} />
+              <Route path="/chats/:id" element={<ChatView />} />
               <Route path="/projects" element={<Projects />} />
               <Route path="/orchestration" element={<Orchestration />} />
               <Route path="/orchestration/:id" element={<OrchestrationDetail />} />
               <Route path="/accounts" element={<Accounts />} />
-              <Route path="/memory" element={<Memory />} />
-              <Route path="/plugins" element={<Plugins />} />
-              <Route path="/config" element={<Config />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Empty icon={SearchX} title="Page not found" />} />
             </Routes>
             </Suspense>
@@ -302,6 +338,11 @@ export function App() {
         </main>
       </div>
 
+      {workflowOpen && (
+        <Suspense fallback={null}>
+          <RunWorkflowDialog cwd={project?.exists ? project.path : undefined} onClose={() => setWorkflowOpen(false)} />
+        </Suspense>
+      )}
       <CommandPalette />
       <NotificationHost />
       <DetailHost />

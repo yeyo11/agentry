@@ -7,7 +7,7 @@ export default async ({ page, check }) => {
   await page.sleep(300);
   check((await page.eval(`return document.querySelector('.palette-option-title')?.textContent`)) === 'MCP servers', 'best match first');
   await page.key('Enter');
-  await page.waitFor(`return location.pathname + location.search === '/config?tab=mcp'`, { label: 'navigated to MCP servers' });
+  await page.waitFor(`return location.pathname + location.search === '/settings?tab=mcp'`, { label: 'navigated to MCP servers' });
   await page.waitFor(`return !document.querySelector('.palette')`, { label: 'palette closes after running a command (exit animation)' });
 
   await page.key('k', 2);

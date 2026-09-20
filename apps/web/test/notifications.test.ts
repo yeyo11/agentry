@@ -55,7 +55,7 @@ const apply = (items: AppNotification[], events: AgentryEvent[], prefs = default
   return { items: list, added };
 };
 
-test('a run waiting for the person is the highest priority and links straight to the run', () => {
+test('a chat waiting for the person is the highest priority and links straight to the chat', () => {
   const [n] = notificationsFor(waiting());
   assert.ok(n);
   assert.equal(n.priority, 'high');

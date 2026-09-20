@@ -19,7 +19,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const panelId = useId();
-  const label = unread > 0 ? `Notifications, ${unread} unread` : 'Notifications';
+  const label = unread > 0 ? `Notifications, ${unread} unread${urgent ? ', some need you' : ''}` : 'Notifications';
 
   return (
     <>

@@ -1,10 +1,9 @@
-import { ArrowDown, ArrowUp, X, Plus } from 'lucide-react';
+import { ArrowDown, ArrowUp, CircleCheck, CircleOff, X, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { KeyValueEditor, recordToRows, rowsToRecord, StringListEditor, type KeyValueRow } from '../../components/editors';
 import { Collapsible, Combobox, NumberInput, Select, Tooltip } from '../../components/controls';
 import { ICON_SM } from '../../components/icons';
-import { StatusDot } from '../../components/motion';
 import { Field, MODEL_OPTIONS, Tag } from '../../components/ui';
 import {
   getIn,
@@ -312,6 +311,7 @@ export function SettingsGuided({
                 values={permissions(key)}
                 placeholder="Bash(git status)"
                 addLabel={`Add to ${key}`}
+                label={`${label} rules`}
                 onChange={(values) => set(['permissions', key], values)}
               />
             </Field>
@@ -319,6 +319,7 @@ export function SettingsGuided({
           <Field label="Additional directories" hint="permissions.additionalDirectories: extra directories Claude may work in.">
             <StringListEditor
               values={permissions('additionalDirectories')}
+              label="Additional directories"
               placeholder="../shared-lib"
               onChange={(values) => set(['permissions', 'additionalDirectories'], values)}
             />
@@ -354,6 +355,7 @@ export function SettingsGuided({
           <Field label="Approved .mcp.json servers" hint="enabledMcpjsonServers">
             <StringListEditor
               values={stringList(settings.enabledMcpjsonServers)}
+              label="Approved .mcp.json servers"
               placeholder="server-name"
               onChange={(values) => set(['enabledMcpjsonServers'], values)}
             />
@@ -361,6 +363,7 @@ export function SettingsGuided({
           <Field label="Rejected .mcp.json servers" hint="disabledMcpjsonServers">
             <StringListEditor
               values={stringList(settings.disabledMcpjsonServers)}
+              label="Rejected .mcp.json servers"
               placeholder="server-name"
               onChange={(values) => set(['disabledMcpjsonServers'], values)}
             />
@@ -370,18 +373,21 @@ export function SettingsGuided({
 
       <Section title="Plugins & marketplaces" summary={enabledPlugins.length > 0 ? `${enabledPlugins.length} plugins` : undefined}>
         <p className="small muted">
-          Managed by the CLI. Use the <Link to="/plugins">Plugins page</Link> to install, enable or remove them.
+          Managed by the CLI. Use the <Link to="/settings?tab=plugins">Plugins tab</Link> to install, enable or remove them.
         </p>
         <div className="chips">
           {enabledPlugins.length === 0 && marketplaces.length === 0 && <span className="small muted">Nothing configured in this file</span>}
           {enabledPlugins.map(([id, enabled]) => (
-            <span key={id} className="chip chip-static mono" title={enabled ? 'enabled' : 'disabled'}>
-              <StatusDot tone={enabled ? 'ok' : 'muted'} /> {id}
+            <span key={id} className="chip chip-static mono">
+              {enabled ? <CircleCheck className="text-ok" {...ICON_SM} /> : <CircleOff {...ICON_SM} />}
+              {id}
+              <span className="muted">{enabled ? 'enabled' : 'disabled'}</span>
             </span>
           ))}
           {marketplaces.map((name) => (
-            <span key={name} className="chip chip-static mono" title="marketplace">
-              ⌂ {name}
+            <span key={name} className="chip chip-static mono">
+              <span aria-hidden>⌂</span>
+              <span className="sr-only">marketplace</span> {name}
             </span>
           ))}
         </div>

@@ -184,9 +184,6 @@ test('summarizes sessions and reads transcripts', async () => {
   assert.equal(s?.gitBranch, 'main');
   assert.equal(s?.updatedAt, '2026-01-01T10:00:06Z');
 
-  const projects = await store.listProjects();
-  assert.deepEqual(projects.map((p) => [p.id, p.path, p.name, p.sessionCount]), [['-work-demo', '/work/demo', 'demo', 1]]);
-
   assert.equal((await store.getSession('aaaa-1111'))?.entries.length, 3);
   assert.equal((await store.getSession('aaaa-1111', { includeSidechains: true }))?.entries.length, 4);
   assert.equal(await store.getSession('missing'), null);

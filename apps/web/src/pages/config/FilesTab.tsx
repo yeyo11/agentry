@@ -1,7 +1,7 @@
 import type { ConfigFileNode } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Folder, FolderOpen, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { api, ApiRequestError, keys, type Scope } from '../../api';
 import { CodeEditor, languageForPath } from '../../components/CodeEditor';
 import { Select, Switch, Tooltip } from '../../components/controls';
@@ -56,87 +56,116 @@ exit 0
 
 const FILE_ICONS: Record<string, string> = { md: '▤', json: '{}', sh: '$', js: 'js', ts: 'ts', yml: '≡', yaml: '≡' };
 
+/** Paths of the rows that are on screen, in order: the closed folders hide their children. */
+function visiblePaths(nodes: ConfigFileNode[], expanded: ReadonlySet<string>, out: string[] = []): string[] {
+  for (const node of nodes) {
+    out.push(node.path);
+    if (node.type === 'dir' && expanded.has(node.path) && node.children) visiblePaths(node.children, expanded, out);
+  }
+  return out;
+}
+
+/**
+ * One row of the tree. The row itself is the treeitem (the ARIA tree pattern: one tab stop, arrow
+ * keys, Delete on a folder) and the folder's delete button sits inside it, out of the tab order.
+ */
 function TreeNode({
   node,
   depth,
   expanded,
   selected,
+  tabStop,
   onToggle,
   onSelect,
   onDeleteDir,
+  onFocusItem,
 }: {
   node: ConfigFileNode;
   depth: number;
   expanded: ReadonlySet<string>;
   selected: string | null;
+  tabStop: string | null;
   onToggle: (path: string) => void;
   onSelect: (path: string) => void;
   onDeleteDir: (path: string) => void;
+  onFocusItem: (path: string) => void;
 }) {
   const isDir = node.type === 'dir';
   const open = expanded.has(node.path);
   const FileIcon = fileIcon(node.name);
   return (
-    <>
-      <div className="tree-line">
-      <button
-        type="button"
+    <li role="none">
+      <div
         role="treeitem"
+        aria-label={isDir ? node.name : `${node.name}${node.size !== undefined ? `, ${formatBytes(node.size)}` : ''}`}
+        aria-level={depth + 1}
         aria-expanded={isDir ? open : undefined}
         aria-selected={selected === node.path}
-        className={`tree-row ${selected === node.path ? 'tree-row-on' : ''}`}
-        style={{ paddingLeft: 8 + depth * 14 }}
-        title={node.path}
+        tabIndex={tabStop === node.path ? 0 : -1}
+        data-path={node.path}
+        data-dir={isDir ? '' : undefined}
+        className="tree-line"
+        onFocus={(event) => event.target === event.currentTarget && onFocusItem(node.path)}
         onClick={() => (isDir ? onToggle(node.path) : onSelect(node.path))}
       >
-        {isDir ? (
-          <ChevronRight size={12} strokeWidth={2} className={`tree-chevron ${open ? 'is-open' : ''}`} aria-hidden />
-        ) : (
-          <span className="tree-spacer" aria-hidden />
+        <div className={`tree-row ${selected === node.path ? 'tree-row-on' : ''}`} style={{ paddingLeft: 8 + depth * 14 }}>
+          {isDir ? (
+            <ChevronRight size={12} strokeWidth={2} className={`tree-chevron ${open ? 'is-open' : ''}`} aria-hidden />
+          ) : (
+            <span className="tree-spacer" aria-hidden />
+          )}
+          <span className={`tree-icon ${isDir ? 'tree-icon-dir' : ''}`} aria-hidden>
+            {isDir ? open ? <FolderOpen {...ICON_SM} /> : <Folder {...ICON_SM} /> : <FileIcon {...ICON_SM} />}
+          </span>
+          <span className={`break ${isDir ? 'strong' : ''}`}>{node.name}</span>
+          {!isDir && node.size !== undefined && <span className="small muted tree-size">{formatBytes(node.size)}</span>}
+        </div>
+        {isDir && (
+          <Tooltip content="Delete folder (Delete key)">
+            <button
+              type="button"
+              className="icon-btn tree-delete"
+              tabIndex={-1}
+              aria-label={`Delete folder ${node.path}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onDeleteDir(node.path);
+              }}
+            >
+              <Trash2 {...ICON_SM} />
+            </button>
+          </Tooltip>
         )}
-        <span className={`tree-icon ${isDir ? 'tree-icon-dir' : ''}`} aria-hidden>
-          {isDir ? open ? <FolderOpen {...ICON_SM} /> : <Folder {...ICON_SM} /> : <FileIcon {...ICON_SM} />}
-        </span>
-        <span className={`ellipsis ${isDir ? 'strong' : ''}`}>{node.name}</span>
-        {!isDir && node.size !== undefined && <span className="small muted tree-size">{formatBytes(node.size)}</span>}
-      </button>
-      {isDir && (
-        <Tooltip content="Delete folder">
-          <button
-            type="button"
-            className="icon-btn tree-delete"
-            aria-label={`Delete folder ${node.path}`}
-            onClick={() => onDeleteDir(node.path)}
-          >
-            <Trash2 {...ICON_SM} />
-            <span className="sr-only">Delete folder</span>
-          </button>
-        </Tooltip>
-      )}
       </div>
       {isDir && (
         <Collapse open={open}>
-        {node.children?.length ? (
-          node.children.map((child) => (
-            <TreeNode
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              expanded={expanded}
-              selected={selected}
-              onToggle={onToggle}
-              onSelect={onSelect}
-              onDeleteDir={onDeleteDir}
-            />
-          ))
-        ) : (
-          <div className="small muted tree-empty" style={{ paddingLeft: 22 + (depth + 1) * 14 }}>
-            empty
-          </div>
-        )}
+          <ul role="group" className="tree-group">
+            {node.children?.length ? (
+              node.children.map((child) => (
+                <TreeNode
+                  key={child.path}
+                  node={child}
+                  depth={depth + 1}
+                  expanded={expanded}
+                  selected={selected}
+                  tabStop={tabStop}
+                  onToggle={onToggle}
+                  onSelect={onSelect}
+                  onDeleteDir={onDeleteDir}
+                  onFocusItem={onFocusItem}
+                />
+              ))
+            ) : (
+              <li role="none" aria-hidden>
+                <div className="small muted tree-empty" style={{ paddingLeft: 22 + (depth + 1) * 14 }}>
+                  empty
+                </div>
+              </li>
+            )}
+          </ul>
         </Collapse>
       )}
-    </>
+    </li>
   );
 }
 
@@ -237,6 +266,8 @@ export function FilesTab({ scope }: { scope: Scope }) {
   const [file, setFile] = useState<OpenFile | null>(null);
   const [creating, setCreating] = useState(false);
   const allPaths = useMemo(() => flatten(tree.data ?? []), [tree.data]);
+  // The tree is one tab stop: the row last focused, else the open file, else the first row on screen
+  const [focusPath, setFocusPath] = useState<string | null>(null);
 
   const content = useQuery({
     queryKey: keys.fileContent(rootId, selected ?? ''),
@@ -319,6 +350,63 @@ export function FilesTab({ scope }: { scope: Scope }) {
   const trySave = () => file && dirty && !save.isPending && save.mutate(file);
   const loadError = content.error instanceof ApiRequestError ? content.error : null;
   const selectedNode = selected !== null && allPaths.has(selected);
+  const newRow = file?.isNew && !allPaths.has(file.path) ? file.path : null;
+  const rows = [...visiblePaths(tree.data ?? [], expanded), ...(newRow ? [newRow] : [])];
+  const tabStop = [focusPath, selected].find((path) => path !== null && rows.includes(path)) ?? rows[0] ?? null;
+
+  const askDeleteDir = (path: string) =>
+    void confirm({
+      title: `Delete folder ${path}?`,
+      body: 'The folder and everything inside it are deleted from disk. This cannot be undone.',
+      confirmLabel: 'Delete folder',
+      danger: true,
+    }).then((ok) => ok && remove.mutate(path));
+
+  const onTreeKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    const item = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>('[role=treeitem]') : null;
+    // Keys typed in the folder's delete button are the button's own
+    if (!item || event.target !== item) return;
+    const items = [...event.currentTarget.querySelectorAll<HTMLElement>('[role=treeitem]')];
+    const at = items.indexOf(item);
+    const path = item.dataset.path ?? '';
+    const isDir = item.dataset.dir !== undefined;
+    const isOpen = item.getAttribute('aria-expanded') === 'true';
+    const go = (target: HTMLElement | null | undefined) => {
+      event.preventDefault();
+      target?.focus();
+    };
+    switch (event.key) {
+      case 'ArrowDown':
+        return go(items[at + 1]);
+      case 'ArrowUp':
+        return go(items[at - 1]);
+      case 'Home':
+        return go(items[0]);
+      case 'End':
+        return go(items[items.length - 1]);
+      case 'ArrowRight':
+        if (!isDir) return;
+        if (!isOpen) {
+          event.preventDefault();
+          return toggle(path);
+        }
+        return go(items[at + 1]);
+      case 'ArrowLeft':
+        if (isDir && isOpen) {
+          event.preventDefault();
+          return toggle(path);
+        }
+        return go(item.closest('li')?.parentElement?.closest('li')?.querySelector<HTMLElement>(':scope > [role=treeitem]'));
+      case 'Enter':
+      case ' ':
+        event.preventDefault();
+        return item.click();
+      case 'Delete':
+        if (!isDir) return;
+        event.preventDefault();
+        return askDeleteDir(path);
+    }
+  };
 
   return (
     <Card
@@ -337,9 +425,7 @@ export function FilesTab({ scope }: { scope: Scope }) {
     >
       <div className="editor-meta">
         <span className="small muted">Root</span>
-        <span className="mono small ellipsis" title={root?.path}>
-          {root?.path ?? rootId}
-        </span>
+        <span className="mono small break">{root?.path ?? rootId}</span>
         {root && <CopyButton text={root.path} label="Copy root path" />}
         {root && !root.exists && <Tag tone="info">directory does not exist yet · created on first save</Tag>}
       </div>
@@ -350,40 +436,50 @@ export function FilesTab({ scope }: { scope: Scope }) {
       <ErrorBox error={tree.error} />
 
       <div className="master-detail master-detail-files">
-        <div className="master tree" role="tree" aria-label="Configuration files">
+        <div className="master">
           {tree.isLoading ? (
             <Skeleton rows={6} />
-          ) : (tree.data ?? []).length === 0 ? (
+          ) : (tree.data ?? []).length === 0 && !newRow ? (
             <div className="small muted master-empty">No files yet.</div>
           ) : (
-            (tree.data ?? []).map((node) => (
-              <TreeNode
-                key={node.path}
-                node={node}
-                depth={0}
-                expanded={expanded}
-                selected={selected}
-                onToggle={toggle}
-                onSelect={(path) => void select(path)}
-                onDeleteDir={(path) =>
-                  void confirm({
-                    title: `Delete folder ${path}?`,
-                    body: 'The folder and everything inside it are deleted from disk. This cannot be undone.',
-                    confirmLabel: 'Delete folder',
-                    danger: true,
-                  }).then((ok) => ok && remove.mutate(path))
-                }
-              />
-            ))
-          )}
-          {file?.isNew && (
-            <div className="tree-row tree-row-on" style={{ paddingLeft: 8 }}>
-              <span className="tree-icon" aria-hidden>
-                +
-              </span>
-              <span className="ellipsis">{file.path}</span>
-              <Tag tone="warn">new</Tag>
-            </div>
+            <ul className="tree-group" role="tree" aria-label="Configuration files" onKeyDown={onTreeKeyDown}>
+              {(tree.data ?? []).map((node) => (
+                <TreeNode
+                  key={node.path}
+                  node={node}
+                  depth={0}
+                  expanded={expanded}
+                  selected={selected}
+                  tabStop={tabStop}
+                  onToggle={toggle}
+                  onSelect={(path) => void select(path)}
+                  onDeleteDir={askDeleteDir}
+                  onFocusItem={setFocusPath}
+                />
+              ))}
+              {newRow && (
+                <li role="none">
+                  <div
+                    role="treeitem"
+                    aria-label={`${newRow}, new file`}
+                    aria-level={1}
+                    aria-selected
+                    tabIndex={tabStop === newRow ? 0 : -1}
+                    data-path={newRow}
+                    className="tree-line"
+                    onFocus={(event) => event.target === event.currentTarget && setFocusPath(newRow)}
+                  >
+                    <div className="tree-row tree-row-on" style={{ paddingLeft: 8 }}>
+                      <span className="tree-icon" aria-hidden>
+                        +
+                      </span>
+                      <span className="break">{newRow}</span>
+                      <Tag tone="warn">new</Tag>
+                    </div>
+                  </div>
+                </li>
+              )}
+            </ul>
           )}
         </div>
 

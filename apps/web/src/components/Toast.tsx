@@ -38,13 +38,32 @@ const ToastContext = createContext<ToastApi | null>(null);
 
 const LIFETIME_MS: Record<ToastTone, number> = { ok: 4000, info: 5000, warn: 7000, bad: 9000 };
 const MAX_TOASTS = 5;
+/** How long a toast lingers once the pointer or focus has left it */
+const RESUME_MS = 3000;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const nextId = useRef(1);
   const reduced = useReducedMotion();
+  const timers = useRef(new Map<number, number>());
 
-  const dismiss = useCallback((id: number) => setItems((list) => list.filter((t) => t.id !== id)), []);
+  const dismiss = useCallback((id: number) => {
+    window.clearTimeout(timers.current.get(id));
+    timers.current.delete(id);
+    setItems((list) => list.filter((t) => t.id !== id));
+  }, []);
+
+  // A toast that goes by itself must not go while someone is reading it or reaching for its button
+  const hold = useCallback((id: number) => {
+    window.clearTimeout(timers.current.get(id));
+    timers.current.delete(id);
+  }, []);
+  const release = useCallback(
+    (id: number) => {
+      if (!timers.current.has(id)) timers.current.set(id, window.setTimeout(() => dismiss(id), RESUME_MS));
+    },
+    [dismiss],
+  );
 
   const show = useCallback(
     (options: ToastOptions) => {
@@ -60,7 +79,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         }
         return next;
       });
-      if (!options.persistent) window.setTimeout(() => dismiss(id), lifetime);
+      if (!options.persistent) timers.current.set(id, window.setTimeout(() => dismiss(id), lifetime));
     },
     [dismiss],
   );
@@ -79,7 +98,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="toasts" role="region" aria-label="Notifications" aria-live="polite">
+      <div className="toasts" role="region" aria-label="Toasts">
         <AnimatePresence initial={false}>
         {items.map((toast) => (
           <motion.div
@@ -87,6 +106,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             layout={!reduced}
             className={`toast toast-${toast.tone}`}
             role={toast.tone === 'bad' || toast.urgent ? 'alert' : 'status'}
+            onMouseEnter={() => hold(toast.id)}
+            onMouseLeave={() => !toast.persistent && release(toast.id)}
+            onFocus={() => hold(toast.id)}
+            onBlur={() => !toast.persistent && release(toast.id)}
             initial={reduced ? { opacity: 0 } : { opacity: 0, x: 40, scale: 0.96 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={reduced ? { opacity: 0 } : { opacity: 0, x: 40, scale: 0.96, transition: { duration: 0.15 } }}
@@ -126,7 +149,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 </button>
               )}
             </div>
-            <button className="icon-btn" aria-label="Dismiss notification" onClick={() => dismiss(toast.id)}>
+            <button type="button" className="icon-btn" aria-label="Dismiss notification" onClick={() => dismiss(toast.id)}>
               <X {...ICON_SM} />
             </button>
             {!toast.persistent && <span className="toast-timer" style={{ '--toast-life': `${toast.lifetime}ms` } as CSSProperties} aria-hidden />}

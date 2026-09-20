@@ -1,5 +1,5 @@
 import type { Attachment } from '@agentry/shared';
-import { FileText, Image as ImageIcon, Loader2, Paperclip, X } from 'lucide-react';
+import { FileText, Image as ImageIcon, Loader2, Paperclip, TriangleAlert, X } from 'lucide-react';
 import { useCallback, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react';
 import { api } from '../api';
 import { errorMessage, formatBytes } from '../lib/format';
@@ -204,9 +204,15 @@ export function AttachmentTray({ state }: { state: AttachmentsState }) {
           {p.preview ? <img className="attachment-mini" src={p.preview} alt="" /> : <FileText {...ICON_SM} aria-hidden />}
           <span className="attachment-name ellipsis">{p.name}</span>
           {p.status === 'uploading' ? (
-            <Loader2 {...ICON_SM} className="spin" aria-label="Uploading" />
+            <>
+              <Loader2 {...ICON_SM} className="spin" />
+              <span className="muted small">Uploading…</span>
+            </>
           ) : p.status === 'error' ? (
-            <span className="small attachment-error">{p.error}</span>
+            <>
+              <TriangleAlert {...ICON_SM} className="attachment-error" />
+              <span className="small attachment-error">{p.error}</span>
+            </>
           ) : (
             <span className="muted small">{formatBytes(p.size)}</span>
           )}

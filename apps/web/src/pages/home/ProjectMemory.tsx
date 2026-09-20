@@ -1,14 +1,14 @@
+import type { Project } from '@agentry/shared';
 import { Plus } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { api, keys } from '../api';
-import { CodeEditor } from '../components/CodeEditor';
-import { useConfirm } from '../components/Dialog';
-import { useToast } from '../components/Toast';
-import { Card, Empty, ErrorBox, PageHeader, PathLabel, Skeleton, Tag } from '../components/ui';
-import { DirtyProvider, useDirty, useLeaveGuard } from '../lib/dirty';
-import { shortPath, timeAgo } from '../lib/format';
+import { api, keys } from '../../api';
+import { CodeEditor } from '../../components/CodeEditor';
+import { useConfirm } from '../../components/Dialog';
+import { useToast } from '../../components/Toast';
+import { Card, Empty, ErrorBox, PathLabel, Skeleton, Tag } from '../../components/ui';
+import { useDirty, useLeaveGuard } from '../../lib/dirty';
+import { timeAgo } from '../../lib/format';
 
 const TYPE_TONE: Record<string, string> = { user: 'info', feedback: 'warn', project: 'idle', reference: 'ok' };
 const NAME_RE = /^[\w.-]{1,80}\.md$/;
@@ -119,7 +119,7 @@ function MemoryFiles({ projectId }: { projectId: string }) {
           <strong>No MEMORY.md index</strong>
           <div>
             Without it, sessions will not know these memories exist.{' '}
-            <button className="link-btn" onClick={() => setNaming('MEMORY.md')}>
+            <button type="button" className="link-btn" onClick={() => setNaming('MEMORY.md')}>
               Create it
             </button>
           </div>
@@ -127,7 +127,7 @@ function MemoryFiles({ projectId }: { projectId: string }) {
       )}
       <ErrorBox error={error} />
       <div className="master-detail">
-        <div className="master" role="list" aria-label="Memory files">
+        <div className="master">
           {naming !== null && (
             <form
               className="master-new"
@@ -161,32 +161,40 @@ function MemoryFiles({ projectId }: { projectId: string }) {
             <Skeleton rows={4} />
           ) : (
             <>
-              {draft?.isNew && (
-                <div className="master-item master-item-on" role="listitem">
-                  <span className="strong ellipsis mono">{draft.name}</span>
-                  <Tag tone="warn">new · unsaved</Tag>
-                </div>
+              {(files.length > 0 || draft?.isNew) && (
+                <ul className="master-list" aria-label="Memory files">
+                  {draft?.isNew && (
+                    <li>
+                      <div className="master-item master-item-on" aria-current="true">
+                        <span className="strong break mono">{draft.name}</span>
+                        <Tag tone="warn">new · unsaved</Tag>
+                      </div>
+                    </li>
+                  )}
+                  {files.map((file) => {
+                    const on = draft?.name === file.name && !draft.isNew;
+                    return (
+                      <li key={file.name}>
+                        <button
+                          type="button"
+                          aria-current={on ? 'true' : undefined}
+                          className={`master-item ${on ? 'master-item-on' : ''}`}
+                          onClick={() => void open(file.name)}
+                        >
+                          <span className="master-item-head">
+                            <span className="strong break mono">{file.name}</span>
+                            {file.isIndex ? <Tag tone="active">index</Tag> : file.type && <Tag tone={TYPE_TONE[file.type] ?? 'muted'}>{file.type}</Tag>}
+                          </span>
+                          <span className="small muted break">
+                            {file.isIndex ? 'Loaded into every session' : (file.description ?? 'No description')}
+                          </span>
+                          <span className="small muted">{timeAgo(file.updatedAt)}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
-              {files.map((file) => (
-                <button
-                  key={file.name}
-                  type="button"
-                  role="listitem"
-                  className={`master-item ${draft?.name === file.name && !draft.isNew ? 'master-item-on' : ''}`}
-                  onClick={() => void open(file.name)}
-                >
-                  <span className="master-item-head">
-                    <span className="strong ellipsis mono" title={file.name}>
-                      {file.name}
-                    </span>
-                    {file.isIndex ? <Tag tone="active">index</Tag> : file.type && <Tag tone={TYPE_TONE[file.type] ?? 'muted'}>{file.type}</Tag>}
-                  </span>
-                  <span className="small muted ellipsis" title={file.description ?? undefined}>
-                    {file.isIndex ? 'Loaded into every session' : (file.description ?? 'No description')}
-                  </span>
-                  <span className="small muted">{timeAgo(file.updatedAt)}</span>
-                </button>
-              ))}
               {files.length === 0 && !draft?.isNew && naming === null && <div className="small muted master-empty">No memories yet.</div>}
             </>
           )}
@@ -198,7 +206,7 @@ function MemoryFiles({ projectId }: { projectId: string }) {
               title={files.length === 0 ? 'No memories in this project' : 'Select a memory'}
               action={
                 files.length === 0 && (
-                  <button className="btn btn-primary" onClick={() => setNaming('')}>
+                  <button type="button" className="btn btn-primary" onClick={() => setNaming('')}>
                     Write the first memory
                   </button>
                 )
@@ -260,65 +268,8 @@ function MemoryFiles({ projectId }: { projectId: string }) {
   );
 }
 
-function MemoryInner() {
-  const [params, setParams] = useSearchParams();
-  const guard = useLeaveGuard();
-  const { data, error, isLoading } = useQuery({ queryKey: keys.memoryProjects, queryFn: api.memoryProjects, refetchInterval: 15_000 });
-  const projects = data ?? [];
-  const selected = params.get('project') ?? projects[0]?.projectId;
-  const current = projects.find((p) => p.projectId === selected);
-
-  return (
-    <>
-      <PageHeader
-        title="Memory"
-        subtitle="File-based memory Claude Code keeps per project: facts about you, your feedback, project context and references."
-      />
-      <ErrorBox error={error} />
-      {isLoading ? (
-        <Skeleton rows={5} />
-      ) : projects.length === 0 ? (
-        <Empty title="No projects yet">Memory is stored per project. Create a project or start a run first.</Empty>
-      ) : (
-        <div className="memory-layout">
-          <nav className="card project-rail" aria-label="Projects">
-            {projects.map((project) => (
-              <button
-                key={project.projectId}
-                type="button"
-                className={`master-item ${project.projectId === selected ? 'master-item-on' : ''}`}
-                title={project.projectPath}
-                aria-current={project.projectId === selected}
-                onClick={() =>
-                  project.projectId !== selected &&
-                  void guard().then((ok) => ok && setParams({ project: project.projectId }, { replace: true }))
-                }
-              >
-                <span className="master-item-head">
-                  <span className="strong ellipsis">{project.projectName}</span>
-                  <span className={`count ${project.fileCount > 0 ? 'count-on' : ''}`}>{project.fileCount}</span>
-                </span>
-                <span className="small muted mono ellipsis">{shortPath(project.projectPath, 34)}</span>
-              </button>
-            ))}
-          </nav>
-          <div className="memory-main">
-            {selected && (current || params.get('project')) ? (
-              <MemoryFiles key={selected} projectId={selected} />
-            ) : (
-              <Empty title="Select a project" />
-            )}
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-export function Memory() {
-  return (
-    <DirtyProvider>
-      <MemoryInner />
-    </DirtyProvider>
-  );
+/** The memory files Claude Code keeps for one project: a list and an editor. */
+export function ProjectMemory({ project }: { project: Project }) {
+  // Keyed so a draft never carries over to another project's files
+  return <MemoryFiles key={project.id} projectId={project.id} />;
 }
