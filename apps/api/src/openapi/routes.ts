@@ -98,6 +98,12 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
     }),
     ok: list('ChatSummary'),
   }),
+  'GET /usage': d('Chats', 'What the chats spent, per day, per project and per orchestration', {
+    description:
+      'Tokens come from the transcripts, so they cover every chat, subagents included, and are kept per model with the variant suffix whole. The cost is what the CLI reported (`total_cost_usd`), which exists only for chats Agentry launched: nothing is estimated from a price table, `costUsd` is `null` when nothing reported one, and `chatsWithoutCost` counts the chats a total leaves out. A day is a calendar day where the server runs; a cost is put on the day its execution ended.',
+    querystring: obj({ from: str('First day, `YYYY-MM-DD` (inclusive)'), to: str('Last day, `YYYY-MM-DD` (inclusive)') }),
+    ok: ref('UsageReport'),
+  }),
   'POST /chats': d('Chats', 'Start a chat', { description: 'Spawns `claude -p` with stream-json I/O under a session id Agentry chooses. With `keepAlive` (default) the process stays up for follow-up turns.', body: ref('NewChatRequest'), ok: ref('ChatSummary'), created: true }),
   'GET /chats/:id': d('Chats', 'A chat and a window of its transcript', {
     description:

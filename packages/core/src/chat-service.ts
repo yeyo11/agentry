@@ -25,6 +25,7 @@ import {
   type ResumeChatRequest,
   type RunEvent,
   type TranscriptSearchResult,
+  type UsageReport,
 } from '@agentry/shared';
 import { pageSize } from './sessions.ts';
 import { toChatEnvironment, toChildren, type BranchFacts } from './chat-branches.ts';
@@ -36,7 +37,8 @@ import type { Orchestrator } from './orchestrator.ts';
 import type { CoreConfig } from './paths.ts';
 import { drivesSession, streamJsonProcesses, type CliProcess } from './processes.ts';
 import type { SessionStore } from './sessions.ts';
-import { emptyTokenUsage } from './usage.ts';
+import { emptyTokenUsage, localDay } from './usage.ts';
+import { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 
 /** How long `claude agents --json` is trusted between reads: it is an exec, and lists poll. */
 const CLI_TTL_MS = 1_500;
@@ -78,6 +80,8 @@ export interface ChatServiceDeps {
   place: (dir: string, recorded: TranscriptSummary['worktree']) => Placement;
   /** What Claude loaded in a directory, from the init event of the last chat started there */
   environmentOf: (dir: string) => Parameters<typeof toChatEnvironment>[0] | undefined;
+  /** The context window the CLI reported for this exact model id; null when it never has */
+  windowOf: (model: string) => number | null;
 }
 
 export interface ChatFilter {
@@ -96,8 +100,6 @@ interface Facts {
   processes: CliProcess[];
   orchestrations: Map<string, ChatOrchestration & { taskRunning: boolean }>;
 }
-
-const zeroCost = (usd: number | null): Chat['cost'] => ({ usd, tokens: [], total: emptyTokenUsage() });
 
 /**
  * Assembles the chats the API serves from what is known of them: the transcript the CLI wrote, the
@@ -127,8 +129,8 @@ export class ChatService {
     return this.cliCache.value;
   }
 
-  private async facts(fresh = false, all = true): Promise<Facts> {
-    const [transcripts, cli] = await Promise.all([all ? this.deps.sessions.listSessions() : Promise.resolve([]), this.cliSessions(fresh)]);
+  /** The orchestration each of its chats works for, keyed by session id. */
+  private chatOrchestrations(): Map<string, ChatOrchestration & { taskRunning: boolean }> {
     const orchestrations = new Map<string, ChatOrchestration & { taskRunning: boolean }>();
     for (const orch of this.deps.orchestrator.list()) {
       for (const task of orch.tasks) {
@@ -136,7 +138,12 @@ export class ChatService {
       }
       if (orch.synthesisRunId) orchestrations.set(orch.synthesisRunId, { id: orch.id, name: orch.name, taskId: null, taskName: null, taskRunning: false });
     }
-    return { transcripts: new Map(transcripts.map((t) => [t.id, t])), cli: new Map(cli.map((c) => [c.sessionId, c])), processes: streamJsonProcesses(), orchestrations };
+    return orchestrations;
+  }
+
+  private async facts(fresh = false, all = true): Promise<Facts> {
+    const [transcripts, cli] = await Promise.all([all ? this.deps.sessions.listSessions() : Promise.resolve([]), this.cliSessions(fresh)]);
+    return { transcripts: new Map(transcripts.map((t) => [t.id, t])), cli: new Map(cli.map((c) => [c.sessionId, c])), processes: streamJsonProcesses(), orchestrations: this.chatOrchestrations() };
   }
 
   /** One chat, from every source that knows it. Null when none does. */
@@ -157,6 +164,7 @@ export class ChatService {
     const executions: Execution[] = runtime?.executions ?? [];
     const live = executions.find((e) => e.endedAt === null) ?? null;
     const costs = executions.map((e) => e.costUsd).filter((c): c is number => c !== null);
+    const usage = summary?.usage;
 
     return {
       id,
@@ -181,10 +189,10 @@ export class ChatService {
       control,
       execution: live,
       executions,
-      // The transcript fold that fills these is the context and cost task's; until then what is
-      // known is what the executions carry
-      context: null,
-      cost: zeroCost(costs.length ? costs.reduce((a, b) => a + b, 0) : null),
+      context: usage?.context ? { used: usage.context.used, window: usage.context.model ? this.deps.windowOf(usage.context.model) : null } : null,
+      // Dollars exist only where the CLI reported them, so a chat nobody launched from here has none
+      // and is not priced from its tokens
+      cost: { usd: costs.length ? costs.reduce((a, b) => a + b, 0) : null, tokens: usage?.tokens ?? [], total: usage?.total ?? emptyTokenUsage() },
     };
   }
 
@@ -203,6 +211,37 @@ export class ChatService {
     }
     out.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
     return filter.limit && filter.limit > 0 ? out.slice(0, filter.limit) : out;
+  }
+
+  /**
+   * What every chat spent, per day, per project and per orchestration. Housekeeping and worker chats
+   * are in the totals whatever the list hides: they were paid for. A cost is put on the day its
+   * execution ended (or today, while it runs), because the CLI reports it as one figure per process.
+   */
+  async usage(range: DayRange = {}): Promise<UsageReport> {
+    const transcripts = new Map((await this.deps.sessions.listSessions()).map((t) => [t.id, t]));
+    const runtimes = new Map(this.deps.runtime.list().map((r) => [r.id, r]));
+    const orchestrations = this.chatOrchestrations();
+    const spend: ChatSpend[] = [];
+    for (const id of new Set([...transcripts.keys(), ...runtimes.keys()])) {
+      const summary = transcripts.get(id) ?? null;
+      const runtime = runtimes.get(id) ?? null;
+      const dir = summary?.worktree?.path ?? summary?.projectPath ?? runtime?.workingDir ?? runtime?.cwd ?? '';
+      const orch = orchestrations.get(id);
+      const costs: ChatSpend['costs'] = [];
+      for (const e of runtime?.executions ?? []) {
+        const day = localDay(e.endedAt ?? new Date().toISOString());
+        if (e.costUsd !== null && day) costs.push({ day, usd: e.costUsd });
+      }
+      spend.push({
+        chatId: id,
+        project: this.deps.place(dir, summary?.worktree ?? null).project,
+        orchestration: orch ? { id: orch.id, name: orch.name } : null,
+        days: summary?.usage.days ?? [],
+        costs,
+      });
+    }
+    return usageReport(spend, range);
   }
 
   /** A chat as its own page shows it, branches and environment included. Null when there is none. */
