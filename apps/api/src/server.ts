@@ -29,6 +29,8 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
     );
   }
 
+  core.cliVersion.startDaily();
+
   const system = await core.system();
   if (!system.cli.installed) app.log.error(`Claude Code CLI not detected: ${system.cli.error}`);
   else if (!system.auth.loggedIn) app.log.warn('Claude Code CLI detected but not logged in. Set CLAUDE_CODE_OAUTH_TOKEN (see `claude setup-token`) or configure it in the UI.');
