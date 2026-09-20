@@ -119,7 +119,7 @@ function MemoryFiles({ projectId }: { projectId: string }) {
           <strong>No MEMORY.md index</strong>
           <div>
             Without it, sessions will not know these memories exist.{' '}
-            <button className="link-btn" onClick={() => setNaming('MEMORY.md')}>
+            <button type="button" className="link-btn" onClick={() => setNaming('MEMORY.md')}>
               Create it
             </button>
           </div>
@@ -127,7 +127,7 @@ function MemoryFiles({ projectId }: { projectId: string }) {
       )}
       <ErrorBox error={error} />
       <div className="master-detail">
-        <div className="master" role="list" aria-label="Memory files">
+        <div className="master">
           {naming !== null && (
             <form
               className="master-new"
@@ -161,32 +161,40 @@ function MemoryFiles({ projectId }: { projectId: string }) {
             <Skeleton rows={4} />
           ) : (
             <>
-              {draft?.isNew && (
-                <div className="master-item master-item-on" role="listitem">
-                  <span className="strong ellipsis mono">{draft.name}</span>
-                  <Tag tone="warn">new · unsaved</Tag>
-                </div>
+              {(files.length > 0 || draft?.isNew) && (
+                <ul className="master-list" aria-label="Memory files">
+                  {draft?.isNew && (
+                    <li>
+                      <div className="master-item master-item-on" aria-current="true">
+                        <span className="strong break mono">{draft.name}</span>
+                        <Tag tone="warn">new · unsaved</Tag>
+                      </div>
+                    </li>
+                  )}
+                  {files.map((file) => {
+                    const on = draft?.name === file.name && !draft.isNew;
+                    return (
+                      <li key={file.name}>
+                        <button
+                          type="button"
+                          aria-current={on ? 'true' : undefined}
+                          className={`master-item ${on ? 'master-item-on' : ''}`}
+                          onClick={() => void open(file.name)}
+                        >
+                          <span className="master-item-head">
+                            <span className="strong break mono">{file.name}</span>
+                            {file.isIndex ? <Tag tone="active">index</Tag> : file.type && <Tag tone={TYPE_TONE[file.type] ?? 'muted'}>{file.type}</Tag>}
+                          </span>
+                          <span className="small muted break">
+                            {file.isIndex ? 'Loaded into every session' : (file.description ?? 'No description')}
+                          </span>
+                          <span className="small muted">{timeAgo(file.updatedAt)}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
-              {files.map((file) => (
-                <button
-                  key={file.name}
-                  type="button"
-                  role="listitem"
-                  className={`master-item ${draft?.name === file.name && !draft.isNew ? 'master-item-on' : ''}`}
-                  onClick={() => void open(file.name)}
-                >
-                  <span className="master-item-head">
-                    <span className="strong ellipsis mono" title={file.name}>
-                      {file.name}
-                    </span>
-                    {file.isIndex ? <Tag tone="active">index</Tag> : file.type && <Tag tone={TYPE_TONE[file.type] ?? 'muted'}>{file.type}</Tag>}
-                  </span>
-                  <span className="small muted ellipsis" title={file.description ?? undefined}>
-                    {file.isIndex ? 'Loaded into every session' : (file.description ?? 'No description')}
-                  </span>
-                  <span className="small muted">{timeAgo(file.updatedAt)}</span>
-                </button>
-              ))}
               {files.length === 0 && !draft?.isNew && naming === null && <div className="small muted master-empty">No memories yet.</div>}
             </>
           )}
@@ -198,7 +206,7 @@ function MemoryFiles({ projectId }: { projectId: string }) {
               title={files.length === 0 ? 'No memories in this project' : 'Select a memory'}
               action={
                 files.length === 0 && (
-                  <button className="btn btn-primary" onClick={() => setNaming('')}>
+                  <button type="button" className="btn btn-primary" onClick={() => setNaming('')}>
                     Write the first memory
                   </button>
                 )

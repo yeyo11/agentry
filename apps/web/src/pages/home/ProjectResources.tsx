@@ -6,7 +6,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api, keys } from '../../api';
 import { ICON_SM } from '../../components/icons';
 import { RunWorkflowDialog } from '../../components/RunWorkflowDialog';
-import { Card, Empty, ErrorBox, PathLabel, Skeleton, Tabs, Tag } from '../../components/ui';
+import { Card, Empty, ErrorBox, PathLabel, Skeleton, TabPanel, Tabs, Tag, useTabGroup } from '../../components/ui';
 import { useDirtyKeys, useLeaveGuard } from '../../lib/dirty';
 import { ResourcesTab } from '../config/ResourcesTab';
 
@@ -54,10 +54,12 @@ function WorkflowsSection({ project }: { project: Project }) {
           <table className="table">
             <thead>
               <tr>
-                <th>Workflow</th>
-                <th>Scope</th>
-                <th>Path</th>
-                <th />
+                <th scope="col">Workflow</th>
+                <th scope="col">Scope</th>
+                <th scope="col">Path</th>
+                <th scope="col">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -76,6 +78,7 @@ function WorkflowsSection({ project }: { project: Project }) {
                   <td>
                     <div className="row-actions">
                       <button
+                        type="button"
                         className="btn btn-small"
                         onClick={() => setRunning(workflow)}
                         aria-label={`Run ${workflow.name}`}
@@ -100,6 +103,7 @@ export function ProjectResources({ project }: { project: Project }) {
   const [params, setParams] = useSearchParams();
   const dirtyKeys = useDirtyKeys();
   const guard = useLeaveGuard();
+  const group = useTabGroup();
 
   const section: SectionId = SECTIONS.find((s) => s.id === params.get('section'))?.id ?? 'agents';
   const select = (next: SectionId) =>
@@ -122,14 +126,15 @@ export function ProjectResources({ project }: { project: Project }) {
     <>
       <Tabs
         label="Project resources"
+        group={group}
         value={section}
         tabs={SECTIONS.map((s) => ({ id: s.id, label: s.label, dirty: dirtyKeys.has(s.id) }))}
         onChange={select}
       />
 
-      <div className="tab-panel" role="tabpanel" key={`${project.id}:${section}`}>
+      <TabPanel className="tab-panel" key={`${project.id}:${section}`} group={group} tab={section}>
         {kind ? <ResourcesTab scope={{ projectId: project.id }} kind={kind} /> : <WorkflowsSection project={project} />}
-      </div>
+      </TabPanel>
     </>
   );
 }

@@ -2,7 +2,7 @@ import type { Project } from '@agentry/shared';
 import { useSearchParams } from 'react-router-dom';
 import { Collapsible } from '../../components/controls';
 import { EnvironmentPanel } from '../../components/EnvironmentPanel';
-import { Tabs } from '../../components/ui';
+import { TabPanel, Tabs, useTabGroup } from '../../components/ui';
 import { useDirtyKeys, useLeaveGuard } from '../../lib/dirty';
 import { FilesTab } from '../config/FilesTab';
 import { InstructionsTab } from '../config/InstructionsTab';
@@ -25,6 +25,7 @@ export function ProjectSettings({ project }: { project: Project }) {
   const dirtyKeys = useDirtyKeys();
   const guard = useLeaveGuard();
   const scope = { projectId: project.id };
+  const group = useTabGroup();
 
   const section: SectionId = SECTIONS.find((s) => s.id === params.get('section'))?.id ?? 'instructions';
   const select = (next: SectionId) =>
@@ -58,19 +59,20 @@ export function ProjectSettings({ project }: { project: Project }) {
 
       <Tabs
         label="Project settings sections"
+        group={group}
         value={section}
         tabs={SECTIONS.map((s) => ({ id: s.id, label: s.label, dirty: dirtyKeys.has(s.id) }))}
         onChange={select}
       />
 
-      <div className="tab-panel" role="tabpanel" key={`${project.id}:${section}`}>
+      <TabPanel className="tab-panel" key={`${project.id}:${section}`} group={group} tab={section}>
         {section === 'instructions' && <InstructionsTab scope={scope} scopeKey={project.id} />}
         {section === 'settings' && (
           <SettingsTab scope={scope} scopeKey={project.id} filesHref="/?tab=settings&section=files" />
         )}
         {section === 'mcp' && <McpTab scope={scope} />}
         {section === 'files' && <FilesTab scope={scope} />}
-      </div>
+      </TabPanel>
     </>
   );
 }

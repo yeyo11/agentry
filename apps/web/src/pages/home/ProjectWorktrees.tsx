@@ -10,16 +10,14 @@ function WorktreeRow({ worktree }: { worktree: ProjectWorktree }) {
   return (
     <li className="worktree-row">
       <div className="worktree-main">
-        <span className="worktree-branch mono ellipsis" title={worktree.path}>
+        <span className="worktree-branch mono break">
           <GitBranch {...ICON_SM} />
           {worktree.branch ?? worktree.name}
         </span>
-        <span className="small muted mono ellipsis" title={worktree.path}>
-          {worktree.path}
-        </span>
+        <span className="small muted mono break">{worktree.path}</span>
         {creator && (
           <span className="small muted meta">
-            <Link to={`/orchestration/${encodeURIComponent(creator.orchestrationId)}`} className="meta-icon" title="Created by this orchestration task">
+            <Link to={`/orchestration/${encodeURIComponent(creator.orchestrationId)}`} className="meta-icon">
               <Workflow size={12} strokeWidth={1.75} aria-hidden /> {creator.orchestrationName} · {creator.taskName}
             </Link>
           </span>

@@ -1605,12 +1605,20 @@ a.badge:hover {
 }
 .inline-form {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   align-items: center;
 }
 .inline-form > :first-child {
-  flex: 1;
+  flex: 1 1 180px;
   min-width: 0;
+}
+/* A row of a few short facts that folds onto a second line on a narrow screen rather than squeezing them */
+.list-row-flow {
+  flex-wrap: wrap;
+}
+.list-row-flow > .break {
+  flex: 1 1 12rem;
 }
 
 .meters {
@@ -2772,8 +2780,13 @@ a.list-row:hover {
 .list-editor-add,
 .search-box {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+.search-box > input {
+  flex: 1 1 180px;
+  min-width: 0;
 }
 .kv-editor {
   display: flex;
@@ -3161,8 +3174,9 @@ button.master-item-on:hover {
 }
 .worktree-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 6px 10px;
   padding: 6px 8px;
   border-radius: 8px;
   border-left: 2px solid var(--border);
@@ -3173,7 +3187,7 @@ button.master-item-on:hover {
   background: var(--accent-soft);
 }
 .worktree-main {
-  flex: 1;
+  flex: 1 1 200px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -3600,6 +3614,14 @@ button.master-item-on:hover {
   }
 }
 @media (max-width: 560px) {
+  /* Name and buttons on one line, the value under them */
+  .kv-editor-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .kv-editor-row > :nth-child(2) {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
   /* The label is the button's name, so it is hidden from sight only */
   .topbar-new-label {
     position: absolute;
@@ -3946,22 +3968,9 @@ button.master-item-on:hover {
   font-size: 12.5px;
   overflow-wrap: anywhere;
 }
-.wf-dot {
+.wf-agent-icon {
   flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  translate: 0 -1px;
-}
-.wf-dot-ok {
-  background: var(--ok);
-}
-.wf-dot-bad {
-  background: var(--bad);
-}
-.wf-dot-active {
-  background: var(--accent);
-  animation: caret-blink 1.2s steps(2, start) infinite;
+  translate: 0 1px;
 }
 .wf-details {
   display: flex;

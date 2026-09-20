@@ -1,4 +1,5 @@
 import type { ChatWorkflow, ChatWorkflowAgent } from '@agentry/shared';
+import { CircleCheck, CircleX } from 'lucide-react';
 import { useDetailPanel } from '../lib/detail';
 import { durationBetween, formatDuration, truncate } from '../lib/format';
 import { BranchStatus } from './ChatBadges';
@@ -8,14 +9,19 @@ import { Collapsible } from './controls/Collapsible';
 
 const tokens = (n: number | null) => (n === null ? null : n >= 1000 ? `${(n / 1000).toFixed(1)}k tokens` : `${n} tokens`);
 
-const TONE: Record<ChatWorkflowAgent['status'], string> = { completed: 'ok', failed: 'bad', running: 'active' };
+/** The status is this icon and the word beside it, never a coloured dot alone. */
+function AgentIcon({ status }: { status: ChatWorkflowAgent['status'] }) {
+  if (status === 'completed') return <CircleCheck className="wf-agent-icon text-ok" size={12} strokeWidth={2} aria-hidden />;
+  if (status === 'failed') return <CircleX className="wf-agent-icon text-bad" size={12} strokeWidth={2} aria-hidden />;
+  return <span className="spinner spinner-xs wf-agent-icon" aria-hidden />;
+}
 
 /** `open` is set when the agent's transcript can be read. */
 function AgentRow({ agent, open }: { agent: ChatWorkflowAgent; open: (() => void) | null }) {
   const preview = agent.status === 'completed' ? agent.resultPreview : agent.promptPreview;
   return (
     <li className="wf-agent">
-      <span className={`wf-dot wf-dot-${TONE[agent.status]}`} aria-hidden />
+      <AgentIcon status={agent.status} />
       {open ? (
         <button type="button" className="link-btn wf-agent-label" onClick={open}>
           {agent.label}
@@ -54,7 +60,7 @@ export function WorkflowCard({ workflow, chatId }: { workflow: ChatWorkflow; cha
       <header className="wf-head">
         <BranchStatus status={workflow.status} />
         <strong className="wf-name">{workflow.name ?? 'workflow'}</strong>
-        <span className="muted small ellipsis">{workflow.description !== workflow.name ? workflow.description : ''}</span>
+        <span className="muted small break">{workflow.description !== workflow.name ? workflow.description : ''}</span>
       </header>
       <div className="meta">
         <span>

@@ -331,9 +331,9 @@ function CreateForm({ onDone }: { onDone: () => void }) {
             <div className="muted small">Plans already generated — load one instead of paying for a new run.</div>
             <ul className="list">
               {(drafts.data ?? []).slice(0, 5).map((d) => (
-                <li key={d.runId} className="list-row small">
-                  <span className="strong ellipsis">{d.name}</span>
-                  <span className="muted ellipsis">{d.objective ?? ''}</span>
+                <li key={d.runId} className="list-row list-row-flow small">
+                  <span className="strong break">{d.name}</span>
+                  <span className="muted break">{d.objective ?? ''}</span>
                   <span className="muted nowrap">
                     {d.taskCount} task{d.taskCount === 1 ? '' : 's'} · {timeAgo(d.createdAt)}
                   </span>
@@ -507,9 +507,9 @@ export function Orchestration() {
                   <div className="list-row-main">
                     <div className="list-row-title">
                       <BoardStatusBadge status={orch.status} />
-                      <span className="strong ellipsis">{orch.name}</span>
+                      <span className="strong break">{orch.name}</span>
                     </div>
-                    {orch.objective && <div className="muted small ellipsis">{truncate(orch.objective, 160)}</div>}
+                    {orch.objective && <div className="muted small break">{truncate(orch.objective, 160)}</div>}
                     <div className="meter-track meter-thin" aria-hidden>
                       <div className={`meter-fill ${failed ? 'is-bad' : ''}`} style={{ width: `${pct}%` }} />
                     </div>
