@@ -1249,10 +1249,13 @@ export interface OrchestrationTemplate {
   updatedAt: string;
 }
 
+/** The graph to save is given as a spec (a draft plan) or named by the orchestration it is taken from. */
 export interface SaveOrchestrationTemplateRequest {
   name: string;
   description?: string;
-  spec: OrchestrationSpec;
+  spec?: OrchestrationSpec;
+  /** Id of an orchestration whose graph is saved, as it was launched */
+  fromOrchestration?: string;
 }
 
 export interface UpdateOrchestrationTemplateRequest {

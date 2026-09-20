@@ -7151,12 +7151,16 @@
       },
       "spec": {
         "$ref": "#/components/schemas/OrchestrationSpec"
+      },
+      "fromOrchestration": {
+        "type": "string",
+        "description": "Id of an orchestration whose graph is saved, as it was launched"
       }
     },
     "required": [
-      "name",
-      "spec"
-    ]
+      "name"
+    ],
+    "description": "The graph to save is given as a spec (a draft plan) or named by the orchestration it is taken from."
   },
   "UpdateOrchestrationTemplateRequest": {
     "type": "object",
