@@ -18,6 +18,10 @@ import type {
   ResumeOrchestrationRequest,
   SaveOrchestrationTemplateRequest,
   SaveOrchestrationWorkflowRequest,
+  VerificationCommand,
+  VerificationSpec,
+  VerificationState,
+  VerifyOrchestrationRequest,
   WorkflowDefinition,
 } from '@agentry/shared';
 import type { WorkflowRun } from './cli-facts.ts';
@@ -48,6 +52,7 @@ import type { CoreConfig } from './paths.ts';
 import type { ChatManager, ChatRuntime, RunResult } from './chats.ts';
 import { effectiveLimits, elapsedMs, normalizeLimits, pastHardLimit, pastSoftLimit, remainingUsd, spentUsd, startClock, timeWarning } from './task-limits.ts';
 import type { TaskContext } from './health-service.ts';
+import { commitsSince, fixerPrompt, normalizeVerification, runCommand, tail, workerChecks, DEFAULT_VERIFY_MINUTES, type CommandHandle } from './verification.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
@@ -64,6 +69,15 @@ const MAX_ERROR_QUOTE = 2000;
 /** How often running tasks are checked against their time limit; the limits are in minutes */
 const LIMITS_CHECK_MS = Number(process.env.AGENTRY_LIMITS_INTERVAL_MS ?? 10_000);
 const now = () => new Date().toISOString();
+
+const pendingCommand = (command: string): VerificationCommand => ({ command, status: 'pending', output: '', durationMs: 0 });
+
+/** What a stop reaches while a graph's checks are running. */
+interface VerificationControl {
+  cancelled: boolean;
+  command: CommandHandle | null;
+  fixerRunId: string | null;
+}
 
 const attemptsOf = (requested: number | undefined) =>
   Number.isFinite(requested) ? Math.min(Math.max(Math.trunc(requested as number), 1), MAX_ATTEMPTS) : DEFAULT_ATTEMPTS;
@@ -240,6 +254,8 @@ export class Orchestrator {
   /** Tasks whose worker was told it is nearly out of time, by the clock it was told on, so a retry is warned again */
   private readonly warned = new Set<string>();
   private limitsTimer: NodeJS.Timeout | null = null;
+  /** Graphs whose checks are running: what a stop has to reach, and what other decisions wait for */
+  private readonly verifying = new Map<string, VerificationControl>();
   /** Graphs saved to be launched again on another objective */
   readonly templates: OrchestrationTemplates;
 
@@ -278,6 +294,11 @@ export class Orchestrator {
       o.engine ??= 'graph';
       o.engineReason ??= null;
       o.workflow ??= null;
+      if (o.verification && (o.verification.status === 'running' || o.verification.status === 'pending')) {
+        o.verification.status = 'failed';
+        o.verification.report = 'Interrupted by a wrapper restart before the checks finished; verify again to run them.';
+        for (const c of o.verification.commands) if (c.status === 'running' || c.status === 'pending') c.status = 'pending';
+      }
       if (o.integration && ['merging', 'resolving'].includes(o.integration.status)) {
         o.integration.status = 'failed';
         o.integration.error = 'interrupted by a restart; integrate again to finish it';
@@ -437,6 +458,11 @@ export class Orchestrator {
     if (engine === 'workflow' && (limits || taskLimits.some(Boolean))) {
       throw new Error('limits apply to the graph engine, where each task is a worker of its own; a workflow runs its tasks inside one session');
     }
+    const verification = normalizeVerification(spec.verification);
+    // The checks run on the integration branch, which only a graph with a worktree per task has
+    if (verification && (engine === 'workflow' || spec.worktree !== true)) {
+      throw new Error('verification runs on the integration branch, which needs the graph engine with a worktree per task');
+    }
     const orch: Orchestration = {
       id: randomUUID(),
       name: spec.name?.trim() || 'orchestration',
@@ -463,6 +489,8 @@ export class Orchestrator {
       engineReason: spec.engineReason?.trim() || null,
       workflow: null,
       limits: limits ?? null,
+      verificationSpec: verification,
+      verification: null,
       relaunchedFrom: origin.relaunchedFrom ?? null,
       templateId: origin.templateId ?? null,
       tasks: spec.tasks.map<OrchestrationTaskState>((t, i) => ({
@@ -493,6 +521,8 @@ export class Orchestrator {
   stop(id: string): Orchestration {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
+    // Checks started by hand run on a graph that is already over, and stopping it has to reach them
+    this.cancelChecks(orch.id);
     if (orch.status !== 'running' && orch.status !== 'waiting') return orch;
     orch.status = 'stopped';
     orch.endedAt = now();
@@ -529,6 +559,7 @@ export class Orchestrator {
     if (!orch) throw new Error('orchestration not found');
     if (orch.status === 'running') return orch;
     if (orch.status === 'waiting') throw new Error('the orchestration is waiting for a decision on its tasks: retry or skip them instead');
+    if (this.verifying.has(orch.id)) throw new Error('the checks are running on the integration branch: stop the orchestration first');
     const unfinished = orch.tasks.filter((t) => t.status !== 'completed');
     if (unfinished.length === 0) throw new Error('every task already completed');
     // A graph that died for lack of permissions, or by editing the checkout the wrapper runs from,
@@ -563,6 +594,7 @@ export class Orchestrator {
     // Integrated again once the resumed tasks finish. The branch name is derived from the graph, so
     // that reuses the same branch, which already holds the earlier merges.
     orch.integration = null;
+    orch.verification = null;
     // A workflow picks up in its own session, where the CLI replays the agents that already finished
     // from its cache instead of running them again
     if (orch.engine === 'workflow') this.launchWorkflow(orch, orch.workflow?.workflowRunId ?? null);
@@ -595,6 +627,7 @@ export class Orchestrator {
       allowedTools: [...(orch.allowedTools ?? [])],
       permissionPrompts: orch.permissionPrompts,
       ...(orch.limits ? { limits: orch.limits } : {}),
+      ...(orch.verificationSpec ? { verification: orch.verificationSpec } : {}),
       tasks: orch.tasks.map<OrchestrationTaskSpec>((t) => ({
         id: t.id,
         name: t.name,
@@ -652,8 +685,9 @@ export class Orchestrator {
     return orch.objective ? `You are one worker in a multi-agent orchestration.\nOverall objective: ${orch.objective}` : '';
   }
 
-  private workerTask(task: OrchestrationTaskState): string {
-    return `Your task (${task.name}):\n${task.prompt}\n\nFinish with a concise report of what you did and found; it is handed to the next workers.`;
+  private workerTask(orch: Orchestration, task: OrchestrationTaskState): string {
+    // Said here, and not left to the objective: what each stage checks is Agentry's rule
+    return `Your task (${task.name}):\n${task.prompt}\n\n${workerChecks(!!orch.verificationSpec)}\n\nFinish with a concise report of what you did and found; it is handed to the next workers.`;
   }
 
   private buildPrompt(orch: Orchestration, task: OrchestrationTaskState, pendingMerge: PendingMerge | null = null): string {
@@ -686,7 +720,7 @@ export class Orchestrator {
             : ''),
       );
     }
-    parts.push(this.workerTask(task));
+    parts.push(this.workerTask(orch, task));
     return parts.join('\n\n');
   }
 
@@ -995,7 +1029,10 @@ ${quoted}
   /** Integrates a finished graph again for work that arrived late, after any integration in flight. */
   private integrateLate(orch: Orchestration): void {
     if (orch.integration && ['merging', 'resolving'].includes(orch.integration.status)) this.lateArrivals.add(orch.id);
-    else void this.integrate(orch);
+    else {
+      // A graph still running checks its branch itself when it finishes
+      void this.integrate(orch).then(() => (orch.status === 'running' ? undefined : this.runChecks(orch)));
+    }
   }
 
   /**
@@ -1132,6 +1169,8 @@ ${quoted}
 
     if (orch.worktree) await this.integrate(orch);
     if (orch.status !== 'running') return; // stopped meanwhile
+    await this.runChecks(orch);
+    if (orch.status !== 'running') return;
     if (orch.synthesize && orch.tasks.some((t) => t.status === 'completed')) await this.synthesize(orch);
     // Read at the end: a task continued by hand can fail or complete while the graph is finishing. A
     // branch given up is a decision, not a failure, so the graph finishes without it.
@@ -1157,6 +1196,9 @@ ${quoted}
               : integration
                 ? `Merging the tasks' branches into ${integration.branch} did not finish (${integration.error ?? integration.status}). Say so in the report.\n\n`
                 : '') +
+            (orch.verification && orch.verification.status !== 'pending'
+              ? `Verification of the merged branch: ${orch.verification.status}. ${orch.verification.report}\n\n`
+              : '') +
             (orch.tasks.some((t) => t.status === 'skipped')
               ? 'Tasks marked skipped were given up on purpose by a person: say what is missing because of them.\n\n'
               : '') +
@@ -1188,6 +1230,231 @@ ${quoted}
     return existsSync(dir) ? dir : worktree;
   }
 
+  // ---------- verification ----------
+
+  /**
+   * Runs the checks of a graph that is over on its integration branch, or runs them again: after a
+   * fix made by hand, or on a graph launched without any. Returns at once, with the checks running;
+   * their outcome lands on the orchestration.
+   */
+  verify(id: string, req: VerifyOrchestrationRequest = {}): Orchestration {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    if (orch.status === 'running' || orch.status === 'waiting') throw new Error('the checks run when the graph finishes: wait for it, or stop it first');
+    if (orch.engine !== 'graph' || !orch.worktree) throw new Error('verification runs on the integration branch, which needs the graph engine with a worktree per task');
+    if (this.verifying.has(orch.id)) throw new Error('the checks are already running');
+    if (orch.integration?.status !== 'merged') throw new Error('the orchestration has no integrated branch yet');
+    const spec = req.verification !== undefined ? normalizeVerification(req.verification) : (orch.verificationSpec ?? null);
+    if (!spec) throw new Error('there are no checks to run: give them as verification');
+    orch.verificationSpec = spec;
+    // Asked for by hand, so they run even where they passed before
+    orch.verification = null;
+    void this.runChecks(orch);
+    return orch;
+  }
+
+  /** Stops the checks that are running, and the fixer if one is at work. */
+  private cancelChecks(id: string): void {
+    const control = this.verifying.get(id);
+    if (!control) return;
+    control.cancelled = true;
+    control.command?.cancel();
+    if (control.fixerRunId && this.runs.get(control.fixerRunId)) this.runs.stop(control.fixerRunId);
+  }
+
+  /**
+   * The verification phase: the graph's checks, in order, on the integration branch, once every
+   * task is merged. A failing check goes to a fixer agent if the graph asked for one, and every
+   * check runs again from the first after a fix, because a fix for one can break another. What comes
+   * out is recorded on `orch.verification` whatever happens; this never throws.
+   */
+  private async runChecks(orch: Orchestration): Promise<void> {
+    const spec = orch.verificationSpec;
+    if (!spec || orch.engine !== 'graph' || this.verifying.has(orch.id)) return;
+    const integration = orch.integration;
+    const before = orch.verification;
+    if (!integration || integration.status !== 'merged' || !integration.worktree || !existsSync(integration.worktree)) {
+      const why = integration ? `the work was not merged into ${integration.branch} (${integration.error ?? integration.status})` : 'no task left work to merge';
+      orch.verification = {
+        status: 'failed',
+        attempts: 0,
+        commands: spec.commands.map(pendingCommand),
+        commits: [],
+        commit: null,
+        report: `Not run: ${why}.`,
+      };
+      this.persist();
+      return;
+    }
+    // What passed on this very head does not need to run again
+    if (before && (before.status === 'passed' || before.status === 'fixed') && before.commit === integration.commit) return;
+
+    const root = integration.worktree;
+    const control: VerificationControl = { cancelled: false, command: null, fixerRunId: null };
+    this.verifying.set(orch.id, control);
+    const startHead = headCommit(root);
+    const state: VerificationState = (orch.verification = {
+      status: 'running',
+      attempts: 0,
+      commands: spec.commands.map(pendingCommand),
+      commits: [],
+      commit: startHead,
+      report: '',
+    });
+    this.persist();
+    try {
+      await this.checkAll(orch, spec, state, root, startHead, control);
+    } catch (err) {
+      state.status = 'failed';
+      state.report = `The checks could not run: ${(err as Error).message}`;
+    } finally {
+      this.verifying.delete(orch.id);
+    }
+    try {
+      state.commit = headCommit(root);
+      // What the fixer committed is part of the branch now
+      integration.commit = state.commit;
+    } catch {
+      // the worktree is gone; the outcome stands without a commit
+    }
+    this.persist();
+  }
+
+  private async checkAll(
+    orch: Orchestration,
+    spec: VerificationSpec,
+    state: VerificationState,
+    root: string,
+    startHead: string,
+    control: VerificationControl,
+  ): Promise<void> {
+    const minutes = spec.timeoutMinutes ?? DEFAULT_VERIFY_MINUTES;
+    const dir = this.integratedDir(orch, root);
+    const spent = spec.commands.map(() => 0);
+    const said = spec.commands.map<string[]>(() => []);
+    const mended = new Set<number>();
+    const conclude = (status: 'passed' | 'fixed' | 'failed', headline: string) => {
+      state.status = status;
+      const left = state.commands.filter((c) => c.status === 'pending').map((c) => c.command);
+      state.report = [headline, left.length ? `Not run: ${left.map((c) => `\`${c}\``).join(', ')}.` : ''].filter(Boolean).join(' ');
+    };
+
+    let i = 0;
+    while (i < state.commands.length) {
+      const entry = state.commands[i] as VerificationCommand;
+      entry.status = 'running';
+      this.persist();
+      const outcome = await runCommand(entry.command, dir, minutes * 60_000, (handle) => {
+        control.command = handle;
+      });
+      control.command = null;
+      entry.output = outcome.output;
+      entry.durationMs = outcome.durationMs;
+      if (control.cancelled) {
+        entry.status = 'failed';
+        return conclude('failed', 'Stopped before the checks finished.');
+      }
+      if (outcome.ok) {
+        entry.status = mended.has(i) ? 'fixed' : 'passed';
+        i += 1;
+        this.persist();
+        continue;
+      }
+
+      entry.status = 'failed';
+      const why = outcome.timedOut ? `timed out after ${String(minutes)} min and was killed` : `exited with code ${String(outcome.exitCode ?? 'unknown')}`;
+      if (!spec.fixer) return conclude('failed', `\`${entry.command}\` ${why}. The fixer is off, so nothing was changed.`);
+      if ((spent[i] ?? 0) >= spec.maxAttempts) {
+        const last = said[i]?.at(-1);
+        return conclude(
+          'failed',
+          `\`${entry.command}\` ${why} again after ${String(spent[i])} fixer attempt${spent[i] === 1 ? '' : 's'}, so Agentry stopped there.` +
+            (last ? ` The last thing the fixer said: ${last}` : ''),
+        );
+      }
+      spent[i] = (spent[i] ?? 0) + 1;
+      state.attempts += 1;
+      this.persist();
+      said[i]?.push(await this.fix(orch, spec, state, root, dir, i, why, said[i] ?? [], control));
+      state.commits = commitsSince(root, startHead);
+      if (control.cancelled) return conclude('failed', 'Stopped before the checks finished.');
+      mended.add(i);
+      // A fix for one check can break another: they all run again, from the first
+      for (const c of state.commands) c.status = 'pending';
+      i = 0;
+    }
+
+    if (mended.size === 0) return conclude('passed', `All ${String(state.commands.length)} checks passed on the merged branch.`);
+    const made = state.commits.length;
+    conclude(
+      'fixed',
+      `${String(mended.size)} check${mended.size === 1 ? '' : 's'} failed and ${mended.size === 1 ? 'was' : 'were'} fixed in ${String(state.attempts)} attempt${state.attempts === 1 ? '' : 's'}, ` +
+        (made ? `with ${String(made)} commit${made === 1 ? '' : 's'} on the branch: ${state.commits.map((c) => c.subject).join('; ')}. ` : 'without a commit: the re-run passed on its own. ') +
+        `All ${String(state.commands.length)} checks pass now.`,
+    );
+  }
+
+  /** One attempt of the fixer at one failing check. Returns what it reported, trimmed. */
+  private async fix(
+    orch: Orchestration,
+    spec: VerificationSpec,
+    state: VerificationState,
+    root: string,
+    dir: string,
+    index: number,
+    failure: string,
+    earlier: string[],
+    control: VerificationControl,
+  ): Promise<string> {
+    const entry = state.commands[index] as VerificationCommand;
+    let note: string;
+    try {
+      const run = this.runs.start(
+        {
+          prompt: fixerPrompt({
+            objective: orch.objective ?? orch.name,
+            branch: orch.integration?.branch ?? '',
+            worktree: root,
+            command: entry.command,
+            commands: state.commands.map((c) => c.command),
+            failure: `It ${failure}.`,
+            output: entry.output,
+            attempt: earlier.length + 1,
+            maxAttempts: spec.maxAttempts,
+            earlier,
+            tasks: orch.tasks
+              .filter((t) => t.status === 'completed')
+              .map((t) => ({ id: t.id, name: t.name, result: (t.result ?? '').slice(0, MAX_DEP_CONTEXT) })),
+            timeoutMinutes: spec.timeoutMinutes ?? DEFAULT_VERIFY_MINUTES,
+          }),
+          cwd: dir,
+          model: spec.model ?? orch.model ?? undefined,
+          permissionMode: orch.permissionMode,
+          // Building and running tests is the job, so it may run commands; the graph asked for a fixer
+          allowedTools: [...new Set([...(orch.allowedTools ?? []), 'Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash'])],
+          ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
+          name: `${orch.name}:verification`.slice(0, 60),
+          keepAlive: false,
+        },
+        { orchestrationId: orch.id, orchestrationTaskId: '__verification__' },
+      );
+      control.fixerRunId = run.id;
+      const result = await this.runs.waitForResult(run.id);
+      orch.costUsd += result.costUsd;
+      note = result.isError ? `the fixer ended with an error: ${result.result}` : result.result;
+    } catch (err) {
+      note = `the fixer could not run: ${(err as Error).message}`;
+    }
+    control.fixerRunId = null;
+    try {
+      // Asked to commit, agents often do not: what is left would be lost to the pull request
+      commitAll(root, `chore: keep what the verification fixer left uncommitted\n\nOrchestration ${orch.name} (${orch.id.slice(0, 8)}), check \`${entry.command}\`.`);
+    } catch {
+      // the fixer left the tree in a state git will not commit; the re-run says whether it matters
+    }
+    return tail(note, 1500);
+  }
+
   /** Integrates a finished graph again: after resolving by hand, or one from before this existed. */
   retryIntegration(id: string): Orchestration {
     const orch = this.items.get(id);
@@ -1197,8 +1464,10 @@ ${quoted}
     if (orch.integration && ['merging', 'resolving'].includes(orch.integration.status)) return orch;
     if (!orch.tasks.some((t) => t.status === 'completed' && t.branch)) throw new Error('no task has a branch to integrate');
     if (!isGitRepo(orch.cwd)) throw new Error(`${orch.cwd} is not a git repository`);
+    if (this.verifying.has(orch.id)) throw new Error('the checks are running on the integration branch: stop the orchestration first');
     orch.baseCommit ??= this.forkPoint(orch);
-    void this.integrate(orch);
+    // The checks skip themselves when the branch is where they last passed
+    void this.integrate(orch).then(() => this.runChecks(orch));
     return orch;
   }
 
@@ -1223,11 +1492,14 @@ ${quoted}
     const integration = orch.integration;
     if (integration?.status !== 'merged') throw new Error('the orchestration has no integrated branch yet');
     if (integration.pullRequestUrl) return { branch: integration.branch, url: integration.pullRequestUrl, detail: 'already open' };
+    // A branch being fixed is a moving one, and what is pushed must be what was checked
+    if (this.verifying.has(orch.id)) throw new Error('the checks are still running on the integration branch: wait for their outcome before opening a pull request');
     git(orch.cwd, ['push', '-u', 'origin', integration.branch], 180_000);
     let url: string | null = null;
     let detail = `pushed ${integration.branch}`;
     try {
-      const body = [orch.objective, orch.finalResult].filter(Boolean).join('\n\n---\n\n') || orch.name;
+      const checked = orch.verification && orch.verification.status !== 'pending' ? `Verification: ${orch.verification.status}. ${orch.verification.report}` : null;
+      const body = [orch.objective, checked, orch.finalResult].filter(Boolean).join('\n\n---\n\n') || orch.name;
       url = execFileSync('gh', ['pr', 'create', '--head', integration.branch, '--title', orch.name, '--body', body.slice(0, 60_000)], {
         cwd: orch.cwd,
         stdio: 'pipe',
@@ -1381,6 +1653,7 @@ ${quoted}
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
     if (orch.status === 'running' || orch.status === 'waiting') throw new Error('stop the orchestration before deleting it');
+    if (this.verifying.has(orch.id)) throw new Error('the checks are running on the integration branch: stop the orchestration first');
     const kept = this.pruneWorktrees(id, { force: false }).filter((r) => !r.removed);
     if (kept.length > 0) {
       throw new Error(
@@ -1420,6 +1693,8 @@ ${quoted}
   private reopen(orch: Orchestration): Orchestration {
     orch.status = 'running';
     orch.endedAt = null;
+    // The graph finishes again, and what it checked was the branch before this
+    if (!this.verifying.has(orch.id)) orch.verification = null;
     this.schedule(orch);
     return orch;
   }
@@ -1494,6 +1769,7 @@ ${quoted}
     if (orch.engine !== 'graph') throw new Error('a workflow runs its tasks as one session: resume it instead');
     if (orch.status === 'running') throw new Error('the orchestration is still running: stop it first, or wait for it to finish');
     if (orch.status === 'waiting') throw new Error('the orchestration is waiting for a decision on its tasks: retry or skip them instead');
+    if (this.verifying.has(orch.id)) throw new Error('the checks are running on the integration branch: stop the orchestration first');
     const task = orch.tasks.find((t) => t.id === taskId);
     if (!task) throw new Error('task not found');
     const redo = this.withDependants(orch, task);
@@ -1586,7 +1862,7 @@ ${quoted}
         dependsOn: t.dependsOn ?? [],
         ...(t.model ? { model: t.model } : {}),
         before: head,
-        after: this.workerTask(t),
+        after: this.workerTask(orch, t),
       })),
       synthesis: orch.synthesize
         ? `Synthesize the results of a multi-agent orchestration into one final report.\nObjective: ${orch.objective ?? orch.name}`

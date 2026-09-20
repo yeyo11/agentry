@@ -30,7 +30,7 @@ const ROOT_TYPES = [
   // Stepping in on a worker that is stuck
   'Health', 'TaskLimits', 'HintRequest', 'CancelCommandRequest', 'CancelCommandResult',
   // Orchestration v2 and the verification phase
-  'VerificationSpec', 'VerificationState', 'RelaunchOrchestrationRequest', 'OrchestrationTemplate',
+  'VerificationSpec', 'VerificationState', 'VerifyOrchestrationRequest', 'RelaunchOrchestrationRequest', 'OrchestrationTemplate',
   'SaveOrchestrationTemplateRequest', 'UpdateOrchestrationTemplateRequest', 'LaunchOrchestrationTemplateRequest',
   // Security
   'AuthConfig', 'UpdateAuthConfigRequest', 'SetAuthTokenRequest', 'AuthTokenResult', 'AuditEntry', 'AuditPage',

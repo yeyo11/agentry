@@ -2036,6 +2036,17 @@
         ],
         "description": "Default ceiling for every task that does not set its own"
       },
+      "verificationSpec": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/VerificationSpec"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The checks the graph asked for, kept so a relaunch, a template and a re-run of the checks start from them"
+      },
       "verification": {
         "anyOf": [
           {
@@ -2478,6 +2489,40 @@
       "workflowRunId"
     ]
   },
+  "VerificationSpec": {
+    "type": "object",
+    "properties": {
+      "commands": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Run in order on the integration branch, each one under a timeout"
+      },
+      "fixer": {
+        "type": "boolean",
+        "description": "Launch an agent to fix what fails, instead of only reporting it"
+      },
+      "maxAttempts": {
+        "type": "number",
+        "description": "Fixer attempts per failing command before it stops and reports"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model for the fixer; the graph's when absent"
+      },
+      "timeoutMinutes": {
+        "type": "number",
+        "description": "Minutes each command may run before it is killed and counts as failed (default 20)"
+      }
+    },
+    "required": [
+      "commands",
+      "fixer",
+      "maxAttempts"
+    ],
+    "description": "Checks to run once the graph is integrated, and what may happen to what fails."
+  },
   "VerificationState": {
     "type": "object",
     "properties": {
@@ -2500,6 +2545,13 @@
           "$ref": "#/components/schemas/Commit"
         },
         "description": "What the fixer committed on the integration branch"
+      },
+      "commit": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The head of the integration branch the checks last ran on; when it moves, they are stale"
       },
       "report": {
         "type": "string",
@@ -2650,36 +2702,6 @@
       "name",
       "tasks"
     ]
-  },
-  "VerificationSpec": {
-    "type": "object",
-    "properties": {
-      "commands": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "Run in order on the integration branch, each one under a timeout"
-      },
-      "fixer": {
-        "type": "boolean",
-        "description": "Launch an agent to fix what fails, instead of only reporting it"
-      },
-      "maxAttempts": {
-        "type": "number",
-        "description": "Fixer attempts per failing command before it stops and reports"
-      },
-      "model": {
-        "type": "string",
-        "description": "Model for the fixer; the graph's when absent"
-      }
-    },
-    "required": [
-      "commands",
-      "fixer",
-      "maxAttempts"
-    ],
-    "description": "Checks to run once the graph is integrated, and what may happen to what fails."
   },
   "OrchestrationTaskSpec": {
     "type": "object",
@@ -4967,6 +4989,17 @@
           }
         ]
       },
+      "verificationStatus": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/VerificationStatus"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Where the checks on the integration branch stand; set on the event that announces their change"
+      },
       "costUsd": {
         "type": "number"
       }
@@ -7023,6 +7056,16 @@
       "processes"
     ],
     "description": "What cancelling a command did."
+  },
+  "VerifyOrchestrationRequest": {
+    "type": "object",
+    "properties": {
+      "verification": {
+        "$ref": "#/components/schemas/VerificationSpec",
+        "description": "Replaces the checks the graph was launched with; required for a graph launched without any"
+      }
+    },
+    "description": "Runs the checks on a finished graph's integration branch, or runs them again."
   },
   "RelaunchOrchestrationRequest": {
     "type": "object",

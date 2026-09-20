@@ -10,6 +10,7 @@ import type {
   SaveOrchestrationWorkflowRequest,
   TaskHintRequest,
   UpdateOrchestrationTemplateRequest,
+  VerifyOrchestrationRequest,
 } from '@agentry/shared';
 
 export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
@@ -114,6 +115,11 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
   // Merges the task branches into the graph's integration branch again: after resolving by hand, or
   // for a graph that finished before orchestrations integrated their own work.
   app.post<{ Params: { id: string } }>('/orchestrations/:id/integrate', (req) => core.orchestrator.retryIntegration(req.params.id));
+
+  // Runs the graph's checks on the integration branch: by hand, or again after a change to it
+  app.post<{ Params: { id: string }; Body: VerifyOrchestrationRequest }>('/orchestrations/:id/verify', (req) =>
+    core.orchestrator.verify(req.params.id, req.body ?? {}),
+  );
 
   // The one step that leaves the machine, so it only ever happens on request
   app.post<{ Params: { id: string } }>('/orchestrations/:id/pull-request', (req) => core.orchestrator.pullRequest(req.params.id));

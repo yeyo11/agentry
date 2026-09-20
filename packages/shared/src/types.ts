@@ -1075,6 +1075,8 @@ export interface Orchestration {
   workflow?: OrchestrationWorkflow | null;
   /** Default ceiling for every task that does not set its own */
   limits?: TaskLimits | null;
+  /** The checks the graph asked for, kept so a relaunch, a template and a re-run of the checks start from them */
+  verificationSpec?: VerificationSpec | null;
   /** What the checks on the integration branch did; absent when the graph asked for none */
   verification?: VerificationState | null;
   /** The orchestration this one was relaunched from, when it was */
@@ -1098,6 +1100,14 @@ export interface VerificationSpec {
   maxAttempts: number;
   /** Model for the fixer; the graph's when absent */
   model?: string;
+  /** Minutes each command may run before it is killed and counts as failed (default 20) */
+  timeoutMinutes?: number;
+}
+
+/** Runs the checks on a finished graph's integration branch, or runs them again. */
+export interface VerifyOrchestrationRequest {
+  /** Replaces the checks the graph was launched with; required for a graph launched without any */
+  verification?: VerificationSpec;
 }
 
 /** `fixed`: it failed, the fixer mended it, and the re-run passed. */
@@ -1118,6 +1128,8 @@ export interface VerificationState {
   commands: VerificationCommand[];
   /** What the fixer committed on the integration branch */
   commits: Commit[];
+  /** The head of the integration branch the checks last ran on; when it moves, they are stale */
+  commit?: string | null;
   /** What happened, in words: shown before the pull request is offered */
   report: string;
 }
@@ -2050,6 +2062,8 @@ export interface OrchestrationUpdatedEvent extends AgentryEventBase {
   status: OrchestrationStatus;
   previousStatus: OrchestrationStatus | null;
   integrationStatus: IntegrationStatus | null;
+  /** Where the checks on the integration branch stand; set on the event that announces their change */
+  verificationStatus?: VerificationStatus | null;
   costUsd: number;
 }
 

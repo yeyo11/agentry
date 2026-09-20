@@ -143,6 +143,14 @@ test('re-running and relaunching what does not exist are 404s', async () => {
   assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/nope/relaunch', ...json({}) })).statusCode, 404);
 });
 
+test('verification is refused where it could not run, and checking what does not exist is a 404', async () => {
+  const graph = { name: 'checked', cwd: tmpdir(), tasks: [{ id: 'a', name: 'a', prompt: 'do it' }] };
+  const shared = await app.inject({ method: 'POST', url: '/api/orchestrations', ...json({ ...graph, verification: { commands: ['true'], fixer: false, maxAttempts: 1 } }) });
+  assert.equal(shared.statusCode, 400);
+  assert.match(shared.json().error, /worktree per task/);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/nope/verify', ...json({}) })).statusCode, 404);
+});
+
 test('orchestration templates are saved, listed, edited, launched and deleted over the API', async () => {
   const graph = { name: 'review', objective: 'old', cwd: join(tmpdir()), tasks: [{ id: 'a', name: 'a', prompt: 'do it' }] };
   assert.deepEqual((await app.inject('/api/orchestrations/templates')).json(), []);
