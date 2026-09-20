@@ -243,6 +243,23 @@ new `claude` process, and never returned by any endpoint.
 | DELETE | `/auth/credentials` | Remove the stored credential; falls back to the container environment |
 | POST | `/auth/verify` | Sends a minimal real request. `claude auth status` only reports what is configured, it does not validate the token |
 
+### Security
+
+Authentication is off by default (`mode: none`), which is what a local install on loopback wants.
+With `token` every route needs `Authorization: Bearer …`; with `oidc` it needs a JWT the issuer's
+JWKS validates (`aud` and `exp` are checked). `GET /api/health` stays open, `/docs` does not, and
+only the three GETs a browser makes without headers — `/events`, `/chats/:id/stream` and
+`/uploads/:id/content` — also accept the credential as `?token=`. Only the SHA-256 of a token is
+stored; the token itself exists once, in the answer that created it.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/security/auth` | Mode, whether a token is set, the OIDC fields and read-only. Never the token |
+| PUT | `/security/auth` | `{ mode?, oidc?, readOnly? }`. A mode that would lock everyone out is refused; stays reachable in read-only mode, because it is the switch |
+| POST | `/security/token` | Set or rotate the bearer token — `{ token? }`, generated when omitted. Returned once |
+| DELETE | `/security/token` | Remove it; refused while the mode is `token` |
+| GET | `/audit?limit=&from=&path=` | Mutating requests, newest first: when, actor (token id, OIDC subject or `local`), method, path, status and a one-line summary from the route. Bodies are never recorded |
+
 ### Accounts (multi-account)
 
 Several Claude accounts through [claude-swap](https://github.com/realiti4/claude-swap) (`cswap`),

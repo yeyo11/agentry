@@ -3,6 +3,22 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import type { PermissionMode } from '@agentry/shared';
 
+/**
+ * What the environment may say about the guard. Read here with everything else the environment
+ * configures, so the auth store takes its defaults from a value and not from `process.env`: a
+ * wrapper built for a test is then as closed, or as open, as the test asked for.
+ */
+const AUTH_ENV_KEYS = [
+  'AGENTRY_AUTH_MODE',
+  'AGENTRY_AUTH_TOKEN',
+  'AGENTRY_READ_ONLY',
+  'AGENTRY_OIDC_ISSUER',
+  'AGENTRY_OIDC_AUDIENCE',
+  'AGENTRY_OIDC_CLIENT_ID',
+] as const;
+
+export type AuthEnv = Partial<Record<(typeof AUTH_ENV_KEYS)[number], string>>;
+
 export interface CoreConfig {
   claudeBin: string;
   /** claude-swap binary: owns the account credentials when several accounts are registered */
@@ -15,6 +31,8 @@ export interface CoreConfig {
   dataDir: string;
   defaultPermissionMode: PermissionMode;
   maxConcurrentRuns: number;
+  /** Seeds the guard of an install that has no `auth.json` yet; see `security/auth.ts` */
+  authEnv: AuthEnv;
 }
 
 /** pnpm runs scripts from the package dir; default state dirs belong at the monorepo root instead. */
@@ -46,5 +64,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     dataDir,
     defaultPermissionMode: (env.AGENTRY_DEFAULT_PERMISSION_MODE as PermissionMode | undefined) ?? 'acceptEdits',
     maxConcurrentRuns: Number(env.AGENTRY_MAX_CONCURRENT_RUNS ?? 8),
+    authEnv: Object.fromEntries(AUTH_ENV_KEYS.flatMap((key) => (env[key] === undefined ? [] : [[key, env[key]]]))) as AuthEnv,
   };
 }

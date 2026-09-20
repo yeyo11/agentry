@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { TRANSCRIPT_PAGE_MAX } from '@agentry/shared';
 import type { AgentTranscript, Chat, RunEvent } from '@agentry/shared';
 import { api, BASE, enc, keys } from '../api';
+import { withToken } from './auth';
 import { useFallbackInterval } from './feed';
 
 // ---------- reads ----------
@@ -191,7 +192,7 @@ export function useChatStream(id: string, enabled: boolean): { partial: Streamin
       if (next !== undefined) setPartial(next);
       next = undefined;
     };
-    const source = new EventSource(`${BASE}/chats/${enc(id)}/stream?since=${Number.MAX_SAFE_INTEGER}`);
+    const source = new EventSource(withToken(`${BASE}/chats/${enc(id)}/stream?since=${Number.MAX_SAFE_INTEGER}`));
     source.onopen = () => setConnected(true);
     // The browser reconnects by itself, and says so through readyState
     source.onerror = () => setConnected(source.readyState === EventSource.OPEN);

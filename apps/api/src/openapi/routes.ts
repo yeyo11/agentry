@@ -29,6 +29,7 @@ export const TAGS = [
   { name: 'Memory', description: "Claude Code's per-project file memory." },
   { name: 'Plugins', description: 'Delegated to `claude plugin`; actions return the CLI output.' },
   { name: 'Uploads', description: 'Files to attach to a message. Images and PDFs reach Claude as content blocks, any other file by its path.' },
+  { name: 'Security', description: 'Who may call this API, whether it accepts changes, and the trail every change leaves.' },
 ];
 
 interface RouteDoc {
@@ -240,6 +241,13 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /plugins/marketplaces': d('Plugins', 'Add a marketplace', { body: obj({ source: str('GitHub `owner/repo`, URL or path') }, ['source']), ok: ref('CliTextResult') }),
   'POST /plugins/marketplaces/update': d('Plugins', 'Update one or all marketplaces', { body: obj({ name: str('Omit to update all') }), ok: ref('CliTextResult') }),
   'DELETE /plugins/marketplaces/:name': d('Plugins', 'Remove a marketplace', { ok: ref('CliTextResult') }),
+
+  // ---- Security
+  'GET /security/auth': d('Security', 'How the API is guarded', { description: 'The token is never returned: only whether one is set.', ok: ref('AuthConfig') }),
+  'PUT /security/auth': d('Security', 'Change the auth mode or read-only', { description: 'Turning on `token` needs a token already set, and `oidc` an issuer and an audience, so a mode cannot lock everyone out. This route stays reachable in read-only mode: it is the switch.', body: ref('UpdateAuthConfigRequest'), ok: ref('AuthConfig') }),
+  'POST /security/token': d('Security', 'Set or rotate the bearer token', { description: 'Returns the token once and keeps only its SHA-256. Omit `token` to have one generated. Send it as `Authorization: Bearer …`; `GET /events`, `GET /chats/{id}/stream` and `GET /uploads/{id}/content` also accept `?token=`, because a browser cannot set a header on those.', body: ref('SetAuthTokenRequest'), ok: ref('AuthTokenResult') }),
+  'DELETE /security/token': d('Security', 'Remove the bearer token', { description: 'Refused while the mode is `token`.', ok: ref('AuthConfig') }),
+  'GET /audit': d('Security', 'Mutating requests, newest first', { description: 'When, who (token id, OIDC subject, or `local`), method, path, status and a one-line summary built from the route. Bodies are never recorded: they carry prompts and secrets.', querystring: obj({ limit: str('1-500, default 50'), from: str('Offset within the filtered set'), path: str('Matches anywhere in the path') }), ok: ref('AuditPage') }),
 
   // ---- Uploads
   'POST /uploads': d('Uploads', 'Upload a file to attach', { description: 'The request body is the file itself, sent as `application/octet-stream`; `name` is its file name. The type is read from the bytes. Limits: images (PNG, JPEG, GIF, WebP) 5 MB, PDFs 32 MB, anything else 50 MB. Files are kept in the data dir, outside every project, and every run can read them.', querystring: obj({ name: str('File name') }), ok: ref('Attachment'), created: true }),

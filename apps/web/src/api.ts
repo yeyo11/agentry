@@ -5,7 +5,13 @@ import type {
   AgentTranscript,
   AddAccountTokenRequest,
   ApiError,
+  AuditPage,
+  AuthConfig,
+  AuthMode,
   AuthStatus,
+  AuthTokenResult,
+  SetAuthTokenRequest,
+  UpdateAuthConfigRequest,
   AuthVerification,
   AutoSwitchEvent,
   AutoSwitchSettings,
@@ -66,6 +72,7 @@ import type {
   UsageReport,
 } from '@agentry/shared';
 import i18n from './i18n';
+import { authHeaders, setChallenge } from './lib/auth';
 import { useFallbackInterval } from './lib/feed';
 
 export const BASE = '/api';
@@ -95,7 +102,7 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
   try {
     res = await fetch(`${BASE}${path}`, {
       method: init.method ?? 'GET',
-      headers: hasBody ? { 'content-type': 'application/json' } : undefined,
+      headers: { ...(hasBody ? { 'content-type': 'application/json' } : {}), ...authHeaders() },
       body: hasBody ? JSON.stringify(init.body) : undefined,
       signal: AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS),
     });
@@ -113,7 +120,10 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     // non-JSON body (e.g. proxy error page)
   }
   if (!res.ok) {
-    const err = json as Partial<ApiError> | null;
+    const err = json as (Partial<ApiError> & { mode?: AuthMode }) | null;
+    // The guard refused the credential: every page is about to fail the same way, so the app
+    // shows one sign-in screen instead of an error on each of them
+    if (res.status === 401) setChallenge(err?.mode ?? 'token');
     throw new ApiRequestError(err?.error ?? `HTTP ${res.status} ${res.statusText}`, res.status, err?.detail);
   }
   return json as T;
@@ -125,7 +135,7 @@ export const enc = encodeURIComponent;
 async function uploadFile(file: File): Promise<Attachment> {
   const res = await fetch(`${BASE}/uploads?name=${encodeURIComponent(file.name || 'pasted')}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/octet-stream' },
+    headers: { 'content-type': 'application/octet-stream', ...authHeaders() },
     body: file,
     signal: AbortSignal.timeout(5 * 60_000),
   });
@@ -300,6 +310,13 @@ export const api = {
     request<{ ok: true }>(`/accounts/${number}/alias`, { method: 'PUT', body: { alias } }),
   setAutoSwitch: (body: Partial<AutoSwitchSettings>) =>
     request<AutoSwitchSettings>('/accounts/autoswitch', { method: 'PUT', body }),
+  securityAuth: () => request<AuthConfig>('/security/auth'),
+  updateSecurityAuth: (body: UpdateAuthConfigRequest) => request<AuthConfig>('/security/auth', { method: 'PUT', body }),
+  /** The only answer that ever carries the token; it cannot be read back afterwards. */
+  setSecurityToken: (body: SetAuthTokenRequest = {}) => request<AuthTokenResult>('/security/token', { method: 'POST', body }),
+  clearSecurityToken: () => request<AuthConfig>('/security/token', { method: 'DELETE' }),
+  audit: (page: { limit?: number; from?: number; path?: string } = {}) =>
+    request<AuditPage>(`/audit${qs({ limit: num(page.limit), from: num(page.from), path: page.path })}`),
   plugins: () => request<PluginsOverview>('/plugins'),
   availablePlugins: (q: string) => request<AvailablePlugin[]>(`/plugins/available${qs({ q })}`),
   pluginAction: (action: 'install' | 'uninstall' | 'enable' | 'disable', req: PluginActionRequest) =>
@@ -357,6 +374,8 @@ export const keys = {
   accounts: ['accounts'] as const,
   accountEvents: ['accounts', 'events'] as const,
   plugins: ['plugins'] as const,
+  securityAuth: ['security', 'auth'] as const,
+  audit: (page: { from?: number; path?: string }) => ['security', 'audit', page.from ?? 0, page.path ?? ''] as const,
   availablePlugins: (q: string) => ['plugins', 'available', q] as const,
   pluginDetails: (plugin: string) => ['plugins', 'details', plugin] as const,
 };
