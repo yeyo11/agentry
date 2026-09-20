@@ -199,6 +199,27 @@ test('finished tasks and subagents stay low priority unless they failed', () => 
   assert.equal(notificationsFor({ ...sub, agentId: null })[0]?.href, '/chats/s9');
 });
 
+test('a finished workflow opens the agent that ended it, and the chat when it names none', () => {
+  const workflow: AgentryEvent = {
+    type: 'workflow.ended',
+    ...base('wf'),
+    runId: 'run1',
+    runName: 'fix the build',
+    sessionId: 's9',
+    workflowId: 'wf_1',
+    taskId: null,
+    agentId: 'a7',
+    name: 'audit',
+    status: 'completed',
+    summary: null,
+    totalTokens: null,
+  };
+  assert.equal(notificationsFor(workflow)[0]?.href, '/chats/s9?detail=workflow-agent%3As9%3Awf_1%3Aa7');
+  assert.equal(notificationsFor({ ...workflow, agentId: null })[0]?.href, '/chats/s9');
+  // A workflow the CLI has not given a `wf_` id has no agent transcripts to open
+  assert.equal(notificationsFor({ ...workflow, workflowId: 'task-3' })[0]?.href, '/chats/s9');
+});
+
 test('the same news inside the window is dropped, and comes back once the window has passed', () => {
   const limited = (offsetMs: number): AgentryEvent => ({ type: 'run.rateLimited', ...base('limited', offsetMs), ...run });
   const first = apply([], [limited(0)], defaultPrefs(), Date.parse(at(0)));

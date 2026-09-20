@@ -2012,6 +2012,12 @@ export interface WorkflowEndedEvent extends AgentryEventBase, ActivityEventRef {
   type: 'workflow.ended';
   workflowId: string;
   taskId: string | null;
+  /**
+   * The agent that ended it, so a link can open that agent instead of the whole workflow: the one
+   * that failed when the workflow failed, otherwise the last one to report back. Null when no
+   * agent has a transcript of its own.
+   */
+  agentId: string | null;
   name: string | null;
   status: 'completed' | 'failed' | 'stopped';
   summary: string | null;

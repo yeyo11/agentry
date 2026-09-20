@@ -199,6 +199,31 @@ test('delegated work is announced when it starts and when it ends, however it go
   publisher.dispose();
 });
 
+test('a workflow ending names the agent that ended it, so a link can open that agent', () => {
+  const seen: AgentryEventInput[] = [];
+  const publisher = new RunEventPublisher((e) => seen.push(e), 5);
+  publisher.baseline(summary());
+  const agent = (index: number, state: string, agentId: string | null) => ({
+    index, label: `agent ${String(index)}`, state, agentId, phaseTitle: null, model: null, startedAt: null, durationMs: null, tokens: null, toolCalls: null, promptPreview: null, resultPreview: null,
+  });
+  const workflow = (id: string, status: 'running' | 'completed' | 'failed', agents: ReturnType<typeof agent>[]) => ({
+    id, taskId: null, name: id, description: id, status, startedAt: '', endedAt: null, phases: [], agents, summary: null, totalTokens: null, script: null,
+  });
+
+  const done = [agent(0, 'done', 'a0'), agent(1, 'error', 'a1'), agent(2, 'done', 'a2'), agent(3, 'done', null)];
+  publisher.observe(summary({ workflows: [workflow('wf_ok', 'running', done)] }));
+  publisher.observe(summary({ workflows: [workflow('wf_ok', 'completed', done)] }));
+  publisher.observe(summary({ workflows: [workflow('wf_bad', 'running', done)] }));
+  publisher.observe(summary({ workflows: [workflow('wf_bad', 'failed', done)] }));
+  publisher.observe(summary({ workflows: [workflow('wf_none', 'running', [agent(0, 'done', null)])] }));
+  publisher.observe(summary({ workflows: [workflow('wf_none', 'completed', [agent(0, 'done', null)])] }));
+
+  const ended = seen.flatMap((e) => (e.type === 'workflow.ended' ? [[e.workflowId, e.agentId]] : []));
+  // The last agent to report with a transcript; the one that errored when the workflow failed; none when nobody has a transcript
+  assert.deepEqual(ended, [['wf_ok', 'a2'], ['wf_bad', 'a1'], ['wf_none', null]]);
+  publisher.dispose();
+});
+
 test('a run announces itself, its work and its end through the manager', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);

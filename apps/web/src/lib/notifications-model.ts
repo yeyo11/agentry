@@ -295,7 +295,8 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'info',
           title: event.title,
           body: event.summary ?? '',
-          href: chatOf ? chatHref(chatOf) : null,
+          // Only workflows the CLI ids as `wf_…` have agent transcripts to open, as on the workflow card
+          href: chatOf ? (event.agentId && event.workflowId.startsWith('wf_') ? detailHref({ kind: 'workflow-agent', chatId: chatOf, workflowId: event.workflowId, agentId: event.agentId }, chatHref(chatOf)) : chatHref(chatOf)) : null,
           runId: event.runId || null,
         }),
       ];
