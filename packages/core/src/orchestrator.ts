@@ -594,6 +594,8 @@ export class Orchestrator {
       : { cwd: root, adopt: true, pendingMerge: null };
     // A resumed task continues where its first attempt stopped
     if (!existsSync(path)) {
+      // A branch that is already there was cut by an earlier attempt, and its base is that one's
+      const cutNow = !branchExists(root, branch);
       const deps = orch.tasks
         .filter((t) => task.dependsOn?.includes(t.id) && t.branch && branchExists(root, t.branch))
         .map((t) => t.branch as string);
@@ -610,6 +612,8 @@ export class Orchestrator {
           break;
         }
       }
+      // What "changed by this task" is measured from: its dependencies' work is not its own
+      if (cutNow) task.baseCommit = headCommit(path);
     }
     if (!prepared.adopt) {
       // A directory holding only untracked files in the checkout does not exist in the worktree
@@ -1270,6 +1274,7 @@ ${quoted}
       sessionId: null,
       worktree: null,
       branch: null,
+      baseCommit: null,
       commit: null,
       result: null,
       error: null,

@@ -30,6 +30,8 @@ import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
 import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
+import { ChangeWatcher } from './change-watcher.ts';
+import { Changes } from './changes.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
 import { Db } from './db.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
@@ -94,6 +96,8 @@ export class Core {
   readonly chats: ChatService;
   readonly sessions: SessionStore;
   readonly orchestrator: Orchestrator;
+  /** What a task, the integration branch or a chat has changed on disk */
+  readonly changes: Changes;
   readonly files: SettingsFiles;
   readonly explorer: ConfigExplorer;
   readonly plugins: Plugins;
@@ -108,6 +112,7 @@ export class Core {
   private readonly projectStore: ProjectStore;
   private readonly startedAt = Date.now();
   private readonly sessionsWatcher: SessionsWatcher;
+  private readonly changeWatcher: ChangeWatcher;
   private systemCache: { at: number; value: Omit<SystemInfo, 'uptimeSec'> } | null = null;
 
   constructor(config: CoreConfig = loadConfig()) {
@@ -153,6 +158,9 @@ export class Core {
       environmentOf: (dir) => this.runtime.environments.get(dir),
       windowOf: (model) => this.db.modelWindow(model),
     });
+    this.changes = new Changes({ orchestrator: this.orchestrator, chats: this.chats, sessions: this.sessions, runtime: this.runtime });
+    this.changeWatcher = new ChangeWatcher(this.orchestrator, this.events);
+    this.changeWatcher.start();
     this.files = new SettingsFiles();
     this.explorer = new ConfigExplorer();
     this.plugins = new Plugins(config);
@@ -531,6 +539,7 @@ export class Core {
 
   shutdown(): void {
     this.sessionsWatcher.close();
+    this.changeWatcher.close();
     this.permissions.close();
     this.accounts.shutdown();
     this.runtime.stopAll();
