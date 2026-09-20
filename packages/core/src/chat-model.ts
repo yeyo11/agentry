@@ -1,4 +1,16 @@
-import type { ChatControl, ChatOrigin, ChatState, ExecutionOutcome, RunStatus } from '@agentry/shared';
+import {
+  CONTEXT_FULL,
+  CONTEXT_WARN,
+  type ChatContext,
+  type ChatControl,
+  type ChatHealth,
+  type ChatOrigin,
+  type ChatState,
+  type Execution,
+  type ExecutionOutcome,
+  type HealthSignal,
+  type RunStatus,
+} from '@agentry/shared';
 
 // The adapter between what the Claude Code CLI reports and Agentry's model. Everything the CLI says
 // in its own words (stream statuses, `claude agents --json` fields, who has a process on a session)
@@ -118,4 +130,100 @@ export function chatControl({ holder, origin, taskRunning = false, deliverable =
     };
   }
   return { mode: 'resumable' };
+}
+
+// ---------- health ----------
+
+/**
+ * A command running longer than this is worth a look, and past the second limit it is a problem: a
+ * shell call carries its own timeout of at most ten minutes, so one still going after that has
+ * outlived the thing that should have ended it.
+ */
+export const HUNG_COMMAND_MS = 3 * 60_000;
+export const HUNG_COMMAND_BAD_MS = 10 * 60_000;
+/** The same limits for a chat that is working and has said nothing at all. */
+export const SILENCE_MS = 3 * 60_000;
+export const SILENCE_BAD_MS = 10 * 60_000;
+
+/** What health is read from. Every field is something Agentry already holds. */
+export interface HealthFacts {
+  state: ChatState;
+  /** What Agentry's process on the chat is doing; null while there is none, which is when nothing can be silent or hung */
+  live: { lastEventAt: string; commands: Array<{ command: string; startedAt: string }> } | null;
+  /** How the last execution ended, when none is live now */
+  lastEnded: { outcome: ExecutionOutcome; error: string | null } | null;
+  context: ChatContext | null;
+  failedBranches: number;
+}
+
+/**
+ * How the chat's last execution ended, for whoever asks what went wrong. Null while one is live: a
+ * failure a later execution has superseded is not the chat's news of now.
+ */
+export function lastEndedOf(executions: readonly Execution[]): HealthFacts['lastEnded'] {
+  if (executions.some((e) => e.endedAt === null)) return null;
+  const last = executions[executions.length - 1];
+  return last?.outcome ? { outcome: last.outcome, error: last.error } : null;
+}
+
+const minutes = (ms: number): string => `${Math.max(1, Math.round(ms / 60_000))} min`;
+const oneLine = (text: string, max: number): string => {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+};
+
+/**
+ * Whether a chat is working as it should, from the signals that can be told from what Agentry
+ * receives. Worst first; a chat with none is `ok`, and says so. The clock is a parameter because a
+ * hung command is a fact of the time it has been running.
+ */
+export function chatHealth(facts: HealthFacts, nowMs = Date.now()): ChatHealth {
+  const signals: HealthSignal[] = [];
+  const working = facts.state === 'working' && facts.live !== null;
+
+  const oldest = [...(facts.live?.commands ?? [])].sort((a, b) => a.startedAt.localeCompare(b.startedAt))[0];
+  if (working && oldest) {
+    const age = nowMs - Date.parse(oldest.startedAt);
+    if (age >= HUNG_COMMAND_MS) {
+      signals.push({
+        kind: 'hung-command',
+        level: age >= HUNG_COMMAND_BAD_MS ? 'bad' : 'warn',
+        reason: `\`${oneLine(oldest.command, 60)}\` has been running for ${minutes(age)}, past the ${minutes(HUNG_COMMAND_MS)} a command is expected to need.`,
+      });
+    }
+  } else if (working && facts.live) {
+    // A command in flight is a reason to be quiet; with none, a chat that says nothing is stalled
+    const quiet = nowMs - Date.parse(facts.live.lastEventAt);
+    if (quiet >= SILENCE_MS) {
+      signals.push({
+        kind: 'silence',
+        level: quiet >= SILENCE_BAD_MS ? 'bad' : 'warn',
+        reason: `Nothing has happened for ${minutes(quiet)} and no command is running: the model or an API call may be stalled.`,
+      });
+    }
+  }
+
+  const ended = facts.lastEnded;
+  if (ended?.outcome === 'interrupted') signals.push({ kind: 'last-execution', level: 'bad', reason: 'The last execution was cut short: its process was lost.' });
+  else if (ended?.outcome === 'failed') {
+    signals.push({ kind: 'last-execution', level: 'bad', reason: `The last execution failed${ended.error ? `: ${ended.error}` : '.'}` });
+  }
+  if (facts.state === 'waiting') signals.push({ kind: 'waiting', level: 'warn', reason: 'Stopped until a person answers a permission, a question or a plan.' });
+  const window = facts.context?.window ?? null;
+  if (facts.context && window !== null && window > 0 && facts.context.used / window >= CONTEXT_WARN) {
+    const share = facts.context.used / window;
+    signals.push({
+      kind: 'context',
+      level: share >= CONTEXT_FULL ? 'bad' : 'warn',
+      reason: `${Math.round(share * 100)}% of the context window is in use: Claude Code compacts the conversation when it fills.`,
+    });
+  }
+  if (facts.failedBranches > 0) {
+    signals.push({ kind: 'branches', level: 'warn', reason: `${facts.failedBranches} ${facts.failedBranches === 1 ? 'branch' : 'branches'} failed.` });
+  }
+
+  // Worst first; among equals the order above, which is the order of how much the clock says
+  signals.sort((a, b) => Number(b.level === 'bad') - Number(a.level === 'bad'));
+  const first = signals[0];
+  return first ? { level: first.level, reason: first.reason, signals } : { level: 'ok', reason: 'Nothing unusual.', signals };
 }

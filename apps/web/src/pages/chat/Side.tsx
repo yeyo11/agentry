@@ -1,4 +1,4 @@
-import type { Chat, Execution } from '@agentry/shared';
+import type { Chat, Execution, HealthLevel } from '@agentry/shared';
 import { CircleCheck, Info, TriangleAlert } from 'lucide-react';
 import { lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
@@ -8,7 +8,7 @@ import { EnvironmentBody } from '../../components/EnvironmentPanel';
 import { ICON_SM } from '../../components/icons';
 import { Card } from '../../components/ui';
 import { WorkflowCard } from '../../components/WorkflowCard';
-import { formatTokens, formatUsd, healthOf, type HealthLevel } from '../../lib/chat-model';
+import { formatTokens, formatUsd } from '../../lib/chat-model';
 import { useDetailPanel } from '../../lib/detail';
 import { durationBetween, formatDateTime, timeAgo } from '../../lib/format';
 
@@ -209,35 +209,25 @@ const NOTE_ICON: Record<HealthLevel, typeof Info> = { ok: CircleCheck, warn: Tri
 // The icon is decorative, so the level is also said in words
 const NOTE_LEVEL: Record<HealthLevel, string> = { ok: 'OK', warn: 'Warning', bad: 'Problem' };
 
+/** What core says of the chat's health: every signal that fired, or the reason it is fine. */
 export function HealthCard({ chat }: { chat: Chat }) {
-  const { subagents, backgroundTasks, workflows } = chat.children;
-  const failed = [...subagents, ...backgroundTasks, ...workflows].filter((b) => b.status === 'failed').length;
-  const notes = healthOf(chat, { failed });
+  const { health } = chat;
+  const notes: Array<{ kind: string; level: HealthLevel; reason: string }> = health.signals.length > 0 ? health.signals : [{ kind: 'ok', level: 'ok', reason: health.reason }];
   return (
     <Card title="Health">
       <ul className="chat-notes">
-        {notes.length === 0 ? (
-          <li className="chat-note chat-note-ok">
-            <CircleCheck {...ICON_SM} />
-            <span>
-              <span className="sr-only">{NOTE_LEVEL.ok}: </span>
-              Nothing to report: the last execution went well and there is room in the context.
-            </span>
-          </li>
-        ) : (
-          notes.map((note) => {
-            const Icon = NOTE_ICON[note.level];
-            return (
-              <li key={note.text} className={`chat-note chat-note-${note.level}`}>
-                <Icon {...ICON_SM} />
-                <span>
-                  <span className="sr-only">{NOTE_LEVEL[note.level]}: </span>
-                  {note.text}
-                </span>
-              </li>
-            );
-          })
-        )}
+        {notes.map((note) => {
+          const Icon = NOTE_ICON[note.level];
+          return (
+            <li key={note.kind} className={`chat-note chat-note-${note.level}`}>
+              <Icon {...ICON_SM} />
+              <span>
+                <span className="sr-only">{NOTE_LEVEL[note.level]}: </span>
+                {note.reason}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </Card>
   );

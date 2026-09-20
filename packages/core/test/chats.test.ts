@@ -442,3 +442,24 @@ test('the synthesis of an orchestration is answered in place, while its workers 
     core.shutdown();
   }
 });
+
+test('what a chat is running shows the shell commands it started and has not had an answer to', async () => {
+  const { core } = setup();
+  try {
+    const started = core.runtime.start({ prompt: 'BASH pnpm e2e --slow' });
+    const pulse = await until(() => core.runtime.pulse(started.id)?.commands[0] && core.runtime.pulse(started.id), 'the command to start');
+    assert.equal(pulse.commands.length, 1);
+    assert.equal(pulse.commands[0]?.command, 'pnpm e2e --slow');
+    assert.ok(Date.parse(pulse.lastEventAt) >= Date.parse(pulse.commands[0]?.startedAt ?? ''));
+    // Seconds old is no reason to worry: the limits are in minutes, which chat-model.test covers with a clock of its own
+    const chat = await core.chats.get(started.id);
+    assert.equal(chat?.health.level, 'ok');
+    assert.equal(chat?.health.reason, 'Nothing unusual.');
+
+    await core.chats.stop(started.id);
+    await finished(core, started.id, 1);
+    assert.equal(core.runtime.pulse(started.id), null);
+  } finally {
+    core.shutdown();
+  }
+});

@@ -1,6 +1,20 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chatControl, chatState, executionOutcome, sessionHolder, stateFromCliAgent, stateFromRun } from '../src/chat-model.ts';
+import type { Execution } from '@agentry/shared';
+import {
+  chatControl,
+  chatHealth,
+  chatState,
+  executionOutcome,
+  HUNG_COMMAND_BAD_MS,
+  HUNG_COMMAND_MS,
+  lastEndedOf,
+  SILENCE_MS,
+  sessionHolder,
+  stateFromCliAgent,
+  stateFromRun,
+  type HealthFacts,
+} from '../src/chat-model.ts';
 
 test('a run is working while it generates, idle between turns and once ended', () => {
   assert.equal(stateFromRun({ status: 'starting', pendingPrompts: 0 }), 'working');
@@ -79,4 +93,95 @@ test('an orchestration chat takes a hint while its task runs and a fork afterwar
   const finished = chatControl({ holder: 'nobody', origin: 'orchestration' });
   assert.equal(finished.mode, 'readOnly');
   assert.equal(finished.mode === 'readOnly' && finished.action, 'fork');
+});
+
+// ---------- health ----------
+
+const T0 = Date.parse('2026-01-01T10:00:00.000Z');
+const at = (msAfter: number) => new Date(T0 + msAfter).toISOString();
+const facts = (over: Partial<HealthFacts> = {}): HealthFacts => ({ state: 'idle', live: null, lastEnded: null, context: null, failedBranches: 0, ...over });
+const working = (live: NonNullable<HealthFacts['live']>, over: Partial<HealthFacts> = {}) => facts({ state: 'working', live, ...over });
+
+test('a chat with nothing to report is ok, and says so in words', () => {
+  const health = chatHealth(facts());
+  assert.deepEqual(health, { level: 'ok', reason: 'Nothing unusual.', signals: [] });
+  // A chat that is working and speaking is ok too, whatever it has been running
+  assert.equal(chatHealth(working({ lastEventAt: at(0), commands: [] }), T0 + 30_000).level, 'ok');
+});
+
+test('a command running past the limit is a warning, and a problem long after', () => {
+  const live = { lastEventAt: at(0), commands: [{ command: 'pnpm e2e', startedAt: at(0) }] };
+  assert.equal(chatHealth(working(live), T0 + HUNG_COMMAND_MS - 1).level, 'ok');
+
+  const slow = chatHealth(working(live), T0 + 5 * 60_000);
+  assert.equal(slow.level, 'warn');
+  assert.deepEqual(slow.signals.map((s) => s.kind), ['hung-command']);
+  assert.equal(slow.reason, '`pnpm e2e` has been running for 5 min, past the 3 min a command is expected to need.');
+
+  assert.equal(chatHealth(working(live), T0 + HUNG_COMMAND_BAD_MS).level, 'bad');
+  // The oldest of several is the one that matters
+  const two = { lastEventAt: at(0), commands: [{ command: 'young', startedAt: at(4 * 60_000) }, { command: 'old', startedAt: at(0) }] };
+  assert.match(chatHealth(working(two), T0 + 5 * 60_000).reason, /^`old`/);
+});
+
+test('a long command is only hung while the chat is working: a person being asked is not it', () => {
+  const live = { lastEventAt: at(0), commands: [{ command: 'rm -rf build', startedAt: at(0) }] };
+  assert.deepEqual(chatHealth(facts({ state: 'waiting', live }), T0 + 20 * 60_000).signals.map((s) => s.kind), ['waiting']);
+  // No process of ours, nothing to watch
+  assert.equal(chatHealth(facts({ state: 'working', live: null }), T0 + 20 * 60_000).level, 'ok');
+});
+
+test('a working chat that has said nothing for too long is silent, unless a command is what it waits for', () => {
+  const quiet = { lastEventAt: at(0), commands: [] };
+  assert.equal(chatHealth(working(quiet), T0 + SILENCE_MS - 1).level, 'ok');
+  const silent = chatHealth(working(quiet), T0 + 4 * 60_000);
+  assert.deepEqual(silent.signals.map((s) => [s.kind, s.level]), [['silence', 'warn']]);
+  assert.equal(silent.reason, 'Nothing has happened for 4 min and no command is running: the model or an API call may be stalled.');
+  assert.equal(chatHealth(working(quiet), T0 + 11 * 60_000).level, 'bad');
+  // An idle chat is not silent, it is finished with its turn
+  assert.equal(chatHealth(facts({ state: 'idle', live: quiet }), T0 + 11 * 60_000).level, 'ok');
+  // A command in flight explains the quiet; only its own age counts
+  const running = { lastEventAt: at(0), commands: [{ command: 'pnpm build', startedAt: at(0) }] };
+  assert.deepEqual(chatHealth(working(running), T0 + 2 * 60_000).signals, []);
+});
+
+test('the facts of the chat itself are signals too, worst first', () => {
+  assert.equal(chatHealth(facts({ lastEnded: { outcome: 'failed', error: 'rate limited' } })).reason, 'The last execution failed: rate limited');
+  assert.equal(chatHealth(facts({ lastEnded: { outcome: 'interrupted', error: null } })).reason, 'The last execution was cut short: its process was lost.');
+  // Someone stopping it, or it finishing, is not a problem
+  for (const outcome of ['stopped', 'completed'] as const) assert.equal(chatHealth(facts({ lastEnded: { outcome, error: null } })).level, 'ok', outcome);
+
+  assert.equal(chatHealth(facts({ context: { used: 195_000, window: 200_000 } })).level, 'bad');
+  assert.equal(chatHealth(facts({ context: { used: 170_000, window: 200_000 } })).level, 'warn');
+  // Without a window there is no honest percentage
+  assert.equal(chatHealth(facts({ context: { used: 900_000, window: null } })).level, 'ok');
+  assert.match(chatHealth(facts({ state: 'waiting' })).reason, /answers a permission/);
+  assert.match(chatHealth(facts({ failedBranches: 2 })).reason, /2 branches failed/);
+  assert.match(chatHealth(facts({ failedBranches: 1 })).reason, /1 branch failed/);
+
+  const both = chatHealth(facts({ state: 'waiting', failedBranches: 1, lastEnded: { outcome: 'failed', error: null } }));
+  assert.deepEqual(both.signals.map((s) => s.kind), ['last-execution', 'waiting', 'branches']);
+  assert.equal(both.level, 'bad');
+  assert.equal(both.reason, both.signals[0]?.reason);
+});
+
+test('a failure that a later live execution has superseded is not the chat\'s news of now', () => {
+  const execution = (over: Partial<Execution>): Execution => ({
+    id: 'x',
+    startedAt: at(0),
+    endedAt: at(1000),
+    outcome: 'completed',
+    error: null,
+    permissionMode: 'acceptEdits',
+    model: null,
+    account: null,
+    maxBudgetUsd: null,
+    costUsd: null,
+    tokens: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },
+    turns: 1,
+    ...over,
+  });
+  assert.equal(lastEndedOf([]), null);
+  assert.deepEqual(lastEndedOf([execution({ outcome: 'failed', error: 'boom' })]), { outcome: 'failed', error: 'boom' });
+  assert.equal(lastEndedOf([execution({ outcome: 'failed' }), execution({ endedAt: null, outcome: null })]), null);
 });

@@ -5,6 +5,7 @@
 // process stays up, and a mode switch is echoed as a `system/status` event.
 //
 //   ASK <tool>     asks permission for <tool> and ends the turn with the decision it got back
+//   BASH <command> starts that shell command and never answers it, like one that hangs
 //   REPLAY <file>  writes each JSON line of <file> to stdout, then ends the turn
 //   … scriptPath "<file>" …  runs that workflow script as the Workflow tool would, with agents that
 //                  answer "done:<label>" (or nothing, for a task whose prompt says FAIL-ONCE on a
@@ -56,6 +57,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         (err) => result(`workflow failed: ${err.message}`),
       );
       return result('Workflow is running (Task ID: fake). Waiting for completion notification.');
+    }
+    const bash = /^BASH (.+)$/m.exec(prompt);
+    if (bash) {
+      out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id: `toolu_bash_${randomUUID()}`, name: 'Bash', input: { command: bash[1] } }] } });
+      return;
     }
     const replay = /^REPLAY (\S+)/.exec(prompt);
     if (replay) {

@@ -1,8 +1,4 @@
-import type { ChatOrigin, ChatState, ChatSummary, Execution, ExecutionOutcome } from '@agentry/shared';
-
-/** From here on the CLI is close enough to compacting that a person should know before it happens. */
-export const CONTEXT_WARN = 0.8;
-export const CONTEXT_FULL = 0.92;
+import { CONTEXT_FULL, CONTEXT_WARN, type ChatOrigin, type ChatState, type ChatSummary, type Execution, type ExecutionOutcome } from '@agentry/shared';
 
 /** The share of the window in use, or null when there is nothing honest to divide by. */
 export function contextShare(chat: Pick<ChatSummary, 'context'>): number | null {
@@ -117,35 +113,3 @@ export const SORTERS: Record<ChatSort, (a: ChatSummary, b: ChatSummary) => numbe
   context: (a, b) => (contextShare(b) ?? -1) - (contextShare(a) ?? -1) || SORTERS.activity(a, b),
   messages: (a, b) => b.messageCount - a.messageCount,
 };
-
-export type HealthLevel = 'ok' | 'warn' | 'bad';
-
-export interface HealthNote {
-  level: HealthLevel;
-  text: string;
-}
-
-/**
- * What is worth knowing about a chat that its state does not say, drawn from facts the model
- * already carries. Nothing is inferred beyond them: no note means nothing found.
- */
-export function healthOf(chat: Pick<ChatSummary, 'state' | 'context' | 'executions' | 'execution'>, branches?: { failed: number }): HealthNote[] {
-  const notes: HealthNote[] = [];
-  const ended = chat.execution ? null : lastEnded(chat);
-  if (ended && (ended.outcome === 'failed' || ended.outcome === 'interrupted')) {
-    notes.push({
-      level: 'bad',
-      text: ended.outcome === 'interrupted' ? 'The last execution was cut short: its process was lost.' : `The last execution failed${ended.error ? `: ${ended.error}` : '.'}`,
-    });
-  }
-  const share = contextShare(chat);
-  if (share !== null && share >= CONTEXT_WARN) {
-    notes.push({
-      level: share >= CONTEXT_FULL ? 'bad' : 'warn',
-      text: `${formatPercent(share)} of the context window is in use: Claude Code compacts the conversation when it fills.`,
-    });
-  }
-  if (chat.state === 'waiting') notes.push({ level: 'warn', text: 'Stopped until a person answers a permission, a question or a plan.' });
-  if (branches && branches.failed > 0) notes.push({ level: 'warn', text: `${branches.failed} ${branches.failed === 1 ? 'branch' : 'branches'} failed.` });
-  return notes;
-}

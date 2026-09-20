@@ -4938,6 +4938,9 @@
           }
         ],
         "description": "Null when nothing has reported it yet"
+      },
+      "health": {
+        "$ref": "#/components/schemas/ChatHealth"
       }
     },
     "required": [
@@ -4962,7 +4965,8 @@
       "context",
       "cost",
       "children",
-      "environment"
+      "environment",
+      "health"
     ],
     "description": "One Claude Code conversation: the root entity of the product. Always exactly one session id, which is also the chat's id. Subagents and workflows are branches of a chat, not chats."
   },
@@ -5322,6 +5326,75 @@
       "memoryPaths"
     ],
     "description": "What Claude loaded when the chat last started."
+  },
+  "ChatHealth": {
+    "type": "object",
+    "properties": {
+      "level": {
+        "$ref": "#/components/schemas/HealthLevel"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "signals": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/HealthSignal"
+        }
+      }
+    },
+    "required": [
+      "level",
+      "reason",
+      "signals"
+    ],
+    "description": "Whether a chat is working as it should, computed in core at the moment it is read (a command that has been running for too long is a fact of the clock, so a snapshot ages: readers of a live chat read it again). `level` is the worst of the `signals`, ordered worst first, and `reason` is the first one's; with no signal the chat is `ok` and `reason` says so."
+  },
+  "HealthLevel": {
+    "type": "string",
+    "enum": [
+      "ok",
+      "warn",
+      "bad"
+    ],
+    "description": "How worrying a signal is."
+  },
+  "HealthSignal": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/HealthSignalKind"
+      },
+      "level": {
+        "type": "string",
+        "enum": [
+          "warn",
+          "bad"
+        ],
+        "description": "Never `ok`: a signal that fired is a warning or a problem"
+      },
+      "reason": {
+        "type": "string",
+        "description": "One line a person reads, with the figures that made it fire"
+      }
+    },
+    "required": [
+      "kind",
+      "level",
+      "reason"
+    ]
+  },
+  "HealthSignalKind": {
+    "type": "string",
+    "enum": [
+      "hung-command",
+      "silence",
+      "last-execution",
+      "waiting",
+      "context",
+      "branches"
+    ],
+    "description": "What a signal noticed. Only what Agentry can tell from what it already receives is here: a command that runs far longer than it should, a chat that has gone quiet while it should be working, and facts of the chat itself (how its last execution ended, that it waits for a person, that its context is nearly full, that a branch failed). Looping, tests bent to pass and repeated stalls (docs/plans/agent-observability.md) are further kinds, and are not detected yet."
   },
   "ChatDetail": {
     "type": "object",

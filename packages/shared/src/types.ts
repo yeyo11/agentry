@@ -296,12 +296,48 @@ export interface Execution {
   turns: number;
 }
 
+/** From here on the CLI is close enough to compacting that a person should know before it happens. */
+export const CONTEXT_WARN = 0.8;
+export const CONTEXT_FULL = 0.92;
+
 /** How full the conversation is, as of its last response. */
 export interface ChatContext {
   /** Tokens the last response read: `input + cache`. A snapshot, so compaction shows as a drop. */
   used: number;
   /** The model's context window; null when the model is not known, so no percentage is invented */
   window: number | null;
+}
+
+/** How worrying a signal is. */
+export type HealthLevel = 'ok' | 'warn' | 'bad';
+
+/**
+ * What a signal noticed. Only what Agentry can tell from what it already receives is here: a command
+ * that runs far longer than it should, a chat that has gone quiet while it should be working, and
+ * facts of the chat itself (how its last execution ended, that it waits for a person, that its
+ * context is nearly full, that a branch failed). Looping, tests bent to pass and repeated stalls
+ * (docs/plans/agent-observability.md) are further kinds, and are not detected yet.
+ */
+export type HealthSignalKind = 'hung-command' | 'silence' | 'last-execution' | 'waiting' | 'context' | 'branches';
+
+export interface HealthSignal {
+  kind: HealthSignalKind;
+  /** Never `ok`: a signal that fired is a warning or a problem */
+  level: Exclude<HealthLevel, 'ok'>;
+  /** One line a person reads, with the figures that made it fire */
+  reason: string;
+}
+
+/**
+ * Whether a chat is working as it should, computed in core at the moment it is read (a command that
+ * has been running for too long is a fact of the clock, so a snapshot ages: readers of a live chat
+ * read it again). `level` is the worst of the `signals`, ordered worst first, and `reason` is the
+ * first one's; with no signal the chat is `ok` and `reason` says so.
+ */
+export interface ChatHealth {
+  level: HealthLevel;
+  reason: string;
+  signals: HealthSignal[];
 }
 
 /** What a chat has cost. Only real data: nothing is estimated from a price table. */
@@ -507,6 +543,7 @@ export interface Chat {
   children: ChatChildren;
   /** Null when nothing has reported it yet */
   environment: ChatEnvironment | null;
+  health: ChatHealth;
 }
 
 /** A page of a chat's transcript with the chat it belongs to. */
@@ -524,7 +561,7 @@ export interface ChatDetail {
  * A chat as the list shows it: everything but what only its own page needs, which costs a read of
  * its transcript and its sidecar files per chat.
  */
-export type ChatSummary = Omit<Chat, 'children' | 'environment'>;
+export type ChatSummary = Omit<Chat, 'children' | 'environment' | 'health'>;
 
 /** Which chat a branch belongs to, for the aggregates that list branches of many chats together. */
 export interface ChatRef {

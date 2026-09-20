@@ -143,6 +143,19 @@ export interface ChatRuntime {
   workflows: WorkflowRun[];
 }
 
+/** A shell command the process started and has had no answer to yet. */
+export interface RunningCommand {
+  command: string;
+  startedAt: string;
+}
+
+/** What the process working on a chat is doing right now. */
+export interface ChatPulse {
+  /** The last thing it did, streamed text included */
+  lastEventAt: string;
+  commands: RunningCommand[];
+}
+
 const now = () => new Date().toISOString();
 
 /** Started (a failed spawn has no pid) and not exited yet */
@@ -198,6 +211,8 @@ class LiveChat {
   permissionMode: PermissionMode;
   createdAt = now();
   updatedAt = now();
+  /** The last thing the process did, streamed text included, which `updatedAt` (stored events only) leaves out */
+  activityAt = now();
   endedAt: string | null = null;
   lastText: string | null = null;
   /** Where the CLI says it works, from its init event: a worktree when it was given one */
@@ -415,11 +430,13 @@ class LiveChat {
     this.events.push(full);
     if (this.events.length > MAX_EVENTS_PER_RUN) this.events.splice(0, this.events.length - MAX_EVENTS_PER_RUN);
     this.updatedAt = full.ts;
+    this.activityAt = full.ts;
     this.emitter.emit('event', full);
   }
 
   /** Streams the in-progress block to live subscribers only: not stored, not replayed, seq untouched. */
   emitPartial(): void {
+    this.activityAt = now();
     if (this.partialTimer) return;
     this.partialTimer = setTimeout(() => {
       this.partialTimer = null;
@@ -605,6 +622,30 @@ export class ChatManager extends EventEmitter {
 
   get(id: string): ChatRuntime | null {
     return this.chats.get(id)?.summary() ?? null;
+  }
+
+  /**
+   * What the process working on a chat is doing right now, read from the events it streamed: when
+   * it last did anything, and the shell commands it started and has not had an answer to. Null
+   * when Agentry has no process on the chat, which is when there is nothing to watch. Only the
+   * live execution counts: a command a previous wrapper left unanswered is not running.
+   */
+  pulse(id: string): ChatPulse | null {
+    const chat = this.chats.get(id);
+    const live = chat?.execution;
+    if (!chat || !live || !chat.alive) return null;
+    const open = new Map<string, RunningCommand>();
+    for (const event of chat.events) {
+      if (event.ts < live.startedAt) continue;
+      for (const block of event.entry?.blocks ?? []) {
+        if (block.type === 'tool_use' && block.name === 'Bash') {
+          const input = (block.input ?? {}) as Record<string, unknown>;
+          // A background command answers at once: what keeps running is the task, not the call
+          if (input.run_in_background !== true) open.set(block.id, { command: typeof input.command === 'string' ? input.command : 'a command', startedAt: event.ts });
+        } else if (block.type === 'tool_result') open.delete(block.toolUseId);
+      }
+    }
+    return { lastEventAt: chat.activityAt, commands: [...open.values()] };
   }
 
   events(id: string, sinceSeq = 0): RunEvent[] {

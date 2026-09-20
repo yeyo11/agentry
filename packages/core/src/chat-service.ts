@@ -29,7 +29,7 @@ import {
 } from '@agentry/shared';
 import { pageSize } from './sessions.ts';
 import { toChatEnvironment, toChildren, type BranchFacts } from './chat-branches.ts';
-import { chatControl, chatState, sessionHolder, type SessionHolder } from './chat-model.ts';
+import { chatControl, chatHealth, chatState, lastEndedOf, sessionHolder, type SessionHolder } from './chat-model.ts';
 import type { AdoptedChat, ChatManager, ChatRuntime } from './chats.ts';
 import type { CliSession, TranscriptSummary } from './cli-facts.ts';
 import { backgroundLogs, isLiveCliSession, listActiveCliSessions, stopBackgroundSession } from './cli.ts';
@@ -253,7 +253,14 @@ export class ChatService {
     const heldByAnother = facts.cli.get(id)?.live === true && facts.cli.get(id)?.pid !== runtime?.pid;
     const children = toChildren(await this.branchFacts(id, runtime, runtime?.pid != null || heldByAnother));
     const env = this.deps.environmentOf(runtime?.cwd ?? summary.cwd);
-    return { ...summary, children, environment: env ? toChatEnvironment(env) : null };
+    const health = chatHealth({
+      state: summary.state,
+      live: this.deps.runtime.pulse(id),
+      lastEnded: lastEndedOf(summary.executions),
+      context: summary.context,
+      failedBranches: [...children.subagents, ...children.backgroundTasks, ...children.workflows].filter((b) => b.status === 'failed').length,
+    });
+    return { ...summary, children, environment: env ? toChatEnvironment(env) : null, health };
   }
 
   /** The list's view of one chat, read fresh when a decision hangs on it. */

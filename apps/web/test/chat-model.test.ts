@@ -7,7 +7,6 @@ import {
   contextShare,
   formatTokens,
   formatUsd,
-  healthOf,
   isWorker,
   lastEnded,
   matchesFilters,
@@ -132,26 +131,4 @@ test('the last execution that ended is what tells a crashed chat from a finished
   const live = execution({ id: 'live', endedAt: null, outcome: null });
   assert.equal(lastEnded(chat({ executions: [] })), null);
   assert.equal(lastEnded(chat({ executions: [execution({ id: 'a' }), live] }))?.id, 'a');
-});
-
-test('health says only what the model already knows', () => {
-  assert.deepEqual(healthOf(chat()), []);
-
-  const failed = chat({ executions: [execution({ outcome: 'failed', error: 'rate limited' })] });
-  assert.equal(healthOf(failed)[0]?.level, 'bad');
-  assert.match(healthOf(failed)[0]?.text ?? '', /rate limited/);
-
-  const lost = chat({ executions: [execution({ outcome: 'interrupted' })] });
-  assert.match(healthOf(lost)[0]?.text ?? '', /process was lost/);
-
-  // A failure that a later live execution has superseded is not a problem of now
-  const running = execution({ id: 'live', endedAt: null, outcome: null });
-  assert.deepEqual(healthOf(chat({ executions: [execution({ outcome: 'failed' }), running], execution: running })), []);
-
-  const full = chat({ context: { used: 195_000, window: 200_000 } });
-  assert.equal(healthOf(full)[0]?.level, 'bad');
-  assert.equal(healthOf(chat({ context: { used: 170_000, window: 200_000 } }))[0]?.level, 'warn');
-
-  assert.match(healthOf(chat({ state: 'waiting' }))[0]?.text ?? '', /answers a permission/);
-  assert.match(healthOf(chat(), { failed: 2 })[0]?.text ?? '', /2 branches failed/);
 });

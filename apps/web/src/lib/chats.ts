@@ -120,6 +120,9 @@ function usePages<T>(
   return { items, from, total, more: from > 0, loadingMore, loadEarlier, reach };
 }
 
+/** How often a live chat is read again for the signals only time can fire. */
+const HEALTH_REFRESH_MS = 30_000;
+
 /**
  * A chat and its transcript, newest page first, reading backwards on demand. The chat comes with
  * the page, so the header and the conversation are never out of step.
@@ -129,8 +132,15 @@ export function useChatTranscript(id: string, sidechains: boolean) {
   const query = useQuery({
     queryKey: keys.chat(id, sidechains),
     queryFn: () => api.chat(id, sidechains),
-    // Only a chat something is working on changes by itself; the events say when, and this covers the feed being down
-    refetchInterval: (q) => (q.state.data && (q.state.data.chat.execution || q.state.data.chat.state !== 'idle') ? fallback : false),
+    // Only a chat something is working on changes by itself; the events say when, and this covers the
+    // feed being down. Its health is a fact of the clock (a command running too long sends no event),
+    // so a live execution is read again at a slow pace even with the feed up.
+    refetchInterval: (q) => {
+      const chat = q.state.data?.chat;
+      if (!chat) return false;
+      if (chat.execution) return fallback || HEALTH_REFRESH_MS;
+      return chat.state !== 'idle' ? fallback : false;
+    },
   });
   const fetchBefore = useCallback(
     (before: number, limit?: number) => api.chat(id, sidechains, { before, limit }).then((d) => ({ items: d.entries, from: d.from, total: d.total })),
