@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.13.1](https://github.com/yeyo11/agentry/compare/v0.13.0...v0.13.1) (2026-09-20)
+
+
+### Bug fixes
+
+* **web:** colour code blocks the way shiki does, measured ([#56](https://github.com/yeyo11/agentry/issues/56)) ([d6560e1](https://github.com/yeyo11/agentry/commit/d6560e19a390704d538a883167bd6deff94bfa98))
+
 ## [0.13.0](https://github.com/yeyo11/agentry/compare/v0.12.0...v0.13.0) (2026-09-19)
 
 
