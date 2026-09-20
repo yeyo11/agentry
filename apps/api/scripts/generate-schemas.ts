@@ -37,7 +37,7 @@ const ROOT_TYPES = [
   // Per-chat MCP servers and tool presets
   'McpSelection', 'ToolPreset', 'ChatToolConfig',
   // claude.ai connectors
-  'Connector', 'ConnectorAction',
+  'Connector', 'ConnectorAction', 'ConnectorGuide', 'ConnectorLimit', 'ConnectorsOverview',
   // Multi-account: a config dir and a rotation policy per account, usage kept over time
   'AccountConfig', 'RotationPolicy', 'RotationPolicyRequest', 'UpdateAccountConfigRequest', 'UsageHistoryPoint',
   // Scheduling

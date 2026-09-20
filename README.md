@@ -504,6 +504,12 @@ Delegated to `claude plugin`; actions return the CLI output as `{ ok, output }` 
 | POST | `/plugins/marketplaces/update` | Body `{ name? }` — all when omitted |
 | DELETE | `/plugins/marketplaces/:name` | Remove |
 
+### Connectors
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/connectors?refresh=` | The claude.ai connectors (Docs, Gmail, Calendar) as `claude mcp list` reports them, with prepared prompts, what a person must do to authorise one and what has no CLI surface (web artifacts, claude.ai memory). Cached for a minute |
+
 ## UI
 
 | Page | What it covers |

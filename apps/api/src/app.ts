@@ -9,6 +9,7 @@ import { registerOpenApi } from './openapi/plugin.ts';
 import { accountRoutes } from './routes/accounts.ts';
 import { chatRoutes } from './routes/chats.ts';
 import { configRoutes } from './routes/config.ts';
+import { connectorRoutes } from './routes/connectors.ts';
 import { eventRoutes } from './routes/events.ts';
 import { memoryRoutes } from './routes/memory.ts';
 import { orchestrationRoutes } from './routes/orchestrations.ts';
@@ -53,6 +54,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(orchestrationRoutes, { core });
       await api.register(configRoutes, { core });
       await api.register(pluginRoutes, { core });
+      await api.register(connectorRoutes, { core });
       await api.register(memoryRoutes, { core });
       await api.register(uploadRoutes, { core });
     },

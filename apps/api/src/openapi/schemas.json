@@ -7330,12 +7330,16 @@
         },
         "description": "What it was granted, when the CLI reports it"
       },
+      "detail": {
+        "type": "string",
+        "description": "The CLI's own words for the state (`Connected`, `Needs authentication`, a failure…)"
+      },
       "actions": {
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/ConnectorAction"
         },
-        "description": "Prepared prompts for this connector"
+        "description": "Prepared prompts for this connector; none while it needs authorisation"
       }
     },
     "required": [
@@ -7382,6 +7386,106 @@
       "prompt"
     ],
     "description": "A button that opens a new chat with a prompt already written. Nothing more magic than that."
+  },
+  "ConnectorGuide": {
+    "type": "object",
+    "properties": {
+      "steps": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "links": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "url"
+          ]
+        }
+      }
+    },
+    "required": [
+      "steps",
+      "links"
+    ],
+    "description": "What a person has to do: Agentry cannot authorise a connector on anyone's behalf."
+  },
+  "ConnectorLimit": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "enum": [
+          "web-artifacts",
+          "claude-ai-memory"
+        ]
+      },
+      "name": {
+        "type": "string"
+      },
+      "reason": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "reason"
+    ],
+    "description": "Something the CLI offers no command for. Said in the page, not left as a silent gap."
+  },
+  "ConnectorsOverview": {
+    "type": "object",
+    "properties": {
+      "connectors": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Connector"
+        },
+        "description": "The claude.ai connectors `claude mcp list` reports, in the CLI's order"
+      },
+      "notListed": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ConnectorKind"
+        },
+        "description": "Docs, Gmail and Calendar are the kinds Agentry has prepared actions for: those not listed at all"
+      },
+      "authorisation": {
+        "$ref": "#/components/schemas/ConnectorGuide"
+      },
+      "unavailable": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ConnectorLimit"
+        }
+      },
+      "checkedAt": {
+        "type": "string"
+      },
+      "error": {
+        "type": "string",
+        "description": "Set when the CLI could not be asked, so an empty list is not read as \"no connectors\""
+      }
+    },
+    "required": [
+      "connectors",
+      "notListed",
+      "authorisation",
+      "unavailable",
+      "checkedAt"
+    ]
   },
   "RotationPolicyRequest": {
     "type": "object",

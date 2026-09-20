@@ -1549,7 +1549,9 @@ export interface Connector {
   status: ConnectorStatus;
   /** What it was granted, when the CLI reports it */
   scopes?: string[];
-  /** Prepared prompts for this connector */
+  /** The CLI's own words for the state (`Connected`, `Needs authentication`, a failure…) */
+  detail?: string;
+  /** Prepared prompts for this connector; none while it needs authorisation */
   actions?: ConnectorAction[];
 }
 
@@ -1558,6 +1560,31 @@ export interface ConnectorAction {
   id: string;
   label: string;
   prompt: string;
+}
+
+/** Something the CLI offers no command for. Said in the page, not left as a silent gap. */
+export interface ConnectorLimit {
+  id: 'web-artifacts' | 'claude-ai-memory';
+  name: string;
+  reason: string;
+}
+
+/** What a person has to do: Agentry cannot authorise a connector on anyone's behalf. */
+export interface ConnectorGuide {
+  steps: string[];
+  links: Array<{ label: string; url: string }>;
+}
+
+export interface ConnectorsOverview {
+  /** The claude.ai connectors `claude mcp list` reports, in the CLI's order */
+  connectors: Connector[];
+  /** Docs, Gmail and Calendar are the kinds Agentry has prepared actions for: those not listed at all */
+  notListed: ConnectorKind[];
+  authorisation: ConnectorGuide;
+  unavailable: ConnectorLimit[];
+  checkedAt: string;
+  /** Set when the CLI could not be asked, so an empty list is not read as "no connectors" */
+  error?: string;
 }
 
 // ---------- Accounts (claude-swap) ----------
