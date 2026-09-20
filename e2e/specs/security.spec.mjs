@@ -68,12 +68,15 @@ export default async ({ page, api, check }) => {
     await page.click('[role=dialog] button, [role=alertdialog] button', 'Turn it on', 1500);
     check((await api.get('/overview')).status === 401, 'a request without the credential is refused');
     check((await authed(token)('GET', '/overview')).status === 200, 'the token is accepted');
+    // Everything the tab did so far ran while the wrapper was open, so the log has no row made by a
+    // credential yet: this is the write whose actor is the token
+    check((await authed(token)('PUT', '/security/auth', { readOnly: false })).status === 200, 'a write goes through with the token');
     await page.goto('/settings?tab=security', 1800);
     check((await panelText()).includes('Audit log'), 'this browser is still signed in after turning the guard on');
 
     // The audit log lists the writes, filterable by path, and records who made them
     await page.fill('input[type=search]', '/security');
-    await page.waitFor(`const t=document.querySelector('[role=tabpanel] table');return !!t&&t.textContent.includes('/api/security/auth')`, { label: 'the audit rows for /security' });
+    await page.waitFor(`const t=document.querySelector('[role=tabpanel] table');return !!t&&t.textContent.includes('/api/security/auth')&&t.textContent.includes('token:')`, { label: 'the audit rows for /security' });
     const rows = await page.text('[role=tabpanel] table');
     check(rows.includes('PUT') && rows.includes('token:'), 'the audit log names the method and the token that made the write');
     check(/done/.test(rows), 'a result is said in words as well as a status code');
