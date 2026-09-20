@@ -25,6 +25,27 @@ const ROOT_TYPES = [
   'Chat', 'ChatSummary', 'ChatDetail', 'ChatBackgroundTaskEntry', 'ChatSubagentEntry', 'ChatWorkflowEntry', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatSettingsUpdate',
   'UsageReport',
   'TaskHintRequest', 'Project', 'ProjectCandidate', 'ImportProjectRequest', 'UpdateProjectRequest',
+  // What a chat or a task changed on disk, and how to open it in an editor
+  'ChangeSummary', 'FileDiff', 'ChatChanges', 'Checklist', 'EditorSettings',
+  // Stepping in on a worker that is stuck
+  'Health', 'TaskLimits', 'HintRequest', 'CancelCommandRequest',
+  // Orchestration v2 and the verification phase
+  'VerificationSpec', 'VerificationState', 'RelaunchOrchestrationRequest', 'OrchestrationTemplate',
+  'SaveOrchestrationTemplateRequest', 'UpdateOrchestrationTemplateRequest', 'LaunchOrchestrationTemplateRequest',
+  // Security
+  'AuthConfig', 'UpdateAuthConfigRequest', 'SetAuthTokenRequest', 'AuthTokenResult', 'AuditEntry', 'AuditPage',
+  // Per-chat MCP servers and tool presets
+  'McpSelection', 'ToolPreset', 'ChatToolConfig',
+  // claude.ai connectors
+  'Connector', 'ConnectorAction',
+  // Multi-account: a config dir and a rotation policy per account, usage kept over time
+  'AccountConfig', 'RotationPolicy', 'UpdateAccountConfigRequest', 'UsageHistoryPoint',
+  // Scheduling
+  'Schedule', 'ScheduleRun', 'CreateScheduleRequest', 'UpdateScheduleRequest',
+  // Usage and cost over time, and transcript export
+  'UsageSeries', 'UsageBreakdown', 'ExportFormat',
+  // Packaging
+  'CliVersionInfo',
 ];
 
 const generator = createGenerator({

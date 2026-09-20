@@ -559,6 +559,17 @@
       },
       "cost": {
         "$ref": "#/components/schemas/ChatCost"
+      },
+      "tools": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatToolConfig"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What it was started with, when Agentry started it: absent for a chat born in a terminal"
       }
     },
     "required": [
@@ -959,6 +970,109 @@
       "total"
     ],
     "description": "Tokens counted the four ways the API bills them, for one model."
+  },
+  "ChatToolConfig": {
+    "type": "object",
+    "properties": {
+      "preset": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ToolPreset"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The preset in force, when one was chosen; editing a preset later does not change a live chat"
+      },
+      "allowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "disallowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "mcp": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/McpSelection"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null when the chat takes whatever the CLI loads on its own"
+      }
+    },
+    "required": [
+      "preset",
+      "allowedTools",
+      "disallowedTools",
+      "mcp"
+    ],
+    "description": "What a chat is running with, shown on its detail because it is what explains a refusal."
+  },
+  "ToolPreset": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string",
+        "description": "One line saying what it is for, shown next to the name when picking"
+      },
+      "allowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "disallowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "builtIn": {
+        "type": "boolean",
+        "description": "Shipped with Agentry. Editable like any other, but a fresh install has it again."
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "allowedTools"
+    ],
+    "description": "A named set of `--allowedTools` / `--disallowedTools`, picked when a chat starts or resumes."
+  },
+  "McpSelection": {
+    "type": "object",
+    "properties": {
+      "servers": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Names of configured servers, as `GET /config/mcp` lists them; empty starts the chat with none"
+      },
+      "config": {
+        "type": "string",
+        "description": "Path of the config file Agentry wrote for the CLI, reported back so a chat can be explained"
+      }
+    },
+    "required": [
+      "servers"
+    ],
+    "description": "Which of the configured MCP servers a chat starts with. Agentry writes the file the CLI reads and passes it as `--mcp-config` / `--strict-mcp-config`; there is no other way in."
   },
   "AuthVerification": {
     "type": "object",
@@ -1910,6 +2024,42 @@
           }
         ],
         "description": "The workflow engine's run and script, when the graph runs as a workflow"
+      },
+      "limits": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TaskLimits"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Default ceiling for every task that does not set its own"
+      },
+      "verification": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/VerificationState"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What the checks on the integration branch did; absent when the graph asked for none"
+      },
+      "relaunchedFrom": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The orchestration this one was relaunched from, when it was"
+      },
+      "templateId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The template it was launched from, when it was"
       }
     },
     "required": [
@@ -1967,6 +2117,10 @@
       },
       "model": {
         "type": "string"
+      },
+      "limits": {
+        "$ref": "#/components/schemas/TaskLimits",
+        "description": "What this worker may spend before Agentry stops it; the graph's default when absent"
       },
       "status": {
         "$ref": "#/components/schemas/OrchestrationTaskStatus"
@@ -2034,6 +2188,17 @@
       },
       "costUsd": {
         "type": "number"
+      },
+      "health": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Health"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Computed while it runs, from the same signals as a chat's; absent once it has ended"
       }
     },
     "required": [
@@ -2051,6 +2216,20 @@
       "status"
     ]
   },
+  "TaskLimits": {
+    "type": "object",
+    "properties": {
+      "maxMinutes": {
+        "type": "number",
+        "description": "Wall-clock ceiling, enforced by Agentry: the CLI has no flag for it"
+      },
+      "maxCostUsd": {
+        "type": "number",
+        "description": "Passed to the CLI as `--max-budget-usd`, so the CLI itself ends the turn"
+      }
+    },
+    "description": "What a task may spend before Agentry stops it."
+  },
   "OrchestrationTaskStatus": {
     "type": "string",
     "enum": [
@@ -2064,6 +2243,100 @@
       "interrupted"
     ],
     "description": "`failed` is final: the task's attempts ran out (or it failed in a way a retry cannot mend), and a person decides what happens to it. `blocked`: a task waiting behind one that failed, which is not the same as `pending`, waiting for its turn. `skipped`: that decision, giving the branch up so the graph can finish without it. `stopped` is someone's decision and is never retried on its own; `interrupted` is a task whose execution a wrapper restart cut off, which is: the chat goes on in a new execution, in the worktree it left, while attempts remain."
+  },
+  "Health": {
+    "$ref": "#/components/schemas/ChatHealth",
+    "description": "The same verdict on anything that works: a chat, or an orchestration task."
+  },
+  "ChatHealth": {
+    "type": "object",
+    "properties": {
+      "level": {
+        "$ref": "#/components/schemas/HealthLevel"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "signals": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/HealthSignal"
+        }
+      }
+    },
+    "required": [
+      "level",
+      "reason",
+      "signals"
+    ],
+    "description": "Whether a chat is working as it should, computed in core at the moment it is read (a command that has been running for too long is a fact of the clock, so a snapshot ages: readers of a live chat read it again). `level` is the worst of the `signals`, ordered worst first, and `reason` is the first one's; with no signal the chat is `ok` and `reason` says so."
+  },
+  "HealthLevel": {
+    "type": "string",
+    "enum": [
+      "ok",
+      "warn",
+      "bad"
+    ],
+    "description": "How worrying a signal is."
+  },
+  "HealthSignal": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/HealthSignalKind"
+      },
+      "level": {
+        "type": "string",
+        "enum": [
+          "warn",
+          "bad"
+        ],
+        "description": "Never `ok`: a signal that fired is a warning or a problem"
+      },
+      "reason": {
+        "type": "string",
+        "description": "One line a person reads, with the figures that made it fire"
+      },
+      "since": {
+        "type": "string",
+        "description": "When the condition started, for the signals that measure a stretch of time"
+      },
+      "detail": {
+        "type": "string",
+        "description": "What made it fire, when the line is not enough: the command, the file, the figures"
+      },
+      "hint": {
+        "type": "string",
+        "description": "Text the panel prefills the hint box with. Agentry writes it, not the model: a suggestion per signal is worth more than an empty box to someone who has just been told a worker is stuck."
+      },
+      "toolUseId": {
+        "type": "string",
+        "description": "The tool call to cancel, when the signal is about one command that is still running"
+      }
+    },
+    "required": [
+      "kind",
+      "level",
+      "reason"
+    ]
+  },
+  "HealthSignalKind": {
+    "type": "string",
+    "enum": [
+      "hung-command",
+      "silence",
+      "last-execution",
+      "waiting",
+      "context",
+      "branches",
+      "repeat-stall",
+      "no-progress",
+      "loop",
+      "weakened-test",
+      "budget"
+    ],
+    "description": "What a signal noticed. Only what Agentry can tell from what it already receives is here: a command that runs far longer than it should, a chat that has gone quiet while it should be working, and facts of the chat itself (how its last execution ended, that it waits for a person, that its context is nearly full, that a branch failed).\n\nThe second group comes from docs/plans/agent-observability.md and is about a worker that is busy without getting anywhere: the same tool call over and over (`repeat-stall`), no commit and no file touched for a long stretch (`no-progress`), the same few steps in a cycle (`loop`), a test edited so that it stops asserting what it asserted (`weakened-test`), and the ceiling of  {@link  TaskLimits }  coming close (`budget`)."
   },
   "OrchestrationIntegration": {
     "type": "object",
@@ -2194,6 +2467,102 @@
       "workflowRunId"
     ]
   },
+  "VerificationState": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "$ref": "#/components/schemas/VerificationStatus"
+      },
+      "attempts": {
+        "type": "number",
+        "description": "Fixer attempts spent, over every command"
+      },
+      "commands": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/VerificationCommand"
+        }
+      },
+      "commits": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Commit"
+        },
+        "description": "What the fixer committed on the integration branch"
+      },
+      "report": {
+        "type": "string",
+        "description": "What happened, in words: shown before the pull request is offered"
+      }
+    },
+    "required": [
+      "status",
+      "attempts",
+      "commands",
+      "commits",
+      "report"
+    ]
+  },
+  "VerificationStatus": {
+    "type": "string",
+    "enum": [
+      "pending",
+      "running",
+      "passed",
+      "fixed",
+      "failed"
+    ],
+    "description": "`fixed`: it failed, the fixer mended it, and the re-run passed."
+  },
+  "VerificationCommand": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/VerificationStatus"
+      },
+      "output": {
+        "type": "string",
+        "description": "Tail of what it printed: enough to see why it failed, not the whole log"
+      },
+      "durationMs": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "command",
+      "status",
+      "output",
+      "durationMs"
+    ]
+  },
+  "Commit": {
+    "type": "object",
+    "properties": {
+      "hash": {
+        "type": "string"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "author": {
+        "type": "string"
+      },
+      "at": {
+        "type": "string",
+        "description": "Author date, ISO 8601"
+      }
+    },
+    "required": [
+      "hash",
+      "subject",
+      "author",
+      "at"
+    ],
+    "description": "One commit, as `git log` reports it."
+  },
   "OrchestrationSpec": {
     "type": "object",
     "properties": {
@@ -2251,6 +2620,14 @@
         ],
         "description": "`host` routes each worker's permission prompts to the panel for a person to answer"
       },
+      "limits": {
+        "$ref": "#/components/schemas/TaskLimits",
+        "description": "Default ceiling for every task that does not set its own"
+      },
+      "verification": {
+        "$ref": "#/components/schemas/VerificationSpec",
+        "description": "Checks to run on the integration branch once the graph is merged; none when absent"
+      },
       "tasks": {
         "type": "array",
         "items": {
@@ -2262,6 +2639,36 @@
       "name",
       "tasks"
     ]
+  },
+  "VerificationSpec": {
+    "type": "object",
+    "properties": {
+      "commands": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Run in order on the integration branch, each one under a timeout"
+      },
+      "fixer": {
+        "type": "boolean",
+        "description": "Launch an agent to fix what fails, instead of only reporting it"
+      },
+      "maxAttempts": {
+        "type": "number",
+        "description": "Fixer attempts per failing command before it stops and reports"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model for the fixer; the graph's when absent"
+      }
+    },
+    "required": [
+      "commands",
+      "fixer",
+      "maxAttempts"
+    ],
+    "description": "Checks to run once the graph is integrated, and what may happen to what fails."
   },
   "OrchestrationTaskSpec": {
     "type": "object",
@@ -2286,6 +2693,10 @@
       },
       "model": {
         "type": "string"
+      },
+      "limits": {
+        "$ref": "#/components/schemas/TaskLimits",
+        "description": "What this worker may spend before Agentry stops it; the graph's default when absent"
       }
     },
     "required": [
@@ -4941,6 +5352,17 @@
       },
       "health": {
         "$ref": "#/components/schemas/ChatHealth"
+      },
+      "tools": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatToolConfig"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What it was started with, when Agentry started it: absent for a chat born in a terminal"
       }
     },
     "required": [
@@ -5327,75 +5749,6 @@
     ],
     "description": "What Claude loaded when the chat last started."
   },
-  "ChatHealth": {
-    "type": "object",
-    "properties": {
-      "level": {
-        "$ref": "#/components/schemas/HealthLevel"
-      },
-      "reason": {
-        "type": "string"
-      },
-      "signals": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/HealthSignal"
-        }
-      }
-    },
-    "required": [
-      "level",
-      "reason",
-      "signals"
-    ],
-    "description": "Whether a chat is working as it should, computed in core at the moment it is read (a command that has been running for too long is a fact of the clock, so a snapshot ages: readers of a live chat read it again). `level` is the worst of the `signals`, ordered worst first, and `reason` is the first one's; with no signal the chat is `ok` and `reason` says so."
-  },
-  "HealthLevel": {
-    "type": "string",
-    "enum": [
-      "ok",
-      "warn",
-      "bad"
-    ],
-    "description": "How worrying a signal is."
-  },
-  "HealthSignal": {
-    "type": "object",
-    "properties": {
-      "kind": {
-        "$ref": "#/components/schemas/HealthSignalKind"
-      },
-      "level": {
-        "type": "string",
-        "enum": [
-          "warn",
-          "bad"
-        ],
-        "description": "Never `ok`: a signal that fired is a warning or a problem"
-      },
-      "reason": {
-        "type": "string",
-        "description": "One line a person reads, with the figures that made it fire"
-      }
-    },
-    "required": [
-      "kind",
-      "level",
-      "reason"
-    ]
-  },
-  "HealthSignalKind": {
-    "type": "string",
-    "enum": [
-      "hung-command",
-      "silence",
-      "last-execution",
-      "waiting",
-      "context",
-      "branches"
-    ],
-    "description": "What a signal noticed. Only what Agentry can tell from what it already receives is here: a command that runs far longer than it should, a chat that has gone quiet while it should be working, and facts of the chat itself (how its last execution ended, that it waits for a person, that its context is nearly full, that a branch failed). Looping, tests bent to pass and repeated stalls (docs/plans/agent-observability.md) are further kinds, and are not detected yet."
-  },
   "ChatDetail": {
     "type": "object",
     "properties": {
@@ -5698,6 +6051,20 @@
           "type": "string"
         }
       },
+      "disallowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "toolPreset": {
+        "type": "string",
+        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it"
+      },
+      "mcp": {
+        "$ref": "#/components/schemas/McpSelection",
+        "description": "MCP servers this chat starts with; absent keeps what the CLI loads on its own"
+      },
       "maxBudgetUsd": {
         "type": "number",
         "description": "Ceiling on what this execution may spend"
@@ -5762,6 +6129,20 @@
           "type": "string"
         }
       },
+      "disallowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "toolPreset": {
+        "type": "string",
+        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it"
+      },
+      "mcp": {
+        "$ref": "#/components/schemas/McpSelection",
+        "description": "MCP servers this chat starts with; absent keeps what the CLI loads on its own"
+      },
       "maxBudgetUsd": {
         "type": "number",
         "description": "Ceiling on what this execution may spend"
@@ -5813,6 +6194,20 @@
         "items": {
           "type": "string"
         }
+      },
+      "disallowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "toolPreset": {
+        "type": "string",
+        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it"
+      },
+      "mcp": {
+        "$ref": "#/components/schemas/McpSelection",
+        "description": "MCP servers this chat starts with; absent keeps what the CLI loads on its own"
       },
       "maxBudgetUsd": {
         "type": "number",
@@ -6085,6 +6480,10 @@
     ]
   },
   "TaskHintRequest": {
+    "$ref": "#/components/schemas/HintRequest",
+    "description": "A nudge sent to a task that is still running, from the orchestration board."
+  },
+  "HintRequest": {
     "type": "object",
     "properties": {
       "text": {
@@ -6094,7 +6493,7 @@
     "required": [
       "text"
     ],
-    "description": "A nudge sent to a task that is still running, from the orchestration board."
+    "description": "A nudge sent to something that is still running, without typing into its conversation: the text reaches the worker as its next user message."
   },
   "Project": {
     "type": "object",
@@ -6252,5 +6651,1108 @@
     "required": [
       "name"
     ]
+  },
+  "ChangeSummary": {
+    "type": "object",
+    "properties": {
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null when the worktree is on a detached head"
+      },
+      "base": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "What `branch` is compared against: the commit the worktree branched from"
+      },
+      "ahead": {
+        "type": "number",
+        "description": "Commits on `branch` that `base` does not have"
+      },
+      "commits": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Commit"
+        },
+        "description": "Newest first"
+      },
+      "files": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChangedFile"
+        },
+        "description": "Files the commits changed, against `base`"
+      },
+      "uncommitted": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChangedFile"
+        },
+        "description": "Working-tree changes that are in no commit, staged or not"
+      }
+    },
+    "required": [
+      "branch",
+      "base",
+      "ahead",
+      "commits",
+      "files",
+      "uncommitted"
+    ],
+    "description": "What a branch has done: the work it committed, and what it has not committed yet."
+  },
+  "ChangedFile": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ChangedFileStatus"
+      },
+      "additions": {
+        "type": "number"
+      },
+      "deletions": {
+        "type": "number"
+      },
+      "previousPath": {
+        "type": "string",
+        "description": "Where a rename came from"
+      }
+    },
+    "required": [
+      "path",
+      "status",
+      "additions",
+      "deletions"
+    ]
+  },
+  "ChangedFileStatus": {
+    "type": "string",
+    "enum": [
+      "added",
+      "modified",
+      "deleted",
+      "renamed"
+    ]
+  },
+  "FileDiff": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "diff": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "diff"
+    ],
+    "description": "One file's diff, unified, exactly as git prints it: the panel highlights it, nobody parses it."
+  },
+  "ChatChanges": {
+    "type": "object",
+    "properties": {
+      "summary": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeSummary"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null when the chat's directory is not a git checkout"
+      },
+      "touched": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TouchedFile"
+        },
+        "description": "What the chat's `Write`/`Edit`/`NotebookEdit` calls touched, newest first"
+      }
+    },
+    "required": [
+      "summary",
+      "touched"
+    ],
+    "description": "What a chat changed. A chat in a git checkout has a `summary`; one working somewhere else has none, and then the transcript is the only honest record of what it wrote."
+  },
+  "TouchedFile": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "at": {
+        "type": "string",
+        "description": "When the tool call that touched it ran"
+      },
+      "tool": {
+        "type": "string",
+        "description": "The tool that did it: `Write`, `Edit`, `NotebookEdit`"
+      }
+    },
+    "required": [
+      "path",
+      "at",
+      "tool"
+    ],
+    "description": "A file a chat wrote where git cannot answer, read from the chat's own transcript."
+  },
+  "Checklist": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChecklistItem"
+        }
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the worker last rewrote it; null when it never wrote one"
+      }
+    },
+    "required": [
+      "items",
+      "updatedAt"
+    ],
+    "description": "A worker's plan for itself, as of its last update."
+  },
+  "ChecklistItem": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "in_progress",
+          "completed"
+        ]
+      }
+    },
+    "required": [
+      "text",
+      "status"
+    ],
+    "description": "One item of a worker's own checklist, from its `TaskCreate`/`TaskUpdate`/`TodoWrite` calls."
+  },
+  "EditorSettings": {
+    "type": "object",
+    "properties": {
+      "template": {
+        "type": "string",
+        "description": "URL template; `{path}`, `{line}` and `{column}` are substituted"
+      },
+      "diffCommand": {
+        "type": "string",
+        "description": "Command for a side-by-side diff, e.g. `code --diff {left} {right}`; no button when absent"
+      },
+      "pathMap": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "from",
+            "to"
+          ]
+        },
+        "description": "Container paths rewritten to host paths before the template is filled; first match wins"
+      }
+    },
+    "required": [
+      "template"
+    ],
+    "description": "How the panel turns a path and a line into something that opens the person's editor. It is a setting because the wrapper often runs in a container while the editor does not, and because nobody agrees on an editor: `vscode://file/{path}:{line}` is only the default."
+  },
+  "CancelCommandRequest": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "string",
+        "description": "Shown to the worker in the failed tool result, so it knows a person stopped it and why"
+      }
+    },
+    "description": "Kills one command's process tree without ending the turn: the descendants of the CLI process that belong to that tool call, found by pid, never by matching a command line. The worker gets a failed tool result and carries on. Which call is in the path."
+  },
+  "RelaunchOrchestrationRequest": {
+    "type": "object",
+    "properties": {
+      "spec": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "engine": {
+            "$ref": "#/components/schemas/OrchestrationEngine",
+            "description": "Default `graph`"
+          },
+          "engineReason": {
+            "type": "string",
+            "description": "Why the planner chose the engine, shown next to it in the draft"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "permissionMode": {
+            "$ref": "#/components/schemas/PermissionMode"
+          },
+          "concurrency": {
+            "type": "number",
+            "description": "Max agents running in parallel (default 3)"
+          },
+          "synthesize": {
+            "type": "boolean",
+            "description": "Launch a final agent that synthesizes the results"
+          },
+          "worktree": {
+            "type": "boolean",
+            "description": "Give every task its own git worktree and branch, so parallel workers never write over each other — and never edit the checkout the wrapper itself is running from."
+          },
+          "maxAttempts": {
+            "type": "number",
+            "description": "Attempts a failed task gets in total, the first included, before a person has to decide (default 2)"
+          },
+          "allowedTools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tools every worker may use without being asked. A worker has no one to ask unless `permissionPrompts` sends its prompts to the panel, so anything it needs beyond editing files has to be pre-authorised here or approved there."
+          },
+          "permissionPrompts": {
+            "type": "string",
+            "enum": [
+              "host",
+              "none"
+            ],
+            "description": "`host` routes each worker's permission prompts to the panel for a person to answer"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/TaskLimits",
+            "description": "Default ceiling for every task that does not set its own"
+          },
+          "verification": {
+            "$ref": "#/components/schemas/VerificationSpec",
+            "description": "Checks to run on the integration branch once the graph is merged; none when absent"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrchestrationTaskSpec"
+            }
+          }
+        }
+      },
+      "tasks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OrchestrationTaskSpec"
+        }
+      }
+    },
+    "description": "Runs a finished graph again with corrections, as a new orchestration that records where it came from. What is left out keeps the original's value; `tasks` replaces the whole list, because merging two graphs by task id is guesswork nobody asked for."
+  },
+  "OrchestrationTemplate": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "spec": {
+        "$ref": "#/components/schemas/OrchestrationSpec"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "spec",
+      "createdAt",
+      "updatedAt"
+    ],
+    "description": "A graph saved to be run again on another objective. Settings-shaped, so a JSON file."
+  },
+  "SaveOrchestrationTemplateRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "spec": {
+        "$ref": "#/components/schemas/OrchestrationSpec"
+      }
+    },
+    "required": [
+      "name",
+      "spec"
+    ]
+  },
+  "UpdateOrchestrationTemplateRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "spec": {
+        "$ref": "#/components/schemas/OrchestrationSpec"
+      }
+    }
+  },
+  "LaunchOrchestrationTemplateRequest": {
+    "type": "object",
+    "properties": {
+      "objective": {
+        "type": "string"
+      },
+      "cwd": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string",
+        "description": "Name of the orchestration; the template's when absent"
+      },
+      "model": {
+        "type": "string"
+      }
+    },
+    "description": "Launches a template. What is given here overrides the template's spec for this run only."
+  },
+  "AuthConfig": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "$ref": "#/components/schemas/AuthMode"
+      },
+      "tokenSet": {
+        "type": "boolean",
+        "description": "A token has been set, which is all a reader may know about it"
+      },
+      "oidc": {
+        "$ref": "#/components/schemas/OidcConfig"
+      },
+      "readOnly": {
+        "type": "boolean",
+        "description": "Reject every mutating method with 405, except answering a permission prompt"
+      }
+    },
+    "required": [
+      "mode",
+      "tokenSet",
+      "readOnly"
+    ],
+    "description": "How the API is guarded. The token is **never** in this document: only its hash is stored, and the token itself is shown once, when it is set. `token?: never` says so in the type, so no route can leak it by echoing the configuration back."
+  },
+  "AuthMode": {
+    "type": "string",
+    "enum": [
+      "none",
+      "token",
+      "oidc"
+    ],
+    "description": "`none` is the default and is what a local install has always done. `token` is a bearer token, accepted as a query parameter only on `GET /api/events`, which `EventSource` cannot set headers on. `oidc` validates a JWT against the issuer's JWKS."
+  },
+  "OidcConfig": {
+    "type": "object",
+    "properties": {
+      "issuer": {
+        "type": "string"
+      },
+      "audience": {
+        "type": "string"
+      },
+      "clientId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "issuer",
+      "audience",
+      "clientId"
+    ]
+  },
+  "UpdateAuthConfigRequest": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "$ref": "#/components/schemas/AuthMode"
+      },
+      "oidc": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OidcConfig"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null clears it"
+      },
+      "readOnly": {
+        "type": "boolean"
+      }
+    }
+  },
+  "SetAuthTokenRequest": {
+    "type": "object",
+    "properties": {
+      "token": {
+        "type": "string"
+      }
+    },
+    "description": "Sets or rotates the bearer token. Omit it to have Agentry generate one."
+  },
+  "AuthTokenResult": {
+    "type": "object",
+    "properties": {
+      "token": {
+        "type": "string"
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "token",
+      "createdAt"
+    ],
+    "description": "The only time the token is ever returned."
+  },
+  "AuditEntry": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "at": {
+        "type": "string"
+      },
+      "actor": {
+        "type": "string",
+        "description": "Token id or OIDC subject; `local` when no authentication is configured"
+      },
+      "method": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "status": {
+        "type": "number"
+      },
+      "summary": {
+        "type": "string",
+        "description": "One line about what it did, built from the route, not from the payload"
+      }
+    },
+    "required": [
+      "id",
+      "at",
+      "actor",
+      "method",
+      "path",
+      "status",
+      "summary"
+    ],
+    "description": "One mutating request. Never the body: prompts and secrets live there."
+  },
+  "AuditPage": {
+    "type": "object",
+    "properties": {
+      "entries": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AuditEntry"
+        },
+        "description": "Newest first"
+      },
+      "total": {
+        "type": "number",
+        "description": "Entries matching the filter, so a caller knows what is left below `from`"
+      },
+      "from": {
+        "type": "number",
+        "description": "Offset of the first entry within the filtered set"
+      }
+    },
+    "required": [
+      "entries",
+      "total",
+      "from"
+    ]
+  },
+  "Connector": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The MCP server's name, which is how the CLI knows it"
+      },
+      "name": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/ConnectorKind"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ConnectorStatus"
+      },
+      "scopes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "What it was granted, when the CLI reports it"
+      },
+      "actions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ConnectorAction"
+        },
+        "description": "Prepared prompts for this connector"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "kind",
+      "status"
+    ]
+  },
+  "ConnectorKind": {
+    "type": "string",
+    "enum": [
+      "docs",
+      "gmail",
+      "calendar",
+      "other"
+    ]
+  },
+  "ConnectorStatus": {
+    "type": "string",
+    "enum": [
+      "connected",
+      "needs-auth",
+      "unknown"
+    ],
+    "description": "`unknown`: the CLI lists the server but says nothing about its session."
+  },
+  "ConnectorAction": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "label": {
+        "type": "string"
+      },
+      "prompt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "label",
+      "prompt"
+    ],
+    "description": "A button that opens a new chat with a prompt already written. Nothing more magic than that."
+  },
+  "AccountConfig": {
+    "type": "object",
+    "properties": {
+      "number": {
+        "type": "number",
+        "description": "Slot number, the same identifier  {@link  AccountSummary }  uses"
+      },
+      "configDir": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "`CLAUDE_CONFIG_DIR` for every process started for this account. Null shares the wrapper's, which is what every account did before and stays the default: moving someone's `~/.claude` without being asked is not something a wrapper gets to do."
+      },
+      "rotationPolicy": {
+        "$ref": "#/components/schemas/RotationPolicy"
+      }
+    },
+    "required": [
+      "number",
+      "configDir"
+    ],
+    "description": "Agentry's own settings for one claude-swap slot: what the binary itself does not keep."
+  },
+  "RotationPolicy": {
+    "type": "object",
+    "properties": {
+      "threshold": {
+        "type": "number",
+        "description": "Utilization (0-100) of the active account past which the next one is taken"
+      },
+      "order": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "description": "Slot numbers to try, in order; every enabled account when absent"
+      },
+      "projects": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Project ids this policy governs; the account's default policy when absent"
+      }
+    },
+    "required": [
+      "threshold"
+    ],
+    "description": "Which accounts a project may use, in what order, and when to move on."
+  },
+  "UpdateAccountConfigRequest": {
+    "type": "object",
+    "properties": {
+      "configDir": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null goes back to sharing the wrapper's config dir"
+      },
+      "rotationPolicy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/RotationPolicy"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null removes the policy, leaving the global auto-switch in charge"
+      }
+    }
+  },
+  "UsageHistoryPoint": {
+    "type": "object",
+    "properties": {
+      "at": {
+        "type": "string"
+      },
+      "pct": {
+        "type": "number",
+        "description": "Share of the window consumed (0-100), exactly as claude-swap reported it"
+      },
+      "window": {
+        "$ref": "#/components/schemas/UsageWindowKind"
+      },
+      "account": {
+        "type": "number",
+        "description": "Slot number"
+      }
+    },
+    "required": [
+      "at",
+      "pct",
+      "window",
+      "account"
+    ],
+    "description": "One reading of an account's usage, kept as a row so the panel can draw a line."
+  },
+  "UsageWindowKind": {
+    "type": "string",
+    "enum": [
+      "5h",
+      "7d"
+    ],
+    "description": "Which rate-limit window a usage point belongs to."
+  },
+  "Schedule": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "cron": {
+        "type": "string",
+        "description": "Five fields: minute, hour, day of month, month, day of week"
+      },
+      "timezone": {
+        "type": "string",
+        "description": "IANA zone the expression is read in; the server's when absent"
+      },
+      "target": {
+        "$ref": "#/components/schemas/ScheduleTarget"
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "lastRunAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until it has fired once"
+      },
+      "nextRunAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null when it is disabled, or when the expression will never fire again"
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "cron",
+      "target",
+      "enabled",
+      "lastRunAt",
+      "nextRunAt",
+      "createdAt"
+    ],
+    "description": "A recurring chat or orchestration. The definition is settings-shaped, so it lives in a JSON file; the runs accumulate, so they are rows. A window missed while the wrapper was down is skipped, not replayed: firing a week of cron slots at once on boot is never what anyone meant."
+  },
+  "ScheduleTarget": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "chat"
+          },
+          "chat": {
+            "$ref": "#/components/schemas/NewChatRequest"
+          }
+        },
+        "required": [
+          "kind",
+          "chat"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "orchestration"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/OrchestrationSpec"
+          }
+        },
+        "required": [
+          "kind",
+          "spec"
+        ]
+      }
+    ],
+    "description": "What a schedule starts when it fires."
+  },
+  "ScheduleRun": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "scheduleId": {
+        "type": "string"
+      },
+      "at": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ScheduleRunStatus"
+      },
+      "chatId": {
+        "type": "string"
+      },
+      "orchestrationId": {
+        "type": "string"
+      },
+      "error": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "scheduleId",
+      "at",
+      "status"
+    ]
+  },
+  "ScheduleRunStatus": {
+    "type": "string",
+    "enum": [
+      "started",
+      "failed",
+      "skipped"
+    ],
+    "description": "`started`: it launched, and what happened next belongs to the chat or the orchestration. `skipped`: the slot passed while the wrapper was down."
+  },
+  "CreateScheduleRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "cron": {
+        "type": "string"
+      },
+      "timezone": {
+        "type": "string"
+      },
+      "target": {
+        "$ref": "#/components/schemas/ScheduleTarget"
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "Starts enabled unless this says otherwise"
+      }
+    },
+    "required": [
+      "name",
+      "cron",
+      "target"
+    ]
+  },
+  "UpdateScheduleRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "cron": {
+        "type": "string"
+      },
+      "timezone": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null goes back to the server's zone"
+      },
+      "target": {
+        "$ref": "#/components/schemas/ScheduleTarget"
+      },
+      "enabled": {
+        "type": "boolean"
+      }
+    }
+  },
+  "UsageSeries": {
+    "type": "object",
+    "properties": {
+      "bucket": {
+        "$ref": "#/components/schemas/UsageBucket"
+      },
+      "points": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/UsagePoint"
+        },
+        "description": "Oldest first, one point per bucket of the range, empty ones included so a chart has no gaps"
+      }
+    },
+    "required": [
+      "bucket",
+      "points"
+    ],
+    "description": "Cost and usage over time, for a chart."
+  },
+  "UsageBucket": {
+    "type": "string",
+    "enum": [
+      "day",
+      "week"
+    ],
+    "description": "How wide one point of a usage series is."
+  },
+  "UsagePoint": {
+    "type": "object",
+    "properties": {
+      "at": {
+        "type": "string",
+        "description": "Start of the bucket, `YYYY-MM-DD` in the server's time zone"
+      },
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Null when no chat in the bucket reported a cost; never estimated from a price table"
+      },
+      "tokens": {
+        "type": "number"
+      },
+      "chats": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "at",
+      "costUsd",
+      "tokens",
+      "chats"
+    ]
+  },
+  "UsageBreakdown": {
+    "type": "object",
+    "properties": {
+      "byProject": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/UsageSlice"
+        }
+      },
+      "byModel": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/UsageSlice"
+        }
+      }
+    },
+    "required": [
+      "byProject",
+      "byModel"
+    ],
+    "description": "The same range cut two ways. Most spent first in both."
+  },
+  "UsageSlice": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string",
+        "description": "Project id, or model id"
+      },
+      "label": {
+        "type": "string",
+        "description": "What to show: the project's name, or the model id as the CLI writes it"
+      },
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "tokens": {
+        "type": "number"
+      },
+      "chats": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "key",
+      "label",
+      "costUsd",
+      "tokens",
+      "chats"
+    ],
+    "description": "What one project or one model spent over a range."
+  },
+  "ExportFormat": {
+    "type": "string",
+    "enum": [
+      "markdown",
+      "json"
+    ],
+    "description": "How a transcript is exported: Markdown for a person, JSON faithful to the events."
+  },
+  "CliVersionInfo": {
+    "type": "object",
+    "properties": {
+      "current": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The CLI on the PATH, as it reports itself; null when it is not installed"
+      },
+      "pinned": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The version the image pins, when it pins one"
+      },
+      "latest": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Newest published version; null when the check has never run or could not reach the registry"
+      },
+      "checkedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "updateAvailable": {
+        "type": "boolean",
+        "description": "`latest` is newer than `current`; false whenever either of them is unknown"
+      }
+    },
+    "required": [
+      "current",
+      "pinned",
+      "latest",
+      "checkedAt",
+      "updateAvailable"
+    ],
+    "description": "Which Claude Code the wrapper runs and whether a newer one exists. The check costs a registry read, so it happens on demand or once a day, never on a page load: `checkedAt` says how old the answer is."
   }
 }
