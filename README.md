@@ -387,8 +387,16 @@ when the CLI has the Workflow tool; the draft shows why it chose either, and you
 | POST | `/orchestrations/:id/resume` | Run again every task that did not complete (each in its own chat, as a new execution), keeping the results of those that did. Optional body `{ worktree?, permissionPrompts?, allowedTools?, permissionMode? }` corrects the settings the graph failed with |
 | POST | `/orchestrations/:id/tasks/:taskId/retry` | Run a task that failed for good again, in its own chat and worktree, told what went wrong; the tasks blocked behind it go back to waiting for their turn |
 | POST | `/orchestrations/:id/tasks/:taskId/retry-clean` | Start a failed task over: a new chat, its worktree rebuilt from the base commit |
+| POST | `/orchestrations/:id/tasks/:taskId/rerun` | Run a task of a finished graph again with everything that depends on it, each in a new chat and worktree, then integrate and synthesise again; the integration branch is rebuilt from the base |
 | POST | `/orchestrations/:id/tasks/:taskId/skip` | Give a failed or blocked task up, with every task that depends on it, so the graph can finish without them |
 | POST | `/orchestrations/:id/tasks/:taskId/hint` | `{ text }` — a nudge for a worker whose task is still running; a finished task takes none (fork its chat) |
+| POST | `/orchestrations/:id/relaunch` | `{ spec?, tasks? }` — the same graph with corrections (`spec` overrides settings, `tasks` replaces the list) as a new orchestration that records `relaunchedFrom`; the original is left as it was |
+| GET | `/orchestrations/templates` | Saved graphs, by name (a JSON file in the data directory) |
+| POST | `/orchestrations/templates` | `{ name, description?, spec? , fromOrchestration? }` — save a draft plan or an orchestration's graph as a template |
+| GET | `/orchestrations/templates/:templateId` | One template |
+| PATCH | `/orchestrations/templates/:templateId` | `{ name?, description?, spec? }` |
+| DELETE | `/orchestrations/templates/:templateId` | Delete a template; orchestrations launched from it are unaffected |
+| POST | `/orchestrations/templates/:templateId/launch` | `{ objective?, cwd?, name?, model? }` — launch the template on a new objective and directory; recorded as `templateId` |
 | DELETE | `/orchestrations/:id` | Delete a graph that is not running, with its worktrees; refused while a worktree holds uncommitted work |
 | POST | `/orchestrations/:id/integrate` | Merge the task branches into the integration branch again: after resolving by hand, or for a graph that predates integration |
 | POST | `/orchestrations/:id/pull-request` | Push the integration branch and open a pull request with `gh` → `{ branch, url, detail }` |

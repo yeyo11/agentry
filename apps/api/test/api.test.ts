@@ -138,6 +138,39 @@ test('resuming an orchestration that does not exist is a 404, not a hang', async
   assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/nope/resume' })).statusCode, 404);
 });
 
+test('re-running and relaunching what does not exist are 404s', async () => {
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/nope/tasks/a/rerun' })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/nope/relaunch', ...json({}) })).statusCode, 404);
+});
+
+test('orchestration templates are saved, listed, edited, launched and deleted over the API', async () => {
+  const graph = { name: 'review', objective: 'old', cwd: join(tmpdir()), tasks: [{ id: 'a', name: 'a', prompt: 'do it' }] };
+  assert.deepEqual((await app.inject('/api/orchestrations/templates')).json(), []);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/templates', ...json({ name: 'x' }) })).statusCode, 400);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/templates', ...json({ name: 'bad', spec: { ...graph, tasks: [] } }) })).statusCode, 400);
+
+  const created = await app.inject({ method: 'POST', url: '/api/orchestrations/templates', ...json({ name: 'Review', spec: graph }) });
+  assert.equal(created.statusCode, 201);
+  const template = created.json();
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/templates', ...json({ name: 'review', spec: graph }) })).statusCode, 400);
+  assert.equal((await app.inject(`/api/orchestrations/templates/${template.id}`)).json().name, 'Review');
+  assert.equal((await app.inject('/api/orchestrations/templates/nope')).statusCode, 404);
+
+  const renamed = await app.inject({ method: 'PATCH', url: `/api/orchestrations/templates/${template.id}`, ...json({ name: 'Review v2' }) });
+  assert.equal(renamed.json().name, 'Review v2');
+  assert.equal((await app.inject('/api/orchestrations/templates')).json().length, 1);
+
+  const launched = await app.inject({ method: 'POST', url: `/api/orchestrations/templates/${template.id}/launch`, ...json({ objective: 'new' }) });
+  assert.equal(launched.statusCode, 201);
+  assert.equal(launched.json().objective, 'new');
+  assert.equal(launched.json().templateId, template.id);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/templates/nope/launch', ...json({}) })).statusCode, 404);
+  core.orchestrator.stop(launched.json().id);
+
+  assert.deepEqual((await app.inject({ method: 'DELETE', url: `/api/orchestrations/templates/${template.id}` })).json(), { ok: true });
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/orchestrations/templates/${template.id}` })).statusCode, 404);
+});
+
 test('planner drafts are listed and fetched by run', async () => {
   assert.deepEqual((await app.inject('/api/orchestrations/plans')).json(), []);
   // No such planner run: a clear 4xx rather than a hang

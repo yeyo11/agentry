@@ -866,3 +866,173 @@ test('a graph that had finished its tasks when the wrapper went away waits for a
   assert.equal(orchestrator.get('graph-r')?.endedAt, '2026-01-01T10:25:00.000Z');
   db.close();
 });
+
+// ---------- running a finished graph again ----------
+
+test('re-running a task of a completed graph redoes it and what depends on it, and rebuilds the integration', async () => {
+  const { db, repo, runs, orchestrator, taskOf } = retryGraph();
+  const started = orchestrator.create(
+    graphOf(repo, [
+      { id: 'base', prompt: 'FAKE-WRITE base.txt one' },
+      { id: 'top', prompt: 'FAKE-WRITE top.txt two', dependsOn: ['base'] },
+      { id: 'apart', prompt: 'FAKE-WRITE apart.txt three' },
+    ]),
+  );
+  const first = await settle(orchestrator, started.id);
+  assert.equal(first.status, 'completed');
+  const before = Object.fromEntries(first.tasks.map((t) => [t.id, { runId: t.runId, branch: t.branch }]));
+  const integration = first.integration;
+  assert.equal(integration?.status, 'merged');
+  // Something only the old integration branch has: if the branch were reused instead of rebuilt, it would survive
+  const inIntegration = (...args: string[]) => execFileSync('git', ['-C', integration?.worktree as string, '-c', 'user.name=t', '-c', 'user.email=t@e.co', ...args]);
+  writeFileSync(join(integration?.worktree as string, 'stale.txt'), 'from the first integration\n');
+  inIntegration('add', '-A');
+  inIntegration('commit', '-q', '-m', 'stray');
+  for (const t of first.tasks) await runs.exited(t.runId as string);
+
+  orchestrator.rerunTask(started.id, 'base');
+  const orch = await until(
+    () => orchestrator.get(started.id) as Orchestration,
+    (o) => o.status === 'completed' && o.integration?.status === 'merged' && o.tasks.every((t) => t.status === 'completed'),
+    'the graph to complete again',
+  );
+
+  assert.notEqual(taskOf(orch.id, 'base')?.runId, before.base?.runId, 'the task has a new chat');
+  assert.notEqual(taskOf(orch.id, 'top')?.runId, before.top?.runId, 'what depends on it starts over too');
+  assert.equal(taskOf(orch.id, 'apart')?.runId, before.apart?.runId, 'a task that does not depend on it keeps its work');
+  assert.equal(taskOf(orch.id, 'apart')?.branch, before.apart?.branch);
+  assert.equal(taskOf(orch.id, 'top')?.attempts, 1);
+  // The old chats stay listed as what was tried
+  assert.ok(runs.get(before.base?.runId as string));
+  assert.deepEqual([...(orch.integration?.merged ?? [])].sort(), ['apart', 'base', 'top']);
+  assert.equal(show(repo, `${orch.integration?.branch}:top.txt`), 'two');
+  // The integration branch was rebuilt from the base, so what only the old one held is gone
+  assert.throws(() => show(repo, `${orch.integration?.branch}:stale.txt`), /stale\.txt/);
+  // Synthesised again, on the new branch
+  assert.ok(orch.synthesisRunId);
+  db.close();
+});
+
+test('re-running a task is refused while the graph runs, for a workflow, and once its branch went into a pull request', () => {
+  const config = offlineConfig();
+  const repo = repoWithCommit();
+  const db = new Db(config);
+  db.saveOrchestrations([
+    stoppedGraph(repo, { id: 'graph-flow', engine: 'workflow' }),
+    stoppedGraph(repo, {
+      id: 'graph-pushed',
+      worktree: true,
+      status: 'completed',
+      integration: { branch: 'agentry/x-1', worktree: null, status: 'merged', merged: [], conflicts: [], commit: null, error: null, integratorRunId: null, pullRequestUrl: 'https://example.test/pr/1' },
+    }),
+  ]);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+  assert.throws(() => orchestrator.rerunTask('graph-flow', 'api'), /workflow/);
+  assert.throws(() => orchestrator.rerunTask('graph-pushed', 'nope'), /task not found/);
+  assert.throws(() => orchestrator.rerunTask('nope', 'api'), /not found/);
+  assert.throws(() => orchestrator.rerunTask('graph-pushed', 'api'), /pull request/);
+  // Refused before anything changed
+  assert.equal(orchestrator.get('graph-pushed')?.tasks.find((t) => t.id === 'api')?.status, 'completed');
+  db.close();
+});
+
+test('nothing is re-run or relaunched while the graph is still running', () => {
+  const { db, repo, orchestrator } = retryGraph();
+  // A restart would have stopped a graph seeded as running, so this one really runs
+  const running = orchestrator.create(graphOf(repo, [{ id: 'slow', prompt: 'FAKE-HANG' }]));
+  assert.throws(() => orchestrator.rerunTask(running.id, 'slow'), /still running/);
+  assert.throws(() => orchestrator.relaunch(running.id), /still running/);
+  orchestrator.stop(running.id);
+  const again = orchestrator.relaunch(running.id);
+  assert.equal(again.relaunchedFrom, running.id);
+  // It runs the same hanging task, and a test that leaves it running never exits
+  orchestrator.stop(again.id);
+  db.close();
+});
+
+// ---------- relaunching and templates ----------
+
+test('relaunching a finished graph starts a new orchestration from its settings and records where it came from', () => {
+  const config = offlineConfig();
+  const repo = repoWithCommit();
+  const db = new Db(config);
+  db.saveOrchestrations([stoppedGraph(repo, { objective: 'ship it', model: 'sonnet', concurrency: 2 })]);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+
+  const plain = orchestrator.relaunch('graph-1');
+  assert.notEqual(plain.id, 'graph-1');
+  assert.equal(plain.relaunchedFrom, 'graph-1');
+  assert.equal(plain.objective, 'ship it');
+  assert.equal(plain.model, 'sonnet');
+  assert.equal(plain.concurrency, 2);
+  assert.deepEqual(plain.tasks.map((t) => [t.id, t.prompt]), [['api', 'do api'], ['assets', 'do assets'], ['shell', 'do shell']]);
+  // Nothing of the old run is carried over: the new graph does its own work
+  assert.ok(plain.tasks.every((t) => t.result === null && t.costUsd === 0));
+  assert.equal(plain.costUsd, 0);
+
+  const corrected = orchestrator.relaunch('graph-1', {
+    spec: { name: 'desktop v2', concurrency: 3, model: undefined },
+    tasks: [{ id: 'only', name: 'only', prompt: 'a better prompt' }],
+  });
+  assert.equal(corrected.name, 'desktop v2');
+  assert.equal(corrected.concurrency, 3);
+  assert.equal(corrected.model, 'sonnet', 'what is left out keeps the original value');
+  assert.deepEqual(corrected.tasks.map((t) => t.prompt), ['a better prompt']);
+  assert.equal(corrected.relaunchedFrom, 'graph-1');
+
+  // The original is untouched
+  const original = orchestrator.get('graph-1');
+  assert.equal(original?.status, 'stopped');
+  assert.equal(original?.tasks.length, 3);
+  // A bad graph is refused the way a launch refuses it, and creates nothing
+  const count = orchestrator.list().length;
+  assert.throws(() => orchestrator.relaunch('graph-1', { tasks: [{ id: 'a', name: 'a', prompt: 'x', dependsOn: ['ghost'] }] }), /unknown task/);
+  assert.equal(orchestrator.list().length, count);
+  assert.throws(() => orchestrator.relaunch('nope'), /not found/);
+  db.close();
+});
+
+test('templates are saved, edited, launched on a new objective and deleted, and outlive the process', () => {
+  const config = offlineConfig();
+  const repo = repoWithCommit();
+  const db = new Db(config);
+  db.saveOrchestrations([stoppedGraph(repo, { objective: 'old objective' })]);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+
+  const template = orchestrator.saveTemplate({ name: 'Release', description: ' three steps ', fromOrchestration: 'graph-1' });
+  assert.equal(template.description, 'three steps');
+  assert.equal(template.spec.tasks.length, 3);
+  assert.equal(template.spec.objective, 'old objective');
+  assert.throws(() => orchestrator.saveTemplate({ name: 'release', fromOrchestration: 'graph-1' }), /already exists/);
+  assert.throws(() => orchestrator.saveTemplate({ name: '  ', fromOrchestration: 'graph-1' }), /needs a name/);
+  assert.throws(() => orchestrator.saveTemplate({ name: 'Empty' }), /spec or fromOrchestration/);
+  assert.throws(() => orchestrator.saveTemplate({ name: 'Cycle', spec: { name: 'c', tasks: [{ id: 'a', name: 'a', prompt: 'x', dependsOn: ['a'] }] } }), /depends on itself/);
+  const draft = orchestrator.saveTemplate({ name: 'Draft', spec: { name: 'draft', tasks: [{ id: 'one', name: 'one', prompt: 'do' }] } });
+
+  // A new process reads the file, not memory
+  const again = new Orchestrator(config, new ChatManager(config, db), db);
+  assert.deepEqual(again.templates.list().map((t) => t.name), ['Draft', 'Release']);
+
+  const launched = orchestrator.launchTemplate(template.id, { objective: 'new objective', cwd: repo, name: 'Release 2' });
+  assert.equal(launched.templateId, template.id);
+  assert.equal(launched.name, 'Release 2');
+  assert.equal(launched.objective, 'new objective');
+  assert.equal(launched.tasks.length, 3);
+  // What a launch overrides is for that run: the template itself does not change
+  assert.equal(orchestrator.templates.get(template.id)?.spec.objective, 'old objective');
+
+  const edited = orchestrator.templates.update(draft.id, { name: 'Draft 2', description: '', spec: { name: 'draft', tasks: [{ id: 'two', name: 'two', prompt: 'do' }] } });
+  assert.equal(edited.name, 'Draft 2');
+  assert.equal(edited.description, undefined);
+  assert.equal(edited.spec.tasks[0]?.id, 'two');
+  assert.throws(() => orchestrator.templates.update(draft.id, { name: 'RELEASE' }), /already exists/);
+  assert.throws(() => orchestrator.templates.update('nope', { name: 'x' }), /not found/);
+
+  orchestrator.templates.remove(draft.id);
+  assert.equal(orchestrator.templates.get(draft.id), null);
+  assert.throws(() => orchestrator.templates.remove(draft.id), /not found/);
+  assert.throws(() => orchestrator.launchTemplate(draft.id), /not found/);
+  // The orchestration launched from it does not depend on it
+  assert.equal(orchestrator.get(launched.id)?.templateId, template.id);
+  db.close();
+});

@@ -3,15 +3,19 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import type {
+  LaunchOrchestrationTemplateRequest,
   Orchestration,
   OrchestrationEngine,
   OrchestrationIntegration,
   OrchestrationSpec,
   OrchestrationTaskSpec,
   OrchestrationTaskState,
+  OrchestrationTemplate,
   PlanDraftSummary,
   PlanRequest,
+  RelaunchOrchestrationRequest,
   ResumeOrchestrationRequest,
+  SaveOrchestrationTemplateRequest,
   SaveOrchestrationWorkflowRequest,
   WorkflowDefinition,
 } from '@agentry/shared';
@@ -19,6 +23,7 @@ import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
 import { OrchestrationEventTracker } from './event-sources.ts';
 import type { EventBus } from './events.ts';
+import { OrchestrationTemplates } from './orchestration-templates.ts';
 import {
   abortMerge,
   addWorktree,
@@ -225,6 +230,8 @@ export class Orchestrator {
   private readonly lateArrivals = new Set<string>();
   /** Tasks between the decision to run their chat again and the process that does: they take no hint yet */
   private readonly relaunching = new Set<string>();
+  /** Graphs saved to be launched again on another objective */
+  readonly templates: OrchestrationTemplates;
 
   constructor(
     private readonly config: CoreConfig,
@@ -232,6 +239,7 @@ export class Orchestrator {
     private readonly db: Db,
   ) {
     this.file = join(config.dataDir, 'orchestrations.json');
+    this.templates = new OrchestrationTemplates(join(config.dataDir, 'orchestration-templates.json'), (spec) => validateTasks(spec.tasks ?? []));
     this.load();
     this.tracker.baseline(this.list());
     this.runs.on('chat-result', (runId: string, result: RunResult) => this.follow(runId, result));
@@ -333,7 +341,7 @@ export class Orchestrator {
     return this.list().filter((o) => o.status === 'running').length;
   }
 
-  create(spec: OrchestrationSpec): Orchestration {
+  create(spec: OrchestrationSpec, origin: { relaunchedFrom?: string; templateId?: string } = {}): Orchestration {
     validateTasks(spec.tasks);
     const root = resolve(spec.cwd ?? this.config.workspaceDir);
     // Fail here rather than per task: half a graph isolated and half of it not is worse than
@@ -370,6 +378,8 @@ export class Orchestrator {
       engine,
       engineReason: spec.engineReason?.trim() || null,
       workflow: null,
+      relaunchedFrom: origin.relaunchedFrom ?? null,
+      templateId: origin.templateId ?? null,
       tasks: spec.tasks.map<OrchestrationTaskState>((t) => ({
         id: t.id,
         name: t.name?.trim() || t.id,
@@ -472,6 +482,83 @@ export class Orchestrator {
     if (orch.engine === 'workflow') this.launchWorkflow(orch, orch.workflow?.workflowRunId ?? null);
     else this.schedule(orch); // persists
     return orch;
+  }
+
+  // ---------- relaunching and templates ----------
+
+  /**
+   * The spec that would launch this graph as it is: what a relaunch starts from and what a template
+   * saves. Read back from the orchestration, so it carries the settings the graph actually ran with,
+   * including corrections made when it was resumed.
+   */
+  specOf(id: string): OrchestrationSpec {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    return {
+      name: orch.name,
+      ...(orch.objective ? { objective: orch.objective } : {}),
+      engine: orch.engine ?? 'graph',
+      ...(orch.engineReason ? { engineReason: orch.engineReason } : {}),
+      cwd: orch.cwd,
+      ...(orch.model ? { model: orch.model } : {}),
+      permissionMode: orch.permissionMode,
+      concurrency: orch.concurrency,
+      synthesize: orch.synthesize,
+      worktree: orch.worktree,
+      maxAttempts: orch.maxAttempts,
+      allowedTools: [...(orch.allowedTools ?? [])],
+      permissionPrompts: orch.permissionPrompts,
+      ...(orch.limits ? { limits: orch.limits } : {}),
+      tasks: orch.tasks.map<OrchestrationTaskSpec>((t) => ({
+        id: t.id,
+        name: t.name,
+        prompt: t.prompt,
+        ...(t.dependsOn?.length ? { dependsOn: [...t.dependsOn] } : {}),
+        ...(t.cwd ? { cwd: t.cwd } : {}),
+        ...(t.model ? { model: t.model } : {}),
+        ...(t.limits ? { limits: t.limits } : {}),
+      })),
+    };
+  }
+
+  /**
+   * Runs a graph that is no longer running again, with corrections, as a new orchestration that
+   * records where it came from. It starts from nothing: new chats, new worktrees, its own branch. What
+   * the first one produced stays exactly as it was, which is what makes "try it with a better prompt"
+   * safe to do on a graph whose result someone may still want.
+   */
+  relaunch(id: string, changes: RelaunchOrchestrationRequest = {}): Orchestration {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    if (orch.status === 'running') throw new Error('the orchestration is still running: stop it first, or wait for it to finish');
+    const original = this.specOf(id);
+    const { tasks: replaced, ...overrides } = changes.spec ?? {};
+    const spec: OrchestrationSpec = {
+      ...original,
+      ...Object.fromEntries(Object.entries(overrides).filter(([, v]) => v !== undefined)),
+      tasks: changes.tasks ?? replaced ?? original.tasks,
+    };
+    return this.create(spec, { relaunchedFrom: orch.id });
+  }
+
+  /** Saves a graph as a template, from a spec (a draft plan) or from an orchestration's own. */
+  saveTemplate(req: SaveOrchestrationTemplateRequest): OrchestrationTemplate {
+    if (req.spec && req.fromOrchestration) throw new Error('give the graph as a spec or as an orchestration to take it from, not both');
+    const spec = req.fromOrchestration ? this.specOf(req.fromOrchestration) : req.spec;
+    if (!spec) throw new Error('spec or fromOrchestration is required');
+    return this.templates.save(req.name, spec, req.description);
+  }
+
+  /** Launches a template on a new objective and directory; what is given here is for this run only. */
+  launchTemplate(id: string, req: LaunchOrchestrationTemplateRequest = {}): Orchestration {
+    const template = this.templates.get(id);
+    if (!template) throw new Error('template not found');
+    const spec: OrchestrationSpec = { ...template.spec };
+    if (req.name?.trim()) spec.name = req.name.trim();
+    if (req.objective !== undefined) spec.objective = req.objective;
+    if (req.cwd) spec.cwd = req.cwd;
+    if (req.model) spec.model = req.model;
+    return this.create(spec, { templateId: template.id });
   }
 
   /** What every worker is told first; shared by both engines, so a task reads the same either way. */
@@ -1259,6 +1346,16 @@ ${quoted}
   retryTaskClean(id: string, taskId: string): Orchestration {
     const { orch, task } = this.decidable(id, taskId, ['failed']);
     if (task.runId && this.runs.get(task.runId)?.pid) throw new Error('the task still has a process running: stop it first');
+    this.startOver(orch, task);
+    return this.reopen(orch);
+  }
+
+  /**
+   * Throws away what a task did (its worktree and branch, uncommitted work included) and puts it back
+   * to pending with no chat, so the next execution is a new conversation from the base. The chat it
+   * had stays listed as the record of what was tried.
+   */
+  private startOver(orch: Orchestration, task: OrchestrationTaskState): void {
     if (task.worktree || task.branch) {
       const { root } = checkoutOf(orch.cwd);
       if (task.worktree && existsSync(task.worktree)) removeWorktree(root, task.worktree, true);
@@ -1279,7 +1376,61 @@ ${quoted}
       startedAt: null,
       endedAt: null,
     });
+  }
+
+  /**
+   * Runs a task of a finished graph again, and with it everything that depends on it: their results
+   * were built on the old one, and their branches contain its merge. Each starts over in a new chat
+   * and a worktree rebuilt from what it now depends on, and the graph integrates and synthesises
+   * again once they are done. Tasks outside that set keep their work.
+   *
+   * The integration branch is rebuilt from the base too: it holds merges of branches that no longer
+   * exist, and merging the new ones on top would conflict with their own earlier versions.
+   */
+  rerunTask(id: string, taskId: string): Orchestration {
+    const orch = this.items.get(id);
+    if (!orch) throw new Error('orchestration not found');
+    if (orch.engine !== 'graph') throw new Error('a workflow runs its tasks as one session: resume it instead');
+    if (orch.status === 'running') throw new Error('the orchestration is still running: stop it first, or wait for it to finish');
+    if (orch.status === 'waiting') throw new Error('the orchestration is waiting for a decision on its tasks: retry or skip them instead');
+    const task = orch.tasks.find((t) => t.id === taskId);
+    if (!task) throw new Error('task not found');
+    const redo = this.withDependants(orch, task);
+    const busy = redo.find((t) => t.runId && this.runs.get(t.runId)?.pid);
+    if (busy) throw new Error(`task ${busy.id} still has a process running: stop it first`);
+    if (orch.integration && ['merging', 'resolving'].includes(orch.integration.status)) {
+      throw new Error('the graph is being integrated: wait for it to finish, or stop it');
+    }
+    if (orch.worktree && orch.integration?.pullRequestUrl) {
+      throw new Error('the integration branch was already pushed for a pull request, and rebuilding it would leave that one behind: relaunch the graph instead');
+    }
+
+    if (orch.worktree) this.discardIntegration(orch);
+    for (const t of redo) this.startOver(orch, t);
+    orch.finalResult = null;
+    orch.synthesisRunId = null;
+    // What was checked belongs to the branch that was just thrown away
+    if (orch.verification) orch.verification = null;
+    this.lateArrivals.delete(orch.id);
+    orch.integration = null;
     return this.reopen(orch);
+  }
+
+  /** The task and every task that depends on it, directly or not, in dependency order. */
+  private withDependants(orch: Orchestration, task: OrchestrationTaskState): OrchestrationTaskState[] {
+    const affected = new Set([task.id]);
+    for (const t of topological(orch.tasks)) {
+      if ((t.dependsOn ?? []).some((d) => affected.has(d))) affected.add(t.id);
+    }
+    return topological(orch.tasks).filter((t) => affected.has(t.id));
+  }
+
+  /** Removes the integration branch and its worktree, so the next integration builds it from the base. */
+  private discardIntegration(orch: Orchestration): void {
+    const { root } = checkoutOf(orch.cwd);
+    const integration = orch.integration;
+    if (integration?.worktree && existsSync(integration.worktree)) removeWorktree(root, integration.worktree, true);
+    deleteBranch(root, integration?.branch ?? integrationBranch(orch));
   }
 
   /**
