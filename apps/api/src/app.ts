@@ -26,7 +26,12 @@ export interface AppOptions {
 }
 
 export async function buildApp(core: Core, options: AppOptions = {}): Promise<FastifyInstance> {
-  const app = Fastify({ logger: { level: options.logLevel ?? process.env.LOG_LEVEL ?? 'info' } });
+  const app = Fastify({
+    logger: { level: options.logLevel ?? process.env.LOG_LEVEL ?? 'info' },
+    // The event stream is a hijacked, never-ending response: without this a browser tab left open
+    // keeps close() waiting until the orchestrator SIGKILLs the process
+    forceCloseConnections: true,
+  });
 
   // The UI never needs CORS: in dev it goes through the Vite proxy and in production it is served
   // from this same origin. Enable it only for external browser clients.
