@@ -24,6 +24,7 @@ export const TAGS = [
   { name: 'Events', description: 'One Server-Sent Events stream announcing every change, so clients do not have to poll.' },
   { name: 'Chats', description: 'Claude Code conversations, one per session id: resumed in place, forked into copies, each with the executions Agentry ran on it.' },
   { name: 'Orchestration', description: 'A DAG of tasks, each executed by its own Claude worker.' },
+  { name: 'Schedules', description: 'Cron-like recurring chats and orchestrations, with the history of what each run produced. A slot missed while Agentry was down is skipped, never replayed.' },
   { name: 'Configuration', description: 'Settings, instructions, MCP servers and markdown resources, per user or per project (`?project=`).' },
   { name: 'Config files', description: "Generic editor confined to a scope's Claude dir; secrets and runtime state are refused." },
   { name: 'Memory', description: "Claude Code's per-project file memory." },
@@ -211,6 +212,18 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /uploads': d('Uploads', 'Upload a file to attach', { description: 'The request body is the file itself, sent as `application/octet-stream`; `name` is its file name. The type is read from the bytes. Limits: images (PNG, JPEG, GIF, WebP) 5 MB, PDFs 32 MB, anything else 50 MB. Files are kept in the data dir, outside every project, and every run can read them.', querystring: obj({ name: str('File name') }), ok: ref('Attachment'), created: true }),
   'GET /uploads/:id': d('Uploads', "An upload's metadata", { ok: ref('Attachment') }),
   'GET /uploads/:id/content': d('Uploads', 'The uploaded file', { description: 'Images and PDFs are served inline; any other type as a download, never rendered.' }),
+
+  // ---- Schedules
+  'GET /schedules': d('Schedules', 'List schedules', { description: 'Oldest first, each with when it last fired and when it fires next (null while disabled).', ok: list('Schedule') }),
+  'GET /schedules/preview': d('Schedules', 'Say what a cron expression will do', { description: 'Nothing is saved. An invalid expression answers `valid: false` with the field that is wrong, so a form can show it while it is typed.', querystring: obj({ cron: str('Five fields, or `@hourly`, `@daily`, `@weekly`, `@monthly`, `@yearly`'), timezone: str('IANA zone; the server\'s when omitted'), count: { type: 'integer', description: 'How many upcoming fires to list (default 5, at most 20)' } }, ['cron']), ok: ref('SchedulePreview') }),
+  'POST /schedules': d('Schedules', 'Create a schedule', { description: 'The target is a chat (a `NewChatRequest`) or an orchestration (an `OrchestrationSpec`). It starts enabled unless `enabled` is false. The clock starts now: slots before creation are not missed windows.', body: ref('CreateScheduleRequest'), ok: ref('Schedule'), created: true }),
+  'GET /schedules/:id': d('Schedules', 'One schedule', { ok: ref('Schedule') }),
+  'PATCH /schedules/:id': d('Schedules', 'Edit a schedule', { description: 'Changing the expression or the zone, or switching it on, starts its clock afresh: the time it was off is not counted as missed.', body: ref('UpdateScheduleRequest'), ok: ref('Schedule') }),
+  'DELETE /schedules/:id': d('Schedules', 'Delete a schedule and its history', { description: 'Chats and orchestrations it already started are not touched.', ok: OK }),
+  'POST /schedules/:id/enable': d('Schedules', 'Switch a schedule on', { ok: ref('Schedule') }),
+  'POST /schedules/:id/disable': d('Schedules', 'Switch a schedule off', { ok: ref('Schedule') }),
+  'POST /schedules/:id/run': d('Schedules', 'Run a schedule now', { description: 'Starts its target immediately, whatever the timetable says and even while it is disabled. The run is recorded without a slot and does not affect when it fires next. A target that fails to start is a run with status `failed` and its error, not an HTTP error.', ok: ref('ScheduleRun'), created: true }),
+  'GET /schedules/:id/runs': d('Schedules', 'History of a schedule', { description: 'Newest first. `started` carries the chat or orchestration it produced; `failed` the error; `skipped` says that slots passed while Agentry was not running: those are never run late.', querystring: obj({ limit: { type: 'integer', description: 'At most 500, default 50' } }), ok: list('ScheduleRun') }),
 };
 
 /** Builds the Fastify route schema for a documented route; path params are derived from the URL. */

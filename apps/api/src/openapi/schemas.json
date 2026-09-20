@@ -7511,7 +7511,12 @@
         "type": "string"
       },
       "at": {
-        "type": "string"
+        "type": "string",
+        "description": "When this row was written: the moment it fired, or the moment the wrapper noticed it had skipped"
+      },
+      "slot": {
+        "type": "string",
+        "description": "The cron slot this run answers, as an ISO time; absent for a run started by hand"
       },
       "status": {
         "$ref": "#/components/schemas/ScheduleRunStatus"
@@ -7541,6 +7546,39 @@
       "skipped"
     ],
     "description": "`started`: it launched, and what happened next belongs to the chat or the orchestration. `skipped`: the slot passed while the wrapper was down."
+  },
+  "SchedulePreview": {
+    "type": "object",
+    "properties": {
+      "valid": {
+        "type": "boolean"
+      },
+      "error": {
+        "type": "string",
+        "description": "Which field is wrong, when it is not valid"
+      },
+      "description": {
+        "type": "string",
+        "description": "The expression in words"
+      },
+      "timezone": {
+        "type": "string",
+        "description": "The zone it was read in"
+      },
+      "next": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The next fires, ISO times"
+      }
+    },
+    "required": [
+      "valid",
+      "timezone",
+      "next"
+    ],
+    "description": "What an expression will do, for a form to show before it is saved."
   },
   "CreateScheduleRequest": {
     "type": "object",

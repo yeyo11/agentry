@@ -1761,11 +1761,27 @@ export type ScheduleRunStatus = 'started' | 'failed' | 'skipped';
 export interface ScheduleRun {
   id: string;
   scheduleId: string;
+  /** When this row was written: the moment it fired, or the moment the wrapper noticed it had skipped */
   at: string;
+  /** The cron slot this run answers, as an ISO time; absent for a run started by hand */
+  slot?: string;
   status: ScheduleRunStatus;
   chatId?: string;
   orchestrationId?: string;
   error?: string;
+}
+
+/** What an expression will do, for a form to show before it is saved. */
+export interface SchedulePreview {
+  valid: boolean;
+  /** Which field is wrong, when it is not valid */
+  error?: string;
+  /** The expression in words */
+  description?: string;
+  /** The zone it was read in */
+  timezone: string;
+  /** The next fires, ISO times */
+  next: string[];
 }
 
 export interface CreateScheduleRequest {

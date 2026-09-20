@@ -45,6 +45,7 @@ import { MemoryStore } from './memory.ts';
 import { Orchestrator } from './orchestrator.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { attachProject, projectCandidates, ProjectStore, type ChatPlace } from './projects.ts';
+import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
@@ -71,6 +72,8 @@ export {
 export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 export { Db } from './db.ts';
+export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
+export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
 
 // Read from the package rather than written into this file: the release tooling then only edits
@@ -94,6 +97,7 @@ export class Core {
   readonly chats: ChatService;
   readonly sessions: SessionStore;
   readonly orchestrator: Orchestrator;
+  readonly schedules: Scheduler;
   readonly files: SettingsFiles;
   readonly explorer: ConfigExplorer;
   readonly plugins: Plugins;
@@ -158,7 +162,16 @@ export class Core {
     this.plugins = new Plugins(config);
     this.memory = new MemoryStore(config);
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
-    void this.runtime.restore(this.sessions).finally(() => this.orchestrator.recover());
+    // Started last of all, once the chats it may resume or start are restored, so a slot judged at
+    // boot finds the runtime it launches into ready
+    this.schedules = new Scheduler(config, {
+      chat: (request) => this.chats.create(request),
+      orchestration: (spec) => this.orchestrator.create(spec),
+    });
+    void this.runtime.restore(this.sessions).finally(() => {
+      this.orchestrator.recover();
+      this.schedules.start();
+    });
     this.mcp = new McpConfig(config);
     this.resources = new ConfigResources();
     this.accounts = new AccountManager(config, this.db);
@@ -530,6 +543,7 @@ export class Core {
   }
 
   shutdown(): void {
+    this.schedules.close();
     this.sessionsWatcher.close();
     this.permissions.close();
     this.accounts.shutdown();

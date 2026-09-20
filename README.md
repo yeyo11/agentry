@@ -432,6 +432,28 @@ curl -X POST localhost:8787/api/chats -H 'content-type: application/json' \
   -d "{\"prompt\":\"Explain this diagram\",\"attachments\":[\"$id\"]}"
 ```
 
+### Schedules
+
+Recurring chats and orchestrations on a five-field cron expression (`minute hour day-of-month month
+day-of-week`, with lists, ranges, steps, month and weekday names, and `@hourly`, `@daily`, `@weekly`,
+`@monthly`, `@yearly`) read in an IANA time zone, the server's when none is given. The definitions
+live in `schedules.json` in the data directory; the history is rows in `wrapper.db`. A slot is claimed
+by a unique key, so it never fires twice, across restarts or across two processes on one data dir. A
+slot that passed while Agentry was not running is **skipped, not run late**, and the history says so.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/schedules` | Every schedule, with `lastRunAt` and `nextRunAt` (null while disabled) |
+| GET | `/schedules/preview?cron=&timezone=&count=` | What an expression will do: `valid`, the `error` naming the wrong field, a `description` in words and the next fires. Saves nothing |
+| POST | `/schedules` | `{ name, cron, timezone?, target, enabled? }` where `target` is `{ kind: 'chat', chat: NewChatRequest }` or `{ kind: 'orchestration', spec: OrchestrationSpec }` → `201` |
+| GET | `/schedules/:id` | One schedule |
+| PATCH | `/schedules/:id` | Edit any field, `enabled` included. A new expression or zone, or switching it on, starts its clock afresh |
+| DELETE | `/schedules/:id` | Deletes it and its history; what it already started is not touched |
+| POST | `/schedules/:id/enable` | Switch on |
+| POST | `/schedules/:id/disable` | Switch off |
+| POST | `/schedules/:id/run` | Run now, even while disabled → `201` with the `ScheduleRun`; a target that fails to start is `status: 'failed'` with its `error` |
+| GET | `/schedules/:id/runs?limit=` | History, newest first: `started` with the `chatId` or `orchestrationId` it produced, `failed` with its `error`, or `skipped` with what was missed |
+
 ### Configuration (user and project scope)
 
 Every `/config` route accepts `?project=<projectId>` (the `id` from `GET /projects`). Without it
