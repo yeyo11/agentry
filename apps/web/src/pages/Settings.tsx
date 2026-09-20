@@ -12,6 +12,7 @@ import { InstructionsTab } from './config/InstructionsTab';
 import { McpTab } from './config/McpTab';
 import { PluginsTab } from './config/PluginsTab';
 import { ResourcesTab } from './config/ResourcesTab';
+import { SecurityTab } from './config/SecurityTab';
 import { SettingsTab } from './config/SettingsTab';
 
 const RESOURCE_TABS: ResourceKind[] = ['agents', 'skills', 'commands', 'output-styles', 'rules', 'workflows'];
@@ -31,6 +32,7 @@ const TABS = [
   { id: 'files', label: 'config:config.tabs.files' },
   { id: 'memory', label: 'home:settings.tabs.memory' },
   { id: 'plugins', label: 'home:settings.tabs.plugins' },
+  { id: 'security', label: 'config:config.tabs.security' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -139,6 +141,7 @@ function SettingsInner() {
         {tab === 'files' && <FilesTab scope={USER_SCOPE} />}
         {tab === 'memory' && <MemoryOverview />}
         {tab === 'plugins' && <PluginsTab />}
+        {tab === 'security' && <SecurityTab />}
       </TabPanel>
     </>
   );

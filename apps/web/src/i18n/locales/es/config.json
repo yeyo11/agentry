@@ -26,7 +26,124 @@
       "output-styles": "Output styles",
       "rules": "Reglas",
       "files": "Archivos",
-      "workflows": "Workflows"
+      "workflows": "Workflows",
+      "security": "Seguridad"
+    }
+  },
+  "security": {
+    "footnote": "Agentry comprueba una credencial; no inicia sesión a nadie. Termina TLS en un reverse proxy delante de él, para que un token nunca viaje por la red en claro.",
+    "saveFailed": "No se pudo guardar la configuración de seguridad",
+    "readOnly": {
+      "title": "Modo solo lectura",
+      "on": "solo lectura",
+      "off": "escritura permitida",
+      "intro": "Actívalo para enseñar el panel a alguien sin dejar que cambie nada: toda petición que escriba se rechaza con 405.",
+      "label": "Rechaza toda escritura",
+      "note": "Responder a una petición de permiso sigue funcionando, para poder desbloquear un chat que alguien está mirando, y este interruptor también. Todo lo demás, incluido el token de abajo, se rechaza hasta que lo desactives.",
+      "enabled": "El modo solo lectura está activado",
+      "disabled": "El modo solo lectura está desactivado"
+    },
+    "access": {
+      "title": "Acceso",
+      "intro": "Elige qué debe llevar una petición para que se responda. Solo el health check queda abierto.",
+      "modeLabel": "Modo de autenticación",
+      "modes": {
+        "none": {
+          "label": "Ninguno",
+          "tag": "abierto",
+          "body": "Cualquiera que llegue al puerto puede usar Agentry. Vale para una instalación local solo en loopback; no para una red."
+        },
+        "token": {
+          "label": "Token",
+          "tag": "token",
+          "body": "Toda petición debe llevar el token bearer que fijes abajo. Este navegador lo guarda en su propio almacenamiento."
+        },
+        "oidc": {
+          "label": "OIDC",
+          "tag": "OIDC",
+          "body": "Toda petición debe llevar un JWT firmado por tu proveedor de identidad, para el emisor y la audiencia que indiques aquí."
+        }
+      },
+      "issuer": "Emisor",
+      "issuerHint": "La URL del proveedor. De ahí se obtienen sus claves de firma.",
+      "audience": "Audiencia",
+      "audienceHint": "La audiencia para la que debe estar emitido un token.",
+      "clientId": "Client ID",
+      "clientIdHint": "Opcional. El cliente con el que tu proxy inicia sesión a los usuarios.",
+      "oidcNoLogin": "Agentry solo valida un JWT: nunca habla con un token endpoint. La credencial viene de un proxy delante de él, o se pega en la pantalla de acceso.",
+      "missing": {
+        "token": "Fija un token abajo antes de activar la autenticación por token: sin uno, nadie podría entrar.",
+        "oidc": "El emisor y la audiencia son obligatorios."
+      },
+      "save": "Guarda el acceso",
+      "saved": "Configuración de acceso guardada",
+      "confirm": {
+        "action": "Actívalo",
+        "token": {
+          "title": "¿Exigir un token?",
+          "body": "Desde la próxima petición, todo se rechaza sin el token. Este navegador ya lo tiene, así que sigues dentro; cualquier otra cosa que use la API también necesita el token.",
+          "noStoredToken": "Desde la próxima petición, todo se rechaza sin el token, y este navegador no lo tiene: te lo pedirá la pantalla de acceso. Ten a mano el token que fijaste."
+        },
+        "oidc": {
+          "title": "¿Exigir un token OIDC?",
+          "body": "Desde la próxima petición, todo se rechaza sin un JWT de tu proveedor de identidad, y este navegador pedirá uno en la pantalla de acceso. Asegúrate de poder conseguirlo antes de continuar."
+        }
+      }
+    },
+    "token": {
+      "title": "Token",
+      "set": "fijado",
+      "notSet": "sin fijar",
+      "intro": "Agentry guarda solo un hash del token, así que se muestra una vez y no más. Rotarlo lo reemplaza: el anterior deja de funcionar al instante.",
+      "generate": "Genera un token",
+      "rotate": "Rota el token",
+      "own": "Usa mi propio token…",
+      "remove": "Elimina el token",
+      "removeBlocked": "Cambia el modo a otro distinto de Token antes de eliminarlo.",
+      "shownOnce": "Copia este token ahora",
+      "shownOnceBody": "Solo se muestra esta vez. Si lo pierdes, rota el token. Este navegador ya lo usa.",
+      "copy": "Copia el token",
+      "copied": "Ya lo he copiado",
+      "ownLabel": "Tu token",
+      "ownHint": "Al menos {{min}} caracteres. No se vuelve a mostrar.",
+      "ownSave": "Fija el token",
+      "saved": "Token fijado",
+      "saveFailed": "No se pudo fijar el token",
+      "removed": "Token eliminado",
+      "removeFailed": "No se pudo eliminar el token",
+      "rotateConfirm": {
+        "title": "¿Rotar el token?",
+        "body": "El token actual deja de funcionar al instante, para todos los que lo tengan. Este navegador pasa al nuevo."
+      },
+      "removeConfirm": {
+        "title": "¿Eliminar el token?",
+        "body": "Se borra su hash. Volver a activar la autenticación por token necesita uno nuevo."
+      }
+    },
+    "audit": {
+      "title": "Registro de auditoría",
+      "intro": "Cada petición que cambió algo, la más reciente primero: quién, qué y cómo acabó. El cuerpo de la petición nunca se registra, porque contiene prompts y secretos.",
+      "filterLabel": "Filtra por ruta",
+      "filterPlaceholder": "Filtra por ruta, p. ej. /chats o /security",
+      "none": "Aún no hay nada registrado",
+      "noneHint": "Una escritura en la API aparecerá aquí.",
+      "noMatch": "Ninguna entrada para esa ruta",
+      "noMatchHint": "Prueba con una parte más corta de la ruta.",
+      "when": "Cuándo",
+      "actor": "Quién",
+      "request": "Petición",
+      "result": "Resultado",
+      "what": "Qué hizo",
+      "newer": "Más recientes",
+      "older": "Más antiguas",
+      "range": "{{first}}–{{last}} de {{total}}",
+      "outcome": {
+        "ok": "hecho",
+        "unauthorized": "no permitido",
+        "readOnly": "rechazado, solo lectura",
+        "rejected": "rechazado",
+        "failed": "falló"
+      }
     }
   },
   "scope": {
