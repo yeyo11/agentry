@@ -28,6 +28,7 @@ export const TAGS = [
   { name: 'Config files', description: "Generic editor confined to a scope's Claude dir; secrets and runtime state are refused." },
   { name: 'Memory', description: "Claude Code's per-project file memory." },
   { name: 'Plugins', description: 'Delegated to `claude plugin`; actions return the CLI output.' },
+  { name: 'Connectors', description: 'The claude.ai connectors (Docs, Gmail, Calendar) as the CLI reports them. Read-only: Agentry cannot authorise one.' },
   { name: 'Uploads', description: 'Files to attach to a message. Images and PDFs reach Claude as content blocks, any other file by its path.' },
 ];
 
@@ -194,6 +195,9 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /memory/:project': d('Memory', 'Memory files of a project', { description: '`MEMORY.md` (the index loaded into every session) comes first.', ok: list('MemoryFile') }),
   'PUT /memory/:project/:name': d('Memory', 'Create or overwrite a memory file', { description: '`name` must end in `.md`.', body: obj({ content: str() }, ['content']), ok: ref('MemoryFile') }),
   'DELETE /memory/:project/:name': d('Memory', 'Delete a memory file', { ok: OK }),
+
+  // ---- Connectors
+  'GET /connectors': d('Connectors', 'claude.ai connectors and their status', { description: 'Read from `claude mcp list` (it connects to every server, so it takes seconds and is cached for a minute). Only servers named `claude.ai …` count as connectors. Each has prepared prompts a client can open a new chat with; the answer also says what a person has to do to authorise one and which claude.ai features (web artifacts, claude.ai memory) have no CLI surface.', querystring: obj({ refresh: str('`true` skips the one-minute cache', { enum: ['true', 'false'] }) }), ok: ref('ConnectorsOverview') }),
 
   // ---- Plugins
   'GET /plugins': d('Plugins', 'Installed plugins and marketplaces', { ok: ref('PluginsOverview') }),

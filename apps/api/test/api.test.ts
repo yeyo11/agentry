@@ -314,3 +314,14 @@ test('projects are imported by hand, renamed and removed without touching anythi
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/projects/${id}` })).statusCode, 404);
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/projects/${id}/state` })).statusCode, 404);
 });
+
+test('connectors: an unreachable CLI is an error, with the guidance and the limits intact', async () => {
+  const res = await app.inject('/api/connectors?refresh=true');
+  assert.equal(res.statusCode, 200);
+  const overview = res.json();
+  assert.deepEqual(overview.connectors, []);
+  assert.deepEqual(overview.notListed, ['docs', 'gmail', 'calendar']);
+  assert.ok(overview.error);
+  assert.ok(overview.authorisation.steps.length > 0);
+  assert.deepEqual(overview.unavailable.map((l: { id: string }) => l.id), ['web-artifacts', 'claude-ai-memory']);
+});

@@ -26,6 +26,7 @@ import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { ChatService, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatRuntime } from './chats.ts';
+import { Connectors } from './connectors.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
 import { ConfigExplorer } from './config/explorer.ts';
@@ -99,6 +100,7 @@ export class Core {
   readonly plugins: Plugins;
   readonly memory: MemoryStore;
   readonly mcp: McpConfig;
+  readonly connectors: Connectors;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
   readonly uploads: UploadStore;
@@ -160,6 +162,7 @@ export class Core {
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
     void this.runtime.restore(this.sessions).finally(() => this.orchestrator.recover());
     this.mcp = new McpConfig(config);
+    this.connectors = new Connectors(config);
     this.resources = new ConfigResources();
     this.accounts = new AccountManager(config, this.db);
     this.runtime.accounts = this.accounts;
