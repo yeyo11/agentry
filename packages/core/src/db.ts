@@ -7,6 +7,8 @@ import type {
   Orchestration,
   OrchestrationSpec,
   PlanDraftSummary,
+  UsageHistoryPoint,
+  UsageWindowKind,
 } from '@agentry/shared';
 import { chatsFromRuns, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { CoreConfig } from './paths.ts';
@@ -89,6 +91,18 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      context     INTEGER NOT NULL,
      observed_at TEXT NOT NULL
    );`,
+
+  // What claude-swap reports about each account's windows, one row per reading: the panel draws a
+  // line from them, and "how fast does this account burn" has no other source. The key makes a
+  // second reading of the same instant a no-op instead of a duplicate.
+  `CREATE TABLE usage_history (
+     account INTEGER NOT NULL,
+     window  TEXT NOT NULL,
+     at      TEXT NOT NULL,
+     pct     REAL NOT NULL,
+     PRIMARY KEY (account, window, at)
+   );
+   CREATE INDEX usage_history_at ON usage_history (at);`,
 ];
 
 /** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
@@ -279,6 +293,57 @@ export class Db {
       )
       .run(keep);
     return Number(result.changes);
+  }
+
+  // ---------- usage history ----------
+
+  /** Appends readings; one already stored for the same account, window and instant is left as it was. */
+  appendUsagePoints(points: readonly UsageHistoryPoint[]): void {
+    if (!points.length) return;
+    const insert = this.db.prepare('INSERT OR IGNORE INTO usage_history (account, window, at, pct) VALUES (?, ?, ?, ?)');
+    this.tx(() => {
+      for (const p of points) insert.run(p.account, p.window, p.at, p.pct);
+    });
+  }
+
+  /** The newest reading of one account's window, so a sampler can tell whether anything moved. */
+  latestUsagePoint(account: number, window: UsageWindowKind): UsageHistoryPoint | null {
+    const row = this.db
+      .prepare('SELECT account, window, at, pct FROM usage_history WHERE account = ? AND window = ? ORDER BY at DESC LIMIT 1')
+      .get(account, window) as unknown as UsageHistoryPoint | undefined;
+    return row ? { at: row.at, pct: row.pct, window: row.window, account: row.account } : null;
+  }
+
+  /** Oldest first, so a chart can draw it as it comes. `limit` keeps the newest rows of the range. */
+  usageHistory(opts: { account?: number; window?: UsageWindowKind; since?: string; until?: string; limit?: number } = {}): UsageHistoryPoint[] {
+    const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 5_000), 1), 50_000);
+    const where: string[] = [];
+    const params: SQLInputValue[] = [];
+    if (opts.account !== undefined) {
+      where.push('account = ?');
+      params.push(opts.account);
+    }
+    if (opts.window) {
+      where.push('window = ?');
+      params.push(opts.window);
+    }
+    if (opts.since) {
+      where.push('at >= ?');
+      params.push(opts.since);
+    }
+    if (opts.until) {
+      where.push('at <= ?');
+      params.push(opts.until);
+    }
+    const rows = this.db
+      .prepare(`SELECT account, window, at, pct FROM usage_history ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY at DESC LIMIT ?`)
+      .all(...params, limit) as unknown as UsageHistoryPoint[];
+    return rows.map((r) => ({ at: r.at, pct: r.pct, window: r.window, account: r.account })).reverse();
+  }
+
+  /** Drops readings older than `before`. Returns how many went. */
+  pruneUsageHistory(before: string): number {
+    return Number(this.db.prepare('DELETE FROM usage_history WHERE at < ?').run(before).changes);
   }
 
   // ---------- chats, executions and orchestrations ----------

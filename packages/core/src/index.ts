@@ -163,6 +163,7 @@ export class Core {
     this.resources = new ConfigResources();
     this.accounts = new AccountManager(config, this.db);
     this.runtime.accounts = this.accounts;
+    this.accounts.projectOf = (cwd) => this.attach(cwd)?.project.id ?? null;
     this.accounts.on('switched', (result: SwitchResult) => {
       this.systemCache = null; // the active account (and its email) changed
       this.events.emit({
@@ -198,7 +199,9 @@ export class Core {
   private async rotateAndResume(run: ChatRuntime): Promise<void> {
     if (!this.accounts.autoSwitch.rotateOnLimit || !this.accounts.managed) return;
     try {
-      const result = await this.accounts.rotate(`run ${run.name} hit its rate limit`);
+      // A project with a rotation policy moves within it; everything else uses the global rotation
+      const reason = `run ${run.name} hit its rate limit`;
+      const result = (await this.accounts.rotateWithinPolicy({ account: run.account, cwd: run.cwd }, reason)) ?? (await this.accounts.rotate(reason));
       if (!result.switched) {
         this.runtime.notice(run.id, `Rate limit reached and no account with quota left${result.reason ? ` (${result.reason})` : ''}.`);
         return;

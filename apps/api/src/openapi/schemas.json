@@ -3476,6 +3476,19 @@
           "$ref": "#/components/schemas/AutoSwitchEvent"
         },
         "description": "Most recent rotation events, newest last"
+      },
+      "configs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AccountConfig"
+        },
+        "description": "One per account that has a config directory of its own"
+      },
+      "policies": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RotationPolicy"
+        }
       }
     },
     "required": [
@@ -3484,7 +3497,9 @@
       "activeNumber",
       "autoSwitch",
       "autoSwitchRunning",
-      "events"
+      "events",
+      "configs",
+      "policies"
     ]
   },
   "CswapInfo": {
@@ -3598,6 +3613,67 @@
       "event"
     ],
     "description": "One `cswap auto --json` line, plus the rotations the wrapper drives itself."
+  },
+  "AccountConfig": {
+    "type": "object",
+    "properties": {
+      "number": {
+        "type": "number",
+        "description": "Slot number, the same identifier  {@link  AccountSummary }  uses"
+      },
+      "configDir": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "`CLAUDE_CONFIG_DIR` for every process started for this account. Null shares the wrapper's, which is what every account did before and stays the default: moving someone's `~/.claude` without being asked is not something a wrapper gets to do. A chat on an account that has one runs `claude` directly against it, so the login is whatever that directory holds."
+      },
+      "links": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Entries Agentry linked into `configDir` from the shared one, relative to it; undone when it is cleared"
+      }
+    },
+    "required": [
+      "number",
+      "configDir",
+      "links"
+    ],
+    "description": "Agentry's own settings for one claude-swap slot: what the binary itself does not keep."
+  },
+  "RotationPolicy": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "threshold": {
+        "type": "number",
+        "description": "Utilization (0-100) of an account's binding window past which the next one in `order` is taken"
+      },
+      "order": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "description": "Slot numbers a chat of these projects may use, in order of preference; every account when absent"
+      },
+      "projects": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Project ids this policy governs; at most one policy governs a project"
+      }
+    },
+    "required": [
+      "id",
+      "threshold",
+      "projects"
+    ],
+    "description": "Which accounts the chats of some projects may use, in what order, and when to move on. A project with no policy keeps the global auto-switch, which is the default."
   },
   "SwitchAccountRequest": {
     "type": "object",
@@ -7303,56 +7379,29 @@
     ],
     "description": "A button that opens a new chat with a prompt already written. Nothing more magic than that."
   },
-  "AccountConfig": {
-    "type": "object",
-    "properties": {
-      "number": {
-        "type": "number",
-        "description": "Slot number, the same identifier  {@link  AccountSummary }  uses"
-      },
-      "configDir": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "`CLAUDE_CONFIG_DIR` for every process started for this account. Null shares the wrapper's, which is what every account did before and stays the default: moving someone's `~/.claude` without being asked is not something a wrapper gets to do."
-      },
-      "rotationPolicy": {
-        "$ref": "#/components/schemas/RotationPolicy"
-      }
-    },
-    "required": [
-      "number",
-      "configDir"
-    ],
-    "description": "Agentry's own settings for one claude-swap slot: what the binary itself does not keep."
-  },
-  "RotationPolicy": {
+  "RotationPolicyRequest": {
     "type": "object",
     "properties": {
       "threshold": {
-        "type": "number",
-        "description": "Utilization (0-100) of the active account past which the next one is taken"
+        "type": "number"
       },
       "order": {
         "type": "array",
         "items": {
           "type": "number"
-        },
-        "description": "Slot numbers to try, in order; every enabled account when absent"
+        }
       },
       "projects": {
         "type": "array",
         "items": {
           "type": "string"
-        },
-        "description": "Project ids this policy governs; the account's default policy when absent"
+        }
       }
     },
     "required": [
-      "threshold"
-    ],
-    "description": "Which accounts a project may use, in what order, and when to move on."
+      "threshold",
+      "projects"
+    ]
   },
   "UpdateAccountConfigRequest": {
     "type": "object",
@@ -7362,20 +7411,16 @@
           "string",
           "null"
         ],
-        "description": "Null goes back to sharing the wrapper's config dir"
+        "description": "Null goes back to sharing the wrapper's config dir, and removes the links Agentry made"
       },
-      "rotationPolicy": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/RotationPolicy"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "Null removes the policy, leaving the global auto-switch in charge"
+      "shareSettings": {
+        "type": "boolean",
+        "description": "Also link the shared settings (`settings.json`, `CLAUDE.md`, `keybindings.json`, `agents`, `commands`, `skills`) into the directory. Symlinks, never copies and never over an existing entry, so undoing it leaves the shared ones untouched."
       }
-    }
+    },
+    "required": [
+      "configDir"
+    ]
   },
   "UsageHistoryPoint": {
     "type": "object",

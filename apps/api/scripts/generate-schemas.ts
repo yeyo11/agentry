@@ -39,7 +39,7 @@ const ROOT_TYPES = [
   // claude.ai connectors
   'Connector', 'ConnectorAction',
   // Multi-account: a config dir and a rotation policy per account, usage kept over time
-  'AccountConfig', 'RotationPolicy', 'UpdateAccountConfigRequest', 'UsageHistoryPoint',
+  'AccountConfig', 'RotationPolicy', 'RotationPolicyRequest', 'UpdateAccountConfigRequest', 'UsageHistoryPoint',
   // Scheduling
   'Schedule', 'ScheduleRun', 'CreateScheduleRequest', 'UpdateScheduleRequest',
   // Usage and cost over time, and transcript export

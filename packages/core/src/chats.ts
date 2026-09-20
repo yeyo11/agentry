@@ -24,7 +24,7 @@ import {
   type RunStatus,
   type TranscriptEntry,
 } from '@agentry/shared';
-import { authFreeEnv } from './accounts.ts';
+import { authFreeEnv, type Launch } from './accounts.ts';
 import { executionOutcome } from './chat-model.ts';
 import { chatsFromRuns, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from './cli-facts.ts';
@@ -469,6 +469,8 @@ export interface AccountResolver {
   /** claude-swap is installed and has at least one account registered */
   readonly managed: boolean;
   isActive(identifier: string): boolean;
+  /** Which account, and which config directory, a chat starts with */
+  launchFor(chat: { account: string | null; cwd: string }): Launch;
 }
 
 export class ChatManager extends EventEmitter {
@@ -1112,10 +1114,17 @@ export class ChatManager extends EventEmitter {
    * that is already active would create a second credential copy that can drift, so it is
    * spawned as a plain `claude` instead.
    */
-  private command(chat: LiveChat, args: string[]): [string, string[]] {
-    const account = chat.opts.account;
-    if (!account || !this.accounts?.managed || this.accounts.isActive(account)) return [this.config.claudeBin, args];
+  private command(launch: Launch, args: string[]): [string, string[]] {
+    const { account } = launch;
+    // An account with a config directory of its own runs `claude` against it: `cswap run` would
+    // replace CLAUDE_CONFIG_DIR with its session profile, and the directory would be ignored
+    if (!account || launch.configDir || !this.accounts?.managed || this.accounts.isActive(account)) return [this.config.claudeBin, args];
     return [this.config.cswapBin, ['run', account, '--share-history', '--', ...args]];
+  }
+
+  /** The launch of a chat, or the plain one when claude-swap does not manage the accounts. */
+  private launchOf(chat: LiveChat): Launch {
+    return this.accounts?.managed ? this.accounts.launchFor({ account: chat.opts.account ?? null, cwd: chat.cwd }) : { account: null, configDir: null };
   }
 
   /**
@@ -1139,9 +1148,12 @@ export class ChatManager extends EventEmitter {
     chat.beginExecution();
     chat.setStatus('starting');
 
-    const [bin, argv] = this.command(chat, args);
-    // A pinned chat must never inherit a token from the environment: it would override the account
-    const proc = spawn(bin, argv, { cwd: chat.cwd, env: chat.opts.account ? authFreeEnv() : process.env, stdio: 'pipe' });
+    const launch = this.launchOf(chat);
+    const [bin, argv] = this.command(launch, args);
+    // A chat on an account must never inherit a token from the environment: it would override the account
+    const base = launch.account || launch.configDir || chat.opts.account ? authFreeEnv() : process.env;
+    const env = launch.configDir ? { ...base, CLAUDE_CONFIG_DIR: launch.configDir } : base;
+    const proc = spawn(bin, argv, { cwd: chat.cwd, env, stdio: 'pipe' });
     chat.proc = proc;
     // The chat's status follows the process it tracks and no other: an earlier process ending late
     // used to mark the chat failed while its current one was still working
