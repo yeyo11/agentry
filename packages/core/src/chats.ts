@@ -480,6 +480,20 @@ export class ChatManager extends EventEmitter {
     for (const env of db.loadEnvironments()) this.environments.set(env.cwd, env);
   }
 
+  /** The context window the CLI reports for each model that answered: the only real source of one. */
+  private learnWindows(modelUsage: unknown): void {
+    if (!modelUsage || typeof modelUsage !== 'object') return;
+    for (const [model, entry] of Object.entries(modelUsage)) {
+      const window = (entry as { contextWindow?: unknown } | null)?.contextWindow;
+      if (typeof window !== 'number' || !Number.isFinite(window) || window <= 0) continue;
+      try {
+        this.db.saveModelWindow(model, window);
+      } catch {
+        // a window that could not be written is only a percentage that shows later
+      }
+    }
+  }
+
   private persist(): void {
     // Internal chats are persisted too. The origin means "housekeeping: no transcript, hidden from
     // the chat list", not "disposable": the orchestration planner is internal and costs real
@@ -1340,6 +1354,7 @@ export class ChatManager extends EventEmitter {
         // The CLI's total is over its process, so per execution it only ever grows
         if (typeof raw.total_cost_usd === 'number') execution.costUsd = Math.max(execution.costUsd ?? 0, raw.total_cost_usd);
       }
+      this.learnWindows(raw.modelUsage);
       const isError = raw.is_error === true;
       const result = typeof raw.result === 'string' ? raw.result : '';
       if (isError && (raw.api_error_status === 429 || RATE_LIMIT_RE.test(result))) chat.rateLimited = true;

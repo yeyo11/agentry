@@ -23,6 +23,7 @@ const ROOT_TYPES = [
   'AgentryEvent', 'StreamHelloEvent', 'StreamResyncEvent',
   // Agentry's own model: chats, executions, projects
   'Chat', 'ChatSummary', 'ChatDetail', 'ChatBackgroundTaskEntry', 'ChatSubagentEntry', 'ChatWorkflowEntry', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatSettingsUpdate',
+  'UsageReport',
   'TaskHintRequest', 'Project', 'ProjectCandidate', 'ImportProjectRequest', 'UpdateProjectRequest',
 ];
 

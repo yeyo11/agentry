@@ -209,6 +209,14 @@ test('chats are listed with filters that say when they are wrong, and the run, s
   }
 });
 
+test('usage is reported over a range of days and refuses a malformed one', async () => {
+  const report = (await app.inject('/api/usage?from=2026-03-01&to=2026-03-31')).json();
+  assert.deepEqual([report.from, report.to], ['2026-03-01', '2026-03-31']);
+  assert.equal(report.total.costUsd, null, 'nothing was spent, so there is no cost to show');
+  assert.deepEqual([report.days, report.projects, report.orchestrations], [[], [], []]);
+  assert.match((await app.inject('/api/usage?from=yesterday')).json().error, /YYYY-MM-DD/);
+});
+
 test('a message may carry attachments, and an unknown one fails the request', async () => {
   const res = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', attachments: ['00000000-0000-0000-0000-000000000000'] }) });
   assert.equal(res.statusCode, 404);

@@ -79,6 +79,16 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // and its executions are indexed by it; the old rows are folded into that shape here, once, and
   // the table they lived in is dropped, so nothing reads the old shape afterwards.
   migrateRunsToChats,
+
+  // The context window of a model is a fact the CLI reports with every result (`modelUsage`), and
+  // the only honest source of one: it differs between a model and its `[1m]` variant, and even
+  // between accounts. Kept as it was last observed, so a chat read from a transcript, which does
+  // not record it, can still be measured against it.
+  `CREATE TABLE model_windows (
+     model       TEXT PRIMARY KEY,
+     context     INTEGER NOT NULL,
+     observed_at TEXT NOT NULL
+   );`,
 ];
 
 /** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
@@ -364,6 +374,23 @@ export class Db {
 
   loadOrchestrations(): Orchestration[] {
     return this.loadDocs<Orchestration>('orchestrations');
+  }
+
+  // ---------- model context windows ----------
+
+  saveModelWindow(model: string, context: number): void {
+    this.db
+      .prepare(
+        `INSERT INTO model_windows (model, context, observed_at) VALUES (?, ?, ?)
+         ON CONFLICT(model) DO UPDATE SET context = excluded.context, observed_at = excluded.observed_at`,
+      )
+      .run(model, context, new Date().toISOString());
+  }
+
+  /** The window the CLI last reported for this exact model id; null when it never has. */
+  modelWindow(model: string): number | null {
+    const row = this.db.prepare('SELECT context FROM model_windows WHERE model = ?').get(model) as { context: number } | undefined;
+    return row?.context ?? null;
   }
 
   // ---------- effective environments ----------
