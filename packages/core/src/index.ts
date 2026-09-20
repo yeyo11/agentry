@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type {
   AccountsOverview,
   AuthVerification,
+  CliVersionInfo,
   ChatProject,
   ChatSummary,
   ChatWorktree,
@@ -28,6 +29,7 @@ import { ChatService, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatRuntime } from './chats.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
+import { CliVersionWatch } from './cli-version.ts';
 import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
 import { ChangeWatcher } from './change-watcher.ts';
@@ -60,6 +62,7 @@ export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
 export { ChatConflictError, DEFAULT_ORIGINS, type ChatFilter, type Placement } from './chat-service.ts';
+export { compareVersions } from './cli-version.ts';
 export { DEFAULT_AUTO_SWITCH } from './accounts.ts';
 export {
   chatControl,
@@ -116,6 +119,7 @@ export class Core {
   readonly security: AuthStore;
   readonly uploads: UploadStore;
   readonly accounts: AccountManager;
+  readonly cliVersion: CliVersionWatch;
   readonly workspace: Workspace;
   readonly locator = new Locator();
   private readonly projectStore: ProjectStore;
@@ -132,6 +136,7 @@ export class Core {
     this.credentials = new CredentialStore(config);
     this.security = new AuthStore(config);
     this.workspace = new Workspace(config);
+    this.cliVersion = new CliVersionWatch(config);
     this.projectStore = new ProjectStore(config);
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db);
@@ -405,6 +410,17 @@ export class Core {
     return roots;
   }
 
+  /** The CLI in use against the newest published one, as the last check left it: no network here. */
+  async cliVersionInfo(): Promise<CliVersionInfo> {
+    return this.cliVersion.info((await this.system()).cli.version);
+  }
+
+  /** Asks the registry now; the button on the System page, not something a page load may trigger. */
+  async checkCliVersion(): Promise<CliVersionInfo> {
+    await this.cliVersion.check();
+    return this.cliVersionInfo();
+  }
+
   async setCredentials(credentials: StoredCredentials): Promise<SystemInfo> {
     await this.credentials.set(credentials);
     return this.system(true);
@@ -550,6 +566,7 @@ export class Core {
   }
 
   shutdown(): void {
+    this.cliVersion.stop();
     this.sessionsWatcher.close();
     this.changeWatcher.close();
     this.permissions.close();

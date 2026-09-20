@@ -33,6 +33,23 @@
   "scope": {
     "label": "Ámbito"
   },
+  "cli": {
+    "title": "Claude Code",
+    "version": "En uso",
+    "notInstalled": "no instalado",
+    "pinned": "Fijada por la imagen",
+    "notPinned": "sin fijar (la imagen instala la versión vigente cuando se construyó)",
+    "latest": "Última publicada",
+    "never": "aún sin comprobar",
+    "checked": "Última comprobación {{when}}",
+    "check": "Buscar actualizaciones",
+    "checking": "Comprobando…",
+    "upToDate": "Claude Code está al día.",
+    "updateAvailable": "Hay una versión nueva de Claude Code: {{latest}}.",
+    "updateHow": "Agentry no actualiza el CLI dentro de un contenedor en marcha, así que un reinicio siempre da la misma versión. Reconstruye la imagen con CLAUDE_CODE_VERSION={{latest}} (Docker Compose: defínela en .env y ejecuta docker compose build) o descarga una imagen más reciente de Agentry. En una instalación normal, ejecuta claude update.",
+    "checkFailed": "No se pudo buscar actualizaciones",
+    "note": "Se comprueba cuando lo pides y una vez al día, nunca al cargar una página. Consulta el registro de npm, no claude.ai."
+  },
   "account": {
     "tokenSource": {
       "wrapperOauthToken": "token OAuth configurado aquí",

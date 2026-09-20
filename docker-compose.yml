@@ -1,25 +1,66 @@
+# Two ways to run it:
+#
+#   docker compose up -d                   Agentry alone, published on 127.0.0.1 only (the default)
+#   docker compose --profile tls up -d     the same, plus a TLS-terminating proxy on :80 and :443
+#
+# The tls profile is for reaching Agentry from another machine. Turn on authentication first
+# (AGENTRY_AUTH_MODE=token and AGENTRY_AUTH_TOKEN in .env): the proxy encrypts, it does not
+# authenticate. docs/deploy.md has the details, including the headers the proxy passes.
 services:
   agentry:
     build:
       context: .
       dockerfile: docker/Dockerfile
       args:
-        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-latest}
-        CLAUDE_SWAP_VERSION: ${CLAUDE_SWAP_VERSION:-}
+        # Listed without a value so that, unless you set it in .env, the Dockerfile's pinned
+        # version wins instead of being overridden by a default written here as well
+        - CLAUDE_CODE_VERSION
+        - CLAUDE_SWAP_VERSION
     image: agentry:dev
     init: true # reaps the claude child processes
     env_file: .env
     ports:
-      # localhost only: the API has no authentication yet (see SECURITY.md)
+      # localhost only: put authentication (and, off this machine, TLS) in front before changing it
       - "127.0.0.1:${PORT:-8787}:8787"
     volumes:
       - claude-config:/home/node/.claude # account config: settings, MCP servers, CLAUDE.md, sessions
       - wrapper-data:/data # wrapper state: SQLite store, auto-rotation settings, credential, uploads
       - claude-swap:/home/node/.local/share/claude-swap # credentials of every registered account
       - ./workspace:/workspace # projects Claude works on
+    # The image's healthcheck ends the server after three failed probes and this policy starts it
+    # again: Docker itself never restarts an unhealthy container, only one that exited
+    restart: unless-stopped
+    # Time for SIGTERM to stop the chats and close the store before Docker sends SIGKILL
+    stop_grace_period: 30s
+
+  proxy:
+    profiles: [tls]
+    image: caddy:2-alpine
+    # Caddy's own certificates are stored below: an ACME-issued one is rate limited, so losing it on
+    # every recreate would eventually lock you out of a renewal
+    environment:
+      # A public name gets a Let's Encrypt certificate; `localhost` gets one from Caddy's local CA
+      AGENTRY_DOMAIN: ${AGENTRY_DOMAIN:-localhost}
+    ports:
+      - "${PROXY_HTTP_PORT:-80}:80"
+      - "${PROXY_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - proxy-data:/data
+      - proxy-config:/config
+    depends_on:
+      agentry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
 
 volumes:
   claude-config:
   wrapper-data:
   claude-swap:
+  proxy-data:
+  proxy-config:
