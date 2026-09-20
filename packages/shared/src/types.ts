@@ -57,93 +57,7 @@ export interface RateLimitInfo {
   observedAt: string;
 }
 
-// ---------- Projects and sessions (read from ~/.claude/projects) ----------
-
-export interface ProjectSummary {
-  /** Lives under the OS temp dir (scratch/test directories) */
-  temporary: boolean;
-  /** Encoded directory name inside ~/.claude/projects */
-  id: string;
-  /** Real project cwd */
-  path: string;
-  name: string;
-  sessionCount: number;
-  lastActivity: string | null;
-  /** Wrapper runs currently alive inside this project */
-  activeRuns: number;
-  /** CLI sessions live in this directory that no run owns — work started from a terminal */
-  activeSessions?: number;
-  /** The directory exists on disk */
-  exists: boolean;
-  /** Set when this directory is a git worktree: the repository it belongs to */
-  parentId?: string | null;
-  parentPath?: string | null;
-  worktree?: { name: string | null; branch: string | null } | null;
-  /** The orchestration task that created this worktree, when one did */
-  createdBy?: { orchestrationId: string; orchestrationName: string; taskId: string; taskName: string } | null;
-}
-
-/**
- * Where a piece of work happens, resolved to the project it belongs to. A worktree resolves to its
- * repository, so work spread across worktrees still reads as one project.
- */
-export interface WorkLocation {
-  /** Directory the work happens in */
-  path: string;
-  projectId: string;
-  projectName: string;
-  projectPath: string;
-  /** Set when `path` is inside a git worktree of that project */
-  worktree: { name: string | null; branch: string | null; path: string } | null;
-}
-
-export type SessionLiveSource = 'wrapper' | 'cli';
-
-export interface SessionLive {
-  source: SessionLiveSource;
-  status: string;
-  runId?: string;
-  pid?: number;
-}
-
-/**
- * Who created a session, so the UI can group the wrapper's own sessions under their parent:
- *   cli           started outside the wrapper (terminal, IDE…)
- *   run           a run started from the wrapper (UI or API)
- *   orchestration a worker (or the synthesis step) of an orchestration
- *   internal      housekeeping runs of the wrapper itself (planner, auth check); hidden by default
- */
-export type SessionOriginKind = 'cli' | 'run' | 'orchestration' | 'internal';
-
-export interface SessionOrigin {
-  kind: SessionOriginKind;
-  runId?: string;
-  runName?: string;
-  orchestrationId?: string;
-  orchestrationName?: string;
-  /** Task id inside the orchestration; `__synthesis__` for the final report */
-  taskId?: string;
-  taskName?: string;
-}
-
-export interface SessionSummary {
-  id: string;
-  projectId: string;
-  projectPath: string;
-  title: string;
-  firstPrompt: string | null;
-  messageCount: number;
-  startedAt: string | null;
-  updatedAt: string | null;
-  model: string | null;
-  gitBranch: string | null;
-  cliVersion: string | null;
-  sizeBytes: number;
-  live?: SessionLive;
-  origin: SessionOrigin;
-  /** From the CLI's own record, when the session ran in a worktree it created */
-  worktree?: { name: string | null; branch: string | null; path: string; parentPath: string } | null;
-}
+// ---------- Transcripts (read from ~/.claude/projects) ----------
 
 export type ContentBlock =
   | { type: 'text'; text: string }
@@ -186,20 +100,10 @@ export const TRANSCRIPT_PAGE = 200;
 /** The most a single page may carry, however large a `limit` asks for. */
 export const TRANSCRIPT_PAGE_MAX = 1000;
 
-export interface SessionDetail {
-  summary: SessionSummary;
-  /** The window of the transcript this page carries, oldest first */
-  entries: TranscriptEntry[];
-  /** Index of the first entry in `entries` within the whole transcript */
-  from: number;
-  /** Entries the transcript holds in total, so a caller knows what is still above `from` */
-  total: number;
-}
-
 /** The most hits one search returns; past it the newest ones are kept and `truncated` is set. */
 export const TRANSCRIPT_SEARCH_MAX_HITS = 500;
 
-/** One entry (or run event) whose text contains the query. */
+/** One entry whose text contains the query. */
 export interface TranscriptSearchHit {
   /** Index of the entry or event, in the same index space as `from` and `total` of a page */
   index: number;
@@ -209,15 +113,13 @@ export interface TranscriptSearchHit {
   start: number;
   /** Length of the match within `snippet` */
   length: number;
-  /** For a run, the kind of event the hit is in, so a view that hides some kinds can skip them */
-  kind?: RunEventKind;
 }
 
 export interface TranscriptSearchResult {
   query: string;
   /** Hits in transcript order, oldest first: one per entry, however many times it matches */
   hits: TranscriptSearchHit[];
-  /** Entries (or events) searched, the same `total` a page of the transcript reports */
+  /** Entries searched, the same `total` a page of the transcript reports */
   total: number;
   /** More entries matched than `hits` carries; the oldest ones were left out */
   truncated: boolean;
@@ -228,85 +130,6 @@ export interface TranscriptSearchResult {
 export type PermissionMode = 'acceptEdits' | 'auto' | 'bypassPermissions' | 'manual' | 'dontAsk' | 'plan';
 
 export type RunStatus = 'starting' | 'busy' | 'idle' | 'completed' | 'failed' | 'stopped';
-
-export interface RunOptions {
-  prompt: string;
-  /** Uploads (`POST /uploads`) attached to the first message */
-  attachments?: string[];
-  /** Working directory; defaults to the wrapper workspace */
-  cwd?: string;
-  name?: string;
-  model?: string;
-  effort?: string;
-  permissionMode?: PermissionMode;
-  /** Resume an existing session */
-  resumeSessionId?: string;
-  /**
-   * With `resumeSessionId`: continue in a copy (`--fork-session`), a new session with the same
-   * history, leaving the original untouched. The way to pick up a session that is still open in a
-   * terminal without two processes writing the same conversation.
-   */
-  forkSession?: boolean;
-  appendSystemPrompt?: string;
-  allowedTools?: string[];
-  /** Run inside a new git worktree of this name, created and managed by the CLI (`--worktree`) */
-  worktree?: string;
-  /** Hard ceiling on what this run may spend, enforced by the CLI (`--max-budget-usd`) */
-  maxBudgetUsd?: number;
-  /**
-   * Who answers what the CLI would ask a person: tool permissions, `AskUserQuestion`, plan
-   * approval. `host` sends them to the panel (`GET /runs/:id/permissions`); `none`, the default,
-   * denies them, which is the only safe choice for a client that is not going to answer.
-   */
-  permissionPrompts?: 'host' | 'none';
-  /** Keep the process alive after each turn so more messages can be sent (default true) */
-  keepAlive?: boolean;
-  /** JSON Schema for structured output */
-  jsonSchema?: unknown;
-  /** Housekeeping run: no transcript is written (`--no-session-persistence`), so it cannot be resumed */
-  internal?: boolean;
-  /**
-   * Pin the run to a claude-swap account (slot number, email or alias) instead of the active one.
-   * Runs through `cswap run`, which needs claude-swap installed.
-   */
-  account?: string;
-}
-
-/**
- * Work the CLI runs in the background: a Bash command sent there (by the model or by the person at
- * the terminal), a monitor, a remote agent. The CLI calls every delegated piece of work a task, and
- * reports foreground commands that way too; those are left out, and so are subagents and workflows,
- * which have lists of their own.
- */
-export interface BackgroundTask {
-  id: string;
-  /** Empty when the task belongs to a CLI session rather than a run */
-  runId: string;
-  runName: string;
-  type: string;
-  description: string;
-  status: string;
-  toolUseId: string | null;
-  startedAt: string;
-  endedAt: string | null;
-  summary: string | null;
-  /** `run` when read from a run's live stream, `disk` when read from its session's files */
-  source?: 'run' | 'disk';
-  /** Session that launched it */
-  sessionId?: string;
-  /** The shell command, when it is a backgrounded Bash call */
-  command?: string | null;
-  /** Sent to the background by the person at the terminal rather than by the model */
-  backgroundedByUser?: boolean;
-  /** Launched by a subagent rather than by the main agent (`owned_by_subagent` on the stream event) */
-  fromSubagent?: boolean;
-  /**
-   * The subagent that launched it, when known. The stream event only says a subagent did, so this
-   * comes from the subagent's own transcript, where the launch result is recorded.
-   */
-  ownerAgentId?: string | null;
-  location?: WorkLocation | null;
-}
 
 /** Captured output of a background task, as the CLI wrote it. */
 export interface BackgroundTaskOutput {
@@ -326,35 +149,8 @@ export interface BackgroundTaskOutput {
   reset?: boolean;
 }
 
-/** An agent a session spawned with the Agent tool, in the foreground or the background. */
-export interface SubagentInfo {
-  toolUseId: string;
-  /** Empty when the subagent belongs to a CLI session rather than a run */
-  runId: string;
-  runName: string;
-  subagentType: string;
-  description: string;
-  /** `stopped` when its session ended before the agent reported back */
-  status: 'running' | 'completed' | 'failed' | 'stopped';
-  startedAt: string;
-  endedAt: string | null;
-  /** `run` when read from a run's live stream, `cli` when read from a session's files on disk */
-  source?: 'run' | 'cli';
-  /** Session that spawned it; always set for `cli` subagents */
-  sessionId?: string;
-  /** The CLI's own id for the agent */
-  agentId?: string;
-  /** Last time the agent wrote to its transcript */
-  lastActivityAt?: string | null;
-  /** Directory the agent works in, from its own transcript: a worktree when started with isolation */
-  cwd?: string | null;
-  location?: WorkLocation | null;
-  /** Launched to run in the background, rather than awaited by its parent */
-  background?: boolean;
-}
-
-/** Token usage summed over an agent's assistant messages. */
-export interface AgentTokenUsage {
+/** Tokens counted in the four ways the API bills them. */
+export interface TokenUsage {
   input: number;
   output: number;
   cacheRead: number;
@@ -373,8 +169,6 @@ export interface AgentTranscript {
   kind: 'subagent' | 'workflow';
   /** The workflow run (`wf_…`) a workflow agent belongs to */
   workflowRunId: string | null;
-  /** The Agent tool call that spawned it; workflow agents have none */
-  toolUseId: string | null;
   /** The CLI's `agentType` (`Explore`, `general-purpose`, `workflow-subagent`…) */
   subagentType: string | null;
   /** The description given at launch; a workflow agent's is its label */
@@ -390,7 +184,7 @@ export interface AgentTranscript {
   durationMs: number | null;
   lastActivityAt: string | null;
   model: string | null;
-  usage: AgentTokenUsage;
+  usage: TokenUsage;
   toolCalls: number;
   cwd: string | null;
   /** Text of the agent's last assistant message: what it reported back */
@@ -402,56 +196,7 @@ export interface AgentTranscript {
   /** Entries in the whole transcript: pass it back as `?after=` to read only what was appended */
   total: number;
   /** Background tasks this agent launched, where the transcripts say so (subagents only) */
-  tasks: BackgroundTask[];
-}
-
-/** One agent a workflow launched, as its progress reports it. */
-export interface WorkflowAgentState {
-  index: number;
-  label: string;
-  /** As the CLI reports it: `start`, `progress`, `done` or `error` */
-  state: string;
-  agentId: string | null;
-  phaseTitle: string | null;
-  model: string | null;
-  startedAt: string | null;
-  durationMs: number | null;
-  tokens: number | null;
-  toolCalls: number | null;
-  promptPreview: string | null;
-  resultPreview: string | null;
-}
-
-/**
- * A run of a Claude Code workflow: a script started with the Workflow tool that orchestrates
- * subagents inside one session. Read from a run's live stream (`local_workflow` tasks) or from the
- * files the CLI keeps beside the session's transcript.
- */
-export interface WorkflowRun {
-  /** The CLI's workflow run id (`wf_…`) when known, the task id otherwise */
-  id: string;
-  taskId: string | null;
-  /** The `name` in the script's meta */
-  name: string | null;
-  description: string;
-  /** `stopped` when its session ended before the workflow reported back */
-  status: 'running' | 'completed' | 'failed' | 'stopped';
-  startedAt: string;
-  endedAt: string | null;
-  /** Empty when the workflow belongs to a CLI session rather than a run */
-  runId: string;
-  runName: string;
-  /** `run` when read from a run's live stream, `cli` when read from a session's files on disk */
-  source: 'run' | 'cli';
-  sessionId?: string;
-  phases: string[];
-  agents: WorkflowAgentState[];
-  /** What the script returned, once it finished */
-  result?: unknown;
-  summary: string | null;
-  totalTokens: number | null;
-  script: string | null;
-  location?: WorkLocation | null;
+  tasks: ChatBackgroundTask[];
 }
 
 /** A saved workflow the Workflow tool can run by name, from a `.claude/workflows/` directory. */
@@ -463,54 +208,13 @@ export interface WorkflowDefinition {
   path: string;
 }
 
-/** Starts a run that runs a saved workflow. */
+/** Starts a chat that runs a saved workflow. */
 export interface RunWorkflowRequest {
   name: string;
   /** Project to run it in; its `.claude/workflows/` must hold it unless it is a user workflow */
   cwd?: string;
   /** Handed to the script as its `args` */
   args?: string;
-  model?: string;
-}
-
-export interface RunSummary {
-  id: string;
-  name: string;
-  sessionId: string | null;
-  cwd: string;
-  model: string | null;
-  permissionMode: PermissionMode;
-  status: RunStatus;
-  pid: number | null;
-  createdAt: string;
-  updatedAt: string;
-  endedAt: string | null;
-  turns: number;
-  costUsd: number;
-  prompt: string;
-  lastText: string | null;
-  error: string | null;
-  orchestrationId: string | null;
-  orchestrationTaskId: string | null;
-  internal: boolean;
-  /** claude-swap account this run is pinned to, when it is not using the active one */
-  account: string | null;
-  backgroundTasks: BackgroundTask[];
-  subagents: SubagentInfo[];
-  /** Claude Code workflows it ran (the Workflow tool), with each agent's progress */
-  workflows?: WorkflowRun[];
-  /** Directory the CLI actually works in, which differs from `cwd` when it runs in a worktree */
-  workingDir?: string | null;
-  location?: WorkLocation | null;
-  /** Where its prompts go; kept so a resumed run asks the same way */
-  permissionPrompts?: 'host' | 'none';
-  /** Prompts waiting for someone right now: the run is stuck until they are answered */
-  pendingPrompts?: number;
-}
-
-/** What can be changed on a run without restarting it. A live process takes it at once. */
-export interface RunSettingsUpdate {
-  permissionMode?: PermissionMode;
   model?: string;
 }
 
@@ -536,36 +240,444 @@ export interface RunEvent {
   data?: Record<string, unknown>;
 }
 
-export interface RunDetail {
-  run: RunSummary;
-  /** The window of the run's events this page carries, oldest first */
-  events: RunEvent[];
-  /** Index of the first event in `events` within everything the run has emitted */
+// ---------- Chats, executions and projects (Agentry's own model) ----------
+//
+// What the web and the API speak. Nothing here exists because the Claude Code CLI happens to write
+// it that way: the CLI's facts are translated in `packages/core` (`chat-model.ts`, `usage.ts`) and
+// stop there.
+
+/** What is happening in a chat right now, whoever is driving it. */
+export type ChatState = 'working' | 'waiting' | 'idle';
+
+/**
+ * What a person can do with a chat right now, and why not when they cannot. Where the chat was born
+ * says nothing about this: an `external` chat nobody holds is `resumable`.
+ *
+ * `readOnly` always says why in words a person reads, and names the one way forward:
+ * `fork` continues in a copy, `hint` (a task that is still running) sends the worker a nudge from
+ * the orchestration board without typing into its conversation.
+ */
+export type ChatControl =
+  | { mode: 'interactive' }
+  | { mode: 'resumable' }
+  | { mode: 'readOnly'; reason: string; action: 'fork' | 'hint' };
+
+/** Where a chat was born. Never changes, even when resuming adopts the chat. */
+export type ChatOrigin = 'agentry' | 'external' | 'orchestration' | 'internal';
+
+/** How an execution ended. `interrupted`: its process was lost (the wrapper restarted or crashed) rather than stopped or finished. */
+export type ExecutionOutcome = 'completed' | 'failed' | 'stopped' | 'interrupted';
+
+/** Tokens counted the four ways the API bills them, for one model. */
+export interface ChatModelTokens extends TokenUsage {
+  /** Model id, variant suffix included; null for messages that did not say */
+  model: string | null;
+}
+
+/** One stretch of a chat during which Agentry had a process working on it; a chat has several and at most one is live. */
+export interface Execution {
+  id: string;
+  startedAt: string;
+  /** Null while it is live */
+  endedAt: string | null;
+  /** Null while it is live */
+  outcome: ExecutionOutcome | null;
+  /** Why it failed, when it did */
+  error: string | null;
+  permissionMode: PermissionMode;
+  model: string | null;
+  /** Pinned claude-swap account, when it did not use the active one */
+  account: string | null;
+  /** Ceiling on what it could spend */
+  maxBudgetUsd: number | null;
+  /** Null when the CLI reported none: cost is only known for what Agentry launched */
+  costUsd: number | null;
+  tokens: TokenUsage;
+  turns: number;
+}
+
+/** From here on the CLI is close enough to compacting that a person should know before it happens. */
+export const CONTEXT_WARN = 0.8;
+export const CONTEXT_FULL = 0.92;
+
+/** How full the conversation is, as of its last response. */
+export interface ChatContext {
+  /** Tokens the last response read: `input + cache`. A snapshot, so compaction shows as a drop. */
+  used: number;
+  /** The model's context window; null when the model is not known, so no percentage is invented */
+  window: number | null;
+}
+
+/** How worrying a signal is. */
+export type HealthLevel = 'ok' | 'warn' | 'bad';
+
+/**
+ * What a signal noticed. Only what Agentry can tell from what it already receives is here: a command
+ * that runs far longer than it should, a chat that has gone quiet while it should be working, and
+ * facts of the chat itself (how its last execution ended, that it waits for a person, that its
+ * context is nearly full, that a branch failed). Looping, tests bent to pass and repeated stalls
+ * (docs/plans/agent-observability.md) are further kinds, and are not detected yet.
+ */
+export type HealthSignalKind = 'hung-command' | 'silence' | 'last-execution' | 'waiting' | 'context' | 'branches';
+
+export interface HealthSignal {
+  kind: HealthSignalKind;
+  /** Never `ok`: a signal that fired is a warning or a problem */
+  level: Exclude<HealthLevel, 'ok'>;
+  /** One line a person reads, with the figures that made it fire */
+  reason: string;
+}
+
+/**
+ * Whether a chat is working as it should, computed in core at the moment it is read (a command that
+ * has been running for too long is a fact of the clock, so a snapshot ages: readers of a live chat
+ * read it again). `level` is the worst of the `signals`, ordered worst first, and `reason` is the
+ * first one's; with no signal the chat is `ok` and `reason` says so.
+ */
+export interface ChatHealth {
+  level: HealthLevel;
+  reason: string;
+  signals: HealthSignal[];
+}
+
+/** What a chat has cost. Only real data: nothing is estimated from a price table. */
+export interface ChatCost {
+  /** Null when there is no figure to give (a chat started from a terminal): read as "not available" */
+  usd: number | null;
+  /** Everything the chat spent, subagents included, split by model */
+  tokens: ChatModelTokens[];
+  /** The same, summed over models */
+  total: TokenUsage;
+}
+
+/** What was spent over some stretch of chats. Tokens are real and cover every chat; the cost only covers the chats that reported one. */
+export interface UsageTotals {
+  /** Sum of what the CLI reported; null when it reported nothing for any chat in it: read as "not available" */
+  costUsd: number | null;
+  /** Chats in these totals whose cost the CLI never reported (started from a terminal), so `costUsd` leaves them out */
+  chatsWithoutCost: number;
+  tokens: ChatModelTokens[];
+  total: TokenUsage;
+}
+
+export interface UsageDay extends UsageTotals {
+  /** `YYYY-MM-DD`, in the server's time zone */
+  day: string;
+}
+
+export interface UsageProject extends UsageTotals {
+  /** Null for the chats under no imported project */
+  project: ChatProject | null;
+}
+
+export interface UsageOrchestration extends UsageTotals {
+  orchestration: { id: string; name: string };
+}
+
+/** What the chats spent, per day, per project and per orchestration. */
+export interface UsageReport {
+  /** The days asked for, inclusive; null when unbounded */
+  from: string | null;
+  to: string | null;
+  total: UsageTotals;
+  /** Oldest first, only days something was spent on */
+  days: UsageDay[];
+  /** Most spent first */
+  projects: UsageProject[];
+  /** Most spent first; only the chats that work for an orchestration */
+  orchestrations: UsageOrchestration[];
+}
+
+/** Where a fork came from. */
+export interface ChatFork {
+  chatId: string;
+  /** When it was forked */
+  at: string;
+}
+
+/** The project a chat belongs to. */
+export interface ChatProject {
+  id: string;
+  name: string;
+}
+
+/** The git worktree a chat works in, when it is not the project's own checkout. */
+export interface ChatWorktree {
+  path: string;
+  name: string | null;
+  branch: string | null;
+}
+
+/** The orchestration a chat works for. */
+export interface ChatOrchestration {
+  id: string;
+  name: string;
+  /** Null for the synthesis report, which belongs to no task */
+  taskId: string | null;
+  taskName: string | null;
+}
+
+/** How far a piece of work a chat delegated has got. */
+export type ChatBranchStatus = 'running' | 'completed' | 'failed' | 'stopped';
+
+/** A command or agent a chat sent off to run beside it. */
+export interface ChatBackgroundTask {
+  id: string;
+  kind: string;
+  description: string;
+  /** The shell command, when it is a backgrounded Bash call */
+  command: string | null;
+  status: ChatBranchStatus;
+  startedAt: string;
+  endedAt: string | null;
+  summary: string | null;
+  /** Sent to the background by the person, not by the model */
+  byPerson: boolean;
+  /** The subagent that launched it; null when the chat itself did */
+  ownerId: string | null;
+}
+
+/** A branch of a chat that works on its own: its messages live inside the chat's transcript. */
+export interface ChatSubagent {
+  /** Id of its transcript inside the chat */
+  id: string;
+  kind: string;
+  description: string;
+  status: ChatBranchStatus;
+  startedAt: string;
+  endedAt: string | null;
+  lastActivityAt: string | null;
+  /** Where it works, when that is not the chat's directory (a worktree) */
+  cwd: string | null;
+  tasks: ChatBackgroundTask[];
+}
+
+/** One agent of a workflow. */
+export interface ChatWorkflowAgent {
+  index: number;
+  label: string;
+  status: 'running' | 'completed' | 'failed';
+  /** Id of its transcript inside the chat, when it has one */
+  id: string | null;
+  phase: string | null;
+  model: string | null;
+  startedAt: string | null;
+  durationMs: number | null;
+  tokens: number | null;
+  toolCalls: number | null;
+  promptPreview: string | null;
+  resultPreview: string | null;
+}
+
+/** A script that orchestrates subagents inside a chat. */
+export interface ChatWorkflow {
+  id: string;
+  name: string | null;
+  description: string;
+  status: ChatBranchStatus;
+  startedAt: string;
+  endedAt: string | null;
+  phases: string[];
+  agents: ChatWorkflowAgent[];
+  /** What the script returned, once it finished */
+  result?: unknown;
+  summary: string | null;
+  totalTokens: number | null;
+  script: string | null;
+}
+
+/** What a chat spawned: branches of it, not chats of their own. */
+export interface ChatChildren {
+  subagents: ChatSubagent[];
+  backgroundTasks: ChatBackgroundTask[];
+  workflows: ChatWorkflow[];
+}
+
+/** What Claude loaded when the chat last started. */
+export interface ChatEnvironment {
+  observedAt: string;
+  model: string | null;
+  permissionMode: string | null;
+  outputStyle: string | null;
+  tools: string[];
+  mcpServers: Array<{ name: string; status: McpHealthStatus }>;
+  agents: string[];
+  skills: string[];
+  slashCommands: string[];
+  plugins: Array<{ name: string; path?: string }>;
+  memoryPaths: Record<string, string>;
+}
+
+/**
+ * One Claude Code conversation: the root entity of the product. Always exactly one session id, which
+ * is also the chat's id. Subagents and workflows are branches of a chat, not chats.
+ */
+export interface Chat {
+  /** The session id */
+  id: string;
+  title: string;
+  firstPrompt: string | null;
+  messageCount: number;
+  startedAt: string | null;
+  updatedAt: string | null;
+  model: string | null;
+  cliVersion: string | null;
+  /** Null for a loose chat: its directory is under no imported project */
+  project: ChatProject | null;
+  cwd: string;
+  worktree: ChatWorktree | null;
+  origin: ChatOrigin;
+  /** The orchestration it works for, when its origin is `orchestration` */
+  orchestration: ChatOrchestration | null;
+  /** Set on a fork: where it started from */
+  derivedFrom: ChatFork | null;
+  state: ChatState;
+  control: ChatControl;
+  /** The live execution, when Agentry has a process on the chat; also the last of `executions` */
+  execution: Execution | null;
+  /** Every execution, oldest first */
+  executions: Execution[];
+  /** Null until the chat has had a response */
+  context: ChatContext | null;
+  cost: ChatCost;
+  children: ChatChildren;
+  /** Null when nothing has reported it yet */
+  environment: ChatEnvironment | null;
+  health: ChatHealth;
+}
+
+/** A page of a chat's transcript with the chat it belongs to. */
+export interface ChatDetail {
+  chat: Chat;
+  /** The window of the transcript this page carries, oldest first */
+  entries: TranscriptEntry[];
+  /** Index of the first entry in `entries` within the whole transcript */
   from: number;
-  /** Events the run has emitted in total */
+  /** Entries the transcript holds in total, so a caller knows what is still above `from` */
   total: number;
 }
 
-/** CLI sessions alive on the machine/container (`claude agents --json`) */
-export interface ActiveCliSession {
-  pid: number;
+/**
+ * A chat as the list shows it: everything but what only its own page needs, which costs a read of
+ * its transcript and its sidecar files per chat.
+ */
+export type ChatSummary = Omit<Chat, 'children' | 'environment' | 'health'>;
+
+/** Which chat a branch belongs to, for the aggregates that list branches of many chats together. */
+export interface ChatRef {
+  id: string;
+  title: string;
+  project: ChatProject | null;
   cwd: string;
-  kind: string;
-  startedAt: number;
-  sessionId: string;
+  worktree: ChatWorktree | null;
+}
+
+/** A background command or agent, listed with the chat that sent it off. */
+export type ChatBackgroundTaskEntry = ChatBackgroundTask & { chat: ChatRef };
+
+/** A subagent, listed with the chat it belongs to. */
+export type ChatSubagentEntry = ChatSubagent & { chat: ChatRef };
+
+/** A workflow run, listed with the chat it belongs to. */
+export type ChatWorkflowEntry = ChatWorkflow & { chat: ChatRef };
+
+/** What can be chosen when a process starts on a chat, whether it is new, resumed or a fork. */
+export interface ChatStartOptions {
+  model?: string;
+  effort?: string;
+  permissionMode?: PermissionMode;
+  appendSystemPrompt?: string;
+  allowedTools?: string[];
+  /** Ceiling on what this execution may spend */
+  maxBudgetUsd?: number;
+  /** `host` sends permissions, questions and plans to the panel; `none`, the default, denies them */
+  permissionPrompts?: 'host' | 'none';
+  /** Pin it to a claude-swap account (slot number, email or alias) instead of the active one */
+  account?: string;
+}
+
+/** Starts a new chat. */
+export interface NewChatRequest extends ChatStartOptions {
+  prompt: string;
+  /** Uploads (`POST /uploads`) attached to the first message */
+  attachments?: string[];
+  /** Working directory; defaults to the wrapper workspace */
+  cwd?: string;
+  /** Run inside a new git worktree of this name */
+  worktree?: string;
+  /** JSON Schema for structured output */
+  jsonSchema?: unknown;
+}
+
+/** Continues a chat nobody holds, in place: it keeps its id. */
+export interface ResumeChatRequest extends ChatStartOptions {
+  prompt: string;
+  attachments?: string[];
+}
+
+/** Continues a chat in a copy of it, which is a new chat that records where it came from. */
+export interface ForkChatRequest extends ChatStartOptions {
+  prompt: string;
+  attachments?: string[];
+}
+
+/** A message to a chat that has a live execution. */
+export interface ChatMessageRequest {
+  text: string;
+  attachments?: string[];
+}
+
+/** What can be changed on a live execution without restarting it. */
+export interface ChatSettingsUpdate {
+  permissionMode?: PermissionMode;
+  model?: string;
+}
+
+/** A nudge sent to a task that is still running, from the orchestration board. */
+export interface TaskHintRequest {
+  text: string;
+}
+
+/** A git worktree of a project. */
+export interface ProjectWorktree {
+  path: string;
+  name: string | null;
+  branch: string | null;
+  /** The orchestration task that created it, when one did */
+  createdBy: { orchestrationId: string; orchestrationName: string; taskId: string; taskName: string } | null;
+}
+
+/** A directory the person imported, with the worktrees that belong to it. */
+export interface Project {
+  /** Ours: not derived from the path or from anything the CLI writes */
+  id: string;
   name: string;
-  status: string;
-  /** What the CLI reports for a background agent: `done`, `blocked`… */
-  state?: string;
-  /**
-   * Whether this is a session actually open for work. A process the CLI reports as `done`, and a
-   * pre-warmed spare that never received a user turn, are both listed but not live: they still
-   * hold a pid worth seeing, yet counting them was what made the panel claim sessions nobody had.
-   */
-  live: boolean;
-  /** Set when it maps to a run managed by the wrapper */
-  runId?: string;
-  location?: WorkLocation | null;
+  path: string;
+  worktrees: ProjectWorktree[];
+  /** The directory is still on disk */
+  exists: boolean;
+  /** Chats under the project and its worktrees */
+  chatCount: number;
+  lastActivity: string | null;
+}
+
+/** A directory chats have run in that is not imported, offered on first start. */
+export interface ProjectCandidate {
+  path: string;
+  name: string;
+  chatCount: number;
+  lastActivity: string | null;
+}
+
+/** Imports a directory; every chat under it is adopted, retroactively. */
+export interface ImportProjectRequest {
+  path: string;
+  /** Defaults to the directory's name */
+  name?: string;
+}
+
+export interface UpdateProjectRequest {
+  name: string;
 }
 
 // ---------- Orchestration ----------
@@ -608,6 +720,8 @@ export interface OrchestrationSpec {
    * other — and never edit the checkout the wrapper itself is running from.
    */
   worktree?: boolean;
+  /** Attempts a failed task gets in total, the first included, before a person has to decide (default 2) */
+  maxAttempts?: number;
   /**
    * Tools every worker may use without being asked. A worker has no one to ask unless
    * `permissionPrompts` sends its prompts to the panel, so anything it needs beyond editing files
@@ -619,8 +733,17 @@ export interface OrchestrationSpec {
   tasks: OrchestrationTaskSpec[];
 }
 
-export type OrchestrationTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'stopped';
-export type OrchestrationStatus = 'running' | 'completed' | 'failed' | 'stopped';
+/**
+ * `failed` is final: the task's attempts ran out (or it failed in a way a retry cannot mend), and a
+ * person decides what happens to it. `blocked`: a task waiting behind one that failed, which is not
+ * the same as `pending`, waiting for its turn. `skipped`: that decision, giving the branch up so the
+ * graph can finish without it. `stopped` is someone's decision and is never retried on its own;
+ * `interrupted` is a task whose execution a wrapper restart cut off, which is: the chat goes on in a
+ * new execution, in the worktree it left, while attempts remain.
+ */
+export type OrchestrationTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'skipped' | 'stopped' | 'interrupted';
+/** `waiting`: nothing runs and a task failed for good, so integration and synthesis are held back until a person decides. */
+export type OrchestrationStatus = 'running' | 'waiting' | 'completed' | 'failed' | 'stopped';
 
 export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   status: OrchestrationTaskStatus;
@@ -630,6 +753,8 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   branch?: string | null;
   /** Commit the wrapper made of work the worker left uncommitted, when there was any */
   commit?: string | null;
+  /** Executions of its chat so far, the first included */
+  attempts: number;
   runId: string | null;
   sessionId: string | null;
   result: string | null;
@@ -651,6 +776,8 @@ export interface Orchestration {
   synthesize: boolean;
   /** Each task gets its own git worktree and branch instead of sharing the checkout */
   worktree: boolean;
+  /** Attempts a failed task gets in total, the first included, before it is left for a person to decide */
+  maxAttempts: number;
   /** Tools pre-authorised for every worker */
   allowedTools: string[];
   /** Where a worker's permission prompts go */
@@ -820,12 +947,26 @@ export interface McpServerHealth {
   detail: string;
 }
 
-export type ResourceKind = 'agents' | 'skills' | 'commands' | 'output-styles' | 'rules';
+export type ResourceKind = 'agents' | 'skills' | 'commands' | 'output-styles' | 'rules' | 'workflows';
 
-export interface MarkdownResource {
+/** What a resource's file is, which is what an editor highlights it as. */
+export type ResourceFormat = 'markdown' | 'javascript';
+
+/** Saved workflows are scripts; every other kind is markdown. */
+export const RESOURCE_FORMATS: Record<ResourceKind, ResourceFormat> = {
+  agents: 'markdown',
+  skills: 'markdown',
+  commands: 'markdown',
+  'output-styles': 'markdown',
+  rules: 'markdown',
+  workflows: 'javascript',
+};
+
+export interface ConfigResource {
   kind: ResourceKind;
   name: string;
   path: string;
+  format: ResourceFormat;
   description: string | null;
   content: string;
   updatedAt: string | null;
@@ -874,12 +1015,13 @@ export interface WriteConfigFileRequest {
 
 /**
  * What Claude Code actually loaded for a directory, taken from the `init` event of the most
- * recent wrapper run there (the CLI only reports it when a session starts).
+ * recent chat Agentry started there (the CLI only reports it when a session starts).
  */
 export interface EffectiveEnvironment {
   cwd: string;
   observedAt: string;
-  runId: string;
+  /** The chat whose start reported it */
+  chatId: string;
   cliVersion: string | null;
   model: string | null;
   permissionMode: string | null;
@@ -1097,19 +1239,17 @@ export interface Overview {
   accounts: AccountsSnapshot | null;
   counts: {
     projects: number;
-    sessions: number;
-    activeRuns: number;
-    activeCliSessions: number;
-    /** Sessions with a live process, from either source: what the Sessions page lists as active */
-    liveSessions: number;
+    chats: number;
+    chatsWorking: number;
+    chatsWaiting: number;
+    /** Commands and agents running in the background, whichever chat sent them */
     backgroundTasks: number;
     subagents: number;
     /** Claude Code workflows running right now */
-    workflows?: number;
+    workflows: number;
     orchestrationsRunning: number;
   };
-  runs: RunSummary[];
-  recentSessions: SessionSummary[];
+  recentChats: ChatSummary[];
 }
 
 export interface SetCredentialsRequest {

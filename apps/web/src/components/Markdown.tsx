@@ -22,7 +22,22 @@ function codeOf(children: ReactNode): string {
  * it stays text), links open outside the panel, and images show as links: a transcript must not
  * fetch whatever URL the model wrote.
  */
+/**
+ * A heading in an answer looks like one but does not join the page's outline: a `###` in a reply
+ * straight after the page's h1 would skip levels, and a chat holds hundreds of them.
+ */
+const heading = (level: number) =>
+  function Heading({ children }: MarkdownComponentProps<'h1'>) {
+    return <div className={`md-h md-h${level}`}>{children}</div>;
+  };
+
 const COMPONENTS: MarkdownReactOptions['components'] = {
+  h1: heading(1),
+  h2: heading(2),
+  h3: heading(3),
+  h4: heading(4),
+  h5: heading(5),
+  h6: heading(6),
   a: (props: MarkdownComponentProps<'a'>) => <a {...props} {...EXTERNAL} />,
   img: ({ src, alt }: MarkdownComponentProps<'img'>) =>
     typeof src === 'string' ? (
@@ -36,13 +51,13 @@ const COMPONENTS: MarkdownReactOptions['components'] = {
     return <CodeBlock code={codeOf(children)} lang={lang === 'plaintext' ? '' : lang} header />;
   },
   table: (props: MarkdownComponentProps<'table'>) => (
-    <div className="md-table">
+    <div className="md-table" role="group" aria-label={i18n.t('components:markdown.table')} tabIndex={0}>
       <table {...props} />
     </div>
   ),
   // Task list boxes are read-only marks, not form controls
   input: ({ type, checked }: MarkdownComponentProps<'input'>) =>
-    type === 'checkbox' ? <span className={`md-task ${checked ? 'is-done' : ''}`} aria-label={i18n.t(checked ? 'components:markdown.taskDone' : 'components:markdown.taskTodo')} /> : null,
+    type === 'checkbox' ? <span className={`md-task ${checked ? 'is-done' : ''}`} role="img" aria-label={i18n.t(checked ? 'components:markdown.taskDone' : 'components:markdown.taskTodo')} /> : null,
 };
 
 const autolink = autolinkExtension();

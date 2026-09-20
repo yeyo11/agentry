@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { Db } from '../src/db.ts';
-import { RunManager } from '../src/runner.ts';
+import { ChatManager } from '../src/chats.ts';
 import { listWorkflowDefinitions, readSessionWorkflows, scriptMeta } from '../src/workflows.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -63,7 +63,7 @@ async function until<T>(read: () => T | undefined | null | false, what: string):
 test('a run lists each kind of delegated work where it belongs', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
-  const runs = new RunManager(config, db);
+  const runs = new ChatManager(config, db);
   const events = join(config.dataDir, 'turn.jsonl');
   writeFileSync(events, delegatingTurn().map((e) => JSON.stringify(e)).join('\n'));
 
@@ -117,7 +117,6 @@ test('a finished workflow is read from its record', async () => {
   assert.equal(run?.id, 'wf_5c79d6c0-b39');
   assert.equal(run?.status, 'completed');
   assert.equal(run?.name, 'two-words');
-  assert.equal(run?.source, 'cli');
   assert.deepEqual(run?.phases, ['Say']);
   assert.deepEqual(run?.result, { results: ['red', 'blue'] });
   assert.equal(run?.agents.length, 2);

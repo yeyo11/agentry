@@ -1,7 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
-import type { WorkLocation } from '@agentry/shared';
-import { encodeProjectId } from './workspace.ts';
 
 export interface WorktreeFacts {
   path: string;
@@ -91,17 +89,5 @@ export class Locator {
       return { path, name, branch: onDisk?.branch ?? null, parentPath };
     }
     return fromDotGit(dir) ?? null;
-  }
-
-  locate(dir: string): WorkLocation {
-    const worktree = this.worktreeOf(dir);
-    const projectPath = worktree?.parentPath ?? dir;
-    return {
-      path: dir,
-      projectId: encodeProjectId(projectPath),
-      projectName: basename(projectPath) || projectPath,
-      projectPath,
-      worktree: worktree ? { name: worktree.name, branch: worktree.branch, path: worktree.path } : null,
-    };
   }
 }

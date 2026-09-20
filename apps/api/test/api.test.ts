@@ -53,7 +53,7 @@ test('every API route is documented in the OpenAPI document', async () => {
   const refs = [...JSON.stringify(spec.paths).matchAll(/#\/components\/schemas\/(\w+)/g)].map((m) => m[1] as string);
   const missing = [...new Set(refs)].filter((name) => !(name in spec.components.schemas));
   assert.deepEqual(missing, []);
-  assert.equal(spec.paths['/api/runs'].post.requestBody.content['application/json'].schema.$ref, '#/components/schemas/RunOptions');
+  assert.equal(spec.paths['/api/chats'].post.requestBody.content['application/json'].schema.$ref, '#/components/schemas/NewChatRequest');
 
   let docs = await app.inject('/docs');
   if (docs.statusCode === 301 || docs.statusCode === 302) docs = await app.inject(docs.headers.location as string);
@@ -92,6 +92,12 @@ test('resources, memory and the file explorer validate their input', async () =>
   assert.equal((await app.inject(`/api/config/resources/rules?project=${projectId}`)).json().length, 1);
   assert.equal((await app.inject('/api/config/resources/rules')).json().length, 0); // user scope untouched
   assert.equal((await app.inject('/api/config/resources/widgets')).statusCode, 400);
+
+  // A saved workflow is a script, and says so
+  res = await app.inject({ method: 'PUT', url: `/api/config/resources/workflows/audit?project=${projectId}`, ...json({ content: "export const meta = { name: 'audit', description: 'Audit' }\n" }) });
+  assert.equal(res.json().format, 'javascript');
+  assert.equal((await app.inject(`/api/config/resources/workflows/audit?project=${projectId}`)).json().description, 'Audit');
+  assert.equal((await app.inject(`/api/config/resources/rules/style?project=${projectId}`)).json().format, 'markdown');
 
   res = await app.inject({ method: 'PUT', url: `/api/memory/${projectId}/fact.md`, ...json({ content: '---\ndescription: d\n---\nx' }) });
   assert.equal(res.json().description, 'd');
@@ -139,24 +145,25 @@ test('planner drafts are listed and fetched by run', async () => {
   assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/plan/start', ...json({}) })).statusCode, 400);
 });
 
-test('runs, orchestrations and plugins reject bad requests', async () => {
-  assert.equal((await app.inject({ method: 'POST', url: '/api/runs', ...json({ prompt: '  ' }) })).statusCode, 400);
-  assert.equal((await app.inject('/api/runs/ghost')).statusCode, 404);
-  assert.equal((await app.inject({ method: 'POST', url: '/api/runs/ghost/messages', ...json({ text: 'hi' }) })).statusCode, 404);
+test('chats, orchestrations and plugins reject bad requests', async () => {
+  assert.equal((await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: '  ' }) })).statusCode, 400);
+  assert.equal((await app.inject('/api/chats/ghost')).statusCode, 404);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/chats/ghost/messages', ...json({ text: 'hi' }) })).statusCode, 404);
   assert.deepEqual((await app.inject('/api/workflows')).json(), []);
   assert.deepEqual((await app.inject('/api/workflows/saved')).json(), []);
   const unknownWorkflow = await app.inject({ method: 'POST', url: '/api/workflows/saved/run', ...json({ name: 'nope' }) });
   assert.equal(unknownWorkflow.statusCode, 404);
   assert.equal((await app.inject({ method: 'POST', url: '/api/workflows/saved/run', ...json({}) })).statusCode, 400);
-  assert.equal((await app.inject({ method: 'POST', url: '/api/runs/ghost/interrupt' })).statusCode, 404);
-  const forkWithoutSession = await app.inject({ method: 'POST', url: '/api/runs', ...json({ prompt: 'hi', forkSession: true }) });
-  assert.equal(forkWithoutSession.statusCode, 400);
-  assert.match(forkWithoutSession.json().error, /needs resumeSessionId/);
-  assert.equal((await app.inject({ method: 'PATCH', url: '/api/runs/ghost', ...json({ model: 'opus' }) })).statusCode, 404);
-  const badMode = await app.inject({ method: 'PATCH', url: '/api/runs/ghost', ...json({ permissionMode: 'yolo' }) });
+  assert.equal((await app.inject({ method: 'POST', url: '/api/chats/ghost/interrupt' })).statusCode, 404);
+  // Continuing a chat that does not exist, in place or in a copy, is a 404 and starts nothing
+  assert.equal((await app.inject({ method: 'POST', url: '/api/chats/ghost/resume', ...json({ prompt: 'hi' }) })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/chats/ghost/fork', ...json({ prompt: 'hi' }) })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'DELETE', url: '/api/chats/ghost' })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'PATCH', url: '/api/chats/ghost', ...json({ model: 'opus' }) })).statusCode, 404);
+  const badMode = await app.inject({ method: 'PATCH', url: '/api/chats/ghost', ...json({ permissionMode: 'yolo' }) });
   assert.equal(badMode.statusCode, 400);
   assert.match(badMode.json().error, /permissionMode must be one of/);
-  const badRules = await app.inject({ method: 'POST', url: '/api/runs/ghost/permissions/p1', ...json({ behavior: 'allow', updatedPermissions: 'all' }) });
+  const badRules = await app.inject({ method: 'POST', url: '/api/chats/ghost/permissions/p1', ...json({ behavior: 'allow', updatedPermissions: 'all' }) });
   assert.equal(badRules.statusCode, 400);
   const cycle = { name: 'x', tasks: [{ id: 'a', name: 'a', prompt: 'p', dependsOn: ['b'] }, { id: 'b', name: 'b', prompt: 'p', dependsOn: ['a'] }] };
   assert.match((await app.inject({ method: 'POST', url: '/api/orchestrations', ...json(cycle) })).json().error, /cycle/);
@@ -198,8 +205,26 @@ test('a file uploads as the raw body and comes back with its type read from the 
   assert.match((await upload('big.png', big)).json().error, /at most 5 MB/);
 });
 
+test('chats are listed with filters that say when they are wrong, and the run, session and active routes are gone', async () => {
+  assert.deepEqual((await app.inject('/api/chats')).json(), []);
+  assert.equal((await app.inject('/api/chats?state=asleep')).statusCode, 400);
+  assert.match((await app.inject('/api/chats?origin=robot')).json().error, /origin must be one of/);
+  assert.equal((await app.inject('/api/chats?origin=agentry,external,orchestration,internal&loose=1&limit=5')).statusCode, 200);
+  for (const url of ['/api/runs', '/api/runs/ghost', '/api/sessions', '/api/sessions/ghost', '/api/active', '/api/projects/x/sessions']) {
+    assert.equal((await app.inject(url)).statusCode, 404, url);
+  }
+});
+
+test('usage is reported over a range of days and refuses a malformed one', async () => {
+  const report = (await app.inject('/api/usage?from=2026-03-01&to=2026-03-31')).json();
+  assert.deepEqual([report.from, report.to], ['2026-03-01', '2026-03-31']);
+  assert.equal(report.total.costUsd, null, 'nothing was spent, so there is no cost to show');
+  assert.deepEqual([report.days, report.projects, report.orchestrations], [[], [], []]);
+  assert.match((await app.inject('/api/usage?from=yesterday')).json().error, /YYYY-MM-DD/);
+});
+
 test('a message may carry attachments, and an unknown one fails the request', async () => {
-  const res = await app.inject({ method: 'POST', url: '/api/runs', ...json({ prompt: 'hi', attachments: ['00000000-0000-0000-0000-000000000000'] }) });
+  const res = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', attachments: ['00000000-0000-0000-0000-000000000000'] }) });
   assert.equal(res.statusCode, 404);
   assert.match(res.json().error, /upload not found/);
 });
@@ -264,4 +289,28 @@ test('the event feed streams what happens, replays what a reconnecting client mi
   const stale = await openFeed({ 'last-event-id': '999999' });
   await stale.until(/event: stream\.resync\ndata: .*"reason":"server-restarted"/);
   stale.close();
+});
+
+test('projects are imported by hand, renamed and removed without touching anything else', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'agentry-api-import-'));
+
+  const listed = (await app.inject('/api/projects')).json();
+  assert.deepEqual(listed.map((p: { id: string }) => p.id), [projectId]);
+  assert.deepEqual((await app.inject('/api/projects/candidates')).json(), []);
+
+  const imported = await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: dir, name: 'Imported' }) });
+  assert.equal(imported.statusCode, 201);
+  const { id } = imported.json();
+  assert.equal(imported.json().name, 'Imported');
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: dir }) })).statusCode, 400);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: join(dir, 'missing') }) })).statusCode, 400);
+
+  const renamed = await app.inject({ method: 'PATCH', url: `/api/projects/${id}`, ...json({ name: 'Shop' }) });
+  assert.equal(renamed.json().name, 'Shop');
+  assert.equal((await app.inject('/api/chats?loose=1')).statusCode, 200);
+  assert.deepEqual((await app.inject(`/api/chats?project=${id}`)).json(), []);
+
+  assert.deepEqual((await app.inject({ method: 'DELETE', url: `/api/projects/${id}` })).json(), { ok: true });
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/projects/${id}` })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/projects/${id}/state` })).statusCode, 404);
 });

@@ -12,19 +12,9 @@
     "reset": "Reset"
   },
   "config": {
-    "title": "Config",
-    "projectScope": "Project scope",
     "userScope": "User scope · personal Claude Code configuration of this account",
-    "precedence": "Precedence",
-    "projectLocal": "project local",
-    "projectShared": "project shared",
     "user": "user",
-    "precedenceNote": "— the more specific file wins; permission rules and hooks are merged.",
-    "unknownProject": "Unknown project",
-    "unknownProjectHint": "This project id is not known to the wrapper. Pick another scope.",
     "environment": "Effective environment",
-    "environmentHint": "what Claude actually loaded in the last run here",
-    "sections": "Configuration sections",
     "tabs": {
       "account": "Account",
       "instructions": "Instructions",
@@ -35,19 +25,12 @@
       "commands": "Commands",
       "output-styles": "Output styles",
       "rules": "Rules",
-      "files": "Files"
+      "files": "Files",
+      "workflows": "Workflows"
     }
   },
   "scope": {
-    "label": "Scope",
-    "user": "User",
-    "search": "Search projects",
-    "searchPlaceholder": "Search projects…",
-    "listLabel": "Configuration scope",
-    "userHint": "Applies to every project of this account",
-    "temporary": "temporary",
-    "noMatch": "No project matches",
-    "showTemporary": "Show temporary projects"
+    "label": "Scope"
   },
   "account": {
     "tokenSource": {
@@ -79,7 +62,7 @@
     "remove": "Remove stored credential",
     "working": "Working",
     "failed": "Failed: {{detail}}",
-    "cswapNote": "claude-swap manages several accounts, so the wrapper injects no token of its own — a credential set here would override the active account. Switch accounts from <link>Accounts</link>.",
+    "cswapNote": "claude-swap manages several accounts, so the wrapper injects no token of its own — a credential set here would override the active account. Switch accounts from <anchor>Accounts</anchor>.",
     "loggedInNote": "“Logged in” only means a credential is configured; the CLI does not validate it. Use the verification to be sure.",
     "setCredential": "Set credential",
     "type": "Type",
@@ -138,7 +121,7 @@
     "notSet": "Not set (inherit)",
     "yes": "Yes",
     "no": "No",
-    "hooksIntro": "Hooks run shell commands at lifecycle events; the event payload arrives as JSON on stdin. Keep scripts in <mono>hooks/</mono> and edit them in the <link>Files tab</link>.",
+    "hooksIntro": "Hooks run shell commands at lifecycle events; the event payload arrives as JSON on stdin. Keep scripts in <mono>hooks/</mono> and edit them in the <anchor>Files tab</anchor>.",
     "hookEvents": {
       "PreToolUse": "Before a tool runs. Matcher: tool name pattern, e.g. Bash or Edit|Write. Can block the call.",
       "PostToolUse": "After a tool succeeds. Matcher: tool name pattern.",
@@ -209,14 +192,21 @@
     "plugins": "Plugins & marketplaces",
     "pluginCount_one": "{{count}} plugins",
     "pluginCount_other": "{{count}} plugins",
-    "pluginsHint": "Managed by the CLI. Use the <link>Plugins page</link> to install, enable or remove them.",
+    "pluginsHint": "Managed by the CLI. Use the <anchor>Plugins tab</anchor> to install, enable or remove them.",
     "nothingConfigured": "Nothing configured in this file",
     "enabled": "enabled",
     "disabled": "disabled",
     "otherKeys": "Other keys",
     "preserved_one": "{{count}} preserved",
     "preserved_other": "{{count}} preserved",
-    "otherKeysHint": "These keys have no guided control. They are kept untouched; edit them in Raw JSON."
+    "otherKeysHint": "These keys have no guided control. They are kept untouched; edit them in Raw JSON.",
+    "approvedServers": "Approved .mcp.json servers",
+    "rejectedServers": "Rejected .mcp.json servers",
+    "ruleListNames": {
+      "allow": "Allow rules",
+      "ask": "Ask rules",
+      "deny": "Deny rules"
+    }
   },
   "mcp": {
     "transports": {
@@ -276,7 +266,13 @@
     "removeTitle": "Remove “{{name}}”?",
     "removeBody": "The server is removed from the {{scope}} scope. Sessions already running keep it until they restart.",
     "remove": "Remove server",
-    "editInUser": "Edit in user scope"
+    "editInUser": "Edit in user scope",
+    "arguments": "Arguments",
+    "scope": "Scope",
+    "actions": "Actions",
+    "editNamed": "Edit {{name}}",
+    "editInUserNamed": "Edit {{name}} in user scope",
+    "removeNamed": "Remove {{name}}"
   },
   "resources": {
     "kinds": {
@@ -364,6 +360,23 @@
         "content": "rule content",
         "create": "Create rule",
         "deleteTitle": "Delete rule “{{name}}”?"
+      },
+      "workflows": {
+        "hint": "Saved scripts the Workflow tool runs by name. The name in `meta` is the one Claude uses; run one from New chat.",
+        "new": "New workflow",
+        "namePlaceholder": "workflow-name",
+        "nameLabel": "New workflow name",
+        "saved": "workflow “{{name}}” saved",
+        "saveFailed": "Could not save the workflow",
+        "deleted": "workflow “{{name}}” deleted",
+        "deleteFailed": "Could not delete the workflow",
+        "noneInScope": "No workflows in this scope yet.",
+        "noneYet": "No workflows yet",
+        "select": "Select a workflow",
+        "createFirst": "Create the first workflow",
+        "content": "workflow content",
+        "create": "Create workflow",
+        "deleteTitle": "Delete workflow “{{name}}”?"
       }
     },
     "exists": "Already exists",
@@ -417,14 +430,15 @@
     "executable": "Executable",
     "executableHint": "chmod +x — required for hook scripts run directly",
     "deleteTitle": "Delete {{path}}?",
-    "deleteFile": "Delete file"
+    "deleteFile": "Delete file",
+    "newFileNamed": "{{name}}, new file",
+    "deleteFolderKey": "Delete folder (Delete key)"
   },
   "accounts": {
     "title": "Accounts",
     "count_one": "{{count}} account",
     "count_other": "{{count}} accounts",
     "resetsIn": "· resets in {{countdown}}",
-    "resets": "resets {{date}}",
     "active": "active",
     "outOfRotation": "out of rotation",
     "use": "Use",
@@ -465,7 +479,7 @@
     "needsCswap": "Multi-account support needs claude-swap",
     "refreshUsage": "Refresh usage",
     "notInstalled": "claude-swap is not installed",
-    "notInstalledHint": "Several accounts and automatic rotation are delegated to <link>claude-swap</link>. Install it with <code>uv tool install claude-swap</code> (it ships in the Docker image), then register each account with a token from <code>claude setup-token</code>.",
+    "notInstalledHint": "Several accounts and automatic rotation are delegated to <anchor>claude-swap</anchor>. Install it with <code>uv tool install claude-swap</code> (it ships in the Docker image), then register each account with a token from <code>claude setup-token</code>.",
     "switched": "Switched to {{email}}",
     "switchFailed": "Switched to {{email}} failed",
     "backInRotation": "{{email}} back in rotation",
@@ -483,11 +497,12 @@
     "recentOnly": "Recent only",
     "fullHistory": "Full history",
     "nothingYet": "Nothing yet",
-    "logHint": "Switches, polls and quarantines show up here once auto-rotation runs."
+    "logHint": "Switches, polls and quarantines show up here once auto-rotation runs.",
+    "usedNearlyOut": "used, nearly out",
+    "usedRunningHigh": "used, running high",
+    "useAccount": "Use {{name}}"
   },
   "memory": {
-    "title": "Memory",
-    "subtitle": "File-based memory Claude Code keeps per project: facts about you, your feedback, project context and references.",
     "saved": "{{name}} saved",
     "savedHint": "Remember to add a one-line pointer to it in MEMORY.md.",
     "saveFailed": "Could not save the memory",
@@ -514,14 +529,9 @@
     "create": "Create memory",
     "deleteIndexBody": "Without the index, sessions no longer learn about the other memory files.",
     "deleteBody": "Claude will no longer recall this. This cannot be undone.",
-    "delete": "Delete memory",
-    "noProjects": "No projects yet",
-    "noProjectsHint": "Memory is stored per project. Create a project or start a run first.",
-    "projects": "Projects",
-    "selectProject": "Select a project"
+    "delete": "Delete memory"
   },
   "plugins": {
-    "title": "Plugins",
     "subtitle": "Extensions for Claude Code: commands, agents, skills, hooks and MCP servers packaged together. Actions run the CLI and can take up to a minute.",
     "sections": "Plugin sections",
     "tabs": {
@@ -589,7 +599,12 @@
     "location": "Location",
     "update": "Update",
     "removeTitle": "Remove marketplace {{name}}?",
-    "removeBody": "Plugins installed from it may stop receiving updates."
+    "removeBody": "Plugins installed from it may stop receiving updates.",
+    "detailsOf": "Details of {{name}}",
+    "updateNamed": "Update {{name}}",
+    "cliOutput": "CLI output",
+    "uninstallNamed": "Uninstall {{name}}",
+    "removeNamed": "Remove marketplace {{name}}"
   },
   "orchestration": {
     "errors": {
@@ -623,19 +638,9 @@
     "turns_one": "{{count}} turns · ",
     "turns_other": "{{count}} turns · ",
     "plannerRunning": "planner running —",
-    "planner": {
-      "failed": "planner failed —",
-      "stopped": "planner stopped —"
-    },
     "planReady": "plan ready —",
     "watchAgent": "watch the agent",
     "loadingPlan": " · loading the plan…",
-    "noPlan": "The planner {{status}} without a plan. Its output is on the run page; you can re-plan or write the tasks by hand.",
-    "plannerEnded": {
-      "failed": "failed",
-      "stopped": "stopped",
-      "ended": "ended"
-    },
     "planStartFailed": "Could not start the planner",
     "planLoadFailed": "Could not load the plan",
     "drafts": "Plans already generated — load one instead of paying for a new run.",
@@ -685,10 +690,7 @@
     "concurrencyValue": "concurrency {{n}}"
   },
   "detail": {
-    "after": "after {{deps}}",
     "result": "Result",
-    "run": "run",
-    "session": "session",
     "prOpened": "Pull request opened",
     "pushed": "Pushed {{branch}}",
     "worktreesKept_one": "{{count}} worktree(s) kept",
@@ -709,7 +711,6 @@
     "prune": "Remove worktrees",
     "merged_one": "{{merged}}/{{count}} task branch merged",
     "merged_other": "{{merged}}/{{count}} task branches merged",
-    "integratorRun": "integrator run",
     "resolving": "Some branches conflicted; an integrator agent is merging them.",
     "conflict": "<mono>{{task}}</mono> conflicted in <mono>{{paths}}</mono>",
     "legacy_one": "This graph finished before orchestrations merged their own work. Its {{count}} task branch can be integrated into one now; anything left uncommitted in a worktree is committed first.",

@@ -34,8 +34,8 @@ test('images show as links instead of fetching the URL', () => {
 test('task list boxes are read-only marks, not form controls', () => {
   const out = html('- [x] typecheck\n- [ ] e2e');
   assert.doesNotMatch(out, /<input/);
-  assert.match(out, /<span class="md-task is-done" aria-label="done"><\/span>/);
-  assert.match(out, /<span class="md-task " aria-label="to do"><\/span>/);
+  assert.match(out, /<span class="md-task is-done" role="img" aria-label="done"><\/span>/);
+  assert.match(out, /<span class="md-task " role="img" aria-label="to do"><\/span>/);
 });
 
 test('fenced code goes through CodeBlock with its language, and a bare fence has none', () => {
@@ -50,8 +50,15 @@ test('a code fence still being streamed renders as code, not as text', () => {
   assert.match(html('```py\nprint(1)\npri'), /print\(1\)\npri/);
 });
 
-test('GFM tables sit in the scrolling wrapper', () => {
-  assert.match(html('| a | b |\n| - | -: |\n| 1 | 2 |'), /<div class="md-table"><table><thead>/);
+test('GFM tables sit in the scrolling wrapper, which the keyboard can reach', () => {
+  assert.match(html('| a | b |\n| - | -: |\n| 1 | 2 |'), /<div class="md-table" role="group" aria-label="Table" tabindex="0"><table><thead>/);
+});
+
+test('headings in an answer are styled blocks, not part of the page outline', () => {
+  const out = html('# One\n\n### Three');
+  assert.doesNotMatch(out, /<h[1-6]/);
+  assert.match(out, /<div class="md-h md-h1">One<\/div>/);
+  assert.match(out, /<div class="md-h md-h3">Three<\/div>/);
 });
 
 test('bare URLs, www hosts, angle autolinks and e-mail addresses become links', () => {

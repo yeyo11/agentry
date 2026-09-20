@@ -12,7 +12,7 @@ const item = (id, patch) => ({
   tone: 'ok',
   title: `title ${id}`,
   body: '',
-  href: '/agents',
+  href: '/chats',
   runId: null,
   orchestrationId: null,
   read: false,
@@ -32,7 +32,7 @@ export default async ({ page, check }) => {
   await page.goto('/', 1000);
   await page.waitFor(`return document.querySelector('.bell-badge')?.textContent === '1'`, { label: 'one unread in the badge' });
   check(await page.eval(`return document.querySelector('.bell').classList.contains('bell-urgent')`), 'a waiting question makes the bell urgent');
-  check((await page.eval(`return document.querySelector('.bell').getAttribute('aria-label')`)) === 'Notifications, 1 unread', 'the unread count is in the accessible name');
+  check((await page.eval(`return document.querySelector('.bell').getAttribute('aria-label')`)) === 'Notifications, 1 unread, some need you', 'the unread count, and that some of it is urgent, is in the accessible name');
 
   await page.click('.bell');
   await page.waitFor(`return !!document.querySelector('.notif-panel')`, { label: 'the panel opens' });
@@ -60,11 +60,11 @@ export default async ({ page, check }) => {
   await page.waitFor(`return !document.querySelector('.notif-item') && !!document.querySelector('.notif-empty')`, { label: 'clear empties the list' });
 
   // Clicking a notification marks it read, closes the panel and goes to its link
-  await page.eval(seed([item('c', { href: '/tasks' })]));
+  await page.eval(seed([item('c', { href: '/projects' })]));
   await page.goto('/', 1000);
   await page.click('.bell');
   await page.click('.notif-item');
-  await page.waitFor(`return location.pathname === '/tasks'`, { label: 'the notification navigates to its link' });
+  await page.waitFor(`return location.pathname === '/projects'`, { label: 'the notification navigates to its link' });
   check(!(await page.eval(`return !!document.querySelector('.notif-panel')`)), 'the panel closes on navigation');
   check(await page.eval(`return JSON.parse(localStorage.getItem(${JSON.stringify(KEY)})).items[0].read`), 'the clicked notification is read');
 

@@ -3,9 +3,9 @@ import { useSearchParams } from 'react-router-dom';
 
 /** What the side panel can show. Each carries the ids the routes need, so a link is self-contained. */
 export type DetailRef =
-  | { kind: 'task'; sessionId: string; taskId: string }
-  | { kind: 'subagent'; sessionId: string; agentId: string }
-  | { kind: 'workflow-agent'; sessionId: string; runId: string; agentId: string };
+  | { kind: 'task'; chatId: string; taskId: string }
+  | { kind: 'subagent'; chatId: string; agentId: string }
+  | { kind: 'workflow-agent'; chatId: string; workflowId: string; agentId: string };
 
 /** The search param that holds the open panel, so it survives a reload and can be linked to. */
 export const DETAIL_PARAM = 'detail';
@@ -16,10 +16,10 @@ const SEP = ':';
 export function encodeDetail(ref: DetailRef): string {
   const parts =
     ref.kind === 'task'
-      ? [ref.sessionId, ref.taskId]
+      ? [ref.chatId, ref.taskId]
       : ref.kind === 'subagent'
-        ? [ref.sessionId, ref.agentId]
-        : [ref.sessionId, ref.runId, ref.agentId];
+        ? [ref.chatId, ref.agentId]
+        : [ref.chatId, ref.workflowId, ref.agentId];
   return [ref.kind, ...parts.map(encodeURIComponent)].join(SEP);
 }
 
@@ -35,9 +35,9 @@ export function decodeDetail(value: string | null): DetailRef | null {
   });
   if (parts.some((p) => !p)) return null;
   const [a, b, c] = parts;
-  if (kind === 'task' && parts.length === 2 && a && b) return { kind, sessionId: a, taskId: b };
-  if (kind === 'subagent' && parts.length === 2 && a && b) return { kind, sessionId: a, agentId: b };
-  if (kind === 'workflow-agent' && parts.length === 3 && a && b && c) return { kind, sessionId: a, runId: b, agentId: c };
+  if (kind === 'task' && parts.length === 2 && a && b) return { kind, chatId: a, taskId: b };
+  if (kind === 'subagent' && parts.length === 2 && a && b) return { kind, chatId: a, agentId: b };
+  if (kind === 'workflow-agent' && parts.length === 3 && a && b && c) return { kind, chatId: a, workflowId: b, agentId: c };
   return null;
 }
 

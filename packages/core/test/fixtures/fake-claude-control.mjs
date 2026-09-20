@@ -5,6 +5,7 @@
 // process stays up, and a mode switch is echoed as a `system/status` event.
 //
 //   ASK <tool>     asks permission for <tool> and ends the turn with the decision it got back
+//   BASH <command> starts that shell command and never answers it, like one that hangs
 //   REPLAY <file>  writes each JSON line of <file> to stdout, then ends the turn
 //   … scriptPath "<file>" …  runs that workflow script as the Workflow tool would, with agents that
 //                  answer "done:<label>" (or nothing, for a task whose prompt says FAIL-ONCE on a
@@ -15,23 +16,28 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
-// Core lists the CLI's own sessions with this; without an answer it waits for stdin to close
+// Core lists the CLI's own sessions with this; without an answer it waits for stdin to close.
+// $FAKE_CLAUDE_AGENTS names a file holding what `agents --json` should report, which is how a test
+// puts a session in a terminal that Agentry knows nothing about
 if (args[0] === 'agents') {
-  process.stdout.write('[]\n');
+  process.stdout.write(process.env.FAKE_CLAUDE_AGENTS ? readFileSync(process.env.FAKE_CLAUDE_AGENTS, 'utf8') : '[]\n');
   process.exit(0);
 }
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const out = (msg) => process.stdout.write(`${JSON.stringify(msg)}\n`);
-// Like the CLI, a fork resumes the history under a new id
-const sessionId = args.includes('--fork-session') ? randomUUID() : (flag('--session-id') ?? flag('--resume') ?? randomUUID());
+// Like the CLI (2.1.278), `--session-id` names the session, a fork's copy included; a fork given no
+// id makes up its own, and a plain resume keeps the one it resumes
+const sessionId = flag('--session-id') ?? (args.includes('--fork-session') ? randomUUID() : (flag('--resume') ?? randomUUID()));
 // Reports `manual` the way the real CLI does, as `default`
 const reported = (m) => (m === 'manual' ? 'default' : m);
 let mode = flag('--permission-mode') ?? 'manual';
 /** The permission request this turn is blocked on */
 let pending = null;
 
+// The real CLI reports the window of every model that answered, variant suffix included
+const modelUsage = { 'claude-opus-5[1m]': { inputTokens: 1, outputTokens: 1, costUSD: 0.01, contextWindow: 1_000_000 } };
 const result = (text, extra = {}) =>
-  out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: text, ...extra });
+  out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, modelUsage, result: text, ...extra });
 const respond = (requestId, response) => out({ type: 'control_response', response: { subtype: 'success', request_id: requestId, response } });
 
 createInterface({ input: process.stdin }).on('line', (line) => {
@@ -51,6 +57,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         (err) => result(`workflow failed: ${err.message}`),
       );
       return result('Workflow is running (Task ID: fake). Waiting for completion notification.');
+    }
+    const bash = /^BASH (.+)$/m.exec(prompt);
+    if (bash) {
+      out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id: `toolu_bash_${randomUUID()}`, name: 'Bash', input: { command: bash[1] } }] } });
+      return;
     }
     const replay = /^REPLAY (\S+)/.exec(prompt);
     if (replay) {

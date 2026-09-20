@@ -1,6 +1,7 @@
 import * as RadixPopover from '@radix-ui/react-popover';
 import { Check } from 'lucide-react';
 import { useId, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '../icons';
 import { LAYER_ATTR } from './layer';
 
@@ -32,6 +33,7 @@ export function Combobox({
   className?: string;
   'aria-label'?: string;
 }) {
+  const { t } = useTranslation('components');
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -98,7 +100,7 @@ export function Combobox({
           onInteractOutside={(e) => e.target === inputRef.current && e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          <div className="menu-viewport" role="listbox" id={listId} aria-label={ariaLabel}>
+          <div className="menu-viewport" role="listbox" id={listId} aria-label={ariaLabel ?? placeholder ?? t('combobox.suggestions')}>
             {matches.map((option, i) => (
               <div
                 key={option.value}

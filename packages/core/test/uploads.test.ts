@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { normalizeMessage } from '@agentry/shared';
 import { Db } from '../src/db.ts';
-import { RunManager } from '../src/runner.ts';
+import { ChatManager } from '../src/chats.ts';
 import { UploadStore, safeName, sniffMediaType } from '../src/uploads.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -62,7 +62,7 @@ rl.on('close', () => process.exit(0));
   );
   chmodSync(fake, 0o755);
   const db = new Db(config);
-  const runs = new RunManager({ ...config, claudeBin: fake }, db);
+  const runs = new ChatManager({ ...config, claudeBin: fake }, db);
   const uploads = new UploadStore(config.dataDir);
   runs.uploads = uploads;
   const image = uploads.save('shot.png', PNG);

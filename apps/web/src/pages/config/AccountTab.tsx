@@ -1,10 +1,12 @@
 import type { TokenSource } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CircleCheck, CircleX } from 'lucide-react';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
 import { Select } from '../../components/controls';
+import { ICON_SM } from '../../components/icons';
 import { useToast } from '../../components/Toast';
 import { Card, ErrorBox, Field, Skeleton, Tag } from '../../components/ui';
 
@@ -86,15 +88,19 @@ export function AccountTab() {
               {t('account.remove')}
             </button>
           )}
-          {verify.data && (
-            <span className={`small ${verify.data.ok ? 'text-ok' : 'text-err'}`}>
-              {verify.data.ok ? t('account.working') : t('account.failed', { detail: verify.data.detail })}
-            </span>
-          )}
+          {/* Always rendered so a screen reader is told when the result lands */}
+          <span className="small" role="status">
+            {verify.data && (
+              <span className={`meta-icon ${verify.data.ok ? 'text-ok' : 'text-err'}`}>
+                {verify.data.ok ? <CircleCheck {...ICON_SM} /> : <CircleX {...ICON_SM} />}
+                {verify.data.ok ? t('account.working') : t('account.failed', { detail: verify.data.detail })}
+              </span>
+            )}
+          </span>
         </div>
         {auth?.tokenSource === 'cswap' && (
           <p className="small muted">
-            <Trans t={t} i18nKey="account.cswapNote" components={{ link: <Link to="/accounts" /> }} />
+            <Trans t={t} i18nKey="account.cswapNote" components={{ anchor: <Link to="/accounts" /> }} />
           </p>
         )}
         <p className="small muted">

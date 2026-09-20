@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ActiveCliSession, AuthStatus, CliInfo, TokenSource } from '@agentry/shared';
+import type { AuthStatus, CliInfo, TokenSource } from '@agentry/shared';
+import type { CliSession } from './cli-facts.ts';
 import type { CoreConfig } from './paths.ts';
 
 interface ExecResult {
@@ -106,7 +107,7 @@ export async function stopBackgroundSession(config: CoreConfig, id: string): Pro
 }
 
 /** Live CLI sessions (interactive and background) as reported by `claude agents --json`. */
-export async function listActiveCliSessions(config: CoreConfig): Promise<Array<Omit<ActiveCliSession, 'live'>>> {
+export async function listActiveCliSessions(config: CoreConfig): Promise<Array<Omit<CliSession, 'live'>>> {
   const res = await execCli(config, ['agents', '--json']);
   try {
     const arr = JSON.parse(res.stdout) as Array<Record<string, unknown>>;

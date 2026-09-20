@@ -49,8 +49,8 @@ export function CodeEditor(props: CodeEditorProps) {
   return (
     <Suspense
       fallback={
-        <div className="code-editor code-editor-loading" style={{ minHeight: props.minHeight ?? '220px' }}>
-          <span className="spinner" /> {t('codeEditor.loading')}
+        <div className="code-editor code-editor-loading" role="status" style={{ minHeight: props.minHeight ?? '220px' }}>
+          <span className="spinner" aria-hidden /> {t('codeEditor.loading')}
         </div>
       }
     >

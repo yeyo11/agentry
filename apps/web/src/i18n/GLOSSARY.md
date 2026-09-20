@@ -188,3 +188,43 @@ and stay untranslated.
 | live | en directo |
 | active | activo |
 | error | error |
+
+## The chat model
+
+Terms of the chats redesign. Like the CLI's, most stay in English.
+
+| English | Spanish |
+|---|---|
+| chat | el chat, los chats: "Nuevo chat", "Chats en curso" |
+| execution (of a chat) | la ejecución, las ejecuciones |
+| fork (a chat) | el fork; "Crea un fork" |
+| health (of a chat) | la salud |
+| signal (of health) | la señal |
+| state: working / waiting / idle | trabajando / esperando / inactivo |
+| outcome: completed / failed / stopped / interrupted | completada / fallida / detenida / interrumpida (of an execution, feminine) |
+| loose (a chat under no project) | suelto: "chats sueltos" |
+| control: interactive / resumable / read-only | interactivo / reanudable / solo lectura |
+| hint (sent to a worker) | la pista, las pistas |
+| blocked (a task waiting for a decision) | bloqueada |
+| retry clean | reintento limpio |
+| give up (a branch) | descartar la rama |
+| context (window) | el contexto |
+| home (page) | Inicio |
+| inbox | la bandeja |
+| resource (agents, skills, commands…) | el recurso |
+
+More terms of the chats redesign, as the screens use them.
+
+| English | Spanish |
+|---|---|
+| Waiting for you | Esperándote (a list of what needs a person: "Te esperan") |
+| Pick up again | Retomar |
+| Right now | Ahora mismo |
+| Health levels OK / Warning / Problem | Correcto / Advertencia / Problema |
+| held (a synthesis waiting on a decision) | retenido |
+| attempt | el intento: "Fallida tras 2 intentos" |
+| Skip (give up) a branch | Descarta la rama |
+| Purge (the state Claude Code keeps) | Purga |
+| Rename | Renombra |
+| adopted (chats) | adoptados |
+| blocked | *bloqueada* for a task (feminine), `bloqueado` in the generic status badge |

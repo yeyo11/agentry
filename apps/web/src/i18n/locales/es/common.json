@@ -32,6 +32,8 @@
     "resolving": "resolviendo",
     "merged": "fusionado",
     "conflicted": "en conflicto",
-    "unknown": "desconocido"
+    "unknown": "desconocido",
+    "working": "trabajando",
+    "blocked": "bloqueado"
   }
 }

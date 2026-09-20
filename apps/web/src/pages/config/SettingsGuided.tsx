@@ -1,11 +1,10 @@
-import { ArrowDown, ArrowUp, X, Plus } from 'lucide-react';
+import { ArrowDown, ArrowUp, CircleCheck, CircleOff, X, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { KeyValueEditor, recordToRows, rowsToRecord, StringListEditor, type KeyValueRow } from '../../components/editors';
 import { Collapsible, Combobox, NumberInput, Select, Tooltip } from '../../components/controls';
 import { ICON_SM } from '../../components/icons';
-import { StatusDot } from '../../components/motion';
 import { Field, MODEL_OPTIONS, Tag } from '../../components/ui';
 import {
   getIn,
@@ -88,7 +87,7 @@ function HooksEditor({ settings, set, filesHref }: { settings: Json; set: SetFn;
         <Trans
           t={t}
           i18nKey="settingsGuided.hooksIntro"
-          components={{ mono: <span className="mono" />, link: <Link to={filesHref} /> }}
+          components={{ mono: <span className="mono" />, anchor: <Link to={filesHref} /> }}
         />
       </p>
       {HOOK_EVENTS.map((event) => {
@@ -312,6 +311,7 @@ export function SettingsGuided({
                 values={permissions(key)}
                 placeholder="Bash(git status)"
                 addLabel={t('settingsGuided.addTo', { key })}
+                label={t(`settingsGuided.ruleListNames.${key}`)}
                 onChange={(values) => set(['permissions', key], values)}
               />
             </Field>
@@ -319,6 +319,7 @@ export function SettingsGuided({
           <Field label={t('settingsGuided.additionalDirs')} hint={t('settingsGuided.additionalDirsHint')}>
             <StringListEditor
               values={permissions('additionalDirectories')}
+              label={t('settingsGuided.additionalDirs')}
               placeholder="../shared-lib"
               onChange={(values) => set(['permissions', 'additionalDirectories'], values)}
             />
@@ -354,6 +355,7 @@ export function SettingsGuided({
           <Field label={t('settingsGuided.approved')} hint="enabledMcpjsonServers">
             <StringListEditor
               values={stringList(settings.enabledMcpjsonServers)}
+              label={t('settingsGuided.approvedServers')}
               placeholder={t('settingsGuided.serverName')}
               onChange={(values) => set(['enabledMcpjsonServers'], values)}
             />
@@ -361,6 +363,7 @@ export function SettingsGuided({
           <Field label={t('settingsGuided.rejected')} hint="disabledMcpjsonServers">
             <StringListEditor
               values={stringList(settings.disabledMcpjsonServers)}
+              label={t('settingsGuided.rejectedServers')}
               placeholder={t('settingsGuided.serverName')}
               onChange={(values) => set(['disabledMcpjsonServers'], values)}
             />
@@ -373,18 +376,21 @@ export function SettingsGuided({
         summary={enabledPlugins.length > 0 ? t('settingsGuided.pluginCount', { count: enabledPlugins.length }) : undefined}
       >
         <p className="small muted">
-          <Trans t={t} i18nKey="settingsGuided.pluginsHint" components={{ link: <Link to="/plugins" /> }} />
+          <Trans t={t} i18nKey="settingsGuided.pluginsHint" components={{ anchor: <Link to="/settings?tab=plugins" /> }} />
         </p>
         <div className="chips">
           {enabledPlugins.length === 0 && marketplaces.length === 0 && <span className="small muted">{t('settingsGuided.nothingConfigured')}</span>}
           {enabledPlugins.map(([id, enabled]) => (
-            <span key={id} className="chip chip-static mono" title={enabled ? t('settingsGuided.enabled') : t('settingsGuided.disabled')}>
-              <StatusDot tone={enabled ? 'ok' : 'muted'} /> {id}
+            <span key={id} className="chip chip-static mono">
+              {enabled ? <CircleCheck className="text-ok" {...ICON_SM} /> : <CircleOff {...ICON_SM} />}
+              {id}
+              <span className="muted">{enabled ? t('settingsGuided.enabled') : t('settingsGuided.disabled')}</span>
             </span>
           ))}
           {marketplaces.map((name) => (
-            <span key={name} className="chip chip-static mono" title="marketplace">
-              ⌂ {name}
+            <span key={name} className="chip chip-static mono">
+              <span aria-hidden>⌂</span>
+              <span className="sr-only">marketplace</span> {name}
             </span>
           ))}
         </div>

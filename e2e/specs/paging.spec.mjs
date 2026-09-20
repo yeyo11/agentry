@@ -38,12 +38,12 @@ function entry(i) {
 }
 
 /** The marker of the first row whose top is inside the viewport, and where that top sits. */
-const READING = `const main=document.querySelector('.main');const top=main.getBoundingClientRect().top;
+const READING = `const main=document.querySelector('.run-scroll');const top=main.getBoundingClientRect().top;
   const row=[...document.querySelectorAll('.transcript > [data-index]')].find(r=>r.getBoundingClientRect().top>=top);
   const m=row?.innerText.match(/\\bm(\\d{4})\\b/);
   return m?{mark:m[0],offset:row.getBoundingClientRect().top-top}:null;`;
 const offsetOf = (m) =>
-  `const main=document.querySelector('.main');const row=[...document.querySelectorAll('.transcript > [data-index]')].find(r=>new RegExp('\\\\b${m}\\\\b').test(r.innerText));` +
+  `const main=document.querySelector('.run-scroll');const row=[...document.querySelectorAll('.transcript > [data-index]')].find(r=>new RegExp('\\\\b${m}\\\\b').test(r.innerText));` +
   `return row?row.getBoundingClientRect().top-main.getBoundingClientRect().top:null;`;
 const earlierButton = `return [...document.querySelectorAll('.transcript-earlier button')].find(b=>b.textContent.includes('above'))`;
 const aboveCount = `const b=[...document.querySelectorAll('.transcript-earlier button')][0];const m=b?.textContent.match(/\\((\\d+) above\\)/);return m?Number(m[1]):0;`;
@@ -58,50 +58,49 @@ export default async ({ page, api, check, dirs }) => {
 
   try {
     // ---- API: pages carry their place in the whole transcript and join without gaps ----
-    const newest = (await api.get(`/sessions/${SESSION}`)).body;
+    const newest = (await api.get(`/chats/${SESSION}`)).body;
     check(newest.total === TOTAL, `total is ${TOTAL} (got ${newest.total})`);
     check(newest.entries.length === 200 && newest.from === TOTAL - 200, `the default page is the newest 200 (from ${newest.from}, ${newest.entries.length})`);
     check(newest.entries.at(-1).uuid === `paging-${mark(TOTAL - 1)}`, 'the newest page ends on the last entry');
 
-    const limited = (await api.get(`/sessions/${SESSION}?limit=50`)).body;
+    const limited = (await api.get(`/chats/${SESSION}?limit=50`)).body;
     check(limited.entries.length === 50 && limited.from === TOTAL - 50, 'limit sizes the newest page');
-    const capped = (await api.get(`/sessions/${SESSION}?limit=100000`)).body;
+    const capped = (await api.get(`/chats/${SESSION}?limit=100000`)).body;
     check(capped.entries.length === 1000 && capped.from === TOTAL - 1000, 'a huge limit is capped at the page maximum');
 
     // Walk the whole transcript back with an odd page size, so the last page is a partial one
     const uuids = [];
-    let page_ = (await api.get(`/sessions/${SESSION}?limit=333`)).body;
+    let page_ = (await api.get(`/chats/${SESSION}?limit=333`)).body;
     uuids.unshift(...page_.entries.map((e) => e.uuid));
     while (page_.from > 0) {
       const before = page_.from;
-      page_ = (await api.get(`/sessions/${SESSION}?limit=333&before=${before}`)).body;
+      page_ = (await api.get(`/chats/${SESSION}?limit=333&before=${before}`)).body;
       check(page_.total === TOTAL, 'every page reports the same total');
       check(page_.from + page_.entries.length === before, `the page before ${before} ends right at it (from ${page_.from}, ${page_.entries.length})`);
       uuids.unshift(...page_.entries.map((e) => e.uuid));
     }
     check(uuids.length === TOTAL && uuids.every((u, i) => u === `paging-${mark(i)}`), 'the pages join into the whole transcript, in order');
-    check((await api.get(`/sessions/${SESSION}?before=0`)).body.entries.length === 0, 'nothing comes before the first entry');
+    check((await api.get(`/chats/${SESSION}?before=0`)).body.entries.length === 0, 'nothing comes before the first entry');
 
     // ---- UI: lands on the newest message with a small DOM ----
-    await page.goto(`/sessions/${SESSION}`, 300);
+    await page.goto(`/chats/${SESSION}`, 300);
     await page.waitFor(`return document.querySelector('.transcript')?.innerText.includes('${mark(TOTAL - 1)}')`, { label: 'the newest message is rendered' });
     await page.waitFor(
-      `const main=document.querySelector('.main');return main.scrollHeight-main.scrollTop-main.clientHeight<4`,
-      { label: 'the page sits at its bottom' },
+      `const main=document.querySelector('.run-scroll');return main.scrollHeight-main.scrollTop-main.clientHeight<4`,
+      { label: 'the transcript sits at its bottom' },
     );
     const landed = await page.eval(
-      `const main=document.querySelector('.main');const row=[...document.querySelectorAll('.transcript > [data-index]')].find(r=>r.innerText.includes('${mark(TOTAL - 1)}'));` +
+      `const main=document.querySelector('.run-scroll');const row=[...document.querySelectorAll('.transcript > [data-index]')].find(r=>r.innerText.includes('${mark(TOTAL - 1)}'));` +
         `const r=row.getBoundingClientRect(),v=main.getBoundingClientRect();return r.bottom>v.top&&r.top<v.bottom`,
     );
     check(landed, 'the newest message is inside the viewport');
     const landedNodes = await page.eval(nodes);
-    check(landedNodes < 3000, `the windowed page stays small (${landedNodes} nodes)`);
+    check(landedNodes < 3000, `the windowed chat page stays small (${landedNodes} nodes)`);
     const aboveOnLanding = await page.eval(aboveCount);
     check(aboveOnLanding === TOTAL - 200, `the earlier-messages button counts what is above (${aboveOnLanding})`);
 
-    // Landing follows the bottom until the reader moves; a wheel is how the reader says so
-    await page.eval(`document.querySelector('.main').dispatchEvent(new WheelEvent('wheel',{bubbles:true}));return true`);
-    await page.eval(`const main=document.querySelector('.main');main.scrollTop=main.scrollHeight-main.clientHeight-1500;return true`);
+    // Following the bottom stops as soon as the reader scrolls away from it
+    await page.eval(`const main=document.querySelector('.run-scroll');main.scrollTop=main.scrollHeight-main.clientHeight-1500;return true`);
     await settle(page);
 
     // ---- Load earlier: the page grows above, and the row being read does not move ----
@@ -120,7 +119,7 @@ export default async ({ page, api, check, dirs }) => {
       `window.__held=new Promise(r=>window.__release=r);const f=window.fetch;window.__fetch=f;` +
         `window.fetch=async(...a)=>{if(String(a[0] instanceof Request?a[0].url:a[0]).includes('before='))await window.__held;return f(...a)};return true`,
     );
-    await page.eval(`document.querySelector('.main').scrollTop=0;return true`);
+    await page.eval(`document.querySelector('.run-scroll').scrollTop=0;return true`);
     await settle(page);
     const top = await page.waitFor(READING, { label: 'a row at the top' });
     check(top.mark === mark(TOTAL - 400), `the first row held is at the top before the page arrives (${top.mark})`);
@@ -132,18 +131,18 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- Keep going up: the first message eventually shows, and the DOM stays small ----
     await page.waitFor(
-      `const main=document.querySelector('.main');main.scrollTop=0;return document.querySelector('.transcript').innerText.includes('${mark(0)}')`,
+      `const main=document.querySelector('.run-scroll');main.scrollTop=0;return document.querySelector('.transcript').innerText.includes('${mark(0)}')`,
       { timeout: 60000, label: 'the first message after scrolling to the very top' },
     );
     check(!(await page.eval(`return !!(()=>{${earlierButton}})()`)), 'nothing is left to load above the first message');
     const fullNodes = await page.eval(nodes);
     check(fullNodes < 3000, `the DOM stays small with the whole transcript held (${fullNodes} nodes)`);
 
-    // ---- Typing into the resume box stays responsive with the whole transcript held ----
-    await page.eval(`const main=document.querySelector('.main');main.scrollTop=main.scrollHeight;return true`);
+    // ---- Typing into the message box stays responsive with the whole transcript held ----
+    // Nothing holds the seeded chat, so it is resumable and the box is there from the start
+    await page.eval(`const main=document.querySelector('.run-scroll');main.scrollTop=main.scrollHeight;return true`);
     await settle(page);
-    await page.click('button', 'Continue in Agentry', 300);
-    await page.focus('textarea[placeholder^="Next message for Claude"]');
+    await page.focus('textarea[placeholder^="Send a message"]');
     // Without support the observer would see nothing and the check below would pass vacuously
     check(await page.eval(`return PerformanceObserver.supportedEntryTypes.includes('longtask')`), 'the browser reports long tasks');
     await page.eval(
@@ -151,7 +150,7 @@ export default async ({ page, api, check, dirs }) => {
     );
     for (const ch of 'Keep going with the parser fix') await page.type(ch);
     await settle(page);
-    const typed = await page.eval(`return document.querySelector('textarea[placeholder^="Next message for Claude"]').value`);
+    const typed = await page.eval(`return document.querySelector('textarea[placeholder^="Send a message"]').value`);
     check(typed === 'Keep going with the parser fix', `the textarea took every keystroke (${JSON.stringify(typed)})`);
     const longTasks = await page.eval(`return window.__longTasks.filter(d=>d>50)`);
     check(longTasks.length === 0, `no long tasks while typing (${longTasks.map((d) => `${Math.round(d)}ms`).join(', ')})`);
@@ -161,7 +160,7 @@ export default async ({ page, api, check, dirs }) => {
     );
     await page.shot('paging-session');
   } finally {
-    // Later specs count the seeded sessions
-    await api.del(`/sessions/${SESSION}`);
+    // Later specs count the seeded chats
+    await api.del(`/chats/${SESSION}`);
   }
 };

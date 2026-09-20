@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import type { ResourceKind } from '@agentry/shared';
+import { RESOURCE_FORMATS, type ResourceKind } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +22,8 @@ const TEMPLATES: Record<ResourceKind, (name: string) => string> = {
     `---\ndescription: What this command does\nargument-hint: [target]\nallowed-tools: Read, Grep\n---\n\nDo the following with $ARGUMENTS:\n\n1. …\n`,
   'output-styles': (name) => `---\nname: ${name}\ndescription: How this style changes the responses\n---\n\n# ${name}\n\nRespond …\n`,
   rules: () => `---\npaths:\n  - "src/**/*.ts"\n---\n\n# Rule\n\n- …\n`,
+  workflows: (name) =>
+    `export const meta = {\n  name: '${name}',\n  description: 'What this workflow does',\n  phases: [{title: 'Work'}],\n}\n\nconst result = await agent('Reply with only the word: done', {label: 'worker', phase: 'Work'})\n\nreturn { result }\n`,
 };
 
 // Spanish nouns differ in gender (el agente, la skill), so each kind carries whole phrases rather
@@ -71,6 +73,7 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
     mutationFn: (d: Draft) => api.putResource(scope, kind, d.name, d.content),
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey });
+      if (kind === 'workflows') void queryClient.invalidateQueries({ queryKey: keys.savedWorkflowsAll });
       setDraft({ name: saved.name, content: saved.content, saved: saved.content, isNew: false });
       toast.success(k('saved', { name: saved.name }), saved.path);
     },
@@ -81,6 +84,7 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
     mutationFn: (name: string) => api.deleteResource(scope, kind, name),
     onSuccess: (_result, name) => {
       void queryClient.invalidateQueries({ queryKey });
+      if (kind === 'workflows') void queryClient.invalidateQueries({ queryKey: keys.savedWorkflowsAll });
       setDraft(null);
       toast.success(k('deleted', { name }));
     },
@@ -116,7 +120,7 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
       <p className="small muted">{k('hint')}</p>
       <ErrorBox error={error} />
       <div className="master-detail">
-        <div className="master" role="list" aria-label={t(`config.tabs.${kind}`)}>
+        <div className="master">
           {naming !== null && (
             <form
               className="master-new"
@@ -151,31 +155,33 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
           ) : resources.length === 0 && !draft?.isNew ? (
             naming === null && <div className="small muted master-empty">{k('noneInScope')}</div>
           ) : (
-            <>
+            <ul className="master-list" aria-label={t(`config.tabs.${kind}`)}>
               {draft?.isNew && (
-                <div className="master-item master-item-on" role="listitem">
-                  <span className="strong ellipsis">{draft.name}</span>
-                  <Tag tone="warn">{t('resources.newUnsaved')}</Tag>
-                </div>
+                <li>
+                  <div className="master-item master-item-on" aria-current="true">
+                    <span className="strong break">{draft.name}</span>
+                    <Tag tone="warn">{t('resources.newUnsaved')}</Tag>
+                  </div>
+                </li>
               )}
-              {resources.map((resource) => (
-                <button
-                  key={resource.name}
-                  type="button"
-                  role="listitem"
-                  className={`master-item ${draft?.name === resource.name && !draft.isNew ? 'master-item-on' : ''}`}
-                  onClick={() => void open(resource.name)}
-                >
-                  <span className="strong ellipsis" title={resource.name}>
-                    {resource.name}
-                  </span>
-                  <span className="small muted ellipsis" title={resource.description ?? undefined}>
-                    {resource.description ?? t('resources.noDescription')}
-                  </span>
-                  <span className="small muted">{timeAgo(resource.updatedAt)}</span>
-                </button>
-              ))}
-            </>
+              {resources.map((resource) => {
+                const current = draft?.name === resource.name && !draft.isNew;
+                return (
+                  <li key={resource.name}>
+                    <button
+                      type="button"
+                      aria-current={current ? 'true' : undefined}
+                      className={`master-item ${current ? 'master-item-on' : ''}`}
+                      onClick={() => void open(resource.name)}
+                    >
+                      <span className="strong break">{resource.name}</span>
+                      <span className="small muted break">{resource.description ?? t('resources.noDescription')}</span>
+                      <span className="small muted">{timeAgo(resource.updatedAt)}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
 
@@ -185,7 +191,7 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
               title={resources.length === 0 ? k('noneYet') : k('select')}
               action={
                 resources.length === 0 && (
-                  <button className="btn btn-primary" onClick={() => setNaming('')}>
+                  <button type="button" className="btn btn-primary" onClick={() => setNaming('')}>
                     {k('createFirst')}
                   </button>
                 )
@@ -202,7 +208,7 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
               </div>
               <CodeEditor
                 key={`${draft.name}:${draft.isNew}`}
-                language="markdown"
+                language={resources.find((r) => r.name === draft.name)?.format ?? RESOURCE_FORMATS[kind]}
                 ariaLabel={k('content')}
                 minHeight="380px"
                 value={draft.content}

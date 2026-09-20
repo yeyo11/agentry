@@ -1,6 +1,6 @@
 import type { AccountSummary, AccountUsageWindow, AutoSwitchSettings } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleCheck, CirclePause, CirclePlay, KeyRound, RefreshCw, Trash2, Users } from 'lucide-react';
+import { CircleCheck, CirclePause, CirclePlay, CircleX, KeyRound, RefreshCw, Trash2, TriangleAlert, Users } from 'lucide-react';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { api, keys, useAccountEvents, useAccounts } from '../api';
@@ -28,11 +28,20 @@ function Meter({ label, window: win }: { label: string; window: AccountUsageWind
           {label}
           {win.name ? ` · ${win.name}` : ''}
         </span>
-        <span className="muted">
-          {pct}% {win.countdown ? t('accounts.resetsIn', { countdown: win.countdown }) : ''}
+        <span className="muted meta-icon">
+          {/* The bar turns amber and red; the icon and the words say the same to anyone who cannot tell them apart */}
+          {pct >= 90 ? (
+            <CircleX className="text-bad" {...ICON_SM} />
+          ) : pct >= 70 ? (
+            <TriangleAlert className="text-warn" {...ICON_SM} />
+          ) : null}
+          {pct}%{' '}
+          {pct >= 90 ? <span className="sr-only">{t('accounts.usedNearlyOut')} </span> : pct >= 70 ? <span className="sr-only">{t('accounts.usedRunningHigh')} </span> : null}
+          {win.countdown ? t('accounts.resetsIn', { countdown: win.countdown }) : ''}
+          {win.resetsAt && <span className="sr-only"> ({formatDateTime(win.resetsAt)})</span>}
         </span>
       </div>
-      <div className="meter-track" title={win.resetsAt ? t('accounts.resets', { date: formatDateTime(win.resetsAt) }) : undefined}>
+      <div className="meter-track" aria-hidden>
         <div className={`meter-fill ${tone(pct)}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -57,7 +66,7 @@ function AccountCard({
     <Card
       title={
         <span className="meta">
-          <span className="strong ellipsis">{account.alias ?? account.email}</span>
+          <span className="strong break">{account.alias ?? account.email}</span>
           {account.active && <Tag tone="ok">{t('accounts.active')}</Tag>}
           {account.disabled && <Tag tone="muted">{t('accounts.outOfRotation')}</Tag>}
           {account.usageStatus !== 'ok' && <StatusBadge status={account.usageStatus} />}
@@ -66,7 +75,7 @@ function AccountCard({
       actions={
         <span className="toolbar">
           {!account.active && (
-            <button type="button" className="btn btn-small" onClick={onSwitch} disabled={busy}>
+            <button type="button" className="btn btn-small" onClick={onSwitch} disabled={busy} aria-label={t('accounts.useAccount', { name: account.alias ?? account.email })}>
               <CirclePlay {...ICON_SM} /> {t('accounts.use')}
             </button>
           )}
@@ -76,19 +85,13 @@ function AccountCard({
               className="btn btn-small"
               onClick={onToggle}
               disabled={busy}
-              aria-label={account.disabled ? t('accounts.returnToRotation') : t('accounts.holdOut')}
+              aria-label={`${account.disabled ? t('accounts.returnToRotation') : t('accounts.holdOut')}: ${account.alias ?? account.email}`}
             >
               {account.disabled ? <CircleCheck {...ICON_SM} /> : <CirclePause {...ICON_SM} />}
             </button>
           </Tooltip>
           <Tooltip content={t('accounts.removeAccount')}>
-            <button
-              type="button"
-              className="btn btn-small btn-danger"
-              onClick={onRemove}
-              disabled={busy}
-              aria-label={t('accounts.removeAccount')}
-            >
+            <button type="button" className="btn btn-small btn-danger" onClick={onRemove} disabled={busy} aria-label={`${t('accounts.removeAccount')} ${account.alias ?? account.email}`}>
               <Trash2 {...ICON_SM} />
             </button>
           </Tooltip>
@@ -98,8 +101,8 @@ function AccountCard({
       <div className="meters">
         <div className="meta small">
           <span className="mono">#{account.number}</span>
-          <span className="muted ellipsis">{account.email}</span>
-          {account.organizationName && <span className="muted ellipsis">{account.organizationName}</span>}
+          <span className="muted break">{account.email}</span>
+          {account.organizationName && <span className="muted break">{account.organizationName}</span>}
           {account.headroomPct !== null && <span>{t('accounts.quotaLeft', { pct: account.headroomPct })}</span>}
         </div>
         {account.usage ? (
@@ -302,7 +305,7 @@ export function Accounts() {
             t={t}
             i18nKey="accounts.notInstalledHint"
             components={{
-              link: <a href="https://github.com/realiti4/claude-swap" target="_blank" rel="noreferrer" />,
+              anchor: <a href="https://github.com/realiti4/claude-swap" target="_blank" rel="noreferrer" />,
               code: <code className="mono" />,
             }}
           />
@@ -384,12 +387,12 @@ export function Accounts() {
             ) : (
               <ul className="list">
                 {[...events].reverse().slice(0, fullHistory ? 500 : 40).map((event) => (
-                  <li key={event.seq} className="list-row small">
+                  <li key={event.seq} className="list-row list-row-flow small">
                     <StatusBadge status={event.event} />
                     <span className="muted nowrap" title={formatDateTime(event.ts)}>
                       {timeAgo(event.ts)}
                     </span>
-                    <span className="ellipsis">
+                    <span className="break">
                       {event.from && event.to ? `${event.from} → ${event.to}` : (event.reason ?? event.detail ?? '')}
                       {event.from && event.to && event.reason ? ` · ${event.reason}` : ''}
                     </span>

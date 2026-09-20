@@ -3,11 +3,12 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import type {
   AutoSwitchEvent,
   EffectiveEnvironment,
+  Execution,
   Orchestration,
   OrchestrationSpec,
   PlanDraftSummary,
-  RunSummary,
 } from '@agentry/shared';
+import { chatsFromRuns, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { CoreConfig } from './paths.ts';
 
 /**
@@ -20,8 +21,12 @@ import type { CoreConfig } from './paths.ts';
  * data dir, and a JSON blob read, mutated and rewritten by two of them loses one side's writes.
  */
 
-/** Applied in order; `user_version` records how many have run, so each one is written once. */
-const MIGRATIONS: readonly string[] = [
+/**
+ * Applied in order; `user_version` records how many have run, so each one is written once. A
+ * function is for a change SQL cannot express: it rewrites rows into a new shape, inside the same
+ * transaction as the version bump.
+ */
+const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   `CREATE TABLE rotation_events (
      seq       INTEGER PRIMARY KEY AUTOINCREMENT,
      ts        TEXT NOT NULL,
@@ -69,10 +74,91 @@ const MIGRATIONS: readonly string[] = [
      observed_at TEXT NOT NULL,
      json        TEXT NOT NULL
    );`,
+
+  // A run stops being a peer of a chat and becomes one execution of it. The chat is the session id,
+  // and its executions are indexed by it; the old rows are folded into that shape here, once, and
+  // the table they lived in is dropped, so nothing reads the old shape afterwards.
+  migrateRunsToChats,
+
+  // The context window of a model is a fact the CLI reports with every result (`modelUsage`), and
+  // the only honest source of one: it differs between a model and its `[1m]` variant, and even
+  // between accounts. Kept as it was last observed, so a chat read from a transcript, which does
+  // not record it, can still be measured against it.
+  `CREATE TABLE model_windows (
+     model       TEXT PRIMARY KEY,
+     context     INTEGER NOT NULL,
+     observed_at TEXT NOT NULL
+   );`,
 ];
 
 /** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
 const KEEP_EVENTS = 20_000;
+
+interface JsonRow {
+  json: string;
+}
+
+/** Reads a table of JSON documents, skipping a row that no longer parses. */
+function readDocs<T>(db: DatabaseSync, sql: string): Array<{ row: Record<string, unknown>; doc: T }> {
+  const out: Array<{ row: Record<string, unknown>; doc: T }> = [];
+  for (const row of db.prepare(sql).all() as Array<Record<string, unknown>>) {
+    try {
+      out.push({ row, doc: JSON.parse(String(row.json)) as T });
+    } catch {
+      // an unreadable row cannot be carried over; it was already unreadable before
+    }
+  }
+  return out;
+}
+
+function migrateRunsToChats(db: DatabaseSync): void {
+  db.exec(`
+    CREATE TABLE chats (
+      id         TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      json       TEXT NOT NULL
+    );
+    CREATE INDEX chats_created_at ON chats (created_at DESC);
+    CREATE TABLE executions (
+      id         TEXT PRIMARY KEY,
+      chat_id    TEXT NOT NULL REFERENCES chats (id) ON DELETE CASCADE,
+      started_at TEXT NOT NULL,
+      json       TEXT NOT NULL
+    );
+    CREATE INDEX executions_chat ON executions (chat_id, started_at);
+  `);
+  const { chats, chatOf } = chatsFromRuns(readDocs<LegacyRun>(db, 'SELECT json FROM runs').map((r) => r.doc));
+  const insertChat = db.prepare('INSERT INTO chats (id, created_at, json) VALUES (?, ?, ?)');
+  const insertExecution = db.prepare('INSERT INTO executions (id, chat_id, started_at, json) VALUES (?, ?, ?, ?)');
+  for (const { record, executions } of chats) {
+    insertChat.run(record.id, record.createdAt, JSON.stringify(record));
+    for (const execution of executions) insertExecution.run(execution.id, record.id, execution.startedAt, JSON.stringify(execution));
+  }
+  db.exec('DROP TABLE runs');
+
+  // What pointed at a run now points at the chat that run became; a run that started nothing has
+  // no chat, and what pointed at it points at nothing
+  const chat = (runId: unknown): string | null => (typeof runId === 'string' ? (chatOf.get(runId) ?? null) : null);
+  const updateOrchestration = db.prepare('UPDATE orchestrations SET json = ? WHERE id = ?');
+  for (const { row, doc } of readDocs<Orchestration & { workflow?: { runId: string | null } | null }>(db, 'SELECT id, json FROM orchestrations')) {
+    for (const task of doc.tasks) task.runId = chat(task.runId);
+    if ('synthesisRunId' in doc) doc.synthesisRunId = chat(doc.synthesisRunId);
+    if (doc.workflow) doc.workflow.runId = chat(doc.workflow.runId);
+    updateOrchestration.run(JSON.stringify(doc), String(row.id));
+  }
+  // The planner's draft is found by the run that wrote it; a draft whose run left no chat has no
+  // key to be found by, so it goes with it
+  for (const row of db.prepare('SELECT run_id FROM plan_drafts').all() as Array<{ run_id: string }>) {
+    const next = chat(row.run_id);
+    if (next) db.prepare('UPDATE plan_drafts SET run_id = ? WHERE run_id = ?').run(next, row.run_id);
+    else db.prepare('DELETE FROM plan_drafts WHERE run_id = ?').run(row.run_id);
+  }
+  const updateEnvironment = db.prepare('UPDATE environments SET json = ? WHERE cwd = ?');
+  for (const { row, doc } of readDocs<Record<string, unknown>>(db, 'SELECT cwd, json FROM environments')) {
+    const { runId, ...rest } = doc;
+    updateEnvironment.run(JSON.stringify({ ...rest, chatId: chat(runId) ?? '' }), String(row.cwd));
+  }
+}
 
 interface EventRow {
   seq: number;
@@ -140,7 +226,8 @@ export class Db {
       if (statement === undefined) continue;
       // One transaction per migration: a failure leaves user_version behind, never half a schema
       this.tx(() => {
-        this.db.exec(statement);
+        if (typeof statement === 'string') this.db.exec(statement);
+        else statement(this.db);
         this.db.exec(`PRAGMA user_version = ${String(version + 1)}`);
       });
     }
@@ -194,13 +281,13 @@ export class Db {
     return Number(result.changes);
   }
 
-  // ---------- runs and orchestrations ----------
+  // ---------- chats, executions and orchestrations ----------
 
   /**
    * Upserts the records this process owns, in one transaction. It never clears the table first:
    * rows another wrapper process wrote are not ours to drop.
    */
-  private saveDocs(table: 'runs' | 'orchestrations', docs: Array<{ id: string; createdAt: string; value: unknown }>): void {
+  private saveDocs(table: 'orchestrations', docs: Array<{ id: string; createdAt: string; value: unknown }>): void {
     const upsert = this.db.prepare(
       `INSERT INTO ${table} (id, created_at, json) VALUES (?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at, json = excluded.json`,
@@ -210,10 +297,8 @@ export class Db {
     });
   }
 
-  private loadDocs<T>(table: 'runs' | 'orchestrations'): T[] {
-    const rows = this.db.prepare(`SELECT json FROM ${table} ORDER BY created_at DESC`).all() as unknown as Array<{
-      json: string;
-    }>;
+  private loadDocs<T>(table: 'orchestrations'): T[] {
+    const rows = this.db.prepare(`SELECT json FROM ${table} ORDER BY created_at DESC`).all() as unknown as JsonRow[];
     const out: T[] = [];
     for (const row of rows) {
       try {
@@ -225,21 +310,66 @@ export class Db {
     return out;
   }
 
-  /** Saves the given runs and trims the table to the newest `keep` by creation time. */
-  saveRuns(runs: RunSummary[], keep: number): void {
-    this.saveDocs(
-      'runs',
-      runs.map((run) => ({ id: run.id, createdAt: run.createdAt, value: run })),
+  /**
+   * Saves the given chats with their executions and trims the table to the newest `keep` chats by
+   * creation time; the executions of a chat that goes, go with it.
+   */
+  saveChats(chats: StoredChat[], keep: number): void {
+    const upsertChat = this.db.prepare(
+      `INSERT INTO chats (id, created_at, json) VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at, json = excluded.json`,
     );
-    this.db.prepare('DELETE FROM runs WHERE id NOT IN (SELECT id FROM runs ORDER BY created_at DESC LIMIT ?)').run(keep);
+    const upsertExecution = this.db.prepare(
+      `INSERT INTO executions (id, chat_id, started_at, json) VALUES (?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET started_at = excluded.started_at, json = excluded.json`,
+    );
+    this.tx(() => {
+      for (const { record, executions } of chats) {
+        upsertChat.run(record.id, record.createdAt, JSON.stringify(record));
+        for (const execution of executions) upsertExecution.run(execution.id, record.id, execution.startedAt, JSON.stringify(execution));
+      }
+      this.db.prepare('DELETE FROM chats WHERE id NOT IN (SELECT id FROM chats ORDER BY created_at DESC LIMIT ?)').run(keep);
+    });
   }
 
-  deleteRun(id: string): void {
-    this.db.prepare('DELETE FROM runs WHERE id = ?').run(id);
+  deleteChat(id: string): void {
+    this.db.prepare('DELETE FROM chats WHERE id = ?').run(id);
   }
 
-  loadRuns(): RunSummary[] {
-    return this.loadDocs<RunSummary>('runs');
+  /** Newest chat first, each with its executions oldest first. */
+  loadChats(): StoredChat[] {
+    const byChat = new Map<string, Execution[]>();
+    const executions = this.db.prepare('SELECT chat_id, json FROM executions ORDER BY started_at ASC').all() as unknown as Array<JsonRow & { chat_id: string }>;
+    for (const row of executions) {
+      try {
+        const list = byChat.get(row.chat_id) ?? [];
+        list.push(JSON.parse(row.json) as Execution);
+        byChat.set(row.chat_id, list);
+      } catch {
+        // an execution that cannot be read leaves a gap in the history, not in the chat
+      }
+    }
+    const out: StoredChat[] = [];
+    for (const row of this.db.prepare('SELECT json FROM chats ORDER BY created_at DESC').all() as unknown as JsonRow[]) {
+      try {
+        const record = JSON.parse(row.json) as ChatRecord;
+        out.push({ record, executions: byChat.get(record.id) ?? [] });
+      } catch {
+        // one unreadable row must not cost the caller the rest of its history
+      }
+    }
+    return out;
+  }
+
+  /** When a stored chat was last heard from, which is when an execution a restart cut off stopped. */
+  chatUpdatedAt(id: string): string | null {
+    const row = this.db.prepare('SELECT json FROM chats WHERE id = ?').get(id) as JsonRow | undefined;
+    if (!row) return null;
+    try {
+      return (JSON.parse(row.json) as ChatRecord).updatedAt;
+    } catch {
+      return null;
+    }
   }
 
   saveOrchestrations(items: Orchestration[]): void {
@@ -255,6 +385,23 @@ export class Db {
 
   loadOrchestrations(): Orchestration[] {
     return this.loadDocs<Orchestration>('orchestrations');
+  }
+
+  // ---------- model context windows ----------
+
+  saveModelWindow(model: string, context: number): void {
+    this.db
+      .prepare(
+        `INSERT INTO model_windows (model, context, observed_at) VALUES (?, ?, ?)
+         ON CONFLICT(model) DO UPDATE SET context = excluded.context, observed_at = excluded.observed_at`,
+      )
+      .run(model, context, new Date().toISOString());
+  }
+
+  /** The window the CLI last reported for this exact model id; null when it never has. */
+  modelWindow(model: string): number | null {
+    const row = this.db.prepare('SELECT context FROM model_windows WHERE model = ?').get(model) as { context: number } | undefined;
+    return row?.context ?? null;
   }
 
   // ---------- effective environments ----------

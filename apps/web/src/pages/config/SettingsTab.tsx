@@ -129,8 +129,9 @@ function SettingsEditor({ scope, variant, filesHref }: { scope: Scope; variant: 
             <span className="small muted">{parsed.value ? t('settings.formattingOnly') : t('settings.cannotSave')}</span>
           ) : (
             changes.map(({ key, change }) => (
-              <span key={key} className={`change change-${change}`} title={t(`settings.change.${change}`)}>
-                {change === 'added' ? '+' : change === 'removed' ? '−' : '~'} {key}
+              <span key={key} className={`change change-${change}`}>
+                <span aria-hidden>{change === 'added' ? '+' : change === 'removed' ? '−' : '~'}</span>
+                <span className="sr-only">{t(`settings.change.${change}`)}</span> {key}
               </span>
             ))
           )}

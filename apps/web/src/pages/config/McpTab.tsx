@@ -1,12 +1,14 @@
-import { Plus } from 'lucide-react';
+import { CircleCheck, CircleHelp, CircleX, Plus, TriangleAlert, type LucideIcon } from 'lucide-react';
 import type { McpHealthStatus, McpScope, McpServerEntry, McpServerHealth } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { api, keys, type Scope } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { Select, Switch } from '../../components/controls';
 import { useConfirm } from '../../components/Dialog';
+import { ICON_SM } from '../../components/icons';
 import { KeyValueEditor, recordToRows, rowsToRecord, StringListEditor, type KeyValueRow } from '../../components/editors';
 import { useToast } from '../../components/Toast';
 import { Card, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '../../components/ui';
@@ -41,13 +43,19 @@ const SCOPE_TONE: Record<McpScope, string> = {
   local: 'warn',
 };
 
-const HEALTH_TONE: Record<McpHealthStatus, string> = {
-  connected: 'dot-ok',
-  failed: 'dot-bad',
-  'needs-auth': 'dot-warn',
-  pending: 'dot-warn',
-  unknown: '',
+// The state is an icon and its words, never a coloured dot alone
+const HEALTH_ICON: Record<McpHealthStatus, { icon: LucideIcon; tone: string }> = {
+  connected: { icon: CircleCheck, tone: 'text-ok' },
+  failed: { icon: CircleX, tone: 'text-bad' },
+  'needs-auth': { icon: TriangleAlert, tone: 'text-warn' },
+  pending: { icon: TriangleAlert, tone: 'text-warn' },
+  unknown: { icon: CircleHelp, tone: '' },
 };
+
+function HealthIcon({ status }: { status: McpHealthStatus }) {
+  const { icon: Icon, tone } = HEALTH_ICON[status];
+  return <Icon className={tone} {...ICON_SM} />;
+}
 
 function emptyForm(scope: McpScope): ServerForm {
   return { name: '', scope, transport: 'stdio', command: '', args: [], env: [], url: '', headers: [], extra: {} };
@@ -233,6 +241,7 @@ function ServerEditor({
                     allowDuplicates
                     placeholder="-y"
                     addLabel={t('mcp.addArg')}
+                    label={t('mcp.arguments')}
                     emptyText={t('mcp.noArgs')}
                     onChange={(args) => patch({ args })}
                   />
@@ -289,7 +298,7 @@ function ServerEditor({
   );
 }
 
-export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser: () => void }) {
+export function McpTab({ scope }: { scope: Scope }) {
   const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -339,16 +348,17 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
       title={t('config.tabs.mcp')}
       actions={
         <div className="toolbar">
-          <button className="btn btn-small" disabled={check.isPending || servers.length === 0} onClick={() => check.mutate()}>
+          <button type="button" className="btn btn-small" disabled={check.isPending || servers.length === 0} onClick={() => check.mutate()}>
             {check.isPending ? (
               <>
-                <span className="spinner" /> {t('mcp.checking')}
+                <span className="spinner" aria-hidden /> {t('mcp.checking')}
               </>
             ) : (
               t('mcp.check')
             )}
           </button>
           <button
+            type="button"
             className="btn btn-small btn-primary"
             onClick={() => setEditing({ form: emptyForm(scope.projectId ? 'project' : 'user'), isNew: true })}
           >
@@ -359,14 +369,14 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
       }
     >
       <ErrorBox error={error} />
-      {check.isPending && <p className="small muted">{t('mcp.checkingHint')}</p>}
+      {check.isPending && <p className="small muted" role="status">{t('mcp.checkingHint')}</p>}
       {isLoading ? (
         <Skeleton rows={4} />
       ) : servers.length === 0 ? (
         <Empty
           title={t('mcp.empty')}
           action={
-            <button className="btn btn-primary" onClick={() => setEditing({ form: emptyForm(scope.projectId ? 'project' : 'user'), isNew: true })}>
+            <button type="button" className="btn btn-primary" onClick={() => setEditing({ form: emptyForm(scope.projectId ? 'project' : 'user'), isNew: true })}>
               {t('mcp.addFirst')}
             </button>
           }
@@ -378,12 +388,14 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
           <table className="table">
             <thead>
               <tr>
-                <th>{t('mcp.server')}</th>
-                <th>{t('scope.label')}</th>
-                <th>{t('mcp.transport')}</th>
-                <th>{t('mcp.target')}</th>
-                <th>{t('mcp.connection')}</th>
-                <th />
+                <th scope="col">{t('mcp.server')}</th>
+                <th scope="col">{t('mcp.scope')}</th>
+                <th scope="col">{t('mcp.transport')}</th>
+                <th scope="col">{t('mcp.target')}</th>
+                <th scope="col">{t('mcp.connection')}</th>
+                <th scope="col">
+                  <span className="sr-only">{t('mcp.actions')}</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -400,13 +412,15 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
                       {!editable(server) && <span className="small muted"> {t('mcp.inherited')}</span>}
                     </td>
                     <td className="mono small">{transport}</td>
-                    <td className="mono small break" title={target(server.config)}>
+                    <td className="mono small break">
                       {target(server.config) || '—'}
                     </td>
                     <td className="nowrap">
                       {status ? (
-                        <span title={status.detail}>
-                          <span className={`dot ${HEALTH_TONE[status.status]}`} /> <span className="small">{status.detail || status.status}</span>
+                        <span className="meta-icon">
+                          <HealthIcon status={status.status} />
+                          <span className="sr-only">{status.status}: </span>
+                          <span className="small">{status.detail || status.status}</span>
                         </span>
                       ) : (
                         <span className="small muted">{t('mcp.notChecked')}</span>
@@ -416,11 +430,18 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
                       <div className="row-actions">
                         {editable(server) ? (
                           <>
-                            <button className="btn btn-small" onClick={() => setEditing({ form: formFromEntry(server), isNew: false })}>
+                            <button
+                              type="button"
+                              className="btn btn-small"
+                              aria-label={t('mcp.editNamed', { name: server.name })}
+                              onClick={() => setEditing({ form: formFromEntry(server), isNew: false })}
+                            >
                               {t('shared.edit')}
                             </button>
                             <button
+                              type="button"
                               className="btn btn-small btn-danger"
+                              aria-label={t('mcp.removeNamed', { name: server.name })}
                               disabled={remove.isPending}
                               onClick={() =>
                                 void confirm({
@@ -435,9 +456,9 @@ export function McpTab({ scope, onSwitchToUser }: { scope: Scope; onSwitchToUser
                             </button>
                           </>
                         ) : (
-                          <button className="btn btn-small" onClick={onSwitchToUser}>
+                          <Link className="btn btn-small" to="/settings?tab=mcp" aria-label={t('mcp.editInUserNamed', { name: server.name })}>
                             {t('mcp.editInUser')}
-                          </button>
+                          </Link>
                         )}
                       </div>
                     </td>

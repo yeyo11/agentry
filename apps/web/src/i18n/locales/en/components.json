@@ -1,24 +1,17 @@
 {
   "nav": {
-    "groups": {
-      "monitor": "Monitor",
-      "work": "Work",
-      "configure": "Configure"
-    },
-    "dashboard": "Dashboard",
-    "agents": "Agents",
-    "backgroundTasks": "Background tasks",
-    "workflows": "Workflows",
-    "sessions": "Sessions",
     "projects": "Projects",
-    "orchestration": "Orchestration",
     "accounts": "Accounts",
-    "memory": "Memory",
-    "plugins": "Plugins",
-    "config": "Config",
     "apiReference": "API reference",
-    "activeCount_one": "{{count}} active",
-    "activeCount_other": "{{count}} active"
+    "home": "Home",
+    "chats": "Chats",
+    "orchestrations": "Orchestrations",
+    "settings": "Settings",
+    "badge": {
+      "waiting": "waiting for you",
+      "working": "working",
+      "running": "running"
+    }
   },
   "shell": {
     "apiUnreachable": "API unreachable",
@@ -30,16 +23,17 @@
     "loggedIn": "logged in",
     "checkWrapper": "Check that the wrapper is running",
     "installCli": "Install it or set CLAUDE_BIN",
-    "addCredential": "Add a credential in Config",
+    "addCredential": "Add a credential in Settings",
     "sidebar": "Sidebar",
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar",
     "openNavigation": "Open navigation",
     "closeNavigation": "Close navigation",
     "mainNavigation": "Main",
-    "breadcrumb": "Breadcrumb",
-    "newRun": "New run",
-    "pageNotFound": "Page not found"
+    "pageNotFound": "Page not found",
+    "newChat": "New chat",
+    "runWorkflow": "Run workflow",
+    "skipToContent": "Skip to content"
   },
   "ui": {
     "loadingShort": "Loading",
@@ -48,7 +42,6 @@
     "copyPath": "Copy path",
     "copyCode": "Copy code",
     "requestFailed": "Request failed",
-    "unsavedChanges": "Unsaved changes",
     "unsavedChangesLabel": "unsaved changes",
     "claudeIsWorking": "Claude is working"
   },
@@ -85,7 +78,8 @@
   },
   "markdown": {
     "taskDone": "done",
-    "taskTodo": "to do"
+    "taskTodo": "to do",
+    "table": "Table"
   },
   "scrollJump": {
     "transcript": {
@@ -101,62 +95,16 @@
     "oldest": "Oldest (top)",
     "newest": "Newest (bottom)"
   },
-  "sessionDelete": {
-    "deleted": "Session deleted",
-    "failed": "Could not delete the session",
-    "title": "Delete this session?",
-    "body_one": "The transcript ({{count}} messages) is removed from disk and the session can no longer be resumed. This cannot be undone.",
-    "body_other": "The transcript ({{count}} messages) is removed from disk and the session can no longer be resumed. This cannot be undone.",
-    "confirm": "Delete session"
-  },
   "runSettings": {
-    "permissions": "Permissions",
     "permissionMode": "Permission mode",
-    "model": "Model",
-    "defaultModel": "default",
     "set": "Set"
-  },
-  "origin": {
-    "cli": {
-      "label": "Claude Code CLI",
-      "short": "CLI"
-    },
-    "run": {
-      "label": "Agentry run",
-      "short": "Run"
-    },
-    "orchestration": {
-      "label": "Orchestration worker",
-      "short": "Orchestration"
-    },
-    "internal": {
-      "label": "Internal wrapper housekeeping",
-      "short": "Internal"
-    },
-    "orchestrationFallback": "orchestration",
-    "synthesis": "Synthesis",
-    "runFallback": "run",
-    "internalSession": "internal wrapper session"
-  },
-  "runCard": {
-    "orchestration": "orchestration",
-    "pinnedAccount": "Pinned to a claude-swap account",
-    "waitingForYou": "waiting for you",
-    "subagents_one": "{{count}} subagents",
-    "subagents_other": "{{count}} subagents",
-    "bgTasks_one": "{{count}} bg tasks",
-    "bgTasks_other": "{{count}} bg tasks",
-    "defaultModel": "default model",
-    "turns_one": "{{count}} turns",
-    "turns_other": "{{count}} turns",
-    "up": "up {{duration}}",
-    "ended": "ended {{time}}",
-    "pid": "pid {{pid}}"
   },
   "notifications": {
     "bell": "Notifications",
     "bellUnread_one": "Notifications, {{count}} unread",
     "bellUnread_other": "Notifications, {{count}} unread",
+    "bellUnreadUrgent_one": "Notifications, {{count}} unread, some need you",
+    "bellUnreadUrgent_other": "Notifications, {{count}} unread, some need you",
     "answer": "Answer"
   },
   "notificationPanel": {
@@ -191,7 +139,6 @@
     "observed": "observed {{time}}",
     "cliVersion": "CLI {{version}}",
     "style": "style: {{style}}",
-    "sourceRun": "source run",
     "source": "source: {{source}}",
     "mcpServers": "MCP servers",
     "tools": "Tools",
@@ -200,16 +147,17 @@
     "slashCommands": "Slash commands",
     "plugins": "Plugins",
     "memoryPaths": "Memory paths",
-    "empty": "Start a run in this project to see what Claude loads."
+    "empty": "Start a chat in this project to see what Claude loads.",
+    "sourceChat": "source chat"
   },
   "workflowCard": {
     "tokens": "{{n}} tokens",
     "tokensThousands": "{{n}}k tokens",
     "workflow": "workflow",
-    "cliSession": "CLI session",
     "agentsDone": "{{done}}/{{total}} agents done",
     "result": "Result",
-    "script": "Script"
+    "script": "Script",
+    "agentsDoneLabel": "Agents done"
   },
   "transcript": {
     "thinking": "Thinking",
@@ -221,18 +169,7 @@
     "user": "User",
     "subagent": "subagent",
     "streamingThinking": "thinking",
-    "streamingWriting": "writing",
-    "status": "status",
-    "unknownModel": "model ?",
-    "defaultMode": "default",
-    "initSummary": "{{tools}} tools · {{servers}} MCP servers",
-    "turnFailed": "turn failed",
-    "turnDone": "turn done",
-    "turns_one": "{{count}} turns · ",
-    "turns_other": "{{count}} turns · ",
-    "denials_one": " · {{count}} permission denials",
-    "denials_other": " · {{count}} permission denials",
-    "structuredOutput": "Structured output"
+    "streamingWriting": "writing"
   },
   "detail": {
     "status": "Status",
@@ -241,10 +178,8 @@
     "duration": "Duration",
     "started": "Started",
     "startedBy": "Started by",
-    "fromSubagent": "from subagent",
-    "openSubagent": "open the subagent",
-    "cliSession": "CLI session",
-    "location": "Location",
+    "fromSubagent": "a subagent",
+    "openSubagent": "open it",
     "taskGone": "This task is no longer listed; what it wrote is still shown below.",
     "output": "Output",
     "live": "live",
@@ -261,7 +196,6 @@
     "toolCalls": "Tool calls",
     "model": "Model",
     "directory": "Directory",
-    "session": "Session",
     "prompt": "Prompt",
     "tasksLaunched": "Background tasks it launched ({{count}})",
     "result": "Result",
@@ -271,7 +205,10 @@
     "showEarlier_other": "Show {{count}} earlier entries",
     "backgroundTask": "Background task",
     "subagent": "Subagent",
-    "workflowAgent": "Workflow agent"
+    "workflowAgent": "Workflow agent",
+    "taskOutput": "Task output",
+    "chat": "Chat",
+    "theChat": "the chat"
   },
   "permissions": {
     "waitingForYou": "Waiting for you",
@@ -302,12 +239,15 @@
     "approveAcceptEditsHint": "Approve and let it edit files without asking for the rest of the session",
     "approveAcceptEdits": "Approve and accept edits",
     "keepPlanning": "Keep planning",
-    "planFeedback": "What should change? (sent to the model)"
+    "planFeedback": "What should change? (sent to the model)",
+    "otherAnswerTo": "Other answer to: {{question}}",
+    "whatItWantsToRun": "What it wants to run",
+    "plan": "Plan"
   },
   "palette": {
     "trigger": "Search…",
     "label": "Command palette",
-    "placeholder": "Search pages, projects, runs and actions…",
+    "placeholder": "Search pages, projects, chats and actions…",
     "commands": "Commands",
     "noMatches": "No matches for",
     "navigate": "navigate",
@@ -317,23 +257,28 @@
       "actions": "Actions",
       "theme": "Theme",
       "goTo": "Go to",
-      "config": "Config",
-      "liveRuns": "Live runs",
       "projects": "Projects",
-      "recentSessions": "Recent sessions",
-      "recent": "Recent"
+      "recent": "Recent",
+      "settings": "Settings",
+      "workingChats": "Working chats",
+      "recentChats": "Recent chats"
     },
-    "newRun": "New run",
-    "newRunHint": "Start a conversation with Claude",
     "newOrchestration": "New orchestration",
     "newOrchestrationHint": "Plan and launch a multi-agent task graph",
-    "newProject": "New project",
-    "newProjectHint": "Create or clone into the workspace",
+    "newProject": "Import or create a project",
+    "newProjectHint": "Import a directory, or create or clone one in the workspace",
     "credential": "Set account credential",
     "credentialHint": "OAuth token or API key",
     "apiReference": "API reference",
     "apiReferenceHint": "Interactive OpenAPI docs (Scalar) in a new tab",
-    "configTabs": {
+    "userScope": "User scope",
+    "placeholderLabel": "Search pages, projects, chats and actions",
+    "newChat": "New chat",
+    "newChatHint": "Start a conversation with Claude",
+    "newChatIn": "In {{name}}",
+    "runWorkflow": "Run a saved workflow",
+    "runWorkflowHint": "Starts a chat that launches it",
+    "settingsTabs": {
       "instructions": "Instructions",
       "settings": "Settings",
       "mcp": "MCP servers",
@@ -342,13 +287,22 @@
       "commands": "Commands",
       "outputStyles": "Output styles",
       "rules": "Rules",
-      "files": "Files"
+      "files": "Files",
+      "workflows": "Workflows",
+      "memory": "Memory",
+      "plugins": "Plugins"
     },
-    "userScope": "User scope",
-    "projectSessions": "{{name}} — sessions",
-    "projectNewRun": "{{name}} — new run",
-    "projectConfig": "{{name}} — config",
-    "projectMemory": "{{name}} — memory"
+    "noProject": "no project",
+    "projectPage": "{{name}} — {{page}}",
+    "projectPages": {
+      "activity": "activity",
+      "settings": "settings",
+      "memory": "memory",
+      "resources": "resources",
+      "worktrees": "worktrees"
+    },
+    "projectChats": "{{name}} — chats",
+    "projectNewChat": "{{name}} — new chat"
   },
   "find": {
     "button": "Search",
@@ -363,7 +317,8 @@
     "newer": "Newer match",
     "newerHint": "Newer match (Shift+Enter)",
     "close": "Close search",
-    "closeHint": "Close (Esc)"
+    "closeHint": "Close (Esc)",
+    "transcript": "Transcript"
   },
   "attachments": {
     "image": "image",
@@ -414,5 +369,12 @@
     "conflictResolving_one": "{{count}} file in {{branch}}.",
     "conflictResolving_other": "{{count}} files in {{branch}}.",
     "fromSubagent": "Started by a subagent."
+  },
+  "codeBlock": {
+    "label": "Code",
+    "labelLang": "{{lang}} code"
+  },
+  "combobox": {
+    "suggestions": "Suggestions"
   }
 }

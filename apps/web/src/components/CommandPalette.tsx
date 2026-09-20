@@ -1,18 +1,18 @@
-// ⌘K command palette: jump to any page, config section, project or live run, and run quick actions.
+// ⌘K command palette: jump to any page, settings tab, project or chat, and run quick actions.
 import { useQuery } from '@tanstack/react-query';
 import {
   Activity,
   BookOpen,
-  Bot,
   Brain,
   CornerDownLeft,
   FolderGit2,
   FolderPlus,
-  History,
+  GitBranch,
+  House,
   KeyRound,
-  LayoutDashboard,
-  ListTodo,
+  Library,
   MessageSquare,
+  MessagesSquare,
   Monitor,
   Moon,
   Network,
@@ -27,20 +27,23 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
+import { useProjectScope } from '../lib/project-scope';
 import { setThemePreference } from '../lib/theme';
 import { statusText } from './ui';
 import '../palette.css';
 
 const OPEN_EVENT = 'cw:open-command-palette';
+/** The workflow dialog lives in the shell, beside "New chat": the palette only asks for it. */
+export const RUN_WORKFLOW_EVENT = 'agentry:run-workflow';
 const RECENT_KEY = 'agentry-palette-recent';
 const MAX_RECENT = 5;
 const MAX_RESULTS = 40;
 
-type Group = 'actions' | 'theme' | 'goTo' | 'config' | 'liveRuns' | 'projects' | 'recentSessions' | 'recent';
+type Group = 'actions' | 'theme' | 'goTo' | 'settings' | 'workingChats' | 'projects' | 'recentChats' | 'recent';
 
 interface Command {
   id: string;
@@ -97,6 +100,7 @@ export function CommandPaletteTrigger() {
 export function CommandPalette() {
   const navigate = useNavigate();
   const { t } = useTranslation('components');
+  const { project: selected } = useProjectScope();
   const reduced = useReducedMotion();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -108,7 +112,7 @@ export function CommandPalette() {
 
   // Data is only fetched while the palette is open; the pages keep their own polling.
   const projects = useQuery({ queryKey: keys.projects, queryFn: api.projects, enabled: open });
-  const runs = useQuery({ queryKey: keys.runs, queryFn: api.runs, enabled: open });
+  const working = useQuery({ queryKey: keys.chatList({ state: 'working' }), queryFn: () => api.chats({ state: 'working' }), enabled: open });
   const overview = useQuery({ queryKey: keys.overview, queryFn: api.overview, enabled: open });
 
   const close = useCallback(() => {
@@ -147,59 +151,65 @@ export function CommandPalette() {
 
   const commands = useMemo<Command[]>(() => {
     const go = (to: string) => () => navigate(to);
+    const newChat = selected?.exists ? `/chats/new?cwd=${encodeURIComponent(selected.path)}` : '/chats/new';
     const list: Command[] = [
-      { id: 'act:new-run', group: 'actions', title: t('palette.newRun'), hint: t('palette.newRunHint'), keywords: 'chat prompt start', icon: Play, run: go('/runs/new') },
+      { id: 'act:new-chat', group: 'actions', title: t('palette.newChat'), hint: selected?.exists ? t('palette.newChatIn', { name: selected.name }) : t('palette.newChatHint'), keywords: 'run prompt start', icon: Play, run: go(newChat) },
+      { id: 'act:run-workflow', group: 'actions', title: t('palette.runWorkflow'), hint: t('palette.runWorkflowHint'), keywords: 'workflow script', icon: Waypoints, run: () => window.dispatchEvent(new Event(RUN_WORKFLOW_EVENT)) },
       { id: 'act:new-orchestration', group: 'actions', title: t('palette.newOrchestration'), hint: t('palette.newOrchestrationHint'), keywords: 'agents dag plan', icon: Network, run: go('/orchestration') },
-      { id: 'act:new-project', group: 'actions', title: t('palette.newProject'), hint: t('palette.newProjectHint'), keywords: 'git clone folder', icon: FolderPlus, run: go('/projects') },
-      { id: 'act:credential', group: 'actions', title: t('palette.credential'), hint: t('palette.credentialHint'), keywords: 'login auth token key', icon: KeyRound, run: go('/config?tab=account') },
+      { id: 'act:new-project', group: 'actions', title: t('palette.newProject'), hint: t('palette.newProjectHint'), keywords: 'import git clone folder directory', icon: FolderPlus, run: go('/projects') },
+      { id: 'act:credential', group: 'actions', title: t('palette.credential'), hint: t('palette.credentialHint'), keywords: 'login auth token key', icon: KeyRound, run: go('/settings?tab=account') },
       { id: 'act:api-docs', group: 'actions', title: t('palette.apiReference'), hint: t('palette.apiReferenceHint'), keywords: 'swagger openapi rest docs scalar', icon: BookOpen, run: () => window.open('/docs', '_blank', 'noopener') },
       { id: 'theme:light', group: 'theme', title: t('theme.light'), icon: Sun, run: () => setThemePreference('light') },
       { id: 'theme:dark', group: 'theme', title: t('theme.dark'), icon: Moon, run: () => setThemePreference('dark') },
       { id: 'theme:system', group: 'theme', title: t('theme.system'), icon: Monitor, run: () => setThemePreference('system') },
-      { id: 'nav:/', group: 'goTo', title: t('nav.dashboard'), keywords: 'home overview status usage', icon: LayoutDashboard, run: go('/') },
-      { id: 'nav:/agents', group: 'goTo', title: t('nav.agents'), keywords: 'runs subagents live', icon: Bot, run: go('/agents') },
-      { id: 'nav:/tasks', group: 'goTo', title: t('nav.backgroundTasks'), keywords: 'bash jobs', icon: ListTodo, run: go('/tasks') },
-      { id: 'nav:/workflows', group: 'goTo', title: t('nav.workflows'), keywords: 'workflow tool script agents saved run', icon: Waypoints, run: go('/workflows') },
-      { id: 'nav:/sessions', group: 'goTo', title: t('nav.sessions'), keywords: 'history transcripts', icon: History, run: go('/sessions') },
-      { id: 'nav:/projects', group: 'goTo', title: t('nav.projects'), keywords: 'workspace directories', icon: FolderGit2, run: go('/projects') },
-      { id: 'nav:/orchestration', group: 'goTo', title: t('nav.orchestration'), keywords: 'multi agent', icon: Network, run: go('/orchestration') },
+      { id: 'nav:/', group: 'goTo', title: t('nav.home'), keywords: 'inbox activity waiting overview status usage', icon: House, run: go('/') },
+      { id: 'nav:/chats', group: 'goTo', title: t('nav.chats'), keywords: 'sessions history transcripts conversations', icon: MessagesSquare, run: go('/chats') },
+      { id: 'nav:/orchestration', group: 'goTo', title: t('nav.orchestrations'), keywords: 'multi agent graph', icon: Network, run: go('/orchestration') },
+      { id: 'nav:/projects', group: 'goTo', title: t('nav.projects'), keywords: 'import workspace directories', icon: FolderGit2, run: go('/projects') },
       { id: 'nav:/accounts', group: 'goTo', title: t('nav.accounts'), keywords: 'claude-swap multi account quota rotate switch limit', icon: Users, run: go('/accounts') },
-      { id: 'nav:/memory', group: 'goTo', title: t('nav.memory'), keywords: 'facts feedback MEMORY.md', icon: Brain, run: go('/memory') },
-      { id: 'nav:/plugins', group: 'goTo', title: t('nav.plugins'), keywords: 'marketplace install extensions', icon: Puzzle, run: go('/plugins') },
-      { id: 'nav:/config', group: 'goTo', title: t('nav.config'), keywords: 'settings preferences', icon: Settings2, run: go('/config') },
+      { id: 'nav:/settings', group: 'goTo', title: t('nav.settings'), keywords: 'config preferences', icon: Settings2, run: go('/settings') },
     ];
-    const tabs: Array<[string, string, string]> = [
-      ['instructions', t('palette.configTabs.instructions'), 'CLAUDE.md'],
-      ['settings', t('palette.configTabs.settings'), 'settings.json permissions hooks env model'],
-      ['mcp', t('palette.configTabs.mcp'), 'connectors tools'],
-      ['agents', t('palette.configTabs.agents'), 'subagents'],
-      ['skills', t('palette.configTabs.skills'), 'SKILL.md'],
-      ['commands', t('palette.configTabs.commands'), 'slash'],
-      ['output-styles', t('palette.configTabs.outputStyles'), ''],
-      ['rules', t('palette.configTabs.rules'), ''],
-      ['files', t('palette.configTabs.files'), 'explorer hooks scripts keybindings'],
+    const tabs: Array<[string, string, string, LucideIcon]> = [
+      ['instructions', t('palette.settingsTabs.instructions'), 'CLAUDE.md', SlidersHorizontal],
+      ['settings', t('palette.settingsTabs.settings'), 'settings.json permissions hooks env model', SlidersHorizontal],
+      ['mcp', t('palette.settingsTabs.mcp'), 'connectors tools', SlidersHorizontal],
+      ['agents', t('palette.settingsTabs.agents'), 'subagents', SlidersHorizontal],
+      ['skills', t('palette.settingsTabs.skills'), 'SKILL.md', SlidersHorizontal],
+      ['commands', t('palette.settingsTabs.commands'), 'slash', SlidersHorizontal],
+      ['output-styles', t('palette.settingsTabs.outputStyles'), '', SlidersHorizontal],
+      ['rules', t('palette.settingsTabs.rules'), '', SlidersHorizontal],
+      ['workflows', t('palette.settingsTabs.workflows'), 'saved script', SlidersHorizontal],
+      ['files', t('palette.settingsTabs.files'), 'explorer hooks scripts keybindings', SlidersHorizontal],
+      ['memory', t('palette.settingsTabs.memory'), 'facts feedback MEMORY.md projects', Brain],
+      ['plugins', t('palette.settingsTabs.plugins'), 'marketplace install extensions', Puzzle],
     ];
-    for (const [tab, title, extra] of tabs) {
-      list.push({ id: `config:${tab}`, group: 'config', title, hint: t('palette.userScope'), keywords: `config ${extra}`, icon: SlidersHorizontal, run: go(`/config?tab=${tab}`) });
+    for (const [tab, title, extra, icon] of tabs) {
+      list.push({ id: `settings:${tab}`, group: 'settings', title, hint: t('palette.userScope'), keywords: `settings config ${extra}`, icon, run: go(`/settings?tab=${tab}`) });
     }
-    for (const run of (runs.data ?? []).filter((r) => r.pid !== null).slice(0, 8)) {
-      list.push({ id: `run:${run.id}`, group: 'liveRuns', title: run.name, hint: `${statusText(run.status)} · ${run.cwd}`, keywords: 'run live chat', icon: Activity, run: go(`/runs/${run.id}`) });
+    for (const chat of (working.data ?? []).slice(0, 8)) {
+      list.push({ id: `chat:${chat.id}`, group: 'workingChats', title: chat.title, hint: `${chat.project?.name ?? t('palette.noProject')} · ${chat.cwd}`, keywords: 'chat live running', icon: Activity, run: go(`/chats/${encodeURIComponent(chat.id)}`) });
     }
     for (const project of (projects.data ?? []).slice(0, 30)) {
       const id = encodeURIComponent(project.id);
       const hint = project.path;
-      list.push({ id: `project:sessions:${project.id}`, group: 'projects', title: t('palette.projectSessions', { name: project.name }), hint, icon: FolderGit2, run: go(`/sessions?project=${id}`) });
+      // The project page is Home with the project selected; the deep link selects it on the way
+      const page = (tab: 'activity' | 'settings' | 'memory' | 'resources' | 'worktrees', icon: LucideIcon, keywords = '') =>
+        list.push({ id: `project:${tab}:${project.id}`, group: 'projects', title: t('palette.projectPage', { name: project.name, page: t(`palette.projectPages.${tab}`) }), hint, keywords, icon, run: go(`/?project=${id}${tab === 'activity' ? '' : `&tab=${tab}`}`) });
+      page('activity', House, 'home inbox');
+      page('settings', Settings2, 'config instructions CLAUDE.md mcp files');
+      page('memory', Brain, 'facts');
+      page('resources', Library, 'agents skills commands workflows');
+      page('worktrees', GitBranch, 'branches');
+      list.push({ id: `project:chats:${project.id}`, group: 'projects', title: t('palette.projectChats', { name: project.name }), hint, keywords: 'sessions history', icon: MessagesSquare, run: go(`/chats?project=${id}`) });
       if (project.exists) {
-        list.push({ id: `project:run:${project.id}`, group: 'projects', title: t('palette.projectNewRun', { name: project.name }), hint, keywords: 'start', icon: Play, run: go(`/runs/new?cwd=${encodeURIComponent(project.path)}`) });
-        list.push({ id: `project:config:${project.id}`, group: 'projects', title: t('palette.projectConfig', { name: project.name }), hint, keywords: 'settings mcp', icon: Settings2, run: go(`/config?project=${id}`) });
+        list.push({ id: `project:new-chat:${project.id}`, group: 'projects', title: t('palette.projectNewChat', { name: project.name }), hint, keywords: 'start run', icon: Play, run: go(`/chats/new?cwd=${encodeURIComponent(project.path)}`) });
       }
-      list.push({ id: `project:memory:${project.id}`, group: 'projects', title: t('palette.projectMemory', { name: project.name }), hint, icon: Brain, run: go(`/memory?project=${id}`) });
     }
-    for (const session of overview.data?.recentSessions ?? []) {
-      list.push({ id: `session:${session.id}`, group: 'recentSessions', title: session.title, hint: session.projectPath, keywords: 'session transcript', icon: MessageSquare, run: go(`/sessions/${session.id}`) });
+    for (const chat of overview.data?.recentChats ?? []) {
+      list.push({ id: `recent:${chat.id}`, group: 'recentChats', title: chat.title, hint: chat.cwd, keywords: 'chat transcript', icon: MessageSquare, run: go(`/chats/${encodeURIComponent(chat.id)}`) });
     }
     return list;
-  }, [navigate, t, projects.data, runs.data, overview.data]);
+  }, [navigate, t, selected, projects.data, working.data, overview.data]);
 
   const results = useMemo(() => {
     const q = query.trim();
@@ -207,7 +217,7 @@ export function CommandPalette() {
       // Idle state: recently used first, then the static entries; per-project noise stays out
       const byId = new Map(commands.map((c) => [c.id, c]));
       const recents = recent.flatMap((id) => (byId.has(id) ? [{ ...(byId.get(id) as Command), group: 'recent' as const }] : []));
-      const rest = commands.filter((c) => c.group !== 'projects' && c.group !== 'config' && !recent.includes(c.id));
+      const rest = commands.filter((c) => c.group !== 'projects' && c.group !== 'settings' && !recent.includes(c.id));
       return [...recents, ...rest].slice(0, MAX_RESULTS);
     }
     return commands
@@ -297,6 +307,7 @@ export function CommandPalette() {
                 aria-controls="palette-list"
                 aria-activedescendant={results[active] ? `palette-option-${active}` : undefined}
                 aria-autocomplete="list"
+                aria-label={t('palette.placeholderLabel')}
                 placeholder={t('palette.placeholder')}
                 autoComplete="off"
                 spellCheck={false}
@@ -317,8 +328,12 @@ export function CommandPalette() {
                   const selected = index === active;
                   const showGroup = grouped && command.group !== results[index - 1]?.group;
                   return (
-                    <div key={`${command.group}:${command.id}`}>
-                      {showGroup && <div className="palette-group">{t(`palette.groups.${command.group}`)}</div>}
+                    <Fragment key={`${command.group}:${command.id}`}>
+                      {showGroup && (
+                        <div className="palette-group" role="presentation">
+                          {t(`palette.groups.${command.group}`)}
+                        </div>
+                      )}
                       <div
                         id={`palette-option-${index}`}
                         role="option"
@@ -344,7 +359,7 @@ export function CommandPalette() {
                         {!grouped && <span className="palette-option-group">{t(`palette.groups.${command.group}`)}</span>}
                         {selected && <CornerDownLeft className="palette-option-enter" size={14} strokeWidth={1.75} aria-hidden />}
                       </div>
-                    </div>
+                    </Fragment>
                   );
                 })
               )}

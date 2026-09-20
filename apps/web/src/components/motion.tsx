@@ -58,58 +58,6 @@ export function Stagger({
   );
 }
 
-/**
- * Rise-in for items appended to a live list (chat messages); never re-animates on re-render.
- * `entrance` off keeps the same element but skips the animation, for a row that is being restored
- * rather than added — one scrolled back into a windowed list.
- */
-export function RiseIn({ children, className, entrance = true }: { children: ReactNode; className?: string; entrance?: boolean }) {
-  const reduced = useReducedMotion();
-  return (
-    <motion.div
-      className={className}
-      initial={reduced || !entrance ? false : { opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.24, ease: EASE_OUT }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-/** Animated integer; polls that do not change the value do not restart the animation. */
-export function CountUp({ value, className }: { value: number; className?: string }) {
-  const reduced = useReducedMotion();
-  const ref = useRef<HTMLSpanElement>(null);
-  const shown = useRef(0);
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    if (reduced || shown.current === value) {
-      node.textContent = String(value);
-      shown.current = value;
-      return;
-    }
-    const controls = animate(shown.current, value, {
-      duration: 0.7,
-      ease: EASE_OUT,
-      onUpdate: (latest) => {
-        shown.current = latest;
-        node.textContent = String(Math.round(latest));
-      },
-      onComplete: () => {
-        shown.current = value;
-      },
-    });
-    return () => controls.stop();
-  }, [value, reduced]);
-  return (
-    <span ref={ref} className={className}>
-      {value}
-    </span>
-  );
-}
-
 /** Height-animated region for custom accordions and trees. */
 export function Collapse({ open, children, className }: { open: boolean; children: ReactNode; className?: string }) {
   const reduced = useReducedMotion();

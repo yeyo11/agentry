@@ -1,0 +1,90 @@
+{
+  "tabs": {
+    "activity": "Activity",
+    "settings": "Settings",
+    "memory": "Memory",
+    "resources": "Resources",
+    "worktrees": "Worktrees"
+  },
+  "page": {
+    "title": "Home",
+    "subtitle": "Everything that needs you, across all projects",
+    "sections": "Project sections",
+    "missing": "This directory is missing on disk",
+    "missingHint": "Its chats are still here, but nothing can start in it until the directory is back or the project is removed."
+  },
+  "projectSelector": {
+    "all": "All projects"
+  },
+  "settings": {
+    "title": "Settings",
+    "sections": "Settings sections",
+    "tabs": {
+      "memory": "Memory",
+      "plugins": "Plugins"
+    },
+    "memory": {
+      "title": "Memory",
+      "intro": "Claude keeps its memory per project, so it is read and edited on the project page, in its Memory tab.",
+      "none": "No projects imported",
+      "goToProjects": "Go to Projects",
+      "noneHint": "Import a project to see the memory Claude keeps for it.",
+      "lastUpdate": "Last update",
+      "actions": "Actions",
+      "open": "Open memory",
+      "openNamed": "Open the memory of {{name}}"
+    }
+  },
+  "activity": {
+    "waitingForYou": "Waiting for you",
+    "cliMissing": "Claude Code CLI not detected",
+    "cliMissingHint": "The `claude` binary is not available in PATH: install it or set CLAUDE_BIN.",
+    "openSettings": "Open settings",
+    "notLoggedIn": "Claude Code is not logged in",
+    "noCredentials": "No valid credentials were found.",
+    "addCredential": "Add a credential",
+    "waiting": {
+      "generic": "is waiting for you",
+      "plan": "wants your approval of a plan",
+      "question": "asks you a question",
+      "tool": "wants to use {{tool}}"
+    },
+    "more": "(+{{n}} more)",
+    "answer": "Answer",
+    "tasksBlocked_one": "{{n}} task blocked",
+    "tasksBlocked_other": "{{n}} tasks blocked",
+    "decide": "Decide",
+    "mergeConflict": "Merge conflict in <strong>{{branch}}</strong>",
+    "integrationFailed": "Integration failed in <strong>{{branch}}</strong>",
+    "hungCommand": "A command has been running for {{duration}} in <strong>{{title}}</strong>",
+    "noProjectYet": "No project yet",
+    "noProjectYetHint": "A project is a directory you import, and everything under it — its chats, worktrees and settings — lives on its page. <anchor>Import your first project</anchor>.",
+    "nothing": "Nothing is running and nothing is waiting",
+    "startChat": "Start a chat",
+    "nothingHint": "Chats you start, and what your orchestrations do, show up here.",
+    "rightNow": "Right now",
+    "working": "{{n}} working",
+    "orchestrations_one": "{{n}} orchestration",
+    "orchestrations_other": "{{n}} orchestrations",
+    "progress": "{{done}}/{{total}} tasks",
+    "context": "{{percent}}% context",
+    "contextInUse": "Context in use",
+    "costUnavailable": "cost not available",
+    "noProject": "no project",
+    "today": "Today",
+    "nothingSpent": "Nothing spent yet today.",
+    "spent": "{{cost}} spent",
+    "chatsWithoutCost_one": "{{n}} chat started from a terminal report no cost",
+    "chatsWithoutCost_other": "{{n}} chats started from a terminal report no cost",
+    "tokensToday": "Tokens today by model",
+    "input": "Input",
+    "output": "Output",
+    "cache": "Cache",
+    "unknownModel": "unknown model",
+    "usageLimits": "Usage limits",
+    "limit": "{{name}} limit",
+    "resets": "resets {{when}}",
+    "pickUp": "Pick up again",
+    "allChats": "All chats"
+  }
+}

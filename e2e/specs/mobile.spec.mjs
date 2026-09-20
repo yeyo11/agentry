@@ -1,7 +1,8 @@
 // Transcripts on a phone. The windowed list takes the scroller it is rendered in at its word: if
 // the narrow layout lets that element grow with its content, something else scrolls, the list
 // measures a viewport as tall as the whole log and never moves its window, and the page is blank
-// wherever the reader looks. That is what run pages did at 1100px and below.
+// wherever the reader looks. That is what run pages did at 1100px and below; a chat is what a run
+// page became, so both a chat read from its transcript and one Agentry just started are checked.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -27,49 +28,49 @@ export default async ({ page, api, check, dirs }) => {
   const dir = join(dirs.configDir, 'projects', PROJECT);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${SESSION}.jsonl`), Array.from({ length: TOTAL }, (_, i) => JSON.stringify(entry(i))).join('\n'));
-  let runId = null;
+  let chatId = null;
 
   try {
     await page.viewport(390, 844);
 
-    // ---- A session: `.main` scrolls, and the list follows it wherever the reader goes ----
-    await page.goto(`/sessions/${SESSION}`, 300);
+    // ---- A chat read from its transcript: the list follows its scroller wherever the reader goes ----
+    await page.goto(`/chats/${SESSION}`, 300);
     await page.waitFor(`return document.querySelector('.transcript')?.innerText.includes('${mark(TOTAL - 1)}')`, { label: 'the newest message is rendered' });
-    await page.waitFor(`const m=document.querySelector('.main');return m.scrollHeight-m.scrollTop-m.clientHeight<4`, { label: 'the page sits at its bottom' });
-    check((await page.eval(onScreen('.main'))) > 0, 'the session lands with rows on screen');
-    await page.eval(`document.querySelector('.main').dispatchEvent(new WheelEvent('wheel',{bubbles:true}));return true`);
+    await page.waitFor(`const m=document.querySelector('.run-scroll');return m.scrollHeight-m.scrollTop-m.clientHeight<4`, { label: 'the log sits at its bottom' });
+    check((await page.eval(onScreen('.run-scroll'))) > 0, 'the chat lands with rows on screen');
+    await page.eval(`document.querySelector('.run-scroll').dispatchEvent(new WheelEvent('wheel',{bubbles:true}));return true`);
     for (const at of [0.6, 0.3]) {
-      await page.eval(`const m=document.querySelector('.main');m.scrollTop=(m.scrollHeight-m.clientHeight)*${at};return true`);
+      await page.eval(`const m=document.querySelector('.run-scroll');m.scrollTop=(m.scrollHeight-m.clientHeight)*${at};return true`);
       await settle(page);
-      check((await page.eval(onScreen('.main'))) > 0, `the session still shows rows after scrolling to ${at * 100}% of it`);
+      check((await page.eval(onScreen('.run-scroll'))) > 0, `the chat still shows rows after scrolling to ${at * 100}% of it`);
     }
 
-    // ---- A run: its log scrolls inside a bounded stage, never the page around it ----
-    // Without a login the run goes nowhere, and its log is short: the height it would reach with a
+    // ---- A chat Agentry started: its log scrolls inside a bounded stage, never the page around it ----
+    // Without a login the chat goes nowhere, and its log is short: the height it would reach with a
     // long one is stood in for by a filler, which the stage must not grow to hold.
-    const created = await api.post('/runs', { prompt: 'hello', name: 'e2e-mobile-run', internal: true });
-    check(created.status === 201, `the run was created (${created.status})`);
-    runId = created.body.id;
-    await page.goto(`/runs/${runId}`, 300);
-    await page.waitFor(`return !!document.querySelector('.run-scroll')`, { label: 'the run log' });
+    const created = await api.post('/chats', { prompt: 'hello', name: 'e2e-mobile-chat' });
+    check(created.status === 201, `the chat was created (${created.status})`);
+    chatId = created.body.id;
+    await page.goto(`/chats/${chatId}`, 300);
+    await page.waitFor(`return !!document.querySelector('.run-scroll')`, { label: 'the chat log' });
     await page.eval(`const f=document.createElement('div');f.id='e2e-filler';f.style.height='20000px';f.style.flexShrink='0';document.querySelector('.run-scroll').append(f);return true`);
     await settle(page);
     const stage = await page.eval(
       `const st=document.querySelector('.run-stage').getBoundingClientRect(),s=document.querySelector('.run-scroll');` +
         `return {stage:st.height,client:s.clientHeight,scroll:s.scrollHeight,view:innerHeight}`,
     );
-    check(Math.abs(stage.stage - stage.view * 0.62) <= 2, `the run stage keeps its height on a phone (${stage.stage.toFixed(0)}px of ${stage.view}px)`);
-    check(stage.client < stage.view && stage.scroll > stage.client, `the run log scrolls itself (${stage.client}px showing ${stage.scroll}px)`);
+    check(Math.abs(stage.stage - stage.view * 0.62) <= 2, `the chat stage keeps its height on a phone (${stage.stage.toFixed(0)}px of ${stage.view}px)`);
+    check(stage.client < stage.view && stage.scroll > stage.client, `the chat log scrolls itself (${stage.client}px showing ${stage.scroll}px)`);
     await page.eval(`document.getElementById('e2e-filler')?.remove();return true`);
-    await page.shot('mobile-run');
+    await page.shot('mobile-chat');
   } finally {
     await page.viewport(1440, 900);
-    // Later specs count the seeded sessions and the runs
-    await api.del(`/sessions/${SESSION}`);
-    if (runId) {
-      await api.post(`/runs/${runId}/stop`);
+    // Later specs count the seeded chats
+    await api.del(`/chats/${SESSION}`);
+    if (chatId) {
+      await api.post(`/chats/${chatId}/stop`);
       for (let i = 0; i < 40; i++) {
-        if ((await api.del(`/runs/${runId}`)).status === 200) break;
+        if ((await api.del(`/chats/${chatId}`)).status === 200) break;
         await new Promise((r) => setTimeout(r, 250));
       }
     }

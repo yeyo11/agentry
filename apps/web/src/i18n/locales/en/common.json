@@ -32,6 +32,8 @@
     "resolving": "resolving",
     "merged": "merged",
     "conflicted": "conflicted",
-    "unknown": "unknown"
+    "unknown": "unknown",
+    "working": "working",
+    "blocked": "blocked"
   }
 }

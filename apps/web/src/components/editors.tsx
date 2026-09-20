@@ -10,6 +10,7 @@ export function StringListEditor({
   onChange,
   placeholder,
   addLabel,
+  label,
   mono = true,
   allowDuplicates = false,
   emptyText,
@@ -18,6 +19,8 @@ export function StringListEditor({
   onChange: (values: string[]) => void;
   placeholder?: string;
   addLabel?: string;
+  /** Names the input: the surrounding label would otherwise fall on the first chip's remove button */
+  label?: string;
   mono?: boolean;
   allowDuplicates?: boolean;
   emptyText?: string;
@@ -46,8 +49,8 @@ export function StringListEditor({
       <div className="chips">
         {values.length === 0 && <span className="small muted">{emptyText ?? t('editors.none')}</span>}
         {values.map((value, index) => (
-          <span key={`${value}-${index}`} className={`chip chip-static ${mono ? 'mono' : ''}`} title={value}>
-            <span className="ellipsis">{value}</span>
+          <span key={`${value}-${index}`} className={`chip chip-static ${mono ? 'mono' : ''}`}>
+            <span className="break">{value}</span>
             <button
               type="button"
               className="chip-x"
@@ -63,6 +66,7 @@ export function StringListEditor({
         <input
           className={mono ? 'mono' : ''}
           value={draft}
+          aria-label={label ?? addLabel}
           placeholder={placeholder}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}

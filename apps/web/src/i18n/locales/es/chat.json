@@ -1,0 +1,153 @@
+{
+  "view": {
+    "pageTitle": "{{title}} · chat",
+    "pageTitleFallback": "Chat",
+    "loading": "Cargando chat…",
+    "notFound": "Chat no encontrado",
+    "notFoundHint": "Puede que se haya eliminado. <anchor>Explora los chats</anchor> para encontrar la conversación.",
+    "conversation": "Conversación",
+    "back": "Volver a los chats",
+    "streamConnected": "En directo",
+    "streamReconnecting": "Reconectando…",
+    "subagentMessages": "Mensajes de subagents",
+    "interruptHint": "Termina este turno y mantén el chat abierto para tu siguiente mensaje",
+    "fork": "Fork",
+    "forkHint": "Continúa en una copia de este chat, que deja este tal como está",
+    "deleteLive": "No se puede eliminar un chat con un proceso trabajando en él",
+    "deleteHeld": "Otro proceso tiene retenido este chat",
+    "noProject": "sin proyecto",
+    "messages_one": "{{count}} mensaje",
+    "messages_other": "{{count}} mensajes",
+    "updated": "actualizado {{date}}",
+    "sendHint": "Envía una pista en el tablero",
+    "transcript": "Transcripción",
+    "nothingWritten": "Todavía no hay nada escrito",
+    "forkIntro": "Un chat nuevo con todo el historial de este. Este chat se queda como está y la copia registra de dónde viene.",
+    "details": "Detalles del chat",
+    "synthesis": "síntesis"
+  },
+  "composer": {
+    "message": "Mensaje",
+    "firstMessage": "Primer mensaje de la copia",
+    "placeholderFork": "Primer mensaje de la copia… (suelta o pega archivos para adjuntarlos)",
+    "placeholderResume": "Envía un mensaje: el chat se reanudará…",
+    "resume": "Reanuda",
+    "resuming": "Reanudando…",
+    "fork": "Fork",
+    "forking": "Creando fork…",
+    "couldNotResume": "No se ha podido reanudar",
+    "couldNotFork": "No se ha podido crear el fork"
+  },
+  "controls": {
+    "permissionModeNew": "Modo de permisos de la nueva ejecución",
+    "modelNew": "Modelo de la nueva ejecución",
+    "asBefore": "Como antes ({{mode}})",
+    "default": "Predeterminado"
+  },
+  "badges": {
+    "state": {
+      "working": "Trabajando",
+      "waiting": "Esperándote",
+      "idle": "Inactivo"
+    },
+    "stateHint": {
+      "working": "Un proceso está generando o ejecutando herramientas",
+      "waiting": "Detenido hasta que una persona responda a un permiso, una pregunta o un plan",
+      "idle": "No se está ejecutando nada y nada está esperando"
+    },
+    "outcome": {
+      "running": "En curso",
+      "completed": "Completada",
+      "failed": "Fallida",
+      "stopped": "Detenida",
+      "interrupted": "Interrumpida"
+    },
+    "origin": {
+      "agentry": "Agentry",
+      "external": "Terminal",
+      "orchestration": "Orquestación",
+      "internal": "Interno"
+    },
+    "originHint": {
+      "agentry": "Iniciado desde Agentry",
+      "external": "Iniciado en una terminal con Claude Code",
+      "orchestration": "Trabaja para una orquestación",
+      "internal": "Tareas internas del propio Agentry"
+    },
+    "control": {
+      "interactive": "Interactivo",
+      "interactiveHint": "Agentry controla este chat: escríbele, interrúmpelo, cambia cómo se ejecuta",
+      "resumable": "Reanudable",
+      "resumableHint": "Nada retiene este chat: al enviar un mensaje se reanuda",
+      "readOnly": "Solo lectura"
+    },
+    "context": {
+      "none": "aún sin contexto",
+      "unknownWindow": "Aún no se conoce la ventana de este modelo, así que no se muestra ningún porcentaje",
+      "tokens": "{{n}} tokens",
+      "detail": "{{used}} de {{window}} tokens",
+      "inUse": "Contexto en uso",
+      "aboutToCompact": "a punto de compactar",
+      "fillingUp": "llenándose"
+    }
+  },
+  "side": {
+    "notAvailable": "no disponible",
+    "usage": {
+      "title": "Contexto y coste",
+      "tokensOf": "{{used}} tokens de {{window}}",
+      "tokensUnknownWindow": "{{used}} tokens · aún no se conoce la ventana de este modelo",
+      "costNotReported": "Claude Code solo informa del coste de lo que lanzó Agentry.",
+      "tokensCaption": "Tokens gastados, por modelo",
+      "input": "Entrada",
+      "output": "Salida",
+      "cache": "Caché",
+      "total": "Total",
+      "subagentsNote": "Los tokens incluyen lo que han gastado sus subagents."
+    },
+    "executions": {
+      "title": "Ejecuciones ({{n}})",
+      "empty": "Agentry no ha ejecutado este chat: se escribió en una terminal.",
+      "lasted": "duró {{duration}}",
+      "up": "en marcha desde hace {{duration}}",
+      "turns_one": "{{count}} turno",
+      "turns_other": "{{count}} turnos",
+      "account": "cuenta {{name}}",
+      "budget": "presupuesto {{amount}}",
+      "errorPrefix": "Error:"
+    },
+    "branches": {
+      "title": "Ramas ({{n}})",
+      "empty": "No se delegó nada: ni subagents, ni tareas en segundo plano, ni workflows.",
+      "subagents": "Subagents",
+      "backgroundTasks": "Tareas en segundo plano",
+      "workflows": "Workflows",
+      "fromSubagent": "de un subagent"
+    },
+    "health": {
+      "title": "Salud",
+      "level": {
+        "ok": "Correcto",
+        "warn": "Advertencia",
+        "bad": "Problema"
+      },
+      "levelSaid": "{{level}}:"
+    },
+    "facts": {
+      "title": "Chat",
+      "noProject": "ninguno: chat suelto",
+      "worktree": "Worktree",
+      "forkedFrom": "Fork de",
+      "updated": "Actualizado",
+      "environmentEmpty": "Todavía nada ha informado de lo que Claude cargó para este chat."
+    }
+  },
+  "delete": {
+    "deleted": "Chat eliminado",
+    "failed": "No se ha podido eliminar el chat",
+    "title": "¿Eliminar este chat?",
+    "body_one": "La transcripción ({{count}} mensaje) se borra del disco y el chat ya no podrá reanudarse ni hacer fork. No se puede deshacer.",
+    "body_other": "La transcripción ({{count}} mensajes) se borra del disco y el chat ya no podrá reanudarse ni hacer fork. No se puede deshacer.",
+    "confirm": "Elimina el chat"
+  }
+}

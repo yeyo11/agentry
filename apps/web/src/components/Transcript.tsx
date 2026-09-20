@@ -1,15 +1,13 @@
-import type { ContentBlock, RunEvent, TranscriptEntry } from '@agentry/shared';
-import { Brain, CircleAlert, CornerDownRight, Flag, Info, Sparkles, TerminalSquare, User } from 'lucide-react';
-import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react';
+import type { ContentBlock, TranscriptEntry } from '@agentry/shared';
+import { Brain, CircleAlert, CornerDownRight, Sparkles, User } from 'lucide-react';
+import { lazy, memo, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatClock, formatCost, formatDuration, truncate } from '../lib/format';
+import { formatClock, truncate } from '../lib/format';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
 import { CodeBlock } from './CodeBlock';
 import { Collapsible } from './controls/Collapsible';
 import { BrandMark, ICON_SM, toolIcon } from './icons';
-import { RiseIn } from './motion';
 import { VirtualList } from './VirtualList';
-import { StatusBadge } from './ui';
 
 const RESULT_PREVIEW_CHARS = 6000;
 
@@ -203,146 +201,3 @@ export function Transcript({
     </VirtualList>
   );
 }
-
-function str(value: unknown): string {
-  return typeof value === 'string' ? value : value == null ? '' : String(value);
-}
-
-function InlineEvent({ event }: { event: RunEvent }) {
-  const { t } = useTranslation('components');
-  const data = event.data ?? {};
-  switch (event.kind) {
-    case 'status':
-      return (
-        <div className="evt">
-          <span className="evt-label">{t('transcript.status')}</span>
-          <StatusBadge status={event.status ?? 'unknown'} />
-          <span className="muted small">{formatClock(event.ts)}</span>
-        </div>
-      );
-    case 'init': {
-      const servers = Array.isArray(data.mcp_servers) ? data.mcp_servers.length : 0;
-      const tools = Array.isArray(data.tools) ? data.tools.length : 0;
-      return (
-        <div className="evt">
-          <span className="evt-label">init</span>
-          <span>
-            {str(data.model) || t('transcript.unknownModel')} · {str(data.permissionMode) || t('transcript.defaultMode')} · {t('transcript.initSummary', { tools, servers })}
-          </span>
-        </div>
-      );
-    }
-    case 'result': {
-      const isError = data.is_error === true;
-      const denials = Array.isArray(data.permission_denials) ? data.permission_denials.length : 0;
-      return (
-        <div className={`evt evt-result ${isError ? 'is-error' : ''}`}>
-          <Flag {...ICON_SM} />
-          <span className="evt-label">{isError ? t('transcript.turnFailed') : t('transcript.turnDone')}</span>
-          <span>
-            {typeof data.num_turns === 'number' ? t('transcript.turns', { count: data.num_turns }) : ''}
-            {typeof data.duration_ms === 'number' ? `${formatDuration(data.duration_ms)} · ` : ''}
-            {typeof data.total_cost_usd === 'number' ? formatCost(data.total_cost_usd) : ''}
-            {denials > 0 ? t('transcript.denials', { count: denials }) : ''}
-          </span>
-          {isError && event.text && <span className="evt-text">{truncate(event.text, 400)}</span>}
-          {data.structured_output != null && (
-            <Collapsible className="fold" title={t('transcript.structuredOutput')}>
-              <CodeBlock code={JSON.stringify(data.structured_output, null, 2)} lang="json" />
-            </Collapsible>
-          )}
-        </div>
-      );
-    }
-    case 'task': {
-      if (event.subtype === 'background_tasks_changed') return null;
-      const patch = (data.patch ?? {}) as Record<string, unknown>;
-      const status = str(data.status) || str(patch.status);
-      return (
-        <div className="evt">
-          <span className="evt-label">{(event.subtype ?? 'task').replace(/_/g, ' ')}</span>
-          <code>{str(data.task_id)}</code>
-          {status && <StatusBadge status={status} />}
-          <span className="evt-text">{truncate(str(data.summary) || str(data.description), 200)}</span>
-        </div>
-      );
-    }
-    case 'notice':
-      return (
-        <div className="evt">
-          <Info {...ICON_SM} />
-          <span className="evt-label">wrapper</span>
-          <span className="evt-text">{event.text}</span>
-          <span className="muted small">{formatClock(event.ts)}</span>
-        </div>
-      );
-    case 'stderr':
-      return (
-        <div className="evt is-error">
-          <TerminalSquare {...ICON_SM} />
-          <span className="evt-label">stderr</span>
-          <span className="evt-text mono">{event.text}</span>
-        </div>
-      );
-    default:
-      return (
-        <Collapsible
-          className="evt fold"
-          title={
-            <>
-              <span className="evt-label">{event.subtype ? `${event.type}/${event.subtype}` : event.type}</span>
-              {event.text && <span className="evt-text">{truncate(event.text, 200)}</span>}
-            </>
-          }
-        >
-          {event.data && <CodeBlock code={JSON.stringify(event.data, null, 2)} lang="json" />}
-        </Collapsible>
-      );
-  }
-}
-
-/** One row, memoised: appending an event must not re-render the rows already on screen. */
-const TimelineRow = memo(function TimelineRow({ event, entrance }: { event: RunEvent; entrance: boolean }) {
-  return event.kind === 'message' && event.entry ? (
-    <RiseIn entrance={entrance}>
-      <EntryView entry={event.entry} />
-    </RiseIn>
-  ) : (
-    <InlineEvent event={event} />
-  );
-});
-
-/** The one event that renders nothing, kept out of the window, which pairs rows with items by position. */
-const isSilent = (event: RunEvent) => event.kind === 'task' && event.subtype === 'background_tasks_changed';
-
-/**
- * Memoised on the event list: the page around it re-renders on every streamed partial and every
- * keystroke in the composer, and a long transcript is far too much work to redo that often.
- */
-export const RunTimeline = memo(function RunTimeline({
-  events,
-  follow = false,
-  onReachTop,
-  focus,
-}: {
-  events: RunEvent[];
-  follow?: boolean;
-  onReachTop?: () => void;
-  focus?: { item: RunEvent } | null;
-}) {
-  const rows = useMemo(() => events.filter((event) => !isSilent(event)), [events]);
-  // Rows re-mount as they scroll back into the window, and a message that slides in again every
-  // time you scroll past it is noise: only an event that arrived while the page was open animates.
-  const seen = useRef<Set<number> | null>(null);
-  if (seen.current === null) seen.current = new Set(rows.map((event) => event.seq));
-  const known = seen.current;
-  useEffect(() => {
-    for (const event of rows) known.add(event.seq);
-  }, [rows, known]);
-
-  return (
-    <VirtualList className="transcript" items={rows} itemKey={(event) => String(event.seq)} pinToBottom={follow} onReachTop={onReachTop} focus={focus}>
-      {(event) => <TimelineRow event={event} entrance={!known.has(event.seq)} />}
-    </VirtualList>
-  );
-});

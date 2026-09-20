@@ -12,19 +12,9 @@
     "reset": "Restablece"
   },
   "config": {
-    "title": "Configuración",
-    "projectScope": "Ámbito del proyecto",
     "userScope": "Ámbito del usuario · configuración personal de Claude Code de esta cuenta",
-    "precedence": "Precedencia",
-    "projectLocal": "proyecto local",
-    "projectShared": "proyecto compartido",
     "user": "usuario",
-    "precedenceNote": "— gana el archivo más específico; las reglas de permisos y los hooks se combinan.",
-    "unknownProject": "Proyecto desconocido",
-    "unknownProjectHint": "El wrapper no conoce este id de proyecto. Elige otro ámbito.",
     "environment": "Entorno efectivo",
-    "environmentHint": "lo que Claude cargó de verdad en el último run aquí",
-    "sections": "Secciones de la configuración",
     "tabs": {
       "account": "Cuenta",
       "instructions": "Instrucciones",
@@ -35,19 +25,12 @@
       "commands": "Comandos",
       "output-styles": "Output styles",
       "rules": "Reglas",
-      "files": "Archivos"
+      "files": "Archivos",
+      "workflows": "Workflows"
     }
   },
   "scope": {
-    "label": "Ámbito",
-    "user": "Usuario",
-    "search": "Busca proyectos",
-    "searchPlaceholder": "Busca proyectos…",
-    "listLabel": "Ámbito de la configuración",
-    "userHint": "Se aplica a todos los proyectos de esta cuenta",
-    "temporary": "temporal",
-    "noMatch": "Ningún proyecto coincide",
-    "showTemporary": "Mostrar proyectos temporales"
+    "label": "Ámbito"
   },
   "account": {
     "tokenSource": {
@@ -79,7 +62,7 @@
     "remove": "Quita la credencial guardada",
     "working": "Funciona",
     "failed": "Error: {{detail}}",
-    "cswapNote": "claude-swap gestiona varias cuentas, así que el wrapper no inyecta ningún token propio: una credencial configurada aquí sustituiría a la cuenta activa. Cambia de cuenta desde <link>Cuentas</link>.",
+    "cswapNote": "claude-swap gestiona varias cuentas, así que el wrapper no inyecta ningún token propio: una credencial configurada aquí sustituiría a la cuenta activa. Cambia de cuenta desde <anchor>Cuentas</anchor>.",
     "loggedInNote": "“Sesión iniciada” solo significa que hay una credencial configurada; el CLI no la valida. Usa la comprobación para asegurarte.",
     "setCredential": "Configura la credencial",
     "type": "Tipo",
@@ -138,7 +121,7 @@
     "notSet": "Sin definir (hereda)",
     "yes": "Sí",
     "no": "No",
-    "hooksIntro": "Los hooks ejecutan comandos de shell en eventos del ciclo de vida; los datos del evento llegan como JSON por stdin. Guarda los scripts en <mono>hooks/</mono> y edítalos en la <link>pestaña Archivos</link>.",
+    "hooksIntro": "Los hooks ejecutan comandos de shell en eventos del ciclo de vida; los datos del evento llegan como JSON por stdin. Guarda los scripts en <mono>hooks/</mono> y edítalos en la <anchor>pestaña Archivos</anchor>.",
     "hookEvents": {
       "PreToolUse": "Antes de que se ejecute una herramienta. Matcher: patrón del nombre de la herramienta, p. ej. Bash o Edit|Write. Puede bloquear la llamada.",
       "PostToolUse": "Después de que una herramienta termine bien. Matcher: patrón del nombre de la herramienta.",
@@ -209,14 +192,21 @@
     "plugins": "Plugins y marketplaces",
     "pluginCount_one": "{{count}} plugin",
     "pluginCount_other": "{{count}} plugins",
-    "pluginsHint": "Los gestiona el CLI. Usa la <link>página Plugins</link> para instalarlos, activarlos o quitarlos.",
+    "pluginsHint": "Los gestiona el CLI. Usa la <anchor>pestaña Plugins</anchor> para instalarlos, activarlos o quitarlos.",
     "nothingConfigured": "Nada configurado en este archivo",
     "enabled": "activado",
     "disabled": "desactivado",
     "otherKeys": "Otras claves",
     "preserved_one": "{{count}} conservada",
     "preserved_other": "{{count}} conservadas",
-    "otherKeysHint": "Estas claves no tienen control guiado. Se conservan intactas; edítalas en JSON sin procesar."
+    "otherKeysHint": "Estas claves no tienen control guiado. Se conservan intactas; edítalas en JSON sin procesar.",
+    "approvedServers": "Servidores de .mcp.json aprobados",
+    "rejectedServers": "Servidores de .mcp.json rechazados",
+    "ruleListNames": {
+      "allow": "Reglas para permitir",
+      "ask": "Reglas para preguntar",
+      "deny": "Reglas para denegar"
+    }
   },
   "mcp": {
     "transports": {
@@ -276,7 +266,13 @@
     "removeTitle": "¿Quitar “{{name}}”?",
     "removeBody": "El servidor se quita del ámbito {{scope}}. Las sessions que ya están en marcha lo conservan hasta que se reinicien.",
     "remove": "Quita el servidor",
-    "editInUser": "Edita en el ámbito del usuario"
+    "editInUser": "Edita en el ámbito del usuario",
+    "arguments": "Argumentos",
+    "scope": "Ámbito",
+    "actions": "Acciones",
+    "editNamed": "Edita {{name}}",
+    "editInUserNamed": "Edita {{name}} en el ámbito de usuario",
+    "removeNamed": "Quita {{name}}"
   },
   "resources": {
     "kinds": {
@@ -364,6 +360,23 @@
         "content": "Contenido de la regla",
         "create": "Crea la regla",
         "deleteTitle": "¿Eliminar la regla “{{name}}”?"
+      },
+      "workflows": {
+        "hint": "Scripts guardados que la herramienta Workflow ejecuta por nombre. El nombre de `meta` es el que usa Claude; ejecuta uno desde Nuevo chat.",
+        "new": "Nuevo workflow",
+        "namePlaceholder": "nombre-del-workflow",
+        "nameLabel": "Nombre del nuevo workflow",
+        "saved": "Workflow “{{name}}” guardado",
+        "saveFailed": "No se ha podido guardar el workflow",
+        "deleted": "Workflow “{{name}}” eliminado",
+        "deleteFailed": "No se ha podido eliminar el workflow",
+        "noneInScope": "Aún no hay workflows en este ámbito.",
+        "noneYet": "Aún no hay workflows",
+        "select": "Selecciona un workflow",
+        "createFirst": "Crea el primer workflow",
+        "content": "Contenido del workflow",
+        "create": "Crea el workflow",
+        "deleteTitle": "¿Eliminar el workflow “{{name}}”?"
       }
     },
     "exists": "Ya existe",
@@ -417,14 +430,15 @@
     "executable": "Ejecutable",
     "executableHint": "chmod +x — necesario para los scripts de hooks que se ejecutan directamente",
     "deleteTitle": "¿Eliminar {{path}}?",
-    "deleteFile": "Elimina el archivo"
+    "deleteFile": "Elimina el archivo",
+    "newFileNamed": "{{name}}, archivo nuevo",
+    "deleteFolderKey": "Elimina la carpeta (tecla Supr)"
   },
   "accounts": {
     "title": "Cuentas",
     "count_one": "{{count}} cuenta",
     "count_other": "{{count}} cuentas",
     "resetsIn": "· se reinicia en {{countdown}}",
-    "resets": "se reinicia el {{date}}",
     "active": "activa",
     "outOfRotation": "fuera de la rotación",
     "use": "Usa",
@@ -465,7 +479,7 @@
     "needsCswap": "El soporte multicuenta necesita claude-swap",
     "refreshUsage": "Actualiza el uso",
     "notInstalled": "claude-swap no está instalado",
-    "notInstalledHint": "Las cuentas múltiples y la rotación automática se delegan en <link>claude-swap</link>. Instálalo con <code>uv tool install claude-swap</code> (viene en la imagen de Docker) y registra cada cuenta con un token de <code>claude setup-token</code>.",
+    "notInstalledHint": "Las cuentas múltiples y la rotación automática se delegan en <anchor>claude-swap</anchor>. Instálalo con <code>uv tool install claude-swap</code> (viene en la imagen de Docker) y registra cada cuenta con un token de <code>claude setup-token</code>.",
     "switched": "Cambiado a {{email}}",
     "switchFailed": "No se ha podido cambiar a {{email}}",
     "backInRotation": "{{email}} vuelve a la rotación",
@@ -483,11 +497,12 @@
     "recentOnly": "Solo recientes",
     "fullHistory": "Historial completo",
     "nothingYet": "Nada todavía",
-    "logHint": "Los cambios, consultas y cuarentenas aparecen aquí cuando la rotación automática está en marcha."
+    "logHint": "Los cambios, consultas y cuarentenas aparecen aquí cuando la rotación automática está en marcha.",
+    "usedNearlyOut": "usado, casi agotado",
+    "usedRunningHigh": "usado, va alto",
+    "useAccount": "Usa {{name}}"
   },
   "memory": {
-    "title": "Memoria",
-    "subtitle": "Memoria en archivos que Claude Code guarda por proyecto: datos sobre ti, tu feedback, el contexto del proyecto y referencias.",
     "saved": "{{name}} guardado",
     "savedHint": "Acuérdate de añadir una línea que apunte a él en MEMORY.md.",
     "saveFailed": "No se ha podido guardar la memoria",
@@ -514,14 +529,9 @@
     "create": "Crea la memoria",
     "deleteIndexBody": "Sin el índice, las sessions dejan de conocer los demás archivos de memoria.",
     "deleteBody": "Claude dejará de recordar esto. No se puede deshacer.",
-    "delete": "Elimina la memoria",
-    "noProjects": "Aún no hay proyectos",
-    "noProjectsHint": "La memoria se guarda por proyecto. Crea un proyecto o lanza un run primero.",
-    "projects": "Proyectos",
-    "selectProject": "Selecciona un proyecto"
+    "delete": "Elimina la memoria"
   },
   "plugins": {
-    "title": "Plugins",
     "subtitle": "Extensiones para Claude Code: comandos, agentes, skills, hooks y servidores MCP empaquetados juntos. Las acciones ejecutan el CLI y pueden tardar hasta un minuto.",
     "sections": "Secciones de plugins",
     "tabs": {
@@ -589,7 +599,12 @@
     "location": "Ubicación",
     "update": "Actualiza",
     "removeTitle": "¿Quitar el marketplace {{name}}?",
-    "removeBody": "Los plugins instalados desde él pueden dejar de recibir actualizaciones."
+    "removeBody": "Los plugins instalados desde él pueden dejar de recibir actualizaciones.",
+    "detailsOf": "Detalles de {{name}}",
+    "updateNamed": "Actualiza {{name}}",
+    "cliOutput": "Salida del CLI",
+    "uninstallNamed": "Desinstala {{name}}",
+    "removeNamed": "Quita el marketplace {{name}}"
   },
   "orchestration": {
     "errors": {
@@ -623,19 +638,9 @@
     "turns_one": "{{count}} turno · ",
     "turns_other": "{{count}} turnos · ",
     "plannerRunning": "planificador en curso —",
-    "planner": {
-      "failed": "planificador fallido —",
-      "stopped": "planificador detenido —"
-    },
     "planReady": "plan listo —",
     "watchAgent": "sigue al agente",
     "loadingPlan": " · cargando el plan…",
-    "noPlan": "El planificador ha acabado sin plan ({{status}}). Su salida está en la página del run; puedes volver a planificar o escribir las tareas a mano.",
-    "plannerEnded": {
-      "failed": "fallido",
-      "stopped": "detenido",
-      "ended": "terminado"
-    },
     "planStartFailed": "No se ha podido arrancar el planificador",
     "planLoadFailed": "No se ha podido cargar el plan",
     "drafts": "Planes ya generados: carga uno en lugar de pagar un run nuevo.",
@@ -685,10 +690,7 @@
     "concurrencyValue": "concurrencia {{n}}"
   },
   "detail": {
-    "after": "después de {{deps}}",
     "result": "Resultado",
-    "run": "run",
-    "session": "session",
     "prOpened": "Pull request abierta",
     "pushed": "Se ha subido {{branch}}",
     "worktreesKept_one": "Se ha conservado {{count}} worktree",
@@ -709,7 +711,6 @@
     "prune": "Quita los worktrees",
     "merged_one": "{{merged}}/{{count}} rama de tarea fusionada",
     "merged_other": "{{merged}}/{{count}} ramas de tareas fusionadas",
-    "integratorRun": "run del integrador",
     "resolving": "Algunas ramas han tenido conflictos; un agente integrador las está fusionando.",
     "conflict": "<mono>{{task}}</mono> tiene conflictos en <mono>{{paths}}</mono>",
     "legacy_one": "Este grafo terminó antes de que las orquestaciones fusionaran su propio trabajo. Su {{count}} rama de tarea se puede integrar ahora en una sola; antes se hace commit de lo que quede pendiente en un worktree.",

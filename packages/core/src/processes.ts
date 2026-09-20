@@ -6,19 +6,19 @@ export interface CliProcess {
 }
 
 /**
- * Whether a process is a CLI the wrapper started for that session: stream-json on stdin, and the
- * session on `--resume` or `--session-id`. Matching on the arguments rather than the binary is
- * what also finds one started through `cswap run … --`, and a pid the system has since reused for
- * something else does not match. A `--fork-session` process works on a copy, not on the session it
- * names, so it only counts as the very process a run recorded.
+ * Whether a process is a CLI working on that session: stream-json on stdin, and the session on
+ * `--resume` or `--session-id`. Matching on the arguments rather than the binary is what also finds
+ * one started through `cswap run … --`, and a pid the system has since reused for something else
+ * does not match. A `--fork-session` process reads the session it resumes but writes the copy named
+ * by `--session-id`, so only the copy counts as the session it drives.
  */
-export function drivesSession(argv: readonly string[], sessionId: string, recorded = false): boolean {
+export function drivesSession(argv: readonly string[], sessionId: string): boolean {
   const flag = (name: string) => {
     const at = argv.indexOf(name);
     return at === -1 ? undefined : argv[at + 1];
   };
   if (flag('--input-format') !== 'stream-json') return false;
-  if (argv.includes('--fork-session')) return recorded;
+  if (argv.includes('--fork-session')) return flag('--session-id') === sessionId;
   return flag('--resume') === sessionId || flag('--session-id') === sessionId;
 }
 

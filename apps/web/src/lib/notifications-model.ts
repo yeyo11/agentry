@@ -61,13 +61,12 @@ export function defaultPrefs(): NotificationPrefs {
   return { kinds: Object.fromEntries(KINDS.map((kind) => [kind, true])) as Record<NotificationKind, boolean>, toasts: true, browser: false };
 }
 
-const runHref = (runId: string) => `/runs/${encodeURIComponent(runId)}`;
+// A run id on the wire is the id of the chat it works on
+const chatHref = (chatId: string) => `/chats/${encodeURIComponent(chatId)}`;
 const orchestrationHref = (id: string) => `/orchestration/${encodeURIComponent(id)}`;
 
-function activityHref(runId: string, sessionId: string | null, fallback: string): string {
-  if (runId) return runHref(runId);
-  return sessionId ? `/sessions/${encodeURIComponent(sessionId)}` : fallback;
-}
+/** Work delegated inside a chat says which chat by its session, or by its run when it has one of ours. */
+const activityChat = (runId: string, sessionId: string | null): string | null => sessionId || runId || null;
 
 // The event id alone would collide after a server restart, which restarts the ids
 const draft = (event: AgentryEvent, fields: DraftFields): NotificationDraft => ({
@@ -103,7 +102,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: 'warn',
           title: event.title,
           body: WAITING_BODY[event.reason](event.toolName),
-          href: runHref(event.runId),
+          href: chatHref(event.runId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,
         }),
@@ -122,7 +121,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: 'ok',
           title: i18n.t('components:notificationText.runFinished', { name: event.runName }),
           body: i18n.t('components:notificationText.runReady'),
-          href: runHref(event.runId),
+          href: chatHref(event.runId),
           runId: event.runId,
         }),
       ];
@@ -140,7 +139,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'ok',
           title: event.title,
           body: failed ? (event.error ?? i18n.t('components:notificationText.runError')) : i18n.t('components:notificationText.turns', { count: event.turns }),
-          href: runHref(event.runId),
+          href: chatHref(event.runId),
           runId: event.runId,
         }),
       ];
@@ -156,7 +155,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: 'warn',
           title: i18n.t('components:notificationText.rateLimited', { name: event.runName }),
           body: i18n.t('components:notificationText.rateLimitedBody'),
-          href: runHref(event.runId),
+          href: chatHref(event.runId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,
         }),
@@ -175,7 +174,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
             from: event.from ?? i18n.t('components:notificationText.previousAccount'),
             to: event.to ?? i18n.t('components:notificationText.nextAccount'),
           }),
-          href: runHref(event.runId),
+          href: chatHref(event.runId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,
         }),
@@ -214,6 +213,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
       ];
 
     case 'task.ended': {
+      const chatOf = activityChat(event.runId, event.sessionId);
       const failed = ACTIVITY_FAILED.has(event.status);
       return [
         draft(event, {
@@ -223,13 +223,14 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'info',
           title: event.title,
           body: event.summary ?? (event.fromSubagent ? i18n.t('components:notificationText.fromSubagent') : ''),
-          href: event.sessionId ? detailHref({ kind: 'task', sessionId: event.sessionId, taskId: event.taskId }, '/tasks') : activityHref(event.runId, event.sessionId, '/tasks'),
+          href: chatOf ? detailHref({ kind: 'task', chatId: chatOf, taskId: event.taskId }, chatHref(chatOf)) : null,
           runId: event.runId || null,
         }),
       ];
     }
 
     case 'subagent.ended': {
+      const chatOf = activityChat(event.runId, event.sessionId);
       const failed = event.status !== 'completed';
       return [
         draft(event, {
@@ -239,16 +240,14 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'info',
           title: event.title,
           body: event.description,
-          href:
-            event.sessionId && event.agentId
-              ? detailHref({ kind: 'subagent', sessionId: event.sessionId, agentId: event.agentId }, '/agents')
-              : activityHref(event.runId, event.sessionId, '/agents'),
+          href: chatOf ? (event.agentId ? detailHref({ kind: 'subagent', chatId: chatOf, agentId: event.agentId }, chatHref(chatOf)) : chatHref(chatOf)) : null,
           runId: event.runId || null,
         }),
       ];
     }
 
     case 'workflow.ended': {
+      const chatOf = activityChat(event.runId, event.sessionId);
       const failed = event.status === 'failed';
       return [
         draft(event, {
@@ -258,7 +257,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'info',
           title: event.title,
           body: event.summary ?? '',
-          href: '/workflows',
+          href: chatOf ? chatHref(chatOf) : null,
           runId: event.runId || null,
         }),
       ];
@@ -288,7 +287,7 @@ export function settlesWaiting(event: AgentryEvent): ((notification: AppNotifica
 /** The person is already looking at what the notification is about, so a toast would only repeat it. */
 export function isRedundant(notification: Pick<NotificationDraft, 'runId' | 'orchestrationId'>, pathname: string, tabVisible: boolean): boolean {
   if (!tabVisible) return false;
-  if (notification.runId && pathname === runHref(notification.runId)) return true;
+  if (notification.runId && pathname === chatHref(notification.runId)) return true;
   return notification.orchestrationId !== null && pathname === orchestrationHref(notification.orchestrationId);
 }
 

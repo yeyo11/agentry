@@ -1,24 +1,17 @@
 {
   "nav": {
-    "groups": {
-      "monitor": "Supervisar",
-      "work": "Trabajar",
-      "configure": "Configurar"
-    },
-    "dashboard": "Panel",
-    "agents": "Agentes",
-    "backgroundTasks": "Tareas en segundo plano",
-    "workflows": "Workflows",
-    "sessions": "Sessions",
     "projects": "Proyectos",
-    "orchestration": "Orquestación",
     "accounts": "Cuentas",
-    "memory": "Memoria",
-    "plugins": "Plugins",
-    "config": "Configuración",
     "apiReference": "Referencia de la API",
-    "activeCount_one": "{{count}} activo",
-    "activeCount_other": "{{count}} activos"
+    "home": "Inicio",
+    "chats": "Chats",
+    "orchestrations": "Orquestaciones",
+    "settings": "Ajustes",
+    "badge": {
+      "waiting": "esperándote",
+      "working": "trabajando",
+      "running": "en curso"
+    }
   },
   "shell": {
     "apiUnreachable": "No se puede contactar con la API",
@@ -30,16 +23,17 @@
     "loggedIn": "sesión iniciada",
     "checkWrapper": "Comprueba que el wrapper está en marcha",
     "installCli": "Instálalo o define CLAUDE_BIN",
-    "addCredential": "Añade una credencial en Configuración",
+    "addCredential": "Añade una credencial en Ajustes",
     "sidebar": "Barra lateral",
     "expandSidebar": "Expande la barra lateral",
     "collapseSidebar": "Contrae la barra lateral",
     "openNavigation": "Abre la navegación",
     "closeNavigation": "Cierra la navegación",
     "mainNavigation": "Principal",
-    "breadcrumb": "Ruta de navegación",
-    "newRun": "Nuevo run",
-    "pageNotFound": "Página no encontrada"
+    "pageNotFound": "Página no encontrada",
+    "newChat": "Nuevo chat",
+    "runWorkflow": "Ejecuta un workflow",
+    "skipToContent": "Saltar al contenido"
   },
   "ui": {
     "loadingShort": "Cargando",
@@ -48,7 +42,6 @@
     "copyPath": "Copia la ruta",
     "copyCode": "Copia el código",
     "requestFailed": "La petición ha fallado",
-    "unsavedChanges": "Cambios sin guardar",
     "unsavedChangesLabel": "cambios sin guardar",
     "claudeIsWorking": "Claude está trabajando"
   },
@@ -85,7 +78,8 @@
   },
   "markdown": {
     "taskDone": "hecho",
-    "taskTodo": "pendiente"
+    "taskTodo": "pendiente",
+    "table": "Tabla"
   },
   "scrollJump": {
     "transcript": {
@@ -101,62 +95,16 @@
     "oldest": "Lo más antiguo (arriba)",
     "newest": "Lo más reciente (abajo)"
   },
-  "sessionDelete": {
-    "deleted": "Session eliminada",
-    "failed": "No se ha podido eliminar la session",
-    "title": "¿Eliminar esta session?",
-    "body_one": "La transcripción ({{count}} mensaje) se borra del disco y la session ya no podrá reanudarse. No se puede deshacer.",
-    "body_other": "La transcripción ({{count}} mensajes) se borra del disco y la session ya no podrá reanudarse. No se puede deshacer.",
-    "confirm": "Elimina la session"
-  },
   "runSettings": {
-    "permissions": "Permisos",
     "permissionMode": "Modo de permisos",
-    "model": "Modelo",
-    "defaultModel": "predeterminado",
     "set": "Aplica"
-  },
-  "origin": {
-    "cli": {
-      "label": "CLI de Claude Code",
-      "short": "CLI"
-    },
-    "run": {
-      "label": "Run de Agentry",
-      "short": "Run"
-    },
-    "orchestration": {
-      "label": "Worker de una orquestación",
-      "short": "Orquestación"
-    },
-    "internal": {
-      "label": "Mantenimiento interno del wrapper",
-      "short": "Interna"
-    },
-    "orchestrationFallback": "orquestación",
-    "synthesis": "Síntesis",
-    "runFallback": "run",
-    "internalSession": "session interna del wrapper"
-  },
-  "runCard": {
-    "orchestration": "orquestación",
-    "pinnedAccount": "Fijado a una cuenta de claude-swap",
-    "waitingForYou": "te está esperando",
-    "subagents_one": "{{count}} subagent",
-    "subagents_other": "{{count}} subagents",
-    "bgTasks_one": "{{count}} tarea en segundo plano",
-    "bgTasks_other": "{{count}} tareas en segundo plano",
-    "defaultModel": "modelo predeterminado",
-    "turns_one": "{{count}} turno",
-    "turns_other": "{{count}} turnos",
-    "up": "activo desde hace {{duration}}",
-    "ended": "terminó {{time}}",
-    "pid": "pid {{pid}}"
   },
   "notifications": {
     "bell": "Notificaciones",
     "bellUnread_one": "Notificaciones, {{count}} sin leer",
     "bellUnread_other": "Notificaciones, {{count}} sin leer",
+    "bellUnreadUrgent_one": "Notificaciones, {{count}} sin leer, alguna requiere tu respuesta",
+    "bellUnreadUrgent_other": "Notificaciones, {{count}} sin leer, alguna requiere tu respuesta",
     "answer": "Responde"
   },
   "notificationPanel": {
@@ -191,7 +139,6 @@
     "observed": "observado {{time}}",
     "cliVersion": "CLI {{version}}",
     "style": "output style: {{style}}",
-    "sourceRun": "run de origen",
     "source": "origen: {{source}}",
     "mcpServers": "Servidores MCP",
     "tools": "Herramientas",
@@ -200,16 +147,17 @@
     "slashCommands": "Slash commands",
     "plugins": "Plugins",
     "memoryPaths": "Rutas de memoria",
-    "empty": "Inicia un run en este proyecto para ver lo que carga Claude."
+    "empty": "Inicia un chat en este proyecto para ver qué carga Claude.",
+    "sourceChat": "chat de origen"
   },
   "workflowCard": {
     "tokens": "{{n}} tokens",
     "tokensThousands": "{{n}} mil tokens",
     "workflow": "workflow",
-    "cliSession": "Session de CLI",
     "agentsDone": "{{done}}/{{total}} agentes terminados",
     "result": "Resultado",
-    "script": "Script"
+    "script": "Script",
+    "agentsDoneLabel": "Agentes completados"
   },
   "transcript": {
     "thinking": "Thinking",
@@ -221,18 +169,7 @@
     "user": "Usuario",
     "subagent": "subagent",
     "streamingThinking": "thinking",
-    "streamingWriting": "escribiendo",
-    "status": "estado",
-    "unknownModel": "modelo ?",
-    "defaultMode": "default",
-    "initSummary": "{{tools}} herramientas · {{servers}} servidores MCP",
-    "turnFailed": "turno fallido",
-    "turnDone": "turno terminado",
-    "turns_one": "{{count}} turno · ",
-    "turns_other": "{{count}} turnos · ",
-    "denials_one": " · {{count}} permiso denegado",
-    "denials_other": " · {{count}} permisos denegados",
-    "structuredOutput": "Salida estructurada"
+    "streamingWriting": "escribiendo"
   },
   "detail": {
     "status": "Estado",
@@ -241,10 +178,8 @@
     "duration": "Duración",
     "started": "Inicio",
     "startedBy": "Iniciada por",
-    "fromSubagent": "de un subagent",
-    "openSubagent": "abre el subagent",
-    "cliSession": "Session de CLI",
-    "location": "Ubicación",
+    "fromSubagent": "un subagent",
+    "openSubagent": "ábrelo",
     "taskGone": "Esta tarea ya no aparece en la lista; lo que escribió se sigue mostrando abajo.",
     "output": "Salida",
     "live": "en directo",
@@ -261,7 +196,6 @@
     "toolCalls": "Llamadas a herramientas",
     "model": "Modelo",
     "directory": "Directorio",
-    "session": "Session",
     "prompt": "Prompt",
     "tasksLaunched": "Tareas en segundo plano que lanzó ({{count}})",
     "result": "Resultado",
@@ -271,7 +205,10 @@
     "showEarlier_other": "Muestra {{count}} entradas anteriores",
     "backgroundTask": "Tarea en segundo plano",
     "subagent": "Subagent",
-    "workflowAgent": "Agente de workflow"
+    "workflowAgent": "Agente de workflow",
+    "taskOutput": "Salida de la tarea",
+    "chat": "Chat",
+    "theChat": "el chat"
   },
   "permissions": {
     "waitingForYou": "Te está esperando",
@@ -302,12 +239,15 @@
     "approveAcceptEditsHint": "Aprueba y déjale editar archivos sin preguntar durante el resto de la session",
     "approveAcceptEdits": "Aprueba y acepta las ediciones",
     "keepPlanning": "Sigue planificando",
-    "planFeedback": "¿Qué debería cambiar? (se envía al modelo)"
+    "planFeedback": "¿Qué debería cambiar? (se envía al modelo)",
+    "otherAnswerTo": "Otra respuesta a: {{question}}",
+    "whatItWantsToRun": "Lo que quiere ejecutar",
+    "plan": "Plan"
   },
   "palette": {
     "trigger": "Busca…",
     "label": "Paleta de comandos",
-    "placeholder": "Busca páginas, proyectos, runs y acciones…",
+    "placeholder": "Busca páginas, proyectos, chats y acciones…",
     "commands": "Comandos",
     "noMatches": "Nada coincide con",
     "navigate": "moverse",
@@ -317,23 +257,28 @@
       "actions": "Acciones",
       "theme": "Tema",
       "goTo": "Ir a",
-      "config": "Configuración",
-      "liveRuns": "Runs en directo",
       "projects": "Proyectos",
-      "recentSessions": "Sessions recientes",
-      "recent": "Recientes"
+      "recent": "Recientes",
+      "settings": "Ajustes",
+      "workingChats": "Chats en curso",
+      "recentChats": "Chats recientes"
     },
-    "newRun": "Nuevo run",
-    "newRunHint": "Empieza una conversación con Claude",
     "newOrchestration": "Nueva orquestación",
     "newOrchestrationHint": "Planifica y lanza un grafo de tareas con varios agentes",
-    "newProject": "Nuevo proyecto",
-    "newProjectHint": "Crea o clona en el espacio de trabajo",
+    "newProject": "Importa o crea un proyecto",
+    "newProjectHint": "Importa un directorio, o crea o clona uno en el espacio de trabajo",
     "credential": "Define la credencial de la cuenta",
     "credentialHint": "Token OAuth o clave de API",
     "apiReference": "Referencia de la API",
     "apiReferenceHint": "Documentación interactiva de OpenAPI (Scalar) en una pestaña nueva",
-    "configTabs": {
+    "userScope": "Ámbito de usuario",
+    "placeholderLabel": "Busca páginas, proyectos, chats y acciones",
+    "newChat": "Nuevo chat",
+    "newChatHint": "Empieza una conversación con Claude",
+    "newChatIn": "En {{name}}",
+    "runWorkflow": "Ejecuta un workflow guardado",
+    "runWorkflowHint": "Inicia un chat que lo lanza",
+    "settingsTabs": {
       "instructions": "Instrucciones",
       "settings": "Ajustes",
       "mcp": "Servidores MCP",
@@ -342,13 +287,22 @@
       "commands": "Comandos",
       "outputStyles": "Output styles",
       "rules": "Reglas",
-      "files": "Archivos"
+      "files": "Archivos",
+      "workflows": "Workflows",
+      "memory": "Memoria",
+      "plugins": "Plugins"
     },
-    "userScope": "Ámbito de usuario",
-    "projectSessions": "{{name}} — sessions",
-    "projectNewRun": "{{name}} — nuevo run",
-    "projectConfig": "{{name}} — configuración",
-    "projectMemory": "{{name}} — memoria"
+    "noProject": "sin proyecto",
+    "projectPage": "{{name}} — {{page}}",
+    "projectPages": {
+      "activity": "actividad",
+      "settings": "ajustes",
+      "memory": "memoria",
+      "resources": "recursos",
+      "worktrees": "worktrees"
+    },
+    "projectChats": "{{name}} — chats",
+    "projectNewChat": "{{name}} — nuevo chat"
   },
   "find": {
     "button": "Busca",
@@ -363,7 +317,8 @@
     "newer": "Coincidencia siguiente",
     "newerHint": "Coincidencia siguiente (Mayús+Intro)",
     "close": "Cierra la búsqueda",
-    "closeHint": "Cierra (Esc)"
+    "closeHint": "Cierra (Esc)",
+    "transcript": "Transcripción"
   },
   "attachments": {
     "image": "imagen",
@@ -414,5 +369,12 @@
     "conflictResolving_one": "{{count}} archivo en {{branch}}.",
     "conflictResolving_other": "{{count}} archivos en {{branch}}.",
     "fromSubagent": "Lo ha iniciado un subagent."
+  },
+  "codeBlock": {
+    "label": "Código",
+    "labelLang": "Código {{lang}}"
+  },
+  "combobox": {
+    "suggestions": "Sugerencias"
   }
 }

@@ -28,28 +28,24 @@ test('a worktree anywhere resolves to its repository, from its .git file', () =>
   execFileSync('git', ['-C', root, 'worktree', 'add', '-q', '-b', 'feature', outside]);
   mkdirSync(join(outside, 'packages', 'core'), { recursive: true });
 
-  const loc = new Locator().locate(join(outside, 'packages', 'core'));
-  assert.equal(loc.projectPath, root);
-  assert.equal(loc.projectId, encodeProjectId(root));
   // git names the worktree after its directory
-  assert.deepEqual(loc.worktree, { name: basename(outside), branch: 'feature', path: outside });
+  assert.deepEqual(new Locator().worktreeOf(join(outside, 'packages', 'core')), { path: outside, name: basename(outside), branch: 'feature', parentPath: root });
   // The main checkout is not a worktree of anything
-  assert.equal(new Locator().locate(root).worktree, null);
-  assert.equal(new Locator().locate(root).projectPath, root);
+  assert.equal(new Locator().worktreeOf(root), null);
 });
 
 test('the CLI layout and its transcript record resolve a worktree even once it is gone', () => {
   const locator = new Locator();
   // Removed from disk: only the path says what it was
-  const byPath = locator.locate('/gone/repo/.claude/worktrees/abc-task/src');
-  assert.equal(byPath.projectPath, '/gone/repo');
-  assert.equal(byPath.worktree?.name, 'abc-task');
+  const byPath = locator.worktreeOf('/gone/repo/.claude/worktrees/abc-task/src');
+  assert.equal(byPath?.parentPath, '/gone/repo');
+  assert.equal(byPath?.name, 'abc-task');
   // The record the CLI wrote wins, branch included
   locator.learn({ path: '/elsewhere/wt', parentPath: '/gone/repo', name: 'wt', branch: 'worktree-wt' });
-  assert.deepEqual(locator.locate('/elsewhere/wt').worktree, { name: 'wt', branch: 'worktree-wt', path: '/elsewhere/wt' });
+  assert.deepEqual(locator.worktreeOf('/elsewhere/wt'), { path: '/elsewhere/wt', parentPath: '/gone/repo', name: 'wt', branch: 'worktree-wt' });
 });
 
-test('a session run in a worktree carries the CLI record, and its project nests under the repository', async () => {
+test('a session run in a worktree carries the CLI record, and stays loose until its repository is imported', async () => {
   const config = tempConfig();
   const parent = '/work/app';
   const wt = '/work/app/.claude/worktrees/1234-api';
@@ -75,27 +71,12 @@ test('a session run in a worktree carries the CLI record, and its project nests 
   const summary = await new SessionStore(config).summary('w-1');
   assert.deepEqual(summary?.worktree, { path: wt, parentPath: parent, name: '1234-api', branch: 'worktree-1234-api' });
 
+  // Nothing is a project until it is imported: the sessions are loose
   const core = new Core(config);
-  const projects = await core.projects();
-  const child = projects.find((p) => p.path === wt);
-  assert.equal(child?.parentId, encodeProjectId(parent));
-  assert.deepEqual(child?.worktree, { name: '1234-api', branch: 'worktree-1234-api' });
-  assert.equal(projects.find((p) => p.path === parent)?.parentId, null);
-  // Asking for the repository's sessions includes the worktree's
-  const ids = (await core.sessionsWithLive(encodeProjectId(parent))).map((s) => s.id).sort();
-  assert.deepEqual(ids, ['p-1', 'w-1']);
+  assert.deepEqual(await core.projects(), []);
+  const loose = await core.chats.list({ project: null, origins: ['agentry', 'external'] });
+  assert.deepEqual(loose.map((c) => c.id).sort(), ['p-1', 'w-1']);
+
   core.db.close();
 });
 
-test('a repository only worked on through worktrees still appears, to hold them', async () => {
-  const config = tempConfig();
-  const wt = '/work/solo/.claude/worktrees/x';
-  const dir = join(config.projectsDir, encodeProjectId(wt));
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, 's.jsonl'), line({ type: 'user', uuid: '1', timestamp: '2026-01-01T10:00:00Z', cwd: wt, message: { role: 'user', content: 'go' } }));
-  const core = new Core(config);
-  const projects = await core.projects();
-  assert.ok(projects.find((p) => p.path === '/work/solo'));
-  assert.equal(projects.find((p) => p.path === wt)?.parentPath, '/work/solo');
-  core.db.close();
-});

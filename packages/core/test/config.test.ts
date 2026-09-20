@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { SettingsFiles } from '../src/config/files.ts';
 import { parseVariant, projectScope, userScope } from '../src/config/scope.ts';
-import { MarkdownResources } from '../src/config/resources.ts';
+import { ConfigResources } from '../src/config/resources.ts';
 import { CredentialStore } from '../src/credentials.ts';
 import { encodeProjectId, Workspace } from '../src/workspace.ts';
 import { tempConfig } from './helpers.ts';
@@ -33,7 +33,7 @@ test('settings and instructions round-trip per scope', async () => {
 
 test('markdown resources CRUD with per-kind layout and scope', async () => {
   const config = tempConfig();
-  const resources = new MarkdownResources();
+  const resources = new ConfigResources();
   const user = userScope(config);
   const project = projectScope(join(config.workspaceDir, 'app'));
   const body = '---\nname: x\ndescription: "Reviews code"\n---\nBody\n';
@@ -54,6 +54,42 @@ test('markdown resources CRUD with per-kind layout and scope', async () => {
   assert.equal(existsSync(join(config.workspaceDir, 'app', '.claude', 'skills', 'deploy')), false);
   await assert.rejects(resources.remove(user, 'agents', 'ghost'), /not found/);
   await assert.rejects(resources.save(user, 'agents', '../evil', 'x'), /invalid resource name/);
+});
+
+test('a saved workflow is a script resource: found by its meta name, kept in its own file, and never mistaken for markdown', async () => {
+  const config = tempConfig();
+  const resources = new ConfigResources();
+  const user = userScope(config);
+  const project = projectScope(join(config.workspaceDir, 'app'));
+  const dir = join(config.workspaceDir, 'app', '.claude', 'workflows');
+  mkdirSync(dir, { recursive: true });
+  // The file is not called what the script says: the Workflow tool goes by `meta.name`
+  writeFileSync(join(dir, 'audit-v2.mjs'), "export const meta = { name: 'audit', description: 'Audit the API' }\nreturn 1\n");
+  writeFileSync(join(dir, 'notes.md'), '# not a workflow');
+
+  const listed = await resources.list(project, 'workflows');
+  assert.deepEqual(listed.map((r) => [r.name, r.format, r.description]), [['audit', 'javascript', 'Audit the API']]);
+  assert.deepEqual(await resources.list(user, 'workflows'), []); // scopes do not leak into each other
+  assert.equal((await resources.list(project, 'agents')).every((r) => r.format === 'markdown'), true);
+
+  // Saving by name edits the file that holds it instead of creating a second `audit.js`
+  const edited = await resources.save(project, 'workflows', 'audit', "export const meta = { name: 'audit', description: 'Changed' }\n");
+  assert.equal(edited.path, join(dir, 'audit-v2.mjs'));
+  assert.equal(edited.description, 'Changed');
+  assert.equal(existsSync(join(dir, 'audit.js')), false);
+
+  const created = await resources.save(project, 'workflows', 'fresh', "export const meta = { name: 'fresh' }\n");
+  assert.equal(created.path, join(dir, 'fresh.js'));
+  assert.equal(readFileSync(created.path, 'utf8'), "export const meta = { name: 'fresh' }\n");
+
+  // A script that renames itself is the workflow of its new name
+  const renamed = await resources.save(project, 'workflows', 'fresh', "export const meta = { name: 'fresher' }\n");
+  assert.equal(renamed.name, 'fresher');
+  assert.equal(renamed.path, created.path);
+
+  await resources.remove(project, 'workflows', 'audit');
+  assert.equal(existsSync(join(dir, 'audit-v2.mjs')), false);
+  await assert.rejects(resources.remove(project, 'workflows', 'audit'), /not found/);
 });
 
 test('credential store injects, swaps and restores env', async () => {
@@ -94,7 +130,7 @@ test('workspace projects', async () => {
   const workspace = new Workspace(config);
   const path = await workspace.create('my-app');
   assert.equal(path, join(config.workspaceDir, 'my-app'));
-  assert.deepEqual(await workspace.list(), [path]);
+  assert.equal(statSync(path).isDirectory(), true);
   await assert.rejects(workspace.create('my-app'), /already exists/);
   await assert.rejects(workspace.create('../escape'), /invalid project name/);
   await assert.rejects(workspace.create('repo', 'file:///etc'), /invalid git url/);

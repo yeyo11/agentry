@@ -21,7 +21,7 @@ export function NotificationBell() {
   const button = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   const { t } = useTranslation(['components', 'common']);
-  const label = unread > 0 ? t('notifications.bellUnread', { count: unread }) : t('notifications.bell');
+  const label = unread > 0 ? t(urgent ? 'notifications.bellUnreadUrgent' : 'notifications.bellUnread', { count: unread }) : t('notifications.bell');
 
   return (
     <>

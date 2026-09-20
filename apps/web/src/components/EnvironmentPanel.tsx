@@ -1,4 +1,3 @@
-import type { EffectiveEnvironment } from '@agentry/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -37,7 +36,25 @@ function ChipGroup({ label, items, mono = true }: { label: string; items: string
   );
 }
 
-function EnvironmentBody({ env }: { env: EffectiveEnvironment }) {
+/** What Claude loaded: a chat carries it (`Chat.environment`) and `GET /environments` serves it per directory. */
+export interface LoadedEnvironment {
+  observedAt: string;
+  model: string | null;
+  permissionMode: string | null;
+  outputStyle: string | null;
+  tools: string[];
+  mcpServers: Array<{ name: string; status: string; source?: string }>;
+  agents: string[];
+  skills: string[];
+  slashCommands: string[];
+  plugins: Array<{ name: string }>;
+  memoryPaths: Record<string, string>;
+  cliVersion?: string | null;
+  /** The chat whose start reported it, when it is not the one being looked at */
+  chatId?: string;
+}
+
+export function EnvironmentBody({ env }: { env: LoadedEnvironment }) {
   const { t } = useTranslation('components');
   const memory = Object.entries(env.memoryPaths);
   return (
@@ -48,7 +65,7 @@ function EnvironmentBody({ env }: { env: EffectiveEnvironment }) {
         {env.cliVersion && <span>{t('environment.cliVersion', { version: env.cliVersion })}</span>}
         {env.permissionMode && <span>{env.permissionMode}</span>}
         {env.outputStyle && <span>{t('environment.style', { style: env.outputStyle })}</span>}
-        <Link to={`/runs/${env.runId}`}>{t('environment.sourceRun')}</Link>
+        {env.chatId && <Link to={`/chats/${env.chatId}`}>{t('environment.sourceChat')}</Link>}
       </div>
       <Collapsible
         className="env-group"
@@ -104,8 +121,8 @@ function EnvironmentBody({ env }: { env: EffectiveEnvironment }) {
 }
 
 /**
- * What Claude actually loaded in the latest wrapper run in `cwd`: the ground truth that the
- * configuration files only describe. `live` keeps it refreshed while a run is in progress: the event
+ * What Claude actually loaded in the latest chat Agentry started in `cwd`: the ground truth that the
+ * configuration files only describe. `live` keeps it refreshed while a chat is in progress: the event
  * feed does it, and a slow poll stands in while the feed is down.
  */
 export function EnvironmentPanel({ cwd, live = false }: { cwd: string; live?: boolean }) {

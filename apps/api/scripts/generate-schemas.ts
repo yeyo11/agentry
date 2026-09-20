@@ -11,16 +11,20 @@ const out = resolve(here, '../src/openapi/schemas.json');
 
 // Root types used by the routes; everything they reference is pulled in automatically.
 const ROOT_TYPES = [
-  'ApiError', 'SystemInfo', 'Overview', 'AuthStatus', 'AuthVerification', 'SetCredentialsRequest', 'ActiveCliSession',
-  'ProjectSummary', 'CreateProjectRequest', 'SessionSummary', 'SessionDetail', 'TranscriptSearchResult',
-  'RunOptions', 'RunSummary', 'RunDetail', 'RunEvent', 'EffectiveEnvironment', 'BackgroundTask', 'BackgroundTaskOutput', 'SubagentInfo', 'AgentTranscript', 'WorkflowRun', 'WorkflowDefinition', 'RunWorkflowRequest', 'SaveOrchestrationWorkflowRequest',
-  'Orchestration', 'OrchestrationSpec', 'PlanRequest', 'PlanDraftSummary', 'PermissionRequest', 'PermissionDecision', 'RunSettingsUpdate', 'ResumeOrchestrationRequest',
-  'SettingsDoc', 'InstructionsDoc', 'McpServerEntry', 'McpServerHealth', 'MarkdownResource',
+  'ApiError', 'SystemInfo', 'Overview', 'AuthStatus', 'AuthVerification', 'SetCredentialsRequest',
+  'CreateProjectRequest', 'TranscriptSearchResult',
+  'RunEvent', 'EffectiveEnvironment', 'BackgroundTaskOutput', 'AgentTranscript', 'WorkflowDefinition', 'RunWorkflowRequest', 'SaveOrchestrationWorkflowRequest',
+  'Orchestration', 'OrchestrationSpec', 'PlanRequest', 'PlanDraftSummary', 'PermissionRequest', 'PermissionDecision', 'ResumeOrchestrationRequest',
+  'SettingsDoc', 'InstructionsDoc', 'McpServerEntry', 'McpServerHealth', 'ConfigResource',
   'ConfigFileRoot', 'ConfigFileNode', 'ConfigFileContent', 'WriteConfigFileRequest',
   'MemoryFile', 'MemoryProjectSummary', 'PluginsOverview', 'AvailablePlugin', 'PluginActionRequest', 'CliTextResult',
   'Attachment', 'AccountsOverview', 'AccountSummary', 'SwitchAccountRequest', 'SwitchResult', 'AddAccountTokenRequest',
   'SetAccountAliasRequest', 'AutoSwitchSettings', 'AutoSwitchEvent',
   'AgentryEvent', 'StreamHelloEvent', 'StreamResyncEvent',
+  // Agentry's own model: chats, executions, projects
+  'Chat', 'ChatSummary', 'ChatDetail', 'ChatBackgroundTaskEntry', 'ChatSubagentEntry', 'ChatWorkflowEntry', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatSettingsUpdate',
+  'UsageReport',
+  'TaskHintRequest', 'Project', 'ProjectCandidate', 'ImportProjectRequest', 'UpdateProjectRequest',
 ];
 
 const generator = createGenerator({

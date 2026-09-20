@@ -46,7 +46,7 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
   dependency context and a synthesis step. Every worker can get its own git worktree and branch,
   so parallel agents never write over each other. An auto-planner drafts the graph; plans are kept,
   so one lost to a closed tab is reloaded instead of paid for twice, and a graph interrupted by a
-  restart resumes where it stopped.
+  restart goes on where it stopped.
 - **Multi-account rotation** — usage per window, proactive switching before an account runs out,
   and a run that hits its limit is rotated and resumed on the next account. Every rotation is
   recorded, so "why did my account change" has an answer that survives a restart.
@@ -129,7 +129,7 @@ Volumes:
 | --- | --- | --- |
 | `agentry-config` / `claude-config` | `/home/node/.claude` | The whole account setup: `settings.json`, `.claude.json` (MCP servers), `CLAUDE.md`, agents, skills, commands and session transcripts |
 | `./workspace` | `/workspace` | Projects Claude works on (default `cwd` for runs) |
-| `agentry-data` / `wrapper-data` | `/data` | Wrapper state: the SQLite store (`wrapper.db`: runs, orchestrations, plans, rotation log), `accounts.json` (auto-rotation settings), `credentials.json` (the runtime credential, mode 600) and `uploads/` (attachments) |
+| `agentry-data` / `wrapper-data` | `/data` | Wrapper state: the SQLite store (`wrapper.db`: chats and their executions, orchestrations, plans, rotation log), `accounts.json` (auto-rotation settings), `credentials.json` (the runtime credential, mode 600) and `uploads/` (attachments) |
 | `agentry-accounts` / `claude-swap` | `/home/node/.local/share/claude-swap` | Credentials of every registered account |
 
 The compose file keeps its original volume names so an existing setup keeps its data; `docker compose`
@@ -171,14 +171,14 @@ The browser suite boots its own wrapper on port 8799 with temporary config, work
 directories, seeds whatever each spec needs and drives headless Chrome over the DevTools
 protocol (no Playwright, no dependencies). It covers every page in both themes and at phone
 width, the config editors and their save/delete flows, the unsaved-changes guard, the command
-palette and the sessions screen; `E2E_LIVE=1 pnpm e2e chat` additionally holds a real
+palette and the chats list; `E2E_LIVE=1 pnpm e2e chat` additionally holds a real
 conversation with Claude (streamed reply, follow-up turn, stop) using your login.
 
 ## Monorepo layout
 
 ```
 packages/shared   Types and the message normalizer shared by every package (the API contract)
-packages/core     CLI communication: detection, auth, run manager, session store,
+packages/core     CLI communication: detection, auth, chat manager, transcript store,
                   orchestrator, accounts (claude-swap), config managers
 apps/api          Fastify REST API + SSE; serves the built UI in production
 apps/web          React + Vite UI
@@ -229,9 +229,6 @@ Types live in [`packages/shared/src/types.ts`](packages/shared/src/types.ts).
 | GET | `/health` | `{ ok, cli, loggedIn }` |
 | GET | `/system?refresh=1` | CLI detection, auth status, paths |
 | GET | `/overview` | Everything the dashboard needs in one call |
-| GET | `/active` | Live CLI sessions (`claude agents --json`), each marked `live` — a finished process or a pre-warmed spare is listed but not counted |
-| GET | `/active/:id/logs` | A background session's recent terminal output (`claude logs`) |
-| POST | `/active/:id/stop` | Stop a background session through `claude stop`, keeping it resumable |
 
 ### Account credentials
 
@@ -274,32 +271,26 @@ Rotation happens two ways:
 - **Proactive** — with `enabled`, the wrapper supervises a `cswap auto --json` process that
   switches when the active account's binding window reaches `threshold` (default 90 %), reusing
   claude-swap's cooldown, hysteresis and quarantine of dead refresh tokens.
-- **Reactive** — with `rotateOnLimit` (default on), a run that dies against its rate limit
+- **Reactive** — with `rotateOnLimit` (default on), a chat that dies against its rate limit
   (`rate_limit_event` rejection, a 429 result or a matching stderr line) triggers a rotation to
   the account with the most headroom, and the turn is replayed on the same session with
-  `--resume`. Once per run: a second failure is reported as a real one.
+  `--resume`. Once per chat: a second failure is reported as a real one.
 
-A run can also be pinned to one account with `RunOptions.account`, which spawns
-`cswap run <account> --share-history -- …` instead of `claude`. Pinned runs keep writing their
-transcript to the shared config dir, so sessions and history behave as usual.
+A chat can also be pinned to one account with `account` (on `NewChatRequest`, `ResumeChatRequest` or
+`ForkChatRequest`), which spawns `cswap run <account> --share-history -- …` instead of `claude`.
+Pinned chats keep writing their transcript to the shared config dir, so history behaves as usual.
 
-### Projects and sessions
+### Projects
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/projects` | Workspace directories plus every directory with Claude Code history, with active run counts |
-| POST | `/projects` | `{ name, gitUrl? }` — create an empty project in the workspace or clone a repository into it |
-| GET | `/projects/:id/sessions` | Sessions of one project |
-| GET | `/sessions?limit=N` | All sessions, newest first, flagged when live |
-| GET | `/sessions/:id?sidechains=1` | A window of the transcript: the newest 200 entries, or `?limit=` of them, with `from` and `total`; `?before=` the `from` of a page reads the one before it (optionally with subagent messages) |
-| DELETE | `/sessions/:id` | Delete a transcript (refused while the session is live) |
-| GET | `/sessions/:id/search?q=&sidechains=1` | Search the whole transcript, pages not loaded included: the matching entries' indices (the space of `from`/`total`) with a snippet each, case-insensitive; at most 500, the newest, with `truncated` |
-| GET | `/sessions/:id/subagents` | Background agents a session spawned, read from its files |
-| GET | `/sessions/:id/tasks` | Shell commands a session sent to the background |
-| GET | `/sessions/:id/tasks/:taskId/output` | What one of them printed: the last 64 KiB, or with `?offset=` only what came after that byte |
-| GET | `/sessions/:id/subagents/:agentId` | One subagent: prompt, outcome, token usage and full transcript (`?after=` to append) |
-| GET | `/sessions/:id/workflows/:runId/agents/:agentId` | The same for an agent a workflow launched |
-| DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible |
+| GET | `/projects` | The projects you imported, each with its worktrees and the number of chats under it |
+| GET | `/projects/candidates` | Directories chats have run in that are not projects yet, the busiest first: what a first start offers to import |
+| POST | `/projects/import` | `{ path, name? }` — import a directory; every chat under it is adopted, retroactively. A git worktree is refused |
+| POST | `/projects` | `{ name, gitUrl? }` — create an empty project in the workspace or clone a repository into it, and import it |
+| PATCH | `/projects/:id` | `{ name }` — rename a project |
+| DELETE | `/projects/:id` | Remove a project from Agentry. Harmless: nothing on disk changes |
+| DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible, and separate from removing the project |
 
 ### Events
 
@@ -313,35 +304,50 @@ One Server-Sent Events stream for the whole app, so a client never has to poll.
 curl -N localhost:8787/api/events
 ```
 
-### Runs
+### Chats
 
-A run is a live conversation backed by a `claude -p` process.
+A chat is one Claude Code conversation, and its id is the session id: however many times it is
+resumed, and whoever started it, it is one chat. Each time Agentry has a `claude -p` process working
+on it, that is an **execution** of the chat, with its own outcome, cost and turns. `state` says what
+is happening (`working`, `waiting` for a person, `idle`) and `control` what can be done with the chat
+now: `interactive` (Agentry has a live execution), `resumable` (nothing holds it), or `readOnly` with
+the reason and the way forward (`fork`, or `hint` for a task an orchestration is still running).
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/runs` | All runs |
-| POST | `/runs` | Start a run. Body: `RunOptions` (`prompt` required; `cwd`, `model`, `permissionMode`, `resumeSessionId`, `forkSession` (continue a copy of that session), `name`, `effort`, `appendSystemPrompt`, `allowedTools`, `keepAlive`, `jsonSchema`, `maxBudgetUsd`, `worktree`, `permissionPrompts`, `attachments`) |
-| GET | `/runs/:id` | Run summary + a window of its events: the newest 200, or `?limit=` of them, with `from` and `total`; `?before=` reads further back |
-| GET | `/runs/:id/search?q=` | Search every event of the run: matching event indices (the space of `from`/`total`) with a snippet and the event `kind` each |
-| GET | `/runs/:id/stream?since=SEQ` | Server-Sent Events, one `RunEvent` per message (honours `Last-Event-ID`). Includes ephemeral `partial` events with the text generated so far (token streaming); they are never replayed |
-| POST | `/runs/:id/messages` | `{ text, attachments? }` — send another turn (resumes the session if the process ended). `attachments` are upload ids from `POST /uploads` |
-| POST | `/runs/:id/stop` | Stop the process; the conversation is kept |
-| POST | `/runs/:id/interrupt` | End the turn in progress and keep the process, which waits for the next message |
-| PATCH | `/runs/:id` | `{ permissionMode?, model? }` — a live process switches at once; an ended one on its next message |
-| GET | `/runs/:id/permissions` | What the run is waiting on: tool calls, questions (`AskUserQuestion`) and plans (`ExitPlanMode`). Only for runs started with `permissionPrompts: "host"` |
-| POST | `/runs/:id/permissions/:requestId` | `{ behavior: "allow" \| "deny", message?, updatedInput?, updatedPermissions? }` — answer one. A question is answered by allowing it with `updatedInput.answers` (question → chosen labels); `updatedPermissions` takes the request's `suggestions` to remember them. Unanswered requests are denied after ten minutes |
-| DELETE | `/runs/:id` | Forget an ended run |
-| GET | `/environments?cwd=` | What Claude actually loaded (tools, MCP status, agents, skills, plugins, commands, memory paths) per directory, from the latest run there |
-| GET | `/tasks` | Work sent to the background (commands, monitors, remote agents) by runs and by terminal sessions, live or ended in the last day. Survives a restart |
-| GET | `/subagents` | Agents spawned with the Agent tool, foreground or background, by runs and by terminal sessions. Survives a restart |
-| GET | `/workflows` | Claude Code workflows (the Workflow tool) with the progress of every agent they launched, from runs and terminal sessions |
+| GET | `/chats?project=&loose=1&origin=&state=&limit=` | Chats, newest first. Workers of an orchestration and housekeeping chats are left out unless `origin` (comma-separated: `agentry`, `external`, `orchestration`, `internal`) asks for them; `loose=1` lists those under no project |
+| GET | `/usage?from=&to=` | What the chats spent, per day, per project and per orchestration (`from`/`to` are days, `YYYY-MM-DD`, inclusive). Tokens come from the transcripts, per model; the cost is what the CLI reported, so it is `null` for chats started from a terminal and `chatsWithoutCost` says how many a total leaves out |
+| POST | `/chats` | Start a chat. Body: `NewChatRequest` (`prompt` required; `cwd`, `model`, `permissionMode`, `effort`, `appendSystemPrompt`, `allowedTools`, `jsonSchema`, `maxBudgetUsd`, `worktree`, `permissionPrompts`, `account`, `attachments`) |
+| GET | `/chats/:id` | The chat with its branches, environment and `health` (`ok`, `warn` or `bad`, each signal with a one-line reason: a command running past 3 min, a working chat silent for 3 min, and facts of the chat such as a failed last execution, a full context or a failed branch), and a window of its transcript: the newest 200 entries, or `?limit=` of them, with `from` and `total`; `?before=` the `from` of a page reads the one before it (`?sidechains=1` adds subagent messages) |
+| GET | `/chats/:id/search?q=&sidechains=1` | Search the whole transcript, pages not loaded included: the matching entries' indices (the space of `from`/`total`) with a snippet each, case-insensitive; at most 500, the newest, with `truncated` |
+| GET | `/chats/:id/stream?since=SEQ` | Server-Sent Events, one `RunEvent` per message (honours `Last-Event-ID`). Includes ephemeral `partial` events with the text generated so far (token streaming); they are never replayed |
+| POST | `/chats/:id/resume` | Body: `ResumeChatRequest` (`prompt`, same options as a new chat). Adds an execution to the same chat, which keeps its id. Decided on the server at this moment from the CLI's own session list and the process table: a chat born in a terminal that nothing holds is adopted and stays `external`; one a terminal holds, or that belongs to an orchestration, is refused with `409` and the reason |
+| POST | `/chats/:id/fork` | Body: `ForkChatRequest`. Continues in a copy: a new chat with the same history that records `derivedFrom` and leaves the original untouched. Allowed on any chat |
+| POST | `/chats/:id/messages` | `{ text, attachments? }` — another turn for a chat with a live execution (`409` otherwise: resume it). `attachments` are upload ids from `POST /uploads` |
+| POST | `/chats/:id/stop` | Stop what is working on it: the execution Agentry runs, or a background session the CLI holds (`claude stop`). The conversation is kept |
+| POST | `/chats/:id/interrupt` | End the turn in progress and keep the process, which waits for the next message |
+| PATCH | `/chats/:id` | `{ permissionMode?, model? }` — a live process switches at once; an ended one on its next execution |
+| DELETE | `/chats/:id` | Delete the transcript, its sidecar files and Agentry's record (`409` while something is running on it) |
+| GET | `/chats/:id/logs` | A background session's recent terminal output (`claude logs`) |
+| GET | `/chats/:id/permissions` | What the chat is waiting on: tool calls, questions (`AskUserQuestion`) and plans (`ExitPlanMode`). Only for chats started with `permissionPrompts: "host"` |
+| POST | `/chats/:id/permissions/:requestId` | `{ behavior: "allow" \| "deny", message?, updatedInput?, updatedPermissions? }` — answer one. A question is answered by allowing it with `updatedInput.answers` (question → chosen labels); `updatedPermissions` takes the request's `suggestions` to remember them. Unanswered requests are denied after ten minutes |
+| GET | `/chats/:id/subagents` | Subagents of the chat: branches of it, whose messages live in its transcript |
+| GET | `/chats/:id/subagents/:agentId` | One subagent: prompt, outcome, token usage and full transcript (`?after=` to append) |
+| GET | `/chats/:id/tasks` | Commands the chat sent to the background, with `ownerId` for those a subagent launched |
+| GET | `/chats/:id/tasks/:taskId/output` | What one of them printed: the last 64 KiB, or with `?offset=` only what came after that byte |
+| GET | `/chats/:id/workflows` | Workflow runs (the Workflow tool) of the chat, with the progress of every agent they launched |
+| GET | `/chats/:id/workflows/:workflowId/agents/:agentId` | The same as a subagent's, for an agent a workflow launched |
+| GET | `/environments?cwd=` | What Claude actually loaded (tools, MCP status, agents, skills, plugins, commands, memory paths) per directory, from the latest chat started there |
+| GET | `/tasks` | Commands sent to the background (monitors and remote agents too), each with the chat that sent it, from Agentry's chats and from terminal ones live or ended in the last day. The inbox sees a hung command wherever it is. Survives a restart |
+| GET | `/subagents` | Subagents of every chat, foreground or background, each with its chat. Survives a restart |
+| GET | `/workflows` | Workflow runs of every chat, each with its chat |
 | GET | `/workflows/saved?cwd=` | Saved workflows in the project's `.claude/workflows/` and the user's |
-| POST | `/workflows/saved/run` | `{ name, cwd?, args?, model? }` — start a run that runs a saved workflow |
+| POST | `/workflows/saved/run` | `{ name, cwd?, args?, model? }` — start a chat that runs a saved workflow |
 
 ```bash
-curl -X POST localhost:8787/api/runs -H 'content-type: application/json' \
+curl -X POST localhost:8787/api/chats -H 'content-type: application/json' \
   -d '{"prompt":"Summarize this repo","cwd":"/workspace/my-project","model":"sonnet"}'
-curl -N localhost:8787/api/runs/<id>/stream
+curl -N localhost:8787/api/chats/<id>/stream
 ```
 
 ### Orchestration
@@ -372,13 +378,17 @@ when the CLI has the Workflow tool; the draft shows why it chose either, and you
 | --- | --- | --- |
 | GET | `/orchestrations` | List |
 | POST | `/orchestrations` | Launch. Body: `OrchestrationSpec` |
-| POST | `/orchestrations/plan/start` | `{ objective, cwd?, model?, maxTasks? }` → the planner run, returned at once so it can be streamed |
+| POST | `/orchestrations/plan/start` | `{ objective, cwd?, model?, maxTasks? }` → the planner chat (housekeeping), returned at once so it can be streamed at `/chats/:id/stream` |
 | GET | `/orchestrations/plans` | Plans generated but not launched; each is kept when its planner finishes |
-| GET | `/orchestrations/plans/:runId` | The draft `OrchestrationSpec` a planner run produced |
+| GET | `/orchestrations/plans/:runId` | The draft `OrchestrationSpec` a planner chat produced (`:runId` is the planner chat's id) |
 | POST | `/orchestrations/plan` | Same as `plan/start` but waits for the draft — holds the request open for minutes |
 | GET | `/orchestrations/:id` | State of every task, results, cost |
 | POST | `/orchestrations/:id/stop` | Stop all workers |
-| POST | `/orchestrations/:id/resume` | Re-run every task that did not complete, keeping the results of those that did. Optional body `{ worktree?, permissionPrompts?, allowedTools?, permissionMode? }` corrects the settings the graph failed with |
+| POST | `/orchestrations/:id/resume` | Run again every task that did not complete (each in its own chat, as a new execution), keeping the results of those that did. Optional body `{ worktree?, permissionPrompts?, allowedTools?, permissionMode? }` corrects the settings the graph failed with |
+| POST | `/orchestrations/:id/tasks/:taskId/retry` | Run a task that failed for good again, in its own chat and worktree, told what went wrong; the tasks blocked behind it go back to waiting for their turn |
+| POST | `/orchestrations/:id/tasks/:taskId/retry-clean` | Start a failed task over: a new chat, its worktree rebuilt from the base commit |
+| POST | `/orchestrations/:id/tasks/:taskId/skip` | Give a failed or blocked task up, with every task that depends on it, so the graph can finish without them |
+| POST | `/orchestrations/:id/tasks/:taskId/hint` | `{ text }` — a nudge for a worker whose task is still running; a finished task takes none (fork its chat) |
 | DELETE | `/orchestrations/:id` | Delete a graph that is not running, with its worktrees; refused while a worktree holds uncommitted work |
 | POST | `/orchestrations/:id/integrate` | Merge the task branches into the integration branch again: after resolving by hand, or for a graph that predates integration |
 | POST | `/orchestrations/:id/pull-request` | Push the integration branch and open a pull request with `gh` → `{ branch, url, detail }` |
@@ -405,7 +415,7 @@ when the CLI has the Workflow tool; the draft shows why it chose either, and you
 
 ### Uploads
 
-Files attached to a run's first message (`RunOptions.attachments`) or to a later turn. The file is
+Files attached to a chat's first message (`NewChatRequest.attachments`) or to a later turn. The file is
 the request body as is, not multipart. Images are capped at 5 MB, PDFs at 32 MB, anything else at
 50 MB, and the files live in `uploads/` under the data directory.
 
@@ -418,7 +428,7 @@ the request body as is, not multipart. Images are capped at 5 MB, PDFs at 32 MB,
 ```bash
 id=$(curl -s -X POST 'localhost:8787/api/uploads?name=diagram.png' \
   -H 'content-type: application/octet-stream' --data-binary @diagram.png | jq -r .id)
-curl -X POST localhost:8787/api/runs -H 'content-type: application/json' \
+curl -X POST localhost:8787/api/chats -H 'content-type: application/json' \
   -d "{\"prompt\":\"Explain this diagram\",\"attachments\":[\"$id\"]}"
 ```
 
@@ -437,8 +447,8 @@ Claude Code precedence is local > project > user.
 | PUT | `/config/mcp/:name?project=` | Create or replace — body `{ config, scope? }`, e.g. `{"type":"http","url":"…"}` or `{"command":"npx","args":["-y","pkg"],"env":{}}` |
 | DELETE | `/config/mcp/:name?project=&scope=` | Remove |
 | GET | `/config/mcp/health?project=` | Real connection checks (`claude mcp list`); slow, call on demand |
-| GET | `/config/resources/:kind?project=` | `kind` = `agents` \| `skills` \| `commands` \| `output-styles` \| `rules` |
-| GET / PUT / DELETE | `/config/resources/:kind/:name?project=` | Markdown content — body `{ content }` |
+| GET | `/config/resources/:kind?project=` | `kind` = `agents` \| `skills` \| `commands` \| `output-styles` \| `rules` \| `workflows` |
+| GET / PUT / DELETE | `/config/resources/:kind/:name?project=` | Markdown content (a script for `workflows`, whose `format` is `javascript`) — body `{ content }` |
 
 ### Config file explorer
 
@@ -463,7 +473,7 @@ loaded into every session of that project.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/memory` | Projects with their memory file counts |
+| GET | `/memory` | Imported projects with their memory file counts |
 | GET | `/memory/:project` | Memory files of a project (index first), with parsed `description` and `type` |
 | PUT | `/memory/:project/:name` | Create or overwrite `name.md` — body `{ content }` |
 | DELETE | `/memory/:project/:name` | Delete a memory file |
@@ -486,22 +496,23 @@ Delegated to `claude plugin`; actions return the CLI output as `{ ok, output }` 
 
 | Page | What it covers |
 | --- | --- |
-| Dashboard | CLI detection, auth status, subscription usage limits, live runs, recent sessions |
-| Agents | Runs in progress, their subagents, and every live CLI session on the machine. A subagent's **Details** opens a side panel (also from a run's side card and a workflow's agents): its prompt, status, duration, tokens, full transcript, result and the background tasks it launched, updating while it runs |
-| Run view | Live chat over SSE: messages, thinking, tool calls/results, background tasks, subagents, what Claude loaded |
-| Sessions | Full history across projects, transcripts (with subagent sidechains), resume into a run, delete |
-| Background tasks | Tasks started by any run or session, with status and duration; those launched by a subagent are tagged. **Output** opens a side panel that follows the command's output while it runs. Panels are addressable (`?detail=…`), so a reload or a link brings them back |
-| Projects | Workspace directories and directories with history; create or clone a project |
+| Home | The selected project's page. **Activity** is an inbox: what waits for a person first (chats stopped for a permission or a question, blocked orchestration tasks, merge conflicts, a command running for long, a missing CLI or credential), each with its action, then what runs now with its context and cost, what the day has cost per model, subscription usage limits and the chats to pick up again — the first block is absent when nothing waits. With a project selected it also has **Settings**, **Memory**, **Resources** (agents, skills, commands, output styles, rules and saved workflows, each workflow with a **Run** button) and **Worktrees** tabs; with All projects only Activity remains |
+| Chats | Every conversation in one list, whoever started it: its state (working, waiting for you, idle), whether Agentry can continue it or only read it, where it came from, and how full its context is. Workers of an orchestration and housekeeping chats are hidden unless asked for |
+| Chat | One conversation, live over SSE: messages, thinking, tool calls and results, the context and cost card, its executions, and the branches it launched (subagents, background tasks, workflows) with a side panel each: prompt, status, duration, tokens, transcript and result, updating while it runs (`?detail=…`). What it can do follows its control: send, interrupt, resume, or continue in a copy |
+| Projects | The management screen: import a directory by hand, create or clone one in the workspace, rename, remove (harmless) or purge what Claude Code keeps about it (irreversible). On a first start with none imported it offers the directories holding the most chats |
 | Orchestration | Auto-planned or manual task DAG, live board by stage, per-task results, synthesis |
 | Accounts | Registered accounts with 5h/7d (and per-model) usage, manual switch, add/remove, enable/disable, auto-rotation settings and the rotation log |
-| Memory | Claude Code's per-project memory files and the `MEMORY.md` index |
-| Plugins | Installed plugins (enable/disable/uninstall/details), marketplace search and install, marketplaces |
-| Config | Scope selector (user or any project) over: Account, Instructions, Settings (guided editor + raw JSON), MCP servers (guided form, scopes, connection checks), Agents, Skills, Commands, Output styles, Rules, and a file explorer for everything else (hook scripts, skill files, keybindings…) |
+| Settings | User scope only, as tabs: Account, Instructions, Settings (guided editor + raw JSON), MCP servers (guided form, scopes, connection checks), Agents, Skills, Commands, Output styles, Rules, a file explorer for everything else (hook scripts, skill files, keybindings…), Memory (where each project's memory is) and Plugins (installed plugins, marketplace search and install, marketplaces). Everything that belongs to one project lives on its page instead |
 
 Across the app:
 
-- **Command palette** (`Ctrl/⌘ K`): fuzzy search over pages, config sections, projects, live runs,
-  recent sessions and actions (new run, theme, API reference…), with recents and full keyboard control.
+- **Project selector** (top bar, beside the palette): scopes Home, Chats and Orchestrations to one project
+  or All projects. The choice is remembered, and a `?project=<id>` in the address overrides it, so a link
+  to a project's page works from anywhere. Notifications ignore it: a chat waiting in another project
+  is still worth knowing about.
+- **Command palette** (`Ctrl/⌘ K`): fuzzy search over pages, settings tabs, projects and their tabs,
+  working and recent chats and actions (new chat, run a saved workflow, theme, API reference…), with
+  recents and full keyboard control.
 - **Themes**: light, dark or system, switchable from the top bar or the palette, applied before first paint.
 - **Live chat**: responses stream token by token; thinking, tool calls and results render as they arrive.
 - **Live updates**: one Server-Sent Events connection (`GET /api/events`) keeps every page current —
@@ -518,11 +529,11 @@ Across the app:
   to its side panel.
 - **Execution detail**: a subagent, a background task or a workflow agent opens in a side panel — prompt,
   type, status, duration, tokens, the full transcript, the result and, for a subagent, the tasks it
-  launched — from the Agents and Background tasks pages, a run's side card and a workflow's agents. It
+  launched — from the chat that holds it, a workflow's agents and the inbox. It
   follows the agent or the command's output while it runs, and it is part of the URL (`?detail=…`), so a
   reload or a link brings it back.
 - **Editors**: CodeMirror (JSON, Markdown, YAML, JS/TS) with `Ctrl/⌘ S`, unsaved-change guards
-  (tabs, scope switches, sidebar navigation, reload), confirmation dialogs for destructive actions
+  (tabs, sidebar navigation, reload), confirmation dialogs for destructive actions
   and toasts for every mutation.
 - **Form controls**: selects, suggestion lists, switches, checkboxes, sliders, number steppers,
   tooltips and collapsible sections are built on Radix primitives and styled with the app's theme
@@ -544,8 +555,10 @@ the effective environment — is available to any run.
 - Run metadata is persisted and conversations are rebuilt from the session transcripts after a
   restart, and so are background tasks and subagents, which are read back from the files the CLI
   writes. What exists only in a run's live stream is lost: its stderr, and the rate-limit notice.
-  Workers do not survive a restart either: an orchestration caught by one stops, and resumes on
-  request.
+  Workers do not survive a restart either: a task caught by one is `interrupted` (not `stopped`,
+  which is someone's decision), and its chat goes on in a new execution once the wrapper is back,
+  while the task has attempts left. A stopped task is never continued on its own, and a workflow
+  or a graph caught while integrating waits for `resume`.
 - A background task's output lives in the CLI's temp dir, which a reboot clears. Its command,
   status and summary stay in the transcript.
 - Running the API with a file watcher (`pnpm dev`) while an orchestration edits this same repo

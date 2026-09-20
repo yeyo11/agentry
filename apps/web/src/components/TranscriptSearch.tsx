@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-// Direct imports: RunView is in the shell bundle, and the barrel would pull the lazy form controls into it
+// Direct imports: the barrel would pull the lazy form controls into the chat page's bundle
 import { hasOpenLayer } from './controls/layer';
 import { Tooltip } from './controls/Tooltip';
 import { ICON_SM } from './icons';
@@ -336,7 +336,7 @@ export function FindBar({ find, className = '' }: { find: TranscriptFind; classN
           : `${t('find.counter', { n: position < 0 ? 0 : hits.length - position, total: hits.length })}${result.data?.truncated ? '+' : ''}`;
 
   return (
-    <div className={`find-bar ${className}`} role="search">
+    <div className={`find-bar ${className}`} role="search" aria-label={t('find.transcript')}>
       <div className="find-row">
         <Search {...ICON_SM} className="find-icon" />
         <input
