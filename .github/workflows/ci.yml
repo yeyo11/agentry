@@ -1,13 +1,28 @@
 name: CI
 
+# Pull requests only, plus a daily run on main. GitHub tests a pull request as it would land (the
+# merge of the branch into main), and main is protected on `test`, so re-running the same tree after
+# the squash-merge told us nothing: over the last 120 runs it burned 84 minutes and 23 of those 56
+# main runs were cancelled mid-flight by the next merge anyway. It never gated anything either — the
+# release workflow's `edge` image build starts on the same push, in parallel, not behind CI.
+# The daily run is the safety net a post-merge run used to pretend to be: main can be merged into
+# while stale (protection is not `strict`), so a semantic conflict between two pull requests is
+# caught within a day, and the README badge keeps reporting the default branch.
 on:
-  push:
-    branches: [main]
   pull_request:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
+# release-please pull requests only bump versions and rewrite the changelog: worth typechecking and
+# building, not worth booting Chrome and a container for. They are the second half of every release,
+# so this is one of these skips per release, not per week.
+env:
+  GENERATED_RELEASE_PR: ${{ startsWith(github.head_ref, 'release-please--') }}
 
 jobs:
   test:
@@ -37,11 +52,13 @@ jobs:
 
       # The e2e suite needs the CLI binary (plugins, MCP) but no login: it runs on empty temp dirs
       - name: Install Claude Code
+        if: env.GENERATED_RELEASE_PR != 'true'
         run: |
           curl -fsSL https://claude.ai/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: End-to-end (headless Chrome)
+        if: env.GENERATED_RELEASE_PR != 'true'
         run: pnpm e2e
         env:
           E2E_SHOTS: e2e-shots
@@ -53,6 +70,7 @@ jobs:
           path: e2e-shots
 
   docker:
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
     runs-on: ubuntu-latest
     # About 3x the slowest successful run (1.4 min over 76), rounded up to 5 minutes
     timeout-minutes: 5
