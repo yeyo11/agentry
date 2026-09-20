@@ -2686,6 +2686,22 @@ a.list-row:hover {
 .board-task.status-stopped {
   --task-tone: var(--warn);
 }
+.board-task.status-blocked {
+  --task-tone: var(--warn);
+  border-style: dashed;
+}
+.board-task.status-skipped {
+  --task-tone: var(--text-faint);
+}
+.board-task.status-held {
+  --task-tone: var(--warn);
+  border-style: dashed;
+}
+.task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 
 /* ---------- 11. Editors & config ---------- */
 .code-editor {
