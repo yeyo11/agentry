@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useOrchestrations, useProjects } from '../api';
 import { Combobox, NumberInput, Select, Switch } from '../components/controls';
-import { Card, Empty, ErrorBox, Field, Loading, MODEL_OPTIONS, PageHeader, PERMISSION_MODES, Segmented, StatusBadge, Tag } from '../components/ui';
+import { BoardStatusBadge } from '../components/OrchestrationBoard';
+import { Card, Empty, ErrorBox, Field, Loading, MODEL_OPTIONS, PageHeader, PERMISSION_MODES, Segmented, Tag } from '../components/ui';
 import { useFallbackInterval } from '../lib/feed';
 import { formatCost, timeAgo, truncate } from '../lib/format';
 
@@ -105,6 +106,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
   const [model, setModel] = useState('');
   const [maxTasks, setMaxTasks] = useState(5);
   const [concurrency, setConcurrency] = useState(3);
+  const [maxAttempts, setMaxAttempts] = useState(2);
   const [synthesize, setSynthesize] = useState(true);
   const [worktree, setWorktree] = useState(true);
   const [engine, setEngine] = useState<OrchestrationEngine>('graph');
@@ -125,6 +127,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
     if (draft.objective && !objective.trim()) setObjective(draft.objective);
     if (draft.cwd && !cwd.trim()) setCwd(draft.cwd);
     if (draft.concurrency) setConcurrency(draft.concurrency);
+    if (draft.maxAttempts) setMaxAttempts(draft.maxAttempts);
     if (draft.synthesize != null) setSynthesize(draft.synthesize);
     setEngine(draft.engine === 'workflow' ? 'workflow' : 'graph');
     setEngineReason(draft.engineReason ?? null);
@@ -217,6 +220,8 @@ function CreateForm({ onDone }: { onDone: () => void }) {
       model: model.trim() || undefined,
       permissionMode: permissionMode || undefined,
       concurrency,
+      // A workflow has no retries of its own to configure
+      ...(engine === 'graph' ? { maxAttempts } : {}),
       synthesize,
       engine,
       ...(engineReason ? { engineReason } : {}),
@@ -356,6 +361,11 @@ function CreateForm({ onDone }: { onDone: () => void }) {
               <Field label="Concurrency" hint="Agents in parallel">
                 <NumberInput min={1} max={8} value={concurrency} onChange={(v) => setConcurrency(v || 1)} />
               </Field>
+              {engine === 'graph' && (
+                <Field label="Attempts per task" hint="A failed task is retried in its own chat until it has had this many; then you decide">
+                  <NumberInput min={1} max={10} value={maxAttempts} onChange={(v) => setMaxAttempts(v || 1)} />
+                </Field>
+              )}
               <Field label="Permission mode">
                 <Select<PermissionMode | ''>
                   value={permissionMode}
@@ -477,15 +487,18 @@ export function Orchestration() {
               // Progress is completed work only: counting stopped tasks as done drew a full bar and
               // "5/5" over a graph that had finished two tasks and been interrupted.
               const completed = orch.tasks.filter((t) => t.status === 'completed').length;
-              const stopped = orch.tasks.filter((t) => t.status === 'stopped' || t.status === 'skipped').length;
+              const stopped = orch.tasks.filter((t) => t.status === 'stopped').length;
+              const skipped = orch.tasks.filter((t) => t.status === 'skipped').length;
+              const blocked = orch.tasks.filter((t) => t.status === 'blocked').length;
               const failed = orch.tasks.filter((t) => t.status === 'failed').length;
               const pct = orch.tasks.length ? Math.round((completed / orch.tasks.length) * 100) : 0;
-              const resumable = orch.status !== 'running' && completed < orch.tasks.length;
+              // A waiting graph is not resumed: its failed tasks are decided on, one by one, on its board
+              const resumable = orch.status !== 'running' && orch.status !== 'waiting' && completed < orch.tasks.length;
               return (
                 <Link key={orch.id} to={`/orchestration/${orch.id}`} className="list-row">
                   <div className="list-row-main">
                     <div className="list-row-title">
-                      <StatusBadge status={orch.status} />
+                      <BoardStatusBadge status={orch.status} />
                       <span className="strong ellipsis">{orch.name}</span>
                     </div>
                     {orch.objective && <div className="muted small ellipsis">{truncate(orch.objective, 160)}</div>}
@@ -498,6 +511,8 @@ export function Orchestration() {
                       </span>
                       {stopped > 0 && <span className="text-warn">{stopped} not run</span>}
                       {failed > 0 && <span className="text-bad">{failed} failed</span>}
+                      {blocked > 0 && <span className="text-warn">{blocked} blocked, waiting for a decision</span>}
+                      {skipped > 0 && <span className="muted">{skipped} skipped</span>}
                       {orch.engine === 'workflow' && <Tag tone="info">workflow</Tag>}
                       {resumable && <Tag tone="active">can be resumed</Tag>}
                       <span>{formatCost(orch.costUsd)}</span>

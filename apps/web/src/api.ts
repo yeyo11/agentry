@@ -14,6 +14,7 @@ import type {
   AvailablePlugin,
   BackgroundTask,
   BackgroundTaskOutput,
+  ChatDetail,
   CliTextResult,
   ConfigFileContent,
   ConfigFileNode,
@@ -58,6 +59,7 @@ import type {
   SystemInfo,
   WriteConfigFileRequest,
   SaveOrchestrationWorkflowRequest,
+  TaskHintRequest,
   TranscriptSearchResult,
 } from '@agentry/shared';
 import { TRANSCRIPT_PAGE_MAX } from '@agentry/shared';
@@ -214,6 +216,16 @@ export const api = {
   stopOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/stop`, { method: 'POST' }),
   resumeOrchestration: (id: string, changes: ResumeOrchestrationRequest = {}) =>
     request<Orchestration>(`/orchestrations/${enc(id)}/resume`, { method: 'POST', body: changes }),
+  retryOrchestrationTask: (id: string, taskId: string) =>
+    request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/retry`, { method: 'POST' }),
+  retryOrchestrationTaskClean: (id: string, taskId: string) =>
+    request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/retry-clean`, { method: 'POST' }),
+  skipOrchestrationTask: (id: string, taskId: string) =>
+    request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/skip`, { method: 'POST' }),
+  hintOrchestrationTask: (id: string, taskId: string, req: TaskHintRequest) =>
+    request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/hint`, { method: 'POST', body: req }),
+  /** The executions of a chat, without the transcript: how each attempt of a task ended. */
+  chatExecutions: (id: string) => request<ChatDetail>(`/chats/${enc(id)}?limit=1`).then((detail) => detail.chat.executions),
   deleteOrchestration: (id: string) => request<{ ok: true }>(`/orchestrations/${enc(id)}`, { method: 'DELETE' }),
   integrateOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/integrate`, { method: 'POST' }),
   orchestrationWorkflow: (id: string) => request<{ path: string; script: string }>(`/orchestrations/${enc(id)}/workflow`),
