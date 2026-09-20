@@ -24,6 +24,8 @@ export interface CliVersionInfo {
   checkedAt: string | null;
   /** `latest` is newer than `current`; false whenever either of them is unknown */
   updateAvailable: boolean;
+  /** Why the last check failed (registry unreachable, unexpected answer); the previous `latest` is kept */
+  error?: string;
 }
 
 /**

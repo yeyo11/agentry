@@ -1,0 +1,11 @@
+apiVersion: v2
+name: agentry
+description: Claude Code as a service - REST API, web UI and multi-agent orchestration in one pod
+type: application
+# The chart is versioned on its own: release-please does not touch it, and the image it runs is
+# chosen with `image.tag`, not with appVersion
+version: 0.1.0
+appVersion: latest
+home: https://github.com/yeyo11/agentry
+sources:
+  - https://github.com/yeyo11/agentry

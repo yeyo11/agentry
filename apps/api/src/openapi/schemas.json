@@ -7765,6 +7765,10 @@
       "updateAvailable": {
         "type": "boolean",
         "description": "`latest` is newer than `current`; false whenever either of them is unknown"
+      },
+      "error": {
+        "type": "string",
+        "description": "Why the last check failed (registry unreachable, unexpected answer); the previous `latest` is kept"
       }
     },
     "required": [

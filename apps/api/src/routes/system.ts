@@ -10,6 +10,10 @@ export const systemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { co
 
   app.get<{ Querystring: { refresh?: string } }>('/system', (req) => core.system(req.query.refresh === '1'));
 
+  // Reading is free; the registry is only asked by the POST (and once a day by the server itself)
+  app.get('/system/cli-version', () => core.cliVersionInfo());
+  app.post('/system/cli-version/check', () => core.checkCliVersion());
+
   app.get('/overview', () => core.overview());
 
   // Account credentials. The token itself is never returned by any endpoint.

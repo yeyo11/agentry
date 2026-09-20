@@ -52,6 +52,8 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   // ---- System
   'GET /health': d('System', 'Liveness and readiness', { ok: obj({ ok: { type: 'boolean' }, cli: { type: 'boolean' }, loggedIn: { type: 'boolean' } }) }),
   'GET /system': d('System', 'CLI installation, auth status and paths', { querystring: obj({ refresh: str('`1` bypasses the 30s cache') }), ok: ref('SystemInfo') }),
+  'GET /system/cli-version': d('System', 'Claude Code version in use and the newest published', { description: 'What the last check learned; it never reads the registry itself. `checkedAt` says how old the answer is.', ok: ref('CliVersionInfo') }),
+  'POST /system/cli-version/check': d('System', 'Check for a newer Claude Code now', { description: 'Reads the npm registry metadata of `@anthropic-ai/claude-code`. The server also does it once a day unless `AGENTRY_CLI_UPDATE_CHECK=off`. A failure keeps the previous answer and reports `error`.', ok: ref('CliVersionInfo') }),
   'GET /overview': d('System', 'Everything the dashboard needs in one call', { ok: ref('Overview') }),
 
   // ---- Account

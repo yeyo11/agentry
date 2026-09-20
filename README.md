@@ -228,6 +228,8 @@ Types live in [`packages/shared/src/types.ts`](packages/shared/src/types.ts).
 | --- | --- | --- |
 | GET | `/health` | `{ ok, cli, loggedIn }` |
 | GET | `/system?refresh=1` | CLI detection, auth status, paths |
+| GET | `/system/cli-version` | Claude Code in use, the version the image pins and the newest published, as the last check left it (never reads the registry) |
+| POST | `/system/cli-version/check` | Check the npm registry for a newer Claude Code now (also done once a day) |
 | GET | `/overview` | Everything the dashboard needs in one call |
 
 ### Account credentials

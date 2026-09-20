@@ -18,6 +18,7 @@ import type {
   ChatOrigin,
   ChatSettingsUpdate,
   ChatState,
+  CliVersionInfo,
   ChatSubagentEntry,
   ChatSummary,
   ChatWorkflowEntry,
@@ -157,6 +158,8 @@ export const api = {
   setCredentials: (credentials: SetCredentialsRequest) =>
     request<AuthStatus>('/auth/credentials', { method: 'PUT', body: credentials }),
   clearCredentials: () => request<AuthStatus>('/auth/credentials', { method: 'DELETE' }),
+  cliVersion: () => request<CliVersionInfo>('/system/cli-version'),
+  checkCliVersion: () => request<CliVersionInfo>('/system/cli-version/check', { method: 'POST' }),
   verifyAuth: () => request<AuthVerification>('/auth/verify', { method: 'POST' }),
   projects: () => request<Project[]>('/projects'),
   projectCandidates: () => request<ProjectCandidate[]>('/projects/candidates'),
@@ -323,6 +326,7 @@ export const api = {
 export const keys = {
   overview: ['overview'] as const,
   auth: ['auth'] as const,
+  cliVersion: ['cli-version'] as const,
   projects: ['projects'] as const,
   projectCandidates: ['projects', 'candidates'] as const,
   // Prefixes the event feed invalidates: every list and every open chat sits under them

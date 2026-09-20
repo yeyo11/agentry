@@ -1,0 +1,13 @@
+# Used by the `tls` profile of docker-compose.yml. Caddy obtains and renews the certificate itself.
+{$AGENTRY_DOMAIN:localhost} {
+	encode zstd gzip
+
+	reverse_proxy agentry:8787 {
+		# The event stream (/api/events) and the chat streams are long-lived responses: without this
+		# Caddy buffers them and the UI sees nothing until the connection closes
+		flush_interval -1
+
+		# Caddy already sets X-Forwarded-For, X-Forwarded-Proto and X-Forwarded-Host, and passes Host
+		# and Upgrade through unchanged; nothing else needs adding
+	}
+}

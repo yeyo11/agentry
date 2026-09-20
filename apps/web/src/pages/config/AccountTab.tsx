@@ -9,6 +9,7 @@ import { Select } from '../../components/controls';
 import { ICON_SM } from '../../components/icons';
 import { useToast } from '../../components/Toast';
 import { Card, ErrorBox, Field, Skeleton, Tag } from '../../components/ui';
+import { CliCard } from './CliCard';
 
 const TOKEN_SOURCE_KEY = {
   'wrapper-oauth-token': 'wrapperOauthToken',
@@ -61,6 +62,8 @@ export function AccountTab() {
 
   return (
     <>
+      <CliCard />
+
       <Card title={t('account.inUse')}>
         <ErrorBox error={error} />
         {isLoading && <Skeleton rows={4} />}
