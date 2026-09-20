@@ -637,6 +637,8 @@ test('starting a task clean gives it a new chat and a worktree rebuilt from the 
   const { runId, worktree, branch } = before;
   assert.ok(runId && worktree && branch);
   writeFileSync(join(worktree, 'stale.txt'), 'left over by the failed attempt\n');
+  // The result arrives before the process has finished exiting, and starting clean refuses while one is up
+  await runs.exited(runId);
 
   orchestrator.retryTaskClean(started.id, 'broken');
   const orch = await until(
