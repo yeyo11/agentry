@@ -1,4 +1,4 @@
-import type { AgentTranscript, BackgroundTask } from '@agentry/shared';
+import type { AgentTranscript, ChatBackgroundTaskEntry } from '@agentry/shared';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAgentDetail, useTaskOutput, useTasks, type AgentRef } from '../api';
@@ -51,9 +51,9 @@ function Facts({ children }: { children: ReactNode }) {
 
 // ---------- background task ----------
 
-function useTask(sessionId: string, taskId: string): { task: BackgroundTask | undefined; loading: boolean } {
+function useTask(sessionId: string, taskId: string): { task: ChatBackgroundTaskEntry | undefined; loading: boolean } {
   const tasks = useTasks();
-  return { task: tasks.data?.find((t) => t.id === taskId && t.sessionId === sessionId), loading: tasks.isLoading };
+  return { task: tasks.data?.find((t) => t.id === taskId && t.chat.id === sessionId), loading: tasks.isLoading };
 }
 
 function TaskBody({ sessionId, taskId }: { sessionId: string; taskId: string }) {
@@ -72,7 +72,7 @@ function TaskBody({ sessionId, taskId }: { sessionId: string; taskId: string }) 
           <dt>Status</dt>
           <dd>
             <StatusBadge status={task.status} />
-            {task.backgroundedByUser && (
+            {task.byPerson && (
               <>
                 {' '}
                 <Tag tone="muted">by you</Tag>
@@ -80,28 +80,26 @@ function TaskBody({ sessionId, taskId }: { sessionId: string; taskId: string }) 
             )}
           </dd>
           <dt>Type</dt>
-          <dd>{task.type}</dd>
+          <dd>{task.kind}</dd>
           <dt>Duration</dt>
           <dd>{durationBetween(task.startedAt, task.endedAt)}</dd>
           <dt>Started</dt>
           <dd>{formatDateTime(task.startedAt)}</dd>
           <dt>Started by</dt>
           <dd>
-            {task.fromSubagent && (
+            {task.ownerId && (
               <>
                 <Tag tone="info">from subagent</Tag>{' '}
-                {task.ownerAgentId && (
-                  <button type="button" className="link-btn" onClick={() => open({ kind: 'subagent', sessionId, agentId: task.ownerAgentId ?? '' })}>
-                    open the subagent
-                  </button>
-                )}{' '}
+                <button type="button" className="link-btn" onClick={() => open({ kind: 'subagent', sessionId, agentId: task.ownerId ?? '' })}>
+                  open the subagent
+                </button>{' '}
               </>
             )}
-            {task.runId ? <Link to={`/runs/${task.runId}`}>{task.runName}</Link> : <Link to={`/sessions/${sessionId}`}>{task.runName || 'CLI session'}</Link>}
+            <Link to={`/chats/${encodeURIComponent(sessionId)}`}>{task.chat.title}</Link>
           </dd>
           <dt>Location</dt>
           <dd>
-            <Location location={task.location} />
+            <Location project={task.chat.project} worktree={task.chat.worktree} cwd={task.chat.cwd} />
           </dd>
         </Facts>
       ) : (
@@ -214,7 +212,7 @@ function AgentBody({ target }: { target: AgentTarget }) {
         <dd>{formatDateTime(data.startedAt)}</dd>
         <dt>Session</dt>
         <dd className="mono break">
-          <Link to={`/sessions/${data.sessionId}`}>{data.sessionId}</Link>
+          <Link to={`/chats/${encodeURIComponent(data.sessionId)}`}>{data.sessionId}</Link>
         </dd>
       </Facts>
 
@@ -235,7 +233,7 @@ function AgentBody({ target }: { target: AgentTarget }) {
                 <div className="side-item-head">
                   <StatusBadge status={task.status} />
                   <span className="muted small">
-                    {task.type} · {durationBetween(task.startedAt, task.endedAt)}
+                    {task.kind} · {durationBetween(task.startedAt, task.endedAt)}
                   </span>
                 </div>
                 <button type="button" className="link-btn detail-task-link" onClick={() => open({ kind: 'task', sessionId: data.sessionId, taskId: task.id })}>

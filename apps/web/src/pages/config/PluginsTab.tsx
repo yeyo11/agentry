@@ -2,12 +2,12 @@ import type { CliTextResult, InstalledPlugin, PluginScope } from '@agentry/share
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { api, keys } from '../api';
-import { Collapsible, Select } from '../components/controls';
-import { Dialog, useConfirm } from '../components/Dialog';
-import { useToast } from '../components/Toast';
-import { Card, Empty, ErrorBox, PageHeader, Skeleton, Tabs, Tag } from '../components/ui';
-import { timeAgo } from '../lib/format';
+import { api, keys } from '../../api';
+import { Collapsible, Select } from '../../components/controls';
+import { Dialog, useConfirm } from '../../components/Dialog';
+import { useToast } from '../../components/Toast';
+import { Card, Empty, ErrorBox, Skeleton, Tabs, Tag } from '../../components/ui';
+import { timeAgo } from '../../lib/format';
 
 const SCOPES: PluginScope[] = ['user', 'project', 'local'];
 
@@ -411,18 +411,33 @@ function MarketplacesTab({ report }: { report: ReturnType<typeof usePluginAction
   );
 }
 
-export function Plugins() {
+export function PluginsTab() {
   const [params, setParams] = useSearchParams();
-  const tab: TabId = TABS.find((t) => t.id === params.get('tab'))?.id ?? 'installed';
+  // `tab` belongs to the Settings page around this one, so the sections use their own parameter
+  const tab: TabId = TABS.find((t) => t.id === params.get('section'))?.id ?? 'installed';
   const actions = usePluginAction();
 
   return (
     <>
-      <PageHeader
-        title="Plugins"
-        subtitle="Extensions for Claude Code: commands, agents, skills, hooks and MCP servers packaged together. Actions run the CLI and can take up to a minute."
+      <p className="small muted">
+        Extensions for Claude Code: commands, agents, skills, hooks and MCP servers packaged together. Actions run the CLI and can
+        take up to a minute.
+      </p>
+      <Tabs
+        label="Plugin sections"
+        value={tab}
+        tabs={TABS}
+        onChange={(id) =>
+          setParams(
+            (previous) => {
+              const next = new URLSearchParams(previous);
+              next.set('section', id);
+              return next;
+            },
+            { replace: true },
+          )
+        }
       />
-      <Tabs label="Plugin sections" value={tab} tabs={TABS} onChange={(id) => setParams({ tab: id }, { replace: true })} />
       {tab === 'installed' && <InstalledTab actions={actions} />}
       {tab === 'browse' && <BrowseTab actions={actions} />}
       {tab === 'marketplaces' && <MarketplacesTab report={actions.report} />}

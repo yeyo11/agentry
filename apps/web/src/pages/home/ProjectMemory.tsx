@@ -1,14 +1,14 @@
+import type { Project } from '@agentry/shared';
 import { Plus } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { api, keys } from '../api';
-import { CodeEditor } from '../components/CodeEditor';
-import { useConfirm } from '../components/Dialog';
-import { useToast } from '../components/Toast';
-import { Card, Empty, ErrorBox, PageHeader, PathLabel, Skeleton, Tag } from '../components/ui';
-import { DirtyProvider, useDirty, useLeaveGuard } from '../lib/dirty';
-import { shortPath, timeAgo } from '../lib/format';
+import { api, keys } from '../../api';
+import { CodeEditor } from '../../components/CodeEditor';
+import { useConfirm } from '../../components/Dialog';
+import { useToast } from '../../components/Toast';
+import { Card, Empty, ErrorBox, PathLabel, Skeleton, Tag } from '../../components/ui';
+import { useDirty, useLeaveGuard } from '../../lib/dirty';
+import { timeAgo } from '../../lib/format';
 
 const TYPE_TONE: Record<string, string> = { user: 'info', feedback: 'warn', project: 'idle', reference: 'ok' };
 const NAME_RE = /^[\w.-]{1,80}\.md$/;
@@ -260,65 +260,8 @@ function MemoryFiles({ projectId }: { projectId: string }) {
   );
 }
 
-function MemoryInner() {
-  const [params, setParams] = useSearchParams();
-  const guard = useLeaveGuard();
-  const { data, error, isLoading } = useQuery({ queryKey: keys.memoryProjects, queryFn: api.memoryProjects, refetchInterval: 15_000 });
-  const projects = data ?? [];
-  const selected = params.get('project') ?? projects[0]?.projectId;
-  const current = projects.find((p) => p.projectId === selected);
-
-  return (
-    <>
-      <PageHeader
-        title="Memory"
-        subtitle="File-based memory Claude Code keeps per project: facts about you, your feedback, project context and references."
-      />
-      <ErrorBox error={error} />
-      {isLoading ? (
-        <Skeleton rows={5} />
-      ) : projects.length === 0 ? (
-        <Empty title="No projects yet">Memory is stored per project. Create a project or start a run first.</Empty>
-      ) : (
-        <div className="memory-layout">
-          <nav className="card project-rail" aria-label="Projects">
-            {projects.map((project) => (
-              <button
-                key={project.projectId}
-                type="button"
-                className={`master-item ${project.projectId === selected ? 'master-item-on' : ''}`}
-                title={project.projectPath}
-                aria-current={project.projectId === selected}
-                onClick={() =>
-                  project.projectId !== selected &&
-                  void guard().then((ok) => ok && setParams({ project: project.projectId }, { replace: true }))
-                }
-              >
-                <span className="master-item-head">
-                  <span className="strong ellipsis">{project.projectName}</span>
-                  <span className={`count ${project.fileCount > 0 ? 'count-on' : ''}`}>{project.fileCount}</span>
-                </span>
-                <span className="small muted mono ellipsis">{shortPath(project.projectPath, 34)}</span>
-              </button>
-            ))}
-          </nav>
-          <div className="memory-main">
-            {selected && (current || params.get('project')) ? (
-              <MemoryFiles key={selected} projectId={selected} />
-            ) : (
-              <Empty title="Select a project" />
-            )}
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-export function Memory() {
-  return (
-    <DirtyProvider>
-      <MemoryInner />
-    </DirtyProvider>
-  );
+/** The memory files Claude Code keeps for one project: a list and an editor. */
+export function ProjectMemory({ project }: { project: Project }) {
+  // Keyed so a draft never carries over to another project's files
+  return <MemoryFiles key={project.id} projectId={project.id} />;
 }

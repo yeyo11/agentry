@@ -370,7 +370,7 @@ export function SettingsGuided({
 
       <Section title="Plugins & marketplaces" summary={enabledPlugins.length > 0 ? `${enabledPlugins.length} plugins` : undefined}>
         <p className="small muted">
-          Managed by the CLI. Use the <Link to="/plugins">Plugins page</Link> to install, enable or remove them.
+          Managed by the CLI. Use the <Link to="/settings?tab=plugins">Plugins tab</Link> to install, enable or remove them.
         </p>
         <div className="chips">
           {enabledPlugins.length === 0 && marketplaces.length === 0 && <span className="small muted">Nothing configured in this file</span>}

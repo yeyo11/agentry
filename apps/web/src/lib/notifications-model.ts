@@ -65,12 +65,14 @@ export function defaultPrefs(): NotificationPrefs {
   return { kinds: Object.fromEntries(KINDS.map((kind) => [kind, true])) as Record<NotificationKind, boolean>, toasts: true, browser: false };
 }
 
-const runHref = (runId: string) => `/runs/${encodeURIComponent(runId)}`;
+// A run is an execution of a chat and carries its id, so both name the same page
+const chatHref = (id: string) => `/chats/${encodeURIComponent(id)}`;
 const orchestrationHref = (id: string) => `/orchestration/${encodeURIComponent(id)}`;
 
-function activityHref(runId: string, sessionId: string | null, fallback: string): string {
-  if (runId) return runHref(runId);
-  return sessionId ? `/sessions/${encodeURIComponent(sessionId)}` : fallback;
+/** Where work delegated inside a chat is shown: the chat, which is the session, whoever started it. */
+function activityHref(runId: string, sessionId: string | null): string {
+  const chat = runId || sessionId;
+  return chat ? chatHref(chat) : '/';
 }
 
 // The event id alone would collide after a server restart, which restarts the ids
@@ -107,7 +109,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: 'warn',
           title: event.title,
           body: WAITING_BODY[event.reason](event.toolName),
-          href: runHref(event.runId),
+          href: chatHref(event.runId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,
         }),
@@ -126,7 +128,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: 'ok',
           title: `${event.runName} finished`,
           body: 'It is ready for your next message.',
-          href: runHref(event.runId),
+          href: chatHref(event.runId),
           runId: event.runId,
         }),
       ];
@@ -144,7 +146,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'ok',
           title: event.title,
           body: failed ? (event.error ?? 'It ended with an error.') : `${event.turns} ${event.turns === 1 ? 'turn' : 'turns'}`,
-          href: runHref(event.runId),
+          href: chatHref(event.runId),
           runId: event.runId,
         }),
       ];
@@ -160,7 +162,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: 'warn',
           title: `${event.runName} hit a rate limit`,
           body: 'The turn stopped because the account ran out of quota.',
-          href: runHref(event.runId),
+          href: chatHref(event.runId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,
         }),
@@ -176,7 +178,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: 'info',
           title: `${event.runName} moved to another account`,
           body: `${event.from ?? 'The previous account'} → ${event.to ?? 'the next account'}${event.resumed ? ', and the turn was replayed' : ''}.`,
-          href: runHref(event.runId),
+          href: chatHref(event.runId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,
         }),
@@ -224,7 +226,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'info',
           title: event.title,
           body: event.summary ?? (event.fromSubagent ? 'Started by a subagent.' : ''),
-          href: event.sessionId ? detailHref({ kind: 'task', sessionId: event.sessionId, taskId: event.taskId }, '/tasks') : activityHref(event.runId, event.sessionId, '/tasks'),
+          href: event.sessionId ? detailHref({ kind: 'task', sessionId: event.sessionId, taskId: event.taskId }, chatHref(event.sessionId)) : activityHref(event.runId, event.sessionId),
           runId: event.runId || null,
         }),
       ];
@@ -242,8 +244,8 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           body: event.description,
           href:
             event.sessionId && event.agentId
-              ? detailHref({ kind: 'subagent', sessionId: event.sessionId, agentId: event.agentId }, '/agents')
-              : activityHref(event.runId, event.sessionId, '/agents'),
+              ? detailHref({ kind: 'subagent', sessionId: event.sessionId, agentId: event.agentId }, chatHref(event.sessionId))
+              : activityHref(event.runId, event.sessionId),
           runId: event.runId || null,
         }),
       ];
@@ -259,7 +261,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'info',
           title: event.title,
           body: event.summary ?? '',
-          href: '/workflows',
+          href: activityHref(event.runId, event.sessionId),
           runId: event.runId || null,
         }),
       ];
@@ -289,7 +291,7 @@ export function settlesWaiting(event: AgentryEvent): ((notification: AppNotifica
 /** The person is already looking at what the notification is about, so a toast would only repeat it. */
 export function isRedundant(notification: Pick<NotificationDraft, 'runId' | 'orchestrationId'>, pathname: string, tabVisible: boolean): boolean {
   if (!tabVisible) return false;
-  if (notification.runId && pathname === runHref(notification.runId)) return true;
+  if (notification.runId && pathname === chatHref(notification.runId)) return true;
   return notification.orchestrationId !== null && pathname === orchestrationHref(notification.orchestrationId);
 }
 

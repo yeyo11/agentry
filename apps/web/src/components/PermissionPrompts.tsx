@@ -37,8 +37,8 @@ function useAnswer(request: PermissionRequest) {
   return useMutation({
     mutationFn: (decision: PermissionDecision) => api.answerPermission(request.runId, request.id, decision),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: keys.runPermissions(request.runId) });
-      void queryClient.invalidateQueries({ queryKey: keys.runs });
+      void queryClient.invalidateQueries({ queryKey: keys.chatPermissions(request.runId) });
+      void queryClient.invalidateQueries({ queryKey: keys.chats });
     },
   });
 }
@@ -319,8 +319,8 @@ function Prompt({ request }: { request: PermissionRequest }) {
 export function PermissionPrompts({ runId, live }: { runId: string; live: boolean }) {
   const fallback = useFallbackInterval();
   const { data } = useQuery({
-    queryKey: keys.runPermissions(runId),
-    queryFn: () => api.runPermissions(runId),
+    queryKey: keys.chatPermissions(runId),
+    queryFn: () => api.chatPermissions(runId),
     refetchInterval: live ? fallback : false,
   });
   if (!data?.length) return null;
