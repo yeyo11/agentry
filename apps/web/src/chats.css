@@ -111,12 +111,6 @@
   min-width: 132px;
   padding-top: 2px;
 }
-.crow-badges {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
 .crow-more {
   display: flex;
   justify-content: center;
@@ -139,11 +133,6 @@
 }
 
 /* ---------- a chat's own page ---------- */
-.chat-facts {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
 .chat-notes {
   display: flex;
   flex-direction: column;

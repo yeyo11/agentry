@@ -28,25 +28,21 @@ test('a worktree anywhere resolves to its repository, from its .git file', () =>
   execFileSync('git', ['-C', root, 'worktree', 'add', '-q', '-b', 'feature', outside]);
   mkdirSync(join(outside, 'packages', 'core'), { recursive: true });
 
-  const loc = new Locator().locate(join(outside, 'packages', 'core'));
-  assert.equal(loc.projectPath, root);
-  assert.equal(loc.projectId, encodeProjectId(root));
   // git names the worktree after its directory
-  assert.deepEqual(loc.worktree, { name: basename(outside), branch: 'feature', path: outside });
+  assert.deepEqual(new Locator().worktreeOf(join(outside, 'packages', 'core')), { path: outside, name: basename(outside), branch: 'feature', parentPath: root });
   // The main checkout is not a worktree of anything
-  assert.equal(new Locator().locate(root).worktree, null);
-  assert.equal(new Locator().locate(root).projectPath, root);
+  assert.equal(new Locator().worktreeOf(root), null);
 });
 
 test('the CLI layout and its transcript record resolve a worktree even once it is gone', () => {
   const locator = new Locator();
   // Removed from disk: only the path says what it was
-  const byPath = locator.locate('/gone/repo/.claude/worktrees/abc-task/src');
-  assert.equal(byPath.projectPath, '/gone/repo');
-  assert.equal(byPath.worktree?.name, 'abc-task');
+  const byPath = locator.worktreeOf('/gone/repo/.claude/worktrees/abc-task/src');
+  assert.equal(byPath?.parentPath, '/gone/repo');
+  assert.equal(byPath?.name, 'abc-task');
   // The record the CLI wrote wins, branch included
   locator.learn({ path: '/elsewhere/wt', parentPath: '/gone/repo', name: 'wt', branch: 'worktree-wt' });
-  assert.deepEqual(locator.locate('/elsewhere/wt').worktree, { name: 'wt', branch: 'worktree-wt', path: '/elsewhere/wt' });
+  assert.deepEqual(locator.worktreeOf('/elsewhere/wt'), { path: '/elsewhere/wt', parentPath: '/gone/repo', name: 'wt', branch: 'worktree-wt' });
 });
 
 test('a session run in a worktree carries the CLI record, and stays loose until its repository is imported', async () => {

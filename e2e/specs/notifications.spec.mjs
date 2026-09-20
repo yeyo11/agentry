@@ -32,7 +32,7 @@ export default async ({ page, check }) => {
   await page.goto('/', 1000);
   await page.waitFor(`return document.querySelector('.bell-badge')?.textContent === '1'`, { label: 'one unread in the badge' });
   check(await page.eval(`return document.querySelector('.bell').classList.contains('bell-urgent')`), 'a waiting question makes the bell urgent');
-  check((await page.eval(`return document.querySelector('.bell').getAttribute('aria-label')`)) === 'Notifications, 1 unread', 'the unread count is in the accessible name');
+  check((await page.eval(`return document.querySelector('.bell').getAttribute('aria-label')`)) === 'Notifications, 1 unread, some need you', 'the unread count, and that some of it is urgent, is in the accessible name');
 
   await page.click('.bell');
   await page.waitFor(`return !!document.querySelector('.notif-panel')`, { label: 'the panel opens' });

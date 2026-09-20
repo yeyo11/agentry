@@ -2,7 +2,7 @@ import { searchPattern, type TranscriptSearchHit, type TranscriptSearchResult } 
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-// Direct imports: RunView is in the shell bundle, and the barrel would pull the lazy form controls into it
+// Direct imports: the barrel would pull the lazy form controls into the chat page's bundle
 import { hasOpenLayer } from './controls/layer';
 import { Tooltip } from './controls/Tooltip';
 import { ICON_SM } from './icons';

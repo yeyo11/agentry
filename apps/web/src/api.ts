@@ -1,5 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type {
   Attachment,
   AccountsOverview,
@@ -12,6 +11,7 @@ import type {
   AutoSwitchSettings,
   AvailablePlugin,
   BackgroundTaskOutput,
+  ChatBackgroundTask,
   ChatBackgroundTaskEntry,
   ChatDetail,
   ChatMessageRequest,
@@ -52,7 +52,6 @@ import type {
   ProjectCandidate,
   ResourceKind,
   ResumeChatRequest,
-  RunEvent,
   SetCredentialsRequest,
   SwitchAccountRequest,
   SwitchResult,
@@ -66,10 +65,9 @@ import type {
   TranscriptSearchResult,
   UsageReport,
 } from '@agentry/shared';
-import { TRANSCRIPT_PAGE_MAX } from '@agentry/shared';
 import { useFallbackInterval } from './lib/feed';
 
-const BASE = '/api';
+export const BASE = '/api';
 
 export class ApiRequestError extends Error {
   readonly status: number;
@@ -120,7 +118,7 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
   return json as T;
 }
 
-const enc = encodeURIComponent;
+export const enc = encodeURIComponent;
 
 /** The file is the request body, as is: no multipart, no base64 on the way up. */
 async function uploadFile(file: File): Promise<Attachment> {
@@ -192,6 +190,7 @@ export const api = {
   deleteChat: (id: string) => request<{ ok: true }>(`/chats/${enc(id)}`, { method: 'DELETE' }),
   uploadFile: (file: File) => uploadFile(file),
   chatPermissions: (id: string) => request<PermissionRequest[]>(`/chats/${enc(id)}/permissions`),
+  chatTasks: (id: string) => request<ChatBackgroundTask[]>(`/chats/${enc(id)}/tasks`),
   answerPermission: (id: string, requestId: string, decision: PermissionDecision) =>
     request<PermissionRequest>(`/chats/${enc(id)}/permissions/${enc(requestId)}`, { method: 'POST', body: decision }),
   usage: (range: { from?: string; to?: string } = {}) => request<UsageReport>(`/usage${qs(range)}`),
@@ -323,6 +322,8 @@ export const keys = {
   // Prefixes the event feed invalidates: every list and every open chat sits under them
   chats: ['chats'] as const,
   chatList: (filter: ChatFilter) => ['chats', filter.project === undefined ? 'all' : (filter.project ?? 'loose'), filter.origin?.join(',') ?? '', filter.state ?? '', filter.limit ?? 0] as const,
+  /** Prefix of a chat's page and of everything read for it */
+  chatScope: (id: string) => ['chat', id] as const,
   chat: (id: string, sidechains: boolean) => ['chat', id, sidechains] as const,
   usage: (range: { from?: string; to?: string }) => ['usage', range.from ?? '', range.to ?? ''] as const,
   tasks: ['tasks'] as const,
@@ -330,7 +331,10 @@ export const keys = {
   workflows: ['workflows'] as const,
   // Prefixes the event feed invalidates (lib/events.ts): a panel's queries all sit under them
   agentDetail: ['agent-detail'] as const,
+  agent: (chatId: string, workflowId: string, agentId: string) => ['agent-detail', chatId, workflowId, agentId] as const,
   taskOutput: ['task-output'] as const,
+  output: (chatId: string, taskId: string) => ['task-output', chatId, taskId] as const,
+  chatTasks: (chatId: string) => ['tasks', 'chat', chatId] as const,
   savedWorkflows: (cwd: string) => ['workflows', 'saved', cwd] as const,
   orchestrations: ['orchestrations'] as const,
   planDrafts: ['orchestrations', 'plans'] as const,
@@ -385,136 +389,9 @@ export const useChats = (filter: ChatFilter = {}) => {
   return useQuery({ queryKey: keys.chatList(rest), queryFn: () => api.chats(rest), refetchInterval: useFallbackInterval(), enabled });
 };
 
-export const useChat = (id: string, sidechains: boolean, live: boolean) => {
-  const fallback = useFallbackInterval();
-  return useQuery({
-    queryKey: keys.chat(id, sidechains),
-    queryFn: () => api.chat(id, sidechains),
-    refetchInterval: live ? fallback : false,
-  });
-};
-
 /** What the chats spent over a range of days (`YYYY-MM-DD`, inclusive), or ever. */
 export const useUsage = (range: { from?: string; to?: string } = {}) =>
   useQuery({ queryKey: keys.usage(range), queryFn: () => api.usage(range), refetchInterval: useFallbackInterval() });
-
-export interface Paged<T> {
-  items: T[];
-  /** Index of the first item held, within the whole transcript */
-  from: number;
-  total: number;
-  /** Something is still above what is held */
-  more: boolean;
-  loadingMore: boolean;
-  loadEarlier: () => void;
-  /** Reads back until `index` is held, however many pages that takes */
-  reach: (index: number) => Promise<void>;
-}
-
-/** How many entries to read at once to get back to `index` from `from`. */
-const stretch = (from: number, index: number) => Math.min(TRANSCRIPT_PAGE_MAX, Math.max(1, from - index));
-
-/**
- * Holds a contiguous run of a transcript, `[from, total)`, from the newest page back. The query
- * fetches the newest page and keeps it current; pages read further back are kept here and spliced
- * on, so following a live conversation never re-reads what is already held.
- */
-function usePages<T>(
-  page: { items: T[]; from: number; total: number } | undefined,
-  fetchBefore: (before: number, limit?: number) => Promise<{ items: T[]; from: number; total: number }>,
-  reset: unknown,
-): Paged<T> {
-  const [earlier, setEarlier] = useState<{ items: T[]; from: number }>({ items: [], from: -1 });
-  const [loadingMore, setLoadingMore] = useState(false);
-  const busy = useRef(false);
-  // A page that lands after the reader switched transcripts belongs to the previous one
-  const generation = useRef(0);
-
-  useEffect(() => {
-    generation.current++;
-    setEarlier({ items: [], from: -1 });
-    setLoadingMore(false);
-    busy.current = false;
-  }, [reset]);
-
-  const tail = page?.items ?? [];
-  const tailFrom = page?.from ?? 0;
-  // The newest page slid past what is held (the conversation grew faster than it was read): the
-  // pages no longer meet, and the honest thing is to show the newest run rather than a false one.
-  const joined = earlier.from >= 0 && earlier.from + earlier.items.length >= tailFrom;
-  const items = joined ? [...earlier.items.slice(0, tailFrom - earlier.from), ...tail] : tail;
-  const from = joined ? earlier.from : tailFrom;
-  const total = page?.total ?? 0;
-  const fromNow = useRef(from);
-  useEffect(() => {
-    fromNow.current = from;
-  }, [from]);
-
-  /** Reads the page before `before` and splices it on; resolves to where what is held now starts. */
-  const readBefore = useCallback(
-    async (before: number, limit?: number): Promise<number> => {
-      const started = generation.current;
-      const older = await fetchBefore(before, limit);
-      if (started !== generation.current || older.items.length === 0) return before;
-      setEarlier((held) =>
-        held.from >= 0 && held.from <= older.from
-          ? held
-          : { items: [...older.items, ...(held.from >= 0 ? held.items : [])], from: older.from },
-      );
-      return older.from;
-    },
-    [fetchBefore],
-  );
-
-  const loadEarlier = useCallback(() => {
-    if (busy.current || from <= 0) return;
-    busy.current = true;
-    setLoadingMore(true);
-    void readBefore(from)
-      .catch(() => {
-        // the page stays as it is; the reader can ask again
-      })
-      .finally(() => {
-        busy.current = false;
-        setLoadingMore(false);
-      });
-  }, [readBefore, from]);
-
-  const reach = useCallback(
-    async (index: number) => {
-      // A page the reader asked for is already on its way: wait for it rather than read it twice
-      while (busy.current) await new Promise((resolve) => setTimeout(resolve, 50));
-      busy.current = true;
-      setLoadingMore(true);
-      try {
-        let at = fromNow.current;
-        while (at > index) {
-          const next = await readBefore(at, stretch(at, index));
-          if (next >= at) break;
-          at = next;
-        }
-      } finally {
-        busy.current = false;
-        setLoadingMore(false);
-      }
-    },
-    [readBefore],
-  );
-
-  return { items, from, total, more: from > 0, loadingMore, loadEarlier, reach };
-}
-
-/** A chat's transcript, newest page first, reading backwards on demand. */
-export const useChatTranscript = (id: string, sidechains: boolean, live: boolean) => {
-  const query = useChat(id, sidechains, live);
-  const fetchBefore = useCallback(
-    (before: number, limit?: number) =>
-      api.chat(id, sidechains, { before, limit }).then((d) => ({ items: d.entries, from: d.from, total: d.total })),
-    [id, sidechains],
-  );
-  const page = query.data ? { items: query.data.entries, from: query.data.from, total: query.data.total } : undefined;
-  return { query, ...usePages(page, fetchBefore, `${id}:${sidechains}`) };
-};
 
 /** Usage refreshes on claude-swap's own cadence; polling faster would only re-read its cache. */
 export const useAccounts = () =>
@@ -524,12 +401,8 @@ export const useAccounts = () =>
 export const useAccountEvents = (enabled: boolean) =>
   useQuery({ queryKey: keys.accountEvents, queryFn: () => api.accountEvents(), refetchInterval: 10_000, enabled });
 
-export const useTasks = () => useQuery({ queryKey: keys.tasks, queryFn: api.tasks, refetchInterval: useFallbackInterval() });
 
-export const useSubagents = () =>
-  useQuery({ queryKey: keys.subagents, queryFn: api.subagents, refetchInterval: useFallbackInterval() });
 
-export const useWorkflows = () => useQuery({ queryKey: keys.workflows, queryFn: api.workflows, refetchInterval: useFallbackInterval() });
 
 export const useOrchestrations = () =>
   useQuery({ queryKey: keys.orchestrations, queryFn: api.orchestrations, refetchInterval: useFallbackInterval() });
@@ -547,193 +420,3 @@ export const useOrchestration = (id: string) => {
     },
   });
 };
-
-// ---------- Execution detail ----------
-
-/**
- * What the events cannot say: a subagent writes to its own transcript and a task to its own output
- * file, and neither announces each line. So while one is running, its panel asks again this often,
- * which is cheap because both reads are incremental.
- */
-const RUNNING_POLL_MS = 2500;
-
-/** More than any reasonable panel scrolls through; older output is dropped from the front. */
-const MAX_OUTPUT_CHARS = 1_000_000;
-
-/** Reads a chunk at a time until the end; a burst larger than one chunk is never left half read. */
-const MAX_OUTPUT_CHUNKS = 16;
-
-/** Which agent a panel shows: a subagent, or with `workflowRunId` an agent of that workflow. */
-export interface AgentRef {
-  sessionId: string;
-  agentId: string;
-  workflowRunId?: string;
-}
-
-/**
- * One agent's detail and transcript. Every fetch asks only for the entries after the ones already
- * cached and appends them, so following a long transcript costs its growth, not its size.
- */
-export function useAgentDetail(ref: AgentRef, running: boolean) {
-  const client = useQueryClient();
-  const fallback = useFallbackInterval();
-  const key = [...keys.agentDetail, ref.sessionId, ref.workflowRunId ?? '', ref.agentId];
-  return useQuery({
-    queryKey: key,
-    queryFn: async (): Promise<AgentTranscript> => {
-      const before = client.getQueryData<AgentTranscript>(key);
-      const next = ref.workflowRunId
-        ? await api.workflowAgent(ref.sessionId, ref.workflowRunId, ref.agentId, before?.total)
-        : await api.subagent(ref.sessionId, ref.agentId, before?.total);
-      // `from` is 0 when the server had to start over (the file was rewritten): then it is all there is
-      if (!before || next.from === 0) return next;
-      return { ...next, entries: [...before.entries.slice(0, next.from), ...next.entries], from: 0 };
-    },
-    // Entries are appended by identity, so comparing thousands of them deeply on each poll is waste
-    structuralSharing: false,
-    refetchInterval: (query) => ((query.state.data ? query.state.data.status === 'running' : running) ? RUNNING_POLL_MS : fallback),
-  });
-}
-
-/** A background task's output as followed so far. */
-export interface FollowedOutput {
-  text: string;
-  /** Size of the file when last read */
-  bytes: number;
-  /** Where the next read resumes */
-  offset: number;
-  /** The start of the output is not in `text`: the file was longer than what is kept */
-  cutHead: boolean;
-}
-
-/** A task's output, following the file as it grows: each fetch resumes from where the last one ended. */
-export function useTaskOutput(sessionId: string, taskId: string, running: boolean) {
-  const client = useQueryClient();
-  const fallback = useFallbackInterval();
-  const key = [...keys.taskOutput, sessionId, taskId];
-  return useQuery({
-    queryKey: key,
-    queryFn: async (): Promise<FollowedOutput> => {
-      const before = client.getQueryData<FollowedOutput>(key);
-      let text = before?.text ?? '';
-      let cutHead = before?.cutHead ?? false;
-      let offset = before?.offset;
-      let bytes = before?.bytes ?? 0;
-      for (let i = 0; i < MAX_OUTPUT_CHUNKS; i++) {
-        const chunk = await api.taskOutput(sessionId, taskId, offset);
-        if (offset === undefined || chunk.reset) {
-          text = chunk.output;
-          cutHead = chunk.truncated;
-        } else {
-          text += chunk.output;
-        }
-        offset = chunk.offset;
-        bytes = chunk.bytes;
-        // Nothing came back while bytes remain: the rest is the start of a character still being written
-        if (offset >= bytes || !chunk.output) break;
-      }
-      if (text.length > MAX_OUTPUT_CHARS) {
-        text = text.slice(-MAX_OUTPUT_CHARS);
-        cutHead = true;
-      }
-      return { text, bytes, offset: offset ?? 0, cutHead };
-    },
-    structuralSharing: false,
-    refetchInterval: running ? RUNNING_POLL_MS : fallback,
-  });
-}
-
-// ---------- SSE chat stream ----------
-
-/** Text generated so far for the block Claude is streaming right now (ephemeral, never stored). */
-export interface StreamingPartial {
-  block: 'text' | 'thinking';
-  text: string;
-}
-
-/** A stored event that means the streamed block is now final (or the turn is over). */
-function endsPartial(event: RunEvent): boolean {
-  if (event.kind === 'message') return event.entry?.role === 'assistant';
-  if (event.kind === 'result') return true;
-  return event.kind === 'status' && event.status !== 'busy';
-}
-
-/**
- * Subscribes to a chat's live event stream. Events are deduplicated by `seq` and the connection is
- * re-established from the last seen seq when it drops. The transcript itself is paged through
- * `useChatTranscript`; this carries what happens while a process works on the chat.
- */
-export function useChatStream(
-  id: string | undefined,
-  enabled = true,
-): { events: RunEvent[]; connected: boolean; partial: StreamingPartial | null } {
-  const [events, setEvents] = useState<RunEvent[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [partial, setPartial] = useState<StreamingPartial | null>(null);
-
-  useEffect(() => {
-    setEvents([]);
-    setConnected(false);
-    setPartial(null);
-    if (!id || !enabled) return;
-
-    let lastSeq = 0;
-    let source: EventSource | null = null;
-    let retry: ReturnType<typeof setTimeout> | undefined;
-    let frame = 0;
-    let closed = false;
-    let buffer: RunEvent[] = [];
-    // Latest partial of the current frame; applied together with the stored events in flush()
-    let pendingPartial: StreamingPartial | null | undefined;
-
-    // Batch bursts (e.g. replay of a long history) into a single state update.
-    const flush = () => {
-      frame = 0;
-      const nextPartial = pendingPartial;
-      pendingPartial = undefined;
-      if (nextPartial !== undefined) setPartial(nextPartial);
-      if (buffer.length === 0) return;
-      const pending = buffer;
-      buffer = [];
-      setEvents((prev) => [...prev, ...pending]);
-    };
-
-    const connect = () => {
-      source = new EventSource(`${BASE}/chats/${enc(id)}/stream?since=${lastSeq}`);
-      source.onopen = () => setConnected(true);
-      source.onmessage = (msg) => {
-        try {
-          const event = JSON.parse(String(msg.data)) as RunEvent;
-          // Partials reuse the seq of the last stored event, so they must be handled before the dedupe
-          if (event.kind === 'partial') {
-            pendingPartial = { block: event.block ?? 'text', text: event.text ?? '' };
-            if (!frame) frame = requestAnimationFrame(flush);
-            return;
-          }
-          if (typeof event.seq !== 'number' || event.seq <= lastSeq) return;
-          lastSeq = event.seq;
-          if (endsPartial(event)) pendingPartial = null;
-          buffer.push(event);
-          if (!frame) frame = requestAnimationFrame(flush);
-        } catch {
-          // ignore keep-alives / malformed frames
-        }
-      };
-      source.onerror = () => {
-        setConnected(false);
-        source?.close();
-        if (!closed) retry = setTimeout(connect, 1500);
-      };
-    };
-    connect();
-
-    return () => {
-      closed = true;
-      if (retry) clearTimeout(retry);
-      if (frame) cancelAnimationFrame(frame);
-      source?.close();
-    };
-  }, [id, enabled]);
-
-  return { events, connected, partial };
-}

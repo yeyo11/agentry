@@ -2,8 +2,8 @@
 export default async ({ page, api, check }) => {
   await api.put('/config/files/content', { root: 'user', path: 'notes/guard.md', content: 'x\n' });
   await page.goto('/settings?tab=files', 1500);
-  await page.click('[role=tree] *', 'notes').catch(() => {});
-  await page.click('[role=tree] *', 'guard.md', 1200);
+  await page.click('[role=treeitem]', 'notes').catch(() => {});
+  await page.click('[role=treeitem]', 'guard.md', 1200);
   await page.focus('.cm-content');
   await page.type('unsaved ');
 

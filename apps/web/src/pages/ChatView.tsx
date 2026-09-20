@@ -1,4 +1,3 @@
-import type { TranscriptSearchHit } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ChevronLeft, CircleSlash, GitFork, Lock, MessageSquare, Radio, Square, Trash2, WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -14,7 +13,8 @@ import { AnimatePresence, motion, ThinkingDots } from '../components/motion';
 import { StreamingEntry, Transcript } from '../components/Transcript';
 import { FindBar, FindButton, useFindFocus, useFindHighlight, useTranscriptFind } from '../components/TranscriptSearch';
 import { Card, Empty, ErrorBox, Loading, PageHeader, usePageTitle } from '../components/ui';
-import { chatApi, chatKeys, useChatFeed, useChatStream, useChatTranscript } from '../lib/chats';
+import { api, keys } from '../api';
+import { useChatStream, useChatTranscript } from '../lib/chats';
 import { ORIGIN_LABEL } from '../lib/chat-model';
 import { formatDateTime } from '../lib/format';
 import { Composer, type ComposerKind } from './chat/Composer';
@@ -22,7 +22,6 @@ import { BranchesCard, EnvironmentCard, ExecutionsCard, FactsCard, HealthCard, U
 
 /** One chat: its conversation, what it has cost, what it has run and delegated, and what can be done with it now. */
 export function ChatView() {
-  useChatFeed();
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -44,7 +43,7 @@ export function ChatView() {
 
   const find = useTranscriptFind({
     scope: ['chat', id, sidechains],
-    search: useCallback((q: string) => chatApi.search(id, q, sidechains), [id, sidechains]),
+    search: useCallback((q: string) => api.searchChat(id, sidechains, q), [id, sidechains]),
   });
   const focus = useFindFocus(find.target, transcript.items, transcript.from, transcript.reach);
   useFindHighlight(scroller, find);
@@ -54,11 +53,11 @@ export function ChatView() {
   }, [find.target]);
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: chatKeys.chat(id) });
-    void queryClient.invalidateQueries({ queryKey: chatKeys.lists });
+    void queryClient.invalidateQueries({ queryKey: keys.chatScope(id) });
+    void queryClient.invalidateQueries({ queryKey: keys.chats });
   };
-  const stop = useMutation({ mutationFn: () => chatApi.stop(id), onSuccess: invalidate });
-  const interrupt = useMutation({ mutationFn: () => chatApi.interrupt(id), onSuccess: invalidate });
+  const stop = useMutation({ mutationFn: () => api.stopChat(id), onSuccess: invalidate });
+  const interrupt = useMutation({ mutationFn: () => api.interruptChat(id), onSuccess: invalidate });
   const remove = useDeleteChat(() => navigate('/chats'));
 
   // Stay pinned to the bottom while content grows (stored messages and the streaming block alike)

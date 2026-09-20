@@ -63,7 +63,7 @@ Every route must carry a summary and a tag — there is a test that enforces it.
   render with the operating system's look and ignore the theme. Plain text inputs and textareas
   stay native. Use a Switch for a setting that turns something on or off and a Checkbox for filters
   and multi-choice lists. In e2e specs, `page.select(trigger, optionText)` drives a Select.
-  Pages import from the `controls` barrel; modules loaded on first paint (App, Dialog, RunView…)
+  Pages import from the `controls` barrel; modules loaded on first paint (App, Dialog…)
   import the file they need, or the barrel pulls the lazy form controls into the initial bundle.
 - **Accessibility is checked, not asserted.** `e2e/specs/a11y.spec.mjs` runs axe-core over every
   page in both themes and at phone width, over the overlays that open above them, and walks the

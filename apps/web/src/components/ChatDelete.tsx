@@ -1,6 +1,6 @@
 import type { ChatSummary } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { chatApi, chatKeys } from '../lib/chats';
+import { api, keys } from '../api';
 import { useConfirm } from './Dialog';
 import { useToast } from './Toast';
 
@@ -11,10 +11,10 @@ export function useDeleteChat(onDeleted?: () => void) {
   const confirm = useConfirm();
 
   const mutation = useMutation({
-    mutationFn: (chat: Pick<ChatSummary, 'id' | 'title'>) => chatApi.remove(chat.id),
+    mutationFn: (chat: Pick<ChatSummary, 'id' | 'title'>) => api.deleteChat(chat.id),
     onSuccess: (_result, chat) => {
-      void queryClient.invalidateQueries({ queryKey: chatKeys.lists });
-      void queryClient.removeQueries({ queryKey: chatKeys.chat(chat.id) });
+      void queryClient.invalidateQueries({ queryKey: keys.chats });
+      void queryClient.removeQueries({ queryKey: keys.chatScope(chat.id) });
       toast.success('Chat deleted', chat.title);
       onDeleted?.();
     },

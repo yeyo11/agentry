@@ -265,7 +265,8 @@ export default async ({ page, api, check, dirs }) => {
 
     await page.click('.project-selector', undefined, 400);
     await page.waitFor(`return !!document.querySelector('[role=listbox]')`, { label: 'project menu open' });
-    await scan(page, 'project selector', { rules: OVERLAY_RULES });
+    // An open Select hides the whole page from assistive technology, so the page-level rules have nothing to find
+    await scan(page, 'project selector', { rules: { ...OVERLAY_RULES, 'landmark-one-main': { enabled: false }, 'page-has-heading-one': { enabled: false } } });
     await page.key('Escape');
 
     await page.click('.bell', undefined, 500);

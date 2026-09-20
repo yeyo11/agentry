@@ -193,7 +193,6 @@ test('importing adopts the chats already there, worktrees included; removing let
     assert.deepEqual(core.projectOf(join(wt, 'src')).project, { id: imported.id, name: 'Shop' });
     assert.deepEqual(core.projectOf(join(wt, 'src')).worktree, { path: wt, name: wt.split('/').pop(), branch: 'feature' });
     assert.equal(core.projectOf(stray).project, null);
-    assert.equal(core.locate(wt).projectId, imported.id);
 
     // Only the imported project is offered to Config and Memory, under its own id
     assert.deepEqual((await core.memoryOverview()).map((m) => [m.projectId, m.projectName]), [[imported.id, 'Shop']]);
