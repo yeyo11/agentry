@@ -27,7 +27,9 @@ import { BrandMark, ICON } from './components/icons';
 import { NotificationBell, NotificationHost } from './components/Notifications';
 import { AnimatePresence, motion, PageTransition, SlidingIndicator, StatusDot, useReducedMotion } from './components/motion';
 import { ProjectSelector } from './components/ProjectSelector';
+import { SignIn } from './components/SignIn';
 import { Empty, Skeleton } from './components/ui';
+import { useAuthChallenge } from './lib/auth';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
 import { ThemeToggle } from './lib/theme';
@@ -68,6 +70,10 @@ function isActive(item: NavItem, pathname: string): boolean {
 }
 
 export function App() {
+  // A guarded wrapper reached without a credential answers 401 to everything, so the shell is not
+  // mounted at all: one screen that asks, instead of every page failing on its own
+  const challenge = useAuthChallenge();
+  if (challenge) return <SignIn mode={challenge} />;
   // The project selector scopes pages far from the top bar, so it lives above all of them
   return (
     <ProjectScopeProvider>

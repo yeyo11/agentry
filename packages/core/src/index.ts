@@ -52,6 +52,7 @@ import { MemoryStore } from './memory.ts';
 import { Orchestrator } from './orchestrator.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { attachProject, projectCandidates, ProjectStore, type ChatPlace } from './projects.ts';
+import { AuthStore } from './security/auth.ts';
 import { SessionStore } from './sessions.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
@@ -60,7 +61,7 @@ export { parseMcpScope } from './config/mcp.ts';
 export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
-export { loadConfig, type CoreConfig } from './paths.ts';
+export { loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
 export { ChatConflictError, DEFAULT_ORIGINS, type ChatFilter, type Placement } from './chat-service.ts';
 export { compareVersions } from './cli-version.ts';
@@ -80,6 +81,9 @@ export {
 export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 export { Db } from './db.ts';
+export { AuthStore } from './security/auth.ts';
+export { OidcVerifier, type FetchLike } from './security/oidc.ts';
+export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
 
 // Read from the package rather than written into this file: the release tooling then only edits
@@ -116,6 +120,8 @@ export class Core {
   readonly toolPresets: ToolPresetStore;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
+  /** How the API is guarded: the auth mode, the token hash and read-only */
+  readonly security: AuthStore;
   readonly uploads: UploadStore;
   readonly accounts: AccountManager;
   readonly cliVersion: CliVersionWatch;
@@ -133,6 +139,7 @@ export class Core {
     this.permissions = new PermissionBroker();
     // Must run before anything spawns the CLI: it injects stored credentials into process.env
     this.credentials = new CredentialStore(config);
+    this.security = new AuthStore(config);
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
     this.projectStore = new ProjectStore(config);

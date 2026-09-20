@@ -6,6 +6,7 @@ import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Core } from '@agentry/core';
 import { registerOpenApi } from './openapi/plugin.ts';
+import { registerSecurity } from './security.ts';
 import { accountRoutes } from './routes/accounts.ts';
 import { chatRoutes } from './routes/chats.ts';
 import { configRoutes } from './routes/config.ts';
@@ -14,6 +15,7 @@ import { memoryRoutes } from './routes/memory.ts';
 import { orchestrationRoutes } from './routes/orchestrations.ts';
 import { pluginRoutes } from './routes/plugins.ts';
 import { projectRoutes } from './routes/projects.ts';
+import { securityRoutes } from './routes/security.ts';
 import { systemRoutes } from './routes/system.ts';
 import { toolPresetRoutes } from './routes/tool-presets.ts';
 import { uploadRoutes } from './routes/uploads.ts';
@@ -47,11 +49,15 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
     void reply.status(status).send({ error: err.message });
   });
 
+  // Before every route: the guard must also cover /docs and the OpenAPI document
+  registerSecurity(app, core);
+
   await registerOpenApi(app, (await core.system()).version);
 
   await app.register(
     async (api) => {
       await api.register(systemRoutes, { core });
+      await api.register(securityRoutes, { core });
     await api.register(accountRoutes, { core });
       await api.register(projectRoutes, { core });
       await api.register(chatRoutes, { core });

@@ -4,6 +4,7 @@ import { useCallback, useRef, useState, type ClipboardEvent, type DragEvent, typ
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { api } from '../api';
+import { withToken } from '../lib/auth';
 import { errorMessage, formatBytes } from '../lib/format';
 import { ICON_SM } from './icons';
 
@@ -39,7 +40,9 @@ export function splitAttached(text: string): { text: string; files: AttachedFile
   return { text: text.slice(0, match.index), files };
 }
 
-const contentUrl = (id: string) => `/api/uploads/${encodeURIComponent(id)}/content`;
+// A thumbnail and a download link are the browser's own GETs: no header, so the credential (when
+// there is one) travels in the query string, which this route accepts for exactly that reason.
+const contentUrl = (id: string) => withToken(`/api/uploads/${encodeURIComponent(id)}/content`);
 const isViewableImage = (type: string) => ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(type);
 
 function FileChip({ name, mediaType, sizeBytes, href, children }: { name: string; mediaType: string; sizeBytes?: number; href?: string | null; children?: ReactNode }) {

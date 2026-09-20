@@ -13,6 +13,7 @@ import { InstructionsTab } from './config/InstructionsTab';
 import { McpTab } from './config/McpTab';
 import { PluginsTab } from './config/PluginsTab';
 import { ResourcesTab } from './config/ResourcesTab';
+import { SecurityTab } from './config/SecurityTab';
 import { SettingsTab } from './config/SettingsTab';
 import { ToolPresetsTab } from './config/ToolPresetsTab';
 
@@ -35,6 +36,7 @@ const TABS = [
   { id: 'memory', label: 'home:settings.tabs.memory' },
   { id: 'plugins', label: 'home:settings.tabs.plugins' },
   { id: 'editor', label: 'observe:editor.tab' },
+  { id: 'security', label: 'config:config.tabs.security' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -145,6 +147,7 @@ function SettingsInner() {
         {tab === 'memory' && <MemoryOverview />}
         {tab === 'plugins' && <PluginsTab />}
         {tab === 'editor' && <EditorTab />}
+        {tab === 'security' && <SecurityTab />}
       </TabPanel>
     </>
   );
