@@ -345,6 +345,9 @@
     "keepEditing": "Sigue editando"
   },
   "notificationText": {
+    "waitingPermission": "{{name}} necesita tu aprobación para usar {{tool}}",
+    "waitingQuestion": "{{name}} te está haciendo una pregunta",
+    "waitingPlan": "{{name}} tiene un plan para que lo apruebes",
     "permission": "Aprueba o deniega {{tool}} para que pueda continuar.",
     "question": "Está esperando tu respuesta.",
     "plan": "Revisa el plan y apruébalo, o pide cambios.",

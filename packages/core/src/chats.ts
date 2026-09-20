@@ -26,7 +26,7 @@ import {
   type TranscriptEntry,
 } from '@agentry/shared';
 import { authFreeEnv } from './accounts.ts';
-import { executionOutcome } from './chat-model.ts';
+import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import { chatsFromRuns, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
@@ -214,6 +214,8 @@ class LiveChat {
   readonly workflows = new Map<string, WorkflowRun>();
   /** Every execution, oldest first; at most the last one is live */
   executions: Execution[] = [];
+  /** The execution a wrapper restart cut off, when this chat was restored with one: its stop time is still an estimate */
+  cutOff: Execution | null = null;
   proc: ChildProcessWithoutNullStreams | null = null;
   seq = 0;
   status: RunStatus = 'starting';
@@ -309,9 +311,14 @@ class LiveChat {
       config,
       true,
     );
-    chat.executions = executions.map((e) =>
-      e.endedAt === null ? { ...e, endedAt: record.updatedAt, outcome: executionOutcome('busy', true) } : e,
-    );
+    // `updatedAt` is a floor for when it stopped: the record is only written at a few moments of a
+    // turn, so the manager refines it from the transcript, which the CLI writes as it goes
+    chat.executions = executions.map((e) => {
+      if (e.endedAt !== null) return e;
+      const cut = { ...e, endedAt: record.updatedAt, outcome: executionOutcome('busy', true), error: e.error ?? INTERRUPTED_BY_RESTART };
+      chat.cutOff = cut;
+      return cut;
+    });
     const last = chat.executions[chat.executions.length - 1];
     // The process's own status, for whatever still asks: nothing is running, and how it ended is
     // what the last execution says
@@ -593,6 +600,14 @@ export class ChatManager extends EventEmitter {
       this.chats.set(chat.id, chat);
       const page = await sessions.getSession(chat.id, { includeSidechains: true }).catch(() => null);
       for (const item of page?.entries ?? []) chat.push({ kind: 'message', type: item.role, entry: item });
+      // The transcript is written as the CLI works, so its last line is when the process really
+      // stopped; the stored record can be older than that
+      const heard = page?.summary.updatedAt;
+      const cut = chat.cutOff;
+      if (cut?.endedAt && heard && heard > cut.endedAt && heard <= now()) {
+        cut.endedAt = heard;
+        chat.endedAt = heard;
+      }
       const pids = this.leftovers.get(chat.id);
       if (pids) {
         chat.push({

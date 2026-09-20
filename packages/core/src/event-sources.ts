@@ -70,7 +70,15 @@ const fromSubagent = (task: BackgroundTask): boolean => (task as BackgroundTask 
 const workflowKey = (w: WorkflowRun): string =>
   `${w.totalTokens ?? ''}|${w.phases.length}|${w.agents.map((a) => `${a.state}${a.tokens ?? ''}`).join(',')}`;
 
-const workflowCounts = (w: WorkflowRun) => ({
+/** The agent to open when a workflow ends: the one that errored if it failed, else the last to report back. */
+export function endingAgentId(workflow: WorkflowRun): string | null {
+  const withTranscript = workflow.agents.filter((a) => a.agentId).sort((a, b) => a.index - b.index);
+  const errored = withTranscript.filter((a) => a.state === 'error');
+  const pool = workflow.status === 'failed' && errored.length > 0 ? errored : withTranscript;
+  return pool[pool.length - 1]?.agentId ?? null;
+}
+
+const workflowCounts =(w: WorkflowRun) => ({
   agentsRunning: w.agents.filter((a) => a.state === 'start' || a.state === 'progress').length,
   agentsDone: w.agents.filter((a) => a.state === 'done' || a.state === 'error').length,
   agentsTotal: w.agents.length,
@@ -317,6 +325,7 @@ export class RunEventPublisher {
             ...at,
             workflowId: wf.id,
             taskId: wf.taskId,
+            agentId: endingAgentId(wf),
             name: wf.name,
             status: wf.status,
             summary: wf.summary,

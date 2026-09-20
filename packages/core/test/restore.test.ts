@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -9,6 +9,7 @@ import type { RunEvent } from '@agentry/shared';
 import { Db } from '../src/db.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
+import { encodeProjectId } from '../src/workspace.ts';
 import { tempConfig } from './helpers.ts';
 
 // Incident, 2026-09-19: after the API restarted under `tsx watch`, one run came back as three
@@ -47,7 +48,7 @@ function spawned(log: string): Array<{ pid: number; argv: string }> {
 }
 
 /** A store holding one chat whose execution was live when the previous wrapper process went away. */
-function previousWrapper(sessionId: string) {
+function previousWrapper(sessionId: string, updatedAt = new Date().toISOString()) {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const startedAt = new Date(Date.now() - 60_000).toISOString();
   const saved = {
@@ -75,7 +76,7 @@ function previousWrapper(sessionId: string) {
           account: null,
           permissionPrompts: 'none',
           createdAt: startedAt,
-          updatedAt: new Date().toISOString(),
+          updatedAt,
         },
         executions: [
           {
@@ -131,6 +132,49 @@ test('a restored chat resumed from several places at once starts one process', a
     assert.equal(spawned(log).length, 1);
     assert.equal(first.pid, spawned(log)[0]?.pid);
     assert.match(spawned(log)[0]?.argv ?? '', new RegExp(`--resume ${saved.sessionId}`));
+  } finally {
+    cleanUp(runs, db, log);
+  }
+});
+
+test('an execution a restart cut off says why, and stopped when the transcript last heard from it', async () => {
+  const sessionId = randomUUID();
+  const recorded = new Date(Date.now() - 50_000).toISOString();
+  const lastLine = new Date(Date.now() - 20_000).toISOString();
+  const { config, db, runs, log } = previousWrapper(sessionId, recorded);
+  try {
+    // The record is only written at a few moments of a turn; the transcript is written as it goes
+    const dir = join(config.projectsDir, encodeProjectId(config.workspaceDir));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, `${sessionId}.jsonl`),
+      [
+        { type: 'user', uuid: 'u1', timestamp: recorded, cwd: config.workspaceDir, sessionId, message: { role: 'user', content: 'coordinate' } },
+        { type: 'assistant', uuid: 'a1', timestamp: lastLine, cwd: config.workspaceDir, sessionId, message: { role: 'assistant', model: 'claude-opus-5', content: [{ type: 'text', text: 'working' }] } },
+      ]
+        .map((o) => JSON.stringify(o))
+        .join('\n'),
+    );
+    await runs.restore(new SessionStore(config));
+    const cut = runs.get(sessionId)?.executions[0];
+    assert.equal(cut?.outcome, 'interrupted');
+    assert.equal(cut?.error, 'interrupted by a wrapper restart');
+    assert.equal(cut?.endedAt, lastLine);
+    assert.equal(runs.get(sessionId)?.endedAt, lastLine);
+  } finally {
+    cleanUp(runs, db, log);
+  }
+});
+
+test('with no transcript to read, a cut-off execution stops when its record was last written', async () => {
+  const sessionId = randomUUID();
+  const recorded = new Date(Date.now() - 50_000).toISOString();
+  const { config, db, runs, log } = previousWrapper(sessionId, recorded);
+  try {
+    await runs.restore(new SessionStore(config));
+    const cut = runs.get(sessionId)?.executions[0];
+    assert.equal(cut?.endedAt, recorded);
+    assert.equal(cut?.error, 'interrupted by a wrapper restart');
   } finally {
     cleanUp(runs, db, log);
   }

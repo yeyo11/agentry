@@ -537,6 +537,11 @@ export interface ChatBackgroundTask {
 export interface ChatSubagent {
   /** Id of its transcript inside the chat */
   id: string;
+  /**
+   * The session it belongs to, which is the chat's id. On every route that reports a subagent, so
+   * the one nested in `GET /chats/:id` and the ones `GET /subagents` lists read the same.
+   */
+  sessionId: string;
   kind: string;
   description: string;
   status: ChatBranchStatus;
@@ -2014,6 +2019,12 @@ export interface WorkflowEndedEvent extends AgentryEventBase, ActivityEventRef {
   type: 'workflow.ended';
   workflowId: string;
   taskId: string | null;
+  /**
+   * The agent that ended it, so a link can open that agent instead of the whole workflow: the one
+   * that failed when the workflow failed, otherwise the last one to report back. Null when no
+   * agent has a transcript of its own.
+   */
+  agentId: string | null;
   name: string | null;
   status: 'completed' | 'failed' | 'stopped';
   summary: string | null;

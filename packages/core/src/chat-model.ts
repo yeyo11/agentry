@@ -61,6 +61,9 @@ export function chatState(facts: { run?: RunFacts | null; cli?: CliAgentFacts | 
   return 'idle';
 }
 
+/** Why an execution that was alive when the wrapper went away has no ending of its own. */
+export const INTERRUPTED_BY_RESTART = 'interrupted by a wrapper restart';
+
 /**
  * How an execution ended, from how its run ended. Null while the run is alive (`starting`, `busy`
  * and `idle` all mean a process is there). `restored` is a run read back after a wrapper restart:
