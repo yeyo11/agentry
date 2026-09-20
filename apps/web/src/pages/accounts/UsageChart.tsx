@@ -57,7 +57,8 @@ export function UsageChart({
         {threshold !== undefined && (
           <g aria-hidden>
             <line x1={FRAME_PAD.left} x2={WIDTH - FRAME_PAD.right} y1={yOf(frame, threshold)} y2={yOf(frame, threshold)} stroke="var(--text-muted)" strokeWidth={1} strokeDasharray="1 4" />
-            <text x={WIDTH - FRAME_PAD.right + 4} y={yOf(frame, threshold) + 4} fontSize={11} fill="var(--text-muted)">
+            {/* Inside the plot, above the line: the right margin is too narrow for the words */}
+            <text x={WIDTH - FRAME_PAD.right} y={yOf(frame, threshold) - 4} textAnchor="end" fontSize={11} fill="var(--text-muted)">
               {t('history.threshold', { pct: threshold })}
             </text>
           </g>
