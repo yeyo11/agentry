@@ -39,7 +39,7 @@
 - **Tests** — unit (core), API integration (Fastify inject) and an in-repo browser suite (`e2e/`,
   headless Chrome over CDP against an isolated wrapper).
 - **Docker** — single image (non-root, CLI baked in, healthcheck), one volume for the whole account
-  setup; published to ghcr.io for amd64 and arm64 (`edge` from `main`, `latest` and a version tag
+  setup; published to ghcr.io for amd64 (`edge` from `main`, `latest` and a version tag
   per release).
 - **CI and releases** — typecheck, tests, e2e and an image smoke test on every pull request;
   release-please versioning and changelog.

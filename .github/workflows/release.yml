@@ -64,8 +64,8 @@ jobs:
         type=edge,branch=main
         type=sha,format=short
 
-  # A release just landed, or one is being republished by hand: build it for arm64 as well and move
-  # `latest` onto it. The version is passed as `value` because metadata-action otherwise reads it
+  # A release just landed, or one is being republished by hand: build it and move `latest` onto it.
+  # The version is passed as `value` because metadata-action otherwise reads it
   # from the triggering event — a push to main, which carries no tag — and silently publishes none.
   release:
     needs: please
@@ -78,7 +78,6 @@ jobs:
     uses: ./.github/workflows/image.yml
     with:
       ref: ${{ inputs.tag || needs.please.outputs.tag }}
-      platforms: linux/amd64,linux/arm64
       tags: |
         type=semver,pattern={{version}},value=${{ inputs.tag || needs.please.outputs.tag }}
         type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag || needs.please.outputs.tag }}
