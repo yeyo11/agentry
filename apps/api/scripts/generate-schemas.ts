@@ -21,6 +21,9 @@ const ROOT_TYPES = [
   'Attachment', 'AccountsOverview', 'AccountSummary', 'SwitchAccountRequest', 'SwitchResult', 'AddAccountTokenRequest',
   'SetAccountAliasRequest', 'AutoSwitchSettings', 'AutoSwitchEvent',
   'AgentryEvent', 'StreamHelloEvent', 'StreamResyncEvent',
+  // Agentry's own model: chats, executions, projects
+  'Chat', 'ChatDetail', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatSettingsUpdate',
+  'TaskHintRequest', 'Project', 'ProjectCandidate', 'ImportProjectRequest', 'UpdateProjectRequest',
 ];
 
 const generator = createGenerator({

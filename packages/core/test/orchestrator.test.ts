@@ -40,6 +40,7 @@ function stoppedGraph(cwd: string, overrides: Partial<Orchestration> = {}): Orch
     prompt: `do ${id}`,
     dependsOn: [],
     status,
+    attempts: 0,
     runId: null,
     sessionId: null,
     result: status === 'completed' ? `${id} done` : null,
