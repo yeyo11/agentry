@@ -368,7 +368,7 @@ export function Card({
     <section className={`card ${className}`}>
       {(title || actions) && (
         <div className="card-head">
-          <h2>{title}</h2>
+          {title ? <h2>{title}</h2> : <span />}
           {actions}
         </div>
       )}

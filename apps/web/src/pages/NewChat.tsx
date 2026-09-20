@@ -86,6 +86,7 @@ export function NewChat() {
             </Field>
             <Field label="Permission mode" hint="Can be changed while the chat works">
               <Select<PermissionMode | ''>
+                aria-label="Permission mode"
                 value={permissionMode}
                 onChange={setPermissionMode}
                 options={[
@@ -97,6 +98,7 @@ export function NewChat() {
             {(accounts.data?.accounts.length ?? 0) > 1 && (
               <Field label="Account" hint="Pins the chat to one claude-swap account instead of the active one">
                 <Select
+                  aria-label="Account"
                   value={account}
                   onChange={setAccount}
                   options={[

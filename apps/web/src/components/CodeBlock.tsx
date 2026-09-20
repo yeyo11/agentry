@@ -44,7 +44,8 @@ export function CodeBlock({ code, lang, tone, header = false }: { code: string; 
         <CopyButton text={code} label="Copy code" />
       </div>
       {/* Highlighted, the block carries the foreground colour, which the bare runs inherit */}
-      <pre className="code" data-lang={lang || undefined} style={highlighted ? (highlighted.tokens.base as CSSProperties) : undefined}>
+      {/* Focusable so long lines can be scrolled from the keyboard; a group, not a landmark, since a transcript holds many */}
+      <pre className="code" role="group" aria-label={lang ? `${lang} code` : 'Code'} tabIndex={0} data-lang={lang || undefined} style={highlighted ? (highlighted.tokens.base as CSSProperties) : undefined}>
         {highlighted ? (
           <>
             {highlighted.tokens.lines.map((line, i) => (

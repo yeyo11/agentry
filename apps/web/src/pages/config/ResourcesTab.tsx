@@ -125,7 +125,7 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
       <p className="small muted">{info.hint}</p>
       <ErrorBox error={error} />
       <div className="master-detail">
-        <div className="master" role="list" aria-label={info.title}>
+        <div className="master">
           {naming !== null && (
             <form
               className="master-new"
@@ -160,31 +160,33 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
           ) : resources.length === 0 && !draft?.isNew ? (
             naming === null && <div className="small muted master-empty">No {info.title.toLowerCase()} in this scope yet.</div>
           ) : (
-            <>
+            <ul className="master-list" aria-label={info.title}>
               {draft?.isNew && (
-                <div className="master-item master-item-on" role="listitem">
-                  <span className="strong ellipsis">{draft.name}</span>
-                  <Tag tone="warn">new · unsaved</Tag>
-                </div>
+                <li>
+                  <div className="master-item master-item-on" aria-current="true">
+                    <span className="strong break">{draft.name}</span>
+                    <Tag tone="warn">new · unsaved</Tag>
+                  </div>
+                </li>
               )}
-              {resources.map((resource) => (
-                <button
-                  key={resource.name}
-                  type="button"
-                  role="listitem"
-                  className={`master-item ${draft?.name === resource.name && !draft.isNew ? 'master-item-on' : ''}`}
-                  onClick={() => void open(resource.name)}
-                >
-                  <span className="strong ellipsis" title={resource.name}>
-                    {resource.name}
-                  </span>
-                  <span className="small muted ellipsis" title={resource.description ?? undefined}>
-                    {resource.description ?? 'No description'}
-                  </span>
-                  <span className="small muted">{timeAgo(resource.updatedAt)}</span>
-                </button>
-              ))}
-            </>
+              {resources.map((resource) => {
+                const current = draft?.name === resource.name && !draft.isNew;
+                return (
+                  <li key={resource.name}>
+                    <button
+                      type="button"
+                      aria-current={current ? 'true' : undefined}
+                      className={`master-item ${current ? 'master-item-on' : ''}`}
+                      onClick={() => void open(resource.name)}
+                    >
+                      <span className="strong break">{resource.name}</span>
+                      <span className="small muted break">{resource.description ?? 'No description'}</span>
+                      <span className="small muted">{timeAgo(resource.updatedAt)}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
 
@@ -194,7 +196,7 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
               title={resources.length === 0 ? `No ${info.title.toLowerCase()} yet` : `Select a ${info.singular}`}
               action={
                 resources.length === 0 && (
-                  <button className="btn btn-primary" onClick={() => setNaming('')}>
+                  <button type="button" className="btn btn-primary" onClick={() => setNaming('')}>
                     Create the first {info.singular}
                   </button>
                 )

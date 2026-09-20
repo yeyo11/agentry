@@ -1,11 +1,11 @@
 import type { PermissionDecision, PermissionRequest, PermissionUpdate } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCheck, ChevronLeft, ChevronRight, ClipboardList, MessageCircleQuestion, ShieldQuestion, X } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import { chatApi, chatKeys, useChatPermissions } from '../lib/chats';
 import { ICON_SM } from './icons';
 import { RichText } from './Transcript';
-import { ErrorBox, Tabs } from './ui';
+import { ErrorBox, TabPanel, Tabs, useTabGroup } from './ui';
 
 /** The shell command, the file, the url — whatever this particular tool is actually about. */
 function summarize(request: PermissionRequest): string {
@@ -45,7 +45,7 @@ function useAnswer(request: PermissionRequest) {
 
 /** Deny with a reason the model can read: one it can learn from beats one it can only retry blindly. */
 function DenyReason({ value, onChange, disabled, placeholder }: { value: string; onChange: (v: string) => void; disabled: boolean; placeholder: string }) {
-  return <input className="permission-reason" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} disabled={disabled} />;
+  return <input className="permission-reason" aria-label={placeholder} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} disabled={disabled} />;
 }
 
 function ToolPrompt({ request }: { request: PermissionRequest }) {
@@ -63,7 +63,10 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
         <strong>{request.toolName}</strong>
         <span className="muted small">wants to run</span>
       </div>
-      <pre className="permission-input">{summarize(request)}</pre>
+      {/* Focusable so a long command can be scrolled sideways from the keyboard */}
+      <pre className="permission-input" role="group" aria-label="What it wants to run" tabIndex={0}>
+        {summarize(request)}
+      </pre>
       {description && <p className="muted small">{description}</p>}
       <div className="permission-actions">
         <button type="button" className="btn btn-primary btn-small" disabled={answer.isPending} onClick={() => answer.mutate({ behavior: 'allow' })}>
@@ -98,6 +101,32 @@ interface Question {
 }
 
 /**
+ * Arrow keys move through the options of a single-choice question. They only move focus: choosing
+ * one advances to the next question, which would take focus away in the middle of the arrowing.
+ */
+function radioArrows(event: KeyboardEvent<HTMLElement>) {
+  const step = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 0;
+  if (step === 0) return;
+  const radios = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=radio]:not(:disabled)')];
+  const at = radios.findIndex((r) => r === document.activeElement);
+  const next = radios[(at + step + radios.length) % radios.length];
+  if (at < 0 || !next) return;
+  event.preventDefault();
+  next.focus();
+}
+
+/** The question's panel is named by its tab when there are tabs, and is a plain block when there is one question. */
+function Panel({ group, tab, tabbed, children }: { group: string; tab: string; tabbed: boolean; children: ReactNode }) {
+  return tabbed ? (
+    <TabPanel group={group} tab={tab} className="question">
+      {children}
+    </TabPanel>
+  ) : (
+    <div className="question">{children}</div>
+  );
+}
+
+/**
  * `AskUserQuestion`: the CLI waits for the answers inside the tool call itself, so they travel back
  * as the call's input — `answers` maps each question to the chosen labels.
  *
@@ -106,6 +135,7 @@ interface Question {
  */
 function QuestionPrompt({ request }: { request: PermissionRequest }) {
   const answer = useAnswer(request);
+  const group = useTabGroup();
   const questions = (Array.isArray(request.input.questions) ? request.input.questions : []) as Question[];
   const [tab, setTab] = useState('0');
   const [picked, setPicked] = useState<Record<string, string[]>>({});
@@ -157,13 +187,21 @@ function QuestionPrompt({ request }: { request: PermissionRequest }) {
         <Tabs
           inline
           label="Questions"
+          group={group}
           value={String(index)}
           onChange={setTab}
           tabs={questions.map((q, i) => ({
             id: String(i),
             label: (
               <>
-                {valueOf(q).length > 0 ? <Check {...ICON_SM} className="text-ok" aria-label="answered" /> : <span className="question-num">{i + 1}</span>}
+                {valueOf(q).length > 0 ? (
+                  <>
+                    <Check {...ICON_SM} className="text-ok" />
+                    <span className="sr-only">answered: </span>
+                  </>
+                ) : (
+                  <span className="question-num">{i + 1}</span>
+                )}
                 {q.header || `Question ${i + 1}`}
               </>
             ),
@@ -171,20 +209,28 @@ function QuestionPrompt({ request }: { request: PermissionRequest }) {
         />
       )}
       {current && (
-        <div key={index} className="question" role="tabpanel">
+        <Panel key={index} group={group} tab={String(index)} tabbed={questions.length > 1}>
           <p className="question-text">
             {current.question}
             {current.multiSelect && <span className="muted small"> · pick any</span>}
           </p>
-          <div className="question-options" role={current.multiSelect ? 'group' : 'radiogroup'} aria-label={current.question}>
-            {(current.options ?? []).map((o) => {
+          <div
+            className="question-options"
+            role={current.multiSelect ? 'group' : 'radiogroup'}
+            aria-label={current.question}
+            onKeyDown={current.multiSelect ? undefined : radioArrows}
+          >
+            {(current.options ?? []).map((o, at) => {
               const on = (picked[current.question] ?? []).includes(o.label);
+              // One tab stop for the radios: the chosen one, or the first while none is
+              const stop = current.multiSelect || on || ((picked[current.question] ?? []).length === 0 && at === 0);
               return (
                 <button
                   key={o.label}
                   type="button"
                   role={current.multiSelect ? 'checkbox' : 'radio'}
                   aria-checked={on}
+                  tabIndex={stop ? 0 : -1}
                   className={`question-option ${on ? 'is-on' : ''} ${current.multiSelect ? 'is-multi' : ''}`}
                   disabled={answer.isPending}
                   onClick={() => toggle(current, o.label)}
@@ -203,6 +249,7 @@ function QuestionPrompt({ request }: { request: PermissionRequest }) {
           <input
             className="question-other"
             placeholder="Other answer…"
+            aria-label={`Other answer to: ${current.question}`}
             value={other[current.question] ?? ''}
             disabled={answer.isPending}
             onChange={(e) => {
@@ -219,7 +266,7 @@ function QuestionPrompt({ request }: { request: PermissionRequest }) {
               }
             }}
           />
-        </div>
+        </Panel>
       )}
       {declining ? (
         <div className="permission-actions">
@@ -274,7 +321,7 @@ function PlanPrompt({ request }: { request: PermissionRequest }) {
         <ClipboardList {...ICON_SM} aria-hidden />
         <strong>Plan ready for review</strong>
       </div>
-      <div className="permission-plan-body">
+      <div className="permission-plan-body" role="group" aria-label="Plan" tabIndex={0}>
         <RichText text={plan} />
       </div>
       <div className="permission-actions">

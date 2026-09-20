@@ -40,7 +40,7 @@ function originLabel(chat: ChatSummary): string {
 function ChatRow({ chat }: { chat: ChatSummary }) {
   const subtitle = chat.firstPrompt && chat.firstPrompt.split('\n')[0]?.slice(0, 100) !== chat.title ? chat.firstPrompt : null;
   return (
-    <div className="crow">
+    <li className="crow">
       <Link to={`/chats/${chat.id}`} className="crow-link">
         <span className="crow-main">
           <span className="crow-title">
@@ -48,7 +48,11 @@ function ChatRow({ chat }: { chat: ChatSummary }) {
             <LastOutcome chat={chat} />
             <span className="crow-title-text">{chat.title}</span>
           </span>
-          {subtitle && <span className="crow-sub">{subtitle}</span>}
+          {subtitle && (
+            <span className="crow-sub" title={subtitle}>
+              {subtitle}
+            </span>
+          )}
           <span className="meta">
             <OriginBadge origin={chat.origin} label={originLabel(chat)} />
             <ControlBadge control={chat.control} />
@@ -71,7 +75,7 @@ function ChatRow({ chat }: { chat: ChatSummary }) {
           </span>
         </span>
       </Link>
-    </div>
+    </li>
   );
 }
 
@@ -131,7 +135,7 @@ export function Chats() {
         title="Chats"
         subtitle={
           <span className="meta">
-            <span>
+            <span role="status">
               {visible.length} of {all.length} chats
             </span>
             {working > 0 && <span>{working} working</span>}
@@ -224,9 +228,11 @@ export function Chats() {
         </Card>
       ) : (
         <Card className="scard">
-          {visible.slice(0, shown).map((chat) => (
-            <ChatRow key={chat.id} chat={chat} />
-          ))}
+          <ul className="list-plain">
+            {visible.slice(0, shown).map((chat) => (
+              <ChatRow key={chat.id} chat={chat} />
+            ))}
+          </ul>
           {visible.length > shown && (
             <div className="crow-more">
               <button type="button" className="btn" onClick={() => setShown((n) => n + PAGE)}>

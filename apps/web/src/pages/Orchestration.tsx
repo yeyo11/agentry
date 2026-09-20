@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { Ban, Check, CircleX, CirclePause, Plus, Square } from 'lucide-react';
 import type { OrchestrationEngine, OrchestrationSpec, OrchestrationTaskSpec, PermissionMode } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -50,7 +50,7 @@ function TaskEditor({
 }) {
   const deps = task.dependsOn ?? [];
   return (
-    <div className="task-editor">
+    <div className="task-editor" role="group" aria-label={`Task ${task.id || '(no id)'}`}>
       <div className="form-grid form-grid-3">
         <Field label="Id">
           <input value={task.id} onChange={(e) => onChange({ id: e.target.value.replace(/\s+/g, '-') })} />
@@ -72,8 +72,10 @@ function TaskEditor({
         <textarea rows={3} value={task.prompt} onChange={(e) => onChange({ prompt: e.target.value })} />
       </Field>
       <div className="task-editor-foot">
-        <div className="chips">
-          <span className="field-label">Depends on</span>
+        <div className="chips" role="group" aria-label="Depends on">
+          <span className="field-label" aria-hidden>
+            Depends on
+          </span>
           {others.length === 0 && <span className="muted small">no other tasks</span>}
           {others.map((id) => (
             <button
@@ -83,6 +85,7 @@ function TaskEditor({
               aria-pressed={deps.includes(id)}
               onClick={() => onChange({ dependsOn: deps.includes(id) ? deps.filter((d) => d !== id) : [...deps, id] })}
             >
+              {deps.includes(id) && <Check size={12} strokeWidth={2.2} aria-hidden />}
               {id}
             </button>
           ))}
@@ -293,9 +296,9 @@ function CreateForm({ onDone }: { onDone: () => void }) {
             >
               {planning ? 'Planning…' : tasks.length ? 'Re-plan' : 'Generate plan'}
             </button>
-            {planning && <span className="spinner" />}
+            {planning && <span className="spinner" aria-hidden />}
             {plannerRunId && (
-              <span className="muted small">
+              <span className="muted small" role="status">
                 {planning ? (
                   <>
                     {plannerExecution?.turns ? `${plannerExecution.turns} turns · ` : ''}
@@ -314,7 +317,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         )}
         {/* The plan is stored server-side, so leaving this page never loses it. */}
         {plannerRunId && !planning && plannerStatus !== 'completed' && (
-          <p className="muted small">
+          <p className="muted small" role="status">
             The planner {plannerStatus ?? 'ended'} without a plan. Its conversation is on the chat page; you can re-plan or
             write the tasks by hand.
           </p>
@@ -420,7 +423,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
             )}
 
             <div className="card-head">
-              <h2>Tasks ({tasks.length})</h2>
+              <h3>Tasks ({tasks.length})</h3>
               <button type="button" className="btn btn-small" onClick={() => setTasks((prev) => [...prev, emptyTask(prev.length + 1)])}>
                 <Plus size={14} strokeWidth={2} aria-hidden />
                 Add task
@@ -438,7 +441,11 @@ function CreateForm({ onDone }: { onDone: () => void }) {
                 />
               ))}
             </div>
-            {localError && <div className="alert alert-warn">{localError}</div>}
+            {localError && (
+              <div className="alert alert-warn" role="alert">
+                {localError}
+              </div>
+            )}
             <ErrorBox error={create.error} title="Could not launch" />
             <div className="form-actions">
               <button type="button" className="btn btn-primary" disabled={create.isPending} onClick={launch}>
@@ -482,7 +489,7 @@ export function Orchestration() {
         ) : list.length === 0 ? (
           <Empty title="No orchestrations yet" />
         ) : (
-          <div className="list">
+          <ul className="list">
             {list.map((orch) => {
               // Progress is completed work only: counting stopped tasks as done drew a full bar and
               // "5/5" over a graph that had finished two tasks and been interrupted.
@@ -495,24 +502,45 @@ export function Orchestration() {
               // A waiting graph is not resumed: its failed tasks are decided on, one by one, on its board
               const resumable = orch.status !== 'running' && orch.status !== 'waiting' && completed < orch.tasks.length;
               return (
-                <Link key={orch.id} to={`/orchestration/${orch.id}`} className="list-row">
+                <li key={orch.id} className="list-row-wrap">
+                <Link to={`/orchestration/${orch.id}`} className="list-row">
                   <div className="list-row-main">
                     <div className="list-row-title">
                       <BoardStatusBadge status={orch.status} />
                       <span className="strong ellipsis">{orch.name}</span>
                     </div>
                     {orch.objective && <div className="muted small ellipsis">{truncate(orch.objective, 160)}</div>}
-                    <div className="meter-track meter-thin">
+                    <div className="meter-track meter-thin" aria-hidden>
                       <div className={`meter-fill ${failed ? 'is-bad' : ''}`} style={{ width: `${pct}%` }} />
                     </div>
                     <div className="meta">
                       <span>
                         {completed}/{orch.tasks.length} completed
                       </span>
-                      {stopped > 0 && <span className="text-warn">{stopped} not run</span>}
-                      {failed > 0 && <span className="text-bad">{failed} failed</span>}
-                      {blocked > 0 && <span className="text-warn">{blocked} blocked, waiting for a decision</span>}
-                      {skipped > 0 && <span className="muted">{skipped} skipped</span>}
+                      {stopped > 0 && (
+                        <span className="text-warn meta-icon">
+                          <Square size={12} strokeWidth={2} aria-hidden />
+                          {stopped} not run
+                        </span>
+                      )}
+                      {failed > 0 && (
+                        <span className="text-bad meta-icon">
+                          <CircleX size={12} strokeWidth={2} aria-hidden />
+                          {failed} failed
+                        </span>
+                      )}
+                      {blocked > 0 && (
+                        <span className="text-warn meta-icon">
+                          <CirclePause size={12} strokeWidth={2} aria-hidden />
+                          {blocked} blocked, waiting for a decision
+                        </span>
+                      )}
+                      {skipped > 0 && (
+                        <span className="muted meta-icon">
+                          <Ban size={12} strokeWidth={2} aria-hidden />
+                          {skipped} skipped
+                        </span>
+                      )}
                       {orch.engine === 'workflow' && <Tag tone="info">workflow</Tag>}
                       {resumable && <Tag tone="active">can be resumed</Tag>}
                       <span>{formatCost(orch.costUsd)}</span>
@@ -521,9 +549,10 @@ export function Orchestration() {
                   </div>
                   <span className="muted small nowrap">{timeAgo(orch.createdAt)}</span>
                 </Link>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
       </Card>
     </>

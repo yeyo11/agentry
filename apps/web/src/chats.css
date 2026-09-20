@@ -203,9 +203,21 @@
   padding-left: 0;
   overflow-wrap: anywhere;
 }
-.chat-tokens tfoot td {
+/* Model names head their rows but read as data, not as column headings */
+.chat-tokens tbody th[scope='row'] {
+  color: var(--text);
+  font-weight: 400;
+}
+.chat-tokens tfoot :is(th, td) {
   border-top: 1px solid var(--border);
   font-weight: 600;
+  text-align: right;
+  padding: 2px 0 2px 8px;
+}
+.chat-tokens tfoot th[scope='row'] {
+  color: var(--text);
+  text-align: left;
+  padding-left: 0;
 }
 .exec {
   display: flex;

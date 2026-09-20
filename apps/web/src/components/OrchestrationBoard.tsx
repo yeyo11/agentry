@@ -18,7 +18,7 @@ import {
   Square,
   type LucideIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { attemptLabel, blockedBy, decisionsOn, waitingSummary } from '../lib/orchestration-board';
@@ -69,9 +69,16 @@ export function StageHead({ title, tasks }: { title: string; tasks: Orchestratio
   return (
     <div className="board-col-head">
       <ProgressRing value={value} size={26} stroke={3.5} tone={failed ? 'bad' : held ? 'warn' : value === 1 ? 'ok' : 'accent'} />
-      <span className="board-col-title">{title}</span>
+      <h3 className="board-col-title">{title}</h3>
+      {/* The ring is colour and arc only, so the state it draws is also said in an icon and words */}
+      {failed && <CircleX className="text-bad" {...ICON_SM} />}
+      {!failed && held && <CirclePause className="text-warn" {...ICON_SM} />}
       <span className="count">
         {done}/{tasks.length}
+        <span className="sr-only">
+          {' '}
+          done{failed ? ', has failed tasks' : held ? ', has blocked tasks' : ''}
+        </span>
       </span>
     </div>
   );
@@ -221,20 +228,25 @@ export function TaskCard({ orch, task }: { orch: Orchestration; task: Orchestrat
   const chat = chatPath(task);
   const behind = task.status === 'blocked' ? blockedBy(orch, task) : [];
   const finished = DONE.has(task.status);
+  const titleId = useId();
   return (
     // Keyed on status so a task visibly settles into its new state when it changes
-    <motion.div
+    <motion.article
       key={task.status}
       className={`board-task status-${task.status}`}
+      aria-labelledby={titleId}
       initial={reduced ? false : { opacity: 0.4, scale: 0.98 }}
-      animate={{ opacity: task.status === 'skipped' ? 0.7 : 1, scale: 1 }}
+      // Fading a skipped task would drop its muted text below the contrast the badge needs
+      animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3 }}
     >
       <div className="side-item-head">
         <BoardStatusBadge status={task.status} />
         <span className="muted small">{task.startedAt ? durationBetween(task.startedAt, task.endedAt) : ''}</span>
       </div>
-      <div className="strong">{task.name || task.id}</div>
+      <h4 id={titleId} className="board-task-name">
+        {task.name || task.id}
+      </h4>
       <div className="mono small muted">{task.id}</div>
       {(task.dependsOn?.length ?? 0) > 0 && (
         <div className="small muted meta-icon">
@@ -308,7 +320,7 @@ export function TaskCard({ orch, task }: { orch: Orchestration; task: Orchestrat
           </span>
         )}
       </div>
-    </motion.div>
+    </motion.article>
   );
 }
 

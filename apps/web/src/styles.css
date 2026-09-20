@@ -745,6 +745,12 @@ svg.lucide {
   flex-wrap: wrap;
   min-height: 24px;
 }
+.card-head h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+}
 .card-foot {
   display: flex;
   flex-wrap: wrap;
@@ -1211,10 +1217,16 @@ input.is-invalid {
 }
 .chip-x {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 24px is the smallest target; the negative margins keep the chip as tall as before */
+  width: 24px;
+  height: 24px;
+  margin: -4px -8px -4px -2px;
   border: 0;
   background: none;
   color: var(--text-muted);
-  padding: 0 0 0 2px;
+  padding: 0;
   cursor: pointer;
   transition: color var(--dur-fast);
 }
@@ -1278,9 +1290,10 @@ input.is-invalid {
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: linear-gradient(135deg, hsl(var(--hue) 68% 56%), hsl(calc(var(--hue) + 42) 66% 44%));
+  /* Every hue has to carry the initials at 4.5:1, which only light fills with near-black text do */
+  background: linear-gradient(135deg, hsl(var(--hue) 68% 76%), hsl(calc(var(--hue) + 42) 66% 70%));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 12px -4px hsl(var(--hue) 70% 50% / 0.5);
-  color: #fff;
+  color: hsl(var(--hue) 40% 8%);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -1670,6 +1683,10 @@ a.badge:hover {
 .list {
   display: flex;
   flex-direction: column;
+  /* Also worn by <ul>s, which must not keep the browser's indent */
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .list-row {
   display: flex;
@@ -1735,7 +1752,7 @@ a.list-row:hover {
 .list-row-action {
   flex: none;
   padding: 0 4px;
-  opacity: 0.35;
+  opacity: 0.65;
   transition: opacity var(--dur-fast);
 }
 .list-row-wrap:hover .list-row-action,
@@ -1972,6 +1989,27 @@ a.list-row:hover {
 .md h6 {
   font-size: 14px;
 }
+/* Headings in an answer are styled blocks, not part of the page's outline */
+.md .md-h {
+  font-weight: 650;
+  letter-spacing: -0.012em;
+  line-height: 1.35;
+  font-size: 14px;
+}
+.md .md-h1 {
+  font-size: 19px;
+}
+.md .md-h2 {
+  font-size: 16.5px;
+}
+.md .md-h3 {
+  font-size: 15px;
+}
+.md > .md-h1:not(:first-child),
+.md > .md-h2:not(:first-child),
+.md > .md-h3:not(:first-child) {
+  margin-top: 18px;
+}
 .md ul,
 .md ol {
   padding-left: 22px;
@@ -2110,6 +2148,12 @@ a.list-row:hover {
 .code-block:hover .code-block-bar,
 .code-block:focus-within .code-block-bar {
   opacity: 1;
+}
+/* No hover on touch: the copy button would be there but unseen */
+@media (hover: none) {
+  .code-block-bar {
+    opacity: 1;
+  }
 }
 .code-block-bar .icon-btn {
   background: var(--bg-elev);
@@ -2494,11 +2538,22 @@ a.list-row:hover {
 }
 
 .board {
+  overflow-x: auto;
+  padding: 4px 2px 10px;
+}
+.board-track {
   display: flex;
   gap: 34px;
-  overflow-x: auto;
   align-items: flex-start;
-  padding: 4px 2px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.board-task-name {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 .board-col {
   position: relative;
@@ -2520,6 +2575,7 @@ a.list-row:hover {
 .board-col-title {
   flex: 1;
   min-width: 0;
+  margin: 0;
   font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.04em;
@@ -2882,6 +2938,19 @@ a.list-row:hover {
   border-radius: var(--radius);
   background: var(--bg-sunken);
 }
+.master-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.master-list > li {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
 .master-item {
   display: flex;
   flex-direction: column;
@@ -2928,10 +2997,18 @@ button.master-item-on:hover {
 .detail {
   min-width: 0;
 }
+/* The lists of the file tree; the rows are the treeitems */
+.tree-group {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 .tree-line {
   display: flex;
   align-items: center;
   min-width: 0;
+  border-radius: 7px;
+  cursor: pointer;
 }
 .tree-row {
   display: flex;
@@ -2950,11 +3027,11 @@ button.master-item-on:hover {
   cursor: pointer;
   transition: background var(--dur-fast);
 }
-button.tree-row:hover {
+.tree-line:hover > .tree-row {
   background: var(--bg-hover);
 }
 .tree-row-on,
-button.tree-row-on:hover {
+.tree-line:hover > .tree-row-on {
   background: var(--accent-soft);
 }
 .tree-chevron {
@@ -2989,8 +3066,15 @@ button.tree-row-on:hover {
   opacity: 0;
 }
 .tree-line:hover .tree-delete,
+.tree-line:focus .tree-delete,
 .tree-delete:focus-visible {
   opacity: 1;
+}
+/* Nothing to hover on a touch screen */
+@media (hover: none) {
+  .tree-delete {
+    opacity: 1;
+  }
 }
 .tree-delete:hover:not(:disabled) {
   color: var(--bad);
@@ -3023,6 +3107,7 @@ button.tree-row-on:hover {
   flex-direction: column;
 }
 .project-name {
+  margin: 0;
   font-size: 14.5px;
   font-weight: 650;
   letter-spacing: -0.01em;
@@ -3244,7 +3329,8 @@ button.tree-row-on:hover {
   transform-origin: left;
   animation: toast-drain var(--toast-life, 4000ms) linear forwards;
 }
-.toast:hover .toast-timer {
+.toast:hover .toast-timer,
+.toast:focus-within .toast-timer {
   animation-play-state: paused;
 }
 .toast-body {
@@ -3481,7 +3567,7 @@ button.tree-row-on:hover {
   .evt-result::before {
     left: 14px;
   }
-  .board {
+  .board-track {
     gap: 26px;
   }
   .board-link {
@@ -3496,6 +3582,21 @@ button.tree-row-on:hover {
     right: 12px;
     bottom: 12px;
     width: calc(100vw - 24px);
+  }
+}
+@media (max-width: 768px) {
+  /* Stages stack top to bottom in dependency order, so nothing scrolls sideways and the sideways connectors have no place */
+  .board-track {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 22px;
+  }
+  .board-col {
+    flex: none;
+    max-width: none;
+  }
+  .board-link {
+    display: none;
   }
 }
 @media (max-width: 560px) {
@@ -3519,6 +3620,47 @@ button.tree-row-on:hover {
   .cards {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+/* The page's own h1 says where you are; the crumb only costs the actions their room */
+@media (max-width: 480px) {
+  .crumbs {
+    display: none;
+  }
+  .topbar-actions {
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+}
+
+/* A chat's header and rows on a phone: the title wraps instead of being cut to nothing beside the badges */
+@media (max-width: 900px) {
+  .run-title {
+    flex-wrap: wrap;
+  }
+  .run-title h1.ellipsis {
+    flex: 1 1 12ch;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+}
+@media (max-width: 560px) {
+  .list-row-title .ellipsis {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+/* Targets of at least 24px where the text alone is shorter than that */
+.chip-toggle,
+.detail-task-link,
+.meta .link-btn {
+  min-height: 24px;
+}
+.meta .link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* ---------- 15. Reduced motion ---------- */
@@ -4056,8 +4198,9 @@ a.attachment-chip:hover {
 }
 .find-snippet mark,
 ::highlight(transcript-find-current) {
-  background: var(--warn);
-  color: #1a1407;
+  /* --warn is dark in the light theme, so a fixed dark text on it would not read */
+  background: color-mix(in srgb, var(--warn) 40%, var(--bg-elev));
+  color: var(--text);
 }
 ::highlight(transcript-find) {
   background: var(--warn-soft);

@@ -54,7 +54,9 @@ export function UsageCard({ chat }: { chat: Chat }) {
             <tbody>
               {rows.map((t) => (
                 <tr key={t.model ?? 'unknown'}>
-                  <td className="mono">{t.model ?? 'unknown'}</td>
+                  <th scope="row" className="mono">
+                    {t.model ?? 'unknown'}
+                  </th>
                   <td>{formatTokens(t.input)}</td>
                   <td>{formatTokens(t.output)}</td>
                   <td>{formatTokens(t.cacheRead + t.cacheCreation)}</td>
@@ -64,7 +66,7 @@ export function UsageCard({ chat }: { chat: Chat }) {
             {rows.length > 1 && (
               <tfoot>
                 <tr>
-                  <td>Total</td>
+                  <th scope="row">Total</th>
                   <td>{formatTokens(cost.total.input)}</td>
                   <td>{formatTokens(cost.total.output)}</td>
                   <td>{formatTokens(cost.total.cacheRead + cost.total.cacheCreation)}</td>
@@ -97,7 +99,15 @@ function ExecutionRow({ execution }: { execution: Execution }) {
         {execution.account && <span>account {execution.account}</span>}
         {execution.maxBudgetUsd !== null && <span>budget {formatUsd(execution.maxBudgetUsd)}</span>}
       </div>
-      {execution.error && <div className="alert alert-bad small">{execution.error}</div>}
+      {execution.error && (
+        <div className="alert alert-bad small">
+          <TriangleAlert size={14} strokeWidth={1.75} aria-hidden className="alert-icon" />
+          <div className="alert-body">
+            <span className="sr-only">Error: </span>
+            {execution.error}
+          </div>
+        </div>
+      )}
     </li>
   );
 }
@@ -196,6 +206,8 @@ export function BranchesCard({ chat }: { chat: Chat }) {
 // ---------- health ----------
 
 const NOTE_ICON: Record<HealthLevel, typeof Info> = { ok: CircleCheck, warn: TriangleAlert, bad: TriangleAlert };
+// The icon is decorative, so the level is also said in words
+const NOTE_LEVEL: Record<HealthLevel, string> = { ok: 'OK', warn: 'Warning', bad: 'Problem' };
 
 export function HealthCard({ chat }: { chat: Chat }) {
   const { subagents, backgroundTasks, workflows } = chat.children;
@@ -207,7 +219,10 @@ export function HealthCard({ chat }: { chat: Chat }) {
         {notes.length === 0 ? (
           <li className="chat-note chat-note-ok">
             <CircleCheck {...ICON_SM} />
-            <span>Nothing to report: the last execution went well and there is room in the context.</span>
+            <span>
+              <span className="sr-only">{NOTE_LEVEL.ok}: </span>
+              Nothing to report: the last execution went well and there is room in the context.
+            </span>
           </li>
         ) : (
           notes.map((note) => {
@@ -215,7 +230,10 @@ export function HealthCard({ chat }: { chat: Chat }) {
             return (
               <li key={note.text} className={`chat-note chat-note-${note.level}`}>
                 <Icon {...ICON_SM} />
-                <span>{note.text}</span>
+                <span>
+                  <span className="sr-only">{NOTE_LEVEL[note.level]}: </span>
+                  {note.text}
+                </span>
               </li>
             );
           })

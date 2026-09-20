@@ -130,8 +130,9 @@ function SettingsEditor({ scope, variant, filesHref }: { scope: Scope; variant: 
             <span className="small muted">{parsed.value ? 'Formatting changes only' : 'Invalid JSON cannot be saved'}</span>
           ) : (
             changes.map(({ key, change }) => (
-              <span key={key} className={`change change-${change}`} title={change}>
-                {change === 'added' ? '+' : change === 'removed' ? '−' : '~'} {key}
+              <span key={key} className={`change change-${change}`}>
+                <span aria-hidden>{change === 'added' ? '+' : change === 'removed' ? '−' : '~'}</span>
+                <span className="sr-only">{change}</span> {key}
               </span>
             ))
           )}

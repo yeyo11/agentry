@@ -87,7 +87,7 @@ function ChatRow({ chat, showProject }: { chat: ChatSummary; showProject: boolea
       <div className="list-row-main">
         <div className="list-row-title">
           <StatusBadge status={chat.state} />
-          <span className="strong ellipsis">{chat.title}</span>
+          <span className="strong ellipsis" title={chat.title}>{chat.title}</span>
         </div>
         <div className="meta">
           {showProject && <span>{chat.project?.name ?? 'no project'}</span>}
@@ -322,6 +322,7 @@ export function Activity({ project }: { project: Project | null }) {
                 </span>
               )}
             </div>
+            <div className="table-wrap" role="region" aria-label="Tokens today by model" tabIndex={0}>
             <table className="table today-table">
               <thead>
                 <tr>
@@ -342,10 +343,11 @@ export function Activity({ project }: { project: Project | null }) {
                 ))}
               </tbody>
             </table>
+            </div>
           </>
         )}
         {windows.length > 0 && (
-          <div className="gauges today-limits" aria-label="Usage limits">
+          <div className="gauges today-limits" role="group" aria-label="Usage limits">
             {windows.map(([name, win]) => {
               const pct = Math.min(100, Math.round(win.utilization * 100));
               return (

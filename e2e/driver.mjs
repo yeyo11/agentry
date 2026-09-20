@@ -1,10 +1,18 @@
 // Dependency-free browser driver over the Chrome DevTools Protocol (Node 22+: global fetch/WebSocket).
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** A call to the browser that gets no answer is a hung Chrome: fail it instead of waiting forever */
+const CDP_TIMEOUT_MS = 60_000;
+
+// axe-core is a dev dependency of the workspace root; its source is injected into the page
+let axeSource;
+const axeScript = () => (axeSource ??= readFileSync(join(dirname(createRequire(import.meta.url).resolve('axe-core')), 'axe.min.js'), 'utf8'));
 
 function findChrome() {
   const candidates = [process.env.CHROME_BIN, 'google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'].filter(Boolean);
@@ -14,11 +22,32 @@ function findChrome() {
 
 export async function launch({ baseUrl, port = 9444, shotsDir }) {
   if (shotsDir) mkdirSync(shotsDir, { recursive: true });
+  const profile = mkdtempSync(join(tmpdir(), 'agentry-e2e-chrome-'));
+  // Its own process group, so the renderers and helpers go down with it and none outlives the run
   const chrome = spawn(
     findChrome(),
-    ['--headless=new', '--disable-gpu', '--no-sandbox', '--hide-scrollbars', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'agentry-e2e-chrome-'))}`, `--remote-debugging-port=${port}`, '--window-size=1440,900', 'about:blank'],
-    { stdio: 'ignore' },
+    ['--headless=new', '--disable-gpu', '--no-sandbox', '--hide-scrollbars', `--user-data-dir=${profile}`, `--remote-debugging-port=${port}`, '--window-size=1440,900', 'about:blank'],
+    { stdio: 'ignore', detached: true },
   );
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    try {
+      ws?.close();
+    } catch {
+      // the socket is gone with the browser
+    }
+    try {
+      process.kill(-chrome.pid, 'SIGKILL');
+    } catch {
+      chrome.kill('SIGKILL');
+    }
+    rmSync(profile, { recursive: true, force: true, maxRetries: 3 });
+  };
+  // Every way out of the process (a signal turned into an exit, an uncaught error, a normal end) runs it
+  process.once('exit', close);
+  let ws;
   let target;
   for (let i = 0; i < 60 && !target; i++) {
     try {
@@ -27,8 +56,11 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
       await sleep(250);
     }
   }
-  if (!target) throw new Error('Chrome did not expose a debugging target');
-  const ws = new WebSocket(target.webSocketDebuggerUrl);
+  if (!target) {
+    close();
+    throw new Error('Chrome did not expose a debugging target');
+  }
+  ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((r) => (ws.onopen = r));
 
   let id = 0;
@@ -46,9 +78,16 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
     }
   };
   const send = (method, params = {}) =>
-    new Promise((res) => {
+    new Promise((res, rej) => {
       const i = ++id;
-      pending.set(i, res);
+      const timer = setTimeout(() => {
+        pending.delete(i);
+        rej(new Error(`Chrome did not answer ${method} within ${CDP_TIMEOUT_MS / 1000}s`));
+      }, CDP_TIMEOUT_MS);
+      pending.set(i, (message) => {
+        clearTimeout(timer);
+        res(message);
+      });
       ws.send(JSON.stringify({ id: i, method, params }));
     });
   await send('Page.enable');
@@ -125,6 +164,40 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
       await send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
       await sleep(250);
     },
+    /**
+     * A key press as a keyboard sends it, with the character that follows: this is what activates a
+     * focused link or button (Enter) or presses it (Space). `key()` sends the bare event, enough for
+     * handlers of keydown but not for the browser's own default actions.
+     */
+    async press(key, modifiers = 0) {
+      const codes = { Enter: [13, '\r'], ' ': [32, ' '], Tab: [9, undefined], Escape: [27, undefined], ArrowUp: [38, undefined], ArrowDown: [40, undefined], ArrowLeft: [37, undefined], ArrowRight: [39, undefined], Home: [36, undefined], End: [35, undefined] };
+      const [windowsVirtualKeyCode, text] = codes[key] ?? [key.toUpperCase().charCodeAt(0), key];
+      const base = { key, code: key === ' ' ? 'Space' : key.length === 1 ? `Key${key.toUpperCase()}` : key, modifiers, windowsVirtualKeyCode };
+      await send('Input.dispatchKeyEvent', { type: text ? 'keyDown' : 'rawKeyDown', ...base, ...(text ? { text } : {}) });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
+      await sleep(250);
+    },
+    /** Animations and transitions collapse to nothing, so a scan never sees a page half faded in. */
+    async reduceMotion(on = true) {
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: on ? 'reduce' : 'no-preference' }] });
+    },
+    /**
+     * Runs axe-core on the page, or on the elements matching `include`, and returns the violations
+     * trimmed to what is needed to fix them. `rules` is axe's own `{ id: { enabled } }` map.
+     */
+    async axe({ include, rules = {} } = {}) {
+      const loaded = await send('Runtime.evaluate', { expression: `typeof window.axe === 'object'`, returnByValue: true });
+      if (!loaded.result.result.value) {
+        const injected = await send('Runtime.evaluate', { expression: axeScript() });
+        if (injected.result.exceptionDetails) throw new Error(`axe-core did not load: ${injected.result.exceptionDetails.exception?.description ?? injected.result.exceptionDetails.text}`);
+      }
+      const options = { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] }, resultTypes: ['violations'], rules };
+      const body =
+        `const result = await Promise.race([axe.run(${include ? JSON.stringify({ include: [include] }) : 'document'}, ${JSON.stringify(options)}), ` +
+        `new Promise((_, reject) => setTimeout(() => reject(new Error('axe did not finish within 30s')), 30000))]);` +
+        `return result.violations.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.map((n) => ({ target: n.target.join(' '), html: n.html.slice(0, 140), why: n.failureSummary?.replace(/\\s+/g, ' ').slice(0, 260) ?? '' })) }));`;
+      return this.eval(body);
+    },
     text: (selector = 'body') => page.eval(`return document.querySelector(${JSON.stringify(selector)})?.innerText ?? ''`),
     async viewport(width, height) {
       await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
@@ -136,5 +209,5 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
       writeFileSync(join(shotsDir, `${name}.png`), Buffer.from(r.result.data, 'base64'));
     },
   };
-  return { page, close: () => (ws.close(), chrome.kill()) };
+  return { page, close };
 }
