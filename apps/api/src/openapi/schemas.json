@@ -6062,8 +6062,15 @@
         "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it"
       },
       "mcp": {
-        "$ref": "#/components/schemas/McpSelection",
-        "description": "MCP servers this chat starts with; absent keeps what the CLI loads on its own"
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/McpSelection"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "MCP servers this chat starts with; absent keeps what it has, `null` goes back to what the CLI loads on its own"
       },
       "maxBudgetUsd": {
         "type": "number",
@@ -6140,8 +6147,15 @@
         "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it"
       },
       "mcp": {
-        "$ref": "#/components/schemas/McpSelection",
-        "description": "MCP servers this chat starts with; absent keeps what the CLI loads on its own"
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/McpSelection"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "MCP servers this chat starts with; absent keeps what it has, `null` goes back to what the CLI loads on its own"
       },
       "maxBudgetUsd": {
         "type": "number",
@@ -6206,8 +6220,15 @@
         "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it"
       },
       "mcp": {
-        "$ref": "#/components/schemas/McpSelection",
-        "description": "MCP servers this chat starts with; absent keeps what the CLI loads on its own"
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/McpSelection"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "MCP servers this chat starts with; absent keeps what it has, `null` goes back to what the CLI loads on its own"
       },
       "maxBudgetUsd": {
         "type": "number",

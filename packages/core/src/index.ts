@@ -36,6 +36,7 @@ import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sou
 import { EventBus } from './events.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
+import { ChatTools, ToolPresetStore } from './chat-tools.ts';
 import { McpConfig } from './config/mcp.ts';
 import { ConfigResources } from './config/resources.ts';
 import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
@@ -50,6 +51,7 @@ import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
+export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { loadConfig, type CoreConfig } from './paths.ts';
@@ -99,6 +101,7 @@ export class Core {
   readonly plugins: Plugins;
   readonly memory: MemoryStore;
   readonly mcp: McpConfig;
+  readonly toolPresets: ToolPresetStore;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
   readonly uploads: UploadStore;
@@ -144,9 +147,12 @@ export class Core {
     this.orchestrator = new Orchestrator(config, this.runtime, this.db);
     this.orchestrator.bus = this.events;
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
+    this.mcp = new McpConfig(config);
+    this.toolPresets = new ToolPresetStore(config);
     this.chats = new ChatService({
       config,
       runtime: this.runtime,
+      tools: new ChatTools(config, this.mcp, this.toolPresets),
       sessions: this.sessions,
       orchestrator: this.orchestrator,
       place: (dir, recorded) => this.place(dir, recorded),
@@ -159,7 +165,6 @@ export class Core {
     this.memory = new MemoryStore(config);
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
     void this.runtime.restore(this.sessions).finally(() => this.orchestrator.recover());
-    this.mcp = new McpConfig(config);
     this.resources = new ConfigResources();
     this.accounts = new AccountManager(config, this.db);
     this.runtime.accounts = this.accounts;

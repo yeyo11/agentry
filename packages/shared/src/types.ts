@@ -720,8 +720,8 @@ export interface ChatStartOptions {
   disallowedTools?: string[];
   /** Id of a stored {@link ToolPreset}; an explicit `allowedTools` wins over it */
   toolPreset?: string;
-  /** MCP servers this chat starts with; absent keeps what the CLI loads on its own */
-  mcp?: McpSelection;
+  /** MCP servers this chat starts with; absent keeps what it has, `null` goes back to what the CLI loads on its own */
+  mcp?: McpSelection | null;
   /** Ceiling on what this execution may spend */
   maxBudgetUsd?: number;
   /** `host` sends permissions, questions and plans to the panel; `none`, the default, denies them */

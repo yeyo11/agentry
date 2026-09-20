@@ -1,4 +1,4 @@
-import type { ChatFork, ChatOrigin, Execution, PermissionMode } from '@agentry/shared';
+import type { ChatFork, ChatOrigin, ChatToolConfig, Execution, PermissionMode } from '@agentry/shared';
 import { executionOutcome } from './chat-model.ts';
 import { emptyTokenUsage } from './usage.ts';
 
@@ -28,6 +28,8 @@ export interface ChatRecord {
   account: string | null;
   /** Where permissions, questions and plans go, kept so a resumed execution asks the same way */
   permissionPrompts: 'host' | 'none';
+  /** The tool preset and MCP servers it was started with; a process that resumes it is given them again */
+  tools?: ChatToolConfig | null;
   createdAt: string;
   updatedAt: string;
 }
