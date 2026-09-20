@@ -15,7 +15,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useOverview } from './api';
 import { CommandPalette, CommandPaletteTrigger, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
@@ -102,6 +102,37 @@ function Shell() {
   // The slide-over closes itself on navigation
   useEffect(() => setMobileNav(false), [pathname]);
 
+  // A route change is silent to a screen reader and leaves keyboard focus on a link that may no
+  // longer be there, so focus moves to the page, unless the page already took it (an autofocus).
+  const mainRef = useRef<HTMLElement>(null);
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    const main = mainRef.current;
+    if (main && !main.contains(document.activeElement)) main.focus({ preventScroll: true });
+  }, [pathname]);
+
+  // The slide-over is a dialog in effect: focus goes in, Escape closes it and focus comes back
+  const menuRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!mobileNav) return;
+    closeRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileNav(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    const menu = menuRef.current;
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      // Navigating away moves focus to the page; only a plain close returns it to the menu button
+      if (!mainRef.current?.contains(document.activeElement)) menu?.focus();
+    };
+  }, [mobileNav]);
+
   // The palette asks for the workflow dialog it cannot host itself
   useEffect(() => {
     const open = () => setWorkflowOpen(true);
@@ -147,6 +178,16 @@ function Shell() {
 
   return (
     <div className={`shell ${collapsed ? 'shell-rail' : ''} ${mobileNav ? 'shell-nav-open' : ''}`}>
+      <a
+        href="#main"
+        className="skip-link"
+        onClick={(event) => {
+          event.preventDefault();
+          mainRef.current?.focus();
+        }}
+      >
+        Skip to content
+      </a>
       <AnimatePresence>
         {mobileNav && (
           <motion.div
@@ -155,12 +196,13 @@ function Shell() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduced ? 0 : 0.18 }}
+            aria-hidden
             onClick={() => setMobileNav(false)}
           />
         )}
       </AnimatePresence>
 
-      <aside className="sidebar" aria-label="Sidebar">
+      <aside id="sidebar" className="sidebar" aria-label="Sidebar">
         <div className="sidebar-head">
           <Tooltip content={railTip('Agentry')} side="right">
             <NavLink to="/" className="brand" aria-label="Agentry">
@@ -178,7 +220,7 @@ function Shell() {
               {collapsed ? <PanelLeftOpen {...ICON} /> : <PanelLeftClose {...ICON} />}
             </button>
           </Tooltip>
-          <button type="button" className="icon-btn sidebar-close" aria-label="Close navigation" onClick={() => setMobileNav(false)}>
+          <button ref={closeRef} type="button" className="icon-btn sidebar-close" aria-label="Close navigation" onClick={() => setMobileNav(false)}>
             <X {...ICON} />
           </button>
         </div>
@@ -198,9 +240,10 @@ function Shell() {
                     </span>
                     <span className="nav-label">{item.label}</span>
                     {badge ? (
-                      <span className="nav-count" aria-label={`${badge} ${item.count?.what}`}>
+                      <span className="nav-count">
                         <span className="nav-count-ping" aria-hidden />
                         {badge}
+                        <span className="sr-only"> {item.count?.what}</span>
                       </span>
                     ) : null}
                   </NavLink>
@@ -230,12 +273,20 @@ function Shell() {
         </Tooltip>
       </aside>
 
-      <div className="content">
+      <div className="content" inert={mobileNav}>
         <header className="topbar">
-          <button type="button" className="icon-btn topbar-menu" aria-label="Open navigation" onClick={() => setMobileNav(true)}>
+          <button
+            ref={menuRef}
+            type="button"
+            className="icon-btn topbar-menu"
+            aria-label="Open navigation"
+            aria-expanded={mobileNav}
+            aria-controls="sidebar"
+            onClick={() => setMobileNav(true)}
+          >
             <Menu {...ICON} />
           </button>
-          <div className="crumbs" aria-label="Breadcrumb">
+          <div className="crumbs">
             <span className="crumb-page">{current?.label ?? 'Agentry'}</span>
             {current?.to === '/' && project && (
               <>
@@ -251,21 +302,22 @@ function Shell() {
             <CommandPaletteTrigger />
             <NotificationBell />
             <ThemeToggle />
-            <button className="btn topbar-workflow" onClick={() => setWorkflowOpen(true)} aria-label="Run a saved workflow">
-              <Play {...ICON} />
+            <button type="button" className="btn topbar-workflow" onClick={() => setWorkflowOpen(true)}>
+              <Play {...ICON} aria-hidden />
               <span className="topbar-new-label">Run workflow</span>
             </button>
             <button
+              type="button"
               className="btn btn-primary topbar-new"
               onClick={() => navigate(project?.exists ? `/chats/new?cwd=${encodeURIComponent(project.path)}` : '/chats/new')}
             >
-              <Plus {...ICON} />
+              <Plus {...ICON} aria-hidden />
               <span className="topbar-new-label">New chat</span>
             </button>
           </div>
         </header>
 
-        <main className="main">
+        <main id="main" ref={mainRef} tabIndex={-1} className="main">
           {/* Keyed by pathname only: tab and scope switches (query string) must not replay the transition */}
           <PageTransition key={pathname} className="page">
             <Suspense fallback={<Skeleton rows={5} height={18} />}>
