@@ -34,6 +34,7 @@ import { SignIn } from './components/SignIn';
 import { SplitButton } from './components/SplitButton';
 import { Empty, Skeleton } from './components/ui';
 import { useAuthChallenge } from './lib/auth';
+import { useDesktopNavigation } from './lib/desktop';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
 import { hidesTabBar } from './lib/shell-live';
@@ -84,6 +85,7 @@ function Shell() {
   const overview = useOverview();
   // The one connection that keeps every page current; the sidebar footer shows when it is down
   const feed = useEventFeed();
+  useDesktopNavigation();
   const counts = overview.data?.counts;
   const auth = overview.data?.system.auth;
   const cli = overview.data?.system.cli;

@@ -1,6 +1,7 @@
 // Theme: 'system' follows the OS; 'light' / 'dark' are stamped on <html data-theme> so the CSS
 // token blocks (`:root[data-theme='…']`) win over prefers-color-scheme in both directions.
 import { useSyncExternalStore } from 'react';
+import { syncDesktopTitleBar } from './desktop';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type EffectiveTheme = 'light' | 'dark';
@@ -26,11 +27,16 @@ function apply(): void {
   const root = document.documentElement;
   if (preference === 'system') delete root.dataset.theme;
   else root.dataset.theme = preference;
+  // The desktop app's window controls sit on the top bar and follow its colours
+  syncDesktopTitleBar();
 }
 
 // Applied at import time, before React renders, so there is no flash of the wrong theme.
 if (typeof document !== 'undefined') apply();
-osLight?.addEventListener('change', () => listeners.forEach((l) => l()));
+osLight?.addEventListener('change', () => {
+  if (preference === 'system') syncDesktopTitleBar();
+  listeners.forEach((l) => l());
+});
 
 export function setThemePreference(next: ThemePreference): void {
   preference = next;
