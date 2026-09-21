@@ -2065,6 +2065,13 @@
         ],
         "description": "What the checks on the integration branch did; absent when the graph asked for none"
       },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Why the graph failed when its tasks did not: its checks failed and it was launched with `verification.failGraph`. Null or absent otherwise."
+      },
       "relaunchedFrom": {
         "type": [
           "string",
@@ -2704,6 +2711,10 @@
     "properties": {
       "command": {
         "type": "string"
+      },
+      "install": {
+        "type": "boolean",
+        "description": "The install step that runs before the checks: detected from the lockfile, or the spec's `install`"
       },
       "status": {
         "$ref": "#/components/schemas/VerificationStatus"
