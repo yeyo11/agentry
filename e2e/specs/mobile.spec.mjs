@@ -45,7 +45,7 @@ export default async ({ page, api, check, dirs }) => {
       check((await page.eval(onScreen('.run-scroll'))) > 0, `the chat still shows rows after scrolling to ${at * 100}% of it`);
     }
 
-    // ---- A chat Agentry started: its log scrolls inside a bounded stage, never the page around it ----
+    // ---- A chat Agentry started: its log scrolls between a fixed header and composer, never the page ----
     // Without a login the chat goes nowhere, and its log is short: the height it would reach with a
     // long one is stood in for by a filler, which the stage must not grow to hold.
     const created = await api.post('/chats', { prompt: 'hello', name: 'e2e-mobile-chat' });
@@ -55,11 +55,16 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return !!document.querySelector('.run-scroll')`, { label: 'the chat log' });
     await page.eval(`const f=document.createElement('div');f.id='e2e-filler';f.style.height='20000px';f.style.flexShrink='0';document.querySelector('.run-scroll').append(f);return true`);
     await settle(page);
+    // The page is the window's height: the header on top, the composer at the bottom and on screen,
+    // and only the log in between scrolls
     const stage = await page.eval(
-      `const st=document.querySelector('.run-stage').getBoundingClientRect(),s=document.querySelector('.run-scroll');` +
-        `return {stage:st.height,client:s.clientHeight,scroll:s.scrollHeight,view:innerHeight}`,
+      `const s=document.querySelector('.run-scroll'),m=document.querySelector('main'),` +
+        `c=document.querySelector('.composer')?.getBoundingClientRect(),h=document.querySelector('.chat-head')?.getBoundingClientRect();` +
+        `return {client:s.clientHeight,scroll:s.scrollHeight,view:innerHeight,page:m.scrollHeight-m.clientHeight,composer:c?c.bottom:-1,head:h?h.top:-1}`,
     );
-    check(Math.abs(stage.stage - stage.view * 0.62) <= 2, `the chat stage keeps its height on a phone (${stage.stage.toFixed(0)}px of ${stage.view}px)`);
+    check(stage.composer > 0 && stage.composer <= stage.view, `the composer is on screen at the bottom (${stage.composer}px of ${stage.view}px)`);
+    check(stage.head >= 0 && stage.head < stage.view / 4, `the header stays at the top (${stage.head}px)`);
+    check(stage.page <= 1, `the page itself does not scroll (${stage.page}px over)`);
     check(stage.client < stage.view && stage.scroll > stage.client, `the chat log scrolls itself (${stage.client}px showing ${stage.scroll}px)`);
     await page.eval(`document.getElementById('e2e-filler')?.remove();return true`);
     await page.shot('mobile-chat');

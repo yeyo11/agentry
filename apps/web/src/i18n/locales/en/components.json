@@ -176,7 +176,16 @@
     "user": "User",
     "subagent": "subagent",
     "streamingThinking": "thinking",
-    "streamingWriting": "writing"
+    "streamingWriting": "writing",
+    "tools_one": "{{count}} tool",
+    "tools_other": "{{count}} tools",
+    "failedCalls_one": "{{count}} failed",
+    "failedCalls_other": "{{count}} failed",
+    "stepCurrent": "in progress",
+    "callFailed": "failed",
+    "callRunning": "running",
+    "callWaiting": "Waiting for the result…",
+    "openSubagent": "Open the subagent's transcript"
   },
   "detail": {
     "status": "Status",

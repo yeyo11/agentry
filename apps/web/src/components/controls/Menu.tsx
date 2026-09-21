@@ -22,6 +22,9 @@ export interface MenuItem {
   checked?: boolean;
   /** The keyboard shortcut that does the same thing, shown in mono on the right */
   shortcut?: string;
+  /** Makes the item a real link, e.g. a download the server answers with Content-Disposition */
+  href?: string;
+  download?: boolean;
 }
 
 export interface MenuGroup {
@@ -112,6 +115,14 @@ function Item({ item }: { item: MenuItem }) {
     return (
       <RadixMenu.Item className={classes} aria-disabled onSelect={(event) => event.preventDefault()}>
         {body}
+      </RadixMenu.Item>
+    );
+  if (item.href)
+    return (
+      <RadixMenu.Item className={classes} asChild onSelect={() => item.onSelect?.()}>
+        <a href={item.href} download={item.download || undefined}>
+          {body}
+        </a>
       </RadixMenu.Item>
     );
   if (item.checked !== undefined)

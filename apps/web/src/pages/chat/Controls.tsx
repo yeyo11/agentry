@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatToolsPicker } from '../../components/ChatToolsPicker';
 import { Combobox, Select } from '../../components/controls';
-import { ErrorBox, MODEL_OPTIONS, PERMISSION_MODES } from '../../components/ui';
+import { ErrorBox, MODEL_OPTIONS, PERMISSION_MODES, Tag } from '../../components/ui';
 import { api, keys } from '../../api';
 import type { StartChoices } from './Composer';
 
@@ -60,6 +60,27 @@ export function LiveSettings({ chat }: { chat: Chat }) {
         </dd>
       )}
     </>
+  );
+}
+
+/**
+ * What the status line opens on a live chat: what can be switched in place, and the tools it was
+ * started with, which a live process keeps until it is resumed.
+ */
+export function LiveOptions({ chat }: { chat: Chat }) {
+  const { t } = useTranslation(['chat', 'work']);
+  const { tools } = chat;
+  return (
+    <div className="stack-tight">
+      <dl className="kv kv-narrow">
+        <LiveSettings chat={chat} />
+        <dt>{t('tools.preset')}</dt>
+        <dd>{tools?.preset ? <Tag tone="info">{tools.preset.name}</Tag> : <span className="muted">{t('tools.card.noPreset')}</span>}</dd>
+        <dt>{t('tools.servers')}</dt>
+        <dd className="mono">{tools?.mcp ? (tools.mcp.servers.length > 0 ? tools.mcp.servers.join(', ') : t('tools.card.noServers')) : t('tools.card.serversDefault')}</dd>
+      </dl>
+      <p className="small muted">{t('status.liveHint')}</p>
+    </div>
   );
 }
 
