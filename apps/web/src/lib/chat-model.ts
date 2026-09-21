@@ -83,6 +83,10 @@ export interface ChatFilters {
   /** Housekeeping chats (the planner, the auth check) */
   internal: boolean;
   search: string;
+  /** Project ids, `loose` for the chats under none; empty or absent is every project */
+  projects?: ReadonlySet<string>;
+  /** Model ids; empty or absent is every model, and a chat that never said its model passes only then */
+  models?: ReadonlySet<string>;
 }
 
 export const ALL_ORIGINS: readonly ChatOriginFilter[] = ['agentry', 'external', 'orchestration'];
@@ -101,6 +105,8 @@ export function matchesFilters(chat: ChatSummary, filters: ChatFilters): boolean
     return false;
   }
   if (filters.state && chat.state !== filters.state) return false;
+  if (filters.projects?.size && !filters.projects.has(projectKey(chat))) return false;
+  if (filters.models?.size && (chat.model === null || !filters.models.has(chat.model))) return false;
   const needle = filters.search.trim().toLowerCase();
   if (!needle) return true;
   return [chat.title, chat.firstPrompt ?? '', chat.project?.name ?? '', chat.cwd, chat.id, chat.orchestration?.name ?? '', chat.orchestration?.taskName ?? ''].some((v) =>
@@ -132,3 +138,102 @@ export const SORTERS: Record<ChatSort, (a: ChatSummary, b: ChatSummary) => numbe
   context: (a, b) => (contextShare(b) ?? -1) - (contextShare(a) ?? -1) || SORTERS.activity(a, b),
   messages: (a, b) => b.messageCount - a.messageCount,
 };
+
+/** The key a chat's project goes by in a filter: its id, or `loose` when it is under none. */
+export const projectKey = (chat: Pick<ChatSummary, 'project'>): string => chat.project?.id ?? 'loose';
+
+/** How many chats each state tab would show with every other filter as it is. */
+export function stateCounts(chats: readonly ChatSummary[], filters: ChatFilters): Record<ChatState | 'all', number> {
+  const counts = { all: 0, working: 0, waiting: 0, idle: 0 };
+  for (const chat of chats) {
+    if (!matchesFilters(chat, { ...filters, state: null })) continue;
+    counts.all++;
+    counts[chat.state]++;
+  }
+  return counts;
+}
+
+export interface FacetOption {
+  value: string;
+  label: string;
+  count: number;
+}
+
+/**
+ * The values a facet can take, read from the chats themselves: offering a model nobody used would
+ * only ever filter the list down to nothing. Most used first, then by name.
+ */
+export function facetOptions(chats: readonly ChatSummary[], facet: 'project' | 'model', looseLabel = ''): FacetOption[] {
+  const found = new Map<string, FacetOption>();
+  for (const chat of chats) {
+    const value = facet === 'project' ? projectKey(chat) : chat.model;
+    // `<synthetic>` is what the CLI writes on messages it made up itself, not a model anyone chose
+    if (value === null || (facet === 'model' && value.startsWith('<'))) continue;
+    const label = facet === 'project' ? (chat.project?.name ?? looseLabel) : value;
+    const held = found.get(value);
+    if (held) held.count++;
+    else found.set(value, { value, label, count: 1 });
+  }
+  return [...found.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+export type DayGroup = 'today' | 'yesterday' | 'week' | 'earlier';
+
+/**
+ * Which heading a moment falls under, by the reader's calendar rather than by 24-hour windows: a
+ * chat touched at 23:50 is yesterday's at 00:10. "This week" is the five days before yesterday.
+ */
+export function dayGroup(iso: string | null, now: Date = new Date()): DayGroup {
+  const at = iso ? Date.parse(iso) : Number.NaN;
+  if (!Number.isFinite(at)) return 'earlier';
+  const day = (back: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() - back).getTime();
+  // A clock running ahead of this one still means today
+  if (at >= day(0)) return 'today';
+  if (at >= day(1)) return 'yesterday';
+  if (at >= day(6)) return 'week';
+  return 'earlier';
+}
+
+/** Chats already in order, cut into consecutive runs of the same day group. */
+export function groupByDay<T extends Pick<ChatSummary, 'updatedAt'>>(chats: readonly T[], now: Date = new Date()): Array<{ group: DayGroup; chats: T[] }> {
+  const groups: Array<{ group: DayGroup; chats: T[] }> = [];
+  for (const chat of chats) {
+    const group = dayGroup(chat.updatedAt, now);
+    const last = groups[groups.length - 1];
+    if (last && last.group === group) last.chats.push(chat);
+    else groups.push({ group, chats: [chat] });
+  }
+  return groups;
+}
+
+export type RowTag = 'interactive' | 'readOnly' | 'fork' | 'worktree';
+
+/**
+ * What a row says about a chat beside its title, two things at most. Resumable is what nearly every
+ * chat is, so only the other control modes earn a tag; then whether it is a copy of another chat and
+ * whether it works in a worktree of its own.
+ */
+export function rowTags(chat: Pick<ChatSummary, 'control' | 'derivedFrom' | 'worktree'>): RowTag[] {
+  const tags: RowTag[] = [];
+  if (chat.control.mode !== 'resumable') tags.push(chat.control.mode);
+  if (chat.derivedFrom) tags.push('fork');
+  if (chat.worktree) tags.push('worktree');
+  return tags.slice(0, 2);
+}
+
+/**
+ * Why a chat cannot be deleted now, or null when it can. The server refuses a chat something runs
+ * on; one something else holds is left alone, as the chat's own page leaves it.
+ */
+export function deleteBlocker(chat: Pick<ChatSummary, 'execution' | 'state' | 'control'>): 'live' | 'held' | null {
+  if (chat.execution || chat.state !== 'idle') return 'live';
+  if (chat.control.mode === 'readOnly') return 'held';
+  return null;
+}
+
+/** Where the keyboard cursor lands after `j` (+1) or `k` (-1): it stops at either end. */
+export function stepCursor(count: number, current: number | null, delta: number): number | null {
+  if (count <= 0) return null;
+  if (current === null || current < 0 || current >= count) return delta < 0 ? count - 1 : 0;
+  return Math.min(count - 1, Math.max(0, current + delta));
+}

@@ -27,8 +27,6 @@
     "messages": "{{n}} msgs",
     "cost": "cost {{cost}}",
     "count": "{{shown}} of {{total}} chats",
-    "working": "{{n}} working",
-    "waiting": "{{n}} waiting for you",
     "resetFilters": "Reset filters",
     "newChat": "New chat",
     "searchPlaceholder": "Search title, first prompt, project, id…",
@@ -49,7 +47,60 @@
     "empty": "No chats yet",
     "emptyFilteredBody": "Try resetting the filters.",
     "emptyBody": "Chats you start here, and the ones Claude Code has run in an imported project, appear in this list.",
-    "showMore": "Show more ({{n}} left)"
+    "showMore": "Show more ({{n}} left)",
+    "filtersTitle": "Filter chats",
+    "projectLabel": "Project",
+    "modelLabel": "Model",
+    "includeLabel": "Also show",
+    "chipOrigin": "Origin: {{values}}",
+    "chipProject": "Project: {{values}}",
+    "chipModel": "Model: {{values}}",
+    "selectChat": "Select {{title}}",
+    "worktree": "worktree",
+    "tag": {
+      "interactive": "Interactive",
+      "readOnly": "Read-only"
+    },
+    "outcome": {
+      "failed": "Failed",
+      "stopped": "Stopped",
+      "interrupted": "Interrupted"
+    },
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "week": "This week",
+      "earlier": "Earlier"
+    },
+    "keysHint": "j / k to move · Enter to open · x to select · / to search"
+  },
+  "bulk": {
+    "region": "Selected chats",
+    "selected_one": "{{count}} selected",
+    "selected_other": "{{count}} selected",
+    "exportMarkdown": "Export Markdown",
+    "delete": "Delete",
+    "deleting": "Deleting…",
+    "clear": "Clear the selection",
+    "deleteTitle_one": "Delete {{count}} chat?",
+    "deleteTitle_other": "Delete {{count}} chats?",
+    "deleteBody_one": "Its transcript is deleted with it. This cannot be undone.",
+    "deleteBody_other": "Their transcripts are deleted with them. This cannot be undone.",
+    "deleteConfirm_one": "Delete {{count}} chat",
+    "deleteConfirm_other": "Delete {{count}} chats",
+    "skipIntro_one": "This one is left as it is:",
+    "skipIntro_other": "These {{count}} are left as they are:",
+    "why": {
+      "live": "something is running on it",
+      "held": "something else holds it"
+    },
+    "nothingTitle": "None of these chats can be deleted now",
+    "ok": "OK",
+    "deleted_one": "{{count}} chat deleted",
+    "deleted_other": "{{count}} chats deleted",
+    "skippedNote_one": "Left alone: {{titles}}",
+    "skippedNote_other": "Left alone ({{count}}): {{titles}}",
+    "failed": "Could not delete {{title}}"
   },
   "new": {
     "title": "New chat",
