@@ -1,63 +1,77 @@
 /* Status and feedback: badges, dots, alerts, empty states, skeletons, facts. */
+/*
+ * A badge is data, not decoration: mono text, no fill, a 1px border and the tone carried by the
+ * icon or dot beside the word. `--tone` is the only thing a variant sets, so a new one is a line.
+ */
 .badge {
+  --tone: var(--text-faint);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 1px 9px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  font-size: 11.5px;
-  font-weight: 600;
-  line-height: 1.65;
+  gap: 5px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.7;
   white-space: nowrap;
-  background: var(--bg-hover);
-  border-color: var(--border);
   color: var(--text-muted);
+}
+
+.badge > svg,
+.badge > .spinner {
+  color: var(--tone);
 }
 
 a.badge:hover {
   text-decoration: none;
-  filter: brightness(1.15);
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
 }
 
 .badge-ok {
-  background: var(--ok-soft);
-  border-color: color-mix(in srgb, var(--ok) 22%, transparent);
+  --tone: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 26%, var(--border));
   color: var(--ok);
 }
 
 .badge-bad {
-  background: var(--bad-soft);
-  border-color: color-mix(in srgb, var(--bad) 22%, transparent);
+  --tone: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 26%, var(--border));
   color: var(--bad);
 }
 
 .badge-warn {
-  background: var(--warn-soft);
-  border-color: color-mix(in srgb, var(--warn) 22%, transparent);
+  --tone: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 26%, var(--border));
   color: var(--warn);
 }
 
 .badge-info {
-  background: var(--info-soft);
-  border-color: color-mix(in srgb, var(--info) 22%, transparent);
+  --tone: var(--info);
+  border-color: color-mix(in srgb, var(--info) 26%, var(--border));
   color: var(--info);
 }
 
 .badge-idle {
-  background: var(--idle-soft);
-  border-color: color-mix(in srgb, var(--idle) 22%, transparent);
+  --tone: var(--idle);
+  border-color: color-mix(in srgb, var(--idle) 26%, var(--border));
   color: var(--idle);
 }
 
+/* Something happening now is `--live`, not the accent: the accent is what you can press. */
 .badge-active {
-  background: var(--accent-soft);
-  border-color: var(--ring);
-  color: var(--accent);
+  --tone: var(--live);
+  border-color: color-mix(in srgb, var(--live) 30%, var(--border));
+  color: var(--live);
 }
 
 .badge-project {
-  background: var(--accent-2-soft);
+  --tone: var(--accent-2);
+  border-color: color-mix(in srgb, var(--accent-2) 26%, var(--border));
   color: var(--accent-2);
 }
 
