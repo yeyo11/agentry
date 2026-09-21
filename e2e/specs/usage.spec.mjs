@@ -19,13 +19,30 @@ async function noViolations(page, where, check) {
 const rows = (page) => page.eval(`return document.querySelectorAll('main .usage-table tbody tr').length`);
 
 export default async ({ page, api, check, dirs }) => {
-  const at = new Date().toISOString();
+  const now = new Date();
+  const at = now.toISOString();
+  // A second day of usage, two days back: a range that ends before today still has figures, so the
+  // table stays on the page instead of the "nothing in this range" note when the end day is picked
+  const before = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2, 12).toISOString();
   const projectDir = join(dirs.configDir, 'projects', PROJECT);
   try {
     mkdirSync(projectDir, { recursive: true });
     writeFileSync(
       join(projectDir, `${SESSION}.jsonl`),
       [
+        { type: 'user', uuid: 'u0', timestamp: before, cwd: '/work/e2e-usage', version: '2.1.0', message: { role: 'user', content: 'and the day before yesterday' } },
+        {
+          type: 'assistant',
+          uuid: 'u0a',
+          timestamp: before,
+          message: {
+            role: 'assistant',
+            id: 'msg-usage-before',
+            model: 'claude-sonnet-5',
+            content: [{ type: 'text', text: 'A couple of hundred.' }],
+            usage: { input_tokens: 150, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+          },
+        },
         { type: 'user', uuid: 'u1', timestamp: at, cwd: '/work/e2e-usage', version: '2.1.0', message: { role: 'user', content: 'how many tokens did this take' } },
         {
           type: 'assistant',

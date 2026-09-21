@@ -514,9 +514,10 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+/* Knocked out of the page background, not white: white on the dark theme's accent is only 2.95:1 */
 .date-picker-day.is-selected {
   background: var(--accent);
-  color: var(--accent-text);
+  color: var(--bg);
   font-weight: 650;
 }
 .date-picker-day[aria-disabled] {
