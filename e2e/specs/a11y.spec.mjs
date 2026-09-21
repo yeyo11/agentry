@@ -210,7 +210,8 @@ export default async ({ page, api, check, dirs }) => {
       '/accounts',
       '/connectors',
       ...['account', 'instructions', 'settings', 'mcp', 'agents', 'skills', 'commands', 'output-styles', 'rules', 'files', 'memory', 'plugins', 'supervisor', 'security'].map((tab) => `/settings?tab=${tab}`),
-      ...['activity', 'settings', 'memory', 'resources', 'worktrees'].map((tab) => `/?project=${projectId}&tab=${tab}`),
+      `/?project=${projectId}`,
+      ...['settings', 'memory', 'resources', 'worktrees'].map((view) => `/?project=${projectId}&view=${view}`),
     ];
     for (const theme of ['dark', 'light']) {
       // Home is the selected project's page: both themes start from All projects
@@ -225,7 +226,7 @@ export default async ({ page, api, check, dirs }) => {
     // ---------- axe: phone width ----------
     await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
     await page.viewport(420, 900);
-    const narrow = ['/', '/chats', '/chats/new', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/settings?tab=settings', `/?project=${projectId}&tab=settings`];
+    const narrow = ['/', '/chats', '/chats/new', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/settings?tab=settings', `/?project=${projectId}`, `/?project=${projectId}&view=settings`];
     for (const path of narrow) {
       await settle(page, path);
       await scan(page, `420px ${path}`);
@@ -233,7 +234,7 @@ export default async ({ page, api, check, dirs }) => {
       if (overflow > 1) problems.push(`[420px ${path}] the page scrolls sideways by ${overflow}px`);
     }
     await page.viewport(768, 900);
-    for (const path of ['/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`]) {
+    for (const path of ['/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/', `/?project=${projectId}`]) {
       await settle(page, path);
       const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
       if (overflow > 1) problems.push(`[768px ${path}] the page scrolls sideways by ${overflow}px`);

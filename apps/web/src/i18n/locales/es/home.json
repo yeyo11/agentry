@@ -1,6 +1,5 @@
 {
   "tabs": {
-    "activity": "Actividad",
     "settings": "Ajustes",
     "memory": "Memoria",
     "resources": "Recursos",
@@ -64,14 +63,9 @@
     "nothingHint": "Los chats que empieces y lo que hagan tus orquestaciones aparecerán aquí.",
     "rightNow": "Ahora mismo",
     "working": "{{n}} trabajando",
-    "orchestrations_one": "{{n}} orquestación",
-    "orchestrations_other": "{{n}} orquestaciones",
-    "progress": "{{done}}/{{total}} tareas",
     "context": "{{percent}}% de contexto",
-    "contextInUse": "Contexto en uso",
     "costUnavailable": "coste no disponible",
     "noProject": "sin proyecto",
-    "today": "Hoy",
     "nothingSpent": "Aún no has gastado nada hoy.",
     "spent": "{{cost}} gastados",
     "chatsWithoutCost_one": "{{n}} chat iniciado desde la terminal no informa de su coste",
@@ -84,7 +78,86 @@
     "usageLimits": "Límites de uso",
     "limit": "límite {{name}}",
     "resets": "se restablece {{when}}",
-    "pickUp": "Retomar",
     "allChats": "Todos los chats"
+  },
+  "dashboard": {
+    "label": "Panel de {{name}}",
+    "labelAll": "Panel de todos los proyectos",
+    "back": "Panel",
+    "projectSettings": "Ajustes de {{name}}",
+    "widgetFailed": "No se pudo mostrar el widget {{title}}"
+  },
+  "widgets": {
+    "now": {
+      "title": "Ahora",
+      "needYou_one": "{{n}} te necesita",
+      "needYou_other": "{{n}} te necesitan",
+      "noActivity": "Trabajando"
+    },
+    "orchestrations": {
+      "title": "Orquestaciones",
+      "tasks": "tareas",
+      "stages": "Etapas de {{name}}",
+      "stage": "Etapa {{n}} · {{done}}/{{total}}",
+      "started": "empezó {{when}}",
+      "ended": "terminó {{when}}",
+      "running": "{{n}} en marcha",
+      "all": "Todas las orquestaciones",
+      "none": "Aquí aún no se ha ejecutado ninguna orquestación."
+    },
+    "limits": {
+      "title": "Límites",
+      "none": "Aún no se ha informado de límites de uso."
+    },
+    "pickUp": {
+      "title": "Retomar",
+      "none": "No hay chats que retomar."
+    },
+    "today": {
+      "title": "Hoy",
+      "usage": "Uso"
+    },
+    "schedules": {
+      "title": "Próximas programaciones",
+      "all": "Todas las programaciones",
+      "none": "No hay nada programado."
+    },
+    "projects": {
+      "title": "Proyectos",
+      "all": "Todos los proyectos",
+      "waiting": "{{n}} esperando",
+      "never": "sin actividad"
+    },
+    "quickStart": {
+      "title": "Inicio rápido",
+      "prompt": "Prompt para un chat nuevo en {{name}}",
+      "placeholder": "Pídele algo a Claude en {{name}}…",
+      "defaultModel": "modelo por defecto",
+      "defaultMode": "modo por defecto",
+      "noPreset": "sin preset",
+      "mcpDefault": "MCP: el del CLI",
+      "mcpChosen_one": "MCP: {{count}} servidor",
+      "mcpChosen_other": "MCP: {{count}} servidores",
+      "allOptions": "Todas las opciones"
+    },
+    "memory": {
+      "title": "Memoria",
+      "edit": "Editar instrucciones",
+      "excerpt": "El CLAUDE.md del proyecto",
+      "noInstructions": "Este proyecto aún no tiene CLAUDE.md.",
+      "files": "Ficheros de memoria"
+    },
+    "worktrees": {
+      "title": "Worktrees",
+      "all": "Todos los worktrees",
+      "none": "No hay worktrees.",
+      "more": "y {{n}} más"
+    },
+    "resources": {
+      "title": "Recursos"
+    },
+    "export": {
+      "title": "Exportar"
+    }
   }
 }

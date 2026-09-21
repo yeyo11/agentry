@@ -31,7 +31,7 @@ export function ProjectSettings({ project }: { project: Project }) {
         ok &&
         setParams(
           (previous) => {
-            // The page's own `tab` (and the project) stay; only the section changes
+            // The page's own `view` (and the project) stay; only the section changes
             const query = new URLSearchParams(previous);
             query.set('section', next);
             return query;
@@ -65,7 +65,7 @@ export function ProjectSettings({ project }: { project: Project }) {
       <TabPanel className="tab-panel" key={`${project.id}:${section}`} group={group} tab={section}>
         {section === 'instructions' && <InstructionsTab scope={scope} scopeKey={project.id} />}
         {section === 'settings' && (
-          <SettingsTab scope={scope} scopeKey={project.id} filesHref="/?tab=settings&section=files" />
+          <SettingsTab scope={scope} scopeKey={project.id} filesHref="/?view=settings&section=files" />
         )}
         {section === 'mcp' && <McpTab scope={scope} />}
         {section === 'files' && <FilesTab scope={scope} />}

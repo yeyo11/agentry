@@ -23,7 +23,7 @@ export function ProjectResources({ project }: { project: Project }) {
         ok &&
         setParams(
           (previous) => {
-            // The page's own `tab` (and the project) stay; only the section changes
+            // The page's own `view` (and the project) stay; only the section changes
             const query = new URLSearchParams(previous);
             query.set('section', next);
             return query;
