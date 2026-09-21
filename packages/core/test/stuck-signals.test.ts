@@ -113,11 +113,16 @@ test('a call that is not a running command is refused, and so is a chat with no 
   try {
     const chat = started('SLEEP 60');
     const { pid } = await sleeping(core, chat.id);
+    // The fake announces the call before it spawns the tree, so the tree has to be waited for
+    const tree = await until(() => {
+      const found = descendantsOf(processTable(), pid);
+      return found.length >= 2 ? found.map((p) => p.pid) : null;
+    }, 'the shell and its sleep');
     await assert.rejects(core.chats.cancelCommand(chat.id, 'toolu_nope'), (err) => err instanceof ChatConflictError && /not a command that is running/.test(err.message));
     await assert.rejects(core.chats.cancelCommand('no-such-chat', 'toolu_nope'), /not found/);
     // Nothing was killed by the refusal
     assert.equal(alive(pid), true);
-    assert.ok(descendantsOf(processTable(), pid).length >= 2);
+    assert.equal(tree.every(alive), true);
 
     await core.chats.stop(chat.id);
     await core.runtime.exited(chat.id);
