@@ -720,6 +720,7 @@ Claude Code precedence is local > project > user.
 | GET | `/config/resources/:kind?project=` | `kind` = `agents` \| `skills` \| `commands` \| `output-styles` \| `rules` \| `workflows` |
 | GET | `/config/tool-presets` | Named `--allowedTools` / `--disallowedTools` sets (`read-only`, `no-network`, `everything` ship as editable defaults) |
 | PUT / DELETE | `/config/tool-presets/:id` | Create, replace or delete a preset — body `{ name, description?, allowedTools, disallowedTools? }` |
+| GET / PUT | `/settings/editor` | Where file links open (`editor.json`): `{ stored, settings: { template, diffCommand?, pathMap? } }`; the `PUT` body is the settings. A template needs a scheme and `{path}`; `javascript:`, `data:`, `vbscript:`, `file:` and `blob:` are refused |
 | GET / PUT / DELETE | `/config/resources/:kind/:name?project=` | Markdown content (a script for `workflows`, whose `format` is `javascript`) — body `{ content }` |
 
 ### Config file explorer

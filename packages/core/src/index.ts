@@ -44,6 +44,7 @@ import { EventBus } from './events.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
+import { EditorSettingsStore } from './editor-settings.ts';
 import { McpConfig } from './config/mcp.ts';
 import { ConfigResources } from './config/resources.ts';
 import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
@@ -62,6 +63,7 @@ import { encodeProjectId, Workspace } from './workspace.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
 export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
+export { DEFAULT_EDITOR, parseEditorSettings, sanitizeEditor, templateProblem, type EditorTemplateProblem } from './editor-settings.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
@@ -138,6 +140,8 @@ export class Core {
   readonly memory: MemoryStore;
   readonly mcp: McpConfig;
   readonly toolPresets: ToolPresetStore;
+  /** Where file links open: `editor.json`, one document for every browser */
+  readonly editor: EditorSettingsStore;
   readonly connectors: Connectors;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
@@ -192,6 +196,7 @@ export class Core {
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
     this.mcp = new McpConfig(config);
     this.toolPresets = new ToolPresetStore(config);
+    this.editor = new EditorSettingsStore(config);
     this.health = new HealthService(this.runtime, this.db);
     this.orchestrator.health = (task) => {
       const chat = task.runId ? this.runtime.get(task.runId) : null;
