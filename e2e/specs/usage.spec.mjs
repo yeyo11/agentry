@@ -177,16 +177,21 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---------- export ----------
     await page.goto(`/chats/${SESSION}`, 1200);
-    await page.waitFor(`return !!document.querySelector('main a[href$="format=markdown"]')`, { label: 'the export links' });
-    const links = await page.eval(`return [...document.querySelectorAll('main a[download]')].map((a) => ({ href: a.getAttribute('href'), text: a.textContent.trim() }))`);
+    // The exports are links in the chat's ⋯ menu; Radix opens it from the keyboard as from a press
+    await page.waitFor(`return !!document.querySelector('.chat-head button[aria-label="More chat actions"]')`, { label: 'the chat menu' });
+    await page.focus('.chat-head button[aria-label="More chat actions"]');
+    await page.key('Enter');
+    await page.waitFor(`return !!document.querySelector('[role=menu] a[href$="format=markdown"]')`, { label: 'the export links' });
+    const links = await page.eval(`return [...document.querySelectorAll('[role=menu] a[download]')].map((a) => ({ href: a.getAttribute('href'), text: a.textContent.trim() }))`);
     check(links.some((l) => l.text === 'Export Markdown') && links.some((l) => l.text === 'Export JSON'), `both export links are on the chat (${links.map((l) => l.text).join(', ')})`);
 
-    const md = await page.eval(`const r = await fetch(document.querySelector('main a[href$="format=markdown"]').href); return { status: r.status, disposition: r.headers.get('content-disposition'), body: await r.text() }`);
+    const md = await page.eval(`const r = await fetch(document.querySelector('[role=menu] a[href$="format=markdown"]').href); return { status: r.status, disposition: r.headers.get('content-disposition'), body: await r.text() }`);
     check(md.status === 200 && /attachment/.test(md.disposition ?? ''), `the Markdown export downloads (${md.status}, ${md.disposition})`);
     check(md.body.includes('how many tokens did this take') && md.body.includes('About fifteen hundred.'), 'the Markdown export holds the conversation');
-    const json = await page.eval(`const r = await fetch(document.querySelector('main a[href$="format=json"]').href); return { status: r.status, disposition: r.headers.get('content-disposition'), body: await r.json() }`);
+    const json = await page.eval(`const r = await fetch(document.querySelector('[role=menu] a[href$="format=json"]').href); return { status: r.status, disposition: r.headers.get('content-disposition'), body: await r.json() }`);
     check(json.status === 200 && /attachment/.test(json.disposition ?? ''), `the JSON export downloads (${json.status})`);
     check(Array.isArray(json.body.entries) && json.body.entries.length >= 2 && json.body.chat?.id === SESSION, 'the JSON export holds the chat and its entries');
+    await page.key('Escape');
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});

@@ -98,8 +98,11 @@ export default async ({ page, api, check }) => {
   await page.waitFor(`return location.pathname === '/chats/aaaa-1111'`, { label: 'the row opens its chat' });
   await page.waitFor(`return document.querySelector('main').innerText.includes('Context and cost')`, { label: 'the chat page' });
   const chat = await page.text('main');
-  check(chat.includes('Resumable') && chat.includes('Executions (0)'), 'the chat page shows its control and its executions');
+  check(chat.includes('Resumable'), 'the chat page shows its control');
   check(chat.includes('not available'), 'the cost of a chat the CLI reported none for reads not available');
+  // What it has run is a tab of the inspector away
+  await page.click('.chat-inspector [role=tab]', 'Activity');
+  await page.waitFor(`return document.querySelector('main').innerText.includes('Executions (0)')`, { label: 'the executions in the inspector' });
   check(await page.eval(`return !!document.querySelector('textarea[placeholder^="Send a message"]')`), 'a resumable chat can be written to');
   await page.shot('chat-page');
   await page.goto('/chats', 800);
