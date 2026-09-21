@@ -382,5 +382,20 @@
   },
   "combobox": {
     "suggestions": "Sugerencias"
+  },
+  "datePicker": {
+    "open": "Abrir el calendario de {{field}}",
+    "previousMonth": "Mes anterior",
+    "nextMonth": "Mes siguiente",
+    "today": "Hoy"
+  },
+  "projectExport": {
+    "title": "Exportar {{name}}",
+    "body": "Todos los chats del proyecto en un archivo, del más antiguo al más reciente, con el coste que informó la CLI.",
+    "wholeProject": "Abarca el proyecto entero, no solo el intervalo elegido arriba.",
+    "markdown": "Markdown",
+    "json": "JSON",
+    "markdownHint": "Descargar todos los chats como un documento Markdown para leer o compartir",
+    "jsonHint": "Descargar todos los chats con todos sus eventos en JSON"
   }
 }
