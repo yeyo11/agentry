@@ -148,6 +148,17 @@ export class Core {
     // Must run before anything spawns the CLI: it injects stored credentials into process.env
     this.credentials = new CredentialStore(config);
     this.security = new AuthStore(config);
+    if (this.security.environmentReset) {
+      // A credential changed without a request, so the row is the only trace of who changed it
+      this.db.appendAudit({
+        at: this.security.environmentReset.at,
+        actor: 'env',
+        method: 'POST',
+        path: '/api/security/token',
+        status: 200,
+        summary: 'Replace the token from AGENTRY_AUTH_TOKEN (AGENTRY_AUTH_TOKEN_RESET)',
+      });
+    }
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
     this.projectStore = new ProjectStore(config);
