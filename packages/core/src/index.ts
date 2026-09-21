@@ -52,6 +52,7 @@ import { UploadStore } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
 import { Orchestrator } from './orchestrator.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
+import { byStart, EXPORTED_ORIGINS, type ProjectExportSource } from './project-export.ts';
 import { attachProject, projectCandidates, ProjectStore, type ChatPlace } from './projects.ts';
 import { AuthStore } from './security/auth.ts';
 import { Scheduler } from './schedules.ts';
@@ -84,6 +85,7 @@ export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnaps
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
+export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db } from './db.ts';
 export { AuthStore } from './security/auth.ts';
 export { OidcVerifier, type FetchLike } from './security/oidc.ts';
@@ -577,6 +579,16 @@ export class Core {
   /** Forgets a project in Agentry. What Claude Code keeps about it is `purgeProject`, and is not touched. */
   removeProject(id: string): Promise<void> {
     return this.projectStore.remove(id);
+  }
+
+  /**
+   * A project and its chats, oldest first, for an export written one chat at a time. An unknown
+   * project fails here, before anything is written, so it can still be answered with a 404.
+   */
+  async projectExport(id: string): Promise<ProjectExportSource> {
+    const project = await this.projectView(id);
+    const chats = (await this.chats.list({ project: id, origins: EXPORTED_ORIGINS })).sort(byStart);
+    return { exportedAt: new Date().toISOString(), project, chats, load: (chatId) => this.chats.export(chatId) };
   }
 
   private async projectView(id: string): Promise<Project> {
