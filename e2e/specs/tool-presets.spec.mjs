@@ -2,7 +2,7 @@
 // New chat form offers them beside the choice of MCP servers. Starting a chat needs a logged-in CLI,
 // so what a chat runs with is covered by the core tests, not here.
 export default async ({ page, api, check }) => {
-  const shipped = (await api.get('/config/tool-presets')).body;
+  const shipped = (await api.get('/config/tool-presets')).body.presets;
   check(shipped.some((p) => p.id === 'read-only') && shipped.every((p) => p.builtIn), 'the shipped presets are listed');
 
   await page.goto('/settings?tab=tools', 1500);
@@ -12,7 +12,7 @@ export default async ({ page, api, check }) => {
   await page.click('button', 'New preset', 600);
   await page.fill('[role=tabpanel] input[maxlength="80"]', 'E2E docs');
   await page.click('button', 'Save preset', 1200);
-  const stored = (await api.get('/config/tool-presets')).body.find((p) => p.id === 'e2e-docs');
+  const stored = (await api.get('/config/tool-presets')).body.presets.find((p) => p.id === 'e2e-docs');
   check(stored?.name === 'E2E docs', 'a new preset is stored under an id made from its name');
 
   await page.goto('/chats/new', 1200);
@@ -30,5 +30,5 @@ export default async ({ page, api, check }) => {
   await page.click('button[aria-label="Remove E2E docs"]', undefined, 500);
   await page.eval(`const d=document.querySelector('[role=dialog],[role=alertdialog]');[...d.querySelectorAll('button')].find(b=>/remove/i.test(b.textContent)).click();return true`);
   await page.sleep(1000);
-  check(!(await api.get('/config/tool-presets')).body.some((p) => p.id === 'e2e-docs'), 'the preset is removed after confirmation');
+  check(!(await api.get('/config/tool-presets')).body.presets.some((p) => p.id === 'e2e-docs'), 'the preset is removed after confirmation');
 };

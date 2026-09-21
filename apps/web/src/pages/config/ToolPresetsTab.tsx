@@ -124,7 +124,7 @@ export function ToolPresetsTab() {
   const confirm = useConfirm();
   const { data, error, isLoading } = useQuery({ queryKey: keys.toolPresets, queryFn: api.toolPresets });
   const [editing, setEditing] = useState<{ form: PresetForm; isNew: boolean } | null>(null);
-  const presets = data ?? [];
+  const presets = data?.presets ?? [];
   const blank: PresetForm = { id: '', name: '', description: '', allowedTools: [], disallowedTools: [] };
 
   const remove = useMutation({
