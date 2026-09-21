@@ -10,6 +10,7 @@ import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
 import './i18n'; // picks the language and sets <html lang> before the first render
 import './lib/theme'; // applies the stored theme before the first paint
+import './lib/motion'; // stamps the motion level before anything has a chance to animate
 import './styles.css';
 import './controls.css';
 import './observe.css';
