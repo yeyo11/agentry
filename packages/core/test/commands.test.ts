@@ -33,6 +33,46 @@ test('a pipeline is judged by its head, and an interpreter by the script it runs
   assert.equal(commandKind(''), '');
 });
 
+test('bookkeeping after the work does not name the command: a trailing echo, tail or true is skipped', () => {
+  // The real case: judged as `echo`, a one-minute test run was called hung at sixty seconds
+  assert.equal(commandKind('timeout 600 pnpm test > /tmp/types-test.log 2>&1; echo exit=$?'), 'pnpm test');
+  assert.equal(commandKind('pnpm build && echo done'), 'pnpm build');
+  assert.equal(commandKind('pnpm e2e || true'), 'pnpm e2e');
+  assert.equal(commandKind('pnpm test 2>&1 | tail -20'), 'pnpm test');
+  assert.equal(commandKind('pnpm test > /tmp/t.log 2>&1; tail -5 /tmp/t.log; wc -l /tmp/t.log'), 'pnpm test');
+  assert.equal(commandKind('echo start; cargo test; printf "%s\\n" "$?"; exit 0'), 'cargo test');
+  assert.equal(commandKind('sleep 5 && curl -s localhost:3000/health'), 'curl');
+  assert.equal(commandKind('[ -f dist/index.js ] && node dist/index.js'), 'node dist/index.js');
+  // Among stages that all do work, the last one still wins
+  assert.equal(commandKind('pnpm build && pnpm e2e; echo $?'), 'pnpm e2e');
+});
+
+test('a command with no real work is named by its heaviest trivial stage', () => {
+  assert.equal(commandKind('echo hi'), 'echo');
+  assert.equal(commandKind('true'), 'true');
+  assert.equal(commandKind('sleep 60; echo woke'), 'sleep');
+  assert.equal(commandKind('cd /repo && tail -f api.log'), 'tail');
+  assert.equal(commandKind('cd /repo'), 'cd');
+});
+
+test('redirections are not words of the command', () => {
+  assert.equal(commandKind('> /tmp/out.log pnpm test'), 'pnpm test');
+  assert.equal(commandKind('python3 2>/dev/null scripts/gen.py'), 'python3 scripts/gen.py');
+  assert.equal(commandKind('node < input.json scripts/read.mjs'), 'node scripts/read.mjs');
+  assert.equal(commandKind('ls>files.txt'), 'ls');
+  assert.equal(commandKind('pnpm test &> /tmp/all.log'), 'pnpm test');
+});
+
+test('quoted text, here-documents and shell keywords do not split or rename the command', () => {
+  assert.equal(commandKind('git add -A && git commit -m "fix: a; b\n\nbody || more"'), 'git commit');
+  assert.equal(commandKind("cat > notes.txt <<'EOF'\nrm -rf everything; pnpm deploy\nEOF\npnpm test"), 'pnpm test');
+  assert.equal(commandKind("git commit -F - <<EOF\nwhy it changed\nEOF"), 'git commit');
+  assert.equal(commandKind('for f in a b; do pnpm test $f; done'), 'pnpm test');
+  assert.equal(commandKind('if pnpm typecheck; then echo ok; fi'), 'pnpm typecheck');
+  assert.equal(commandKind('(cd apps/web && pnpm build)'), 'pnpm build');
+  assert.equal(commandKind('pnpm test \\\n  --reporter dot'), 'pnpm test');
+});
+
 test('there is no usual duration until enough runs have been seen', () => {
   assert.equal(usualDuration([80_000, 90_000]), null);
   assert.equal(usualDuration(Array.from({ length: MIN_SAMPLES - 1 }, () => 1000)), null);
