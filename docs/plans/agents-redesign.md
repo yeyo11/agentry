@@ -1,7 +1,22 @@
 # Plan: chats, projects and Agentry's own model
 
-Status: **draft, under discussion**. Extends [agent-observability](agent-observability.md) with the
-context and cost of every conversation, and rebuilds the model the web is built on.
+Status: **landed** in `feat!: chats, projects and Agentry's own model` (#60), the orchestration this
+document was written for. Extends [agent-observability](agent-observability.md) with the context and
+cost of every conversation, and rebuilds the model the web is built on. The text below is left as it
+was planned; three things ended up different, and the code is where they are settled:
+
+- **A saved workflow is a project resource.** `ResourceKind` gained `workflows`, so a script in
+  `.claude/workflows/` is listed, read and written like an agent or a skill (its `format` is
+  `javascript`, not markdown) and has a **Run** button on the project's Resources tab. The plan had
+  workflows only as the second orchestration engine.
+- **`interrupted` is a status, not only an outcome.** The plan gave an execution the outcomes
+  `completed | failed | stopped | interrupted`; a task needed the same word. A task whose process a
+  wrapper restart cut off is `interrupted` and goes on in a new execution while it has attempts
+  left, where `stopped` stays what a person decided and is never continued on its own.
+- **`Chat.health` hangs on the chat.** The health of [agent-observability](agent-observability.md)
+  §3 is part of the chat the API answers, with its signals, rather than something asked for
+  separately; `ChatSummary` leaves it out, because a list of chats should not compute it for every
+  row.
 
 ## Why
 

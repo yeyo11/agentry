@@ -1,6 +1,7 @@
 // Orchestration v2 in the browser: a finished graph is saved as a template, corrected and
 // relaunched, launched from the template, and re-run from one task; the launch form takes limits and
-// a verification phase. Nothing is logged in inside the sandbox, so every worker fails at once: the
+// a verification phase. A template is renamed where it is listed, and a schedule is filled from a
+// graph that already ran. Nothing is logged in inside the sandbox, so every worker fails at once: the
 // graph is stopped to be a finished one, which is what these controls are for.
 //
 // The verification outcome card is not driven here: an outcome only exists once the core runs the
@@ -15,6 +16,7 @@ export default async ({ page, api, check, dirs }) => {
   mkdirSync(workspace, { recursive: true });
   const made = [];
   const templates = [];
+  const schedules = [];
   // Every chat a worker of ours leaves behind is removed at the end; the ones that were there stay
   const before = new Set(((await api.get('/chats?origin=orchestration')).body ?? []).map((c) => c.id));
 
@@ -125,6 +127,47 @@ export default async ({ page, api, check, dirs }) => {
     }
     await page.eval(`[...document.querySelectorAll('main [role=switch]')].find((s) => s.closest('label')?.textContent.includes('Verify the integration branch')).click(); return true`);
     await page.waitFor(`return !!document.querySelector('main textarea[placeholder="pnpm build"]')`, { label: 'the verification commands' });
+    // The fixer's ceiling, the install step Agentry adds and whether failed checks fail the graph
+    const checks = await page.text('main');
+    for (const text of ['Install step', 'Detected from the lockfile', 'Fixer cost limit (USD)', 'Fail the graph when the checks fail']) {
+      check(checks.includes(text), `the verification fields have "${text}"`);
+    }
+    await page.select('main [aria-label="Install step"]', 'A command of my own');
+    await page.waitFor(`return !!document.querySelector('main input[placeholder="pnpm install --frozen-lockfile"]')`, { label: 'the install command field' });
+
+    // ---------- a schedule filled from a graph that ran ----------
+    await page.goto('/schedules', 1200);
+    await page.click('main .page-actions button', 'New schedule');
+    await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the schedule form' });
+    await page.click('[role=dialog] [role=radio]', 'An orchestration', 400);
+    await page.select('[role=dialog] [aria-label="From an existing orchestration"]', 'e2e-v2-source');
+    await page.waitFor(
+      `return [...document.querySelectorAll('[role=dialog] textarea')].some((t) => t.value === 'Fix what the survey found')`,
+      { label: 'the tasks filled from the graph' },
+    );
+    const filledName = await page.eval(`return document.querySelector('[role=dialog] input[placeholder="Morning dependency check"]').value`);
+    check(filledName === 'e2e-v2-source', `an empty schedule name takes the graph's (${filledName})`);
+    await page.click('[role=dialog] button', 'Create schedule', 1000);
+    await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: 'the schedule form closed' });
+    const scheduled = (await api.get('/schedules')).body.find((s) => s.name === 'e2e-v2-source');
+    check(scheduled?.target.kind === 'orchestration', 'the schedule starts an orchestration');
+    if (scheduled) {
+      schedules.push(scheduled.id);
+      const fix = scheduled.target.spec.tasks.find((t) => t.id === 'fix');
+      check(fix?.dependsOn?.includes('survey'), 'the dependencies the form does not show came along from the graph');
+      check(scheduled.target.spec.cwd === workspace && scheduled.target.spec.worktree === false, 'the directory and the worktree choice came from the graph');
+    }
+
+    // ---------- rename a template in place ----------
+    await page.goto('/orchestration', 1500);
+    await page.click('button[aria-label="Rename template e2e-v2 template"]', undefined, 400);
+    await page.fill('input[aria-label="New name for e2e-v2 template"]', 'e2e-v2 renamed');
+    await page.click('button[aria-label="Save the name"]', undefined, 800);
+    await page.waitFor(`return document.querySelector('main')?.innerText.includes('e2e-v2 renamed')`, { label: 'the new name listed' });
+    const renamed = (await api.get('/orchestrations/templates')).body.find((t) => t.id === template.id);
+    check(renamed?.name === 'e2e-v2 renamed', 'the template was renamed');
+    check(renamed?.spec.tasks.length === 2, 'renaming left the graph as it was');
+    check(await page.eval(`return location.pathname === '/orchestration' && !document.querySelector('[role=dialog]')`), 'renaming did not open the graph');
 
     // ---------- delete the template ----------
     await page.goto('/orchestration', 1500);
@@ -139,6 +182,7 @@ export default async ({ page, api, check, dirs }) => {
       await api.del(`/orchestrations/${id}`).catch(() => {});
     }
     for (const id of templates) await api.del(`/orchestrations/templates/${id}`).catch(() => {});
+    for (const id of schedules) await api.del(`/schedules/${id}`).catch(() => {});
     for (const chat of (await api.get('/chats?origin=orchestration')).body ?? []) {
       if (!before.has(chat.id)) await api.del(`/chats/${chat.id}`).catch(() => {});
     }

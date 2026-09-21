@@ -40,7 +40,31 @@
     "output": "Lo que imprimió",
     "commits_one": "{{count}} commit del agente",
     "commits_other": "{{count}} commits del agente",
-    "holdsPush": "La rama se podrá subir cuando terminen las comprobaciones."
+    "holdsPush": "La rama se podrá subir cuando terminen las comprobaciones.",
+    "install": "Paso de instalación",
+    "installMode": {
+      "detected": "Detectado por el lockfile",
+      "command": "Un comando propio",
+      "none": "Ninguno"
+    },
+    "installHint": {
+      "detected": "Se ejecuta antes de las comprobaciones: pnpm, npm o yarn, según el lockfile de la rama fusionada. Se omite si una comprobación ya lo ejecuta.",
+      "command": "Se ejecuta antes de las comprobaciones, en el directorio del grafo.",
+      "none": "Las comprobaciones se ejecutan sobre la rama fusionada tal como está."
+    },
+    "installCommand": "Comando de instalación",
+    "installPlaceholder": "pnpm install --frozen-lockfile",
+    "installTag": "instalación",
+    "maxCost": "Límite de coste del agente (USD)",
+    "maxCostHint": "Para todos los intentos de una ejecución. El CLI aplica lo que queda en cada intento; cuando se agota, las comprobaciones fallan.",
+    "failGraph": "Hacer fallar el grafo si fallan las comprobaciones",
+    "failGraphHint": "Desactivado, el estado del grafo depende de sus tareas y las comprobaciones fallidas solo se informan. Activado, el grafo termina como fallido y no se ofrece pull request.",
+    "failGraphOn": "Si las comprobaciones fallan, este grafo falla y su pull request queda retenida.",
+    "cost": "El agente ha gastado {{cost}}.",
+    "costOf": "El agente ha gastado {{cost}} de su límite de {{limit}}.",
+    "failedGraphTitle": "Las comprobaciones han hecho fallar este grafo",
+    "failedGraphBody": "Todas las tareas terminaron, pero las comprobaciones sobre la rama fusionada fallaron y el grafo se lanzó para fallar en ese caso. La tarjeta de verificación de abajo dice qué falló; si pasan en una ejecución posterior, el grafo se recupera.",
+    "pullRequestHeld": "No se ofrece pull request: las comprobaciones fallaron y este grafo se lanzó para fallar en ese caso."
   },
   "templates": {
     "title_one": "Plantillas ({{count}})",
@@ -82,7 +106,14 @@
     "saving": "Guardando…",
     "saved": "Plantilla {{name}} guardada",
     "updatedToast": "Plantilla {{name}} actualizada",
-    "saveFailed": "No se pudo guardar la plantilla"
+    "saveFailed": "No se pudo guardar la plantilla",
+    "rename": "Cambia el nombre",
+    "renameNamed": "Cambia el nombre de la plantilla {{name}}",
+    "newName": "Nombre nuevo para {{name}}",
+    "renameSave": "Guarda el nombre",
+    "renameCancel": "Cancela el cambio de nombre",
+    "renamed": "La plantilla ahora se llama {{name}}",
+    "renameFailed": "No se pudo cambiar el nombre de la plantilla"
   },
   "origin": {
     "relaunched": "relanzada",

@@ -64,6 +64,9 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'changes.updated': true,
   'health.changed': true,
   'sessions.changed': true,
+  'schedule.changed': true,
+  'schedule.fired': true,
+  'supervisor.proposed': true,
 };
 
 type Target = readonly [QueryKey, number];
@@ -138,8 +141,13 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'changes.updated':
       // Whatever the board reads about this graph's branches sits under its key, changes included
       return [[keys.orchestration(event.orchestrationId), NOW]];
+    case 'schedule.changed':
+    case 'schedule.fired':
+      // The runs of every schedule sit under the same prefix as the list
+      return [[keys.schedules, NOW]];
     case 'health.changed':
-      // Health is read with the chat, and with the graph for a worker
+    case 'supervisor.proposed':
+      // Health is read with the chat, and with the graph for a worker; a proposal hangs on it
       return [
         [keys.chats, NOW], [['chat', event.runId], NOW],
         ...(event.orchestrationId ? ([[keys.orchestration(event.orchestrationId), NOW], [keys.orchestrations, NOW]] as Target[]) : []),

@@ -72,7 +72,7 @@ export function TaskWork({ orch, task, onClose }: { orch: Orchestration; task: O
               <ActivityLine entries={entries} live={live} />
             </Section>
           )}
-          {task.health && task.health.signals.some(isStepIn) && (
+          {task.health && (task.health.signals.some(isStepIn) || task.health.proposal?.status === 'proposed') && (
             <Section title={t('observe:health.title')}>
               <HealthPanel
                 health={task.health}

@@ -116,6 +116,10 @@
     "empty": "Nothing yet. Runs that need you, and what finishes, will show up here.",
     "answered": "answered",
     "unread": "unread",
+    "allow": "Allow",
+    "deny": "Deny",
+    "answerGroup": "Answer the permission",
+    "answerFailed": "Could not answer the permission",
     "preferences": "Preferences",
     "popupToasts": "Pop-up toasts",
     "browserNotifications": "Browser notifications",
@@ -374,7 +378,8 @@
     "conflict_other": "{{count}} files in {{branch}} need your attention.",
     "conflictResolving_one": "{{count}} file in {{branch}}.",
     "conflictResolving_other": "{{count}} files in {{branch}}.",
-    "fromSubagent": "Started by a subagent."
+    "fromSubagent": "Started by a subagent.",
+    "supervisorProposed": "{{name}}: the supervisor proposes a hint"
   },
   "codeBlock": {
     "label": "Code",
@@ -382,5 +387,20 @@
   },
   "combobox": {
     "suggestions": "Suggestions"
+  },
+  "datePicker": {
+    "open": "Open the calendar for {{field}}",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "today": "Today"
+  },
+  "projectExport": {
+    "title": "Export {{name}}",
+    "body": "Every chat of the project in one file, oldest first, with the cost the CLI reported.",
+    "wholeProject": "It covers the whole project, not only the range picked above.",
+    "markdown": "Markdown",
+    "json": "JSON",
+    "markdownHint": "Download every chat as a Markdown document to read or share",
+    "jsonHint": "Download every chat with all its events as JSON"
   }
 }

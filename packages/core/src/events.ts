@@ -21,6 +21,7 @@ export class EventBus {
   readonly bootId = randomUUID();
   private readonly buffer: AgentryEvent[] = [];
   private readonly listeners = new Set<(event: AgentryEvent) => void>();
+  private readonly observers = new Set<(event: AgentryEvent) => void>();
   private lastId = 0;
   /** Told when the first listener arrives and when the last one leaves, so idle watchers can sleep */
   onDemand: ((wanted: boolean) => void) | null = null;
@@ -39,7 +40,7 @@ export class EventBus {
     const event = { ...input, id: ++this.lastId, at: new Date().toISOString() } as AgentryEvent;
     this.buffer.push(event);
     if (this.buffer.length > this.capacity) this.buffer.splice(0, this.buffer.length - this.capacity);
-    for (const listener of [...this.listeners]) {
+    for (const listener of [...this.observers, ...this.listeners]) {
       try {
         listener(event);
       } catch {
@@ -56,6 +57,15 @@ export class EventBus {
       if (!this.listeners.delete(listener)) return;
       if (this.listeners.size === 0) this.onDemand?.(false);
     };
+  }
+
+  /**
+   * Hears every event like a subscriber, but is not one: core reacting to its own events must not
+   * keep the watchers awake that only run while a client is listening.
+   */
+  observe(listener: (event: AgentryEvent) => void): () => void {
+    this.observers.add(listener);
+    return () => void this.observers.delete(listener);
   }
 
   /**

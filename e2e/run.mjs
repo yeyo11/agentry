@@ -8,10 +8,13 @@
 // failure, timeout, SIGINT/SIGTERM/SIGHUP, uncaught error), by the PID of what this run started.
 // E2E_SPECS_DIR runs the specs of another directory (the harness's own test uses it); E2E_KEEP=1
 // keeps the temporary sandbox for inspection.
+// A spec that exports `fakeCli = true` runs against the fake `claude` of e2e/fake-cli instead of the
+// real one: the server is restarted with it first on PATH, and those specs run after every other,
+// so a spec that did not ask never sees it. See e2e/fake-cli/README.md.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch } from './driver.mjs';
 import { killGroup } from './processes.mjs';
@@ -57,14 +60,40 @@ const env = {
   // Live specs need the real login; everything else runs against an empty config dir
   ...(live ? {} : { CLAUDE_CONFIG_DIR: join(sandbox, 'claude'), CSWAP_BIN: join(sandbox, 'no-cswap') }),
 };
-// Its own process group: `pnpm`, `tsx` and the API are killed together, by the leader's PID
-const server = spawn('pnpm', ['--filter', '@agentry/api', 'start'], { cwd: root, env, stdio: ['ignore', 'ignore', 'inherit'], detached: true });
-server.on('error', () => {});
+// The fake CLI's sandbox: the same directories, with the fake first on PATH. The config directory is
+// always the sandbox's, live or not, since the fake has no login to need the real one. Health is
+// checked every half second, so a signal reaches the page within a spec's patience.
+const fakeCli = { bin: join(here, 'fake-cli', 'claude'), log: join(sandbox, 'fake-cli.jsonl') };
+const fakeEnv = {
+  ...env,
+  PATH: [join(here, 'fake-cli'), process.env.PATH].filter(Boolean).join(delimiter),
+  CLAUDE_CONFIG_DIR: join(sandbox, 'claude'),
+  CSWAP_BIN: join(sandbox, 'no-cswap'),
+  AGENTRY_HEALTH_INTERVAL_MS: '500',
+  AGENTRY_FAKE_CLI_LOG: fakeCli.log,
+  AGENTRY_FAKE_CLI_HEARTBEAT_MS: '500',
+};
+// Named by PATH alone, so the variable must not point anywhere else
+delete fakeEnv.CLAUDE_BIN;
+
+/** The server running now, and which CLI it was given */
+let server = null;
+let serverCli = null;
+function startServer(cli) {
+  // Its own process group: `pnpm`, `tsx` and the API are killed together, by the leader's PID
+  server = spawn('pnpm', ['--filter', '@agentry/api', 'start'], { cwd: root, env: cli === 'fake' ? fakeEnv : env, stdio: ['ignore', 'ignore', 'inherit'], detached: true });
+  server.on('error', () => {});
+  serverCli = cli;
+}
+function stopServer() {
+  // SIGTERM first: the API closes its database on it. Synchronous, so the port is free when it returns
+  if (server) killGroup(server.pid, { graceMs: 3000 });
+  server = null;
+}
 // 'exit' is the one hook every way out passes through (the browser closes itself from its own
 // handler, registered when it launches). The server goes first, then the sandbox it was using.
 process.on('exit', () => {
-  // SIGTERM first: the API closes its database on it
-  killGroup(server.pid, { graceMs: 3000 });
+  stopServer();
   if (process.env.E2E_KEEP !== '1') rmSync(sandbox, { recursive: true, force: true, maxRetries: 3 });
 });
 const stop = (code, message) => {
@@ -119,6 +148,19 @@ const specs = readdirSync(specsDir)
   .filter((f) => f.endsWith('.spec.mjs'))
   .filter((f) => wanted.length === 0 || wanted.some((w) => f.startsWith(w)))
   .sort();
+// Loaded up front, to know which want the fake CLI: those run last, behind one restart of the server
+const loaded = [];
+for (const file of specs) {
+  try {
+    loaded.push({ file, spec: await import(join(specsDir, file)) });
+  } catch (error) {
+    loaded.push({ file, error });
+  }
+}
+const wantsFake = (entry) => entry.spec?.fakeCli === true;
+const ordered = [...loaded.filter((e) => !wantsFake(e)), ...loaded.filter(wantsFake)];
+const firstToRun = ordered.find((e) => !(e.spec?.live && !live));
+startServer(firstToRun && wantsFake(firstToRun) ? 'fake' : 'real');
 
 let failed = 0;
 let browser;
@@ -126,11 +168,22 @@ try {
   await waitForServer();
   // Chrome chooses its debugging port, so a second suite can run beside this one given its own E2E_PORT
   browser = await launch({ baseUrl, port: Number(process.env.E2E_CDP_PORT ?? 0), shotsDir: process.env.E2E_SHOTS });
-  for (const file of specs) {
-    const spec = await import(join(specsDir, file));
+  for (const { file, spec, error } of ordered) {
+    if (error) {
+      failed++;
+      console.log(`✗ ${file}\n  could not be loaded: ${error.message}`);
+      continue;
+    }
     if (spec.live && !live) {
       console.log(`- ${file} (skipped: set E2E_LIVE=1)`);
       continue;
+    }
+    const cli = wantsFake({ spec }) ? 'fake' : 'real';
+    if (cli !== serverCli) {
+      console.log(`- restarting the server with the ${cli === 'fake' ? 'fake CLI (e2e/fake-cli)' : 'real CLI'}`);
+      stopServer();
+      startServer(cli);
+      await waitForServer();
     }
     const started = Date.now();
     // A spec with a lot to scan says so with `export const timeout`
@@ -138,7 +191,8 @@ try {
     try {
       await browser.page.reset();
       browser.page.takeErrors();
-      await within(spec.default({ page: browser.page, api, check, dirs }), limit, file);
+      const context = cli === 'fake' ? { page: browser.page, api, check, dirs: { ...dirs, configDir: join(sandbox, 'claude') }, fakeCli } : { page: browser.page, api, check, dirs };
+      await within(spec.default(context), limit, file);
       const errors = browser.page.takeErrors();
       check(errors.length === 0, `console errors:\n  ${[...new Set(errors)].join('\n  ')}`);
       console.log(`✓ ${file} (${((Date.now() - started) / 1000).toFixed(1)}s)`);

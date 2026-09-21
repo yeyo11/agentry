@@ -1,6 +1,7 @@
 import type { AgentryEvent, ChatSummary, PermissionRequest, RunWaitingReason } from '@agentry/shared';
 import i18n from '../i18n';
 import { detailHref } from './detail';
+import { serverText } from './server-strings';
 
 /*
  * What a notification is and which events make one. Pure on purpose (no React, no DOM, no
@@ -33,6 +34,11 @@ export interface AppNotification {
   read: boolean;
   /** A `waiting` notification whose question has been answered or withdrawn */
   resolved: boolean;
+  /**
+   * The request a plain tool permission waits on, which Allow and Deny can answer from the list.
+   * Null for a question or a plan, which two buttons cannot answer, and for every other kind.
+   */
+  permissionId: string | null;
 }
 
 /** A notification before the store gives it a read state. */
@@ -41,8 +47,8 @@ export type NotificationDraft = Omit<AppNotification, 'read' | 'resolved'> & {
   dedupeMs: number;
 };
 
-type DraftFields = Omit<NotificationDraft, 'id' | 'at' | 'dedupeMs' | 'runId' | 'orchestrationId'> &
-  Partial<Pick<NotificationDraft, 'dedupeMs' | 'runId' | 'orchestrationId'>>;
+type DraftFields = Omit<NotificationDraft, 'id' | 'at' | 'dedupeMs' | 'runId' | 'orchestrationId' | 'permissionId'> &
+  Partial<Pick<NotificationDraft, 'dedupeMs' | 'runId' | 'orchestrationId' | 'permissionId'>>;
 
 export interface NotificationPrefs {
   kinds: Record<NotificationKind, boolean>;
@@ -79,6 +85,7 @@ const draft = (event: AgentryEvent, fields: DraftFields): NotificationDraft => (
   dedupeMs: DEDUPE_MS,
   runId: null,
   orchestrationId: null,
+  permissionId: null,
   ...fields,
 });
 
@@ -120,6 +127,8 @@ export function waitingDrafts(chat: Pick<ChatSummary, 'id' | 'title' | 'orchestr
       href: chatHref(chat.id, request.id),
       runId: chat.id,
       orchestrationId: chat.orchestration?.id ?? null,
+      // A request that waits on a person by design wants more than a yes or a no
+      permissionId: reason === 'permission' && !request.requiresUserInteraction ? request.id : null,
     };
   });
 }
@@ -143,6 +152,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           href: chatHref(event.runId, event.permissionId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,
+          permissionId: event.reason === 'permission' ? event.permissionId : null,
         }),
       ];
     }
@@ -247,8 +257,32 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           priority: event.level === 'bad' ? 'high' : 'normal',
           tone: event.level === 'bad' ? 'bad' : 'warn',
           title: event.title,
-          body: event.reason,
+          body: serverText(event.reasonCode, event.params, event.reason),
           href: chatHref(event.runId),
+          runId: event.runId,
+          orchestrationId: event.orchestrationId,
+        }),
+      ];
+    }
+
+    case 'supervisor.proposed': {
+      const { proposal } = event;
+      // A task's proposal is acted on where its health is shown with the task's hint route: the board
+      const href =
+        proposal.orchestrationId && proposal.taskId
+          ? `${orchestrationHref(proposal.orchestrationId)}?task=${encodeURIComponent(proposal.taskId)}`
+          : chatHref(proposal.chatId);
+      return [
+        draft(event, {
+          // One proposal per signal per chat, so its id is the news
+          key: `supervisor:${proposal.id}`,
+          dedupeMs: 0,
+          kind: 'health',
+          priority: 'normal',
+          tone: 'info',
+          title: i18n.t('components:notificationText.supervisorProposed', { name: event.taskName ?? event.runName }),
+          body: proposal.hint,
+          href,
           runId: event.runId,
           orchestrationId: event.orchestrationId,
         }),
@@ -436,6 +470,7 @@ function parseItem(value: unknown): AppNotification | null {
     orchestrationId: stringOrNull(value.orchestrationId),
     read: value.read === true,
     resolved: value.resolved === true,
+    permissionId: stringOrNull(value.permissionId),
   };
 }
 

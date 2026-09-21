@@ -323,6 +323,34 @@ test('seeded questions and plans read as such, and carry the orchestration they 
   assert.equal(question?.orchestrationId, 'o1');
 });
 
+test('only a plain tool permission can be answered from the list; questions and plans keep their link', () => {
+  const [bash] = notificationsFor(waiting('p1'));
+  assert.equal(bash?.permissionId, 'p1');
+  assert.equal(notificationsFor(waiting('q', 'question'))[0]?.permissionId, null);
+  assert.equal(notificationsFor(waiting('pl', 'plan'))[0]?.permissionId, null);
+  assert.equal(notificationsFor(ended('completed'))[0]?.permissionId, null);
+
+  const chat = { id: 'run1', title: 'fix the build', orchestration: null };
+  const [tool, question, plan, interactive] = waitingDrafts(chat, [
+    { id: 'p1', runId: 'run1', toolName: 'Bash', toolUseId: 'a', input: {}, requestedAt: at() },
+    { id: 'q', runId: 'run1', toolName: 'AskUserQuestion', toolUseId: 'b', input: {}, requestedAt: at() },
+    { id: 'pl', runId: 'run1', toolName: 'ExitPlanMode', toolUseId: 'c', input: {}, requestedAt: at() },
+    { id: 'i', runId: 'run1', toolName: 'SomeTool', toolUseId: 'd', input: {}, requestedAt: at(), requiresUserInteraction: true },
+  ]);
+  assert.equal(tool?.permissionId, 'p1');
+  assert.equal(question?.permissionId, null);
+  assert.equal(plan?.permissionId, null);
+  assert.equal(interactive?.permissionId, null);
+  // Every one of them still opens the prompt in its chat
+  assert.ok([tool, question, plan, interactive].every((d) => d?.href?.startsWith('/chats/run1?prompt=')));
+
+  // The answerable request survives a reload; a stored item from before the field reads as not answerable
+  const { items } = apply([], [waiting('p2')]);
+  assert.equal(parseStored(serializeStored({ items, prefs: defaultPrefs() })).items[0]?.permissionId, 'p2');
+  const { permissionId: _dropped, ...legacy } = items[0] as AppNotification;
+  assert.equal(parseStored(JSON.stringify({ version: 1, items: [legacy] })).items[0]?.permissionId, null);
+});
+
 // ---------- a worker that looks stuck ----------
 
 const health = (
@@ -361,4 +389,39 @@ test('the same signals within a minute are one notification, and new signals are
   assert.equal(first.items.length, 1);
   const worse = apply(first.items, [health('warn', ['hung-command', 'loop'])]);
   assert.equal(worse.items.length, 2);
+});
+
+// ---------- a hint the supervisor proposes ----------
+
+const proposed = (extra: { taskId?: string; orchestrationId?: string } = {}): AgentryEvent => ({
+  type: 'supervisor.proposed',
+  ...base('fix the build: the supervisor proposes a hint'),
+  ...run,
+  orchestrationId: extra.orchestrationId ?? null,
+  taskId: extra.taskId ?? null,
+  taskName: extra.taskId ? 'build step' : null,
+  proposal: {
+    id: 'sp1',
+    chatId: 'run1',
+    ...extra,
+    signal: 'hung-command',
+    hint: 'Stop waiting on `pnpm e2e`; run the unit tests instead.',
+    costUsd: 0.01,
+    at: at(0),
+    status: 'proposed',
+  },
+});
+
+test("a supervisor's proposal is news that opens where it can be sent", () => {
+  const [chat] = notificationsFor(proposed());
+  assert.equal(chat?.kind, 'health');
+  assert.match(chat?.title ?? '', /fix the build/);
+  assert.match(chat?.body ?? '', /run the unit tests/);
+  assert.equal(chat?.href, '/chats/run1');
+  const [task] = notificationsFor(proposed({ taskId: 't1', orchestrationId: 'o1' }));
+  assert.match(task?.title ?? '', /build step/);
+  assert.equal(task?.href, '/orchestration/o1?task=t1');
+  assert.equal(task?.orchestrationId, 'o1');
+  // One proposal is one notification, however often the event is replayed
+  assert.equal(apply([], [proposed(), proposed()]).items.length, 1);
 });

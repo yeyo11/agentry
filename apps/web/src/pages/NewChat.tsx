@@ -40,7 +40,7 @@ export function NewChat() {
       if (permissionMode) opts.permissionMode = permissionMode;
       if (appendSystemPrompt.trim()) opts.appendSystemPrompt = appendSystemPrompt.trim();
       if (account) opts.account = account;
-      if (tools.toolPreset) opts.toolPreset = tools.toolPreset;
+      if (tools.toolPreset !== undefined) opts.toolPreset = tools.toolPreset;
       if (tools.mcp) opts.mcp = tools.mcp;
       return api.createChat(opts);
     },

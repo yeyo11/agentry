@@ -79,6 +79,43 @@ export default async ({ page, check }) => {
   check(!(await page.eval(`return !!document.querySelector('.notif-panel')`)), 'the panel closes on navigation');
   check(await page.eval(`return JSON.parse(localStorage.getItem(${JSON.stringify(KEY)})).items[0].read`), 'the clicked notification is read');
 
+  // A tool permission is answered from the list; a question keeps only its link. The sandbox has no
+  // live process holding a prompt, so the answer route is stubbed in the page and the spec checks
+  // what the panel sends and what it does with the reply.
+  const later = new Date(Date.now() + 60_000).toISOString();
+  const bash = item('perm', { kind: 'waiting', priority: 'high', tone: 'warn', at: later, runId: 'chat-e2e', permissionId: 'req-1', title: 'e2e chat needs your approval to use Bash', href: '/chats/chat-e2e?prompt=req-1' });
+  const question = item('ask', { kind: 'waiting', priority: 'high', tone: 'warn', at: later, runId: 'chat-e2e', permissionId: null, title: 'e2e chat is asking you a question', href: '/chats/chat-e2e?prompt=req-2' });
+  await page.eval(seed([bash, question]));
+  await page.goto('/', 1000);
+  await page.eval(`
+    window.__answers = [];
+    const real = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (init?.method === 'POST' && /\\/permissions\\/[^/?]+$/.test(url)) {
+        window.__answers.push({ url, body: JSON.parse(init.body) });
+        return Promise.resolve(new Response(JSON.stringify({ id: 'req-1' }), { status: 200, headers: { 'content-type': 'application/json' } }));
+      }
+      return real(input, init);
+    };
+    return true`);
+  await page.click('.bell');
+  await page.waitFor(`return document.querySelectorAll('.notif-item').length === 2`, { label: 'the two waiting notifications' });
+  const rowsWithActions = await page.eval(`return [...document.querySelectorAll('.notif-list > li')].map(li => [li.querySelector('.notif-title').textContent, !!li.querySelector('.notif-actions')])`);
+  check(rowsWithActions.find(([title]) => title.includes('approval'))?.[1] === true, 'a tool permission has Allow and Deny in the list');
+  check(rowsWithActions.find(([title]) => title.includes('question'))?.[1] === false, 'a question has no Allow or Deny: it keeps the link that opens it');
+  const describedBy = await page.eval(`const b=[...document.querySelectorAll('.notif-actions button')].find(b=>b.textContent.trim()==='Allow');const id=b?.getAttribute('aria-describedby');return id?document.getElementById(id)?.textContent:null`);
+  check(describedBy === bash.title, `Allow is tied to the notification it answers for a screen reader (got ${describedBy})`);
+
+  await page.click('.notif-actions button', 'Allow', 600);
+  await page.waitFor(`return document.querySelectorAll('.notif-item').length === 1`, { label: 'the answered permission leaves the list' });
+  const answers = await page.eval(`return window.__answers`);
+  check(answers.length === 1 && answers[0].url.endsWith('/api/chats/chat-e2e/permissions/req-1') && answers[0].body.behavior === 'allow', `Allow posts the decision for that request (got ${JSON.stringify(answers)})`);
+  check(await page.eval(`return location.pathname === '/'`), 'answering does not open the chat');
+  check(!(await page.eval(`return JSON.parse(localStorage.getItem(${JSON.stringify(KEY)})).items.some(n => n.id === 'perm')`)), 'the answered permission is gone from storage too');
+  check((await page.text('.notif-panel')).includes(question.title), 'the question is still there to be opened');
+  await page.key('Escape');
+
   // A corrupt entry must not take the app down
   await page.eval(`localStorage.setItem(${JSON.stringify(KEY)}, '{not json'); return true`);
   await page.goto('/', 1000);

@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
+import { request } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
-import type { Schedule, SchedulePreview, ScheduleRun } from '@agentry/shared';
+import type { Schedule, ScheduleChangedEvent, SchedulePreview, ScheduleRun } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
 
 let app: FastifyInstance;
@@ -55,6 +57,49 @@ test('a schedule is created, listed, edited, switched off and deleted over the A
 
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/schedules/${schedule.id}` })).statusCode, 200);
   assert.equal((await app.inject(`/api/schedules/${schedule.id}`)).statusCode, 404);
+});
+
+test('the overlap policy goes through the API, and a wrong one is a 400', async () => {
+  const created = (await app.inject({ method: 'POST', url: '/api/schedules', ...json({ ...body, overlap: 'queue' }) })).json<Schedule>();
+  assert.equal(created.overlap, 'queue');
+  const patched = await app.inject({ method: 'PATCH', url: `/api/schedules/${created.id}`, ...json({ overlap: 'skip' }) });
+  assert.equal(patched.json<Schedule>().overlap, 'skip');
+  const bad = await app.inject({ method: 'POST', url: '/api/schedules', ...json({ ...body, overlap: 'sometimes' }) });
+  assert.equal(bad.statusCode, 400);
+  assert.match(bad.json<{ error: string }>().error, /overlap must be/);
+  await app.inject({ method: 'DELETE', url: `/api/schedules/${created.id}` });
+});
+
+test('schedule events reach the global feed, and a client that reconnects with Last-Event-ID is sent what it missed', async () => {
+  const cursor = core.events.lastEventId;
+  const { id } = (await app.inject({ method: 'POST', url: '/api/schedules', ...json({ ...body, enabled: false }) })).json<Schedule>();
+  await app.inject({ method: 'POST', url: `/api/schedules/${id}/enable` });
+  const run = (await app.inject({ method: 'POST', url: `/api/schedules/${id}/run` })).json<ScheduleRun>();
+  await app.inject({ method: 'DELETE', url: `/api/schedules/${id}` });
+
+  await app.listen({ port: 0, host: '127.0.0.1' });
+  const { port } = app.server.address() as AddressInfo;
+  let text = '';
+  const req = request({ host: '127.0.0.1', port, path: '/api/events', headers: { 'last-event-id': String(cursor) } }, (res) => {
+    res.setEncoding('utf8');
+    res.on('data', (chunk: string) => (text += chunk));
+  });
+  req.end();
+  try {
+    const deadline = Date.now() + 3000;
+    while (!/"action":"deleted"/.test(text)) {
+      if (Date.now() > deadline) throw new Error(`timed out waiting for the replay; got:\n${text}`);
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  } finally {
+    req.destroy();
+  }
+  const replayed = [...text.matchAll(/event: (schedule\.\w+)\ndata: (.*)\n/g)].map(([, type, data]) => ({ type, ...(JSON.parse(data ?? '{}') as Partial<ScheduleChangedEvent> & { runId?: string }) }));
+  assert.deepEqual(
+    replayed.filter((e) => e.scheduleId === id).map((e) => (e.type === 'schedule.changed' ? e.action : e.type)),
+    ['created', 'enabled', 'schedule.fired', 'deleted'],
+  );
+  assert.equal(replayed.find((e) => e.type === 'schedule.fired')?.runId, run.id);
 });
 
 test('a wrong expression or a missing schedule is a 4xx that says why', async () => {

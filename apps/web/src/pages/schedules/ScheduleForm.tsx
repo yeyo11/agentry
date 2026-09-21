@@ -1,16 +1,17 @@
-import type { CreateScheduleRequest, OrchestrationTaskSpec, PermissionMode, Schedule, ScheduleTarget } from '@agentry/shared';
+import type { CreateScheduleRequest, OrchestrationSpec, OrchestrationTaskSpec, PermissionMode, Schedule, ScheduleOverlap, ScheduleTarget } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api, keys } from '../../api';
+import { api, keys, useOrchestrations } from '../../api';
 import { Combobox, NumberInput, Select, Switch } from '../../components/controls';
 import { Dialog } from '../../components/Dialog';
 import { ICON_SM } from '../../components/icons';
 import { useToast } from '../../components/Toast';
 import { ErrorBox, Field, MODEL_OPTIONS, PERMISSION_MODES, Segmented } from '../../components/ui';
 import { buildCron, CRON_MODES, parseCron, timeZones, type CronMode, type CronParts } from '../../lib/cron-builder';
-import { formatDateTime } from '../../lib/format';
+import { formatDateTime, timeAgo } from '../../lib/format';
+import { specOfOrchestration } from '../../lib/orchestration-v2';
 
 interface TaskDraft {
   id: string;
@@ -19,9 +20,9 @@ interface TaskDraft {
 }
 
 /** Each field a person edits; whatever the form does not show is carried over from `schedule` untouched. */
-function initialTasks(schedule: Schedule | undefined): TaskDraft[] {
-  if (schedule?.target.kind !== 'orchestration') return [{ id: 't1', name: '', prompt: '' }];
-  return schedule.target.spec.tasks.map((task) => ({ id: task.id, name: task.name, prompt: task.prompt }));
+function initialTasks(spec: OrchestrationSpec | undefined): TaskDraft[] {
+  if (!spec) return [{ id: 't1', name: '', prompt: '' }];
+  return spec.tasks.map((task) => ({ id: task.id, name: task.name, prompt: task.prompt }));
 }
 
 function useDebounced<T>(value: T, delayMs: number): T {
@@ -34,6 +35,7 @@ function useDebounced<T>(value: T, delayMs: number): T {
 }
 
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
+const OVERLAPS: readonly ScheduleOverlap[] = ['parallel', 'skip', 'queue'];
 
 /** Create or edit a schedule: what to start, and when, with the timetable said back in words before it is saved. */
 export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Schedule; defaultCwd?: string; onClose: () => void }) {
@@ -42,7 +44,9 @@ export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Sch
   const queryClient = useQueryClient();
   const target = schedule?.target;
   const chat = target?.kind === 'chat' ? target.chat : undefined;
-  const orchestration = target?.kind === 'orchestration' ? target.spec : undefined;
+  // What the orchestration fields carry over untouched: the schedule's own, or a graph it was filled from
+  const [orchestration, setOrchestration] = useState<OrchestrationSpec | undefined>(target?.kind === 'orchestration' ? target.spec : undefined);
+  const [source, setSource] = useState('');
 
   const [name, setName] = useState(schedule?.name ?? '');
   const [kind, setKind] = useState<ScheduleTarget['kind']>(target?.kind ?? 'chat');
@@ -55,7 +59,8 @@ export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Sch
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(chat?.permissionMode ?? orchestration?.permissionMode ?? 'acceptEdits');
   const [objective, setObjective] = useState(orchestration?.objective ?? '');
   const [worktree, setWorktree] = useState(orchestration?.worktree ?? true);
-  const [tasks, setTasks] = useState<TaskDraft[]>(() => initialTasks(schedule));
+  const [tasks, setTasks] = useState<TaskDraft[]>(() => initialTasks(orchestration));
+  const [overlap, setOverlap] = useState<ScheduleOverlap>(schedule?.overlap ?? 'parallel');
 
   const cron = buildCron(parts);
   const zone = timezone.trim() || undefined;
@@ -67,6 +72,23 @@ export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Sch
     placeholderData: (previous) => previous,
   });
   const zones = useMemo(() => timeZones().map((value) => ({ value })), []);
+
+  const pastGraphs = useOrchestrations();
+  const fill = useMutation({
+    mutationFn: (id: string) => api.orchestration(id),
+    onSuccess: (orch) => {
+      // A graph started by hand may ask its host about permissions; nobody is there when a schedule fires
+      const spec: OrchestrationSpec = { ...specOfOrchestration(orch), permissionPrompts: 'none' };
+      setOrchestration(spec);
+      setObjective(spec.objective ?? '');
+      setCwd(spec.cwd ?? '');
+      setModel(spec.model ?? '');
+      setPermissionMode(spec.permissionMode ?? 'acceptEdits');
+      setWorktree(spec.worktree ?? true);
+      setTasks(initialTasks(spec));
+      setName((current) => current || spec.name);
+    },
+  });
 
   const set = (patch: Partial<CronParts>) => setParts((current) => ({ ...current, ...patch }));
   const setMode = (mode: CronMode) => setParts((current) => (mode === 'custom' ? { ...current, mode, text: buildCron(current) } : { ...current, mode }));
@@ -100,7 +122,7 @@ export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Sch
 
   const save = useMutation({
     mutationFn: () => {
-      const body: CreateScheduleRequest = { name: name.trim(), cron, target: buildTarget() };
+      const body: CreateScheduleRequest = { name: name.trim(), cron, target: buildTarget(), overlap };
       // `null` on an edit goes back to the server's zone
       return schedule ? api.updateSchedule(schedule.id, { ...body, timezone: zone ?? null }) : api.createSchedule({ ...body, timezone: zone });
     },
@@ -229,6 +251,19 @@ export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Sch
             </div>
           </div>
           <p className="muted small">{t('form.missedNote')}</p>
+          {/* Not a <Field>: a label around several buttons would press the first one when clicked */}
+          <div className="field">
+            <span className="field-label">{t('form.overlap')}</span>
+            <Segmented<ScheduleOverlap>
+              label={t('form.overlap')}
+              value={overlap}
+              onChange={setOverlap}
+              options={OVERLAPS.map((value) => ({ value, label: t(`form.overlaps.${value}.label`) }))}
+            />
+            <span className="field-hint" data-testid="overlap-hint">
+              {t(`form.overlaps.${overlap}.hint`)}
+            </span>
+          </div>
         </fieldset>
 
         <fieldset className="fieldset">
@@ -248,6 +283,26 @@ export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Sch
             </Field>
           ) : (
             <>
+              <Field label={t('form.fromOrchestration')} hint={t('form.fromOrchestrationHint')}>
+                <Select
+                  aria-label={t('form.fromOrchestration')}
+                  value={source}
+                  disabled={fill.isPending}
+                  onChange={(id) => {
+                    setSource(id);
+                    if (id) fill.mutate(id);
+                  }}
+                  options={[
+                    { value: '', label: pastGraphs.data?.length ? t('form.fromOrchestrationPick') : t('form.fromOrchestrationNone') },
+                    ...(pastGraphs.data ?? []).map((orch) => ({
+                      value: orch.id,
+                      label: orch.name,
+                      hint: t('form.fromOrchestrationOption', { count: orch.tasks.length, ago: timeAgo(orch.createdAt) }),
+                    })),
+                  ]}
+                />
+              </Field>
+              <ErrorBox error={fill.error} title={t('form.fromOrchestrationFailed')} />
               <Field label={t('form.objective')} hint={t('form.optional')}>
                 <textarea rows={2} value={objective} onChange={(e) => setObjective(e.target.value)} />
               </Field>

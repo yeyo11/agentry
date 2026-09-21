@@ -366,6 +366,15 @@ export interface HealthSignal {
   level: Exclude<HealthLevel, 'ok'>;
   /** One line a person reads, with the figures that made it fire */
   reason: string;
+  /**
+   * Stable key of `reason`, so a client can say it in its own language; the English stays in
+   * `reason` for readers that do not translate. See {@link Localized} for the shape this follows.
+   */
+  reasonCode?: string;
+  /** Stable key of `hint`, the same way */
+  hintCode?: string;
+  /** The figures `reason` and `hint` were built from: the command, the minutes, the file, the count */
+  params?: LocalizedParams;
   /** When the condition started, for the signals that measure a stretch of time */
   since?: string;
   /** What made it fire, when the line is not enough: the command, the file, the figures */
@@ -389,6 +398,8 @@ export interface ChatHealth {
   level: HealthLevel;
   reason: string;
   signals: HealthSignal[];
+  /** What the supervisor proposed for the worst signal, when it is on and has answered; null when it has not */
+  proposal?: SupervisorProposal | null;
 }
 
 /** The same verdict on anything that works: a chat, or an orchestration task. */
@@ -495,6 +506,14 @@ export interface ChatExport {
   exportedAt: string;
   chat: Chat;
   entries: TranscriptEntry[];
+}
+
+/** A project exported as JSON: the project and every chat under it, each as its own {@link ChatExport}. */
+export interface ProjectExport {
+  /** When the export was made */
+  exportedAt: string;
+  project: Project;
+  chats: ChatExport[];
 }
 
 /** Where a fork came from. */
@@ -720,6 +739,17 @@ export interface ToolPreset {
   builtIn?: boolean;
 }
 
+/** Settings about the presets as a whole, kept in `tool-presets.json` beside them. */
+export interface ToolPresetsConfig {
+  /** Taken by a new chat that names neither `toolPreset` nor `allowedTools`; null leaves such a chat with the CLI's own tools */
+  defaultPresetId: string | null;
+}
+
+/** What `GET /config/tool-presets` answers: the presets, and the settings about them beside the list. */
+export interface ToolPresetsOverview extends ToolPresetsConfig {
+  presets: ToolPreset[];
+}
+
 /** What a chat is running with, shown on its detail because it is what explains a refusal. */
 export interface ChatToolConfig {
   /** The preset in force, when one was chosen; editing a preset later does not change a live chat */
@@ -738,8 +768,12 @@ export interface ChatStartOptions {
   appendSystemPrompt?: string;
   allowedTools?: string[];
   disallowedTools?: string[];
-  /** Id of a stored {@link ToolPreset}; an explicit `allowedTools` wins over it */
-  toolPreset?: string;
+  /**
+   * Id of a stored {@link ToolPreset}; an explicit `allowedTools` wins over it. A new chat that names
+   * neither this nor `allowedTools` takes the default preset; `null` opts out of it (and, on a resume
+   * or a fork, drops the preset the chat had).
+   */
+  toolPreset?: string | null;
   /** MCP servers this chat starts with; absent keeps what it has, `null` goes back to what the CLI loads on its own */
   mcp?: McpSelection | null;
   /** Ceiling on what this execution may spend */
@@ -944,6 +978,24 @@ export interface Checklist {
   updatedAt: string | null;
 }
 
+// ---------- Server strings ----------
+
+/** The figures a server string was built from, so a translation can put them back in its own order. */
+export type LocalizedParams = Record<string, string | number>;
+
+/**
+ * A sentence the server writes, with a stable key beside it. The API answers in English and reads
+ * as it is; a client that knows the code says the same thing in its own language, and one that
+ * does not shows `text`.
+ */
+export interface Localized {
+  /** Stable across releases: a translation is keyed by it */
+  code: string;
+  params?: LocalizedParams;
+  /** The English sentence, always present */
+  text: string;
+}
+
 // ---------- Editor links ----------
 
 /**
@@ -958,6 +1010,16 @@ export interface EditorSettings {
   diffCommand?: string;
   /** Container paths rewritten to host paths before the template is filled; first match wins */
   pathMap?: Array<{ from: string; to: string }>;
+}
+
+/** Replaces the whole document (`PUT /settings/editor`): it is small and the form always holds all of it. */
+export type UpdateEditorSettingsRequest = EditorSettings;
+
+/** `GET /settings/editor` and the answer to a `PUT`: the settings, and whether any were ever saved. */
+export interface EditorSettingsDoc {
+  /** False until the first `PUT`: `settings` is then the shipped default, and a browser may migrate its own */
+  stored: boolean;
+  settings: EditorSettings;
 }
 
 // ---------- Orchestration ----------
@@ -1105,6 +1167,11 @@ export interface Orchestration {
   verificationSpec?: VerificationSpec | null;
   /** What the checks on the integration branch did; absent when the graph asked for none */
   verification?: VerificationState | null;
+  /**
+   * Why the graph failed when its tasks did not: its checks failed and it was launched with
+   * `verification.failGraph`. Null or absent otherwise.
+   */
+  error?: string | null;
   /** The orchestration this one was relaunched from, when it was */
   relaunchedFrom?: string | null;
   /** The template it was launched from, when it was */
@@ -1128,6 +1195,19 @@ export interface VerificationSpec {
   model?: string;
   /** Minutes each command may run before it is killed and counts as failed (default 20) */
   timeoutMinutes?: number;
+  /**
+   * What the fixer may spend over all its attempts, passed to the CLI as `--max-budget-usd` with
+   * what is left after each one; once spent, the verification is `failed` and the report says so
+   */
+  maxCostUsd?: number;
+  /**
+   * Run before the checks, as its own row in the state. Absent: detected from the lockfile of the
+   * integration worktree (`pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`); `null`: no install
+   * step; a string: that command instead.
+   */
+  install?: string | null;
+  /** A failed verification ends the orchestration as `failed` and no pull request is offered (default false) */
+  failGraph?: boolean;
 }
 
 /** Runs the checks on a finished graph's integration branch, or runs them again. */
@@ -1141,6 +1221,8 @@ export type VerificationStatus = 'pending' | 'running' | 'passed' | 'fixed' | 'f
 
 export interface VerificationCommand {
   command: string;
+  /** The install step that runs before the checks: detected from the lockfile, or the spec's `install` */
+  install?: boolean;
   status: VerificationStatus;
   /** Tail of what it printed: enough to see why it failed, not the whole log */
   output: string;
@@ -1158,6 +1240,8 @@ export interface VerificationState {
   commit?: string | null;
   /** What happened, in words: shown before the pull request is offered */
   report: string;
+  /** What the fixer spent, as the CLI reported it; counted in the graph's cost */
+  costUsd: number;
 }
 
 export interface OrchestrationWorkflow {
@@ -1484,6 +1568,16 @@ export interface AuditEntry {
   summary: string;
 }
 
+/** The query of `GET /audit`; every field narrows the page and its `total`. */
+export interface AuditFilter {
+  /** Matches anywhere in the path; `%`, `_` and `\` are taken literally */
+  path?: string;
+  /** Exact, case-insensitive: `POST` */
+  method?: string;
+  /** A code (`404`) or a class (`4xx`) */
+  status?: string;
+}
+
 export interface AuditPage {
   /** Newest first */
   entries: AuditEntry[];
@@ -1625,13 +1719,13 @@ export interface ConnectorAction {
 export interface ConnectorLimit {
   id: 'web-artifacts' | 'claude-ai-memory';
   name: string;
-  reason: string;
+  reason: Localized;
 }
 
 /** What a person has to do: Agentry cannot authorise a connector on anyone's behalf. */
 export interface ConnectorGuide {
-  steps: string[];
-  links: Array<{ label: string; url: string }>;
+  steps: Localized[];
+  links: Array<{ label: Localized; url: string }>;
 }
 
 export interface ConnectorsOverview {
@@ -1785,12 +1879,15 @@ export interface RotationPolicy {
   order?: number[];
   /** Project ids this policy governs; at most one policy governs a project */
   projects: string[];
+  /** It also governs the chats that belong to no project; at most one policy does */
+  looseChats?: boolean;
 }
 
 export interface RotationPolicyRequest {
   threshold: number;
   order?: number[];
   projects: string[];
+  looseChats?: boolean;
 }
 
 /** Agentry's own settings for one claude-swap slot: what the binary itself does not keep. */
@@ -1840,6 +1937,14 @@ export type ScheduleTarget =
   | { kind: 'orchestration'; spec: OrchestrationSpec };
 
 /**
+ * What happens when a slot fires while the last run is still going (its chat is `working` or its
+ * orchestration `running`). `parallel` starts it anyway; `skip` writes a run as `overlapped` and
+ * starts nothing; `queue` starts it when the previous run ends, one pending at most: a slot that
+ * arrives while one is queued replaces it.
+ */
+export type ScheduleOverlap = 'parallel' | 'skip' | 'queue';
+
+/**
  * A recurring chat or orchestration. The definition is settings-shaped, so it lives in a JSON file;
  * the runs accumulate, so they are rows. A window missed while the wrapper was down is skipped, not
  * replayed: firing a week of cron slots at once on boot is never what anyone meant.
@@ -1853,6 +1958,8 @@ export interface Schedule {
   timezone?: string;
   target: ScheduleTarget;
   enabled: boolean;
+  /** `parallel` unless it was set: what every schedule did before there was a choice */
+  overlap: ScheduleOverlap;
   /** Null until it has fired once */
   lastRunAt: string | null;
   /** Null when it is disabled, or when the expression will never fire again */
@@ -1863,8 +1970,12 @@ export interface Schedule {
 /**
  * `started`: it launched, and what happened next belongs to the chat or the orchestration.
  * `skipped`: the slot passed while the wrapper was down.
+ * `overlapped`: the slot fired while the last run was still going and the policy was `skip`, or it
+ * was `queue` and a newer slot took its place before it could start.
+ * `queued`: the slot fired while the last run was still going and the policy was `queue`; it becomes
+ * `started` (keeping its `slot`) when that run ends.
  */
-export type ScheduleRunStatus = 'started' | 'failed' | 'skipped';
+export type ScheduleRunStatus = 'started' | 'failed' | 'skipped' | 'overlapped' | 'queued';
 
 export interface ScheduleRun {
   id: string;
@@ -1899,6 +2010,8 @@ export interface CreateScheduleRequest {
   target: ScheduleTarget;
   /** Starts enabled unless this says otherwise */
   enabled?: boolean;
+  /** `parallel` when absent */
+  overlap?: ScheduleOverlap;
 }
 
 export interface UpdateScheduleRequest {
@@ -1908,6 +2021,7 @@ export interface UpdateScheduleRequest {
   timezone?: string | null;
   target?: ScheduleTarget;
   enabled?: boolean;
+  overlap?: ScheduleOverlap;
 }
 
 // ---------- Overview ----------
@@ -1954,6 +2068,46 @@ export interface CreateProjectRequest {
 export interface ApiError {
   error: string;
   detail?: string;
+}
+
+// ---------- Supervisor ----------
+//
+// The optional supervisor of docs/plans/agent-observability.md §3: a small model that reads a
+// worker's last steps when its health turns bad and proposes a hint, which a person or `autoSend`
+// sends on. Off by default, and a housekeeping chat of the CLI like every other model call.
+
+/** `supervisor.json` in the data directory: settings-shaped. */
+export interface SupervisorConfig {
+  enabled: boolean;
+  /** Model of the housekeeping chat; `haiku` by default, because it reads a few lines and writes two */
+  model: string;
+  /** Send the proposal to the worker on its own instead of waiting for a person */
+  autoSend: boolean;
+  /** Passed to the housekeeping chat as `--max-budget-usd` */
+  maxCostUsd: number;
+}
+
+/** Replaces the whole document (`PUT /settings/supervisor`). */
+export type UpdateSupervisorConfigRequest = SupervisorConfig;
+
+/** `sent`: it reached the worker, by hand or through `autoSend`. */
+export type SupervisorProposalStatus = 'proposed' | 'sent' | 'dismissed';
+
+/** One answer of the supervisor. A row, because they accumulate; at most one per signal per chat. */
+export interface SupervisorProposal {
+  id: string;
+  chatId: string;
+  /** Set when the worker is a task of an orchestration */
+  taskId?: string;
+  orchestrationId?: string;
+  /** The signal that woke it */
+  signal: HealthSignalKind;
+  /** One or two lines for the worker, ready to send or to edit first */
+  hint: string;
+  /** What the housekeeping chat cost, as the CLI reported it; added to the graph's when the worker is a task */
+  costUsd: number;
+  at: string;
+  status: SupervisorProposalStatus;
 }
 
 // ---- Live events (GET /api/events) ----
@@ -2222,12 +2376,49 @@ export interface HealthChangedEvent extends AgentryEventBase, RunEventRef {
   previousLevel: HealthLevel;
   /** The first (worst) signal's line, or `Nothing unusual.` when the chat recovered */
   reason: string;
+  /** Stable key of `reason` (`health.ok` when the chat recovered), as on {@link HealthSignal} */
+  reasonCode?: string;
+  /** The figures `reason` was built from */
+  params?: LocalizedParams;
   signals: HealthSignalKind[];
 }
 
 /** Files under the CLI's projects directory changed: a session was created, grew or ended. */
 export interface SessionsChangedEvent extends AgentryEventBase {
   type: 'sessions.changed';
+}
+
+/** `rescheduled`: nothing was edited, but `nextRunAt` was computed again (after a fire, or on boot). */
+export type ScheduleChangeAction = 'created' | 'updated' | 'deleted' | 'enabled' | 'disabled' | 'rescheduled';
+
+/** A schedule was created, edited, deleted, switched, or had its next fire recomputed: the list is stale. */
+export interface ScheduleChangedEvent extends AgentryEventBase {
+  type: 'schedule.changed';
+  scheduleId: string;
+  scheduleName: string;
+  action: ScheduleChangeAction;
+  /** As the schedule reports it after the change; null when it is disabled or deleted */
+  nextRunAt: string | null;
+}
+
+/** A run row was written for a schedule: it started something, failed to, or recorded a slot it did not take. */
+export interface ScheduleFiredEvent extends AgentryEventBase {
+  type: 'schedule.fired';
+  scheduleId: string;
+  scheduleName: string;
+  runId: string;
+  status: ScheduleRunStatus;
+  chatId: string | null;
+  orchestrationId: string | null;
+}
+
+/** The supervisor answered a bad signal with a hint; the same `proposal` hangs on the chat's health. */
+export interface SupervisorProposedEvent extends AgentryEventBase, RunEventRef {
+  type: 'supervisor.proposed';
+  /** Set for a worker of an orchestration */
+  taskId: string | null;
+  taskName: string | null;
+  proposal: SupervisorProposal;
 }
 
 /** Everything the buffered feed carries, discriminated by `type`. */
@@ -2255,7 +2446,10 @@ export type AgentryEvent =
   | OrchestrationConflictEvent
   | ChangesUpdatedEvent
   | HealthChangedEvent
-  | SessionsChangedEvent;
+  | SessionsChangedEvent
+  | ScheduleChangedEvent
+  | ScheduleFiredEvent
+  | SupervisorProposedEvent;
 
 export type AgentryEventType = AgentryEvent['type'];
 

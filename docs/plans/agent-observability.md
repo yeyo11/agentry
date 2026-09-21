@@ -1,10 +1,11 @@
 # Plan: see what every agent is really doing, and step in on time
 
-Status: **landed, except the optional supervisor** (see [ROADMAP](../../ROADMAP.md)). Written on
-2026-09-19 after the first large orchestration Agentry ran on its own repository, and built by the
-orchestration in [roadmap-completion.md](roadmap-completion.md). Each section below starts with a
-**Landed** note saying what shipped, where it differs from the text, and what did not. The text
-itself is left as it was planned, and says `run` where the code now says `chat`.
+Status: **landed, in full**. Written on 2026-09-19 after the first large orchestration Agentry ran
+on its own repository, and built by the orchestration in
+[roadmap-completion.md](roadmap-completion.md); the optional supervisor of §3, the last piece left
+open, was built by [post-roadmap.md](post-roadmap.md). Each section below starts with a **Landed**
+note saying what shipped and where it differs from the text. The text itself is left as it was
+planned, and says `run` where the code now says `chat`.
 
 Today the panel shows what an agent *says* it did: its status, its last message, its transcript.
 It does not show what changed on disk, and it does not notice when an agent is stuck. Both had to
@@ -110,7 +111,7 @@ Limits and settings:
 
 ## 3. Detect a stuck agent
 
-> **Landed, apart from the supervisor.** All seven signals are computed in core
+> **Landed.** All seven signals are computed in core
 > (`hung-command`, `repeat-stall`, `no-progress`, `loop`, `weakened-test`, `silence`, `budget`), next
 > to the facts a chat already had (last execution, waiting, context, branches). "Longer than usual"
 > is measured from a SQLite table of command durations by kind, with the fixed 3 minutes until there
@@ -130,8 +131,24 @@ Limits and settings:
 > them: `warn` reads "slow", `bad` reads "stuck", and `bad` with a `loop` or `repeat-stall` reads
 > "looping".
 >
-> **Not built: the optional supervisor** (the Haiku agent below). It stays open, see the note in the
-> section.
+> **The optional supervisor is built too**, by the later orchestration. `supervisor.json` in the data
+> directory holds `{ enabled: false, model: 'haiku', autoSend: false, maxCostUsd: 0.05 }`, read and
+> written at `GET`/`PUT /settings/supervisor`. When it is on, a `health.changed` that leaves a worker
+> `bad` wakes it **once per signal per chat** — a unique key on the proposals table holds that rule,
+> so neither a monitor tick nor a restart asks twice. It asks through the CLI like everything else: a
+> housekeeping chat with no transcript of its own, the `read-only` preset and `--max-budget-usd` from
+> the settings, given the signal, the worker's last tool calls (inputs and results cut to a few
+> lines) and its last message; the answer is cut to two lines.
+>
+> Each answer is a `SupervisorProposal` row, emitted as `supervisor.proposed` and hung on
+> `ChatHealth.proposal`, with **Send**, **Edit** (which prefills the hint box) and **Dismiss** on the
+> health card, and a notification. `POST /chats/:id/supervisor/:proposalId/send` goes through the
+> hint route that already existed, so a worker with no live process refuses it and the proposal stays
+> `proposed`; `…/dismiss` closes it; the same two exist under
+> `/orchestrations/:id/tasks/:taskId/`. With `autoSend` it is sent without waiting for a person. What
+> the CLI reported it cost is added to the graph when the worker is a task — to the graph and not the
+> task, because a task's cost is replaced by each result — and it is added whether or not the answer
+> was used, because it was spent either way.
 
 The CLI already reports what is needed. While a command runs it sends a heartbeat every 30 s:
 
@@ -166,9 +183,10 @@ What happens when one fires:
 - **Optional supervisor**: a cheap agent (Haiku) that only wakes when a signal fires, reads the
   worker's last steps and drafts the hint. Off by default; when on, it proposes and a person
   approves, unless set to send on its own.
-  Not built by the orchestration that finished the rest of this section (`roadmap-completion.md`):
-  every signal already carries a suggested hint text, written by Agentry, which covers the same
-  ground without a second model to pay for, watch and trust. Still open.
+  Left for later by the orchestration that finished the rest of this section
+  (`roadmap-completion.md`), because every signal already carries a suggested hint text that Agentry
+  writes; built afterwards by `post-roadmap.md`, off by default, so the second model is paid for only
+  by someone who asks for it. See the note at the top of this section.
 
 ## 4. Prevent it in the first place
 
@@ -255,8 +273,8 @@ Left over from 0.11.0, which brought the event feed, the notifications and the d
 
 ## Suggested order
 
-All five steps were done except the second half of the fifth: per-task limits landed, the supervisor
-did not.
+All five steps are done. The fifth landed in two parts: per-task limits with the rest, and the
+supervisor in the orchestration after it ([post-roadmap.md](post-roadmap.md)).
 
 1. Execution detail (section 1). The detail views for subagents and background tasks come with the
    orchestration that builds the global event feed, and this builds on both.

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +9,7 @@ import type { Orchestration, VerificationSpec } from '@agentry/shared';
 import { ChatManager } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
-import { fixerPrompt, normalizeVerification, runCommand, tail, workerChecks } from '../src/verification.ts';
+import { fixerPrompt, installStep, normalizeVerification, runCommand, tail, workerChecks } from '../src/verification.ts';
 import { tempConfig } from './helpers.ts';
 
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
@@ -390,6 +390,7 @@ test('a wrapper restart in the middle of the checks leaves them failed, not runn
       commands: [{ command: 'pnpm e2e', status: 'running', output: '', durationMs: 0 }],
       commits: [],
       report: '',
+      costUsd: 0,
     },
   };
   db.saveOrchestrations([graph]);
@@ -415,5 +416,204 @@ test('every worker is told which checks are its own, whatever the objective says
   assert.ok(promptOf(checked).indexOf('Checks:') < promptOf(checked).indexOf('Finish with a concise report'));
   orchestrator.stop(checked.id);
   orchestrator.stop(plain.id);
+  db.close();
+});
+
+// ---------- the fixer's cost, the install step, failGraph ----------
+
+function commitFile(repo: string, file: string, content: string): void {
+  writeFileSync(join(repo, file), content);
+  execFileSync('git', ['-C', repo, 'add', '-A'], { stdio: 'pipe' });
+  execFileSync('git', ['-C', repo, 'commit', '-q', '-m', `add ${file}`], { stdio: 'pipe' });
+}
+
+test('a spec keeps its cost limit, install step and failGraph, and refuses what could not mean anything', () => {
+  const spec = (over: Partial<VerificationSpec>): VerificationSpec => ({ commands: ['true'], fixer: true, maxAttempts: 2, ...over });
+  assert.deepEqual(normalizeVerification(spec({ maxCostUsd: 1.5, install: ' npm ci ', failGraph: true })), {
+    commands: ['true'],
+    fixer: true,
+    maxAttempts: 2,
+    timeoutMinutes: 20,
+    maxCostUsd: 1.5,
+    install: 'npm ci',
+    failGraph: true,
+  });
+  // null is a decision (no install step) and survives; absent means "detect it" and stays absent
+  assert.equal(normalizeVerification(spec({ install: null }))?.install, null);
+  assert.equal('install' in (normalizeVerification(spec({})) ?? {}), false);
+  assert.equal('failGraph' in (normalizeVerification(spec({ failGraph: false })) ?? {}), false);
+  assert.throws(() => normalizeVerification(spec({ maxCostUsd: 0 })), /maxCostUsd/);
+  assert.throws(() => normalizeVerification(spec({ maxCostUsd: -1 })), /maxCostUsd/);
+  assert.throws(() => normalizeVerification(spec({ maxCostUsd: Number.NaN })), /maxCostUsd/);
+  assert.throws(() => normalizeVerification(spec({ install: '  ' })), /install must not be empty/);
+  assert.throws(() => normalizeVerification(spec({ install: 3 as unknown as string })), /install must be a shell command/);
+  assert.throws(() => normalizeVerification(spec({ failGraph: 'yes' as unknown as boolean })), /failGraph/);
+});
+
+test('the install step comes from the nearest lockfile inside the worktree, or from the spec', () => {
+  const root = mkdtempSync(join(tmpdir(), 'agentry-install-'));
+  const sub = join(root, 'packages', 'app');
+  mkdirSync(sub, { recursive: true });
+  const spec: VerificationSpec = { commands: ['pnpm test'], fixer: false, maxAttempts: 1 };
+
+  assert.equal(installStep(spec, root, sub), null, 'no lockfile, no install step');
+  writeFileSync(join(root, 'yarn.lock'), '');
+  assert.deepEqual(installStep(spec, root, sub), { command: 'yarn install --frozen-lockfile', cwd: root });
+  writeFileSync(join(root, 'package-lock.json'), '{}');
+  assert.deepEqual(installStep(spec, root, root), { command: 'npm ci', cwd: root });
+  writeFileSync(join(root, 'pnpm-lock.yaml'), '');
+  assert.deepEqual(installStep(spec, root, sub), { command: 'pnpm install --frozen-lockfile', cwd: root });
+  // The nearest one wins: a graph confined to a package with its own lockfile installs that package
+  writeFileSync(join(sub, 'package-lock.json'), '{}');
+  assert.deepEqual(installStep(spec, root, sub), { command: 'npm ci', cwd: sub });
+
+  assert.equal(installStep({ ...spec, install: null }, root, sub), null);
+  assert.deepEqual(installStep({ ...spec, install: 'make deps' }, root, sub), { command: 'make deps', cwd: sub });
+  // A spec written before the step existed, which installs as its first check, does not install twice
+  assert.equal(installStep({ ...spec, commands: ['pnpm install --frozen-lockfile', 'pnpm test'] }, root, root), null);
+  // A lockfile above the worktree belongs to some other checkout
+  const inner = join(root, 'wt');
+  mkdirSync(inner);
+  assert.equal(installStep(spec, inner, inner), null);
+});
+
+test('a detected install runs first, as its own row, where the lockfile is', async () => {
+  const { db, repo, orchestrator } = fixture();
+  commitFile(repo, 'pnpm-lock.yaml', 'lockfileVersion: 9.0\n');
+  // A stand-in for pnpm, so the test proves what ran without installing anything
+  const bin = mkdtempSync(join(tmpdir(), 'agentry-bin-'));
+  writeFileSync(join(bin, 'pnpm'), '#!/bin/sh\necho "installed with $*" | tee installed.txt\n');
+  chmodSync(join(bin, 'pnpm'), 0o755);
+  const path = process.env.PATH;
+  process.env.PATH = `${bin}:${path ?? ''}`;
+  try {
+    const started = launch(orchestrator, repo, { commands: ['test -f installed.txt'], fixer: false, maxAttempts: 1 });
+    const orch = await settle(orchestrator, started.id);
+    const v = orch.verification;
+    assert.equal(v?.status, 'passed', v?.report ?? '');
+    assert.deepEqual(
+      v?.commands.map((c) => [c.command, c.status, c.install === true]),
+      [
+        ['pnpm install --frozen-lockfile', 'passed', true],
+        ['test -f installed.txt', 'passed', false],
+      ],
+    );
+    assert.match(v?.commands[0]?.output ?? '', /installed with install --frozen-lockfile/);
+  } finally {
+    process.env.PATH = path;
+  }
+  db.close();
+});
+
+test('install: null runs no install step, and a given one replaces the detected one', async () => {
+  const { db, repo, orchestrator } = fixture();
+  commitFile(repo, 'yarn.lock', '');
+  const none = await settle(orchestrator, launch(orchestrator, repo, { commands: ['true'], fixer: false, maxAttempts: 1, install: null }).id);
+  assert.deepEqual(none.verification?.commands.map((c) => c.command), ['true']);
+
+  const given = await settle(
+    orchestrator,
+    launch(orchestrator, repo, { commands: ['test -f deps.txt'], fixer: false, maxAttempts: 1, install: 'echo ok > deps.txt' }).id,
+  );
+  assert.equal(given.verification?.status, 'passed', given.verification?.report ?? '');
+  assert.deepEqual(given.verification?.commands.map((c) => [c.command, c.install === true]), [
+    ['echo ok > deps.txt', true],
+    ['test -f deps.txt', false],
+  ]);
+  db.close();
+});
+
+test('the fixer gets what is left of its cost limit on each attempt, and stops when it is spent', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const spawns = join(mkdtempSync(join(tmpdir(), 'agentry-spawns-')), 'spawns');
+  process.env.FAKE_CLAUDE_SPAWNS = spawns;
+  try {
+    // The stand-in for the CLI reports $0.01 a run: two attempts spend the limit, a third is not started
+    const started = launch(orchestrator, repo, { commands: ['echo still broken; exit 1'], fixer: true, maxAttempts: 5, maxCostUsd: 0.02 });
+    const orch = await settle(orchestrator, started.id);
+    const v = orch.verification;
+    assert.equal(v?.status, 'failed');
+    assert.equal(v?.attempts, 2);
+    assert.ok(Math.abs((v?.costUsd ?? 0) - 0.02) < 1e-9, String(v?.costUsd));
+    assert.match(v?.report ?? '', /cost limit of \$0\.02 is spent \(\$0\.02 over 2 attempts\)/);
+    // The worker and the fixer, both in the graph's cost
+    assert.ok(Math.abs(orch.costUsd - 0.03) < 1e-9, String(orch.costUsd));
+    const budgets = readFileSync(spawns, 'utf8')
+      .split('\n')
+      .map((line) => / --max-budget-usd (\S+)/.exec(line)?.[1])
+      .filter((b): b is string => b !== undefined)
+      .map(Number);
+    assert.deepEqual(budgets, [0.02, 0.01]);
+  } finally {
+    delete process.env.FAKE_CLAUDE_SPAWNS;
+  }
+  db.close();
+});
+
+test('a fixer cut short by its cost limit fails the verification without running the checks again', async () => {
+  const { db, repo, orchestrator } = fixture();
+  // Printed by the check, so the fixer prompt carries the line that makes the stand-in end on its budget
+  const started = launch(orchestrator, repo, { commands: ["echo 'FAKE-BUDGET'; exit 1", 'echo never'], fixer: true, maxAttempts: 3, maxCostUsd: 1 });
+  const orch = await settle(orchestrator, started.id);
+  const v = orch.verification;
+  assert.equal(v?.status, 'failed');
+  assert.equal(v?.attempts, 1);
+  assert.match(v?.report ?? '', /cost limit of \$1\.00 ran out during attempt 1/);
+  assert.deepEqual(v?.commands.map((c) => c.status), ['failed', 'pending']);
+  assert.ok((v?.costUsd ?? 0) > 0);
+  db.close();
+});
+
+test('failGraph: failed checks fail the graph and hold back the pull request, until they pass again', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const spec: VerificationSpec = { commands: ['echo the build broke; exit 2'], fixer: false, maxAttempts: 1, failGraph: true };
+  const orch = await settle(orchestrator, launch(orchestrator, repo, spec).id);
+  assert.equal(orch.verification?.status, 'failed');
+  assert.equal(orch.status, 'failed');
+  assert.match(orch.error ?? '', /The checks on the merged branch failed: `echo the build broke; exit 2` exited with code 2/);
+  // Every task did its part: the failure is the checks'
+  assert.ok(orch.tasks.every((t) => t.status === 'completed'));
+  assert.throws(() => orchestrator.pullRequest(orch.id), /launched to fail with them/);
+
+  orchestrator.verify(orch.id, { verification: { ...spec, commands: ['true'] } });
+  await until(() => orchestrator.get(orch.id)?.verification?.status === 'passed', 'the checks to pass');
+  await until(() => orchestrator.get(orch.id)?.status === 'completed', 'the graph to be completed again');
+  assert.equal(orchestrator.get(orch.id)?.error, null);
+
+  // And a completed graph whose checks, run again, fail, fails with them
+  orchestrator.verify(orch.id, { verification: spec });
+  await until(() => orchestrator.get(orch.id)?.status === 'failed', 'the graph to fail by its checks');
+  assert.match(orchestrator.get(orch.id)?.error ?? '', /checks on the merged branch failed/);
+  db.close();
+});
+
+test('a verification recorded before the fixer had a cost reads as zero', () => {
+  const config = { ...tempConfig(), claudeBin: '/nonexistent/claude' };
+  const db = new Db(config);
+  const old = {
+    id: 'graph-old',
+    name: 'old',
+    objective: null,
+    status: 'completed',
+    cwd: repoWithCommit(),
+    model: null,
+    permissionMode: 'acceptEdits',
+    concurrency: 1,
+    synthesize: false,
+    worktree: true,
+    maxAttempts: 2,
+    allowedTools: [],
+    permissionPrompts: 'none',
+    createdAt: '2026-01-01T10:00:00Z',
+    endedAt: '2026-01-01T10:30:00Z',
+    finalResult: null,
+    costUsd: 0,
+    tasks: [],
+    verificationSpec: { commands: ['true'], fixer: false, maxAttempts: 1 },
+    verification: { status: 'passed', attempts: 0, commands: [], commits: [], report: 'ok' },
+  } as unknown as Orchestration;
+  db.saveOrchestrations([old]);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+  assert.equal(orchestrator.get('graph-old')?.verification?.costUsd, 0);
   db.close();
 });

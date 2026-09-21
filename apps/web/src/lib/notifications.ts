@@ -123,6 +123,9 @@ export const markRead = (id: string): void =>
 
 export const markAllRead = (): void => update((items) => (items.some((n) => !n.read) ? items.map((n) => (n.read ? n : { ...n, read: true })) : items));
 
+/** A prompt answered from the list is done with: it leaves rather than stays as answered. */
+export const removeNotification = (id: string): void => update((items) => (items.some((n) => n.id === id) ? items.filter((n) => n.id !== id) : items));
+
 export const clearNotifications = (): void => update((items) => (items.length > 0 ? [] : items));
 
 export function setPrefs(change: (prefs: NotificationPrefs) => NotificationPrefs): void {

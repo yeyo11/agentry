@@ -52,7 +52,18 @@ import type { CoreConfig } from './paths.ts';
 import type { ChatManager, ChatRuntime, RunResult } from './chats.ts';
 import { effectiveLimits, elapsedMs, normalizeLimits, pastHardLimit, pastSoftLimit, remainingUsd, spentUsd, startClock, timeWarning } from './task-limits.ts';
 import type { TaskContext } from './health-service.ts';
-import { commitsSince, fixerPrompt, normalizeVerification, runCommand, tail, workerChecks, DEFAULT_VERIFY_MINUTES, type CommandHandle } from './verification.ts';
+import {
+  commitsSince,
+  fixerPrompt,
+  installStep,
+  normalizeVerification,
+  runCommand,
+  tail,
+  workerChecks,
+  DEFAULT_VERIFY_MINUTES,
+  type CommandHandle,
+  type InstallStep,
+} from './verification.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
@@ -71,12 +82,23 @@ const LIMITS_CHECK_MS = Number(process.env.AGENTRY_LIMITS_INTERVAL_MS ?? 10_000)
 const now = () => new Date().toISOString();
 
 const pendingCommand = (command: string): VerificationCommand => ({ command, status: 'pending', output: '', durationMs: 0 });
+const usd = (n: number) => `$${n.toFixed(2)}`;
 
 /** What a stop reaches while a graph's checks are running. */
 interface VerificationControl {
   cancelled: boolean;
   command: CommandHandle | null;
   fixerRunId: string | null;
+}
+
+/** Whether a finished graph has a task that did not get done: failed, stopped, or none completed at all. */
+const tasksUndone = (orch: Orchestration): boolean =>
+  orch.tasks.some((t) => t.status === 'failed' || t.status === 'stopped') || !orch.tasks.some((t) => t.status === 'completed');
+
+/** Why the graph fails by its checks, when it was launched with `failGraph` and they failed; null otherwise. */
+function checksFailGraph(orch: Orchestration): string | null {
+  if (!orch.verificationSpec?.failGraph || orch.verification?.status !== 'failed') return null;
+  return `The checks on the merged branch failed: ${orch.verification.report}`;
 }
 
 const attemptsOf = (requested: number | undefined) =>
@@ -294,6 +316,7 @@ export class Orchestrator {
       o.engine ??= 'graph';
       o.engineReason ??= null;
       o.workflow ??= null;
+      if (o.verification) o.verification.costUsd ??= 0;
       if (o.verification && (o.verification.status === 'running' || o.verification.status === 'pending')) {
         o.verification.status = 'failed';
         o.verification.report = 'Interrupted by a wrapper restart before the checks finished; verify again to run them.';
@@ -392,7 +415,7 @@ export class Orchestrator {
     for (const orch of this.items.values()) {
       const task = orch.tasks.find((t) => t.runId === chatId);
       if (!task || task.status !== 'running') continue;
-      return { taskId: task.id, taskName: task.name, limits: effectiveLimits(orch.limits, task.limits), elapsedMs: elapsedMs(task, nowMs), spentUsd: spentUsd(task) };
+      return { orchestrationId: orch.id, taskId: task.id, taskName: task.name, limits: effectiveLimits(orch.limits, task.limits), elapsedMs: elapsedMs(task, nowMs), spentUsd: spentUsd(task) };
     }
     return null;
   }
@@ -595,6 +618,7 @@ export class Orchestrator {
     // that reuses the same branch, which already holds the earlier merges.
     orch.integration = null;
     orch.verification = null;
+    if (orch.error) orch.error = null;
     // A workflow picks up in its own session, where the CLI replays the agents that already finished
     // from its cache instead of running them again
     if (orch.engine === 'workflow') this.launchWorkflow(orch, orch.workflow?.workflowRunId ?? null);
@@ -1178,8 +1202,11 @@ ${quoted}
     if (orch.synthesize && orch.tasks.some((t) => t.status === 'completed')) await this.synthesize(orch);
     // Read at the end: a task continued by hand can fail or complete while the graph is finishing. A
     // branch given up is a decision, not a failure, so the graph finishes without it.
-    const undone = orch.tasks.some((t) => t.status === 'failed' || t.status === 'stopped') || !orch.tasks.some((t) => t.status === 'completed');
-    if (orch.status === 'running') orch.status = undone ? 'failed' : 'completed';
+    if (orch.status === 'running') {
+      const byChecks = checksFailGraph(orch);
+      orch.status = tasksUndone(orch) || byChecks ? 'failed' : 'completed';
+      if (byChecks) orch.error = byChecks;
+    }
     orch.endedAt = now();
     this.persist();
     if (this.lateArrivals.delete(orch.id) && orch.worktree) this.integrateLate(orch);
@@ -1273,6 +1300,31 @@ ${quoted}
    * out is recorded on `orch.verification` whatever happens; this never throws.
    */
   private async runChecks(orch: Orchestration): Promise<void> {
+    await this.checkBranch(orch);
+    this.settleByChecks(orch);
+  }
+
+  /**
+   * What checks run again outside `finish()` (by hand, after a late integration) do to a graph
+   * launched with `failGraph`: failing them fails a completed graph, and passing them gives back
+   * the completion that only they had taken away. A running graph is `finish()`'s to decide.
+   */
+  private settleByChecks(orch: Orchestration): void {
+    if (orch.status === 'running' || orch.status === 'waiting') return;
+    const v = orch.verification;
+    if (!v || v.status === 'running' || v.status === 'pending') return;
+    const byChecks = checksFailGraph(orch);
+    if (byChecks && (orch.status === 'completed' || orch.error)) {
+      orch.status = 'failed';
+      orch.error = byChecks;
+    } else if (!byChecks && orch.error) {
+      orch.error = null;
+      if (orch.status === 'failed' && !tasksUndone(orch)) orch.status = 'completed';
+    }
+    this.persist();
+  }
+
+  private async checkBranch(orch: Orchestration): Promise<void> {
     const spec = orch.verificationSpec;
     if (!spec || orch.engine !== 'graph' || this.verifying.has(orch.id)) return;
     const integration = orch.integration;
@@ -1282,10 +1334,12 @@ ${quoted}
       orch.verification = {
         status: 'failed',
         attempts: 0,
-        commands: spec.commands.map(pendingCommand),
+        // Only a given install is known here: detecting one needs the worktree that is not there
+        commands: [...(typeof spec.install === 'string' ? [{ ...pendingCommand(spec.install), install: true }] : []), ...spec.commands.map(pendingCommand)],
         commits: [],
         commit: null,
         report: `Not run: ${why}.`,
+        costUsd: 0,
       };
       this.persist();
       return;
@@ -1297,17 +1351,19 @@ ${quoted}
     const control: VerificationControl = { cancelled: false, command: null, fixerRunId: null };
     this.verifying.set(orch.id, control);
     const startHead = headCommit(root);
+    const install = installStep(spec, root, this.integratedDir(orch, root));
     const state: VerificationState = (orch.verification = {
       status: 'running',
       attempts: 0,
-      commands: spec.commands.map(pendingCommand),
+      commands: [...(install ? [{ ...pendingCommand(install.command), install: true }] : []), ...spec.commands.map(pendingCommand)],
       commits: [],
       commit: startHead,
       report: '',
+      costUsd: 0,
     });
     this.persist();
     try {
-      await this.checkAll(orch, spec, state, root, startHead, control);
+      await this.checkAll(orch, spec, state, root, startHead, install, control);
     } catch (err) {
       state.status = 'failed';
       state.report = `The checks could not run: ${(err as Error).message}`;
@@ -1330,12 +1386,13 @@ ${quoted}
     state: VerificationState,
     root: string,
     startHead: string,
+    install: InstallStep | null,
     control: VerificationControl,
   ): Promise<void> {
     const minutes = spec.timeoutMinutes ?? DEFAULT_VERIFY_MINUTES;
     const dir = this.integratedDir(orch, root);
-    const spent = spec.commands.map(() => 0);
-    const said = spec.commands.map<string[]>(() => []);
+    const spent = state.commands.map(() => 0);
+    const said = state.commands.map<string[]>(() => []);
     const mended = new Set<number>();
     const conclude = (status: 'passed' | 'fixed' | 'failed', headline: string) => {
       state.status = status;
@@ -1348,7 +1405,7 @@ ${quoted}
       const entry = state.commands[i] as VerificationCommand;
       entry.status = 'running';
       this.persist();
-      const outcome = await runCommand(entry.command, dir, minutes * 60_000, (handle) => {
+      const outcome = await runCommand(entry.command, entry.install && install ? install.cwd : dir, minutes * 60_000, (handle) => {
         control.command = handle;
       });
       control.command = null;
@@ -1376,12 +1433,29 @@ ${quoted}
             (last ? ` The last thing the fixer said: ${last}` : ''),
         );
       }
+      // The CLI's ceiling is per process, so each attempt gets what the fixer has left, not all of it again
+      const left = spec.maxCostUsd === undefined ? null : spec.maxCostUsd - state.costUsd;
+      if (left !== null && left <= 0) {
+        return conclude(
+          'failed',
+          `\`${entry.command}\` ${why}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} is spent (${usd(state.costUsd)} over ${String(state.attempts)} attempt${state.attempts === 1 ? '' : 's'}), so Agentry stopped there.`,
+        );
+      }
       spent[i] = (spent[i] ?? 0) + 1;
       state.attempts += 1;
       this.persist();
-      said[i]?.push(await this.fix(orch, spec, state, root, dir, i, why, said[i] ?? [], control));
+      const attempt = await this.fix(orch, spec, state, root, dir, i, why, said[i] ?? [], left, control);
+      said[i]?.push(attempt.note);
       state.commits = commitsSince(root, startHead);
       if (control.cancelled) return conclude('failed', 'Stopped before the checks finished.');
+      if (attempt.budget) {
+        const made = state.commits.length;
+        return conclude(
+          'failed',
+          `\`${entry.command}\` ${why}, and the fixer's cost limit of ${usd(spec.maxCostUsd ?? 0)} ran out during attempt ${String(state.attempts)} (${usd(state.costUsd)} spent), so Agentry stopped there without checking again.` +
+            (made ? ` What the fixer committed is on the branch, unchecked: ${state.commits.map((c) => c.subject).join('; ')}.` : ''),
+        );
+      }
       mended.add(i);
       // A fix for one check can break another: they all run again, from the first
       for (const c of state.commands) c.status = 'pending';
@@ -1398,7 +1472,7 @@ ${quoted}
     );
   }
 
-  /** One attempt of the fixer at one failing check. Returns what it reported, trimmed. */
+  /** One attempt of the fixer at one failing check: what it reported, trimmed, and whether its cost limit ended it. */
   private async fix(
     orch: Orchestration,
     spec: VerificationSpec,
@@ -1408,10 +1482,12 @@ ${quoted}
     index: number,
     failure: string,
     earlier: string[],
+    budgetUsd: number | null,
     control: VerificationControl,
-  ): Promise<string> {
+  ): Promise<{ note: string; budget: boolean }> {
     const entry = state.commands[index] as VerificationCommand;
     let note: string;
+    let budget = false;
     try {
       const run = this.runs.start(
         {
@@ -1439,13 +1515,17 @@ ${quoted}
           ...(orch.permissionPrompts === 'host' ? { permissionPrompts: 'host' as const } : {}),
           name: `${orch.name}:verification`.slice(0, 60),
           keepAlive: false,
+          // The CLI ends the turn itself when this is spent
+          ...(budgetUsd !== null ? { maxBudgetUsd: budgetUsd } : {}),
         },
         { orchestrationId: orch.id, orchestrationTaskId: '__verification__' },
       );
       control.fixerRunId = run.id;
       const result = await this.runs.waitForResult(run.id);
       orch.costUsd += result.costUsd;
-      note = result.isError ? `the fixer ended with an error: ${result.result}` : result.result;
+      state.costUsd += result.costUsd;
+      budget = result.cause === 'budget';
+      note = budget ? 'its cost limit ran out before it finished' : result.isError ? `the fixer ended with an error: ${result.result}` : result.result;
     } catch (err) {
       note = `the fixer could not run: ${(err as Error).message}`;
     }
@@ -1456,7 +1536,7 @@ ${quoted}
     } catch {
       // the fixer left the tree in a state git will not commit; the re-run says whether it matters
     }
-    return tail(note, 1500);
+    return { note: tail(note, 1500), budget };
   }
 
   /** Integrates a finished graph again: after resolving by hand, or one from before this existed. */
@@ -1498,6 +1578,7 @@ ${quoted}
     if (integration.pullRequestUrl) return { branch: integration.branch, url: integration.pullRequestUrl, detail: 'already open' };
     // A branch being fixed is a moving one, and what is pushed must be what was checked
     if (this.verifying.has(orch.id)) throw new Error('the checks are still running on the integration branch: wait for their outcome before opening a pull request');
+    if (checksFailGraph(orch)) throw new Error('the checks failed on the integration branch, and the graph was launched to fail with them: fix the branch and verify again before opening a pull request');
     git(orch.cwd, ['push', '-u', 'origin', integration.branch], 180_000);
     let url: string | null = null;
     let detail = `pushed ${integration.branch}`;
@@ -1699,6 +1780,7 @@ ${quoted}
     orch.endedAt = null;
     // The graph finishes again, and what it checked was the branch before this
     if (!this.verifying.has(orch.id)) orch.verification = null;
+    if (orch.error) orch.error = null;
     this.schedule(orch);
     return orch;
   }
@@ -1838,6 +1920,17 @@ ${quoted}
     if (!task.runId || this.relaunching.has(`${orch.id}:${task.id}`)) throw new Error('the worker is between two executions: try again in a moment');
     this.runs.send(task.runId, `A hint from the person following this orchestration:\n\n${text.trim()}`);
     return orch;
+  }
+
+  /**
+   * What the supervisor spent watching one of this graph's workers. It goes on the graph and not on
+   * the task: a task's cost is its chat's own total, which each result replaces, and would drop it.
+   */
+  chargeSupervisor(id: string, costUsd: number): void {
+    const orch = this.items.get(id);
+    if (!orch || !(costUsd > 0)) return;
+    orch.costUsd += costUsd;
+    this.persist();
   }
 
   // ---------- the workflow engine ----------

@@ -44,6 +44,7 @@ import { EventBus } from './events.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
+import { EditorSettingsStore } from './editor-settings.ts';
 import { McpConfig } from './config/mcp.ts';
 import { ConfigResources } from './config/resources.ts';
 import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
@@ -52,15 +53,18 @@ import { UploadStore } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
 import { Orchestrator } from './orchestrator.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
+import { byStart, EXPORTED_ORIGINS, type ProjectExportSource } from './project-export.ts';
 import { attachProject, projectCandidates, ProjectStore, type ChatPlace } from './projects.ts';
 import { AuthStore } from './security/auth.ts';
 import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
+import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
 export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
+export { DEFAULT_EDITOR, parseEditorSettings, sanitizeEditor, templateProblem, type EditorTemplateProblem } from './editor-settings.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
@@ -84,6 +88,7 @@ export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnaps
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
+export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db } from './db.ts';
 export { AuthStore } from './security/auth.ts';
 export { OidcVerifier, type FetchLike } from './security/oidc.ts';
@@ -91,6 +96,16 @@ export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './secur
 export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
 export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
+export {
+  DEFAULT_SUPERVISOR,
+  parseSupervisorConfig,
+  Supervisor,
+  SupervisorConflictError,
+  type ProposalOwner,
+  type SupervisorAnswer,
+  type SupervisorDeps,
+  type SupervisorQuestion,
+} from './supervisor.ts';
 
 // Read from the package rather than written into this file: the release tooling then only edits
 // package.json files, and never has to rewrite source to bump a version.
@@ -118,6 +133,8 @@ export class Core {
   /** What a chat's health is read from: the calls it made, the history of how long commands take */
   readonly health: HealthService;
   private readonly healthMonitor: HealthMonitor;
+  /** The optional model that drafts a hint when a worker's health turns bad; off unless `supervisor.json` says so */
+  readonly supervisor: Supervisor;
   readonly schedules: Scheduler;
   readonly files: SettingsFiles;
   readonly explorer: ConfigExplorer;
@@ -125,6 +142,8 @@ export class Core {
   readonly memory: MemoryStore;
   readonly mcp: McpConfig;
   readonly toolPresets: ToolPresetStore;
+  /** Where file links open: `editor.json`, one document for every browser */
+  readonly editor: EditorSettingsStore;
   readonly connectors: Connectors;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
@@ -148,6 +167,17 @@ export class Core {
     // Must run before anything spawns the CLI: it injects stored credentials into process.env
     this.credentials = new CredentialStore(config);
     this.security = new AuthStore(config);
+    if (this.security.environmentReset) {
+      // A credential changed without a request, so the row is the only trace of who changed it
+      this.db.appendAudit({
+        at: this.security.environmentReset.at,
+        actor: 'env',
+        method: 'POST',
+        path: '/api/security/token',
+        status: 200,
+        summary: 'Replace the token from AGENTRY_AUTH_TOKEN (AGENTRY_AUTH_TOKEN_RESET)',
+      });
+    }
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
     this.projectStore = new ProjectStore(config);
@@ -179,6 +209,7 @@ export class Core {
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
     this.mcp = new McpConfig(config);
     this.toolPresets = new ToolPresetStore(config);
+    this.editor = new EditorSettingsStore(config);
     this.health = new HealthService(this.runtime, this.db);
     this.orchestrator.health = (task) => {
       const chat = task.runId ? this.runtime.get(task.runId) : null;
@@ -194,11 +225,25 @@ export class Core {
         taskSpentUsd: context.spentUsd,
       });
     };
+    this.supervisor = new Supervisor({
+      settings: new SupervisorSettings(config),
+      db: this.db,
+      ask: (question) => this.askSupervisor(question),
+      // A page is the newest entries, which is all the supervisor reads
+      steps: async (chatId) => (await this.sessions.getSession(chatId, { limit: 60 }))?.entries ?? [],
+      hint: async (proposal) => {
+        if (proposal.orchestrationId && proposal.taskId) this.orchestrator.hintTask(proposal.orchestrationId, proposal.taskId, proposal.hint);
+        else await this.chats.hint(proposal.chatId, { text: proposal.hint });
+      },
+      emit: (event) => this.events.emit(event),
+      charge: (orchestrationId, costUsd) => this.orchestrator.chargeSupervisor(orchestrationId, costUsd),
+    });
     this.healthMonitor = new HealthMonitor({
       runtime: this.runtime,
       health: this.health,
       emit: (event) => this.events.emit(event),
       taskOf: (chat) => this.orchestrator.taskContext(chat.id),
+      onBad: (chat, task, signals) => void this.supervisor.wake(chat, task, signals),
     });
     this.healthMonitor.start();
     this.chats = new ChatService({
@@ -225,10 +270,33 @@ export class Core {
     this.schedules = new Scheduler(config, {
       chat: (request) => this.chats.create(request),
       orchestration: (spec) => this.orchestrator.create(spec),
+      // A chat waiting on a person is still in its turn: it has not ended, whatever it waits for
+      running: ({ chatId, orchestrationId }) => {
+        if (chatId) {
+          const chat = this.runtime.get(chatId);
+          return !!chat && stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }) !== 'idle';
+        }
+        return !!orchestrationId && this.orchestrator.get(orchestrationId)?.status === 'running';
+      },
+    });
+    this.schedules.bus = this.events;
+    // A queued slot follows its predecessor as soon as it ends, not on the next tick. Not before the
+    // chats are restored, though: until then a chat still going looks like one that ended
+    let schedulesStarted = false;
+    this.events.observe((event) => {
+      if (!schedulesStarted) return;
+      const ended =
+        (event.type === 'run.updated' && event.status !== event.previousStatus) ||
+        event.type === 'run.ended' ||
+        event.type === 'run.removed' ||
+        (event.type === 'orchestration.updated' && event.status !== 'running') ||
+        event.type === 'orchestration.removed';
+      if (ended) void this.schedules.drain().catch(() => undefined);
     });
     void this.runtime.restore(this.sessions).finally(() => {
       this.orchestrator.recover();
       this.schedules.start();
+      schedulesStarted = true;
     });
     this.connectors = new Connectors(config);
     this.resources = new ConfigResources();
@@ -498,6 +566,37 @@ export class Core {
   }
 
   /**
+   * The supervisor's question as a housekeeping chat: no transcript, the `read-only` preset (the
+   * stored one, or the shipped one if it was deleted) and the configured ceiling as
+   * `--max-budget-usd`. Removed once it answers, like the auth check: the proposal is its record.
+   */
+  private async askSupervisor(question: SupervisorQuestion): Promise<SupervisorAnswer> {
+    const preset = this.toolPresets.get('read-only') ?? DEFAULT_SUPERVISOR_PRESET;
+    const allowedTools = preset.allowedTools ?? [];
+    const disallowedTools = preset.disallowedTools ?? [];
+    const run = this.runtime.start({
+      prompt: question.prompt,
+      cwd: question.cwd,
+      model: question.model,
+      name: 'supervisor',
+      keepAlive: false,
+      internal: true,
+      permissionMode: 'manual',
+      allowedTools,
+      disallowedTools,
+      toolConfig: { preset, allowedTools, disallowedTools, mcp: null },
+      maxBudgetUsd: question.maxCostUsd,
+    });
+    try {
+      const result = await this.runtime.waitForResult(run.id);
+      return { text: result.result, costUsd: result.costUsd, isError: result.isError };
+    } finally {
+      await Promise.race([this.runtime.exited(run.id), new Promise((r) => setTimeout(r, 10_000).unref())]);
+      this.runtime.remove(run.id);
+    }
+  }
+
+  /**
    * The projects the person imported, each with the chats under it and its worktrees. Nothing is
    * discovered here: a directory Claude Code has run in is a project only once it is imported.
    */
@@ -577,6 +676,16 @@ export class Core {
   /** Forgets a project in Agentry. What Claude Code keeps about it is `purgeProject`, and is not touched. */
   removeProject(id: string): Promise<void> {
     return this.projectStore.remove(id);
+  }
+
+  /**
+   * A project and its chats, oldest first, for an export written one chat at a time. An unknown
+   * project fails here, before anything is written, so it can still be answered with a 404.
+   */
+  async projectExport(id: string): Promise<ProjectExportSource> {
+    const project = await this.projectView(id);
+    const chats = (await this.chats.list({ project: id, origins: EXPORTED_ORIGINS })).sort(byStart);
+    return { exportedAt: new Date().toISOString(), project, chats, load: (chatId) => this.chats.export(chatId) };
   }
 
   private async projectView(id: string): Promise<Project> {

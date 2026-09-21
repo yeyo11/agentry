@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUsageBreakdown, useUsageSeries, type UsageRange } from '../api';
 import { BarChart } from '../components/BarChart';
-import { Collapsible } from '../components/controls';
+import { ProjectExportCard } from '../components/ProjectExport';
+import { Collapsible, DatePicker } from '../components/controls';
 import { Card, Empty, ErrorBox, PageHeader, Segmented, Skeleton } from '../components/ui';
 import { formatCost, formatNumber } from '../lib/format';
 import { intlLocale } from '../i18n/language';
+import { useProjectScope } from '../lib/project-scope';
 import { bucketFor, customRangeError, metricValue, parseDay, presetRange, sumMetric, topSlices, toDay, type RangePreset, type UsageMetric } from '../lib/usage-view';
 import '../insights.css';
 
@@ -34,6 +36,8 @@ function useFormatMetric() {
 /** Cost and tokens over time, and what each project and each model accounts for. Every figure is the CLI's own. */
 export function Usage() {
   const { t } = useTranslation(['usage', 'common']);
+  // The page's figures cover every project; the export is offered for the one picked in the sidebar
+  const { project } = useProjectScope();
   const [preset, setPreset] = useState<RangePreset>('30d');
   const [applied, setApplied] = useState<UsageRange>(() => presetRange('30d', new Date()));
   const [custom, setCustom] = useState({ from: '', to: '' });
@@ -80,14 +84,25 @@ export function Usage() {
       />
       {preset === 'custom' && (
         <div className="filter-bar" role="group" aria-label={t('range.custom')}>
-          <label className="field usage-date">
-            <span className="field-label">{t('range.from')}</span>
-            <input inputMode="numeric" placeholder="YYYY-MM-DD" value={custom.from} onChange={(e) => editCustom({ from: e.target.value.trim() })} aria-invalid={custom.from !== '' && parseDay(custom.from) === null} />
-          </label>
-          <label className="field usage-date">
-            <span className="field-label">{t('range.to')}</span>
-            <input inputMode="numeric" placeholder={toDay(new Date())} value={custom.to} onChange={(e) => editCustom({ to: e.target.value.trim() })} aria-invalid={custom.to !== '' && parseDay(custom.to) === null} />
-          </label>
+          <div className="field usage-date">
+            <span className="field-label" aria-hidden>
+              {t('range.from')}
+            </span>
+            <DatePicker aria-label={t('range.from')} value={custom.from} onChange={(from) => editCustom({ from })} max={parseDay(custom.to) ? custom.to : undefined} invalid={custom.from !== '' && parseDay(custom.from) === null} />
+          </div>
+          <div className="field usage-date">
+            <span className="field-label" aria-hidden>
+              {t('range.to')}
+            </span>
+            <DatePicker
+              aria-label={t('range.to')}
+              value={custom.to}
+              onChange={(to) => editCustom({ to })}
+              min={parseDay(custom.from) ? custom.from : undefined}
+              placeholder={toDay(new Date())}
+              invalid={custom.to !== '' && parseDay(custom.to) === null}
+            />
+          </div>
           {customError && (custom.from !== '' || custom.to !== '') && (
             <span className="muted small" role="status">
               {customError === 'order' ? t('range.order') : t('range.invalid')}
@@ -132,6 +147,7 @@ export function Usage() {
         <SliceCard kind="project" title={t('byProject.title')} what={t('byProject.what')} slices={breakdown.data?.byProject} pending={breakdown.isPending} metric={metric} />
         <SliceCard kind="model" title={t('byModel.title')} what={t('byModel.what')} slices={breakdown.data?.byModel} pending={breakdown.isPending} metric={metric} />
       </div>
+      {project && <ProjectExportCard project={project} wholeProject />}
     </>
   );
 }

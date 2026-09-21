@@ -1,4 +1,4 @@
-import type { Schedule, ScheduleRun } from '@agentry/shared';
+import type { Schedule, ScheduleRun, ScheduleRunStatus } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -123,6 +123,7 @@ function ScheduleCard({ schedule, onEdit }: { schedule: Schedule; onEdit: () => 
           <span className="strong break">{schedule.name}</span>
           <Tag>{t(`card.kind.${schedule.target.kind}`)}</Tag>
           {!schedule.enabled && <Tag tone="muted">{t('card.off')}</Tag>}
+          {schedule.overlap !== 'parallel' && <Tag>{t(`card.overlap.${schedule.overlap}`)}</Tag>}
         </span>
       }
       actions={
@@ -206,7 +207,7 @@ function RunHistory({ runs, loading, error }: { runs: ScheduleRun[] | undefined;
             <tr key={run.id}>
               <td>{formatDateTime(run.at)}</td>
               <td>
-                {run.status === 'started' ? <Tag tone="ok">{t('history.started')}</Tag> : <StatusBadge status={run.status} />}
+                <RunStatus status={run.status} />
               </td>
               <td>{run.slot ? formatDateTime(run.slot) : <span className="muted">{t('history.byHand')}</span>}</td>
               <td className="break">
@@ -226,4 +227,19 @@ function RunHistory({ runs, loading, error }: { runs: ScheduleRun[] | undefined;
       </table>
     </div>
   );
+}
+
+/** `overlapped` and `queued` are the overlap policy at work, not a failure, so neither reads as one. */
+function RunStatus({ status }: { status: ScheduleRunStatus }) {
+  const { t } = useTranslation('schedules');
+  switch (status) {
+    case 'started':
+      return <Tag tone="ok">{t('history.started')}</Tag>;
+    case 'overlapped':
+      return <Tag tone="muted">{t('history.overlapped')}</Tag>;
+    case 'queued':
+      return <Tag tone="info">{t('history.queued')}</Tag>;
+    default:
+      return <StatusBadge status={status} />;
+  }
 }

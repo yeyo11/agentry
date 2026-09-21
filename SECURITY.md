@@ -14,7 +14,7 @@ What is and is not protected:
 - **Read-only mode**, which refuses every write except answering a permission prompt.
 - **Secrets in MCP `env` and `headers`** (and in settings' `env`) are not returned by the API: a
   placeholder stands for the value.
-- **An audit log of writes**: who, what route, the status. Never the body.
+- **An audit log of writes**: who, what route, the status. Never the body. It can be narrowed by path (matched literally: `%` and `_` are not wildcards), method and status code or class.
 
 **Not protected, and still true with everything on:**
 
@@ -24,9 +24,9 @@ What is and is not protected:
 - **Agentry does not terminate TLS.** A token sent over plain HTTP can be read on the way. Put a
   TLS-terminating proxy in front (`docker compose --profile tls`, or the Helm chart behind your own
   ingress) and see [docs/deploy.md](docs/deploy.md) for what it must pass.
-- **The token can travel in a query string** on three GETs a browser makes without headers
-  (`/api/events`, `/api/chats/:id/stream`, `/api/uploads/:id/content`), so a proxy's access log may
-  record it.
+- **The token can travel in a query string** on the five GETs a browser makes without headers
+  (`/api/events`, `/api/chats/:id/stream`, `/api/uploads/:id/content`, `/api/chats/:id/export` and
+  `/api/projects/:id/export`), so a proxy's access log may record it.
 - **There is one credential.** Everyone who holds the token is the same user; nothing isolates one
   person's chats from another's. OIDC validates a JWT, it does not sign anyone in.
 - **Chats default to `bypassPermissions` inside the container**, so a chat does what it is asked
@@ -36,6 +36,14 @@ What is and is not protected:
   mode 700 directory of the data volume.
 
 **Bind it to localhost until the guard and a TLS proxy are both in place.**
+
+**Lost the token?** The environment seeds only a fresh install, so setting `AGENTRY_AUTH_TOKEN` again
+does nothing by itself. Set it to a new value together with `AGENTRY_AUTH_TOKEN_RESET=1` and restart:
+the new token replaces the stored hash, and the audit log records the change with actor `env`. The
+mode, OIDC settings and read-only stay as they were. The hash of the value applied is kept, so a
+restart with the variables still set changes nothing and a token rotated afterwards survives; set a
+different value to reset again. With access to the data volume, deleting `auth.json` also works, but
+it resets the whole guard to the environment's seed.
 
 ## Supported versions
 

@@ -2065,6 +2065,13 @@
         ],
         "description": "What the checks on the integration branch did; absent when the graph asked for none"
       },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Why the graph failed when its tasks did not: its checks failed and it was launched with `verification.failGraph`. Null or absent otherwise."
+      },
       "relaunchedFrom": {
         "type": [
           "string",
@@ -2298,6 +2305,17 @@
         "items": {
           "$ref": "#/components/schemas/HealthSignal"
         }
+      },
+      "proposal": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SupervisorProposal"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What the supervisor proposed for the worst signal, when it is on and has answered; null when it has not"
       }
     },
     "required": [
@@ -2333,6 +2351,18 @@
       "reason": {
         "type": "string",
         "description": "One line a person reads, with the figures that made it fire"
+      },
+      "reasonCode": {
+        "type": "string",
+        "description": "Stable key of `reason`, so a client can say it in its own language; the English stays in `reason` for readers that do not translate. See  {@link  Localized }  for the shape this follows."
+      },
+      "hintCode": {
+        "type": "string",
+        "description": "Stable key of `hint`, the same way"
+      },
+      "params": {
+        "$ref": "#/components/schemas/LocalizedParams",
+        "description": "The figures `reason` and `hint` were built from: the command, the minutes, the file, the count"
       },
       "since": {
         "type": "string",
@@ -2373,6 +2403,71 @@
       "budget"
     ],
     "description": "What a signal noticed. Only what Agentry can tell from what it already receives is here: a command that runs far longer than it should, a chat that has gone quiet while it should be working, and facts of the chat itself (how its last execution ended, that it waits for a person, that its context is nearly full, that a branch failed).\n\nThe second group comes from docs/plans/agent-observability.md and is about a worker that is busy without getting anywhere: the same tool call over and over (`repeat-stall`), no commit and no file touched for a long stretch (`no-progress`), the same few steps in a cycle (`loop`), a test edited so that it stops asserting what it asserted (`weakened-test`), and the ceiling of  {@link  TaskLimits }  coming close (`budget`)."
+  },
+  "LocalizedParams": {
+    "type": "object",
+    "additionalProperties": {
+      "type": [
+        "string",
+        "number"
+      ]
+    },
+    "description": "The figures a server string was built from, so a translation can put them back in its own order."
+  },
+  "SupervisorProposal": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "chatId": {
+        "type": "string"
+      },
+      "taskId": {
+        "type": "string",
+        "description": "Set when the worker is a task of an orchestration"
+      },
+      "orchestrationId": {
+        "type": "string"
+      },
+      "signal": {
+        "$ref": "#/components/schemas/HealthSignalKind",
+        "description": "The signal that woke it"
+      },
+      "hint": {
+        "type": "string",
+        "description": "One or two lines for the worker, ready to send or to edit first"
+      },
+      "costUsd": {
+        "type": "number",
+        "description": "What the housekeeping chat cost, as the CLI reported it; added to the graph's when the worker is a task"
+      },
+      "at": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/SupervisorProposalStatus"
+      }
+    },
+    "required": [
+      "id",
+      "chatId",
+      "signal",
+      "hint",
+      "costUsd",
+      "at",
+      "status"
+    ],
+    "description": "One answer of the supervisor. A row, because they accumulate; at most one per signal per chat."
+  },
+  "SupervisorProposalStatus": {
+    "type": "string",
+    "enum": [
+      "proposed",
+      "sent",
+      "dismissed"
+    ],
+    "description": "`sent`: it reached the worker, by hand or through `autoSend`."
   },
   "OrchestrationIntegration": {
     "type": "object",
@@ -2528,6 +2623,21 @@
       "timeoutMinutes": {
         "type": "number",
         "description": "Minutes each command may run before it is killed and counts as failed (default 20)"
+      },
+      "maxCostUsd": {
+        "type": "number",
+        "description": "What the fixer may spend over all its attempts, passed to the CLI as `--max-budget-usd` with what is left after each one; once spent, the verification is `failed` and the report says so"
+      },
+      "install": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Run before the checks, as its own row in the state. Absent: detected from the lockfile of the integration worktree (`pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`); `null`: no install step; a string: that command instead."
+      },
+      "failGraph": {
+        "type": "boolean",
+        "description": "A failed verification ends the orchestration as `failed` and no pull request is offered (default false)"
       }
     },
     "required": [
@@ -2570,6 +2680,10 @@
       "report": {
         "type": "string",
         "description": "What happened, in words: shown before the pull request is offered"
+      },
+      "costUsd": {
+        "type": "number",
+        "description": "What the fixer spent, as the CLI reported it; counted in the graph's cost"
       }
     },
     "required": [
@@ -2577,7 +2691,8 @@
       "attempts",
       "commands",
       "commits",
-      "report"
+      "report",
+      "costUsd"
     ]
   },
   "VerificationStatus": {
@@ -2596,6 +2711,10 @@
     "properties": {
       "command": {
         "type": "string"
+      },
+      "install": {
+        "type": "boolean",
+        "description": "The install step that runs before the checks: detected from the lockfile, or the spec's `install`"
       },
       "status": {
         "$ref": "#/components/schemas/VerificationStatus"
@@ -3713,6 +3832,10 @@
           "type": "string"
         },
         "description": "Project ids this policy governs; at most one policy governs a project"
+      },
+      "looseChats": {
+        "type": "boolean",
+        "description": "It also governs the chats that belong to no project; at most one policy does"
       }
     },
     "required": [
@@ -3882,6 +4005,15 @@
       },
       {
         "$ref": "#/components/schemas/SessionsChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/ScheduleChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/ScheduleFiredEvent"
+      },
+      {
+        "$ref": "#/components/schemas/SupervisorProposedEvent"
       }
     ],
     "description": "Everything the buffered feed carries, discriminated by `type`."
@@ -5397,6 +5529,14 @@
         "type": "string",
         "description": "The first (worst) signal's line, or `Nothing unusual.` when the chat recovered"
       },
+      "reasonCode": {
+        "type": "string",
+        "description": "Stable key of `reason` (`health.ok` when the chat recovered), as on  {@link  HealthSignal }"
+      },
+      "params": {
+        "$ref": "#/components/schemas/LocalizedParams",
+        "description": "The figures `reason` was built from"
+      },
       "signals": {
         "type": "array",
         "items": {
@@ -5449,6 +5589,208 @@
       "type"
     ],
     "description": "Files under the CLI's projects directory changed: a session was created, grew or ended."
+  },
+  "ScheduleChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "schedule.changed"
+      },
+      "scheduleId": {
+        "type": "string"
+      },
+      "scheduleName": {
+        "type": "string"
+      },
+      "action": {
+        "$ref": "#/components/schemas/ScheduleChangeAction"
+      },
+      "nextRunAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "As the schedule reports it after the change; null when it is disabled or deleted"
+      }
+    },
+    "required": [
+      "action",
+      "at",
+      "id",
+      "nextRunAt",
+      "scheduleId",
+      "scheduleName",
+      "title",
+      "type"
+    ],
+    "description": "A schedule was created, edited, deleted, switched, or had its next fire recomputed: the list is stale."
+  },
+  "ScheduleChangeAction": {
+    "type": "string",
+    "enum": [
+      "created",
+      "updated",
+      "deleted",
+      "enabled",
+      "disabled",
+      "rescheduled"
+    ],
+    "description": "`rescheduled`: nothing was edited, but `nextRunAt` was computed again (after a fire, or on boot)."
+  },
+  "ScheduleFiredEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "schedule.fired"
+      },
+      "scheduleId": {
+        "type": "string"
+      },
+      "scheduleName": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ScheduleRunStatus"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "at",
+      "chatId",
+      "id",
+      "orchestrationId",
+      "runId",
+      "scheduleId",
+      "scheduleName",
+      "status",
+      "title",
+      "type"
+    ],
+    "description": "A run row was written for a schedule: it started something, failed to, or recorded a slot it did not take."
+  },
+  "ScheduleRunStatus": {
+    "type": "string",
+    "enum": [
+      "started",
+      "failed",
+      "skipped",
+      "overlapped",
+      "queued"
+    ],
+    "description": "`started`: it launched, and what happened next belongs to the chat or the orchestration. `skipped`: the slot passed while the wrapper was down. `overlapped`: the slot fired while the last run was still going and the policy was `skip`, or it was `queue` and a newer slot took its place before it could start. `queued`: the slot fired while the last run was still going and the policy was `queue`; it becomes `started` (keeping its `slot`) when that run ends."
+  },
+  "SupervisorProposedEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "supervisor.proposed"
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "taskName": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "proposal": {
+        "$ref": "#/components/schemas/SupervisorProposal"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "internal",
+      "orchestrationId",
+      "proposal",
+      "runId",
+      "runName",
+      "sessionId",
+      "taskId",
+      "taskName",
+      "title",
+      "type"
+    ],
+    "description": "The supervisor answered a bad signal with a hint; the same `proposal` hangs on the chat's health."
   },
   "StreamHelloEvent": {
     "type": "object",
@@ -6364,8 +6706,11 @@
         }
       },
       "toolPreset": {
-        "type": "string",
-        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it"
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it. A new chat that names neither this nor `allowedTools` takes the default preset; `null` opts out of it (and, on a resume or a fork, drops the preset the chat had)."
       },
       "mcp": {
         "anyOf": [
@@ -6449,8 +6794,11 @@
         }
       },
       "toolPreset": {
-        "type": "string",
-        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it"
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it. A new chat that names neither this nor `allowedTools` takes the default preset; `null` opts out of it (and, on a resume or a fork, drops the preset the chat had)."
       },
       "mcp": {
         "anyOf": [
@@ -6522,8 +6870,11 @@
         }
       },
       "toolPreset": {
-        "type": "string",
-        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it"
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it. A new chat that names neither this nor `allowedTools` takes the default preset; `null` opts out of it (and, on a resume or a fork, drops the preset the chat had)."
       },
       "mcp": {
         "anyOf": [
@@ -7214,6 +7565,27 @@
     ],
     "description": "How the panel turns a path and a line into something that opens the person's editor. It is a setting because the wrapper often runs in a container while the editor does not, and because nobody agrees on an editor: `vscode://file/{path}:{line}` is only the default."
   },
+  "UpdateEditorSettingsRequest": {
+    "$ref": "#/components/schemas/EditorSettings",
+    "description": "Replaces the whole document (`PUT /settings/editor`): it is small and the form always holds all of it."
+  },
+  "EditorSettingsDoc": {
+    "type": "object",
+    "properties": {
+      "stored": {
+        "type": "boolean",
+        "description": "False until the first `PUT`: `settings` is then the shipped default, and a browser may migrate its own"
+      },
+      "settings": {
+        "$ref": "#/components/schemas/EditorSettings"
+      }
+    },
+    "required": [
+      "stored",
+      "settings"
+    ],
+    "description": "`GET /settings/editor` and the answer to a `PUT`: the settings, and whether any were ever saved."
+  },
   "CancelCommandRequest": {
     "type": "object",
     "properties": {
@@ -7590,6 +7962,63 @@
       "from"
     ]
   },
+  "AuditFilter": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Matches anywhere in the path; `%`, `_` and `\\` are taken literally"
+      },
+      "method": {
+        "type": "string",
+        "description": "Exact, case-insensitive: `POST`"
+      },
+      "status": {
+        "type": "string",
+        "description": "A code (`404`) or a class (`4xx`)"
+      }
+    },
+    "description": "The query of `GET /audit`; every field narrows the page and its `total`."
+  },
+  "ToolPresetsConfig": {
+    "type": "object",
+    "properties": {
+      "defaultPresetId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Taken by a new chat that names neither `toolPreset` nor `allowedTools`; null leaves such a chat with the CLI's own tools"
+      }
+    },
+    "required": [
+      "defaultPresetId"
+    ],
+    "description": "Settings about the presets as a whole, kept in `tool-presets.json` beside them."
+  },
+  "ToolPresetsOverview": {
+    "type": "object",
+    "properties": {
+      "defaultPresetId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Taken by a new chat that names neither `toolPreset` nor `allowedTools`; null leaves such a chat with the CLI's own tools"
+      },
+      "presets": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ToolPreset"
+        }
+      }
+    },
+    "required": [
+      "defaultPresetId",
+      "presets"
+    ],
+    "description": "What `GET /config/tool-presets` answers: the presets, and the settings about them beside the list."
+  },
   "Connector": {
     "type": "object",
     "properties": {
@@ -7676,7 +8105,7 @@
       "steps": {
         "type": "array",
         "items": {
-          "type": "string"
+          "$ref": "#/components/schemas/Localized"
         }
       },
       "links": {
@@ -7685,7 +8114,7 @@
           "type": "object",
           "properties": {
             "label": {
-              "type": "string"
+              "$ref": "#/components/schemas/Localized"
             },
             "url": {
               "type": "string"
@@ -7704,6 +8133,27 @@
     ],
     "description": "What a person has to do: Agentry cannot authorise a connector on anyone's behalf."
   },
+  "Localized": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string",
+        "description": "Stable across releases: a translation is keyed by it"
+      },
+      "params": {
+        "$ref": "#/components/schemas/LocalizedParams"
+      },
+      "text": {
+        "type": "string",
+        "description": "The English sentence, always present"
+      }
+    },
+    "required": [
+      "code",
+      "text"
+    ],
+    "description": "A sentence the server writes, with a stable key beside it. The API answers in English and reads as it is; a client that knows the code says the same thing in its own language, and one that does not shows `text`."
+  },
   "ConnectorLimit": {
     "type": "object",
     "properties": {
@@ -7718,7 +8168,7 @@
         "type": "string"
       },
       "reason": {
-        "type": "string"
+        "$ref": "#/components/schemas/Localized"
       }
     },
     "required": [
@@ -7787,6 +8237,9 @@
         "items": {
           "type": "string"
         }
+      },
+      "looseChats": {
+        "type": "boolean"
       }
     },
     "required": [
@@ -7870,6 +8323,10 @@
       "enabled": {
         "type": "boolean"
       },
+      "overlap": {
+        "$ref": "#/components/schemas/ScheduleOverlap",
+        "description": "`parallel` unless it was set: what every schedule did before there was a choice"
+      },
       "lastRunAt": {
         "type": [
           "string",
@@ -7894,6 +8351,7 @@
       "cron",
       "target",
       "enabled",
+      "overlap",
       "lastRunAt",
       "nextRunAt",
       "createdAt"
@@ -7937,6 +8395,15 @@
     ],
     "description": "What a schedule starts when it fires."
   },
+  "ScheduleOverlap": {
+    "type": "string",
+    "enum": [
+      "parallel",
+      "skip",
+      "queue"
+    ],
+    "description": "What happens when a slot fires while the last run is still going (its chat is `working` or its orchestration `running`). `parallel` starts it anyway; `skip` writes a run as `overlapped` and starts nothing; `queue` starts it when the previous run ends, one pending at most: a slot that arrives while one is queued replaces it."
+  },
   "ScheduleRun": {
     "type": "object",
     "properties": {
@@ -7973,15 +8440,6 @@
       "at",
       "status"
     ]
-  },
-  "ScheduleRunStatus": {
-    "type": "string",
-    "enum": [
-      "started",
-      "failed",
-      "skipped"
-    ],
-    "description": "`started`: it launched, and what happened next belongs to the chat or the orchestration. `skipped`: the slot passed while the wrapper was down."
   },
   "SchedulePreview": {
     "type": "object",
@@ -8034,6 +8492,10 @@
       "enabled": {
         "type": "boolean",
         "description": "Starts enabled unless this says otherwise"
+      },
+      "overlap": {
+        "$ref": "#/components/schemas/ScheduleOverlap",
+        "description": "`parallel` when absent"
       }
     },
     "required": [
@@ -8063,6 +8525,9 @@
       },
       "enabled": {
         "type": "boolean"
+      },
+      "overlap": {
+        "$ref": "#/components/schemas/ScheduleOverlap"
       }
     }
   },
@@ -8208,6 +8673,61 @@
       "entries"
     ],
     "description": "A chat exported as JSON: the chat as the API shows it and every transcript entry, subagents included, in order."
+  },
+  "ProjectExport": {
+    "type": "object",
+    "properties": {
+      "exportedAt": {
+        "type": "string",
+        "description": "When the export was made"
+      },
+      "project": {
+        "$ref": "#/components/schemas/Project"
+      },
+      "chats": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatExport"
+        }
+      }
+    },
+    "required": [
+      "exportedAt",
+      "project",
+      "chats"
+    ],
+    "description": "A project exported as JSON: the project and every chat under it, each as its own  {@link  ChatExport } ."
+  },
+  "SupervisorConfig": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model of the housekeeping chat; `haiku` by default, because it reads a few lines and writes two"
+      },
+      "autoSend": {
+        "type": "boolean",
+        "description": "Send the proposal to the worker on its own instead of waiting for a person"
+      },
+      "maxCostUsd": {
+        "type": "number",
+        "description": "Passed to the housekeeping chat as `--max-budget-usd`"
+      }
+    },
+    "required": [
+      "enabled",
+      "model",
+      "autoSend",
+      "maxCostUsd"
+    ],
+    "description": "`supervisor.json` in the data directory: settings-shaped."
+  },
+  "UpdateSupervisorConfigRequest": {
+    "$ref": "#/components/schemas/SupervisorConfig",
+    "description": "Replaces the whole document (`PUT /settings/supervisor`)."
   },
   "CliVersionInfo": {
     "type": "object",

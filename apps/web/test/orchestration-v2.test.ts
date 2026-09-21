@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
+import type { Orchestration, OrchestrationTaskState, VerificationState } from '@agentry/shared';
 import {
   canRelaunch,
   canRerun,
@@ -10,10 +10,14 @@ import {
   EMPTY_VERIFICATION,
   limitsOf,
   parseCommands,
+  pullRequestHeld,
   rerunBlockedByPullRequest,
+  specOfOrchestration,
   specOfTask,
   verificationOf,
 } from '../src/lib/orchestration-v2.ts';
+
+const VERIFIED: VerificationState = { status: 'passed', attempts: 0, commands: [], commits: [], report: '', costUsd: 0 };
 
 const task = (id: string, extra: Partial<OrchestrationTaskState> = {}): OrchestrationTaskState => ({
   id,
@@ -79,6 +83,32 @@ test('the spec of a task leaves its chat, result and cost behind', () => {
   assert.deepEqual(spec, { id: 'a', name: 'a', prompt: 'do it', dependsOn: ['z'], model: 'sonnet', limits: { maxCostUsd: 1 } });
 });
 
+test('a graph read back as a spec keeps what it ran with and leaves its state behind', () => {
+  const graph = orch(
+    [task('a', { branch: 'agentry/a', costUsd: 1.2 }), task('b', { dependsOn: ['a'], limits: { maxMinutes: 5 }, model: 'haiku' })],
+    { objective: 'ship it', model: 'opus', allowedTools: ['Read'], verificationSpec: { commands: ['pnpm test'], fixer: false, maxAttempts: 1 } },
+  );
+  assert.deepEqual(specOfOrchestration(graph), {
+    name: 'graph',
+    objective: 'ship it',
+    engine: 'graph',
+    cwd: '/repo',
+    model: 'opus',
+    permissionMode: 'acceptEdits',
+    concurrency: 2,
+    synthesize: true,
+    worktree: true,
+    maxAttempts: 2,
+    allowedTools: ['Read'],
+    permissionPrompts: 'host',
+    verification: { commands: ['pnpm test'], fixer: false, maxAttempts: 1 },
+    tasks: [
+      { id: 'a', name: 'a', prompt: 'do it' },
+      { id: 'b', name: 'b', prompt: 'do it', dependsOn: ['a'], model: 'haiku', limits: { maxMinutes: 5 } },
+    ],
+  });
+});
+
 test('a finished graph re-runs a task; a running, waiting or workflow graph does not', () => {
   const tasks = [task('a')];
   assert.equal(canRerun(orch(tasks)), true);
@@ -126,7 +156,7 @@ test('verification is a spec only when it is on and has something to run', () =>
   assert.equal(verificationOf(EMPTY_VERIFICATION), undefined);
   assert.equal(verificationOf({ ...EMPTY_VERIFICATION, enabled: true, commands: '  \n' }), undefined);
   assert.equal(verificationOf({ ...EMPTY_VERIFICATION, enabled: false, commands: 'pnpm build' }), undefined);
-  assert.deepEqual(verificationOf({ enabled: true, commands: 'pnpm build\npnpm e2e', fixer: true, maxAttempts: 0, model: ' opus ' }), {
+  assert.deepEqual(verificationOf({ ...EMPTY_VERIFICATION, enabled: true, commands: 'pnpm build\npnpm e2e', fixer: true, maxAttempts: 0, model: ' opus ' }), {
     commands: ['pnpm build', 'pnpm e2e'],
     fixer: true,
     maxAttempts: 1,
@@ -138,4 +168,30 @@ test('a verification spec round-trips through the form draft', () => {
   const spec = { commands: ['pnpm build', 'pnpm e2e'], fixer: false, maxAttempts: 3, model: 'sonnet' };
   assert.deepEqual(verificationOf(draftOfVerification(spec)), spec);
   assert.equal(draftOfVerification(undefined), EMPTY_VERIFICATION);
+});
+
+test('the fixer ceiling, the install step and failGraph round-trip through the draft', () => {
+  const detected = { commands: ['pnpm e2e'], fixer: true, maxAttempts: 2, maxCostUsd: 1.5, failGraph: true };
+  assert.deepEqual(verificationOf(draftOfVerification(detected)), detected);
+  assert.equal(draftOfVerification(detected).install, 'detected');
+  const none = { commands: ['pnpm e2e'], fixer: true, maxAttempts: 2, install: null };
+  assert.deepEqual(verificationOf(draftOfVerification(none)), none);
+  assert.equal(draftOfVerification(none).install, 'none');
+  const own = { commands: ['pnpm e2e'], fixer: true, maxAttempts: 2, install: 'pnpm i' };
+  assert.deepEqual(verificationOf(draftOfVerification(own)), own);
+  assert.equal(draftOfVerification(own).install, 'command');
+});
+
+test('an empty install command is detection, and a cost ceiling needs a fixer', () => {
+  const base = { ...EMPTY_VERIFICATION, enabled: true, commands: 'pnpm e2e' };
+  assert.equal('install' in (verificationOf({ ...base, install: 'command', installCommand: '  ' }) ?? {}), false);
+  assert.equal(verificationOf({ ...base, fixer: false, maxCostUsd: 2 })?.maxCostUsd, undefined);
+  assert.equal(verificationOf({ ...base, maxCostUsd: 2 })?.maxCostUsd, 2);
+});
+
+test('a pull request is held back only for a graph its failed checks failed', () => {
+  const spec = { commands: ['pnpm e2e'], fixer: false, maxAttempts: 1 };
+  assert.equal(pullRequestHeld({ verificationSpec: { ...spec, failGraph: true }, verification: { ...VERIFIED, status: 'failed' } }), true);
+  assert.equal(pullRequestHeld({ verificationSpec: spec, verification: { ...VERIFIED, status: 'failed' } }), false);
+  assert.equal(pullRequestHeld({ verificationSpec: { ...spec, failGraph: true }, verification: VERIFIED }), false);
 });

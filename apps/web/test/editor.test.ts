@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_EDITOR, diffCommand, editorLink, joinPath, mapPath, sanitizeEditor, shellQuote, templateProblem } from '../src/lib/editor.ts';
+import { DEFAULT_EDITOR, diffCommand, editorLink, joinPath, mapPath, planEditorLoad, sanitizeEditor, shellQuote, templateProblem } from '../src/lib/editor.ts';
 
 const vscode = DEFAULT_EDITOR;
 
@@ -71,4 +71,26 @@ test('a stored value that is not a setting falls back to a working one', () => {
     sanitizeEditor({ template: 'cursor://file/{path}', diffCommand: ' ', pathMap: [{ from: '/a', to: '/b' }, { from: '', to: '/c' }, 'nope', { from: 1, to: 2 }] }),
     { template: 'cursor://file/{path}', pathMap: [{ from: '/a', to: '/b' }] },
   );
+});
+
+// ---------- moving this browser's settings to the server ----------
+
+const cursor = { template: 'cursor://file/{path}:{line}', pathMap: [{ from: '/workspace', to: '/home/ana' }] };
+
+test("a browser's own settings move to a server that has none yet, once", () => {
+  const plan = planEditorLoad({ stored: false, settings: DEFAULT_EDITOR }, JSON.stringify(cursor));
+  assert.deepEqual(plan, { settings: cursor, migrate: cursor, dropLegacy: false });
+});
+
+test('the server wins once it has settings, and the old copy is dropped', () => {
+  const server = { template: 'zed://{path}:{line}' };
+  assert.deepEqual(planEditorLoad({ stored: true, settings: server }, JSON.stringify(cursor)), { settings: server, migrate: null, dropLegacy: true });
+  assert.deepEqual(planEditorLoad({ stored: true, settings: server }, null), { settings: server, migrate: null, dropLegacy: false });
+});
+
+test('a copy that is corrupt or that the server would refuse is dropped, never sent', () => {
+  const empty = { stored: false, settings: DEFAULT_EDITOR };
+  assert.deepEqual(planEditorLoad(empty, '{not json'), { settings: DEFAULT_EDITOR, migrate: null, dropLegacy: true });
+  assert.deepEqual(planEditorLoad(empty, JSON.stringify({ template: 'javascript:alert({path})' })), { settings: DEFAULT_EDITOR, migrate: null, dropLegacy: true });
+  assert.deepEqual(planEditorLoad(empty, null), { settings: DEFAULT_EDITOR, migrate: null, dropLegacy: false });
 });

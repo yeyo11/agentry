@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { ChatStartOptions, ChatToolConfig, McpSelection, ToolPreset } from '@agentry/shared';
+import type { ChatStartOptions, ChatToolConfig, McpSelection, ToolPreset, ToolPresetsConfig, ToolPresetsOverview } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import type { McpConfig } from './config/mcp.ts';
 import { projectScope } from './config/scope.ts';
@@ -10,6 +10,8 @@ import type { CoreConfig } from './paths.ts';
 
 const PRESET_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const MAX_TOOL_RULES = 200;
+/** `PUT /config/tool-presets/default` sets the default, so no preset can be written under that id */
+const RESERVED_IDS = new Set(['default']);
 
 /**
  * What a fresh install offers. They are ordinary presets once stored: edit or delete any of them.
@@ -72,6 +74,12 @@ export function parsePreset(id: string, input: unknown, builtIn = false): ToolPr
   };
 }
 
+/** What `tool-presets.json` holds, read once per call so an edit by hand is seen at once. */
+interface PresetsDocument {
+  presets: ToolPreset[];
+  defaultPresetId: string | null;
+}
+
 /**
  * The stored presets, one JSON document in the data directory. The file does not exist until the
  * first edit: until then the list is the shipped one, so an install that never opens the editor
@@ -86,51 +94,96 @@ export class ToolPresetStore {
   }
 
   list(): ToolPreset[] {
-    if (!existsSync(this.file)) return DEFAULT_TOOL_PRESETS.map((p) => ({ ...p }));
-    let doc: { presets?: unknown };
-    try {
-      doc = JSON.parse(readFileSync(this.file, 'utf8')) as { presets?: unknown };
-    } catch {
-      // A document that does not parse would otherwise be overwritten by the next edit
-      throw new Error(`${this.file} is not valid JSON; fix or remove it`);
-    }
-    if (!Array.isArray(doc.presets)) return [];
-    const shipped = new Set(DEFAULT_TOOL_PRESETS.map((p) => p.id));
-    const out: ToolPreset[] = [];
-    for (const raw of doc.presets as unknown[]) {
-      const id = raw && typeof raw === 'object' ? (raw as { id?: unknown }).id : undefined;
-      if (typeof id !== 'string') continue;
-      try {
-        out.push(parsePreset(id, raw, shipped.has(id)));
-      } catch {
-        // One bad entry is not a reason to lose the others
-      }
-    }
-    return out;
+    return this.read().presets;
   }
 
   get(id: string): ToolPreset | undefined {
     return this.list().find((p) => p.id === id);
   }
 
+  overview(): ToolPresetsOverview {
+    const { presets, defaultPresetId } = this.read();
+    return { defaultPresetId, presets };
+  }
+
+  /** The preset a new chat that picks no tools takes, when it still exists. */
+  defaultPreset(): ToolPreset | null {
+    const { presets, defaultPresetId } = this.read();
+    return presets.find((p) => p.id === defaultPresetId) ?? null;
+  }
+
+  async setDefault(input: unknown): Promise<ToolPresetsConfig> {
+    const body = input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : null;
+    const id = body?.defaultPresetId;
+    if (id !== null && typeof id !== 'string') throw new Error('defaultPresetId must be a preset id or null');
+    const doc = this.read();
+    if (id !== null && !doc.presets.some((p) => p.id === id)) throw new Error(`tool preset '${id}' not found`);
+    await this.save({ ...doc, defaultPresetId: id });
+    return { defaultPresetId: id };
+  }
+
   async upsert(id: string, input: unknown): Promise<ToolPreset> {
+    if (RESERVED_IDS.has(id)) throw new Error(`'${id}' is reserved and cannot be a preset id`);
     const preset = parsePreset(id, input, DEFAULT_TOOL_PRESETS.some((p) => p.id === id));
-    const all = this.list();
-    const at = all.findIndex((p) => p.id === id);
-    if (at >= 0) all[at] = preset;
-    else all.push(preset);
-    await this.save(all);
+    const doc = this.read();
+    const at = doc.presets.findIndex((p) => p.id === id);
+    if (at >= 0) doc.presets[at] = preset;
+    else doc.presets.push(preset);
+    await this.save(doc);
     return preset;
   }
 
   async remove(id: string): Promise<void> {
-    const all = this.list();
-    if (!all.some((p) => p.id === id)) throw new Error('tool preset not found');
-    await this.save(all.filter((p) => p.id !== id));
+    const doc = this.read();
+    if (!doc.presets.some((p) => p.id === id)) throw new Error('tool preset not found');
+    // A default that names nothing would be a setting nobody can see the effect of
+    await this.save({ presets: doc.presets.filter((p) => p.id !== id), defaultPresetId: doc.defaultPresetId === id ? null : doc.defaultPresetId });
   }
 
-  private save(presets: ToolPreset[]): Promise<void> {
-    return writeAtomic(this.file, `${JSON.stringify({ presets }, null, 2)}\n`);
+  /**
+   * Puts the shipped presets back as they ship, edited or deleted, where they were in the list or at
+   * its end. Presets a person made are not touched, and neither is the default.
+   */
+  async restore(): Promise<ToolPresetsOverview> {
+    const doc = this.read();
+    const presets = [...doc.presets];
+    for (const shipped of DEFAULT_TOOL_PRESETS) {
+      const copy = { ...shipped, allowedTools: [...shipped.allowedTools], disallowedTools: [...(shipped.disallowedTools ?? [])] };
+      const at = presets.findIndex((p) => p.id === shipped.id);
+      if (at >= 0) presets[at] = copy;
+      else presets.push(copy);
+    }
+    await this.save({ ...doc, presets });
+    return { defaultPresetId: doc.defaultPresetId, presets };
+  }
+
+  private read(): PresetsDocument {
+    if (!existsSync(this.file)) return { presets: DEFAULT_TOOL_PRESETS.map((p) => ({ ...p })), defaultPresetId: null };
+    let doc: { presets?: unknown; defaultPresetId?: unknown };
+    try {
+      doc = JSON.parse(readFileSync(this.file, 'utf8')) as { presets?: unknown; defaultPresetId?: unknown };
+    } catch {
+      // A document that does not parse would otherwise be overwritten by the next edit
+      throw new Error(`${this.file} is not valid JSON; fix or remove it`);
+    }
+    const defaultPresetId = typeof doc.defaultPresetId === 'string' ? doc.defaultPresetId : null;
+    if (!Array.isArray(doc.presets)) return { presets: [], defaultPresetId };
+    const shipped = new Set(DEFAULT_TOOL_PRESETS.map((p) => p.id));
+    const presets: ToolPreset[] = [];
+    for (const raw of doc.presets as unknown[]) {
+      const id = raw && typeof raw === 'object' ? (raw as { id?: unknown }).id : undefined;
+      if (typeof id !== 'string') continue;
+      try {
+        presets.push(parsePreset(id, raw, shipped.has(id)));
+      } catch {
+        // One bad entry is not a reason to lose the others
+      }
+    }
+    return { presets, defaultPresetId };
+  }
+
+  private save(doc: PresetsDocument): Promise<void> {
+    return writeAtomic(this.file, `${JSON.stringify({ defaultPresetId: doc.defaultPresetId, presets: doc.presets }, null, 2)}\n`);
   }
 }
 
@@ -155,21 +208,25 @@ export class ChatTools {
   ) {}
 
   /**
-   * Null when the request picks nothing, which leaves the chat as it is: a chat that never chose
-   * behaves as it always did. `current` is what the chat already runs with, kept for whichever half
-   * the request does not touch.
+   * Null when the request picks nothing and there is nothing to refresh, which leaves the chat as it
+   * is: a chat that never chose behaves as it always did. `current` is what the chat already runs
+   * with (for a fork, what its source runs with), kept for whichever half the request does not
+   * touch. `fresh` says the chat has no options of its own yet, as a fork has not, so what it keeps
+   * from `current` has to be handed over in full.
    */
-  async resolve(request: ChatStartOptions, cwd: string, current: ChatToolConfig | null): Promise<ToolChoice | null> {
+  async resolve(request: ChatStartOptions, cwd: string, current: ChatToolConfig | null, opts: { fresh?: boolean } = {}): Promise<ToolChoice | null> {
     const toolsPicked = request.toolPreset !== undefined || request.allowedTools !== undefined || request.disallowedTools !== undefined;
     const mcpPicked = request.mcp !== undefined;
-    if (!toolsPicked && !mcpPicked) return null;
+    const carried = opts.fresh === true && current !== null;
+    const refreshed = !mcpPicked && Boolean(current?.mcp);
+    if (!toolsPicked && !mcpPicked && !carried && !refreshed) return null;
 
     let preset = current?.preset ?? null;
     let allowedTools = current?.allowedTools ?? [];
     let disallowedTools = current?.disallowedTools ?? [];
     if (toolsPicked) {
-      const chosen = request.toolPreset === undefined ? null : this.presets.get(request.toolPreset);
-      if (request.toolPreset !== undefined && !chosen) throw new Error(`tool preset '${request.toolPreset}' not found`);
+      const chosen = typeof request.toolPreset === 'string' ? this.presets.get(request.toolPreset) : null;
+      if (typeof request.toolPreset === 'string' && !chosen) throw new Error(`tool preset '${request.toolPreset}' not found`);
       preset = chosen ?? null;
       // What was said outright wins over the preset it came with
       allowedTools = request.allowedTools !== undefined ? rules(request.allowedTools, 'allowedTools') : (chosen?.allowedTools ?? []);
@@ -178,12 +235,24 @@ export class ChatTools {
 
     let mcp = current?.mcp ?? null;
     if (mcpPicked) mcp = request.mcp ? await this.selectServers(request.mcp, cwd) : null;
+    else if (current?.mcp) mcp = await this.refreshServers(current.mcp, cwd);
 
     return {
-      ...(toolsPicked ? { allowedTools, disallowedTools } : {}),
-      ...(mcpPicked ? { mcp } : {}),
+      ...(toolsPicked || carried ? { allowedTools, disallowedTools } : {}),
+      ...(mcpPicked || carried || refreshed ? { mcp } : {}),
       toolConfig: { preset, allowedTools, disallowedTools, mcp },
     };
+  }
+
+  /**
+   * The same servers, as they are defined now. The file a chat was started with holds a copy of each
+   * definition, so without this a server edited since (a new URL, a rotated token) would keep
+   * starting with the old one. A server removed since is left out: it cannot be loaded as configured,
+   * and the copy of it may hold a secret its owner meant to retire.
+   */
+  private async refreshServers(selection: McpSelection, cwd: string): Promise<McpSelection> {
+    const known = new Set((await this.mcp.list(projectScope(cwd))).map((entry) => entry.name));
+    return this.selectServers({ servers: selection.servers.filter((name) => known.has(name)) }, cwd);
   }
 
   /** Reads the servers as the CLI would see them from `cwd` (local, then project, then user) and keeps the chosen ones. */

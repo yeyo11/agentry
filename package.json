@@ -19,12 +19,14 @@
     "docker:down": "docker compose down",
     "test": "pnpm --filter @agentry/core --filter @agentry/api --filter @agentry/web test",
     "e2e": "node e2e/run.mjs",
+    "media": "node scripts/record-media.mjs",
     "desktop:dev": "pnpm --filter @agentry/desktop dev",
     "desktop:dist": "pnpm --filter @agentry/desktop dist:linux"
   },
   "devDependencies": {
     "@types/node": "^26.6.1",
     "axe-core": "^4.13.0",
+    "gifenc": "^1.0.3",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
   }

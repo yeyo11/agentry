@@ -13,6 +13,7 @@ import type {
   AutoSwitchEvent,
   AutoSwitchSettings,
   CswapInfo,
+  RotationPolicy,
   SwitchResult,
   SwitchStrategy,
   UpdateAccountConfigRequest,
@@ -329,24 +330,30 @@ export class AccountManager extends EventEmitter {
     return new Set(this.exhausted.keys());
   }
 
-  /** The policy governing the project a directory is in, if any. */
-  private policyOf(cwd: string) {
+  /**
+   * The policy governing a chat's directory: its project's, or for a directory under no project the
+   * one that takes loose chats. A project with no policy of its own does not fall back to that one:
+   * the global auto-switch stays in charge of it, as before.
+   */
+  private policyOf(cwd: string): { policy: RotationPolicy; loose: boolean } | null {
     const project = this.projectOf?.(cwd) ?? null;
-    return project ? this.configs.policyFor(project) : null;
+    const policy = project ? this.configs.policyFor(project) : this.configs.looseChatsPolicy();
+    return policy ? { policy, loose: !project } : null;
   }
 
   /**
    * Decides where a chat runs, from what is cached: a chat is spawned synchronously, and a usage
    * read is a subprocess. A chat pinned by hand keeps its account whatever a policy says; one under
-   * a project's policy takes the account that policy picks; any other stays on the active credential.
-   * Either way the account's own config directory, if it has one, rides along.
+   * a policy (its project's, or the one for chats without a project) takes the account that policy
+   * picks; any other stays on the active credential. Either way the account's own config directory,
+   * if it has one, rides along.
    */
   launchFor(chat: { account: string | null; cwd: string }): Launch {
     const accounts = this.listCache?.value ?? [];
     const active = accounts.find((a) => a.active);
     let target = chat.account ? this.find(chat.account) : undefined;
     if (!chat.account) {
-      const policy = this.policyOf(chat.cwd);
+      const policy = this.policyOf(chat.cwd)?.policy;
       const picked = policy ? pickAccount(policy, accounts, { current: active?.number ?? null, exhausted: this.exhaustedNumbers() }) : null;
       target = picked ?? undefined;
     }
@@ -356,12 +363,14 @@ export class AccountManager extends EventEmitter {
   }
 
   /**
-   * A chat under a project's policy hit its limit: that account is set aside for a while and the
-   * policy is asked again, which moves the chat without touching the credential every other chat
-   * shares. Null when no policy governs the chat, so the global rotation handles it as before.
+   * A chat under a policy hit its limit: that account is set aside for a while and the policy is
+   * asked again, which moves the chat without touching the credential every other chat shares. Null
+   * when no policy governs the chat, so the global rotation handles it as before.
    */
   async rotateWithinPolicy(chat: { account: string | null; cwd: string }, reason: string): Promise<SwitchResult | null> {
-    if (chat.account || !this.policyOf(chat.cwd)) return null;
+    const governing = chat.account ? null : this.policyOf(chat.cwd);
+    if (!governing) return null;
+    const whose = governing.loose ? 'the policy for chats without a project' : "the project's policy";
     const from = this.launchFor(chat).account;
     const fromAccount = from ? this.find(from) : undefined;
     if (fromAccount) this.exhausted.set(fromAccount.number, Date.now() + EXHAUSTED_TTL_MS);
@@ -370,11 +379,11 @@ export class AccountManager extends EventEmitter {
     const toAccount = to && to !== from ? this.find(to) : undefined;
     const fromLabel = fromAccount?.email ?? from ?? null;
     if (!toAccount) {
-      const result = { switched: false, from: fromLabel, to: null, reason: 'no account the project\'s policy allows has quota left' };
+      const result = { switched: false, from: fromLabel, to: null, reason: `no account ${whose} allows has quota left` };
       this.record({ event: 'no-switch', reason: result.reason, detail: reason });
       return result;
     }
-    const result = { switched: true, from: fromLabel, to: toAccount.email, reason: 'project rotation policy' };
+    const result = { switched: true, from: fromLabel, to: toAccount.email, reason: governing.loose ? 'loose chats rotation policy' : 'project rotation policy' };
     this.record({ event: 'rotate', from: result.from ?? undefined, to: result.to, reason: result.reason, detail: reason });
     return result;
   }

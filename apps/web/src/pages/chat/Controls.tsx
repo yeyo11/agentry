@@ -64,7 +64,7 @@ export function LiveSettings({ chat }: { chat: Chat }) {
 }
 
 /** What a resume or a fork may start with; left alone, it starts as the chat last ran. */
-export function StartOptions({ chat, value, onChange }: { chat: Chat; value: StartChoices; onChange: (next: StartChoices) => void }) {
+export function StartOptions({ chat, value, onChange, forking }: { chat: Chat; value: StartChoices; onChange: (next: StartChoices) => void; forking: boolean }) {
   const { t } = useTranslation(['chat', 'work']);
   const last = chat.executions.at(-1);
   return (
@@ -88,7 +88,7 @@ export function StartOptions({ chat, value, onChange }: { chat: Chat; value: Sta
           options={MODEL_OPTIONS}
         />
       </label>
-      <ChatToolsPicker value={value} onChange={(tools) => onChange({ ...value, ...tools })} scope={{ projectId: chat.project?.id }} current={chat.tools ?? null} />
+      <ChatToolsPicker value={value} onChange={(tools) => onChange({ ...value, ...tools })} scope={{ projectId: chat.project?.id }} current={chat.tools ?? null} forking={forking} />
     </div>
   );
 }

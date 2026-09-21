@@ -54,6 +54,20 @@ test('rotation policies are created, listed, edited and deleted, and the overvie
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/accounts/policies/${policy.id}` })).statusCode, 404);
 });
 
+test('one policy may take the chats without a project, with or without projects of its own', async () => {
+  const created = await app.inject({ method: 'POST', url: '/api/accounts/policies', ...json({ threshold: 80, projects: [], looseChats: true }) });
+  assert.equal(created.statusCode, 201);
+  assert.equal(created.json().looseChats, true);
+
+  const clash = await app.inject({ method: 'POST', url: '/api/accounts/policies', ...json({ threshold: 70, projects: ['other'], looseChats: true }) });
+  assert.equal(clash.statusCode, 400);
+  assert.match(clash.json().error, /already governed/);
+  const empty = await app.inject({ method: 'POST', url: '/api/accounts/policies', ...json({ threshold: 70, projects: [] }) });
+  assert.equal(empty.statusCode, 400);
+
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/accounts/policies/${created.json().id}` })).statusCode, 200);
+});
+
 test('a config directory needs an account claude-swap manages, and a path or null', async () => {
   const missing = await app.inject({ method: 'PUT', url: '/api/accounts/1/config', ...json({ configDir: join(tmpdir(), 'x') }) });
   assert.equal(missing.statusCode, 404);
