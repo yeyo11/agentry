@@ -16,6 +16,7 @@
     "dev": "pnpm --filter @agentry/web build && pnpm --filter @agentry/api bundle && pnpm run build && electron . --dev --no-sandbox",
     "start": "electron .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test test/*.test.ts",
     "dist:linux": "pnpm --filter @agentry/web build && pnpm --filter @agentry/api bundle && pnpm run build && electron-builder --linux --config electron-builder.yml"
   },
   "devDependencies": {

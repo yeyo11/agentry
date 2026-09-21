@@ -1,13 +1,18 @@
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { app, BrowserWindow, Menu, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
+import { IPC, isAppPath } from './ipc.ts';
+import { EMPTY_SNAPSHOT, progressOf, sameSnapshot, type LiveSnapshot, type TrayAction } from './live.ts';
+import { LiveMonitor } from './live-monitor.ts';
 import { LogFile } from './log.ts';
 import { buildMenu } from './menu.ts';
 import { ACTION_SCHEME, errorUrl, splashUrl } from './pages.ts';
 import { missingResources, resolveResources } from './resources.ts';
 import { ServerProcess } from './server-process.ts';
 import { resolveUserPath } from './shell-path.ts';
+import { SPLASH_TITLE_BAR, parseTitleBarTheme, titleBarOptions, type TitleBarTheme } from './title-bar.ts';
+import { LiveTray } from './tray.ts';
 import { restoreWindowState } from './window-state.ts';
 
 const isDev = !app.isPackaged || process.argv.includes('--dev');
@@ -29,10 +34,20 @@ let server: ServerProcess | undefined;
 let serverOrigin: string | undefined;
 let starting = false;
 let quitting = false;
+let monitor: LiveMonitor | undefined;
+let tray: LiveTray | undefined;
+let live: LiveSnapshot = EMPTY_SNAPSHOT;
 
 // Opened once the single-instance lock is ours, so a rejected second launch never rotates the running one's logs
 let desktopLog: LogFile;
 let serverLog: LogFile;
+
+/** The window controls' colours; also the window background, seen while a page loads */
+function paintTitleBar(theme: TitleBarTheme): void {
+  if (!win) return;
+  win.setBackgroundColor(theme.color);
+  if (process.platform !== 'darwin') win.setTitleBarOverlay(theme);
+}
 
 /** Navigation superseded by a newer load rejects with ERR_ABORTED; that is not an error */
 const load = (url: string) => win?.loadURL(url).catch(() => undefined);
@@ -40,6 +55,9 @@ const load = (url: string) => win?.loadURL(url).catch(() => undefined);
 function showError(title: string, detail: string): void {
   desktopLog.line(`${title}: ${detail}`);
   serverOrigin = undefined;
+  stopMonitor();
+  // The splash and error pages are dark whatever the UI's theme was
+  paintTitleBar(SPLASH_TITLE_BAR);
   void load(errorUrl(title, detail, serverLog.path));
 }
 
@@ -47,6 +65,7 @@ async function startServer(): Promise<void> {
   if (starting) return;
   starting = true;
   try {
+    paintTitleBar(SPLASH_TITLE_BAR);
     void load(splashUrl());
     const res = resolveResources();
     const missing = missingResources(res);
@@ -80,6 +99,7 @@ async function startServer(): Promise<void> {
     const url = await server.start();
     serverOrigin = new URL(url).origin;
     desktopLog.line(`server ready at ${url}`);
+    startMonitor(serverOrigin);
     await load(url);
   } catch (err) {
     showError('Agentry could not start its server', err instanceof Error ? err.message : String(err));
@@ -88,7 +108,62 @@ async function startServer(): Promise<void> {
   }
 }
 
+/** Tray, taskbar progress and badge, redrawn only when what they show changed */
+function showLive(snapshot: LiveSnapshot): void {
+  if (sameSnapshot(snapshot, live)) return;
+  live = snapshot;
+  tray?.update(snapshot);
+  const progress = progressOf(snapshot);
+  if (progress.mode === 'none') win?.setProgressBar(-1);
+  else if (progress.mode === 'indeterminate') win?.setProgressBar(2, { mode: 'indeterminate' });
+  else win?.setProgressBar(progress.value);
+  // Where the platform has no badge (most Linux docks, Windows) this does nothing and says so
+  app.setBadgeCount(snapshot.waiting);
+}
+
+function startMonitor(origin: string): void {
+  stopMonitor();
+  // A guarded server (AGENTRY_AUTH_TOKEN in the environment the app inherited) wants the same token from the tray
+  const token = process.env.AGENTRY_AUTH_TOKEN?.trim();
+  monitor = new LiveMonitor({
+    origin,
+    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+    onSnapshot: showLive,
+    log: (line) => desktopLog.line(line),
+  });
+  monitor.start();
+}
+
+function stopMonitor(): void {
+  monitor?.stop();
+  monitor = undefined;
+  showLive(EMPTY_SNAPSHOT);
+}
+
+function showWindow(): void {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+/** Opens an in-app path with the page's own router, so the UI keeps its state; a fresh load otherwise */
+function openPath(path: string): void {
+  if (!win || !serverOrigin || !isAppPath(path)) return;
+  showWindow();
+  const current = win.webContents.getURL();
+  if (current.startsWith(`${serverOrigin}/`)) win.webContents.send(IPC.navigate, path);
+  else void load(`${serverOrigin}${path}`);
+}
+
+function trayAction(action: TrayAction): void {
+  if (action.kind === 'show') showWindow();
+  else if (action.kind === 'open') openPath(action.path);
+  else app.quit();
+}
+
 async function restartServer(): Promise<void> {
+  stopMonitor();
   await server?.stop();
   await startServer();
 }
@@ -104,6 +179,8 @@ function createWindow(): void {
     icon: resolveResources().icon,
     backgroundColor: '#101114',
     autoHideMenuBar: true,
+    // The web's top bar is the title bar; dark until the page says which theme it shows (the splash is dark)
+    ...titleBarOptions(process.platform, SPLASH_TITLE_BAR),
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -153,6 +230,8 @@ function createWindow(): void {
 }
 
 async function shutdown(): Promise<void> {
+  // Before the server goes, so its dropped feed is not logged as a failure
+  monitor?.stop();
   await server?.stop();
   await Promise.all([desktopLog.close(), serverLog.close()]);
 }
@@ -160,10 +239,14 @@ async function shutdown(): Promise<void> {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    if (!win) return;
-    if (win.isMinimized()) win.restore();
-    win.focus();
+  app.on('second-instance', showWindow);
+
+  // The page follows its theme (light, dark, or the system's) and tells the title bar to match
+  ipcMain.on(IPC.titleBarTheme, (event, value: unknown) => {
+    if (!win || event.sender !== win.webContents || !serverOrigin) return;
+    if (!event.senderFrame?.url.startsWith(`${serverOrigin}/`)) return;
+    const theme = parseTitleBarTheme(value);
+    if (theme) paintTitleBar(theme);
   });
 
   app.on('before-quit', (event) => {
@@ -181,5 +264,12 @@ if (!app.requestSingleInstanceLock()) {
     serverLog = new LogFile(logsDir, 'server.log');
     Menu.setApplicationMenu(buildMenu({ data: dataDir, workspace: workspaceDir, logs: logsDir }, isDev, () => app.quit()));
     createWindow();
+    try {
+      tray = new LiveTray(resolveResources().icon, trayAction);
+      tray.update(live);
+    } catch (err) {
+      // A desktop without a status area is no reason to fail: the window still has everything
+      desktopLog.line(`no tray: ${err instanceof Error ? err.message : String(err)}`);
+    }
   });
 }
