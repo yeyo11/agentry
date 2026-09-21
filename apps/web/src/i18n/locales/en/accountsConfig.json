@@ -58,7 +58,11 @@
     "deleteBody": "Its projects go back to the global auto-rotation. Chats already running stay on their accounts.",
     "rotateAt": "moves on at {{pct}}%",
     "inOrder": "accounts {{accounts}}",
-    "anyAccount": "any account"
+    "anyAccount": "any account",
+    "looseChats": "Chats without a project",
+    "looseChatsName": "chats without a project",
+    "looseChatsHint": "Also govern the chats started in a directory that is under no imported project. Without this, they follow the global auto-rotation.",
+    "looseChatsTaken": "Another policy already governs the chats without a project: at most one may."
   },
   "history": {
     "title": "Usage history",

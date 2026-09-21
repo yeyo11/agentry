@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, Check, Pencil, Plus, Route, Trash2, X } from 'lucid
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useProjects } from '../../api';
-import { Slider, Tooltip } from '../../components/controls';
+import { Checkbox, Slider, Tooltip } from '../../components/controls';
 import { useConfirm } from '../../components/Dialog';
 import { ICON_SM } from '../../components/icons';
 import { useToast } from '../../components/Toast';
@@ -16,9 +16,13 @@ interface Draft {
   threshold: number;
   order: number[];
   projects: string[];
+  looseChats: boolean;
 }
 
-const NEW_POLICY: Draft = { threshold: 85, order: [], projects: [] };
+const NEW_POLICY: Draft = { threshold: 85, order: [], projects: [], looseChats: false };
+
+/** A policy needs something to govern: some projects, the chats without one, or both. */
+const governsSomething = (draft: Draft) => draft.projects.length > 0 || draft.looseChats;
 
 const accountName = (accounts: AccountSummary[], number: number) => {
   const found = accounts.find((a) => a.number === number);
@@ -31,6 +35,7 @@ function PolicyForm({
   accounts,
   projects,
   taken,
+  looseTaken,
   onChange,
   onDone,
 }: {
@@ -39,6 +44,8 @@ function PolicyForm({
   projects: Project[];
   /** Project id → the policy that already governs it: a project has at most one */
   taken: Map<string, string>;
+  /** The policy that already governs the chats without a project, when one does: at most one may */
+  looseTaken: string | null;
   onChange: (next: Draft) => void;
   onDone: () => void;
 }) {
@@ -47,7 +54,7 @@ function PolicyForm({
   const toast = useToast();
   const save = useMutation({
     mutationFn: () => {
-      const body = { threshold: draft.threshold, projects: draft.projects, ...(draft.order.length ? { order: draft.order } : {}) };
+      const body = { threshold: draft.threshold, projects: draft.projects, looseChats: draft.looseChats, ...(draft.order.length ? { order: draft.order } : {}) };
       return draft.id ? api.updateAccountPolicy(draft.id, body) : api.createAccountPolicy(body);
     },
     onSuccess: () => {
@@ -75,7 +82,7 @@ function PolicyForm({
       className="form"
       onSubmit={(e) => {
         e.preventDefault();
-        if (draft.projects.length > 0) save.mutate();
+        if (governsSomething(draft)) save.mutate();
       }}
     >
       <div className="stack-tight">
@@ -106,6 +113,15 @@ function PolicyForm({
           })}
         </div>
         <span className="field-hint">{t('policies.projectsHint')}</span>
+      </div>
+
+      <div className="stack-tight">
+        <Checkbox checked={draft.looseChats} disabled={!draft.looseChats && looseTaken !== null && looseTaken !== draft.id} onChange={(looseChats) => onChange({ ...draft, looseChats })}>
+          {t('policies.looseChats')}
+        </Checkbox>
+        <span className="field-hint">
+          {!draft.looseChats && looseTaken !== null && looseTaken !== draft.id ? t('policies.looseChatsTaken') : t('policies.looseChatsHint')}
+        </span>
       </div>
 
       <Field label={t('policies.thresholdValue', { pct: draft.threshold })} hint={t('policies.thresholdHint')}>
@@ -154,7 +170,7 @@ function PolicyForm({
 
       <ErrorBox error={save.error} title={t('policies.saveFailed')} />
       <div className="form-actions">
-        <button type="submit" className="btn btn-primary" disabled={draft.projects.length === 0 || save.isPending}>
+        <button type="submit" className="btn btn-primary" disabled={!governsSomething(draft) || save.isPending}>
           {save.isPending ? t('policies.saving') : draft.id ? t('policies.update') : t('policies.create')}
         </button>
         <button type="button" className="btn" disabled={save.isPending} onClick={onDone}>
@@ -174,7 +190,11 @@ export function PoliciesCard({ policies, accounts }: { policies: RotationPolicy[
   const [draft, setDraft] = useState<Draft | null>(null);
   const projectList = projects.data ?? [];
   const taken = new Map(policies.flatMap((policy) => policy.projects.map((project) => [project, policy.id] as const)));
+  const looseTaken = policies.find((policy) => policy.looseChats)?.id ?? null;
   const nameOfProject = (id: string) => projectList.find((p) => p.id === id)?.name ?? id;
+  // What a policy is called in the list and in its buttons: its projects, and the chats without one
+  const governed = (policy: RotationPolicy) =>
+    [...policy.projects.map(nameOfProject), ...(policy.looseChats ? [t('policies.looseChatsName')] : [])].join(', ');
 
   const remove = useMutation({
     mutationFn: (policy: RotationPolicy) => api.deleteAccountPolicy(policy.id),
@@ -201,7 +221,7 @@ export function PoliciesCard({ policies, accounts }: { policies: RotationPolicy[
     >
       <p className="muted small">{t('policies.intro')}</p>
       <ErrorBox error={remove.error} />
-      {draft && <PolicyForm draft={draft} accounts={accounts} projects={projectList} taken={taken} onChange={setDraft} onDone={() => setDraft(null)} />}
+      {draft && <PolicyForm draft={draft} accounts={accounts} projects={projectList} taken={taken} looseTaken={looseTaken} onChange={setDraft} onDone={() => setDraft(null)} />}
       {policies.length === 0 && !draft ? (
         <Empty icon={Route} title={t('policies.none')}>
           {t('policies.noneHint')}
@@ -211,7 +231,7 @@ export function PoliciesCard({ policies, accounts }: { policies: RotationPolicy[
           {policies.map((policy) => (
             <li key={policy.id} className="list-row list-row-flow">
               <div className="list-row-main">
-                <div className="strong break">{policy.projects.map(nameOfProject).join(', ')}</div>
+                <div className="strong break">{governed(policy)}</div>
                 <div className="muted small">
                   {t('policies.rotateAt', { pct: policy.threshold })} ·{' '}
                   {policy.order?.length ? t('policies.inOrder', { accounts: policy.order.map((n) => `#${n}`).join(' → ') }) : t('policies.anyAccount')}
@@ -222,8 +242,8 @@ export function PoliciesCard({ policies, accounts }: { policies: RotationPolicy[
                   <button
                     type="button"
                     className="btn btn-small"
-                    aria-label={t('policies.editNamed', { projects: policy.projects.map(nameOfProject).join(', ') })}
-                    onClick={() => setDraft({ id: policy.id, threshold: policy.threshold, order: policy.order ?? [], projects: policy.projects })}
+                    aria-label={t('policies.editNamed', { projects: governed(policy) })}
+                    onClick={() => setDraft({ id: policy.id, threshold: policy.threshold, order: policy.order ?? [], projects: policy.projects, looseChats: policy.looseChats === true })}
                   >
                     <Pencil {...ICON_SM} />
                   </button>
@@ -233,7 +253,7 @@ export function PoliciesCard({ policies, accounts }: { policies: RotationPolicy[
                     type="button"
                     className="btn btn-small btn-danger"
                     disabled={remove.isPending}
-                    aria-label={t('policies.deleteNamed', { projects: policy.projects.map(nameOfProject).join(', ') })}
+                    aria-label={t('policies.deleteNamed', { projects: governed(policy) })}
                     onClick={() =>
                       void confirm({
                         title: t('policies.deleteTitle'),

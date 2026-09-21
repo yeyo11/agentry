@@ -1,9 +1,10 @@
 import type { ToolPreset } from '@agentry/shared';
-import { Plus } from 'lucide-react';
+import { Plus, RotateCcw } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
+import { Select } from '../../components/controls';
 import { useConfirm } from '../../components/Dialog';
 import { StringListEditor } from '../../components/editors';
 import { useToast } from '../../components/Toast';
@@ -136,6 +137,21 @@ export function ToolPresetsTab() {
     onError: (err) => toast.error(t('toolPresets.removeFailed'), err),
   });
 
+  const setDefault = useMutation({
+    mutationFn: (id: string | null) => api.setDefaultToolPreset(id),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: keys.toolPresets }),
+    onError: (err) => toast.error(t('toolPresets.defaultFailed'), err),
+  });
+
+  const restore = useMutation({
+    mutationFn: api.restoreToolPresets,
+    onSuccess: (overview) => {
+      queryClient.setQueryData(keys.toolPresets, overview);
+      toast.success(t('toolPresets.restored'));
+    },
+    onError: (err) => toast.error(t('toolPresets.restoreFailed'), err),
+  });
+
   if (editing) {
     return (
       <PresetEditor
@@ -152,14 +168,42 @@ export function ToolPresetsTab() {
     <Card
       title={t('config.tabs.tools')}
       actions={
-        <button type="button" className="btn btn-small btn-primary" onClick={() => setEditing({ form: blank, isNew: true })}>
-          <Plus size={14} strokeWidth={2} aria-hidden />
-          {t('toolPresets.add')}
-        </button>
+        <>
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={restore.isPending}
+            onClick={() =>
+              void confirm({
+                title: t('toolPresets.restoreTitle'),
+                body: t('toolPresets.restoreBody'),
+                confirmLabel: t('toolPresets.restore'),
+              }).then((ok) => ok && restore.mutate())
+            }
+          >
+            <RotateCcw size={14} strokeWidth={2} aria-hidden />
+            {t('toolPresets.restore')}
+          </button>
+          <button type="button" className="btn btn-small btn-primary" onClick={() => setEditing({ form: blank, isNew: true })}>
+            <Plus size={14} strokeWidth={2} aria-hidden />
+            {t('toolPresets.add')}
+          </button>
+        </>
       }
     >
       <p className="small muted">{t('toolPresets.intro')}</p>
       <ErrorBox error={error} />
+      {data && (
+        <Field label={t('toolPresets.default')} hint={t('toolPresets.defaultHint')}>
+          <Select
+            aria-label={t('toolPresets.default')}
+            value={data.defaultPresetId ?? ''}
+            disabled={setDefault.isPending}
+            onChange={(id) => setDefault.mutate(id || null)}
+            options={[{ value: '', label: t('toolPresets.noDefault') }, ...presets.map((p) => ({ value: p.id, label: p.name, hint: p.description }))]}
+          />
+        </Field>
+      )}
       {isLoading ? (
         <Skeleton rows={3} />
       ) : presets.length === 0 ? (
@@ -182,7 +226,8 @@ export function ToolPresetsTab() {
                 <tr key={preset.id}>
                   <td>
                     <div className="strong">
-                      {preset.name} {preset.builtIn && <Tag tone="muted">{t('toolPresets.shipped')}</Tag>}
+                      {preset.name} {preset.builtIn && <Tag tone="muted">{t('toolPresets.shipped')}</Tag>}{' '}
+                      {preset.id === data?.defaultPresetId && <Tag tone="info">{t('toolPresets.isDefault')}</Tag>}
                     </div>
                     <div className="small muted mono">{preset.id}</div>
                     {preset.description && <div className="small muted">{preset.description}</div>}

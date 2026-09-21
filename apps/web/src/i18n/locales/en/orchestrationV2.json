@@ -82,7 +82,14 @@
     "saving": "Saving…",
     "saved": "Template {{name}} saved",
     "updatedToast": "Template {{name}} updated",
-    "saveFailed": "The template could not be saved"
+    "saveFailed": "The template could not be saved",
+    "rename": "Rename",
+    "renameNamed": "Rename template {{name}}",
+    "newName": "New name for {{name}}",
+    "renameSave": "Save the name",
+    "renameCancel": "Cancel renaming",
+    "renamed": "Template renamed to {{name}}",
+    "renameFailed": "The template could not be renamed"
   },
   "origin": {
     "relaunched": "relaunched",

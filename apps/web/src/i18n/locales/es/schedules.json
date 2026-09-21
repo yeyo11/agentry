@@ -120,6 +120,13 @@
     "modelPlaceholder": "Por defecto",
     "permissionMode": "Modo de permisos",
     "permissionModeHint": "Nadie puede responder una petición de permiso cuando se dispara, así que se deniega todo lo que el modo no permita",
-    "manualWarning": "En modo manual se deniega cada herramienta que necesite aprobación, así que la mayoría del trabajo programado se quedará parado. Elige un modo que permita lo que necesita la tarea."
+    "manualWarning": "En modo manual se deniega cada herramienta que necesite aprobación, así que la mayoría del trabajo programado se quedará parado. Elige un modo que permita lo que necesita la tarea.",
+    "fromOrchestration": "A partir de una orquestación existente",
+    "fromOrchestrationHint": "Rellena los campos de abajo con un grafo que ya se ejecutó, tal como lo arrancaría un relanzamiento. Puedes editarlos antes de guardar.",
+    "fromOrchestrationPick": "Elige una orquestación…",
+    "fromOrchestrationNone": "Aún no hay orquestaciones",
+    "fromOrchestrationOption_one": "{{count}} tarea · {{ago}}",
+    "fromOrchestrationOption_other": "{{count}} tareas · {{ago}}",
+    "fromOrchestrationFailed": "No se pudo leer esa orquestación"
   }
 }

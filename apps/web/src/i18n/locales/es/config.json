@@ -435,9 +435,19 @@
     "removeNamed": "Eliminar {{name}}",
     "removeTitle": "¿Eliminar {{name}}?",
     "removeBody": "Los chats que ya están en marcha conservan las herramientas que recibieron.",
-    "removeShippedBody": "Este preset viene con Agentry. Una vez eliminado, se queda eliminado; puedes volver a crearlo a mano.",
+    "removeShippedBody": "Este preset viene con Agentry. «Restaura los presets incluidos» lo recupera.",
     "empty": "Sin presets",
-    "emptyHint": "Sin preset, un chat usa los valores por defecto de la CLI."
+    "emptyHint": "Sin preset, un chat usa los valores por defecto de la CLI.",
+    "default": "Preset por defecto",
+    "defaultHint": "Con lo que arranca un chat nuevo que no elige preset. Al reanudar, un chat conserva el que tenía, y un fork el de su origen.",
+    "noDefault": "Ninguno: las herramientas de la propia CLI",
+    "isDefault": "Por defecto",
+    "defaultFailed": "No se pudo cambiar el preset por defecto",
+    "restore": "Restaura los presets incluidos",
+    "restoreTitle": "¿Restaurar los presets incluidos?",
+    "restoreBody": "Read-only, No network y Everything vuelven a estar como vienen, y los que eliminaste vuelven. Tus propios presets y el preset por defecto se quedan como están.",
+    "restored": "Presets incluidos restaurados",
+    "restoreFailed": "No se pudieron restaurar los presets incluidos"
   },
   "resources": {
     "kinds": {

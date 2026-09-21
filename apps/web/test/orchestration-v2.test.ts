@@ -11,6 +11,7 @@ import {
   limitsOf,
   parseCommands,
   rerunBlockedByPullRequest,
+  specOfOrchestration,
   specOfTask,
   verificationOf,
 } from '../src/lib/orchestration-v2.ts';
@@ -77,6 +78,32 @@ test('a task is cleaned of whitespace and of the fields a form leaves empty', ()
 test('the spec of a task leaves its chat, result and cost behind', () => {
   const spec = specOfTask(task('a', { result: 'done', costUsd: 3, sessionId: 's', dependsOn: ['z'], model: 'sonnet', limits: { maxCostUsd: 1 } }));
   assert.deepEqual(spec, { id: 'a', name: 'a', prompt: 'do it', dependsOn: ['z'], model: 'sonnet', limits: { maxCostUsd: 1 } });
+});
+
+test('a graph read back as a spec keeps what it ran with and leaves its state behind', () => {
+  const graph = orch(
+    [task('a', { branch: 'agentry/a', costUsd: 1.2 }), task('b', { dependsOn: ['a'], limits: { maxMinutes: 5 }, model: 'haiku' })],
+    { objective: 'ship it', model: 'opus', allowedTools: ['Read'], verificationSpec: { commands: ['pnpm test'], fixer: false, maxAttempts: 1 } },
+  );
+  assert.deepEqual(specOfOrchestration(graph), {
+    name: 'graph',
+    objective: 'ship it',
+    engine: 'graph',
+    cwd: '/repo',
+    model: 'opus',
+    permissionMode: 'acceptEdits',
+    concurrency: 2,
+    synthesize: true,
+    worktree: true,
+    maxAttempts: 2,
+    allowedTools: ['Read'],
+    permissionPrompts: 'host',
+    verification: { commands: ['pnpm test'], fixer: false, maxAttempts: 1 },
+    tasks: [
+      { id: 'a', name: 'a', prompt: 'do it' },
+      { id: 'b', name: 'b', prompt: 'do it', dependsOn: ['a'], model: 'haiku', limits: { maxMinutes: 5 } },
+    ],
+  });
 });
 
 test('a finished graph re-runs a task; a running, waiting or workflow graph does not', () => {
