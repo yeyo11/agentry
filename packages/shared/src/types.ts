@@ -1156,6 +1156,11 @@ export interface Orchestration {
   verificationSpec?: VerificationSpec | null;
   /** What the checks on the integration branch did; absent when the graph asked for none */
   verification?: VerificationState | null;
+  /**
+   * Why the graph failed when its tasks did not: its checks failed and it was launched with
+   * `verification.failGraph`. Null or absent otherwise.
+   */
+  error?: string | null;
   /** The orchestration this one was relaunched from, when it was */
   relaunchedFrom?: string | null;
   /** The template it was launched from, when it was */
@@ -1205,6 +1210,8 @@ export type VerificationStatus = 'pending' | 'running' | 'passed' | 'fixed' | 'f
 
 export interface VerificationCommand {
   command: string;
+  /** The install step that runs before the checks: detected from the lockfile, or the spec's `install` */
+  install?: boolean;
   status: VerificationStatus;
   /** Tail of what it printed: enough to see why it failed, not the whole log */
   output: string;
