@@ -26,15 +26,21 @@ import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
+import { useDetailPanel } from '../lib/detail';
 import { attemptLabel, blockedBy, decisionsOn, waitingSummary } from '../lib/orchestration-board';
 import { durationBetween, formatCost } from '../lib/format';
+import { useClockTick } from '../lib/motion';
 import { canRerun, dependantsOf } from '../lib/orchestration-v2';
+import { orchestrationProgress } from '../lib/orchestration-steps';
 import { healthReason } from '../lib/server-strings';
-import { Collapsible } from './controls';
+import { ActivityTicker } from './ActivityTicker';
+import { Collapsible, Tooltip } from './controls';
 import { useConfirm } from './Dialog';
 import { ICON_SM } from './icons';
 import { HealthBadge } from './observe/Health';
-import { motion, ProgressRing, useReducedMotion } from './motion';
+import { motion, useReducedMotion } from './motion';
+import { ProgressBar } from './ProgressBar';
+import { Spinner } from './Spinner';
 import { useToast } from './Toast';
 import { RichText } from './Transcript';
 import { ErrorBox, Field, statusText } from './ui';
@@ -78,7 +84,7 @@ export function BoardStatusBadge({ status, title }: { status: BoardStatus; title
   const label = statusLabel(status, t);
   return (
     <span className={`badge badge-${tone}`} title={title}>
-      {status === 'running' ? <span className="spinner spinner-xs" aria-hidden /> : <Icon {...ICON_SM} />}
+      {status === 'running' ? <Spinner /> : <Icon {...ICON_SM} />}
       {label}
     </span>
   );
@@ -86,26 +92,17 @@ export function BoardStatusBadge({ status, title }: { status: BoardStatus; title
 
 const DONE = new Set(['completed', 'failed', 'skipped', 'stopped', 'interrupted']);
 
+/** A stage's head in the graph view: its name and its tasks as a segmented bar, "1 of 3 done, 1 failed". */
 export function StageHead({ title, tasks }: { title: string; tasks: OrchestrationTaskState[] }) {
   const { t } = useTranslation('orchestration');
-  const done = tasks.filter((t) => DONE.has(t.status)).length;
-  const failed = tasks.some((t) => t.status === 'failed');
-  const held = tasks.some((t) => t.status === 'blocked');
-  const value = tasks.length === 0 ? 0 : done / tasks.length;
+  const completed = tasks.filter((t) => t.status === 'completed').length;
   return (
     <div className="board-col-head">
-      <ProgressRing value={value} size={26} stroke={3.5} tone={failed ? 'bad' : held ? 'warn' : value === 1 ? 'ok' : 'accent'} />
       <h3 className="board-col-title">{title}</h3>
-      {/* The ring is colour and arc only, so the state it draws is also said in an icon and words */}
-      {failed && <CircleX className="text-bad" {...ICON_SM} />}
-      {!failed && held && <CirclePause className="text-warn" {...ICON_SM} />}
-      <span className="count">
-        {done}/{tasks.length}
-        <span className="sr-only">
-          {' '}
-          {failed ? t('board.stageDoneFailed') : held ? t('board.stageDoneBlocked') : t('board.stageDone')}
-        </span>
+      <span className="count mono" aria-hidden>
+        {completed}/{tasks.length}
       </span>
+      <ProgressBar counts={orchestrationProgress(tasks)} unit={t('board.tasksUnit')} className="board-col-progress" />
     </div>
   );
 }
@@ -275,51 +272,56 @@ function TaskActions({ orch, task }: { orch: Orchestration; task: OrchestrationT
   );
 }
 
-export function TaskCard({
-  orch,
-  task,
-  inspected = false,
-  onInspect,
-}: {
-  orch: Orchestration;
-  task: OrchestrationTaskState;
-  /** Its work is open under the board */
-  inspected?: boolean;
-  onInspect?: () => void;
-}) {
+/** How long a task has taken, read again every second while it runs. */
+export function TaskDuration({ task }: { task: OrchestrationTaskState }) {
+  // Only a running task's duration moves; an hour between reads of a finished one costs nothing
+  useClockTick(task.status === 'running' ? 1000 : 3_600_000);
+  return <>{task.startedAt ? durationBetween(task.startedAt, task.endedAt) : ''}</>;
+}
+
+/** The task's name, which opens its chat beside the page when it has one: following a worker should not mean leaving the graph. */
+function TaskName({ task, id, className, level: Heading }: { task: OrchestrationTaskState; id: string; className: string; level: 'h3' | 'h4' }) {
   const { t } = useTranslation('orchestration');
-  const reduced = useReducedMotion();
+  const { open } = useDetailPanel();
+  const name = task.name || task.id;
+  const chatId = task.sessionId;
+  return (
+    <Heading id={id} className={className}>
+      {chatId ? (
+        <Tooltip content={t('board.openChatBeside')}>
+          <button type="button" className="link-btn task-name-btn" onClick={() => open({ kind: 'chat', chatId })}>
+            {name}
+          </button>
+        </Tooltip>
+      ) : (
+        name
+      )}
+    </Heading>
+  );
+}
+
+function TaskCost({ task }: { task: OrchestrationTaskState }) {
+  const { t } = useTranslation('orchestration');
+  return <span title={t('board.costTitle')}>{formatCost(task.costUsd)}</span>;
+}
+
+/** Everything a task says beyond its head line, the same in a stage's row and in a graph node. */
+function TaskBody({ orch, task, inspected, onInspect }: { orch: Orchestration; task: OrchestrationTaskState; inspected: boolean; onInspect?: () => void }) {
+  const { t } = useTranslation('orchestration');
   const previousError = usePreviousError(task);
   const attempt = attemptLabel(orch, task);
   const chat = chatPath(task);
   const behind = task.status === 'blocked' ? blockedBy(orch, task) : [];
   const finished = DONE.has(task.status);
-  const titleId = useId();
   return (
-    // Keyed on status so a task visibly settles into its new state when it changes
-    <motion.article
-      key={task.status}
-      className={`board-task status-${task.status}`}
-      aria-labelledby={titleId}
-      initial={reduced ? false : { opacity: 0.4, scale: 0.98 }}
-      // Fading a skipped task would drop its muted text below the contrast the badge needs
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.3 }}
-    >
-      <div className="side-item-head">
-        <BoardStatusBadge status={task.status} />
-        <span className="muted small">{task.startedAt ? durationBetween(task.startedAt, task.endedAt) : ''}</span>
-      </div>
+    <>
+      {task.status === 'running' && task.activity && <ActivityTicker activity={task.activity} className="task-ticker" />}
       {task.status === 'running' && task.health && task.health.level !== 'ok' && (
         <div className="stack-tight">
           <HealthBadge health={task.health} />
           <div className="small">{healthReason(task.health)}</div>
         </div>
       )}
-      <h4 id={titleId} className="board-task-name">
-        {task.name || task.id}
-      </h4>
-      <div className="mono small muted">{task.id}</div>
       {(task.dependsOn?.length ?? 0) > 0 && (
         <div className="small muted meta-icon">
           <CornerDownRight size={12} strokeWidth={1.75} aria-hidden /> {t('board.after', { deps: task.dependsOn?.join(', ') })}
@@ -380,16 +382,11 @@ export function TaskCard({
           </Link>
         )}
         {chat && finished && (
-          <Link
-            to={chat}
-            className="meta-icon"
-            title={t('board.forkTitle')}
-          >
+          <Link to={chat} className="meta-icon" title={t('board.forkTitle')}>
             <GitFork size={12} strokeWidth={1.75} aria-hidden /> {t('board.fork')}
           </Link>
         )}
-        {task.model && <span>{task.model}</span>}
-        {task.costUsd > 0 && <span title={t('board.costTitle')}>{formatCost(task.costUsd)}</span>}
+        {task.model && <span className="mono">{task.model}</span>}
         {/* The branch is how the work is found afterwards, so it is worth the space */}
         {task.branch && (
           <span className="mono" title={task.worktree ?? undefined}>
@@ -397,7 +394,89 @@ export function TaskCard({
           </span>
         )}
       </div>
+    </>
+  );
+}
+
+/**
+ * A task as a node of the graph view. It fills as it goes — a live stripe while it runs, full once
+ * it has an outcome — so a wide graph can be read at a glance before a word of it is.
+ */
+export function TaskCard({
+  orch,
+  task,
+  inspected = false,
+  onInspect,
+}: {
+  orch: Orchestration;
+  task: OrchestrationTaskState;
+  /** Its work is open under the board */
+  inspected?: boolean;
+  onInspect?: () => void;
+}) {
+  const reduced = useReducedMotion();
+  const titleId = useId();
+  return (
+    // Keyed on status so a task visibly settles into its new state when it changes
+    <motion.article
+      key={task.status}
+      className={`board-task status-${task.status}`}
+      aria-labelledby={titleId}
+      initial={reduced ? false : { opacity: 0.4, scale: 0.98 }}
+      // Fading a skipped task would drop its muted text below the contrast the badge needs
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.3 }}
+    >
+      <span className="board-task-fill" aria-hidden />
+      <div className="side-item-head">
+        <BoardStatusBadge status={task.status} />
+        <span className="muted small mono">
+          <TaskDuration task={task} />
+        </span>
+      </div>
+      <TaskName task={task} id={titleId} className="board-task-name" level="h4" />
+      <div className="mono small muted">{task.id}</div>
+      {task.costUsd > 0 && (
+        <div className="small mono muted">
+          <TaskCost task={task} />
+        </div>
+      )}
+      <TaskBody orch={orch} task={task} inspected={inspected} onInspect={onInspect} />
     </motion.article>
+  );
+}
+
+/**
+ * A task as a row of the selected stage: its state, name and numbers on one line, a rail that
+ * pulses while its worker is at it and the ticker that says what it is doing, then what a card says.
+ */
+export function TaskRow({
+  orch,
+  task,
+  inspected = false,
+  onInspect,
+}: {
+  orch: Orchestration;
+  task: OrchestrationTaskState;
+  inspected?: boolean;
+  onInspect?: () => void;
+}) {
+  const titleId = useId();
+  return (
+    <li className="task-row-item">
+      <article className={`task-row status-${task.status} ${task.status === 'running' ? 'live-rail' : ''}`.trim()} aria-labelledby={titleId}>
+        <div className="task-row-head">
+          <BoardStatusBadge status={task.status} />
+          <TaskName task={task} id={titleId} className="task-row-name" level="h3" />
+          <span className="mono small muted task-row-id">{task.id}</span>
+          <span className="task-row-facts mono small muted">
+            <TaskDuration task={task} />
+            {task.costUsd > 0 && <TaskCost task={task} />}
+          </span>
+        </div>
+        <TaskBody orch={orch} task={task} inspected={inspected} onInspect={onInspect} />
+      </article>
+    </li>
   );
 }
 

@@ -67,8 +67,6 @@
     "pullRequestHeld": "No pull request is offered: the checks failed and this graph was launched to fail when they do."
   },
   "templates": {
-    "title_one": "Templates ({{count}})",
-    "title_other": "Templates ({{count}})",
     "none": "No templates yet",
     "noneHint": "Save a graph from its page or from the form to run it again on another objective.",
     "taskCount_one": "{{count}} task",

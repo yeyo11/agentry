@@ -58,7 +58,16 @@ function byPhase(workflow: ChatWorkflow): Array<[string | null, ChatWorkflowAgen
 }
 
 /** One run of a Claude Code workflow inside a chat: its phases, where each agent is, and what it returned. */
-export function WorkflowCard({ workflow, chatId }: { workflow: ChatWorkflow; chatId: string }) {
+export function WorkflowCard({
+  workflow,
+  chatId,
+  phase,
+}: {
+  workflow: ChatWorkflow;
+  chatId: string;
+  /** Only the agents of this phase (`null`: those the CLI reported without one); every phase when absent */
+  phase?: string | null;
+}) {
   const { t } = useTranslation('components');
   const { open } = useDetailPanel();
   const done = workflow.agents.filter((a) => a.status === 'completed').length;
@@ -81,20 +90,22 @@ export function WorkflowCard({ workflow, chatId }: { workflow: ChatWorkflow; cha
           <span style={{ width: `${(done / total) * 100}%` }} />
         </div>
       )}
-      {byPhase(workflow).map(([phase, agents]) => (
-        <section key={phase ?? ''} className="wf-phase">
-          {phase && <div className="wf-phase-title">{phase}</div>}
-          <ul className="wf-agents">
-            {agents.map((agent) => (
-              <AgentRow
-                key={`${agent.index}:${agent.id ?? agent.label}`}
-                agent={agent}
-                open={agent.id && workflow.id.startsWith('wf_') ? () => open({ kind: 'workflow-agent', chatId, workflowId: workflow.id, agentId: agent.id ?? '' }) : null}
-              />
-            ))}
-          </ul>
-        </section>
-      ))}
+      {byPhase(workflow)
+        .filter(([name]) => phase === undefined || name === phase)
+        .map(([name, agents]) => (
+          <section key={name ?? ''} className="wf-phase">
+            {name && <div className="wf-phase-title">{name}</div>}
+            <ul className="wf-agents">
+              {agents.map((agent) => (
+                <AgentRow
+                  key={`${agent.index}:${agent.id ?? agent.label}`}
+                  agent={agent}
+                  open={agent.id && workflow.id.startsWith('wf_') ? () => open({ kind: 'workflow-agent', chatId, workflowId: workflow.id, agentId: agent.id ?? '' }) : null}
+                />
+              ))}
+            </ul>
+          </section>
+        ))}
       {(workflow.script || hasResult) && (
         <div className="wf-details">
           {hasResult && (

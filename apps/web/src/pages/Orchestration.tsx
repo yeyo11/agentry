@@ -1,18 +1,24 @@
 import { Ban, CircleX, CirclePause, Plus, Square, Zap } from 'lucide-react';
-import type { OrchestrationEngine, OrchestrationSpec, OrchestrationTemplate, OrchestrationTaskSpec, PermissionMode, TaskLimits } from '@agentry/shared';
+import type { Orchestration as OrchestrationRecord, OrchestrationEngine, OrchestrationSpec, OrchestrationTemplate, OrchestrationTaskSpec, PermissionMode, TaskLimits } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useOrchestrations, useProjects } from '../api';
-import { Combobox, NumberInput, Select, Switch } from '../components/controls';
+import { ActivityTicker } from '../components/ActivityTicker';
+import { Collapsible, Combobox, NumberInput, Select, Switch } from '../components/controls';
 import { DefaultLimits, VerificationFields } from '../components/GraphExtras';
+import { ListToolbar } from '../components/ListToolbar';
 import { BoardStatusBadge } from '../components/OrchestrationBoard';
-import { SaveTemplateDialog, TemplatesCard } from '../components/OrchestrationTemplates';
+import { SaveTemplateDialog, TemplatesList } from '../components/OrchestrationTemplates';
+import { ProgressBar } from '../components/ProgressBar';
+import { Spinner } from '../components/Spinner';
 import { removeTaskAt, renameTask, TaskEditor, validateGraph } from '../components/TaskEditor';
-import { Card, Empty, ErrorBox, Field, Loading, MODEL_OPTIONS, PageHeader, PERMISSION_MODES, Segmented, Tag } from '../components/ui';
+import { Card, Empty, ErrorBox, Field, Loading, MODEL_OPTIONS, PageHeader, PERMISSION_MODES, Segmented, TabPanel, Tabs, Tag, useTabGroup } from '../components/ui';
 import { useFallbackInterval } from '../lib/feed';
 import { formatCost, timeAgo, truncate } from '../lib/format';
+import { NARROW, useMediaQuery } from '../lib/media';
+import { liveTask, orchestrationProgress } from '../lib/orchestration-steps';
 import { cleanTask, draftOfVerification, verificationOf, type VerificationDraft } from '../lib/orchestration-v2';
 
 type Mode = 'auto' | 'manual';
@@ -40,6 +46,7 @@ function CreateForm({ onDone, template }: { onDone: () => void; template?: Orche
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const projects = useProjects(false);
+  const narrow = useMediaQuery(NARROW);
   const [mode, setMode] = useState<Mode>(seed ? 'manual' : 'auto');
   const [name, setName] = useState(seed?.name ?? '');
   const [objective, setObjective] = useState(seed?.objective ?? '');
@@ -308,55 +315,60 @@ function CreateForm({ onDone, template }: { onDone: () => void; template?: Orche
                   <NumberInput min={1} max={10} value={maxAttempts} onChange={(v) => setMaxAttempts(v || 1)} />
                 </Field>
               )}
-              <Field label={t('config:orchestration.permissionMode')}>
-                <Select<PermissionMode | ''>
-                  value={permissionMode}
-                  onChange={setPermissionMode}
-                  options={[{ value: '', label: t('config:orchestration.default') }, ...PERMISSION_MODES.map((m) => ({ value: m, label: m }))]}
-                />
-              </Field>
             </div>
-            <Field label={t('config:orchestration.engine')} hint={engineReason ? t('config:orchestration.plannerReason', { reason: engineReason }) : undefined}>
-              <Segmented<OrchestrationEngine>
-                label={t('config:orchestration.engine')}
-                value={engine}
-                onChange={setEngine}
-                options={[
-                  { value: 'graph', label: t('config:orchestration.graph'), title: t('config:orchestration.graphTitle') },
-                  { value: 'workflow', label: t('config:orchestration.workflow'), title: t('config:orchestration.workflowTitle') },
-                ]}
-              />
-            </Field>
-            <p className="muted small">
-              {engine === 'graph' ? t('config:orchestration.graphHint') : t('config:orchestration.workflowHint')}
-            </p>
-            <Switch checked={synthesize} onChange={setSynthesize}>
-              {t('config:orchestration.synthesize')}
-            </Switch>
-            {engine === 'graph' && (
-              <Switch checked={worktree} onChange={setWorktree}>
-                {t('config:orchestration.worktree')}
-              </Switch>
-            )}
-            <Switch checked={askPermissions} onChange={setAskPermissions}>
-              {t('config:orchestration.askPermissions')}
-            </Switch>
-            <p className="muted small">
-              {t('config:orchestration.askPermissionsHint')}
-            </p>
-            <Field
-              label={t('config:orchestration.tools')}
-              hint={t('config:orchestration.toolsHint')}
-            >
-              <input value={allowedTools} onChange={(e) => setAllowedTools(e.target.value)} placeholder="Bash,Read,Write,Edit" />
-            </Field>
-            {engine === 'graph' && worktree && (
-              <p className="muted small">
-                {t('config:orchestration.worktreeHint')}
-              </p>
-            )}
-            <DefaultLimits value={limits} onChange={setLimits} />
-            {engine === 'graph' && worktree && <VerificationFields value={verification} onChange={setVerification} />}
+            {/* On a phone the form is one long column: what most launches leave as it is folds away */}
+            <Collapsible className="fold orch-advanced" defaultOpen={!narrow} title={t('list.advanced')}>
+              <div className="form">
+                <Field label={t('config:orchestration.permissionMode')}>
+                  <Select<PermissionMode | ''>
+                    value={permissionMode}
+                    onChange={setPermissionMode}
+                    options={[{ value: '', label: t('config:orchestration.default') }, ...PERMISSION_MODES.map((m) => ({ value: m, label: m }))]}
+                  />
+                </Field>
+                <Field label={t('config:orchestration.engine')} hint={engineReason ? t('config:orchestration.plannerReason', { reason: engineReason }) : undefined}>
+                  <Segmented<OrchestrationEngine>
+                    label={t('config:orchestration.engine')}
+                    value={engine}
+                    onChange={setEngine}
+                    options={[
+                      { value: 'graph', label: t('config:orchestration.graph'), title: t('config:orchestration.graphTitle') },
+                      { value: 'workflow', label: t('config:orchestration.workflow'), title: t('config:orchestration.workflowTitle') },
+                    ]}
+                  />
+                </Field>
+                <p className="muted small">
+                  {engine === 'graph' ? t('config:orchestration.graphHint') : t('config:orchestration.workflowHint')}
+                </p>
+                <Switch checked={synthesize} onChange={setSynthesize}>
+                  {t('config:orchestration.synthesize')}
+                </Switch>
+                {engine === 'graph' && (
+                  <Switch checked={worktree} onChange={setWorktree}>
+                    {t('config:orchestration.worktree')}
+                  </Switch>
+                )}
+                <Switch checked={askPermissions} onChange={setAskPermissions}>
+                  {t('config:orchestration.askPermissions')}
+                </Switch>
+                <p className="muted small">
+                  {t('config:orchestration.askPermissionsHint')}
+                </p>
+                <Field
+                  label={t('config:orchestration.tools')}
+                  hint={t('config:orchestration.toolsHint')}
+                >
+                  <input value={allowedTools} onChange={(e) => setAllowedTools(e.target.value)} placeholder="Bash,Read,Write,Edit" />
+                </Field>
+                {engine === 'graph' && worktree && (
+                  <p className="muted small">
+                    {t('config:orchestration.worktreeHint')}
+                  </p>
+                )}
+                <DefaultLimits value={limits} onChange={setLimits} />
+                {engine === 'graph' && worktree && <VerificationFields value={verification} onChange={setVerification} />}
+              </div>
+            </Collapsible>
 
             <div className="card-head">
               <h3>{t('config:orchestration.tasks', { count: tasks.length })}</h3>
@@ -402,19 +414,171 @@ function CreateForm({ onDone, template }: { onDone: () => void; template?: Orche
   );
 }
 
-export function Orchestration() {
+type PageTab = 'orchestrations' | 'templates';
+type StatusTab = 'all' | 'live' | 'completed' | 'failed' | 'stopped';
+type Sort = 'recent' | 'oldest' | 'cost' | 'name';
+
+const STATUS_TABS: readonly StatusTab[] = ['all', 'live', 'completed', 'failed', 'stopped'];
+const SORTS: readonly Sort[] = ['recent', 'oldest', 'cost', 'name'];
+
+function inTab(orch: OrchestrationRecord, tab: StatusTab): boolean {
+  switch (tab) {
+    case 'all':
+      return true;
+    // Waiting is live too: nothing runs, but it is not over and a person is asked for something
+    case 'live':
+      return orch.status === 'running' || orch.status === 'waiting';
+    default:
+      return orch.status === tab;
+  }
+}
+
+function matches(orch: OrchestrationRecord, query: string): boolean {
+  if (!query) return true;
+  const needle = query.toLowerCase();
+  return [orch.name, orch.objective ?? '', ...orch.tasks.flatMap((t) => [t.id, t.name])].some((text) => text.toLowerCase().includes(needle));
+}
+
+const SORTERS: Record<Sort, (a: OrchestrationRecord, b: OrchestrationRecord) => number> = {
+  recent: (a, b) => b.createdAt.localeCompare(a.createdAt),
+  oldest: (a, b) => a.createdAt.localeCompare(b.createdAt),
+  cost: (a, b) => b.costUsd - a.costUsd,
+  name: (a, b) => a.name.localeCompare(b.name),
+};
+
+/** "stage 3 · web-chats-tools: Editing src/…" — where a running graph is, in the one line a row has for it. */
+function LiveLine({ orch }: { orch: OrchestrationRecord }) {
+  const { t } = useTranslation('orchestration');
+  const live = liveTask(orch);
+  if (!live) return null;
+  return (
+    <div className="orch-row-live small">
+      {!live.task.activity && <Spinner />}
+      <span className="orch-row-where mono">{t('list.where', { stage: live.stage, task: live.task.name || live.task.id })}</span>
+      {live.task.activity && <ActivityTicker activity={live.task.activity} className="orch-row-ticker" />}
+    </div>
+  );
+}
+
+function OrchestrationRow({ orch }: { orch: OrchestrationRecord }) {
   const { t } = useTranslation(['orchestration', 'config']);
   const { t: tv } = useTranslation('orchestrationV2');
+  // Progress is completed work only: counting stopped tasks as done drew a full bar and
+  // "5/5" over a graph that had finished two tasks and been interrupted.
+  const completed = orch.tasks.filter((t) => t.status === 'completed').length;
+  const stopped = orch.tasks.filter((t) => t.status === 'stopped').length;
+  const interrupted = orch.tasks.filter((t) => t.status === 'interrupted').length;
+  const skipped = orch.tasks.filter((t) => t.status === 'skipped').length;
+  const blocked = orch.tasks.filter((t) => t.status === 'blocked').length;
+  const failed = orch.tasks.filter((t) => t.status === 'failed').length;
+  // A waiting graph is not resumed: its failed tasks are decided on, one by one, on its board
+  const resumable = orch.status !== 'running' && orch.status !== 'waiting' && completed < orch.tasks.length;
+  const running = orch.status === 'running';
+  return (
+    <li className="list-row-wrap">
+      <Link to={`/orchestration/${orch.id}`} className={`list-row orch-row ${running ? 'live-rail' : ''}`.trim()}>
+        <div className="list-row-main">
+          <div className="list-row-title">
+            <BoardStatusBadge status={orch.status} />
+            <span className="strong break">{orch.name}</span>
+          </div>
+          {running ? <LiveLine orch={orch} /> : orch.objective && <div className="muted small orch-row-objective">{truncate(orch.objective, 160)}</div>}
+          <ProgressBar counts={orchestrationProgress(orch.tasks)} unit={t('board.tasksUnit')} className="orch-row-progress" />
+          <div className="meta">
+            <span className="mono">{t('config:orchestration.completed', { done: completed, total: orch.tasks.length })}</span>
+            {stopped > 0 && (
+              <span className="text-warn meta-icon">
+                <Square size={12} strokeWidth={2} aria-hidden />
+                {t('config:orchestration.notRun', { count: stopped })}
+              </span>
+            )}
+            {interrupted > 0 && (
+              <span className="text-warn meta-icon">
+                <Zap size={12} strokeWidth={2} aria-hidden />
+                {t('interruptedByRestart', { count: interrupted })}
+              </span>
+            )}
+            {failed > 0 && (
+              <span className="text-bad meta-icon">
+                <CircleX size={12} strokeWidth={2} aria-hidden />
+                {t('config:orchestration.failed', { count: failed })}
+              </span>
+            )}
+            {blocked > 0 && (
+              <span className="text-warn meta-icon">
+                <CirclePause size={12} strokeWidth={2} aria-hidden />
+                {t('blockedWaiting', { count: blocked })}
+              </span>
+            )}
+            {skipped > 0 && (
+              <span className="muted meta-icon">
+                <Ban size={12} strokeWidth={2} aria-hidden />
+                {t('skipped', { count: skipped })}
+              </span>
+            )}
+            {orch.engine === 'workflow' && <Tag tone="info">{t('workflowTag')}</Tag>}
+            {orch.relaunchedFrom && <Tag tone="muted">{tv('origin.relaunched')}</Tag>}
+            {orch.templateId && <Tag tone="muted">{tv('origin.fromTemplate')}</Tag>}
+            {resumable && <Tag tone="active">{t('config:orchestration.resumable')}</Tag>}
+            <span className="mono">{formatCost(orch.costUsd)}</span>
+            <span>{t('config:orchestration.concurrencyValue', { n: orch.concurrency })}</span>
+          </div>
+        </div>
+        <span className="muted small nowrap">{timeAgo(orch.createdAt)}</span>
+      </Link>
+    </li>
+  );
+}
+
+function TabLabel({ text, count }: { text: string; count: number | undefined }) {
+  return (
+    <>
+      {text}
+      {count !== undefined && <span className="segment-count">{count}</span>}
+    </>
+  );
+}
+
+export function Orchestration() {
+  const { t } = useTranslation(['orchestration', 'config']);
   const { data, error, isLoading } = useOrchestrations();
-  const [creating, setCreating] = useState(false);
+  const templates = useQuery({ queryKey: keys.orchestrationTemplates, queryFn: api.orchestrationTemplates });
+  const [params, setParams] = useSearchParams();
+  const group = useTabGroup();
+  // `?new` opens the form, so a link or a command elsewhere can start a new orchestration here
+  const [creating, setCreating] = useState(() => params.has('new'));
   // A template opened for editing: the form starts from its graph instead of an empty one. The
   // counter is the form's key, so opening a second template replaces the first instead of keeping its state.
   const [editing, setEditing] = useState<{ template: OrchestrationTemplate; n: number } | undefined>();
   const list = data ?? [];
+  // The list's state is in the address, so a filtered view can be linked to and survives Back
+  const setParam = (changes: Record<string, string | null>) =>
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        for (const [name, value] of Object.entries(changes)) {
+          if (value === null || value === '') next.delete(name);
+          else next.set(name, value);
+        }
+        return next;
+      },
+      { replace: true },
+    );
   const closeForm = () => {
     setCreating(false);
     setEditing(undefined);
+    if (params.has('new')) setParam({ new: null });
   };
+  useEffect(() => {
+    if (params.has('new')) setCreating(true);
+  }, [params]);
+
+  const tab: PageTab = params.get('tab') === 'templates' ? 'templates' : 'orchestrations';
+  const status: StatusTab = STATUS_TABS.find((s) => s === params.get('status')) ?? 'all';
+  const sort: Sort = SORTS.find((s) => s === params.get('sort')) ?? 'recent';
+  const query = params.get('q') ?? '';
+  const searched = list.filter((orch) => matches(orch, query.trim()));
+  const shown = searched.filter((orch) => inTab(orch, status)).sort(SORTERS[sort]);
 
   return (
     <>
@@ -431,94 +595,62 @@ export function Orchestration() {
         }
       />
       {creating && <CreateForm key={editing?.n ?? 'blank'} template={editing?.template} onDone={closeForm} />}
-      <TemplatesCard
-        onEdit={(template) => {
-          setEditing((prev) => ({ template, n: (prev?.n ?? 0) + 1 }));
-          setCreating(true);
-        }}
+      <Tabs<PageTab>
+        group={group}
+        label={t('list.sections')}
+        value={tab}
+        onChange={(next) => setParam({ tab: next === 'templates' ? 'templates' : null })}
+        tabs={[
+          { id: 'orchestrations', label: <TabLabel text={t('list.orchestrations')} count={data ? list.length : undefined} /> },
+          { id: 'templates', label: <TabLabel text={t('list.templates')} count={templates.data?.length} /> },
+        ]}
       />
-      <ErrorBox error={error} />
-      <Card title={t('config:orchestration.list', { count: list.length })}>
-        {isLoading ? (
-          <Loading />
-        ) : list.length === 0 ? (
-          <Empty title={t('config:orchestration.none')} />
+      <TabPanel group={group} tab={tab} className="stack">
+        {tab === 'templates' ? (
+          <TemplatesList
+            onEdit={(template) => {
+              setEditing((prev) => ({ template, n: (prev?.n ?? 0) + 1 }));
+              setCreating(true);
+            }}
+          />
         ) : (
-          <ul className="list">
-            {list.map((orch) => {
-              // Progress is completed work only: counting stopped tasks as done drew a full bar and
-              // "5/5" over a graph that had finished two tasks and been interrupted.
-              const completed = orch.tasks.filter((t) => t.status === 'completed').length;
-              const stopped = orch.tasks.filter((t) => t.status === 'stopped').length;
-              const interrupted = orch.tasks.filter((t) => t.status === 'interrupted').length;
-              const skipped = orch.tasks.filter((t) => t.status === 'skipped').length;
-              const blocked = orch.tasks.filter((t) => t.status === 'blocked').length;
-              const failed = orch.tasks.filter((t) => t.status === 'failed').length;
-              const pct = orch.tasks.length ? Math.round((completed / orch.tasks.length) * 100) : 0;
-              // A waiting graph is not resumed: its failed tasks are decided on, one by one, on its board
-              const resumable = orch.status !== 'running' && orch.status !== 'waiting' && completed < orch.tasks.length;
-              return (
-                <li key={orch.id} className="list-row-wrap">
-                <Link to={`/orchestration/${orch.id}`} className="list-row">
-                  <div className="list-row-main">
-                    <div className="list-row-title">
-                      <BoardStatusBadge status={orch.status} />
-                      <span className="strong break">{orch.name}</span>
-                    </div>
-                    {orch.objective && <div className="muted small break">{truncate(orch.objective, 160)}</div>}
-                    <div className="meter-track meter-thin" aria-hidden>
-                      <div className={`meter-fill ${failed ? 'is-bad' : ''}`} style={{ width: `${pct}%` }} />
-                    </div>
-                    <div className="meta">
-                      <span>
-                        {t('config:orchestration.completed', { done: completed, total: orch.tasks.length })}
-                      </span>
-                      {stopped > 0 && (
-                        <span className="text-warn meta-icon">
-                          <Square size={12} strokeWidth={2} aria-hidden />
-                          {t('config:orchestration.notRun', { count: stopped })}
-                        </span>
-                      )}
-                      {interrupted > 0 && (
-                        <span className="text-warn meta-icon">
-                          <Zap size={12} strokeWidth={2} aria-hidden />
-                          {t('interruptedByRestart', { count: interrupted })}
-                        </span>
-                      )}
-                      {failed > 0 && (
-                        <span className="text-bad meta-icon">
-                          <CircleX size={12} strokeWidth={2} aria-hidden />
-                          {t('config:orchestration.failed', { count: failed })}
-                        </span>
-                      )}
-                      {blocked > 0 && (
-                        <span className="text-warn meta-icon">
-                          <CirclePause size={12} strokeWidth={2} aria-hidden />
-                          {t('blockedWaiting', { count: blocked })}
-                        </span>
-                      )}
-                      {skipped > 0 && (
-                        <span className="muted meta-icon">
-                          <Ban size={12} strokeWidth={2} aria-hidden />
-                          {t('skipped', { count: skipped })}
-                        </span>
-                      )}
-                      {orch.engine === 'workflow' && <Tag tone="info">{t('workflowTag')}</Tag>}
-                      {orch.relaunchedFrom && <Tag tone="muted">{tv('origin.relaunched')}</Tag>}
-                      {orch.templateId && <Tag tone="muted">{tv('origin.fromTemplate')}</Tag>}
-                      {resumable && <Tag tone="active">{t('config:orchestration.resumable')}</Tag>}
-                      <span>{formatCost(orch.costUsd)}</span>
-                      <span>{t('config:orchestration.concurrencyValue', { n: orch.concurrency })}</span>
-                    </div>
-                  </div>
-                  <span className="muted small nowrap">{timeAgo(orch.createdAt)}</span>
-                </Link>
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <ListToolbar<StatusTab>
+              tabs={{
+                value: status,
+                label: t('list.statusLabel'),
+                onChange: (next) => setParam({ status: next === 'all' ? null : next }),
+                options: STATUS_TABS.map((id) => ({ id, label: t(`list.status.${id}`), count: searched.filter((orch) => inTab(orch, id)).length })),
+              }}
+              search={{ value: query, onChange: (value) => setParam({ q: value }), placeholder: t('list.searchPlaceholder'), label: t('list.searchLabel') }}
+              sort={{
+                value: sort,
+                label: t('list.sortLabel'),
+                onChange: (next) => setParam({ sort: next === 'recent' ? null : next }),
+                options: SORTS.map((value) => ({ value, label: t(`list.sort.${value}`) })),
+              }}
+            />
+            <ErrorBox error={error} />
+            {isLoading ? (
+              <Loading />
+            ) : list.length === 0 ? (
+              <Empty title={t('config:orchestration.none')} />
+            ) : shown.length === 0 ? (
+              <Empty title={t('list.noMatch')}>
+                <button type="button" className="link-btn" onClick={() => setParam({ q: null, status: null })}>
+                  {t('list.showAll')}
+                </button>
+              </Empty>
+            ) : (
+              <ul className="list orch-list">
+                {shown.map((orch) => (
+                  <OrchestrationRow key={orch.id} orch={orch} />
+                ))}
+              </ul>
+            )}
+          </>
         )}
-      </Card>
+      </TabPanel>
     </>
   );
 }
