@@ -18,6 +18,7 @@
 @import './styles/transcript.css';
 @import './styles/chat.css';
 @import './styles/orchestration.css';
+@import './styles/dashboard.css';
 @import './styles/editors.css';
 @import './styles/overlays.css';
 @import './styles/motion.css';

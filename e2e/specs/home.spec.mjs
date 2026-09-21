@@ -1,10 +1,13 @@
-// Home is the selected project's page: the top bar's selector decides what it is about, a deep link
-// overrides the remembered choice, and with All projects only Activity is left. The Activity tab and
-// the Usage page offer the selected project's export as a download.
+// Home is the selected project's dashboard: the top bar's selector decides what it is about, a deep link
+// overrides the remembered choice, and with All projects it is the dashboard of every project. The
+// project's settings, memory, resources and worktrees are full views; its Export widget and the Usage
+// page offer the project's export as a download.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const tabsText = `return [...(document.querySelector('main [role=tablist]')?.querySelectorAll('[role=tab]') ?? [])].map((t) => t.textContent.trim()).join(',')`;
+// The widgets drawn, in order: the page renders the layout it is given, so this is the layout
+const widgetTypes = `return [...document.querySelectorAll('main .dashboard-grid > .widget-slot')].map((s) => s.dataset.widget).join(',')`;
 
 export default async ({ page, api, check, dirs }) => {
   const dir = join(dirs.workspaceDir, 'e2e-home');
@@ -14,20 +17,49 @@ export default async ({ page, api, check, dirs }) => {
   const id = imported.body.id;
 
   try {
-    // With no project selected the page is only the inbox
+    // With no project selected the page is the dashboard of every project, and nothing else
     await page.goto('/?project=all', 1200);
     await page.waitFor(`return document.querySelector('main h1')?.textContent === 'Home'`, { label: 'Home with All projects' });
-    check((await page.eval(tabsText)) === '', 'All projects has no tabs but Activity, which is the page itself');
+    check((await page.eval(tabsText)) === '', 'All projects has no tabs: the dashboard is the page');
+    await page.waitFor(`return document.querySelectorAll('main .dashboard-grid .widget').length >= 5`, { label: 'the All projects widgets' });
+    check(
+      (await page.eval(widgetTypes)) === 'now,orchestrations,limits,pickUp,today,schedules,projects',
+      `All projects draws its default layout (${await page.eval(widgetTypes)})`,
+    );
+    check(await page.eval(`return [...document.querySelectorAll('main .widget h2')].some((h) => h.textContent === 'Now')`), 'every widget names itself with a heading');
+    check((await page.text('main [data-widget=projects]')).includes('e2e-home'), 'the Projects widget lists the imported project');
 
     // A deep link selects the project and the selector says so
     await page.goto(`/?project=${encodeURIComponent(id)}`, 1200);
     await page.waitFor(`return document.querySelector('main h1')?.textContent === 'e2e-home'`, { label: 'the project page' });
     check((await page.eval(`return document.querySelector('.project-selector')?.textContent ?? ''`)).includes('e2e-home'), 'the top bar selector shows the project');
-    check((await page.eval(tabsText)) === 'Activity,Settings,Memory,Resources,Worktrees', 'the project page has its tabs');
+    check((await page.eval(tabsText)) === '', 'the project page is a dashboard, not a tab strip');
+    await page.waitFor(`return !!document.querySelector('main [data-widget=quickStart] textarea')`, { label: 'the quick start widget' });
+    check(
+      (await page.eval(widgetTypes)) === 'now,quickStart,limits,orchestrations,schedules,pickUp,today,memory,worktrees,resources,export',
+      `the project draws its default layout (${await page.eval(widgetTypes)})`,
+    );
+    check((await page.text('main [data-widget=quickStart]')).includes('MCP: CLI default'), 'the quick start options are one status line, closed');
 
-    // Tabs live in the address, and the choice outlives the deep link
+    // The project's own screens are full views, reached from the ⚙ and from their widgets
+    await page.click('main a[aria-label="Settings of e2e-home"]', undefined, 800);
+    await page.waitFor(`return location.search.includes('view=settings')`, { label: 'the ⚙ opens the settings view' });
+    await page.waitFor(`return !!document.querySelector('main [role=tablist]')`, { label: 'the views of the project' });
+    check((await page.eval(tabsText)) === 'Settings,Memory,Resources,Worktrees', `the full views are tabs of their own (${await page.eval(tabsText)})`);
     await page.click('main [role=tab]', 'Memory', 600);
-    check((await page.eval('return location.search')).includes('tab=memory'), 'the tab is in the address');
+    check((await page.eval('return location.search')).includes('view=memory'), 'the view is in the address');
+    await page.click('main .page-header button', 'Dashboard', 800);
+    await page.waitFor(`return !location.search.includes('view=') && !!document.querySelector('main .dashboard-grid')`, { label: 'back on the dashboard' });
+    await page.click('main [data-widget=resources] a', 'Skills', 800);
+    await page.waitFor(`return location.search.includes('view=resources') && location.search.includes('section=skills')`, { label: 'a widget opens its section of the full view' });
+
+    // The address the page had before it was a dashboard still leads to the same screen
+    await page.goto(`/?project=${encodeURIComponent(id)}&tab=worktrees`, 1200);
+    await page.waitFor(`return location.search.includes('view=worktrees') && !location.search.includes('tab=')`, { label: '?tab=worktrees redirects to ?view=worktrees' });
+    await page.goto(`/?tab=activity`, 1200);
+    await page.waitFor(`return !location.search.includes('tab=') && !!document.querySelector('main .dashboard-grid')`, { label: '?tab=activity is the dashboard' });
+
+    // The choice outlives the deep link
     await page.goto('/', 1200);
     await page.waitFor(`return document.querySelector('main h1')?.textContent === 'e2e-home'`, { label: 'the project is still selected' });
 
@@ -35,7 +67,7 @@ export default async ({ page, api, check, dirs }) => {
     check(await page.eval(`return !!document.querySelector('.bell')`), 'the bell is there whatever is selected');
 
     // The project's export: plain download links, streamed by the server with a file name
-    await page.waitFor(`return !!document.querySelector('main .project-export a[data-format=markdown]')`, { label: 'the export on the Activity tab' });
+    await page.waitFor(`return !!document.querySelector('main .project-export a[data-format=markdown]')`, { label: 'the export widget on the dashboard' });
     check((await page.text('main .project-export')).includes('Export e2e-home'), 'the export names the project');
     const md = await page.eval(
       `const r = await fetch(document.querySelector('main .project-export a[data-format=markdown]').href); return { status: r.status, type: r.headers.get('content-type'), disposition: r.headers.get('content-disposition'), body: await r.text() }`,
