@@ -77,6 +77,14 @@
   }
 }
 
+/*
+ * Motion level. `lib/motion.ts` stamps `data-motion` on <html>:
+ *   full    everything, including the loops that say something is alive
+ *   subtle  transitions only: nothing repeats, nothing decorative moves
+ *   off     no animation and no transition at all
+ * `prefers-reduced-motion: reduce` forces `off` there, and the media query below repeats the same
+ * rules so the system setting is obeyed even before any script has run.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -95,4 +103,49 @@
   .nav-count-ping {
     display: none;
   }
+}
+
+:root[data-motion='off'] *,
+:root[data-motion='off'] *::before,
+:root[data-motion='off'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+:root[data-motion='off'] .status-dot-ping,
+:root[data-motion='off'] .nav-count-ping,
+:root[data-motion='off'] .caret {
+  animation: none !important;
+}
+
+/* A loop is what draws the eye; at `subtle` it runs its single pass and stops. */
+:root[data-motion='subtle'] *,
+:root[data-motion='subtle'] *::before,
+:root[data-motion='subtle'] *::after {
+  animation-iteration-count: 1 !important;
+}
+
+/* What is left of a ping, a pulse or a shimmer after one pass is noise: it does not run at all. */
+:root[data-motion='subtle'] .status-dot-ping,
+:root[data-motion='subtle'] .nav-count-ping,
+:root[data-motion='subtle'] .live-energy::before,
+:root[data-motion='subtle'] .skeleton,
+:root[data-motion='subtle'] .caret {
+  animation: none !important;
+}
+
+:root[data-motion='off'] .status-dot-ping,
+:root[data-motion='off'] .nav-count-ping,
+:root[data-motion='subtle'] .status-dot-ping,
+:root[data-motion='subtle'] .nav-count-ping {
+  display: none;
+}
+
+/* Nobody is looking: a background tab does not get to run a single frame. */
+:root[data-hidden='true'] *,
+:root[data-hidden='true'] *::before,
+:root[data-hidden='true'] *::after {
+  animation-play-state: paused !important;
 }
