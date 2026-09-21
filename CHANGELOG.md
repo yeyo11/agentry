@@ -3,6 +3,18 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.14.0](https://github.com/yeyo11/agentry/compare/v0.13.1...v0.14.0) (2026-09-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* chats, projects and Agentry's own model ([#60](https://github.com/yeyo11/agentry/issues/60))
+
+### Features
+
+* chats, projects and Agentry's own model ([#60](https://github.com/yeyo11/agentry/issues/60)) ([f78fab7](https://github.com/yeyo11/agentry/commit/f78fab7b057c613190f60f5c380b8a5164f058d6))
+* finish the roadmap's Next section ([#62](https://github.com/yeyo11/agentry/issues/62)) ([db276e6](https://github.com/yeyo11/agentry/commit/db276e65e25a0a6740d70e7e69ee2e358ea0c0af))
+
 ## [0.13.1](https://github.com/yeyo11/agentry/compare/v0.13.0...v0.13.1) (2026-09-20)
 
 
