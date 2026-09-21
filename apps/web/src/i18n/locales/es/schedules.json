@@ -36,7 +36,11 @@
     "pausedNote": "En pausa: no se disparará hasta que la actives",
     "last": "Última ejecución {{ago}}",
     "neverRan": "Aún no se ha ejecutado",
-    "history": "Historial de ejecuciones"
+    "history": "Historial de ejecuciones",
+    "overlap": {
+      "skip": "Omite solapes",
+      "queue": "Encola solapes"
+    }
   },
   "history": {
     "empty": "Todavía no se ha disparado nada.",
@@ -47,7 +51,9 @@
     "started": "Lanzada",
     "byHand": "Ejecutada a mano",
     "openChat": "Abre el chat",
-    "openOrchestration": "Abre la orquestación"
+    "openOrchestration": "Abre la orquestación",
+    "overlapped": "Solapada",
+    "queued": "En cola"
   },
   "form": {
     "newTitle": "Nueva programación",
@@ -120,6 +126,21 @@
     "modelPlaceholder": "Por defecto",
     "permissionMode": "Modo de permisos",
     "permissionModeHint": "Nadie puede responder una petición de permiso cuando se dispara, así que se deniega todo lo que el modo no permita",
-    "manualWarning": "En modo manual se deniega cada herramienta que necesite aprobación, así que la mayoría del trabajo programado se quedará parado. Elige un modo que permita lo que necesita la tarea."
+    "manualWarning": "En modo manual se deniega cada herramienta que necesite aprobación, así que la mayoría del trabajo programado se quedará parado. Elige un modo que permita lo que necesita la tarea.",
+    "overlap": "Si la última ejecución sigue en marcha",
+    "overlaps": {
+      "parallel": {
+        "label": "Iniciar igualmente",
+        "hint": "Cada franja inicia su propia ejecución, aunque la anterior siga trabajando."
+      },
+      "skip": {
+        "label": "Omitir",
+        "hint": "Una franja que llega mientras la última ejecución sigue en marcha no inicia nada y queda registrada como solapada."
+      },
+      "queue": {
+        "label": "Encolar",
+        "hint": "Una franja que llega mientras la última ejecución sigue en marcha espera y empieza cuando esta termina. Solo espera una: una franja más reciente ocupa su lugar."
+      }
+    }
   }
 }

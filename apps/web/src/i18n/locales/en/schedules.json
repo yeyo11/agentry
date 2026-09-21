@@ -36,7 +36,11 @@
     "pausedNote": "Paused: it will not fire until it is turned on",
     "last": "Last run {{ago}}",
     "neverRan": "Has not run yet",
-    "history": "Run history"
+    "history": "Run history",
+    "overlap": {
+      "skip": "Skips overlaps",
+      "queue": "Queues overlaps"
+    }
   },
   "history": {
     "empty": "Nothing has fired yet.",
@@ -47,7 +51,9 @@
     "started": "Started",
     "byHand": "Run by hand",
     "openChat": "Open the chat",
-    "openOrchestration": "Open the orchestration"
+    "openOrchestration": "Open the orchestration",
+    "overlapped": "Overlapped",
+    "queued": "Queued"
   },
   "form": {
     "newTitle": "New schedule",
@@ -120,6 +126,21 @@
     "modelPlaceholder": "Default",
     "permissionMode": "Permission mode",
     "permissionModeHint": "Nobody can answer a prompt when it fires, so anything the mode does not allow is denied",
-    "manualWarning": "In manual mode every tool that needs approval is denied, so most scheduled work will stall. Choose a mode that allows what the task needs."
+    "manualWarning": "In manual mode every tool that needs approval is denied, so most scheduled work will stall. Choose a mode that allows what the task needs.",
+    "overlap": "If the last run is still going",
+    "overlaps": {
+      "parallel": {
+        "label": "Start anyway",
+        "hint": "Each slot starts its own run, even while the previous one is still working."
+      },
+      "skip": {
+        "label": "Skip",
+        "hint": "A slot that comes due while the last run is still going starts nothing and is recorded as overlapped."
+      },
+      "queue": {
+        "label": "Queue",
+        "hint": "A slot that comes due while the last run is still going waits and starts when it ends. At most one waits: a newer slot takes its place."
+      }
+    }
   }
 }

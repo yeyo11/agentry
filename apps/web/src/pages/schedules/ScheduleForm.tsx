@@ -1,4 +1,4 @@
-import type { CreateScheduleRequest, OrchestrationTaskSpec, PermissionMode, Schedule, ScheduleTarget } from '@agentry/shared';
+import type { CreateScheduleRequest, OrchestrationTaskSpec, PermissionMode, Schedule, ScheduleOverlap, ScheduleTarget } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -34,6 +34,7 @@ function useDebounced<T>(value: T, delayMs: number): T {
 }
 
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
+const OVERLAPS: readonly ScheduleOverlap[] = ['parallel', 'skip', 'queue'];
 
 /** Create or edit a schedule: what to start, and when, with the timetable said back in words before it is saved. */
 export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Schedule; defaultCwd?: string; onClose: () => void }) {
@@ -56,6 +57,7 @@ export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Sch
   const [objective, setObjective] = useState(orchestration?.objective ?? '');
   const [worktree, setWorktree] = useState(orchestration?.worktree ?? true);
   const [tasks, setTasks] = useState<TaskDraft[]>(() => initialTasks(schedule));
+  const [overlap, setOverlap] = useState<ScheduleOverlap>(schedule?.overlap ?? 'parallel');
 
   const cron = buildCron(parts);
   const zone = timezone.trim() || undefined;
@@ -100,7 +102,7 @@ export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Sch
 
   const save = useMutation({
     mutationFn: () => {
-      const body: CreateScheduleRequest = { name: name.trim(), cron, target: buildTarget() };
+      const body: CreateScheduleRequest = { name: name.trim(), cron, target: buildTarget(), overlap };
       // `null` on an edit goes back to the server's zone
       return schedule ? api.updateSchedule(schedule.id, { ...body, timezone: zone ?? null }) : api.createSchedule({ ...body, timezone: zone });
     },
@@ -229,6 +231,19 @@ export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Sch
             </div>
           </div>
           <p className="muted small">{t('form.missedNote')}</p>
+          {/* Not a <Field>: a label around several buttons would press the first one when clicked */}
+          <div className="field">
+            <span className="field-label">{t('form.overlap')}</span>
+            <Segmented<ScheduleOverlap>
+              label={t('form.overlap')}
+              value={overlap}
+              onChange={setOverlap}
+              options={OVERLAPS.map((value) => ({ value, label: t(`form.overlaps.${value}.label`) }))}
+            />
+            <span className="field-hint" data-testid="overlap-hint">
+              {t(`form.overlaps.${overlap}.hint`)}
+            </span>
+          </div>
         </fieldset>
 
         <fieldset className="fieldset">
