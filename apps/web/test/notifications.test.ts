@@ -323,6 +323,34 @@ test('seeded questions and plans read as such, and carry the orchestration they 
   assert.equal(question?.orchestrationId, 'o1');
 });
 
+test('only a plain tool permission can be answered from the list; questions and plans keep their link', () => {
+  const [bash] = notificationsFor(waiting('p1'));
+  assert.equal(bash?.permissionId, 'p1');
+  assert.equal(notificationsFor(waiting('q', 'question'))[0]?.permissionId, null);
+  assert.equal(notificationsFor(waiting('pl', 'plan'))[0]?.permissionId, null);
+  assert.equal(notificationsFor(ended('completed'))[0]?.permissionId, null);
+
+  const chat = { id: 'run1', title: 'fix the build', orchestration: null };
+  const [tool, question, plan, interactive] = waitingDrafts(chat, [
+    { id: 'p1', runId: 'run1', toolName: 'Bash', toolUseId: 'a', input: {}, requestedAt: at() },
+    { id: 'q', runId: 'run1', toolName: 'AskUserQuestion', toolUseId: 'b', input: {}, requestedAt: at() },
+    { id: 'pl', runId: 'run1', toolName: 'ExitPlanMode', toolUseId: 'c', input: {}, requestedAt: at() },
+    { id: 'i', runId: 'run1', toolName: 'SomeTool', toolUseId: 'd', input: {}, requestedAt: at(), requiresUserInteraction: true },
+  ]);
+  assert.equal(tool?.permissionId, 'p1');
+  assert.equal(question?.permissionId, null);
+  assert.equal(plan?.permissionId, null);
+  assert.equal(interactive?.permissionId, null);
+  // Every one of them still opens the prompt in its chat
+  assert.ok([tool, question, plan, interactive].every((d) => d?.href?.startsWith('/chats/run1?prompt=')));
+
+  // The answerable request survives a reload; a stored item from before the field reads as not answerable
+  const { items } = apply([], [waiting('p2')]);
+  assert.equal(parseStored(serializeStored({ items, prefs: defaultPrefs() })).items[0]?.permissionId, 'p2');
+  const { permissionId: _dropped, ...legacy } = items[0] as AppNotification;
+  assert.equal(parseStored(JSON.stringify({ version: 1, items: [legacy] })).items[0]?.permissionId, null);
+});
+
 // ---------- a worker that looks stuck ----------
 
 const health = (
