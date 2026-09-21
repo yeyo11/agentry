@@ -92,10 +92,28 @@ export default async ({ page, api, check }) => {
     check(changes.status === 200 && changes.body.summary?.branch === 'feature/greeting', `the chat's summary is its branch (${changes.status})`);
     check(changes.body.summary.uncommitted.some((f) => f.path === 'fresh.ts'), 'a file git has never seen is among the uncommitted ones');
 
-    // Storage belongs to an origin: the settings can only be cleared once a page of the app is
-    // open, and before the chat renders, because the editor settings are read as it mounts
+    // The editor settings live on the server; a browser's old copy moves there once, while the
+    // server has none. Only a first run in a fresh sandbox can see that, so it is checked when it can
+    const before = await api.get('/settings/editor');
+    check(before.status === 200, `the editor settings are read (${before.status})`);
     await page.goto('/', 500);
+    if (!before.body.stored) {
+      const legacy = { template: 'zed://{path}:{line}', pathMap: [{ from: '/srv/app', to: '/home/dev/app' }] };
+      await page.eval(`localStorage.setItem(${JSON.stringify(EDITOR_KEY)}, ${JSON.stringify(JSON.stringify(legacy))}); return true`);
+      await page.goto('/settings?tab=editor', 1500);
+      await page.waitFor(`return !!document.querySelector('[data-testid=editor-preview]') && localStorage.getItem(${JSON.stringify(EDITOR_KEY)}) === null`, {
+        label: "the browser's copy moves to the server",
+      });
+      const migrated = await api.get('/settings/editor');
+      check(migrated.body.stored === true && migrated.body.settings.template === legacy.template, `the server has the browser's template (${JSON.stringify(migrated.body)})`);
+      check(migrated.body.settings.pathMap?.[0]?.to === '/home/dev/app', "the server has the browser's path mapping");
+    }
+    // Every browser starts from the default template for what follows
+    const reset = await api.put('/settings/editor', { template: 'vscode://file/{path}:{line}' });
+    check(reset.status === 200, `the editor settings are reset (${reset.status})`);
     await page.eval(`localStorage.removeItem(${JSON.stringify(EDITOR_KEY)}); return true`);
+    // A full load: the page's copy of the settings was read before the reset
+    await page.goto('/', 500);
     await page.goto(`/chats/${SESSION}`, 1500);
     await page.waitFor(`return !!document.querySelector('.obs-changes')`, { label: 'the changes card' });
 
@@ -149,9 +167,14 @@ export default async ({ page, api, check }) => {
     await page.fill('.obs-map-row input', repo.tree);
     await page.fill('.obs-map-row input:nth-of-type(2)', '/home/dev/feature');
     await page.click('main .btn-primary', 'Save');
-    const stored = await page.eval(`return JSON.parse(localStorage.getItem(${JSON.stringify(EDITOR_KEY)}))`);
-    check(stored?.template === 'cursor://file/{path}:{line}', 'the template is stored');
-    check(stored?.pathMap?.[0]?.to === '/home/dev/feature', 'the path mapping is stored');
+    await page.waitFor(`return document.body.innerText.includes('Editor settings saved')`, { label: 'the settings are saved' });
+    const stored = (await api.get('/settings/editor')).body.settings;
+    check(stored?.template === 'cursor://file/{path}:{line}', 'the template is stored on the server');
+    check(stored?.pathMap?.[0]?.to === '/home/dev/feature', 'the path mapping is stored on the server');
+    check((await page.eval(`return localStorage.getItem(${JSON.stringify(EDITOR_KEY)})`)) === null, 'nothing is kept in the browser');
+    // The server refuses what the form refuses, for a client that skips the form
+    const unsafe = await api.put('/settings/editor', { template: 'javascript:alert({path})' });
+    check(unsafe.status === 400, `the server refuses an unsafe template (${unsafe.status})`);
 
     // A template that could run script is refused before it is ever a link
     await page.fill('main .field input', 'javascript:alert({path})');
@@ -173,6 +196,7 @@ export default async ({ page, api, check }) => {
     check(dialog.length === 0, `the diff dialog has accessibility violations: ${JSON.stringify(dialog)}`);
   } finally {
     await page.eval(`localStorage.removeItem(${JSON.stringify(EDITOR_KEY)}); return true`).catch(() => {});
+    await api.put('/settings/editor', { template: 'vscode://file/{path}:{line}' }).catch(() => {});
     rmSync(root, { recursive: true, force: true });
     if (seeded) rmSync(seeded, { recursive: true, force: true });
   }

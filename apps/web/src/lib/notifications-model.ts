@@ -255,6 +255,30 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
       ];
     }
 
+    case 'supervisor.proposed': {
+      const { proposal } = event;
+      // A task's proposal is acted on where its health is shown with the task's hint route: the board
+      const href =
+        proposal.orchestrationId && proposal.taskId
+          ? `${orchestrationHref(proposal.orchestrationId)}?task=${encodeURIComponent(proposal.taskId)}`
+          : chatHref(proposal.chatId);
+      return [
+        draft(event, {
+          // One proposal per signal per chat, so its id is the news
+          key: `supervisor:${proposal.id}`,
+          dedupeMs: 0,
+          kind: 'health',
+          priority: 'normal',
+          tone: 'info',
+          title: i18n.t('components:notificationText.supervisorProposed', { name: event.taskName ?? event.runName }),
+          body: proposal.hint,
+          href,
+          runId: event.runId,
+          orchestrationId: event.orchestrationId,
+        }),
+      ];
+    }
+
     case 'orchestration.conflict':
       return [
         draft(event, {

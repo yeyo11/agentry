@@ -1,23 +1,38 @@
 import type { EditorSettings } from '@agentry/shared';
 import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '../../components/icons';
 import { useToast } from '../../components/Toast';
-import { Card, Field } from '../../components/ui';
-import { DEFAULT_EDITOR, diffCommand, editorLink, mapPath, resetEditorSettings, sanitizeEditor, setEditorSettings, templateProblem, useEditorSettings } from '../../lib/editor';
+import { Card, ErrorBox, Field, Skeleton } from '../../components/ui';
+import { DEFAULT_EDITOR, diffCommand, editorLink, mapPath, sanitizeEditor, templateProblem } from '../../lib/editor';
+import { saveEditorSettings, useEditorState } from '../../lib/editor-sync';
 
 /** A path that looks like the ones a worker's files have, so the preview shows what a link will be. */
 const SAMPLE = { path: '/workspace/app/src/index.ts', line: 42, other: '/workspace/app-review/src/index.ts' };
 
 /**
- * How the panel builds links into the person's editor. Kept in this browser (the editor is on this
- * machine, which the server cannot know), and applied wherever a changed file or a worktree is shown.
+ * How the panel builds links into the person's editor. Kept on the server, so every browser builds
+ * the same links, and applied wherever a changed file or a worktree is shown.
  */
 export function EditorTab() {
+  const { t } = useTranslation('observe');
+  const { settings, ready } = useEditorState();
+  // The form starts from what the server has, not from what this browser had before it answered
+  if (!ready) {
+    return (
+      <Card title={t('editor.title')}>
+        <Skeleton rows={5} />
+      </Card>
+    );
+  }
+  return <EditorForm saved={settings} />;
+}
+
+function EditorForm({ saved }: { saved: EditorSettings }) {
   const { t } = useTranslation(['observe', 'common']);
   const toast = useToast();
-  const saved = useEditorSettings();
   const [template, setTemplate] = useState(saved.template);
   const [diff, setDiff] = useState(saved.diffCommand ?? '');
   const [rows, setRows] = useState<Array<{ from: string; to: string }>>(saved.pathMap ?? []);
@@ -30,16 +45,15 @@ export function EditorTab() {
   const update = (index: number, patch: Partial<{ from: string; to: string }>) =>
     setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
 
-  const save = () => {
-    setEditorSettings(draft);
-    toast.success(t('observe:editor.saved'));
-  };
-  const reset = () => {
-    resetEditorSettings();
-    setTemplate(DEFAULT_EDITOR.template);
-    setDiff('');
-    setRows([]);
-  };
+  const save = useMutation({
+    mutationFn: (next: EditorSettings) => saveEditorSettings(next),
+    onSuccess: (kept, next) => {
+      setTemplate(kept.template);
+      setDiff(kept.diffCommand ?? '');
+      setRows(kept.pathMap ?? []);
+      toast.success(t(next === DEFAULT_EDITOR ? 'observe:editor.resetDone' : 'observe:editor.saved'));
+    },
+  });
 
   return (
     <Card title={t('observe:editor.title')}>
@@ -113,11 +127,12 @@ export function EditorTab() {
           </dl>
         </div>
 
+        <ErrorBox error={save.error} />
         <div className="form-actions">
-          <button type="button" className="btn btn-primary" onClick={save} disabled={problem !== null}>
-            <Save {...ICON_SM} /> {t('observe:editor.save')}
+          <button type="button" className="btn btn-primary" onClick={() => save.mutate(draft)} disabled={problem !== null || save.isPending}>
+            <Save {...ICON_SM} /> {save.isPending ? t('observe:editor.saving') : t('observe:editor.save')}
           </button>
-          <button type="button" className="btn" onClick={reset}>
+          <button type="button" className="btn" onClick={() => save.mutate(DEFAULT_EDITOR)} disabled={save.isPending}>
             <RotateCcw {...ICON_SM} /> {t('observe:editor.reset')}
           </button>
         </div>

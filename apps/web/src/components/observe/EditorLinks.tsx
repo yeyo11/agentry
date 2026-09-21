@@ -1,6 +1,7 @@
 import { Code2, SquareArrowOutUpRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { diffCommand, editorLink, joinPath, useEditorSettings } from '../../lib/editor';
+import { diffCommand, editorLink, joinPath } from '../../lib/editor';
+import { useEditorSettings } from '../../lib/editor-sync';
 import { ICON_SM } from '../icons';
 import { CopyButton } from '../ui';
 

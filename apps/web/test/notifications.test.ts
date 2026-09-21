@@ -362,3 +362,38 @@ test('the same signals within a minute are one notification, and new signals are
   const worse = apply(first.items, [health('warn', ['hung-command', 'loop'])]);
   assert.equal(worse.items.length, 2);
 });
+
+// ---------- a hint the supervisor proposes ----------
+
+const proposed = (extra: { taskId?: string; orchestrationId?: string } = {}): AgentryEvent => ({
+  type: 'supervisor.proposed',
+  ...base('fix the build: the supervisor proposes a hint'),
+  ...run,
+  orchestrationId: extra.orchestrationId ?? null,
+  taskId: extra.taskId ?? null,
+  taskName: extra.taskId ? 'build step' : null,
+  proposal: {
+    id: 'sp1',
+    chatId: 'run1',
+    ...extra,
+    signal: 'hung-command',
+    hint: 'Stop waiting on `pnpm e2e`; run the unit tests instead.',
+    costUsd: 0.01,
+    at: at(0),
+    status: 'proposed',
+  },
+});
+
+test("a supervisor's proposal is news that opens where it can be sent", () => {
+  const [chat] = notificationsFor(proposed());
+  assert.equal(chat?.kind, 'health');
+  assert.match(chat?.title ?? '', /fix the build/);
+  assert.match(chat?.body ?? '', /run the unit tests/);
+  assert.equal(chat?.href, '/chats/run1');
+  const [task] = notificationsFor(proposed({ taskId: 't1', orchestrationId: 'o1' }));
+  assert.match(task?.title ?? '', /build step/);
+  assert.equal(task?.href, '/orchestration/o1?task=t1');
+  assert.equal(task?.orchestrationId, 'o1');
+  // One proposal is one notification, however often the event is replayed
+  assert.equal(apply([], [proposed(), proposed()]).items.length, 1);
+});

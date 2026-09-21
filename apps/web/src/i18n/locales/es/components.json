@@ -374,7 +374,8 @@
     "conflict_other": "{{count}} archivos en {{branch}} necesitan tu atención.",
     "conflictResolving_one": "{{count}} archivo en {{branch}}.",
     "conflictResolving_other": "{{count}} archivos en {{branch}}.",
-    "fromSubagent": "Lo ha iniciado un subagent."
+    "fromSubagent": "Lo ha iniciado un subagent.",
+    "supervisorProposed": "{{name}}: el supervisor propone una pista"
   },
   "codeBlock": {
     "label": "Código",
