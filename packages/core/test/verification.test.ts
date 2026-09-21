@@ -390,6 +390,7 @@ test('a wrapper restart in the middle of the checks leaves them failed, not runn
       commands: [{ command: 'pnpm e2e', status: 'running', output: '', durationMs: 0 }],
       commits: [],
       report: '',
+      costUsd: 0,
     },
   };
   db.saveOrchestrations([graph]);

@@ -1286,6 +1286,7 @@ ${quoted}
         commits: [],
         commit: null,
         report: `Not run: ${why}.`,
+        costUsd: 0,
       };
       this.persist();
       return;
@@ -1304,6 +1305,7 @@ ${quoted}
       commits: [],
       commit: startHead,
       report: '',
+      costUsd: 0,
     });
     this.persist();
     try {
