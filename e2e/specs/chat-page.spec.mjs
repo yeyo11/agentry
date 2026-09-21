@@ -33,6 +33,8 @@ export default async ({ page, api, check }) => {
   const { configDir } = (await api.get('/system')).body;
   seed(configDir);
   try {
+    // Every spec starts on about:blank, whose storage is out of reach: open the app first
+    await page.goto('/', 800);
     await page.eval(`localStorage.removeItem(${JSON.stringify(INSPECTOR_KEY)}); return true`);
     await page.goto(`/chats/${SESSION}`, 1500);
     await page.waitFor(`return !!document.querySelector('.chat-head h1')`, { label: 'the chat header' });

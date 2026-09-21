@@ -26,7 +26,7 @@ export function Section({ title, actions, children, className = '' }: { title: R
   return (
     <section className={`insp-section ${className}`.trim()} aria-labelledby={id}>
       <header className="insp-head">
-        <h3 id={id}>{title}</h3>
+        <h2 id={id}>{title}</h2>
         {actions}
       </header>
       {children}

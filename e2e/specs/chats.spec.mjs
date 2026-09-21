@@ -59,8 +59,9 @@ export default async ({ page, api, check }) => {
   // so a row only names its control mode when it is another one
   check(rows.includes('Idle') && rows.includes('Terminal'), 'a row says its state and its origin');
   check(!rows.includes('Resumable'), 'a resumable chat carries no control tag');
-  // The seeded chats are months old: sorted by activity they fall under one day heading
-  check((await page.text('.crow-group-head')).includes('Earlier'), 'rows sorted by activity are grouped by day');
+  // The seeded chats are months old: sorted by activity they fall under one day heading. The heading
+  // is set in capitals by CSS, so it is read from the DOM rather than as rendered
+  check((await page.eval(`return document.querySelector('.crow-group-head')?.textContent ?? ''`)).includes('Earlier'), 'rows sorted by activity are grouped by day');
   check((await page.eval(`return document.querySelector('main .page-actions a[href="/chats/new"]')`)) === null, 'the page header no longer repeats New chat');
   // Nothing has answered with these models yet, so their window is unknown and no percentage is invented
   check(rows.includes('150k tokens') && !rows.includes('%'), 'the context of a chat with no known window is shown in tokens, without a percentage');
@@ -75,7 +76,8 @@ export default async ({ page, api, check }) => {
   // The noise filters are opt-in, behind the Filters button, and every one in force is a chip
   await page.click('main .list-toolbar-filters', 'Filters', 400);
   await page.waitFor(`return !!document.querySelector('.list-toolbar-popover')`, { label: 'the filters popover' });
-  const facets = await page.text('.list-toolbar-popover');
+  // The facet legends are set in capitals by CSS too
+  const facets = await page.eval(`return document.querySelector('.list-toolbar-popover')?.textContent ?? ''`);
   check(facets.includes('Origin') && facets.includes('Project') && facets.includes('Model') && facets.includes('claude-sonnet-5'), 'the popover offers origin, project and the models the chats used');
   await toggle(page, 'Internal');
   await page.waitFor(`return location.search.includes('internal=1')`, { label: 'internal in the URL' });

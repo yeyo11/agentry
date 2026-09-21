@@ -42,6 +42,9 @@ export function Sheet({
   const edge = side === 'auto' ? (narrow ? 'bottom' : 'right') : side;
   const [drag, setDrag] = useState(0);
   const from = useRef<number | null>(null);
+  // Radix gives focus back to its Trigger, and a sheet is opened by a plain button: without this it
+  // would land on the body
+  const opener = useRef<HTMLElement | null>(null);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (edge !== 'bottom' || !touch) return;
@@ -67,6 +70,16 @@ export function Sheet({
         <RadixDialog.Content
           className={`sheet sheet-${edge} ${className}`.trim()}
           style={drag ? { transform: `translateY(${drag}px)` } : undefined}
+          onOpenAutoFocus={() => {
+            opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          }}
+          onCloseAutoFocus={(event) => {
+            const back = opener.current;
+            opener.current = null;
+            if (!back?.isConnected) return;
+            event.preventDefault();
+            back.focus();
+          }}
           {...LAYER_ATTR}
         >
           {edge === 'bottom' && touch && (
