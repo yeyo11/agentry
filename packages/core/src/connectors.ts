@@ -43,13 +43,22 @@ const ACTIONS: Record<Exclude<ConnectorKind, 'other'>, ConnectorAction[]> = {
 
 export const CONNECTOR_GUIDE: ConnectorGuide = {
   steps: [
-    'Run `claude` in a terminal, type `/mcp`, pick the connector and choose to authenticate. The CLI opens the browser for the sign-in.',
-    "Or enable and authorise it in claude.ai's connector settings; the CLI lists the connectors of the claude.ai account it is signed in with.",
-    'Then refresh this page: Agentry only reads the state the CLI reports and cannot authorise a connector for you.',
+    {
+      code: 'connectors.authorise.cli',
+      text: 'Run `claude` in a terminal, type `/mcp`, pick the connector and choose to authenticate. The CLI opens the browser for the sign-in.',
+    },
+    {
+      code: 'connectors.authorise.claudeAi',
+      text: "Or enable and authorise it in claude.ai's connector settings; the CLI lists the connectors of the claude.ai account it is signed in with.",
+    },
+    {
+      code: 'connectors.authorise.refresh',
+      text: 'Then refresh this page: Agentry only reads the state the CLI reports and cannot authorise a connector for you.',
+    },
   ],
   links: [
-    { label: 'Connector settings on claude.ai', url: 'https://claude.ai/settings/connectors' },
-    { label: 'Claude Code: connect to tools with MCP', url: 'https://code.claude.com/docs/en/mcp' },
+    { label: { code: 'connectors.link.settings', text: 'Connector settings on claude.ai' }, url: 'https://claude.ai/settings/connectors' },
+    { label: { code: 'connectors.link.mcpDocs', text: 'Claude Code: connect to tools with MCP' }, url: 'https://code.claude.com/docs/en/mcp' },
   ],
 };
 
@@ -57,12 +66,18 @@ export const CONNECTOR_LIMITS: ConnectorLimit[] = [
   {
     id: 'web-artifacts',
     name: 'Web artifacts',
-    reason: 'The artifacts made in claude.ai have no public API and no CLI command, so Agentry cannot list, read or create them.',
+    reason: {
+      code: 'connectors.unavailable.webArtifacts',
+      text: 'The artifacts made in claude.ai have no public API and no CLI command, so Agentry cannot list, read or create them.',
+    },
   },
   {
     id: 'claude-ai-memory',
     name: 'claude.ai memory',
-    reason: "What claude.ai remembers about you has no public API and no CLI command. Claude Code's file memory is a different thing, on the Memory tab.",
+    reason: {
+      code: 'connectors.unavailable.claudeAiMemory',
+      text: "What claude.ai remembers about you has no public API and no CLI command. Claude Code's file memory is a different thing, on the Memory tab.",
+    },
   },
 ];
 
