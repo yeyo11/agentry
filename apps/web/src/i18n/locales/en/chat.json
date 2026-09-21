@@ -7,30 +7,30 @@
     "notFoundHint": "It may have been deleted. <anchor>Browse chats</anchor> to find the conversation.",
     "conversation": "Conversation",
     "back": "Back to chats",
-    "streamConnected": "Live",
-    "streamReconnecting": "Reconnecting…",
     "subagentMessages": "Subagent messages",
     "interruptHint": "End this turn and keep the chat open for your next message",
     "export": {
       "markdown": "Export Markdown",
-      "markdownHint": "Download the conversation as a document a person can read: turns, tool calls collapsed, cost and model in the header",
-      "json": "Export JSON",
-      "jsonHint": "Download the chat and every transcript entry, subagents included, as the events recorded them"
+      "json": "Export JSON"
     },
     "fork": "Fork",
-    "forkHint": "Continue in a copy of this chat, which leaves this one as it is",
     "deleteLive": "A chat with a process working on it cannot be deleted",
     "deleteHeld": "Something else holds this chat",
-    "noProject": "no project",
     "messages_one": "{{count}} messages",
     "messages_other": "{{count}} messages",
-    "updated": "updated {{date}}",
     "sendHint": "Send a hint on the board",
     "transcript": "Transcript",
     "nothingWritten": "Nothing written yet",
     "forkIntro": "A new chat with this one's whole history. This chat stays as it is, and the copy records where it came from.",
     "details": "Chat details",
-    "synthesis": "synthesis"
+    "synthesis": "synthesis",
+    "cancelFork": "Cancel the fork",
+    "copyId": "Copy chat id",
+    "copiedId": "Chat id copied",
+    "copyFailed": "Could not copy the id",
+    "moreActions": "More chat actions",
+    "showDetails": "Show details",
+    "hideDetails": "Hide details"
   },
   "composer": {
     "message": "Message",
@@ -134,15 +134,15 @@
     "notAvailable": "not available",
     "usage": {
       "title": "Context and cost",
-      "tokensOf": "{{used}} tokens of {{window}}",
-      "tokensUnknownWindow": "{{used}} tokens · the window of this model is not known yet",
       "costNotReported": "Claude Code reports a cost only for what Agentry launched.",
       "tokensCaption": "Tokens spent, per model",
       "input": "In",
       "output": "Out",
       "cache": "Cache",
       "total": "Total",
-      "subagentsNote": "Tokens include what its subagents spent."
+      "subagentsNote": "Tokens include what its subagents spent.",
+      "tokensOfWindow": "tokens of {{window}}",
+      "tokensWindowUnknown": "tokens · the window of this model is not known yet"
     },
     "executions": {
       "title": "Executions ({{n}})",
@@ -178,7 +178,8 @@
       "worktree": "Worktree",
       "forkedFrom": "Forked from",
       "updated": "Updated",
-      "environmentEmpty": "Nothing has reported what Claude loaded for this chat yet."
+      "environmentEmpty": "Nothing has reported what Claude loaded for this chat yet.",
+      "messages": "Messages"
     }
   },
   "delete": {
@@ -188,5 +189,49 @@
     "body_one": "The transcript ({{count}} messages) is removed from disk and the chat can no longer be resumed or forked. This cannot be undone.",
     "body_other": "The transcript ({{count}} messages) is removed from disk and the chat can no longer be resumed or forked. This cannot be undone.",
     "confirm": "Delete chat"
+  },
+  "head": {
+    "checklist": "Checklist: {{progress}}"
+  },
+  "pill": {
+    "link": {
+      "live": "live",
+      "reconnecting": "reconnecting…",
+      "interactive": "interactive",
+      "resumable": "resumable",
+      "readOnly": "read-only"
+    },
+    "hint": {
+      "live": "Agentry is driving this chat and its stream is connected",
+      "reconnecting": "The stream dropped a few seconds ago; the browser is reconnecting",
+      "interactive": "Agentry is driving this chat: write to it, interrupt it, change how it runs",
+      "resumable": "Nothing holds this chat: sending a message resumes it",
+      "readOnly": "Something else holds this chat"
+    }
+  },
+  "status": {
+    "noPreset": "no preset",
+    "mcpDefault": "MCP: CLI default",
+    "mcpChosen_one": "MCP: {{count}} server",
+    "mcpChosen_other": "MCP: {{count}} servers",
+    "open": "Run options: {{status}}",
+    "liveTitle": "How this chat runs",
+    "resumeTitle": "Resume with",
+    "forkTitle": "Fork with",
+    "liveHint": "Permission mode and model switch at once. The tools and servers were fixed when the chat started; resuming it later can change them."
+  },
+  "inspector": {
+    "tabs": "Chat details",
+    "tab": {
+      "summary": "Summary",
+      "activity": "Activity",
+      "changes": "Changes",
+      "environment": "Environment"
+    }
+  },
+  "newChat": {
+    "advanced": "Advanced options",
+    "defaultModel": "default model",
+    "defaultMode": "default mode ({{mode}})"
   }
 }

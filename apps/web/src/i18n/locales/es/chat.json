@@ -7,30 +7,30 @@
     "notFoundHint": "Puede que se haya eliminado. <anchor>Explora los chats</anchor> para encontrar la conversación.",
     "conversation": "Conversación",
     "back": "Volver a los chats",
-    "streamConnected": "En directo",
-    "streamReconnecting": "Reconectando…",
     "subagentMessages": "Mensajes de subagents",
     "interruptHint": "Termina este turno y mantén el chat abierto para tu siguiente mensaje",
     "export": {
       "markdown": "Exporta Markdown",
-      "markdownHint": "Descarga la conversación como un documento legible: turnos, llamadas a herramientas plegadas, coste y modelo en la cabecera",
-      "json": "Exporta JSON",
-      "jsonHint": "Descarga el chat y cada entrada de la transcripción, subagents incluidos, tal como las registraron los eventos"
+      "json": "Exporta JSON"
     },
     "fork": "Fork",
-    "forkHint": "Continúa en una copia de este chat, que deja este tal como está",
     "deleteLive": "No se puede eliminar un chat con un proceso trabajando en él",
     "deleteHeld": "Otro proceso tiene retenido este chat",
-    "noProject": "sin proyecto",
     "messages_one": "{{count}} mensaje",
     "messages_other": "{{count}} mensajes",
-    "updated": "actualizado {{date}}",
     "sendHint": "Envía una pista en el tablero",
     "transcript": "Transcripción",
     "nothingWritten": "Todavía no hay nada escrito",
     "forkIntro": "Un chat nuevo con todo el historial de este. Este chat se queda como está y la copia registra de dónde viene.",
     "details": "Detalles del chat",
-    "synthesis": "síntesis"
+    "synthesis": "síntesis",
+    "cancelFork": "Cancelar la copia",
+    "copyId": "Copiar el id del chat",
+    "copiedId": "Id del chat copiado",
+    "copyFailed": "No se pudo copiar el id",
+    "moreActions": "Más acciones del chat",
+    "showDetails": "Mostrar detalles",
+    "hideDetails": "Ocultar detalles"
   },
   "composer": {
     "message": "Mensaje",
@@ -134,15 +134,15 @@
     "notAvailable": "no disponible",
     "usage": {
       "title": "Contexto y coste",
-      "tokensOf": "{{used}} tokens de {{window}}",
-      "tokensUnknownWindow": "{{used}} tokens · aún no se conoce la ventana de este modelo",
       "costNotReported": "Claude Code solo informa del coste de lo que lanzó Agentry.",
       "tokensCaption": "Tokens gastados, por modelo",
       "input": "Entrada",
       "output": "Salida",
       "cache": "Caché",
       "total": "Total",
-      "subagentsNote": "Los tokens incluyen lo que han gastado sus subagents."
+      "subagentsNote": "Los tokens incluyen lo que han gastado sus subagents.",
+      "tokensOfWindow": "tokens de {{window}}",
+      "tokensWindowUnknown": "tokens · aún no se conoce la ventana de este modelo"
     },
     "executions": {
       "title": "Ejecuciones ({{n}})",
@@ -178,7 +178,8 @@
       "worktree": "Worktree",
       "forkedFrom": "Fork de",
       "updated": "Actualizado",
-      "environmentEmpty": "Todavía nada ha informado de lo que Claude cargó para este chat."
+      "environmentEmpty": "Todavía nada ha informado de lo que Claude cargó para este chat.",
+      "messages": "Mensajes"
     }
   },
   "delete": {
@@ -188,5 +189,49 @@
     "body_one": "La transcripción ({{count}} mensaje) se borra del disco y el chat ya no podrá reanudarse ni hacer fork. No se puede deshacer.",
     "body_other": "La transcripción ({{count}} mensajes) se borra del disco y el chat ya no podrá reanudarse ni hacer fork. No se puede deshacer.",
     "confirm": "Elimina el chat"
+  },
+  "head": {
+    "checklist": "Lista de tareas: {{progress}}"
+  },
+  "pill": {
+    "link": {
+      "live": "en directo",
+      "reconnecting": "reconectando…",
+      "interactive": "interactivo",
+      "resumable": "reanudable",
+      "readOnly": "solo lectura"
+    },
+    "hint": {
+      "live": "Agentry lleva este chat y su stream está conectado",
+      "reconnecting": "El stream se cortó hace unos segundos; el navegador está reconectando",
+      "interactive": "Agentry lleva este chat: escríbele, interrúmpelo, cambia cómo se ejecuta",
+      "resumable": "Nada retiene este chat: enviar un mensaje lo reanuda",
+      "readOnly": "Otra cosa retiene este chat"
+    }
+  },
+  "status": {
+    "noPreset": "sin preset",
+    "mcpDefault": "MCP: lo que cargue la CLI",
+    "mcpChosen_one": "MCP: {{count}} servidor",
+    "mcpChosen_other": "MCP: {{count}} servidores",
+    "open": "Opciones de ejecución: {{status}}",
+    "liveTitle": "Cómo se ejecuta este chat",
+    "resumeTitle": "Reanudar con",
+    "forkTitle": "Copiar con",
+    "liveHint": "El modo de permisos y el modelo cambian al momento. Las herramientas y los servidores quedaron fijados al empezar el chat; reanudarlo más tarde puede cambiarlos."
+  },
+  "inspector": {
+    "tabs": "Detalles del chat",
+    "tab": {
+      "summary": "Resumen",
+      "activity": "Actividad",
+      "changes": "Cambios",
+      "environment": "Entorno"
+    }
+  },
+  "newChat": {
+    "advanced": "Opciones avanzadas",
+    "defaultModel": "modelo por defecto",
+    "defaultMode": "modo por defecto ({{mode}})"
   }
 }

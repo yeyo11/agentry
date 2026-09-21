@@ -1,14 +1,15 @@
 import type { Chat, Execution, HealthLevel } from '@agentry/shared';
 import { CircleCheck, Info, TriangleAlert } from 'lucide-react';
-import { lazy, Suspense } from 'react';
+import { useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { BranchStatus, ContextMeter, OutcomeBadge } from '../../components/ChatBadges';
+import { AnimatedNumber } from '../../components/AnimatedNumber';
+import { BranchStatus, ContextMeter, ControlBadge, LastOutcome, OriginBadge, OutcomeBadge, StateBadge } from '../../components/ChatBadges';
 import { Collapsible } from '../../components/controls/Collapsible';
 import { HealthBadge, HealthPanel, isStepIn } from '../../components/observe/Health';
 import { EnvironmentBody } from '../../components/EnvironmentPanel';
 import { ICON_SM } from '../../components/icons';
-import { Card } from '../../components/ui';
+import { CopyButton } from '../../components/ui';
 import { WorkflowCard } from '../../components/WorkflowCard';
 import { api } from '../../api';
 import { formatTokens } from '../../lib/chat-model';
@@ -16,8 +17,22 @@ import { useDetailPanel } from '../../lib/detail';
 import { durationBetween, formatCost, formatDateTime, formatNumber, timeAgo } from '../../lib/format';
 import { healthReason, signalReason } from '../../lib/server-strings';
 
-// Its Select and Combobox are Radix controls kept out of the shell bundle this page lives in
-const LiveSettings = lazy(() => import('./Controls').then((m) => ({ default: m.LiveSettings })));
+/**
+ * One part of the inspector: a heading and what it says, with a rule above instead of a card
+ * around it. The heading names the section for a screen reader too.
+ */
+export function Section({ title, actions, children, className = '' }: { title: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
+  const id = useId();
+  return (
+    <section className={`insp-section ${className}`.trim()} aria-labelledby={id}>
+      <header className="insp-head">
+        <h3 id={id}>{title}</h3>
+        {actions}
+      </header>
+      {children}
+    </section>
+  );
+}
 
 /** Dollars, or the words for a cost nobody reported: it is never estimated, so it is never zero either. */
 function useMoney(): (usd: number | null) => string {
@@ -34,23 +49,24 @@ export function UsageCard({ chat }: { chat: Chat }) {
   // A placeholder message carries no model and no tokens: nothing to show for it
   const rows = cost.tokens.filter((entry) => entry.total > 0);
   return (
-    <Card title={t('side.usage.title')}>
+    <Section title={t('side.usage.title')}>
       <div className="stack-tight">
         <div>
           <div className="small muted">{t('badges.context.inUse')}</div>
           <ContextMeter chat={chat} wide />
           {context && (
             <div className="small muted">
+              <AnimatedNumber className="mono" value={context.used} format={formatNumber} />{' '}
               {context.window !== null
-                ? t('side.usage.tokensOf', { used: formatNumber(context.used), window: formatNumber(context.window) })
-                : t('side.usage.tokensUnknownWindow', { used: formatNumber(context.used) })}
+                ? t('side.usage.tokensOfWindow', { window: formatNumber(context.window) })
+                : t('side.usage.tokensWindowUnknown')}
             </div>
           )}
         </div>
         <dl className="kv kv-narrow">
           <dt>{t('work:runView.cost')}</dt>
-          <dd>
-            {money(cost.usd)}
+          <dd className="mono">
+            {cost.usd === null ? money(null) : <AnimatedNumber value={cost.usd} format={formatCost} />}
             {cost.usd === null && <div className="small muted">{t('side.usage.costNotReported')}</div>}
           </dd>
         </dl>
@@ -91,7 +107,7 @@ export function UsageCard({ chat }: { chat: Chat }) {
         )}
         <div className="small muted">{t('side.usage.subagentsNote')}</div>
       </div>
-    </Card>
+    </Section>
   );
 }
 
@@ -134,7 +150,7 @@ export function ExecutionsCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation('chat');
   const newestFirst = [...chat.executions].reverse();
   return (
-    <Card title={t('side.executions.title', { n: chat.executions.length })}>
+    <Section title={t('side.executions.title', { n: chat.executions.length })}>
       {newestFirst.length === 0 ? (
         <div className="muted small">{t('side.executions.empty')}</div>
       ) : (
@@ -144,7 +160,7 @@ export function ExecutionsCard({ chat }: { chat: Chat }) {
           ))}
         </ol>
       )}
-    </Card>
+    </Section>
   );
 }
 
@@ -156,7 +172,7 @@ export function BranchesCard({ chat }: { chat: Chat }) {
   const { subagents, backgroundTasks, workflows } = chat.children;
   const count = subagents.length + backgroundTasks.length + workflows.length;
   return (
-    <Card title={t('side.branches.title', { n: count })}>
+    <Section title={t('side.branches.title', { n: count })}>
       {count === 0 ? (
         <div className="muted small">{t('side.branches.empty')}</div>
       ) : (
@@ -219,7 +235,7 @@ export function BranchesCard({ chat }: { chat: Chat }) {
           )}
         </div>
       )}
-    </Card>
+    </Section>
   );
 }
 
@@ -241,7 +257,7 @@ export function HealthCard({ chat }: { chat: Chat }) {
       ? facts.map((signal) => ({ kind: signal.kind, level: signal.level, reason: signalReason(signal) }))
       : [{ kind: 'ok', level: 'ok', reason: healthReason(health) }];
   return (
-    <Card title={t('side.health.title')} actions={<HealthBadge health={health} />}>
+    <Section title={t('side.health.title')} actions={<HealthBadge health={health} />}>
       <HealthPanel health={health} chatId={chat.id} live={Boolean(chat.execution)} badge={false} sendHint={(text) => api.hintChat(chat.id, { text })} />
       {notes.length > 0 && (
         <ul className="chat-notes">
@@ -259,7 +275,7 @@ export function HealthCard({ chat }: { chat: Chat }) {
           })}
         </ul>
       )}
-    </Card>
+    </Section>
   );
 }
 
@@ -268,31 +284,21 @@ export function HealthCard({ chat }: { chat: Chat }) {
 export function FactsCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation(['chat', 'work', 'common']);
   const live = chat.execution;
-  const interactive = chat.control.mode === 'interactive';
+  const origin = chat.orchestration ? `${chat.orchestration.name} · ${chat.orchestration.taskName ?? t('view.synthesis')}` : t(`badges.origin.${chat.origin}`);
   return (
-    <Card title={t('side.facts.title')}>
+    <Section title={t('side.facts.title')}>
+      {/* What the header's pill merges, said one by one, with the outcome of the last execution */}
+      <div className="chips">
+        <StateBadge state={chat.state} />
+        <ControlBadge control={chat.control} />
+        <LastOutcome chat={chat} />
+        <OriginBadge origin={chat.origin} label={origin} />
+      </div>
       <dl className="kv kv-narrow">
-        {interactive ? (
-          <Suspense
-            fallback={
-              <>
-                <dt>{t('work:runView.permissions')}</dt>
-                <dd>{live?.permissionMode}</dd>
-                <dt>{t('work:shared.model')}</dt>
-                <dd>{live?.model ?? chat.model ?? t('work:shared.default')}</dd>
-              </>
-            }
-          >
-            <LiveSettings chat={chat} />
-          </Suspense>
-        ) : (
-          chat.model && (
-            <>
-              <dt>{t('work:shared.model')}</dt>
-              <dd>{chat.model}</dd>
-            </>
-          )
-        )}
+        <dt>{t('work:runView.permissions')}</dt>
+        <dd className="mono">{live?.permissionMode ?? chat.executions.at(-1)?.permissionMode ?? t('work:shared.default')}</dd>
+        <dt>{t('work:shared.model')}</dt>
+        <dd className="mono">{live?.model ?? chat.model ?? t('work:shared.default')}</dd>
         <dt>{t('work:shared.project')}</dt>
         <dd>{chat.project ? chat.project.name : t('side.facts.noProject')}</dd>
         <dt>{t('work:runView.directory')}</dt>
@@ -304,7 +310,11 @@ export function FactsCard({ chat }: { chat: Chat }) {
           </>
         )}
         <dt>{t('work:runView.session')}</dt>
-        <dd className="mono break">{chat.id}</dd>
+        <dd className="mono break insp-id">
+          {chat.id} <CopyButton text={chat.id} label={t('view.copyId')} />
+        </dd>
+        <dt>{t('side.facts.messages')}</dt>
+        <dd>{t('view.messages', { count: chat.messageCount })}</dd>
         {live && (
           <>
             <dt>{t('work:runView.prompts')}</dt>
@@ -342,7 +352,7 @@ export function FactsCard({ chat }: { chat: Chat }) {
           </>
         )}
       </dl>
-    </Card>
+    </Section>
   );
 }
 
@@ -350,7 +360,7 @@ export function EnvironmentCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation(['chat', 'work', 'common']);
   return (
     <Collapsible
-      className="card fold-card"
+      className="fold insp-fold"
       title={
         <>
           <span className="fold-card-title">{t('work:runView.loadedByClaude')}</span>

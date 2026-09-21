@@ -1,6 +1,7 @@
 import type { Chat } from '@agentry/shared';
 import { useTranslation } from 'react-i18next';
-import { Card, Tag } from '../../components/ui';
+import { Tag } from '../../components/ui';
+import { Section } from './Side';
 
 function RuleList({ rules }: { rules: string[] }) {
   const { t } = useTranslation('chat');
@@ -25,7 +26,7 @@ export function ToolsCard({ chat }: { chat: Chat }) {
   const { tools } = chat;
   if (!tools) return null;
   return (
-    <Card title={t('tools.card.title')}>
+    <Section title={t('tools.card.title')}>
       <dl className="kv kv-narrow">
         <dt>{t('tools.preset')}</dt>
         <dd>{tools.preset ? <Tag tone="info">{tools.preset.name}</Tag> : <span className="muted">{t('tools.card.noPreset')}</span>}</dd>
@@ -57,6 +58,6 @@ export function ToolsCard({ chat }: { chat: Chat }) {
         </dd>
       </dl>
       <p className="small muted">{tools.mcp ? `${t('tools.card.strictNote')} ${t('tools.card.frozenNote')}` : t('tools.card.frozenNote')}</p>
-    </Card>
+    </Section>
   );
 }

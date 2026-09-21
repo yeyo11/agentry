@@ -4,6 +4,7 @@ import type {
   AgentryEvent,
   AgentryEventType,
   ChatActivityEvent,
+  ChatDetail,
   ChatSummary,
   Orchestration,
   Overview,
@@ -189,6 +190,10 @@ export function patchActivity(client: QueryClient, event: ChatActivityEvent): vo
   client.setQueriesData<ChatSummary[]>({ queryKey: keys.chats }, (chats) =>
     chats?.some((chat) => chat.id === chatId) ? chats.map(patchChat) : chats,
   );
+  // The chat's own page: its ticker falls back to this line between the blocks its stream shows
+  for (const sidechains of [false, true]) {
+    client.setQueryData<ChatDetail>(keys.chat(chatId, sidechains), (detail) => (detail ? { ...detail, chat: { ...detail.chat, activity } } : detail));
+  }
   client.setQueriesData<Overview>({ queryKey: keys.overview }, (overview) =>
     overview?.recentChats.some((chat) => chat.id === chatId) ? { ...overview, recentChats: overview.recentChats.map(patchChat) } : overview,
   );

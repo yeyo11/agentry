@@ -3,7 +3,7 @@
 .transcript {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 
 /* Above a windowed transcript: what is still unread further back */
@@ -14,9 +14,22 @@
 }
 
 .msg {
+  position: relative;
   display: flex;
   gap: 12px;
   min-width: 0;
+}
+
+/* Where the avatar would be on a row that does not repeat who wrote it */
+.avatar-gap {
+  flex: none;
+  width: 26px;
+}
+
+/* Same author as the row above: drawn as part of it */
+.msg.is-continued,
+.msg-step {
+  margin-top: -6px;
 }
 
 .avatar {
@@ -56,10 +69,6 @@
   box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-sm);
 }
 
-.msg-tool {
-  margin-left: 38px;
-  margin-top: -10px;
-}
 
 .msg-sidechain {
   margin-left: 38px;
@@ -79,9 +88,26 @@
   font-size: 13px;
 }
 
+/* The time of a row shows when the reader points at it or moves into it, not on every row at once */
 .msg-time {
   margin-left: auto;
   color: var(--text-faint);
+  font: 11px var(--mono);
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+
+.msg:hover .msg-time,
+.msg:focus-within .msg-time {
+  opacity: 1;
+}
+
+/* A row without a head keeps its time in the corner */
+.msg-body > .msg-time {
+  position: absolute;
+  top: 2px;
+  right: 0;
 }
 
 .msg-model {
@@ -316,7 +342,8 @@
   margin-left: 2px;
   vertical-align: -0.18em;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--live);
+  box-shadow: 0 0 6px var(--live), 0 0 14px var(--live-soft);
   animation: caret-blink 1s steps(2, start) infinite;
 }
 
@@ -456,8 +483,6 @@
   font-size: 12.5px;
 }
 
-.fold-tool,
-.fold-result,
 .fold-thinking {
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -465,21 +490,15 @@
   transition: border-color var(--dur-fast);
 }
 
-.fold-tool:hover,
-.fold-result:hover,
 .fold-thinking:hover {
   border-color: var(--border-strong);
 }
 
-.fold-tool > .collapsible-trigger,
-.fold-result > .collapsible-trigger,
 .fold-thinking > .collapsible-trigger {
   padding: 6px 10px;
 }
 
-.fold-tool > .code-block,
-.fold-result > .code-block,
-.fold-body {
+.fold-thinking > .fold-body {
   margin: 0 8px 8px;
 }
 
@@ -489,11 +508,8 @@
 }
 
 .fold-icon {
+  flex: none;
   color: var(--text-muted);
-}
-
-.fold-tool .fold-icon {
-  color: var(--accent);
 }
 
 .tool-name {
@@ -511,19 +527,139 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-  color: var(--text-faint);
+  color: var(--text-muted);
 }
 
-.fold-result.is-error {
-  border-color: color-mix(in srgb, var(--bad) 35%, transparent);
+/* ---- a step: a turn's tool calls folded into one line ---- */
+.msg-step .msg-body {
+  gap: 0;
 }
 
-.fold-result.is-error .tool-name,
-.fold-result.is-error .fold-icon {
+.fold.step > .collapsible-trigger {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font: 12px var(--mono);
+  color: var(--text-muted);
+}
+
+.fold.step > .collapsible-trigger:hover {
+  background: var(--bg-hover);
+}
+
+.fold.step.live-rail {
+  padding-left: 10px;
+}
+
+.step-count {
+  flex: none;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.step-tools {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-icon.is-error {
   color: var(--bad);
 }
 
-.fold[data-state='open']:not(.fold-tool, .fold-result, .fold-thinking) > .collapsible-trigger {
+.msg-step.is-current .step-icon {
+  color: var(--live);
+}
+
+.step-parts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0 4px 8px;
+}
+
+.step-parts > .fold-thinking {
+  margin: 2px 0 2px 10px;
+}
+
+/* ---- one tool call: name and target in mono, a rail coloured by how it came back ---- */
+.call-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  padding-left: 10px;
+}
+
+.call-row::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 0;
+  width: var(--rail-w);
+  border-radius: var(--rail-w);
+  background: var(--border-strong);
+}
+
+.call-row.is-ok::before {
+  background: var(--ok);
+}
+
+.call-row.is-error::before {
+  background: var(--bad);
+}
+
+.call-row.is-running::before {
+  background: var(--live);
+}
+
+.call-row > .fold-call {
+  flex: 1;
+  min-width: 0;
+}
+
+.fold-call > .collapsible-trigger {
+  padding: 3px 6px;
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+}
+
+.fold-call > .collapsible-trigger:hover {
+  background: var(--bg-hover);
+}
+
+.call-row.is-running .fold-icon {
+  color: var(--live);
+}
+
+.call-row.is-error .tool-name,
+.call-row.is-error .fold-icon,
+.fold-call.is-error .tool-name {
+  color: var(--bad);
+}
+
+.call-outcome {
+  flex: none;
+  color: var(--bad);
+  font: 11.5px var(--mono);
+}
+
+.call-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0 6px 6px;
+}
+
+.icon-btn.call-open {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+
+.fold[data-state='open']:not(.fold-call, .fold-thinking, .step) > .collapsible-trigger {
   margin-bottom: 6px;
 }
 
@@ -584,14 +720,8 @@
   color: var(--text-muted);
 }
 
-.evt-working {
-  color: var(--text-muted);
-  gap: 10px;
-}
-
 @media (max-width: 900px) {
-.msg-sidechain,
-  .msg-tool {
+.msg-sidechain {
     margin-left: 14px;
   }
 .evt {
