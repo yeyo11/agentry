@@ -2355,6 +2355,10 @@ export interface HealthChangedEvent extends AgentryEventBase, RunEventRef {
   previousLevel: HealthLevel;
   /** The first (worst) signal's line, or `Nothing unusual.` when the chat recovered */
   reason: string;
+  /** Stable key of `reason` (`health.ok` when the chat recovered), as on {@link HealthSignal} */
+  reasonCode?: string;
+  /** The figures `reason` was built from */
+  params?: LocalizedParams;
   signals: HealthSignalKind[];
 }
 
