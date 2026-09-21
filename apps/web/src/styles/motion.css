@@ -149,3 +149,33 @@
 :root[data-hidden='true'] *::after {
   animation-play-state: paused !important;
 }
+
+/* ---- What the redesign's live surfaces move with ---- */
+
+/*
+ * The turning angle of `.live-energy`. A custom property can only be interpolated once it has been
+ * registered with a type, so without @property the border simply stands still, which is a fine
+ * thing for it to do.
+ */
+@property --energy-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes energy-turn {
+  to {
+    --energy-angle: 360deg;
+  }
+}
+
+/* The rail of a live block breathes rather than blinks: nothing on a page should blink. */
+@keyframes rail-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}

@@ -19,6 +19,8 @@
  *    - `config`: pages/config/* (settings, MCP, resources, files, plugins), Accounts and the
  *      wording of the previous Orchestration pages that the two above still reuse
  *    - `components`: components/**, the App.tsx shell and navigation, CommandPalette, notifications
+ *    - `primitives`: the shared building blocks every page reuses (Spinner, ProgressBar, Stepper,
+ *      ActivityTicker, Menu, SplitButton, Sheet, ListToolbar): words a page does not get to reword
  *    - `schedules`: the Schedules page and its form (pages/Schedules, pages/schedules/*)
  *    - `usage`: the Usage page (pages/Usage)
  *    - `work`: what is left of the pages the chats redesign removed (Dashboard, Agents, Sessions…)

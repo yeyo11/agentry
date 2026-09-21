@@ -643,3 +643,480 @@ input.is-invalid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---- The shared primitives of the redesign ---- */
+
+/*
+ * A terminal's spinner. It is a glyph, not a border, so it sits on the text baseline of a mono line
+ * and keeps its width across frames. What it means is always said in words next to it.
+ */
+.spinner-glyph {
+  display: inline-block;
+  flex: none;
+  width: 1ch;
+  font-family: var(--mono);
+  font-size: 0.95em;
+  line-height: 1;
+  color: var(--live);
+}
+
+/*
+ * A live surface is marked with a rail down its left edge rather than with a box: it costs no
+ * width, it stacks, and it reads down a list of rows. The rail breathes while something is
+ * happening; at `subtle` and `off` it is simply there.
+ */
+.live-rail {
+  position: relative;
+  padding-left: 12px;
+}
+
+.live-rail::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--rail-w);
+  border-radius: var(--rail-w);
+  background: var(--live);
+  animation: rail-pulse var(--pulse-cycle) var(--ease-in-out) infinite;
+}
+
+:root[data-motion='subtle'] .live-rail::before,
+:root[data-motion='off'] .live-rail::before {
+  animation: none;
+  opacity: 0.8;
+}
+
+/*
+ * The one surface of a page that is most alive — the composer of a working chat, the running
+ * stage — gets a thin turning border. One per page: two of them and neither means anything.
+ */
+.live-energy {
+  position: relative;
+  isolation: isolate;
+}
+
+.live-energy::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--energy-angle, 0deg), transparent 0deg, var(--live) 60deg, transparent 140deg, transparent 360deg);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: energy-turn var(--energy-cycle) linear infinite;
+}
+
+/* A bar cut up by status. Its segments are set in percentages that always add up to 100. */
+.progress {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+
+.progress-seg {
+  min-width: 2px;
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.progress-seg.is-done {
+  background: var(--ok);
+}
+
+.progress-seg.is-running {
+  background: var(--live);
+}
+
+.progress-seg.is-failed {
+  background: var(--bad);
+}
+
+.progress-seg.is-pending {
+  background: var(--border-strong);
+}
+
+.progress-seg.is-skipped {
+  background: var(--text-faint);
+  opacity: 0.5;
+}
+
+.progress-blocks {
+  display: inline-flex;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+}
+
+.progress-cell.is-done {
+  color: var(--ok);
+}
+
+.progress-cell.is-running {
+  color: var(--live);
+}
+
+.progress-cell.is-failed {
+  color: var(--bad);
+}
+
+.progress-cell.is-pending,
+.progress-cell.is-skipped {
+  color: var(--text-faint);
+}
+
+/*
+ * The steps of something long. It follows the box it is in and not the window, so the same stepper
+ * is a row in a page's summary and a timeline in a narrow panel or on a phone.
+ */
+.stepper {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.stepper-list {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step-item {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-top: 2px solid var(--border-strong);
+  border-radius: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: default;
+}
+
+button.step {
+  cursor: pointer;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+
+button.step:hover {
+  color: var(--text);
+}
+
+.step.is-done {
+  border-top-color: var(--ok);
+}
+
+.step.is-current,
+.step.is-waiting {
+  border-top-color: var(--live);
+  color: var(--text);
+}
+
+.step.is-failed {
+  border-top-color: var(--bad);
+  color: var(--bad);
+}
+
+.step.is-selected {
+  background: var(--bg-hover);
+}
+
+.step-marker {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  color: var(--text-faint);
+}
+
+.step.is-done .step-marker {
+  color: var(--ok);
+}
+
+.step.is-failed .step-marker {
+  color: var(--bad);
+}
+
+.step.is-current .step-marker,
+.step.is-waiting .step-marker {
+  color: var(--live);
+  border-color: transparent;
+}
+
+.step-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.step-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 550;
+}
+
+.step-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepper.is-compact .step {
+  padding: 5px 7px;
+  font-size: 12px;
+}
+
+/* Too narrow for a row of steps: the same steps become a timeline, one under the other. */
+@container (max-width: 520px) {
+  .stepper-list {
+    flex-direction: column;
+    gap: 0;
+  }
+  .step {
+    border-top: 0;
+    border-left: 2px solid var(--border-strong);
+    padding: 8px 10px;
+  }
+  .step.is-done {
+    border-left-color: var(--ok);
+  }
+  .step.is-current,
+  .step.is-waiting {
+    border-left-color: var(--live);
+  }
+  .step.is-failed {
+    border-left-color: var(--bad);
+  }
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* One line, always: what an agent is doing now is worth a line, never two. */
+.ticker {
+  display: block;
+  min-width: 0;
+}
+
+.ticker-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.ticker-what {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ticker-verb {
+  flex: none;
+  color: var(--live);
+}
+
+.ticker-target {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.ticker-elapsed {
+  flex: none;
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The action you meant, with its neighbours one press away. */
+.split-btn {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.split-btn-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.split-btn-more {
+  margin-left: 1px;
+  padding-inline: 6px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* The bar every list page wears. */
+.list-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.list-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.list-toolbar-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  color: var(--text-faint);
+}
+
+.list-toolbar-search:focus-within {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.list-toolbar-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 6px 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.list-toolbar-search input:focus {
+  outline: none;
+}
+
+.list-toolbar-filters.is-on {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.list-toolbar-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.list-toolbar-popover {
+  gap: 12px;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+}
+
+.list-toolbar-sort {
+  flex: 0 1 auto;
+  max-width: 180px;
+}
+
+.list-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.list-toolbar-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A filter in force. It is a button because taking it off is the only thing it does. */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.filter-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.segment-count {
+  margin-left: 5px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+/* A finger needs a target it can hit; a pointer does not need the room. */
+@media (pointer: coarse) {
+  .list-toolbar-search input,
+  .filter-chip,
+  .step {
+    min-height: 44px;
+  }
+  .list-toolbar-chips .filter-chip {
+    padding-inline: 12px;
+  }
+}

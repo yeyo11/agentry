@@ -104,45 +104,78 @@ export function useDecorativeMotion(): boolean {
   return level === 'full' && !hidden;
 }
 
-/**
- * A frame counter shared by every looping glyph on the page: one timer, one tick, so ten spinners
- * stay in step and cost what one costs. Returns 0 when decorative motion is not allowed.
+/*
+ * One timer per period, shared by everything that ticks with it: ten spinners on a page cost what
+ * one costs and stay in step, which is also what makes them read as one machine working.
  */
-const tickListeners = new Set<() => void>();
-let frame = 0;
-let timer: ReturnType<typeof setInterval> | undefined;
-
-function frameMs(): number {
-  if (typeof document === 'undefined') return 80;
-  const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--spin-frame'));
-  return Number.isFinite(value) && value > 0 ? value : 80;
+interface Ticker {
+  listeners: Set<() => void>;
+  timer: ReturnType<typeof setInterval> | undefined;
+  count: number;
+  subscribe: (listener: () => void) => () => void;
+  read: () => number;
 }
 
-function subscribeTick(listener: () => void): () => void {
-  tickListeners.add(listener);
-  if (timer === undefined) {
-    timer = setInterval(() => {
-      frame = (frame + 1) % 1000;
-      tickListeners.forEach((l) => l());
-    }, frameMs());
-  }
-  return () => {
-    tickListeners.delete(listener);
-    if (tickListeners.size === 0 && timer !== undefined) {
-      clearInterval(timer);
-      timer = undefined;
-    }
+const tickers = new Map<number, Ticker>();
+
+function tickerFor(periodMs: number): Ticker {
+  const existing = tickers.get(periodMs);
+  if (existing) return existing;
+  const ticker: Ticker = {
+    listeners: new Set(),
+    timer: undefined,
+    count: 0,
+    subscribe: (listener) => {
+      ticker.listeners.add(listener);
+      ticker.timer ??= setInterval(() => {
+        ticker.count += 1;
+        ticker.listeners.forEach((l) => l());
+      }, periodMs);
+      return () => {
+        ticker.listeners.delete(listener);
+        if (ticker.listeners.size === 0 && ticker.timer !== undefined) {
+          clearInterval(ticker.timer);
+          ticker.timer = undefined;
+        }
+      };
+    },
+    read: () => ticker.count,
   };
+  tickers.set(periodMs, ticker);
+  return ticker;
 }
 
 const noSubscription = (): (() => void) => () => {};
+const zero = () => 0;
 
+/**
+ * The spinner's frame time, read once from `--spin-frame` so the token stays the single source and
+ * no render pays for a style read.
+ */
+let spinFrameMs: number | undefined;
+function frameMs(): number {
+  if (spinFrameMs !== undefined) return spinFrameMs;
+  if (typeof document === 'undefined') return 80;
+  const value = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--spin-frame'));
+  spinFrameMs = Number.isFinite(value) && value > 0 ? value : 80;
+  return spinFrameMs;
+}
+
+/** Which braille frame a spinner is on; frozen at 0 whenever decorative motion is not allowed. */
 export function useAnimationFrameIndex(): number {
   const running = useDecorativeMotion();
-  const tick = useSyncExternalStore(
-    running ? subscribeTick : noSubscription,
-    () => frame,
-    () => 0,
-  );
+  const ticker = tickerFor(frameMs());
+  const tick = useSyncExternalStore(running ? ticker.subscribe : noSubscription, running ? ticker.read : zero, zero);
   return running ? tick : 0;
+}
+
+/**
+ * A counter that steps every `periodMs`, for a clock rather than for decoration: elapsed time is
+ * information, so it keeps counting at every motion level and only stops while the tab is hidden.
+ */
+export function useClockTick(periodMs = 1000): number {
+  const hidden = useSyncExternalStore(subscribe, () => typeof document !== 'undefined' && document.hidden, () => false);
+  const ticker = tickerFor(periodMs);
+  const tick = useSyncExternalStore(hidden ? noSubscription : ticker.subscribe, ticker.read, zero);
+  return hidden ? ticker.count : tick;
 }
