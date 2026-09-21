@@ -155,6 +155,34 @@ test('a project is governed by at most one policy, and bad ones are refused', as
   await assert.rejects(store.deletePolicy(first.id), /not found/);
 });
 
+test('at most one policy governs the chats without a project, and it may govern no project at all', async () => {
+  const config = tempConfig();
+  const store = new AccountConfigs(config);
+  assert.equal(store.looseChatsPolicy(), null);
+
+  const loose = await store.createPolicy({ threshold: 85, projects: [], looseChats: true });
+  assert.deepEqual(loose, { id: loose.id, threshold: 85, projects: [], looseChats: true });
+  await assert.rejects(store.createPolicy({ threshold: 85, projects: ['a'], looseChats: true }), /already governed by policy/);
+  await assert.rejects(store.createPolicy({ threshold: 85, projects: [], looseChats: false }), /at least one project/);
+  await assert.rejects(store.createPolicy({ threshold: 85, projects: ['a'], looseChats: 'yes' as unknown as boolean }), /looseChats must be a boolean/);
+
+  // A project policy leaves the loose one alone, and `false` is not stored as a field
+  const project = await store.createPolicy({ threshold: 80, projects: ['a'], looseChats: false });
+  assert.equal('looseChats' in project, false);
+  assert.equal(store.looseChatsPolicy()?.id, loose.id);
+
+  // Editing the one that has it does not collide with itself; moving it takes it from there
+  await store.updatePolicy(loose.id, { threshold: 70, projects: ['b'], looseChats: true });
+  await assert.rejects(store.updatePolicy(project.id, { threshold: 80, projects: ['a'], looseChats: true }), /already governed/);
+  await store.updatePolicy(loose.id, { threshold: 70, projects: ['b'] });
+  const moved = await store.updatePolicy(project.id, { threshold: 80, projects: ['a'], looseChats: true });
+  assert.equal(store.looseChatsPolicy()?.id, moved.id);
+
+  const reloaded = new AccountConfigs(config);
+  assert.deepEqual(reloaded.looseChatsPolicy(), moved, 'it survives a restart');
+  assert.equal(reloaded.policyFor('a')?.id, moved.id, 'and still governs its projects');
+});
+
 // ---------- launching through claude-swap ----------
 
 /** Readings are fetched a little before now, as they are in life: an old one would look stale to the sampler. */
@@ -282,6 +310,30 @@ test('a rate-limited chat under a policy moves within it and leaves the shared c
   // No policy, or a chat pinned by hand: the global rotation is the caller's to run
   manager.projectOf = () => null;
   assert.equal(await manager.rotateWithinPolicy(chat, 'x'), null);
+  assert.equal(cswap.launches().length, 0);
+});
+
+test('a chat without a project runs under the loose chats policy, and a project without a policy does not borrow it', async () => {
+  const { manager, cswap } = await managed({ 1: 20, 2: 10, 3: 10 });
+  manager.projectOf = (cwd) => (cwd.startsWith('/w/project') ? 'proj' : null);
+  const loose = { account: null, cwd: '/tmp/scratch' };
+  const inProject = { account: null, cwd: '/w/project/x' };
+
+  // Before any policy takes loose chats, they stay on the active credential
+  assert.deepEqual(manager.launchFor(loose), { account: null, configDir: null });
+
+  await manager.configs.createPolicy({ threshold: 90, order: [3, 1], projects: [], looseChats: true });
+  assert.equal(manager.launchFor(loose).account, '3', 'account 2 is active but not on the list');
+  assert.deepEqual(manager.launchFor(inProject), { account: null, configDir: null }, 'the global auto-switch keeps a project with no policy');
+  assert.equal(manager.launchFor({ account: '2', cwd: '/tmp/scratch' }).account, '2', 'a chat pinned by hand is left alone');
+  assert.equal(await manager.rotateWithinPolicy(inProject, 'x'), null);
+
+  // A rate limit moves the loose chat within its policy, not the shared credential
+  const moved = await manager.rotateWithinPolicy(loose, 'chat hit its rate limit');
+  assert.deepEqual(moved, { switched: true, from: 'a3@example.com', to: 'a1@example.com', reason: 'loose chats rotation policy' });
+  assert.equal(manager.isActive('2'), true);
+  const stuck = await manager.rotateWithinPolicy(loose, 'chat hit its rate limit');
+  assert.deepEqual(stuck, { switched: false, from: 'a1@example.com', to: null, reason: 'no account the policy for chats without a project allows has quota left' });
   assert.equal(cswap.launches().length, 0);
 });
 
