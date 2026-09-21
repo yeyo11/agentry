@@ -15,6 +15,7 @@ import enPrimitives from './locales/en/primitives.json';
 import enProjects from './locales/en/projects.json';
 import enSchedules from './locales/en/schedules.json';
 import enServer from './locales/en/server.json';
+import enShell from './locales/en/shell.json';
 import enUsage from './locales/en/usage.json';
 import enWork from './locales/en/work.json';
 import esAccountsConfig from './locales/es/accountsConfig.json';
@@ -33,6 +34,7 @@ import esPrimitives from './locales/es/primitives.json';
 import esProjects from './locales/es/projects.json';
 import esSchedules from './locales/es/schedules.json';
 import esServer from './locales/es/server.json';
+import esShell from './locales/es/shell.json';
 import esUsage from './locales/es/usage.json';
 import esWork from './locales/es/work.json';
 
@@ -57,6 +59,7 @@ export const en = {
   accountsConfig: enAccountsConfig,
   connectors: enConnectors,
   server: enServer,
+  shell: enShell,
 };
 
 export type Namespace = keyof typeof en;
@@ -83,6 +86,7 @@ export const es = {
   accountsConfig: esAccountsConfig,
   connectors: esConnectors,
   server: esServer,
+  shell: esShell,
 } satisfies Shape<typeof en>;
 
 // `satisfies` only catches keys Spanish lacks; a key only Spanish has is caught here instead, so a

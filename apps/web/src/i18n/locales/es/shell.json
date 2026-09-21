@@ -1,0 +1,58 @@
+{
+  "topbar": {
+    "newOrchestration": "Nueva orquestación"
+  },
+  "live": {
+    "section": "En directo",
+    "working": "{{count}} trabajando",
+    "waiting": "{{count}} esperando",
+    "running": "{{count}} en curso",
+    "progress": "{{done}}/{{total}}",
+    "chipLabel": "En directo: {{summary}}",
+    "menu": "Qué está en marcha",
+    "groups": {
+      "waiting": "Esperándote",
+      "working": "Trabajando",
+      "orchestrations": "Orquestaciones"
+    },
+    "stateWorking": "Trabajando",
+    "stateWaiting": "Esperándote",
+    "more": "{{count}} más",
+    "openChats": "Todos los chats",
+    "openOrchestrations": "Todas las orquestaciones"
+  },
+  "tabbar": {
+    "label": "Pestañas",
+    "new": "Nuevo",
+    "newMenu": "Empieza algo nuevo",
+    "more": "Más",
+    "connection": "Conexión"
+  },
+  "appearance": {
+    "tab": "Apariencia",
+    "intro": "Cómo se ve y se mueve Agentry en este navegador. Se guarda aquí, no en el servidor.",
+    "theme": "Tema",
+    "themeHint": "Sistema sigue el modo claro u oscuro de tu sistema operativo.",
+    "themeOptions": {
+      "system": "Sistema",
+      "light": "Claro",
+      "dark": "Oscuro"
+    },
+    "language": "Idioma",
+    "languageHint": "El idioma de la interfaz. Lo que escribe Claude nunca se traduce.",
+    "motion": "Movimiento",
+    "motionHint": "Los spinners, los raíles que laten y los contadores dicen qué hace un agente ahora mismo.",
+    "motionOptions": {
+      "full": "Completo",
+      "subtle": "Sutil",
+      "off": "Desactivado"
+    },
+    "motionDescriptions": {
+      "full": "Todo se mueve, también los bucles que muestran lo que está vivo.",
+      "subtle": "Solo transiciones: los spinners se quedan quietos y nada se repite en bucle.",
+      "off": "Nada se mueve."
+    },
+    "reducedForced": "Tu sistema pide reducir el movimiento, así que nada se mueve mientras ese ajuste esté activo. La opción de abajo vuelve a aplicarse cuando lo desactives.",
+    "preview": "Vista previa"
+  }
+}

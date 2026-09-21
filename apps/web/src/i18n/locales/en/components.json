@@ -261,13 +261,15 @@
     "open": "open",
     "toggle": "toggle",
     "groups": {
+      "live": "Live",
       "actions": "Actions",
       "theme": "Theme",
+      "language": "Language",
+      "motion": "Motion",
       "goTo": "Go to",
       "projects": "Projects",
       "recent": "Recent",
       "settings": "Settings",
-      "workingChats": "Working chats",
       "recentChats": "Recent chats"
     },
     "newOrchestration": "New orchestration",
@@ -309,7 +311,9 @@
       "worktrees": "worktrees"
     },
     "projectChats": "{{name}} — chats",
-    "projectNewChat": "{{name}} — new chat"
+    "projectNewChat": "{{name}} — new chat",
+    "language": "Language: {{name}}",
+    "motion": "Motion: {{level}}"
   },
   "find": {
     "button": "Search",
@@ -341,9 +345,7 @@
   "theme": {
     "system": "System theme",
     "light": "Light theme",
-    "dark": "Dark theme",
-    "tooltip": "{{current}} · click for {{next}}",
-    "switch": "{{current}} — switch to {{next}}"
+    "dark": "Dark theme"
   },
   "dirty": {
     "title": "Discard unsaved changes?",

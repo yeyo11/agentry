@@ -177,22 +177,6 @@
   overflow-wrap: anywhere;
 }
 
-.nav-scrim {
-  display: none;
-}
-
-@media (max-width: 900px) {
-.nav-scrim {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 80;
-    background: var(--scrim);
-    -webkit-backdrop-filter: blur(4px);
-    backdrop-filter: blur(4px);
-  }
-}
-
 @media (max-width: 900px) {
 .toasts {
     right: 12px;

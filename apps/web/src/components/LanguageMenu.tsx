@@ -8,5 +8,5 @@ const OPTIONS = LANGUAGES.map(({ code, name }) => ({ value: code, label: <span l
 export function LanguageMenu() {
   const { t, i18n } = useTranslation();
   const value: Language = i18n.resolvedLanguage === 'es' ? 'es' : 'en';
-  return <Select value={value} onChange={setLanguage} options={OPTIONS} className="language-switch" aria-label={t('language')} />;
+  return <Select value={value} onChange={setLanguage} options={OPTIONS} aria-label={t('language')} />;
 }
