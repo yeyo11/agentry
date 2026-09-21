@@ -11,6 +11,7 @@ import enObserve from './locales/en/observe.json';
 import enOrchestration from './locales/en/orchestration.json';
 import enOrchestrationDetail from './locales/en/orchestrationDetail.json';
 import enOrchestrationV2 from './locales/en/orchestrationV2.json';
+import enPrimitives from './locales/en/primitives.json';
 import enProjects from './locales/en/projects.json';
 import enSchedules from './locales/en/schedules.json';
 import enServer from './locales/en/server.json';
@@ -28,6 +29,7 @@ import esObserve from './locales/es/observe.json';
 import esOrchestration from './locales/es/orchestration.json';
 import esOrchestrationDetail from './locales/es/orchestrationDetail.json';
 import esOrchestrationV2 from './locales/es/orchestrationV2.json';
+import esPrimitives from './locales/es/primitives.json';
 import esProjects from './locales/es/projects.json';
 import esSchedules from './locales/es/schedules.json';
 import esServer from './locales/es/server.json';
@@ -39,6 +41,7 @@ export const defaultNS = 'common';
 export const en = {
   common: enCommon,
   components: enComponents,
+  primitives: enPrimitives,
   config: enConfig,
   work: enWork,
   chat: enChat,
@@ -64,6 +67,7 @@ type Shape<T> = { [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
 export const es = {
   common: esCommon,
   components: esComponents,
+  primitives: esPrimitives,
   config: esConfig,
   work: esWork,
   chat: esChat,

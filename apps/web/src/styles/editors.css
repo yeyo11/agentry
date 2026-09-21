@@ -1,0 +1,606 @@
+/* Editors and config: CodeMirror, master/detail, file trees, the save bar. */
+.code-editor {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-sunken);
+  min-width: 0;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-base);
+}
+
+/* Surfaces follow our tokens whatever syntax palette CodeMirror loads */
+.code-editor .cm-editor,
+.code-editor .cm-editor .cm-gutters {
+  background: transparent;
+  color: var(--text);
+}
+
+.code-editor .cm-editor .cm-gutters {
+  color: var(--text-faint);
+  border-right: 1px solid var(--border);
+}
+
+.code-editor .cm-editor .cm-activeLine,
+.code-editor .cm-editor .cm-activeLineGutter {
+  background: var(--highlight);
+}
+
+.code-editor .cm-editor .cm-placeholder {
+  color: var(--text-faint);
+}
+
+.code-editor .cm-editor .cm-cursor {
+  border-left-color: var(--accent);
+  border-left-width: 2px;
+}
+
+.code-editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+.code-editor:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.code-editor.is-invalid {
+  border-color: var(--warn);
+}
+
+.code-editor.is-readonly {
+  opacity: 0.92;
+}
+
+.code-editor-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.editor-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.save-bar {
+  position: sticky;
+  bottom: -48px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 0 -18px -16px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: var(--bg-glass);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.change-list {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.change {
+  font: 12px var(--mono);
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  animation: pop-in var(--dur-base) var(--ease-spring);
+}
+
+.change-added {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.change-removed {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.list-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.list-editor-add,
+.search-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-box > input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.kv-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kv-editor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.popover {
+  z-index: 1100;
+  width: min(380px, calc(100vw - 16px));
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transform-origin: var(--radix-popover-content-transform-origin);
+  animation: pop-in var(--dur-base) var(--ease-out);
+}
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-sunken);
+}
+
+.section + .section {
+  border-top: 1px solid var(--border);
+}
+
+.section > .collapsible-trigger {
+  gap: 10px;
+  padding: 12px 16px;
+  transition: background var(--dur-fast);
+}
+
+.section > .collapsible-trigger:hover {
+  background: var(--bg-hover);
+}
+
+.section[data-state='open'] > .collapsible-trigger {
+  background: var(--highlight);
+}
+
+.section-title {
+  font-weight: 600;
+}
+
+.section-summary {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.section-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--bg-elev);
+  border-top: 1px solid var(--border);
+}
+
+.section-body p {
+  margin: 0;
+}
+
+.hook-event {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 12px;
+  transition: border-color var(--dur-fast);
+}
+
+.hook-event:hover,
+.hook-event[data-state='open'] {
+  border-color: var(--border-strong);
+}
+
+.hook-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hook-body {
+  margin-top: 10px;
+}
+
+.hook-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+}
+
+.hook-group-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.hook-group-head .field {
+  flex: 1;
+}
+
+.hook-command {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.fold-card {
+  display: block;
+}
+
+.fold-card > .collapsible-trigger {
+  gap: 10px;
+}
+
+.fold-card-title {
+  font-size: 13.5px;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  color: var(--text);
+}
+
+.fold-card[data-state='open'] > .collapsible-trigger {
+  margin-bottom: 14px;
+}
+
+.env-group {
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+
+.env-group > .collapsible-trigger {
+  justify-content: flex-start;
+  font-weight: 550;
+  font-size: 13px;
+}
+
+.env-group > .collapsible-trigger .count {
+  margin-left: auto;
+}
+
+.env-group[data-state='open'] > .collapsible-trigger {
+  margin-bottom: 8px;
+}
+
+/* Master / detail, file tree, memory */
+.master-detail {
+  display: grid;
+  grid-template-columns: minmax(200px, 290px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  margin-top: 12px;
+}
+
+.master-detail-files {
+  grid-template-columns: minmax(220px, 310px) minmax(0, 1fr);
+}
+
+.master {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+}
+
+.master-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.master-list > li {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.master-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+
+button.master-item:hover {
+  background: var(--bg-hover);
+}
+
+.master-item-on,
+button.master-item-on:hover {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.master-item-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.master-item-head > :first-child {
+  flex: 1;
+}
+
+.master-new {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.master-empty {
+  padding: 12px 9px;
+}
+
+.detail {
+  min-width: 0;
+}
+
+/* The lists of the file tree; the rows are the treeitems */
+.tree-group {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tree-line {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+
+.tree-line:hover > .tree-row {
+  background: var(--bg-hover);
+}
+
+.tree-row-on,
+.tree-line:hover > .tree-row-on {
+  background: var(--accent-soft);
+}
+
+.tree-chevron {
+  color: var(--text-faint);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.tree-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.tree-spacer {
+  flex: none;
+  width: 12px;
+}
+
+.tree-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-muted);
+}
+
+.tree-icon-dir {
+  color: var(--accent);
+}
+
+.tree-size {
+  margin-left: auto;
+  flex: none;
+  color: var(--text-faint);
+}
+
+.tree-empty {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.tree-delete {
+  opacity: 0;
+}
+
+.tree-line:hover .tree-delete,
+.tree-line:focus .tree-delete,
+.tree-delete:focus-visible {
+  opacity: 1;
+}
+
+/* Nothing to hover on a touch screen */
+@media (hover: none) {
+  .tree-delete {
+    opacity: 1;
+  }
+}
+
+.tree-delete:hover:not(:disabled) {
+  color: var(--bad);
+  background: var(--bad-soft);
+}
+
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  font: 12.5px var(--mono);
+  min-width: 0;
+}
+
+.breadcrumb-sep {
+  margin: 0 4px;
+  color: var(--text-faint);
+}
+
+.project-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.project-head-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.project-name {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+/* A card with its worktrees open must not stretch the rest of its row */
+.project-cards {
+  align-items: start;
+}
+
+.worktree-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.worktree-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border-left: 2px solid var(--border);
+  min-width: 0;
+}
+
+.worktree-row.is-live {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.worktree-main {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.worktree-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+.worktree-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+.save-bar {
+    bottom: -36px;
+  }
+}
+
+@media (max-width: 900px) {
+.master-detail,
+.master-detail-files {
+    grid-template-columns: minmax(0, 1fr);
+  }
+.master {
+    max-height: 260px;
+  }
+.hook-hint {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+/* Name and buttons on one line, the value under them */
+.kv-editor-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+.kv-editor-row > :nth-child(2) {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+}

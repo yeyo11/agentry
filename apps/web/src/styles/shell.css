@@ -1,0 +1,588 @@
+/* Shell: sidebar, top bar, navigation, the main column and the sign-in screen. */
+.shell {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  height: 100dvh;
+  transition: grid-template-columns var(--dur-slow) var(--ease-out);
+}
+
+.shell-rail {
+  grid-template-columns: 68px minmax(0, 1fr);
+}
+
+.sidebar {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 14px 12px 12px;
+  background: var(--bg-glass);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  backdrop-filter: blur(18px) saturate(1.3);
+  border-right: 1px solid var(--border);
+  overflow: hidden auto;
+  min-width: 0;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 4px;
+  color: var(--text);
+  font-weight: 650;
+  font-size: 14.5px;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+}
+
+.brand:hover {
+  text-decoration: none;
+}
+
+.brand-mark {
+  flex: none;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px -2px var(--ring);
+  transition: transform var(--dur-slow) var(--ease-spring);
+}
+
+.brand:hover .brand-mark {
+  transform: rotate(45deg) scale(1.05);
+}
+
+.icon-btn.sidebar-close {
+  display: none;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color var(--dur-fast), background var(--dur-fast);
+}
+
+.nav-link:hover {
+  color: var(--text);
+  background: var(--highlight);
+  text-decoration: none;
+}
+
+.nav-link.is-active {
+  color: var(--text);
+}
+
+.nav-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-sm);
+}
+
+.nav-pill::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--gradient-accent);
+}
+
+.nav-icon,
+.nav-label,
+.nav-count {
+  position: relative;
+  z-index: 1;
+}
+
+.nav-icon {
+  display: inline-flex;
+  width: 18px;
+  justify-content: center;
+  transition: color var(--dur-fast), transform var(--dur-base) var(--ease-spring);
+}
+
+.nav-link:hover .nav-icon {
+  transform: scale(1.08);
+}
+
+.nav-link.is-active .nav-icon {
+  color: var(--accent);
+}
+
+.nav-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--gradient-accent);
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.nav-count-ping {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: ping 1.8s var(--ease-out) infinite;
+  z-index: -1;
+}
+
+.nav-link-ext {
+  margin-top: auto;
+}
+
+.nav-link-ext + .sidebar-foot {
+  margin-top: 0;
+}
+
+.sidebar-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--highlight);
+  color: var(--text);
+  min-width: 0;
+  transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+
+.sidebar-foot:hover {
+  text-decoration: none;
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.sidebar-foot-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.sidebar-foot-title {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.sidebar-foot-detail {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* Icon rail. The labels are still the links' names, so they are visually hidden, never display:none */
+.shell-rail .brand-name,
+.shell-rail .nav-label,
+.shell-rail .sidebar-foot-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.shell-rail .sidebar {
+  padding-left: 10px;
+  padding-right: 10px;
+  overflow: visible;
+}
+
+.shell-rail .sidebar-head {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shell-rail .nav-link {
+  justify-content: center;
+  padding: 9px 0;
+}
+
+.shell-rail .nav-count {
+  position: absolute;
+  top: 3px;
+  right: 6px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  font-size: 9.5px;
+}
+
+.shell-rail .sidebar-foot {
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100dvh;
+  isolation: isolate;
+}
+
+/* Warm glow behind the top of the content */
+.content::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 420px;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 100% at 50% -30%, var(--glow), transparent 70%),
+    radial-gradient(40% 70% at 88% -20%, var(--accent-2-soft), transparent 70%);
+}
+
+.topbar {
+  flex: none;
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--topbar-h);
+  padding: 0 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-glass);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+}
+
+.icon-btn.topbar-menu {
+  display: none;
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.crumb-group,
+.crumb-sep {
+  color: var(--text-faint);
+}
+
+.crumb-page {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.select-trigger.project-selector {
+  width: auto;
+  min-width: 150px;
+  max-width: 240px;
+}
+
+/* Sized like the theme toggle next to it rather than like a form field */
+.select-trigger.language-switch {
+  width: auto;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  font-size: 13px;
+}
+
+.main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 26px 28px 48px;
+  scroll-padding-bottom: 80px;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+/* Children with their own overflow (board, tables) must not shrink inside the column */
+.page > * {
+  flex-shrink: 0;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 2px;
+}
+
+.page-header-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.page-header h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.page-header-text > .muted {
+  max-width: 880px;
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.title-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  transition: all var(--dur-fast);
+}
+
+.title-back:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+  transform: translateX(-2px);
+}
+
+.title-icon,
+.meta-icon,
+.link-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.link-more {
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text-muted);
+}
+
+.link-more:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.link-more svg {
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.link-more:hover svg {
+  transform: translateX(3px);
+}
+
+@media (max-width: 900px) {
+.shell,
+  .shell-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+/* The sidebar becomes a slide-over */
+.sidebar,
+  .shell-rail .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 90;
+    width: min(290px, 84vw);
+    padding: 14px 12px 12px;
+    background: var(--bg-elev);
+    box-shadow: var(--shadow-lg);
+    transform: translateX(-102%);
+    /* Hidden once it has slid out, so its links are not tab stops while it is off screen */
+    visibility: hidden;
+    transition:
+      transform var(--dur-slow) var(--ease-out),
+      visibility 0s linear var(--dur-slow);
+    overflow: hidden auto;
+  }
+.shell-nav-open .sidebar {
+    transform: none;
+    visibility: visible;
+    transition:
+      transform var(--dur-slow) var(--ease-out),
+      visibility 0s;
+  }
+}
+
+@media (max-width: 900px) {
+.icon-btn.sidebar-collapse {
+    display: none;
+  }
+.icon-btn.sidebar-close,
+  .icon-btn.topbar-menu {
+    display: inline-flex;
+  }
+/* The rail preference only applies to desktop */
+.shell-rail .brand-name,
+  .shell-rail .nav-label,
+  .shell-rail .sidebar-foot-text {
+    position: relative;
+    width: auto;
+    height: auto;
+    clip-path: none;
+    white-space: inherit;
+  }
+.shell-rail .sidebar-head {
+    flex-direction: row;
+  }
+.shell-rail .nav-link {
+    justify-content: flex-start;
+    padding: 7px 10px;
+  }
+.shell-rail .nav-count {
+    position: relative;
+    top: auto;
+    right: auto;
+    min-width: 20px;
+    height: 18px;
+    font-size: 11px;
+  }
+.shell-rail .sidebar-foot {
+    justify-content: flex-start;
+    padding: 10px;
+  }
+.topbar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+.crumb-group,
+  .crumb-sep {
+    display: none;
+  }
+.main {
+    padding: 16px 14px 36px;
+  }
+}
+
+@media (max-width: 560px) {
+/* The label is the button's name, so it is hidden from sight only */
+.topbar-new-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+.topbar-new,
+  .topbar-workflow {
+    padding: 5px 9px;
+  }
+.select-trigger.project-selector {
+    min-width: 0;
+    max-width: 112px;
+  }
+}
+
+@media (max-width: 480px) {
+/* The page's own h1 says where you are; the crumb only costs the actions their room */
+.crumbs {
+    display: none;
+  }
+.topbar-actions {
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+}
+
+/* The sign-in screen: the whole app when the API answered 401, so it centres on its own */
+.signin {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.signin-card {
+  width: min(440px, 100%);
+}
+
+.signin-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.signin-head h1 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.signin-card .btn {
+  align-self: flex-start;
+}
