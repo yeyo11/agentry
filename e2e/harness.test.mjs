@@ -42,17 +42,17 @@ const alive = (pids) => pids.filter((pid) => {
 let nextPort = 8900 + (process.pid % 50) * 4;
 
 /**
- * Runs the real runner over one spec. `beforeEnd(ctx)` is called once the spec says it started (a
- * file it writes), while the browser is up.
+ * Runs the real runner over one spec, or over `specs` (file name → source). `beforeEnd(ctx)` is
+ * called once the spec says it started (a file it writes), while the browser is up.
  */
-async function run({ spec, env = {}, beforeEnd }) {
+async function run({ spec, specs: sources = { 'probe.spec.mjs': spec }, env = {}, beforeEnd }) {
   const dir = mkdtempSync(join(resolve(tmpdir()), 'agentry-harness-test-'));
   const tmp = join(dir, 'tmp');
   const specs = join(dir, 'specs');
   mkdirSync(tmp);
   mkdirSync(specs);
   const ready = join(dir, 'ready');
-  writeFileSync(join(specs, 'probe.spec.mjs'), spec.replaceAll('READY', JSON.stringify(ready)));
+  for (const [name, source] of Object.entries(sources)) writeFileSync(join(specs, name), source.replaceAll('READY', JSON.stringify(ready)));
   const port = nextPort++;
   const child = spawn(process.execPath, [runner], {
     env: { ...process.env, TMPDIR: tmp, E2E_SPECS_DIR: specs, E2E_PORT: String(port), ...env },
@@ -131,6 +131,26 @@ test('an uncaught exception closes the browser and the server', { skip }, async 
   const r = await run({ spec, env: { E2E_SPEC_TIMEOUT: '600000' }, beforeEnd: () => {} });
   assert.equal(r.code, 1);
   assert.match(r.output, /boom/);
+  assert.deepEqual(r.survivors, { chrome: [], server: false });
+});
+
+test('only a spec that asks for the fake CLI gets it, after every other spec', { skip }, async () => {
+  // Each says which CLI the server it talks to detected; the fake one is named first but must run last
+  const probe = (name, fake) =>
+    `${fake ? 'export const fakeCli = true;\n' : ''}export default async ({ api, fakeCli }) => {` +
+    ` const { body } = await api.get('/system?refresh=1');` +
+    ` console.log('CLI ${name} ' + JSON.stringify({ path: body.cli.path, version: body.cli.version, context: Boolean(fakeCli) })); };`;
+  const r = await run({ specs: { 'a-fake.spec.mjs': probe('a-fake', true), 'b-real.spec.mjs': probe('b-real', false) } });
+  assert.equal(r.code, 0, r.output);
+  const seen = [...r.output.matchAll(/^CLI (\S+) (.+)$/gm)].map(([, name, json]) => ({ name, ...JSON.parse(json) }));
+  assert.deepEqual(seen.map((s) => s.name), ['b-real', 'a-fake']);
+  const [real, fake] = seen;
+  assert.equal(fake.path, join(here, 'fake-cli', 'claude'));
+  assert.match(fake.version, /-fake$/);
+  assert.equal(fake.context, true);
+  assert.notEqual(real.path, fake.path);
+  assert.equal(real.context, false);
+  assert.match(r.output, /restarting the server with the fake CLI/);
   assert.deepEqual(r.survivors, { chrome: [], server: false });
 });
 

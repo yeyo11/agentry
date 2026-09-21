@@ -4,8 +4,8 @@
 //
 // It builds a real git repository with a worktree in the sandbox and seeds a transcript that says
 // the chat worked in it, so nothing here needs a live process. The health actions (cancel the
-// command, send a hint, interrupt) act on a process the wrapper started, which the sandbox has no
-// CLI to start: their rules are covered by test/observe.test.ts and the API tests of the routes.
+// command, send a hint, interrupt) act on a process the wrapper started: health-actions.spec.mjs
+// covers them against the fake CLI of e2e/fake-cli.
 // Everything seeded is removed at the end, because other specs count what the sandbox holds.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
