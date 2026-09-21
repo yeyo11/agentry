@@ -7,12 +7,16 @@ import { Tag } from './ui';
 
 /** What a start or a resume chooses about tools; a key left out keeps what the chat had. */
 export interface ToolChoices {
-  toolPreset?: string;
+  /** `null` asks for no preset at all: not the default on a new chat, not the one it had on a resume */
+  toolPreset?: string | null;
   /** `null` goes back to the servers the CLI loads on its own, an object picks exactly those */
   mcp?: McpSelection | null;
 }
 
 type ServerMode = 'keep' | 'default' | 'choose';
+
+/** The preset option that sends `toolPreset: null`; a preset id is a slug, so it never collides. */
+const NO_PRESET = '__none__';
 
 /**
  * Tool preset and MCP servers for a chat that starts or resumes. A new chat has nothing to keep, so
@@ -23,6 +27,7 @@ export function ChatToolsPicker({
   onChange,
   scope,
   current,
+  forking = false,
 }: {
   value: ToolChoices;
   onChange: (next: ToolChoices) => void;
@@ -30,6 +35,8 @@ export function ChatToolsPicker({
   scope: Scope;
   /** What the chat runs with now; absent for a new chat */
   current?: ChatToolConfig | null;
+  /** A fork, which starts from its source's tools rather than from nothing */
+  forking?: boolean;
 }) {
   const { t } = useTranslation('chat');
   const presets = useQuery({ queryKey: keys.toolPresets, queryFn: api.toolPresets });
@@ -42,7 +49,26 @@ export function ChatToolsPicker({
   // A name that is configured in several scopes is one server to the CLI: the first wins
   const offered = [...new Map((servers.data ?? []).map((s) => [s.name, s])).values()];
 
-  const keepPreset = current?.preset ? t('tools.asBeforePreset', { name: current.preset.name }) : current ? t('tools.asBeforeNone') : t('tools.noPreset');
+  const overview = presets.data;
+  const defaultPreset = overview?.presets.find((p) => p.id === overview.defaultPresetId) ?? null;
+  // What leaving the preset unpicked runs with: the default on a new chat, what it had otherwise
+  const keepPreset = resuming
+    ? current?.preset
+      ? t('tools.asBeforePreset', { name: current.preset.name })
+      : t('tools.asBeforeNone')
+    : defaultPreset
+      ? t('tools.defaultPreset', { name: defaultPreset.name })
+      : t('tools.noPreset');
+  const presetHint = forking
+    ? t('tools.forkHint')
+    : resuming
+      ? t('tools.resumeHint')
+      : defaultPreset
+        ? t('tools.newDefaultHint', { name: defaultPreset.name })
+        : t('tools.presetHint');
+  // Opting out only means something when leaving it unpicked would give the chat some rules
+  const canOptOut = resuming ? Boolean(current?.preset || current?.allowedTools.length || current?.disallowedTools.length) : defaultPreset !== null;
+  const presetValue = value.toolPreset === null ? NO_PRESET : (value.toolPreset ?? '');
   const setMode = (next: ServerMode) => {
     if (next === 'keep') onChange({ ...value, mcp: undefined });
     else if (next === 'default') onChange({ ...value, mcp: resuming ? null : undefined });
@@ -65,14 +91,15 @@ export function ChatToolsPicker({
         <span className="field-label">{t('tools.preset')}</span>
         <Select
           aria-label={t('tools.preset')}
-          value={value.toolPreset ?? ''}
-          onChange={(toolPreset) => onChange({ ...value, toolPreset: toolPreset || undefined })}
+          value={presetValue}
+          onChange={(picked) => onChange({ ...value, toolPreset: picked === NO_PRESET ? null : picked || undefined })}
           options={[
             { value: '', label: keepPreset },
-            ...(presets.data ?? []).map((p) => ({ value: p.id, label: p.name, hint: p.description })),
+            ...(canOptOut ? [{ value: NO_PRESET, label: t('tools.noPresetAtAll') }] : []),
+            ...(overview?.presets ?? []).map((p) => ({ value: p.id, label: p.name, hint: p.description })),
           ]}
         />
-        <span className="field-hint">{t('tools.presetHint')}</span>
+        <span className="field-hint">{presetHint}</span>
       </label>
       <label className="field">
         <span className="field-label">{t('tools.servers')}</span>

@@ -85,7 +85,10 @@ export function pickAccount(
   return null;
 }
 
-/** Agentry's own per-account settings (a config directory) and the rotation policies of projects. */
+/**
+ * Agentry's own per-account settings (a config directory) and the rotation policies of projects and
+ * of the chats that belong to none.
+ */
 export class AccountConfigs {
   private readonly file: string;
   private stored: Stored = { configs: {}, policies: [] };
@@ -112,7 +115,9 @@ export class AccountConfigs {
       }
     }
     const policies = Array.isArray(doc.policies)
-      ? doc.policies.filter((p): p is RotationPolicy => isRecord(p) && typeof p.id === 'string' && typeof p.threshold === 'number' && Array.isArray(p.projects))
+      ? doc.policies
+          .filter((p): p is RotationPolicy => isRecord(p) && typeof p.id === 'string' && typeof p.threshold === 'number' && Array.isArray(p.projects))
+          .map(({ looseChats, ...p }) => ({ ...p, ...(looseChats === true ? { looseChats: true } : {}) }))
       : [];
     return { configs, policies };
   }
@@ -204,13 +209,27 @@ export class AccountConfigs {
     return this.stored.policies.find((p) => p.projects.includes(projectId)) ?? null;
   }
 
+  /** The policy governing the chats under no imported project; the global auto-switch when none does. */
+  looseChatsPolicy(): RotationPolicy | null {
+    return this.stored.policies.find((p) => p.looseChats === true) ?? null;
+  }
+
   private validPolicy(request: RotationPolicyRequest, id: string | null): Omit<RotationPolicy, 'id'> {
     const threshold = Number(request.threshold);
     if (!Number.isFinite(threshold) || threshold < THRESHOLD_MIN || threshold > THRESHOLD_MAX) {
       throw new Error(`threshold must be between ${THRESHOLD_MIN} and ${THRESHOLD_MAX}`);
     }
-    if (!Array.isArray(request.projects) || !request.projects.length || request.projects.some((p) => typeof p !== 'string' || !p)) {
-      throw new Error('projects must list at least one project id');
+    if (request.looseChats !== undefined && typeof request.looseChats !== 'boolean') throw new Error('looseChats must be a boolean');
+    const looseChats = request.looseChats === true;
+    if (!Array.isArray(request.projects) || request.projects.some((p) => typeof p !== 'string' || !p)) {
+      throw new Error('projects must be a list of project ids');
+    }
+    // A policy that governs nothing would sit in the list and never be applied
+    if (!request.projects.length && !looseChats) throw new Error('projects must list at least one project id, or looseChats must be true');
+    if (looseChats) {
+      // Two would leave the choice to whichever was read first, as with a project
+      const other = this.stored.policies.find((p) => p.id !== id && p.looseChats === true);
+      if (other) throw new Error(`chats without a project are already governed by policy ${other.id}`);
     }
     const projects = [...new Set(request.projects)];
     for (const project of projects) {
@@ -224,7 +243,7 @@ export class AccountConfigs {
       }
       order = [...new Set(request.order)];
     }
-    return { threshold: Math.round(threshold * 10) / 10, projects, ...(order ? { order } : {}) };
+    return { threshold: Math.round(threshold * 10) / 10, projects, ...(order ? { order } : {}), ...(looseChats ? { looseChats: true } : {}) };
   }
 
   async createPolicy(request: RotationPolicyRequest): Promise<RotationPolicy> {

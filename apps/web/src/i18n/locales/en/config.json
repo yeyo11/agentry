@@ -448,9 +448,19 @@
     "removeNamed": "Remove {{name}}",
     "removeTitle": "Remove {{name}}?",
     "removeBody": "Chats already running keep the tools they were given.",
-    "removeShippedBody": "This preset ships with Agentry. Once removed it stays removed; you can create it again by hand.",
+    "removeShippedBody": "This preset ships with Agentry. Restore shipped presets brings it back.",
     "empty": "No presets",
-    "emptyHint": "Without a preset a chat uses the CLI's own defaults."
+    "emptyHint": "Without a preset a chat uses the CLI's own defaults.",
+    "default": "Default preset",
+    "defaultHint": "What a new chat starts with when it picks no preset. A resume keeps what the chat had, and a fork what its source had.",
+    "noDefault": "None: the CLI's own tools",
+    "isDefault": "Default",
+    "defaultFailed": "Could not change the default preset",
+    "restore": "Restore shipped presets",
+    "restoreTitle": "Restore the shipped presets?",
+    "restoreBody": "Read-only, No network and Everything go back to how they ship, and any you removed come back. Your own presets and the default stay as they are.",
+    "restored": "Shipped presets restored",
+    "restoreFailed": "Could not restore the shipped presets"
   },
   "resources": {
     "kinds": {

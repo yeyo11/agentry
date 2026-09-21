@@ -120,6 +120,13 @@
     "modelPlaceholder": "Default",
     "permissionMode": "Permission mode",
     "permissionModeHint": "Nobody can answer a prompt when it fires, so anything the mode does not allow is denied",
-    "manualWarning": "In manual mode every tool that needs approval is denied, so most scheduled work will stall. Choose a mode that allows what the task needs."
+    "manualWarning": "In manual mode every tool that needs approval is denied, so most scheduled work will stall. Choose a mode that allows what the task needs.",
+    "fromOrchestration": "From an existing orchestration",
+    "fromOrchestrationHint": "Fills the fields below with a graph that already ran, as a relaunch would start it. Edit them before saving if you like.",
+    "fromOrchestrationPick": "Choose an orchestration…",
+    "fromOrchestrationNone": "No orchestrations yet",
+    "fromOrchestrationOption_one": "{{count}} task · {{ago}}",
+    "fromOrchestrationOption_other": "{{count}} tasks · {{ago}}",
+    "fromOrchestrationFailed": "Could not read that orchestration"
   }
 }

@@ -59,6 +59,8 @@ import type {
   McpServerEntry,
   McpServerHealth,
   ToolPreset,
+  ToolPresetsConfig,
+  ToolPresetsOverview,
   Orchestration,
   OrchestrationSpec,
   OrchestrationTemplate,
@@ -356,7 +358,10 @@ export const api = {
     request<{ ok: true }>(`/config/mcp/${enc(name)}${qs({ project: scope.projectId, scope: mcpScope })}`, {
       method: 'DELETE',
     }),
-  toolPresets: () => request<ToolPreset[]>('/config/tool-presets'),
+  toolPresets: () => request<ToolPresetsOverview>('/config/tool-presets'),
+  setDefaultToolPreset: (defaultPresetId: string | null) =>
+    request<ToolPresetsConfig>('/config/tool-presets/default', { method: 'PUT', body: { defaultPresetId } }),
+  restoreToolPresets: () => request<ToolPresetsOverview>('/config/tool-presets/restore', { method: 'POST' }),
   putToolPreset: (id: string, preset: Pick<ToolPreset, 'name' | 'description' | 'allowedTools' | 'disallowedTools'>) =>
     request<ToolPreset>(`/config/tool-presets/${enc(id)}`, { method: 'PUT', body: preset }),
   deleteToolPreset: (id: string) => request<{ ok: true }>(`/config/tool-presets/${enc(id)}`, { method: 'DELETE' }),

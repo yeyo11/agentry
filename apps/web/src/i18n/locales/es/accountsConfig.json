@@ -58,7 +58,11 @@
     "deleteBody": "Sus proyectos vuelven a la rotación automática global. Los chats que ya están en marcha se quedan en sus cuentas.",
     "rotateAt": "pasa a la siguiente al {{pct}}%",
     "inOrder": "cuentas {{accounts}}",
-    "anyAccount": "cualquier cuenta"
+    "anyAccount": "cualquier cuenta",
+    "looseChats": "Chats sin proyecto",
+    "looseChatsName": "chats sin proyecto",
+    "looseChatsHint": "Gobierna también los chats iniciados en un directorio que no está bajo ningún proyecto importado. Sin esto, siguen la rotación automática global.",
+    "looseChatsTaken": "Otra política ya gobierna los chats sin proyecto: solo puede hacerlo una."
   },
   "history": {
     "title": "Historial de uso",
