@@ -3,8 +3,8 @@ import { join } from 'node:path';
 
 // Every page renders in both themes and at phone width without console errors.
 const PAGES = ['/', '/chats', '/chats/new', '/projects', '/orchestration', '/accounts', '/connectors', '/settings', '/settings?tab=settings', '/settings?tab=mcp', '/settings?tab=files', '/settings?tab=memory', '/settings?tab=plugins'];
-// The project page has a tab for each of its own things
-const PROJECT_TABS = ['', '?tab=settings', '?tab=memory', '?tab=resources', '?tab=worktrees'];
+// The project page is a dashboard, with a full view for each of its own things
+const PROJECT_TABS = ['', '?view=settings', '?view=memory', '?view=resources', '?view=worktrees'];
 
 export default async ({ page, api, check, dirs }) => {
   // A project to open: pages under it need one imported
