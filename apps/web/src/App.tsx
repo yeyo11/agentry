@@ -4,7 +4,7 @@ import {
   ChartColumn,
   FolderGit2,
   House,
-  Menu,
+  MessageSquarePlus,
   MessagesSquare,
   PanelLeftClose,
   PanelLeftOpen,
@@ -15,27 +15,29 @@ import {
   Settings2,
   Users,
   Workflow,
-  X,
-  type LucideIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useOverview } from './api';
-import { CommandPalette, CommandPaletteTrigger, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
-import { DetailHost } from './components/DetailHost';
-import { LanguageSwitch } from './components/LanguageSwitch';
+import { CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
+import type { MenuEntry } from './components/controls/Menu';
 import { Tooltip } from './components/controls/Tooltip';
+import { DetailHost } from './components/DetailHost';
 import { BrandMark, ICON } from './components/icons';
 import { NotificationBell, NotificationHost } from './components/Notifications';
-import { AnimatePresence, motion, PageTransition, SlidingIndicator, StatusDot, useReducedMotion } from './components/motion';
+import { PageTransition, SlidingIndicator, StatusDot } from './components/motion';
 import { ProjectSelector } from './components/ProjectSelector';
+import { LiveChip, LiveSection, useLive } from './components/shell/live';
+import { isActive, TabBar, type NavItem } from './components/shell/TabBar';
 import { SignIn } from './components/SignIn';
+import { SplitButton } from './components/SplitButton';
 import { Empty, Skeleton } from './components/ui';
 import { useAuthChallenge } from './lib/auth';
+import { useDesktopNavigation } from './lib/desktop';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
-import { ThemeToggle } from './lib/theme';
+import { hidesTabBar } from './lib/shell-live';
 import { Home } from './pages/Home';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
@@ -52,14 +54,6 @@ const Schedules = lazy(() => import('./pages/Schedules').then((m) => ({ default:
 const Usage = lazy(() => import('./pages/Usage').then((m) => ({ default: m.Usage })));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 
-interface NavItem {
-  to: string;
-  label: string;
-  icon: LucideIcon;
-  /** What the badge counts, for the screen reader */
-  count?: { value: number | undefined; what: string };
-}
-
 const RAIL_KEY = 'cw:sidebar-collapsed';
 
 function readCollapsed(): boolean {
@@ -68,11 +62,6 @@ function readCollapsed(): boolean {
   } catch {
     return false;
   }
-}
-
-function isActive(item: NavItem, pathname: string): boolean {
-  if (item.to === '/') return pathname === '/';
-  return pathname === item.to || pathname.startsWith(`${item.to}/`);
 }
 
 export function App() {
@@ -92,18 +81,18 @@ function Shell() {
   const navigate = useNavigate();
   const { project } = useProjectScope();
   const { pathname } = useLocation();
-  const reduced = useReducedMotion();
-  const { t } = useTranslation(['components', 'connectors']);
+  const { t } = useTranslation(['components', 'connectors', 'shell']);
   const overview = useOverview();
   // The one connection that keeps every page current; the sidebar footer shows when it is down
   const feed = useEventFeed();
+  useDesktopNavigation();
   const counts = overview.data?.counts;
   const auth = overview.data?.system.auth;
   const cli = overview.data?.system.cli;
   const healthy = cli?.installed === true && auth?.loggedIn === true;
   const feedDown = feed !== 'open' && overview.data !== undefined;
+  const live = useLive(counts);
   const [collapsed, setCollapsed] = useState(readCollapsed);
-  const [mobileNav, setMobileNav] = useState(false);
   const [workflowOpen, setWorkflowOpen] = useState(false);
 
   useEffect(() => {
@@ -113,9 +102,6 @@ function Shell() {
       // private mode: the preference just does not persist
     }
   }, [collapsed]);
-
-  // The slide-over closes itself on navigation
-  useEffect(() => setMobileNav(false), [pathname]);
 
   // A route change is silent to a screen reader and leaves keyboard focus on a link that may no
   // longer be there, so focus moves to the page, unless the page already took it (an autofocus).
@@ -129,24 +115,6 @@ function Shell() {
     const main = mainRef.current;
     if (main && !main.contains(document.activeElement)) main.focus({ preventScroll: true });
   }, [pathname]);
-
-  // The slide-over is a dialog in effect: focus goes in, Escape closes it and focus comes back
-  const menuRef = useRef<HTMLButtonElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!mobileNav) return;
-    closeRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileNav(false);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    const menu = menuRef.current;
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      // Navigating away moves focus to the page; only a plain close returns it to the menu button
-      if (!mainRef.current?.contains(document.activeElement)) menu?.focus();
-    };
-  }, [mobileNav]);
 
   // The palette asks for the workflow dialog it cannot host itself
   useEffect(() => {
@@ -169,6 +137,13 @@ function Shell() {
 
   const current = items.find((item) => isActive(item, pathname));
 
+  const newChat = () => navigate(project?.exists ? `/chats/new?cwd=${encodeURIComponent(project.path)}` : '/chats/new');
+  // What else a person can start: behind "New chat ▾" in the top bar, and in the phone's "New" tab
+  const startEntries: MenuEntry[] = [
+    { id: 'run-workflow', label: t('shell.runWorkflow'), icon: Play, onSelect: () => setWorkflowOpen(true) },
+    { id: 'new-orchestration', label: t('shell:topbar.newOrchestration'), icon: Workflow, onSelect: () => navigate(NEW_ORCHESTRATION_PATH) },
+  ];
+
   const statusTone = overview.isError ? 'bad' : healthy && !feedDown ? 'ok' : 'warn';
   const statusTitle = overview.isError
     ? t('shell.apiUnreachable')
@@ -190,12 +165,23 @@ function Shell() {
         : !cli?.installed
           ? t('shell.installCli')
           : t('shell.addCredential');
+  const connection = (
+    <NavLink to="/settings?tab=account" className="sidebar-foot">
+      <StatusDot tone={statusTone} live={healthy && !feedDown} />
+      <span className="sidebar-foot-text">
+        <span className="sidebar-foot-title ellipsis">{statusTitle}</span>
+        {statusDetail && <span className="sidebar-foot-detail ellipsis">{statusDetail}</span>}
+      </span>
+    </NavLink>
+  );
+
+  const tabBar = !hidesTabBar(pathname);
 
   // In the icon rail the labels are hidden, so they move into tooltips
   const railTip = (label: string) => (collapsed ? label : undefined);
 
   return (
-    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${mobileNav ? 'shell-nav-open' : ''}`}>
+    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${tabBar ? 'shell-has-tabbar' : ''}`}>
       <a
         href="#main"
         className="skip-link"
@@ -206,19 +192,6 @@ function Shell() {
       >
         {t('shell.skipToContent')}
       </a>
-      <AnimatePresence>
-        {mobileNav && (
-          <motion.div
-            className="nav-scrim"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: reduced ? 0 : 0.18 }}
-            aria-hidden
-            onClick={() => setMobileNav(false)}
-          />
-        )}
-      </AnimatePresence>
 
       <aside id="sidebar" className="sidebar" aria-label={t('shell.sidebar')}>
         <div className="sidebar-head">
@@ -238,9 +211,6 @@ function Shell() {
               {collapsed ? <PanelLeftOpen {...ICON} /> : <PanelLeftClose {...ICON} />}
             </button>
           </Tooltip>
-          <button ref={closeRef} type="button" className="icon-btn sidebar-close" aria-label={t('shell.closeNavigation')} onClick={() => setMobileNav(false)}>
-            <X {...ICON} />
-          </button>
         </div>
 
         <nav className="nav" aria-label={t('shell.mainNavigation')}>
@@ -259,7 +229,6 @@ function Shell() {
                     <span className="nav-label">{item.label}</span>
                     {badge ? (
                       <span className="nav-count">
-                        <span className="nav-count-ping" aria-hidden />
                         {badge}
                         <span className="sr-only"> {item.count?.what}</span>
                       </span>
@@ -271,6 +240,8 @@ function Shell() {
           </div>
         </nav>
 
+        <LiveSection live={live} rail={collapsed} />
+
         <Tooltip content={railTip(t('nav.apiReference'))} side="right">
           <a href="/docs" target="_blank" rel="noopener noreferrer" className="nav-link nav-link-ext">
             <span className="nav-icon">
@@ -281,29 +252,13 @@ function Shell() {
         </Tooltip>
 
         <Tooltip content={`${statusTitle}${statusDetail ? ` · ${statusDetail}` : ''}`} side="right">
-          <NavLink to="/settings?tab=account" className="sidebar-foot">
-            <StatusDot tone={statusTone} live={healthy && !feedDown} />
-            <span className="sidebar-foot-text">
-              <span className="sidebar-foot-title ellipsis">{statusTitle}</span>
-              {statusDetail && <span className="sidebar-foot-detail ellipsis">{statusDetail}</span>}
-            </span>
-          </NavLink>
+          {connection}
         </Tooltip>
       </aside>
 
-      <div className="content" inert={mobileNav}>
+      <div className="content">
+        {/* In the desktop app this bar is also the window's title bar (lib/desktop.ts, styles/shell.css) */}
         <header className="topbar">
-          <button
-            ref={menuRef}
-            type="button"
-            className="icon-btn topbar-menu"
-            aria-label={t('shell.openNavigation')}
-            aria-expanded={mobileNav}
-            aria-controls="sidebar"
-            onClick={() => setMobileNav(true)}
-          >
-            <Menu {...ICON} />
-          </button>
           <div className="crumbs">
             <span className="crumb-page">{current?.label ?? 'Agentry'}</span>
             {current?.to === '/' && project && (
@@ -319,20 +274,8 @@ function Shell() {
             <ProjectSelector />
             <CommandPaletteTrigger />
             <NotificationBell />
-            <LanguageSwitch />
-            <ThemeToggle />
-            <button type="button" className="btn topbar-workflow" onClick={() => setWorkflowOpen(true)}>
-              <Play {...ICON} aria-hidden />
-              <span className="topbar-new-label">{t('shell.runWorkflow')}</span>
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary topbar-new"
-              onClick={() => navigate(project?.exists ? `/chats/new?cwd=${encodeURIComponent(project.path)}` : '/chats/new')}
-            >
-              <Plus {...ICON} aria-hidden />
-              <span className="topbar-new-label">{t('shell.newChat')}</span>
-            </button>
+            <LiveChip live={live} />
+            <SplitButton className="topbar-new" label={t('shell.newChat')} icon={Plus} onClick={newChat} entries={startEntries} />
           </div>
         </header>
 
@@ -359,6 +302,16 @@ function Shell() {
           </PageTransition>
         </main>
       </div>
+
+      {tabBar && (
+        <TabBar
+          pathname={pathname}
+          tabs={items.slice(0, 3)}
+          more={items.slice(3)}
+          newEntries={[{ id: 'new-chat', label: t('shell.newChat'), icon: MessageSquarePlus, onSelect: newChat }, ...startEntries]}
+          connection={connection}
+        />
+      )}
 
       {workflowOpen && (
         <Suspense fallback={null}>

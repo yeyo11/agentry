@@ -58,6 +58,8 @@
   /* The one-line status strip under a composer, and the rail that marks a live block */
   --statusbar-h: 26px;
   --rail-w: 2px;
+  /* The phone's bottom tab bar, without the safe-area inset under it */
+  --tabbar-h: 56px;
   --mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   /* Lets height:auto animate where the browser supports it */

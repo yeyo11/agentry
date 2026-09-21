@@ -275,13 +275,15 @@
     "open": "abrir",
     "toggle": "abrir o cerrar",
     "groups": {
+      "live": "En directo",
       "actions": "Acciones",
       "theme": "Tema",
+      "language": "Idioma",
+      "motion": "Movimiento",
       "goTo": "Ir a",
       "projects": "Proyectos",
       "recent": "Recientes",
       "settings": "Ajustes",
-      "workingChats": "Chats en curso",
       "recentChats": "Chats recientes"
     },
     "newOrchestration": "Nueva orquestación",
@@ -323,7 +325,9 @@
       "worktrees": "worktrees"
     },
     "projectChats": "{{name}} — chats",
-    "projectNewChat": "{{name}} — nuevo chat"
+    "projectNewChat": "{{name}} — nuevo chat",
+    "language": "Idioma: {{name}}",
+    "motion": "Movimiento: {{level}}"
   },
   "find": {
     "button": "Busca",
@@ -355,9 +359,7 @@
   "theme": {
     "system": "Tema del sistema",
     "light": "Tema claro",
-    "dark": "Tema oscuro",
-    "tooltip": "{{current}} · haz clic para el {{next}}",
-    "switch": "{{current}}: cambia al {{next}}"
+    "dark": "Tema oscuro"
   },
   "dirty": {
     "title": "¿Descartar los cambios sin guardar?",

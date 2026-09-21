@@ -167,6 +167,9 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | Toast | aviso emergente |
 | Live | en directo ("Runs en directo"), never "activo", which translates *active* |
 | Theme names | Tema del sistema / Tema claro / Tema oscuro |
+| Appearance (the Settings tab) | Apariencia |
+| Motion (level): Full / Subtle / Off | Movimiento: Completo / Sutil / Desactivado |
+| Tab bar (a phone's bottom navigation) | Pestañas |
 | Notification kinds (what to notify about) | a plural noun phrase after "Avísame de": "Runs que me esperan" |
 
 ## Status names

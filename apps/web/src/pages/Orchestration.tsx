@@ -545,7 +545,7 @@ export function Orchestration() {
   const templates = useQuery({ queryKey: keys.orchestrationTemplates, queryFn: api.orchestrationTemplates });
   const [params, setParams] = useSearchParams();
   const group = useTabGroup();
-  // `?new` opens the form, so a link or a command elsewhere can start a new orchestration here
+  // `?new` opens the form, so the top bar's "New ▾" menu, the palette or a link can start one here
   const [creating, setCreating] = useState(() => params.has('new'));
   // A template opened for editing: the form starts from its graph instead of an empty one. The
   // counter is the form's key, so opening a second template replaces the first instead of keeping its state.
