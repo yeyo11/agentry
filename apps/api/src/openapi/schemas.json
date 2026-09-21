@@ -5518,6 +5518,14 @@
         "type": "string",
         "description": "The first (worst) signal's line, or `Nothing unusual.` when the chat recovered"
       },
+      "reasonCode": {
+        "type": "string",
+        "description": "Stable key of `reason` (`health.ok` when the chat recovered), as on  {@link  HealthSignal }"
+      },
+      "params": {
+        "$ref": "#/components/schemas/LocalizedParams",
+        "description": "The figures `reason` was built from"
+      },
       "signals": {
         "type": "array",
         "items": {

@@ -1,5 +1,6 @@
 import type { HealthSignal, TaskLimits } from '@agentry/shared';
 import { commandKind, slowAfterMs, type UsualDuration } from './commands.ts';
+import { oneLine, said, wholeMinutes } from './health-strings.ts';
 
 // The signals that say a worker is busy and not getting anywhere, worked out from what Agentry
 // already receives: the tool calls and results of its stream, and what its worktree shows. Each is a
@@ -42,36 +43,7 @@ export function runningCommands(trace: Trace): ToolCall[] {
   return trace.calls.filter((c) => c.name === 'Bash' && c.endedAt === null && c.input.run_in_background !== true);
 }
 
-const minutes = (ms: number): string => `${Math.max(1, Math.round(ms / 60_000))} min`;
-const seconds = (ms: number): string => (ms < 90_000 ? `${Math.round(ms / 1000)} s` : minutes(ms));
-const oneLine = (text: string, max: number): string => {
-  const flat = text.replace(/\s+/g, ' ').trim();
-  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
-};
 const ms = (iso: string): number => Date.parse(iso);
-
-// ---------- the text a hint starts from ----------
-
-/**
- * What a person would say to a worker in each situation, so the box is never empty when the badge
- * turns. Written by Agentry: a suggestion per signal is worth more than a blank field to someone
- * who has just been told a worker is stuck.
- */
-export const HINTS = {
-  hungCommand: (command: string) =>
-    `\`${oneLine(command, 80)}\` is taking far longer than it should. Something may be left open (a server, a browser, a connection). ` +
-    'Stop waiting on it, find out what it is waiting for, and run long commands under `timeout` from now on.',
-  repeatStall: (kind: string, count: number) =>
-    `\`${kind}\` has hung ${String(count)} times in a row. Do not run it again as it is: work out what it is waiting on first, run it under \`timeout\`, and check for processes an earlier run left behind.`,
-  noProgress: (elapsed: string) =>
-    `You have not committed or changed a file for ${elapsed}. Tell me what is blocking you. If the approach is not working, change it, and commit what already works.`,
-  loop: () =>
-    'You are repeating the same step and getting the same result. Stop and think about why it does not work: try something different, or say what is blocking you.',
-  weakenedTest: (file: string) =>
-    `You edited \`${file}\` so that it asserts less. Fix the code so the original assertion passes. If the behaviour changed on purpose, say so, and update the assertion to the new behaviour instead of weakening it.`,
-  silence: (elapsed: string) => `I have heard nothing from you for ${elapsed}. Reply with what you are doing right now.`,
-  budget: (what: string) => `You are close to ${what}. Wrap up: commit what works and report what is left.`,
-} as const;
 
 // ---------- the same stall again ----------
 
@@ -119,10 +91,9 @@ export function repeatStall(trace: Trace, limits: StallLimits, nowMs: number): H
   return {
     kind: 'repeat-stall',
     level: count >= 3 ? 'bad' : 'warn',
-    reason: `\`${worst.kind}\` has hung ${String(count)} times in a row (${count} runs, each past ${seconds(limitFor(worst.kind, limits))}).`,
+    ...said('health.repeatStall', { kind: worst.kind, count, limitSeconds: Math.round(limitFor(worst.kind, limits) / 1000) }, 'health.hint.repeatStall'),
     since: first.at,
     detail: commandOf(last),
-    hint: HINTS.repeatStall(worst.kind, count),
     ...(last.endedAt ? {} : { toolUseId: last.id }),
   };
 }
@@ -158,13 +129,14 @@ export function loop(trace: Trace): HealthSignal | null {
   for (const { calls } of tally.values()) if (calls.length >= LOOP_AT && calls.length > repeated.length) repeated = calls;
   if (repeated.length) {
     const first = repeated[0] as ToolCall;
-    const what = first.name === 'Bash' ? `\`${oneLine(commandOf(first), 60)}\`` : `the same ${first.name} call`;
+    const times = repeated.length;
     return {
       kind: 'loop',
-      level: repeated.length >= LOOP_AT * 2 ? 'bad' : 'warn',
-      reason: `${what} ran ${String(repeated.length)} times with the same result.`,
+      level: times >= LOOP_AT * 2 ? 'bad' : 'warn',
+      ...(first.name === 'Bash'
+        ? said('health.loop.command', { command: oneLine(commandOf(first), 60), count: times }, 'health.hint.loop')
+        : said('health.loop.call', { tool: first.name, count: times }, 'health.hint.loop')),
       since: first.at,
-      hint: HINTS.loop(),
     };
   }
 
@@ -181,9 +153,8 @@ export function loop(trace: Trace): HealthSignal | null {
     return {
       kind: 'loop',
       level: same.length >= LOOP_AT * 2 ? 'bad' : 'warn',
-      reason: `The same error came back ${String(same.length)} times: "${oneLine(first.result, 70)}"`,
+      ...said('health.loop.error', { error: oneLine(first.result, 70), count: same.length }, 'health.hint.loop'),
       since: first.at,
-      hint: HINTS.loop(),
     };
   }
   return null;
@@ -219,20 +190,36 @@ const stripComments = (text: string): string => text.replace(/\/\*[\s\S]*?\*\//g
  *  - an assertion that cannot fail was added;
  *  - specific assertions were swapped for ones that pass for nearly anything.
  */
-export function weakening(before: string, after: string): string | null {
+export function weaknessOf(before: string, after: string): Weakness | null {
   const old = stripComments(before);
   const now = stripComments(after);
   const removed = count(old, ASSERTION);
   const kept = count(now, ASSERTION);
   if (removed > 0 && kept === 0 && now.trim() !== '' && count(now, /\b(?:it|test)\s*\(|\bdef test_|\bfunc Test/g) >= count(old, /\b(?:it|test)\s*\(|\bdef test_|\bfunc Test/g)) {
-    return `${String(removed)} ${removed === 1 ? 'assertion' : 'assertions'} removed`;
+    return { why: 'assertionsRemoved', count: removed };
   }
-  if (count(now, SKIP) > count(old, SKIP)) return 'a test is skipped';
-  if (count(now, TAUTOLOGY) > count(old, TAUTOLOGY)) return 'an assertion that cannot fail was added';
+  if (count(now, SKIP) > count(old, SKIP)) return { why: 'skipped' };
+  if (count(now, TAUTOLOGY) > count(old, TAUTOLOGY)) return { why: 'tautology' };
   const weakBefore = count(old, WEAK);
   const weakAfter = count(now, WEAK);
-  if (weakAfter > weakBefore && kept - weakAfter < removed - weakBefore) return 'specific assertions were replaced by ones that pass for almost anything';
+  if (weakAfter > weakBefore && kept - weakAfter < removed - weakBefore) return { why: 'weakMatchers' };
   return null;
+}
+
+/** How a test was made to assert less; `count` is the assertions removed, for the first way */
+export type Weakness = { why: 'assertionsRemoved'; count: number } | { why: 'skipped' | 'tautology' | 'weakMatchers' };
+
+const WEAKNESS_TEXT: Record<Weakness['why'], (n: number) => string> = {
+  assertionsRemoved: (n) => `${String(n)} ${n === 1 ? 'assertion' : 'assertions'} removed`,
+  skipped: () => 'a test is skipped',
+  tautology: () => 'an assertion that cannot fail was added',
+  weakMatchers: () => 'specific assertions were replaced by ones that pass for almost anything',
+};
+
+/** {@link weaknessOf} in words */
+export function weakening(before: string, after: string): string | null {
+  const weakness = weaknessOf(before, after);
+  return weakness ? WEAKNESS_TEXT[weakness.why](weakness.why === 'assertionsRemoved' ? weakness.count : 0) : null;
 }
 
 /** The edits a call makes to a file, as before/after text; a call that is not an edit of an existing file has none. */
@@ -256,22 +243,23 @@ function editsOf(call: ToolCall): Array<{ path: string; before: string; after: s
  * is not counted. One signal per file, worst first, so an editor cleaning up a spec is told once.
  */
 export function weakenedTests(trace: Trace): HealthSignal[] {
-  const found = new Map<string, { why: string; call: ToolCall }>();
+  const found = new Map<string, { weakness: Weakness; call: ToolCall }>();
   for (const call of trace.calls) {
     if (call.isError) continue;
     for (const { path, before, after } of editsOf(call)) {
       if (!TEST_FILE.test(path)) continue;
-      const why = weakening(before, after);
-      if (why && !found.has(path)) found.set(path, { why, call });
+      const weakness = weaknessOf(before, after);
+      if (weakness && !found.has(path)) found.set(path, { weakness, call });
     }
   }
-  return [...found].map(([path, { why, call }]) => ({
+  return [...found].map(([path, { weakness, call }]) => ({
     kind: 'weakened-test' as const,
     level: 'warn' as const,
-    reason: `\`${path}\` was edited so that it asserts less: ${why}.`,
+    ...(weakness.why === 'assertionsRemoved'
+      ? said('health.weakenedTest.assertionsRemoved', { file: path, count: weakness.count }, 'health.hint.weakenedTest')
+      : said(`health.weakenedTest.${weakness.why}`, { file: path }, 'health.hint.weakenedTest')),
     since: call.at,
     detail: path,
-    hint: HINTS.weakenedTest(path),
     toolUseId: call.id,
   }));
 }
@@ -297,9 +285,8 @@ export function noProgress(progressAt: string, nowMs: number): HealthSignal | nu
   return {
     kind: 'no-progress',
     level: idle >= NO_PROGRESS_BAD_MS ? 'bad' : 'warn',
-    reason: `Working for ${minutes(idle)} with no commit and no change to the files (a task that only reads can be fine).`,
+    ...said('health.noProgress', { minutes: wholeMinutes(idle) }, 'health.hint.noProgress'),
     since: progressAt,
-    hint: HINTS.noProgress(minutes(idle)),
   };
 }
 
@@ -328,9 +315,12 @@ export function budget(limits: TaskLimits | null | undefined, spent: { elapsedMs
       signals.push({
         kind: 'budget',
         level: share >= 1 ? 'bad' : 'warn',
-        reason: share >= 1 ? `Past its time limit: ${minutes(spent.elapsedMs)} of ${String(limits.maxMinutes)} min.` : `${minutes(spent.elapsedMs)} of its ${String(limits.maxMinutes)} min used.`,
+        ...said(
+          share >= 1 ? 'health.budget.timePast' : 'health.budget.timeNear',
+          { minutes: wholeMinutes(spent.elapsedMs), limitMinutes: limits.maxMinutes },
+          'health.hint.budget.time',
+        ),
         detail: 'time',
-        hint: HINTS.budget(`its time limit of ${String(limits.maxMinutes)} min`),
       });
     }
   }
@@ -340,9 +330,8 @@ export function budget(limits: TaskLimits | null | undefined, spent: { elapsedMs
       signals.push({
         kind: 'budget',
         level: share >= 1 ? 'bad' : 'warn',
-        reason: `$${spent.costUsd.toFixed(2)} of its $${limits.maxCostUsd.toFixed(2)} spent.`,
+        ...said('health.budget.cost', { spentUsd: spent.costUsd, limitUsd: limits.maxCostUsd }, 'health.hint.budget.cost'),
         detail: 'cost',
-        hint: HINTS.budget(`its cost limit of $${limits.maxCostUsd.toFixed(2)}`),
       });
     }
   }
