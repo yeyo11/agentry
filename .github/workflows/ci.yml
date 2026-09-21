@@ -27,8 +27,9 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # About 3x the slowest successful run (2.7 min over 68), rounded up to 5 minutes
-    timeout-minutes: 10
+    # The e2e suite has grown with the app: the job took 7.5 of its 10 minutes on #62. About 2.5x
+    # that, rounded up to 5 minutes, so a slow runner does not fail a run that was going to pass
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 

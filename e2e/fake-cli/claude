@@ -1,0 +1,321 @@
+#!/usr/bin/env node
+// A fake `claude` for the e2e suite: it speaks just enough of the CLI's stream-json to give the
+// wrapper a live process to act on, which the sandbox cannot get from the real one without a login
+// and a model. README.md beside it describes the surface; nothing here calls a model or the network.
+//
+// A turn is driven by its prompt: every line `run: <command>` is one Bash call, run for real by
+// `sh -c` in the working directory, one after the other, and a line `elapsed: <seconds>` adds that
+// much to what the heartbeats of this process say from then on. A prompt with no `run:` line is
+// answered with `Heard: <its first line>`. Messages that arrive while a turn runs are answered the
+// same way at its next step, between two calls; messages that arrive between turns start one each.
+import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { appendFileSync, readdirSync, readFileSync } from 'node:fs';
+import { createInterface } from 'node:readline';
+
+const VERSION = '2.1.0-fake';
+const argv = process.argv.slice(2);
+const env = process.env;
+function numberEnv(name, fallback) {
+  const raw = env[name];
+  return raw !== undefined && raw !== '' && Number(raw) >= 0 ? Number(raw) : fallback;
+}
+/** Added to every heartbeat's elapsed time: a spec makes a command look hung without waiting minutes for it */
+let elapsedOffsetS = numberEnv('AGENTRY_FAKE_CLI_ELAPSED_S', 0);
+/** The real CLI beats every 30 s; a spec wants to see one sooner */
+const HEARTBEAT_MS = numberEnv('AGENTRY_FAKE_CLI_HEARTBEAT_MS', 30_000);
+const TURN_COST_USD = numberEnv('AGENTRY_FAKE_CLI_TURN_COST_USD', 0);
+/** How long the worker "thinks" between two steps: long enough for a message sent with a cancel to arrive first */
+const SETTLE_MS = 300;
+
+/** What a spec reads to know the process heard something: one JSON line per fact, when the variable names a file. */
+function log(event, fields = {}) {
+  if (!env.AGENTRY_FAKE_CLI_LOG) return;
+  try {
+    appendFileSync(env.AGENTRY_FAKE_CLI_LOG, `${JSON.stringify({ at: new Date().toISOString(), pid: process.pid, event, ...fields })}\n`);
+  } catch {
+    // a log that cannot be written only costs the spec its evidence
+  }
+}
+
+function flag(name) {
+  const at = argv.indexOf(name);
+  if (at !== -1) return argv[at + 1];
+  const inline = argv.find((a) => a.startsWith(`${name}=`));
+  return inline === undefined ? undefined : inline.slice(name.length + 1);
+}
+
+// ---------- the subcommands the wrapper runs besides a chat ----------
+
+function subcommand() {
+  const [first, second, third] = argv.filter((a) => !a.startsWith('-'));
+  if (argv[0] === '--version' || argv[0] === '-v') return `${VERSION} (Claude Code)\n`;
+  if (first === 'auth' && second === 'status') return `${JSON.stringify({ loggedIn: true, authMethod: 'fake', apiProvider: 'firstParty' })}\n`;
+  if (first === 'agents') return '[]\n';
+  if (first === 'mcp' && second === 'list') return 'No MCP servers configured. Use `claude mcp add` to add a server.\n';
+  if (first === 'plugin' && (second === 'list' || (second === 'marketplace' && third === 'list'))) return '[]\n';
+  return null;
+}
+
+if (!argv.includes('-p') && !argv.includes('--print')) {
+  const out = subcommand();
+  if (out === null) {
+    process.stderr.write(`fake claude: \`${argv.join(' ')}\` is not part of the fake (e2e/fake-cli)\n`);
+    process.exit(1);
+  }
+  process.stdout.write(out);
+  process.exit(0);
+}
+if (flag('--input-format') !== 'stream-json' || flag('--output-format') !== 'stream-json') {
+  process.stderr.write('fake claude: only `-p --input-format stream-json --output-format stream-json` is faked\n');
+  process.exit(1);
+}
+
+// ---------- a chat ----------
+
+const sessionId = flag('--session-id') ?? flag('--resume') ?? randomUUID();
+let permissionMode = flag('--permission-mode') ?? 'default';
+const modelName = (m) => (m.includes('-') ? m : `claude-${m}-5`);
+let model = modelName(flag('--model') ?? 'sonnet');
+let turns = 0;
+let costUsd = 0;
+
+const emit = (message) => process.stdout.write(`${JSON.stringify({ ...message, session_id: sessionId })}\n`);
+const assistant = (content) =>
+  emit({
+    type: 'assistant',
+    uuid: randomUUID(),
+    parent_tool_use_id: null,
+    message: { id: `msg_${randomUUID()}`, type: 'message', role: 'assistant', model, content, usage: { input_tokens: 10, output_tokens: 10 } },
+  });
+const toolResult = (toolUseId, content, isError) =>
+  emit({ type: 'user', uuid: randomUUID(), parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content, is_error: isError }] } });
+
+emit({
+  type: 'system',
+  subtype: 'init',
+  cwd: process.cwd(),
+  model,
+  permissionMode,
+  tools: ['Bash'],
+  mcp_servers: [],
+  slash_commands: [],
+  claude_code_version: VERSION,
+  output_style: 'default',
+  agents: [],
+  skills: [],
+  plugins: [],
+});
+log('started', { argv, cwd: process.cwd() });
+
+/** Every descendant of a pid, children before parents, read from /proc: a command's tree, never matched by name. */
+function descendants(root) {
+  const children = new Map();
+  let names = [];
+  try {
+    names = readdirSync('/proc').filter((n) => /^\d+$/.test(n));
+  } catch {
+    return [];
+  }
+  for (const name of names) {
+    try {
+      const stat = readFileSync(`/proc/${name}/stat`, 'utf8');
+      const ppid = Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1]);
+      children.set(ppid, [...(children.get(ppid) ?? []), Number(name)]);
+    } catch {
+      // gone in between
+    }
+  }
+  const out = [];
+  const walk = (pid) => {
+    for (const child of children.get(pid) ?? []) {
+      walk(child);
+      out.push(child);
+    }
+  };
+  walk(root);
+  return out;
+}
+
+function killTree(pid, signal = 'SIGTERM') {
+  for (const victim of [...descendants(pid), pid]) {
+    try {
+      process.kill(victim, signal);
+    } catch {
+      // already gone
+    }
+  }
+}
+
+/** The turn in progress: the steps left, and the command running now */
+let turn = null;
+/** Messages that arrived during a turn, answered at its next step */
+const waiting = [];
+/** Messages left for after the turn, each of which starts one */
+const inbox = [];
+
+function textOf(message) {
+  const content = message?.message?.content;
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) return content.filter((b) => b?.type === 'text').map((b) => b.text).join('\n');
+  return '';
+}
+const firstLine = (text) => text.trim().split('\n')[0] ?? '';
+const heard = (text) => ({ type: 'text', text: `Heard: ${firstLine(text)}` });
+
+function startTurn(text) {
+  const offset = /^\s*elapsed:\s*(\d+)\s*$/m.exec(text)?.[1];
+  if (offset !== undefined) elapsedOffsetS = Number(offset);
+  const commands = text
+    .split('\n')
+    .map((l) => /^\s*run:\s*(.+)$/.exec(l)?.[1]?.trim())
+    .filter(Boolean);
+  turn = { commands, current: null, startedAt: Date.now(), interrupted: false };
+  log('turn', { text, commands });
+  if (commands.length === 0) {
+    assistant([heard(text)]);
+    endTurn({ result: `Heard: ${firstLine(text)}` });
+    return;
+  }
+  assistant([{ type: 'text', text: `Running ${commands.length} ${commands.length === 1 ? 'command' : 'commands'}.` }]);
+  nextStep();
+}
+
+function nextStep() {
+  const own = turn;
+  if (!own) return;
+  const command = own.commands.shift();
+  if (command === undefined) {
+    assistant([{ type: 'text', text: 'All done.' }]);
+    endTurn({ result: 'All done.' });
+    return;
+  }
+  const id = `toolu_fake_${randomUUID().replaceAll('-', '').slice(0, 20)}`;
+  // A direct child of this process, the way the CLI's shell calls are: the wrapper finds it under our
+  // pid, by its start time against the call's (it allows two seconds either way). It is started and
+  // logged before the call is announced, so whoever reads the call can already find its pid in the log
+  const child = spawn('sh', ['-c', command], { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] });
+  log('command', { toolUseId: id, command, commandPid: child.pid });
+  assistant([{ type: 'tool_use', id, name: 'Bash', input: { command, description: `Run ${command}` } }]);
+  const started = Date.now();
+  let output = '';
+  child.stdout.on('data', (d) => (output += d));
+  child.stderr.on('data', (d) => (output += d));
+  const beat =
+    HEARTBEAT_MS > 0
+      ? setInterval(() => {
+          const elapsed = elapsedOffsetS + Math.round((Date.now() - started) / 1000);
+          emit({ type: 'tool_progress', uuid: randomUUID(), tool_use_id: id, tool_name: 'Bash', parent_tool_use_id: null, elapsed_time_seconds: elapsed });
+        }, HEARTBEAT_MS)
+      : null;
+  own.current = { id, child, command };
+  child.on('exit', (code, signal) => {
+    if (beat) clearInterval(beat);
+    if (turn !== own || own.current?.child !== child) return;
+    own.current = null;
+    log('command-ended', { toolUseId: id, command, code, signal, interrupted: own.interrupted });
+    if (own.interrupted) {
+      toolResult(id, 'The user interrupted this command.', true);
+      endTurn({ error: true });
+      return;
+    }
+    const ok = code === 0;
+    toolResult(id, (output.trim() || (ok ? '(no output)' : `Exit code ${code ?? signal}`)).slice(0, 4000), !ok);
+    // The worker takes a moment before its next step, and reads what was said to it meanwhile
+    setTimeout(() => {
+      if (turn !== own) return;
+      const said = waiting.splice(0);
+      if (said.length) assistant(said.map(heard));
+      nextStep();
+    }, SETTLE_MS);
+  });
+}
+
+function endTurn({ result = '', error = false }) {
+  const startedAt = turn?.startedAt ?? Date.now();
+  turn = null;
+  turns++;
+  costUsd += TURN_COST_USD;
+  emit({
+    type: 'result',
+    subtype: error ? 'error_during_execution' : 'success',
+    is_error: error,
+    duration_ms: Date.now() - startedAt,
+    num_turns: 1,
+    result,
+    total_cost_usd: costUsd,
+    usage: { input_tokens: 10, output_tokens: 10 },
+  });
+  log('result', { error, turns });
+  // What was said during the turn and never answered is taken up now, one turn each
+  inbox.push(...waiting.splice(0));
+  const next = inbox.shift();
+  if (next !== undefined) setImmediate(() => startTurn(next));
+}
+
+function control(message) {
+  const request = message.request ?? {};
+  const reply = (response) => emit({ type: 'control_response', response: { subtype: 'success', request_id: message.request_id, response } });
+  log('control', { subtype: request.subtype });
+  if (request.subtype === 'interrupt') {
+    // The command running goes down with the turn, as the CLI's does; its exit ends the turn
+    if (turn?.current) {
+      turn.interrupted = true;
+      killTree(turn.current.child.pid);
+    } else if (turn) {
+      endTurn({ error: true });
+    }
+    reply({});
+    return;
+  }
+  if (request.subtype === 'set_permission_mode' && typeof request.mode === 'string') {
+    permissionMode = request.mode;
+    emit({ type: 'system', subtype: 'status', permissionMode });
+    reply({});
+    return;
+  }
+  if (request.subtype === 'set_model' && typeof request.model === 'string') {
+    model = modelName(request.model);
+    reply({});
+    return;
+  }
+  emit({ type: 'control_response', response: { subtype: 'error', request_id: message.request_id, error: `the fake CLI does not handle ${String(request.subtype)}` } });
+}
+
+let closing = false;
+function shutdown() {
+  if (closing) return;
+  closing = true;
+  // Nothing of ours outlives us: the command running now goes first
+  if (turn?.current) killTree(turn.current.child.pid, 'SIGKILL');
+  log('exit');
+  process.exit(0);
+}
+
+createInterface({ input: process.stdin })
+  .on('line', (line) => {
+    let message;
+    try {
+      message = JSON.parse(line);
+    } catch {
+      return;
+    }
+    if (message.type === 'control_request') return control(message);
+    if (message.type !== 'user') return;
+    const text = textOf(message);
+    log('stdin', { text });
+    if (turn) waiting.push(text);
+    else startTurn(text);
+  })
+  .on('close', () => {
+    // The CLI ends what it was doing when its input ends, and says so with a result
+    if (turn) {
+      if (turn.current) killTree(turn.current.child.pid, 'SIGKILL');
+      turn.current = null;
+      waiting.splice(0);
+      endTurn({ error: true, result: 'stdin closed' });
+    }
+    shutdown();
+  });
+
+for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(signal, shutdown);
