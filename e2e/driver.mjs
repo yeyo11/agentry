@@ -22,22 +22,31 @@ function findChrome() {
 }
 
 /**
- * Chrome picks its own debugging port (`--remote-debugging-port=0`) and writes it to the profile,
- * so a browser left over from an earlier run, or a second suite beside this one, can never be
- * mistaken for ours by a fixed port. Returns the port and the browser's DevTools endpoint path.
+ * Chrome picks its own debugging port (`--remote-debugging-port=0`), so a browser left over from an
+ * earlier run, or a second suite beside this one, can never be mistaken for ours by a fixed port.
+ * It says which port in two places: a `DevTools listening on ws://…` line on stderr, and the
+ * `DevToolsActivePort` file in the profile. Either will do, and whichever comes first is taken: on
+ * the CI runner the file once did not appear within the wait at all. When neither comes,
+ * the error carries the end of what Chrome printed, since that is where it says why.
  */
-async function devtoolsEndpoint(profile, chrome, wait = 15_000) {
+async function devtoolsEndpoint(profile, chrome, output, wait = 30_000) {
   const file = join(profile, 'DevToolsActivePort');
   for (let waited = 0; waited < wait; waited += 100) {
-    if (chrome.exitCode !== null) throw new Error(`Chrome exited (${chrome.exitCode ?? chrome.signalCode}) before it exposed a debugging port`);
+    const announced = /DevTools listening on ws:\/\/[^:\s]+:(\d+)\//.exec(output.text);
+    if (announced) return Number(announced[1]);
     if (existsSync(file)) {
       const [port] = readFileSync(file, 'utf8').split('\n');
       if (Number(port) > 0) return Number(port);
     }
+    if (chrome.exitCode !== null || chrome.signalCode !== null) {
+      throw new Error(`Chrome exited (${chrome.exitCode ?? chrome.signalCode}) before it exposed a debugging port${tail(output.text)}`);
+    }
     await sleep(100);
   }
-  throw new Error('Chrome did not expose a debugging port');
+  throw new Error(`Chrome did not expose a debugging port in ${wait / 1000} s${tail(output.text)}`);
 }
+
+const tail = (text) => (text.trim() ? `. Chrome printed:\n${text.trim().split('\n').slice(-15).join('\n')}` : '');
 
 /**
  * Starts headless Chrome and returns `{ page, close, pid }`. `close()` is idempotent and also runs
@@ -55,8 +64,18 @@ export async function launch({ baseUrl, port = 0, shotsDir }) {
     ['--headless=new', '--disable-gpu', '--no-sandbox', '--hide-scrollbars', '--lang=en-US', `--user-data-dir=${profile}`, `--remote-debugging-port=${port}`, '--window-size=1440,900', 'about:blank'],
     // Specs click buttons by their English text; on a non-English host locale (LANG/LANGUAGE),
     // Chrome otherwise reports navigator.language from the OS regardless of --lang.
-    { stdio: 'ignore', detached: true, env: { ...process.env, LANGUAGE: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' } },
+    { stdio: ['ignore', 'ignore', 'pipe'], detached: true, env: { ...process.env, LANGUAGE: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' } },
   );
+  // Read for the port, and kept draining for the browser's whole life: a pipe nobody reads fills up
+  // and blocks Chrome on its next write. Only the start is kept, which is where the port and any
+  // reason it could not start are
+  const output = { text: '' };
+  chrome.stderr.setEncoding('utf8');
+  chrome.stderr.on('data', (chunk) => {
+    if (output.text.length < 64_000) output.text += chunk;
+  });
+  // The pipe must not keep the harness alive on its own: the browser's lifetime is `close()`'s business
+  chrome.stderr.unref?.();
   // A Chrome that cannot start emits 'error' (nothing to kill then); without a listener it would be an uncaught one
   chrome.on('error', () => {});
   let closed = false;
@@ -74,7 +93,7 @@ export async function launch({ baseUrl, port = 0, shotsDir }) {
   process.once('exit', close);
   let ws;
   try {
-    const debuggingPort = port || (await devtoolsEndpoint(profile, chrome));
+    const debuggingPort = port || (await devtoolsEndpoint(profile, chrome, output));
     let target;
     for (let i = 0; i < 60 && !target; i++) {
       try {
