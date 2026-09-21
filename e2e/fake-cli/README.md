@@ -13,7 +13,8 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
   `fakeCli: { bin, log }`, and `dirs.configDir` is always the sandbox's. Specs without the marker
   keep the real CLI.
 - **Elsewhere** (a recorder, a demo instance): put this directory first on `PATH` of the wrapper, or
-  set `CLAUDE_BIN` to `e2e/fake-cli/claude`.
+  set `CLAUDE_BIN` to `e2e/fake-cli/claude`. `scripts/record-media.mjs` (`pnpm media`) does the
+  first, and plays its chats and workers from a scripts file.
 
 ## Environment
 
@@ -23,12 +24,15 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 | `AGENTRY_FAKE_CLI_HEARTBEAT_MS` | `30000` (the CLI's own pace) | How often a running command sends `tool_progress`; `0` sends none. The sandbox sets `500` |
 | `AGENTRY_FAKE_CLI_ELAPSED_S` | `0` | Seconds added to every heartbeat's `elapsed_time_seconds` |
 | `AGENTRY_FAKE_CLI_TURN_COST_USD` | `0` | Added to `total_cost_usd` per turn (the CLI's total is per process) |
+| `AGENTRY_FAKE_CLI_SCRIPTS` | none | A JSON object `{ "<text>": "<script>" }`: a message containing one of the texts is played as its script instead (see below) |
+| `AGENTRY_FAKE_CLI_VERSION` | `2.1.0-fake` | The version it reports, for a recording that should not say "fake" in its footer |
+| `AGENTRY_FAKE_CLI_AUTH` | none | A JSON object merged into what `auth status` answers (`email`, `subscriptionType`…) |
 
 ## Subcommands
 
 | Invocation | Output |
 | --- | --- |
-| `--version`, `-v` | `2.1.0-fake (Claude Code)` |
+| `--version`, `-v` | `2.1.0-fake (Claude Code)`, or `AGENTRY_FAKE_CLI_VERSION` |
 | `auth status [--json]` | `{"loggedIn":true,"authMethod":"fake","apiProvider":"firstParty"}` |
 | `agents [--json]` | `[]` |
 | `mcp list` | `No MCP servers configured. …` |
@@ -38,13 +42,18 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 ## A chat: `-p --input-format stream-json --output-format stream-json`
 
 Other flags are accepted and ignored, except `--session-id` / `--resume` (the `session_id` of every
-event), `--model` (`sonnet` → `claude-sonnet-5`; a full name is kept) and `--permission-mode`.
+event), `--model` (`sonnet` → `claude-sonnet-5`; a full name is kept), `--permission-mode` and
+`--worktree <name>`: inside a git repository, as the CLI does, it adds a worktree at
+`<repo>/.claude/worktrees/<name>` on a branch `worktree-<name>` (or reuses it) and works there, which
+is the `cwd` of its `init`; outside one it says so on stderr and works in place.
 
 **On start:** `{"type":"system","subtype":"init", cwd, model, permissionMode, tools:["Bash"], mcp_servers:[], claude_code_version, …}`.
 No transcript is written to the config directory.
 
 **A user message** (`{"type":"user","message":{"content": string | blocks}}`) starts a turn when none
-is running. Its text is read line by line:
+is running. When `AGENTRY_FAKE_CLI_SCRIPTS` has a key the text contains, the script under that key is
+read instead, so a page shows the prompt a person would have written (a worker's prompt is its task
+inside the orchestrator's own words, hence "contains"). The text is read line by line:
 
 - `run: <command>` — one Bash call per line, in order. Each emits an `assistant` event with a
   `tool_use` block (`name: "Bash"`, `input: { command, description }`), runs `sh -c <command>` as a
@@ -52,10 +61,12 @@ is running. Its text is read line by line:
   the CLI's pid, as the wrapper expects), sends `tool_progress` every heartbeat (`tool_use_id`,
   `tool_name`, `elapsed_time_seconds`), and ends with a `user` event holding the `tool_result`:
   the output (or `Exit code N` / the signal), `is_error` when it did not exit 0.
+- `say: <text>` — one assistant text block, in its place among the calls.
 - `elapsed: <seconds>` — sets the heartbeat offset for this process from now on: a command then
   reports it has run that long, which is how a spec makes `hung-command` fire at once.
-- A turn with `run:` lines starts with the text `Running N commands.` and ends with `All done.`;
-  one with none answers `Heard: <its first line>`. Either ends with a `result` event
+- A turn with `run:` lines and no `say:` line starts with the text `Running N commands.` and ends
+  with `All done.`; a turn with a `say:` line has only its own words, and its `result` is the last of
+  them. One with neither answers `Heard: <its first line>`. Every turn ends with a `result` event
   (`subtype: "success"`, `is_error: false`, `num_turns: 1`, `total_cost_usd`, `result`).
 
 **A message that arrives during a turn** is logged at once, and answered at the turn's next step
