@@ -117,7 +117,7 @@ export function Composer({ chat, kind, onSent }: { chat: Chat; kind: ComposerKin
         </form>
         {kind !== 'send' && (
           <Suspense fallback={null}>
-            <StartOptions chat={chat} value={choices} onChange={setChoices} />
+            <StartOptions chat={chat} value={choices} onChange={setChoices} forking={kind === 'fork'} />
           </Suspense>
         )}
       </div>

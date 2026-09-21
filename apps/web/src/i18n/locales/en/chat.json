@@ -76,7 +76,12 @@
       "serversDefault": "as the CLI loads them",
       "strictNote": "Only these servers load: nothing else is picked up from the project, the user or claude.ai.",
       "frozenNote": "Fixed when the chat started or was last resumed. Editing a preset afterwards does not change it."
-    }
+    },
+    "defaultPreset": "Default ({{name}})",
+    "noPresetAtAll": "No preset: the CLI's own tools",
+    "newDefaultHint": "Left as it is, the chat starts with the default preset, {{name}}. Edit the presets and the default in Settings.",
+    "resumeHint": "Left as it is, the chat resumes with the tools it had. Picking a preset replaces them.",
+    "forkHint": "Left as it is, the fork inherits this chat's tools and MCP servers. Picking others replaces them in the copy only."
   },
   "badges": {
     "state": {

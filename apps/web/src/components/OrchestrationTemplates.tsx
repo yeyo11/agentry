@@ -1,6 +1,6 @@
 import type { OrchestrationSpec, OrchestrationTemplate } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookmarkPlus, Pencil, Play, Trash2 } from 'lucide-react';
+import { BookmarkPlus, Check, Pencil, Play, TextCursorInput, Trash2, X } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -169,13 +169,69 @@ function LaunchTemplateDialog({ template, onClose }: { template: OrchestrationTe
   );
 }
 
-/** The saved graphs: launch one on a new objective, open one in the form to edit, or delete it. */
+/** Renames a template where it is listed: only the name is sent, so the graph is not reopened or rewritten. */
+function RenameTemplate({ template, onDone }: { template: OrchestrationTemplate; onDone: () => void }) {
+  const { t } = useTranslation(['orchestrationV2', 'common']);
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [name, setName] = useState(template.name);
+  const rename = useMutation({
+    mutationFn: () => api.updateOrchestrationTemplate(template.id, { name: name.trim() }),
+    onSuccess: (saved) => {
+      void queryClient.invalidateQueries({ queryKey: keys.orchestrationTemplates });
+      toast.success(t('templates.renamed', { name: saved.name }));
+      onDone();
+    },
+  });
+  const unchanged = name.trim() === template.name;
+  const submit = () => {
+    if (unchanged) onDone();
+    else if (name.trim()) rename.mutate();
+  };
+  return (
+    <>
+      <form
+        className="inline-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
+        <input
+          autoFocus
+          aria-label={t('templates.newName', { name: template.name })}
+          value={name}
+          maxLength={120}
+          disabled={rename.isPending}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              // Escape ends the rename and nothing else: not a panel or dialog the page has open
+              e.stopPropagation();
+              onDone();
+            }
+          }}
+        />
+        <button type="submit" className="icon-btn" disabled={!name.trim() || rename.isPending} aria-label={t('templates.renameSave')}>
+          <Check {...ICON_SM} />
+        </button>
+        <button type="button" className="icon-btn" disabled={rename.isPending} onClick={onDone} aria-label={t('templates.renameCancel')}>
+          <X {...ICON_SM} />
+        </button>
+      </form>
+      <ErrorBox error={rename.error} title={t('templates.renameFailed')} />
+    </>
+  );
+}
+
+/** The saved graphs: launch one on a new objective, open one in the form to edit, rename or delete it. */
 export function TemplatesCard({ onEdit }: { onEdit: (template: OrchestrationTemplate) => void }) {
   const { t } = useTranslation(['orchestrationV2', 'common']);
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
   const [launching, setLaunching] = useState<OrchestrationTemplate | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const { data, error, isLoading } = useQuery({ queryKey: keys.orchestrationTemplates, queryFn: api.orchestrationTemplates });
   const remove = useMutation({
     mutationFn: (template: OrchestrationTemplate) => api.deleteOrchestrationTemplate(template.id),
@@ -204,7 +260,11 @@ export function TemplatesCard({ onEdit }: { onEdit: (template: OrchestrationTemp
           {list.map((template) => (
             <li key={template.id} className="list-row list-row-flow">
               <div className="list-row-main">
-                <div className="strong break">{template.name}</div>
+                {renaming === template.id ? (
+                  <RenameTemplate template={template} onDone={() => setRenaming(null)} />
+                ) : (
+                  <div className="strong break">{template.name}</div>
+                )}
                 {template.description && <div className="muted small break">{template.description}</div>}
                 <div className="muted small">
                   {t('templates.taskCount', { count: template.spec.tasks.length })} · {t('templates.updatedAgo', { ago: timeAgo(template.updatedAt) })}
@@ -214,6 +274,17 @@ export function TemplatesCard({ onEdit }: { onEdit: (template: OrchestrationTemp
                 <button type="button" className="btn btn-small btn-primary" onClick={() => setLaunching(template)} aria-label={t('templates.launchNamed', { name: template.name })}>
                   <Play {...ICON_SM} /> {t('templates.launch')}
                 </button>
+                <Tooltip content={t('templates.rename')}>
+                  <button
+                    type="button"
+                    className="btn btn-small"
+                    disabled={renaming === template.id}
+                    onClick={() => setRenaming(template.id)}
+                    aria-label={t('templates.renameNamed', { name: template.name })}
+                  >
+                    <TextCursorInput {...ICON_SM} />
+                  </button>
+                </Tooltip>
                 <Tooltip content={t('templates.edit')}>
                   <button type="button" className="btn btn-small" onClick={() => onEdit(template)} aria-label={t('templates.editNamed', { name: template.name })}>
                     <Pencil {...ICON_SM} />

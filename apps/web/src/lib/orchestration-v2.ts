@@ -1,5 +1,6 @@
 import type {
   Orchestration,
+  OrchestrationSpec,
   OrchestrationTaskSpec,
   OrchestrationTaskState,
   TaskLimits,
@@ -39,6 +40,34 @@ export function specOfTask(task: OrchestrationTaskState): OrchestrationTaskSpec 
     ...(task.cwd ? { cwd: task.cwd } : {}),
     ...(task.model ? { model: task.model } : {}),
     ...(task.limits ? { limits: task.limits } : {}),
+  };
+}
+
+/**
+ * The spec that would launch this graph as it ran, read from `GET /orchestrations/:id`: what a
+ * schedule is filled from. Mirrors the server's `specOf`, so a schedule starts what a relaunch would.
+ */
+export function specOfOrchestration(orch: Orchestration): OrchestrationSpec {
+  return {
+    name: orch.name,
+    ...(orch.objective ? { objective: orch.objective } : {}),
+    engine: orch.engine ?? 'graph',
+    ...(orch.engineReason ? { engineReason: orch.engineReason } : {}),
+    cwd: orch.cwd,
+    ...(orch.model ? { model: orch.model } : {}),
+    permissionMode: orch.permissionMode,
+    concurrency: orch.concurrency,
+    synthesize: orch.synthesize,
+    worktree: orch.worktree,
+    maxAttempts: orch.maxAttempts,
+    allowedTools: [...(orch.allowedTools ?? [])],
+    permissionPrompts: orch.permissionPrompts,
+    ...(orch.limits ? { limits: orch.limits } : {}),
+    ...(orch.verificationSpec ? { verification: orch.verificationSpec } : {}),
+    tasks: orch.tasks.map((task) => {
+      const { dependsOn, ...spec } = specOfTask(task);
+      return dependsOn?.length ? { ...spec, dependsOn: [...dependsOn] } : spec;
+    }),
   };
 }
 

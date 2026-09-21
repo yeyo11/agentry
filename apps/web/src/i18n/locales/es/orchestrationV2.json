@@ -82,7 +82,14 @@
     "saving": "Guardando…",
     "saved": "Plantilla {{name}} guardada",
     "updatedToast": "Plantilla {{name}} actualizada",
-    "saveFailed": "No se pudo guardar la plantilla"
+    "saveFailed": "No se pudo guardar la plantilla",
+    "rename": "Cambia el nombre",
+    "renameNamed": "Cambia el nombre de la plantilla {{name}}",
+    "newName": "Nombre nuevo para {{name}}",
+    "renameSave": "Guarda el nombre",
+    "renameCancel": "Cancela el cambio de nombre",
+    "renamed": "La plantilla ahora se llama {{name}}",
+    "renameFailed": "No se pudo cambiar el nombre de la plantilla"
   },
   "origin": {
     "relaunched": "relanzada",

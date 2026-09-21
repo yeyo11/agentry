@@ -117,6 +117,23 @@ export default async ({ page, api, check, dirs }) => {
     await page.sleep(500);
     check((await api.get('/accounts/policies')).body.length === 0, 'the policy was deleted');
     policies.length = 0;
+
+    // ---------- a policy for the chats without a project ----------
+    await page.click('main button', 'New policy', 500);
+    check(await page.eval(`return [...document.querySelectorAll('main button')].find((b) => b.textContent.includes('Create policy')).disabled`), 'a policy that governs nothing cannot be created');
+    await page.click('main label.check', 'Chats without a project', 300);
+    await page.click('main button', 'Create policy', 800);
+    await page.waitFor(`return document.querySelector('main')?.innerText.includes('chats without a project')`, { label: 'the loose-chats policy is listed' });
+    const loose = (await api.get('/accounts/policies')).body;
+    check(loose.length === 1 && loose[0].looseChats === true && loose[0].projects.length === 0, 'the policy governs the chats without a project and no project');
+    policies.push(...loose.map((p) => p.id));
+    await page.click('main button', 'New policy', 500);
+    check(
+      await page.eval(`return [...document.querySelectorAll('main label.check')].find((l) => l.textContent.includes('Chats without a project'))?.querySelector('[role=checkbox]')?.disabled === true`),
+      'a second policy cannot take the chats without a project',
+    );
+    check((await page.text('main')).includes('at most one may'), 'the form says why');
+    await page.click('main form button', 'Cancel', 300);
   } finally {
     await api.put('/accounts/1/config', { configDir: null }).catch(() => {});
     for (const id of policies) await api.del(`/accounts/policies/${id}`).catch(() => {});
