@@ -16,7 +16,7 @@ A REST API, a web UI and multi-agent orchestration around the Claude Code CLI, i
 [![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-6ba539?logo=openapiinitiative&logoColor=white)](#rest-api)
 [![Buy me a coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/yeyo11)
 
-<img src="docs/media/tour.gif" alt="A tour of Agentry: a project's activity, the command palette, a working chat with its health and diff, a graph of workers with the checks on their merged branch, and the accounts with their usage" width="100%">
+<img src="docs/media/tour.gif" alt="A tour of Agentry: a project's dashboard with what is working now, the command palette, a working chat with its activity ticker and the inspector's changes and diff, an orchestration followed as steps through to its verification, and the accounts with their usage" width="100%">
 
 </div>
 
@@ -99,13 +99,19 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
 > `AGENTRY_AUTH_MODE=token` (or `oidc`) and put a TLS-terminating proxy in front — see
 > [Securing it](#securing-it). [SECURITY.md](SECURITY.md) spells out exactly what is and is not protected.
 
+### A project's dashboard: what is working now, and what to pick up
+
+<img src="docs/media/home.png" alt="A project's dashboard: a Now widget with one working chat and the command it is running, a quick-start prompt with its model and permission mode in one line, the usage limits and the latest orchestration with its stages done" width="100%">
+
 ### Workers in parallel, then one branch that was checked
 
-<img src="docs/media/orchestration.png" alt="An orchestration board: the objective, the stages, one task completed and two running side by side, each on its own worktree" width="100%">
+<img src="docs/media/orchestration.png" alt="An orchestration followed as steps: a pinned summary with its status, cost and task progress, a stepper on stage 2 of 3 followed by integration, verification and pull request, and the stage's two tasks running side by side, each saying what it is running" width="100%">
 
 ### See what an agent really did, and step in
 
-<img src="docs/media/chat.png" alt="A working chat: its transcript with the commands it ran, and beside it the health card, what it is running now and the branch, commit and files it changed" width="100%">
+<img src="docs/media/chat.png" alt="A working chat: its transcript with the tool calls folded into steps, a ticker saying the command it is running now, and beside it the inspector's Changes tab with the branch, commit and files it changed" width="100%">
+
+<p align="center"><img src="docs/media/chat-mobile.png" alt="The same working chat on a phone: a one-line header, the transcript with its folded steps and ticker, and the composer with its status line at the bottom" width="320"></p>
 
 ### Several accounts, rotated before they run out
 
@@ -218,8 +224,10 @@ The `.deb` through apt on Debian and Ubuntu, the AppImage under `~/.local` every
 install by hand, download either file from the release.
 
 It runs on your machine with your own Claude Code CLI and `~/.claude` login, so nothing is
-sandboxed and runs default to `acceptEdits` instead of `bypassPermissions`. Requirements, data
-locations, CLI detection and building from source are in [docs/desktop.md](docs/desktop.md).
+sandboxed and runs default to `acceptEdits` instead of `bypassPermissions`. The app's top bar is
+its title bar, a tray icon lists what is working and what waits for you, and the taskbar shows the
+running orchestrations' progress. Requirements, data locations, CLI detection, the tray and building
+from source are in [docs/desktop.md](docs/desktop.md).
 
 ## Local development
 
@@ -229,7 +237,7 @@ Requires Node 22+, pnpm 10 and a logged-in `claude` CLI in your `PATH`.
 pnpm install
 pnpm dev          # API on :8787, UI on :5173 (proxies /api)
 pnpm typecheck
-pnpm test         # core unit tests + API integration tests (node:test)
+pnpm test         # unit tests (core, web, desktop) + API integration tests (node:test)
 pnpm build && pnpm e2e   # browser suite: isolated wrapper + headless Chrome, never touches ~/.claude
                          # E2E_SPEC_TIMEOUT (180000 ms) and E2E_TIMEOUT (900000 ms) bound a spec and the run
 E2E_LIVE=1 pnpm e2e chat # specs that talk to Claude (logged-in CLI, costs a few tokens)
@@ -253,8 +261,9 @@ holds a real conversation with Claude (streamed reply, follow-up turn, stop) usi
 
 `pnpm media` re-records the tour and the stills this README shows, through the same fake CLI and one
 headless Chrome: `scripts/record-media.mjs` boots an isolated wrapper, invents the projects, chats,
-graph, schedules and accounts in frame, and writes `docs/media/`. It needs `pnpm build` first and
-takes about two minutes.
+graph, schedules and accounts in frame, and writes `docs/media/`: the tour, desktop stills at
+1280×800 and the working chat at phone size (390×844). It needs `pnpm build` first and takes about
+two minutes.
 
 ## Monorepo layout
 
@@ -841,28 +850,61 @@ The claude.ai connectors of the signed-in account, as the CLI reports them. Agen
 
 | Page | What it covers |
 | --- | --- |
-| Home | The selected project's page. **Activity** is an inbox: what waits for a person first (chats stopped for a permission or a question, blocked orchestration tasks, merge conflicts, a command running for long, a missing CLI or credential), each with its action, then what runs now with its context and cost, what the day has cost per model, subscription usage limits and the chats to pick up again — the first block is absent when nothing waits. With a project selected it also has **Settings**, **Memory**, **Resources** (agents, skills, commands, output styles, rules and saved workflows, each workflow with a **Run** button) and **Worktrees** tabs; with All projects only Activity remains. Activity also offers the project's chats as a Markdown or JSON download |
-| Chats | Every conversation in one list, whoever started it: its state (working, waiting for you, idle), whether Agentry can continue it or only read it, where it came from, and how full its context is. Workers of an orchestration and housekeeping chats are hidden unless asked for |
-| Chat | One conversation, live over SSE: messages, thinking, tool calls and results, the context and cost card, its executions, and the branches it launched (subagents, background tasks, workflows) with a side panel each: prompt, status, duration, tokens, transcript and result, updating while it runs (`?detail=…`). What it can do follows its control: send, interrupt, resume, or continue in a copy. Cards for its **health** (badge, reason and the actions that fit the signal: cancel the command, send a hint, interrupt — and the supervisor's proposed hint, to send, edit or dismiss, when it is on), **what it is doing now** (the running command, time since its last event, its checklist), **what it changed** (a worktree's commits and files with `+/−`, or the files its own tool calls wrote, and a diff per file) and the **tools and servers** it runs with. Export as Markdown or JSON from the header. `?prompt=<id>` scrolls to a permission prompt |
-| Projects | The management screen: import a directory by hand, create or clone one in the workspace, rename, remove (harmless) or purge what Claude Code keeps about it (irreversible). On a first start with none imported it offers the directories holding the most chats |
-| Orchestration | Auto-planned or manual task DAG, live board by stage, per-task results, synthesis. Each task has a **Work** panel (`?task=<id>`: what it runs now, its health, checklist and changes) and, on a finished graph on the graph engine, **Re-run**. **Edit and relaunch** a graph, **templates** (save, launch on a new objective and directory, edit, delete), per-task and per-graph time and cost limits, and a **verification** card with each command's output, the install step, what the fixer spent against its limit and its commits, before the pull request; a graph its checks failed says so at the top and is offered no pull request. The integration card has the merged branch's changes |
+| Home | A dashboard of widgets. With a project selected: **Now** (what waits for a person first — chats stopped for a permission or a question, blocked orchestration tasks, merge conflicts, a command running for long, a missing CLI or credential — each with its action, then every working chat with a ticker of what it is doing), **Quick start** (a prompt that starts a chat in the project, with the model, permission mode, tool preset and MCP servers in one status line), **Limits**, **Orchestrations** (the running ones, or the latest, with a compact stepper and its progress), **Upcoming schedules**, **Pick up again**, **Today** (what the day has cost per model), **Memory** (the project's `CLAUDE.md` excerpt), **Worktrees**, **Resources** (counts per kind) and **Export** (the project's chats as Markdown or JSON). With All projects: Now, Orchestrations, Limits, Pick up again, Today, Upcoming schedules and **Projects** (each one's live count and last activity). The header shows the project's name and path; its ⚙ opens the full views, `/?view=settings\|memory\|resources\|worktrees` (resources are agents, skills, commands, output styles, rules and saved workflows, each workflow with a **Run** button), which the widgets also open. Old `?tab=` links redirect there |
+| Chats | Every conversation in one list, whoever started it, grouped by day (Today, Yesterday, This week, Earlier) when sorted by activity. A toolbar with state tabs and their counts (All, Working, Waiting for you, Idle), search, sort and **Filters** (origin, project, model, orchestration workers, housekeeping chats), each filter in force shown as a removable chip. Each row takes two lines: a state rail and word, the title and the time; then the first prompt — or, while it works, what it is doing now — its origin and project and at most two tags (a control that is not the default, a fork or a worktree), with a context ring and the cost on the right. Select several with `x` or their checkbox to export them as Markdown or delete them with one confirmation; a chat with something running on it is skipped and named |
+| Chat | One conversation, live over SSE. A one-line header: title, one pill for its state, who controls it and the stream (`Working · live`), its checklist as `▰▰▱ 1/3`, search, **Stop ▾** (with Interrupt) while it works, ⓘ for the inspector and a ⋯ menu with Export Markdown/JSON, Fork, Subagent messages, Copy id and Delete. The transcript shows the author only when it changes, folds consecutive tool calls into one **step** ("7 tools · 42 s", open with a live rail while it runs), and replaces "working…" with a ticker of what the agent is doing (`Running npm test`, `Editing src/app.ts`). A `Task` call opens its subagent's transcript in a side panel, like background tasks and workflows (`?detail=…`: prompt, status, duration, tokens, transcript and result, updating while it runs). The composer is one pill with a status line under it (`model · mode · preset · MCP`) that opens the permission mode, model, tool preset and MCP servers; while the agent works and the box is empty, send becomes interrupt. The **inspector** (a side panel from 1100 px, remembered open or closed; a sheet below) has four tabs: Summary (context, cost, facts, id), Activity (the checklist as steps, executions), Changes (a worktree's commits and files with `+/−`, or the files its own tool calls wrote, and a diff per file) and Environment (branches, **health** with the actions that fit the signal — cancel the command, send a hint, interrupt, and the supervisor's proposed hint when it is on — tools, servers and environment). What it can do follows its control: send, interrupt, resume, or continue in a copy. On a phone the page is the screen's height, with the composer following the on-screen keyboard. New chat puts the prompt first and the directory, model, mode, system prompt, account and tools under **Advanced options**. `?prompt=<id>` scrolls to a permission prompt |
+| Projects | The management screen, with search and sort (recent activity, name, most chats): import a directory by hand, create or clone one in the workspace, rename, remove (harmless) or purge what Claude Code keeps about it (irreversible). On a first start with none imported it offers the directories holding the most chats |
+| Orchestration | Auto-planned or manual task DAG. The list has status tabs with counts (All, Live, Completed, Failed, Stopped), search, sort and a **Templates** tab (`?tab=templates`); each row carries a segmented progress bar and, while it runs, the stage and what its task is doing. A graph's page pins a summary (status, live clock, cost, progress of its tasks, and Stop or **Edit and relaunch** with the rest in a ⋯ menu), folds the objective to three lines, and follows it as **steps**: its stages, then integration, verification, synthesis and the pull request, each with its state. The page follows the step that is happening; picking another pins it (`?step=`) and offers "Back to live". A stage's tasks show their live rail, what they are doing, duration, cost and attempts; a task's name opens its chat beside the page (`?detail=chat:<id>`). `?view=graph` is the board by stage, scrolling inside its own box, with connectors that flow into the running stage. On a phone the steps are a vertical timeline. Each task has a **Work** panel (`?task=<id>`: what it runs now, its health, checklist and changes) and, on a finished graph on the graph engine, **Re-run**. **Edit and relaunch** a graph, **templates** (save, launch on a new objective and directory, edit, delete), per-task and per-graph time and cost limits, and a **verification** card with each command's output, the install step, what the fixer spent against its limit and its commits, before the pull request; a graph its checks failed says so at the top and is offered no pull request. The integration card has the merged branch's changes |
 | Accounts | Registered accounts with 5h/7d (and per-model) usage, manual switch, add/remove, enable/disable, auto-rotation settings and the rotation log. Per account, an optional **config directory**; **rotation policies** per project (or for the chats without one); and a **usage history** chart per account and window with the auto-switch threshold |
-| Schedules | Recurring chats and orchestrations: each schedule with its cron expression in words, when it fires next and when it last ran, on/off, **Run now**, edit, delete, and a run history behind it (when, result, what it started or the error; a slot the overlap policy skipped or queued is tagged as such). The cron builder offers every few minutes to monthly or a custom expression, previews the next five fires as you type, and says that a window missed while Agentry was down is skipped, not replayed. The form sets what happens when a slot arrives while the last run is still going, and can be filled from an orchestration that already ran |
+| Schedules | Recurring chats and orchestrations, with search and All/On/Off tabs: each schedule with its cron expression in words, when it fires next and when it last ran, on/off, **Run now**, edit, delete, and a run history behind it (when, result, what it started or the error; a slot the overlap policy skipped or queued is tagged as such). The cron builder offers every few minutes to monthly or a custom expression, previews the next five fires as you type, and says that a window missed while Agentry was down is skipped, not replayed. The form sets what happens when a slot arrives while the last run is still going, and can be filled from an orchestration that already ran |
 | Usage | Cost, tokens or chats over time, per day or week, for 7, 30 or 90 days, all time or a range picked from a calendar of Agentry's own (typed dates still work); by project and by model, with the selected project's chats offered as a download. An SVG chart with the same figures as a table, a text readout and a screen-reader description. A cost the CLI never reported reads "Not reported", never `$0.00` |
 | Connectors | The claude.ai connectors (Docs, Gmail, Calendar) the CLI can see, with their status and prepared prompts that start a chat, what to do to authorise one, and a sentence on what has no CLI surface (web artifacts, claude.ai memory) |
-| Settings | User scope only, as tabs: Account (with the Claude Code version card: in use, pinned, newest published, check now), Instructions, Settings (guided editor + raw JSON), MCP servers (guided form, scopes, connection checks), Agents, Skills, Commands, Output styles, Rules, a file explorer for everything else (hook scripts, skill files, keybindings…), Memory (where each project's memory is), Plugins (installed plugins, marketplace search and install, marketplaces), **Tool presets** (named allowed and disallowed tool sets, which one a chat with no preset takes, and restoring the shipped ones), **Supervisor** (off by default: the model, what it may spend and whether it sends its hint on its own), **Security** (auth mode, token, OIDC, read-only, and an audit log narrowed by path, method and status) and **Editor** (link template for your editor, an optional `code --diff` command, container-to-host path rows; kept on the server, so every browser builds the same link — an older browser's copy is moved there once). Everything that belongs to one project lives on its page instead |
+| Settings | User scope only, as tabs: **Appearance** (theme, language and motion, the tab `/settings` opens on), Account (with the Claude Code version card: in use, pinned, newest published, check now), Instructions, Settings (guided editor + raw JSON), MCP servers (guided form, scopes, connection checks), Agents, Skills, Commands, Output styles, Rules, a file explorer for everything else (hook scripts, skill files, keybindings…), Memory (where each project's memory is), Plugins (installed plugins, marketplace search and install, marketplaces), **Tool presets** (named allowed and disallowed tool sets, which one a chat with no preset takes, and restoring the shipped ones), **Supervisor** (off by default: the model, what it may spend and whether it sends its hint on its own), **Security** (auth mode, token, OIDC, read-only, and an audit log narrowed by path, method and status) and **Editor** (link template for your editor, an optional `code --diff` command, container-to-host path rows; kept on the server, so every browser builds the same link — an older browser's copy is moved there once). Everything that belongs to one project lives on its page instead |
 
 Across the app:
 
-- **Project selector** (top bar, beside the palette): scopes Home, Chats and Orchestrations to one project
+- **Top bar**, one row: where you are, the project selector, search (the palette), notifications, a
+  **live chip** while anything runs (`⠹ 2 working · post-roadmap 11/17`, a menu of what is live, each
+  a link) and **New chat ▾**, with Run workflow and New orchestration behind the arrow.
+- **Sidebar**: the pages, then a **Live** section — chats waiting for you, working chats with a line
+  saying what each is doing, running orchestrations with their progress as `▰▰▱▱▱ 2/7`. Collapsed to
+  a rail, it keeps one button with the live count.
+- **On a phone** (up to 900 px) a bottom tab bar — Home, Chats, Orchestrations, ＋ New and More — with
+  the waiting and working counts on its tabs, replaces the sidebar; More opens a sheet with the rest
+  of the pages, the API reference and the connection status. A chat's and an orchestration's own
+  page hide it, since they have a back button and a footer of their own.
+- **Project selector** (top bar, beside the search): scopes Home, Chats and Orchestrations to one project
   or All projects. The choice is remembered, and a `?project=<id>` in the address overrides it, so a link
   to a project's page works from anywhere. Notifications ignore it: a chat waiting in another project
   is still worth knowing about.
-- **Command palette** (`Ctrl/⌘ K`): fuzzy search over pages, settings tabs, projects and their tabs,
-  working and recent chats and actions (new chat, run a saved workflow, theme, API reference…), with
-  recents and full keyboard control.
-- **Themes**: light, dark or system, switchable from the top bar or the palette, applied before first paint.
-- **Languages**: English and Spanish, the browser's by default. The strings the server writes — a
+- **Command palette** (`Ctrl/⌘ K`): fuzzy search over pages, settings tabs, projects and their views,
+  recent chats, a **Live** group with what is working and waiting right now, and actions (new chat,
+  new orchestration, run a saved workflow, theme, language, motion, API reference…), with recents and
+  full keyboard control.
+- **Keyboard shortcuts**:
+
+  | Keys | Where | What |
+  | --- | --- | --- |
+  | `Ctrl/⌘ K` | Everywhere | Command palette |
+  | `j` / `k` | Chat list | Move to the next / previous chat |
+  | `Enter` | Chat list | Open the chat |
+  | `x` | Chat list | Select the chat for a bulk action |
+  | `/` | Chat list | Jump to the search field |
+  | `Escape` | Chat list | Clear the selection |
+  | `Ctrl/⌘ F` | Chat | Search the transcript |
+  | `Enter` / `Shift Enter` | Composer | Send / new line |
+  | `Ctrl/⌘ S` | Editors | Save |
+
+  The list keys are ignored while you type in a field or a menu is open, and the chat list prints
+  them under itself on screens with a keyboard.
+- **Appearance** (Settings → Appearance, or the palette), kept per browser:
+  - **Theme**: light, dark or system, applied before first paint.
+  - **Motion**: `full` (the default: braille spinners, rails that pulse while an agent works,
+    numbers that count up), `subtle` (transitions only, nothing loops) or `off`. The system's
+    reduced-motion setting forces `off` and the tab says so; loops also stop while the tab is in the
+    background. What is live is drawn in one colour of its own (cyan), never the orange of the
+    buttons, and always has a word next to it.
+- **Languages**: English and Spanish, the browser's by default, chosen under Appearance. The strings the server writes — a
   health signal's reason and hint, a connector's authorisation steps and links — carry a stable code
   and the figures behind them, so they are said in the reader's language too; a code this build does
   not know falls back to the server's English rather than showing a key.
@@ -871,6 +913,12 @@ Across the app:
   chats, prompts waiting for you, background tasks, subagents, workflows, orchestrations, changes on
   disk, health, account rotation — instead of each screen polling. If the stream drops, the sidebar status says so and the
   pages fall back to a slow poll until it returns.
+- **What an agent is doing right now**: from the stream-json events of each live process, Agentry
+  keeps one line per chat — the tool it is calling and on what (`Editing src/app.ts`,
+  `Running npm test`), or that it is writing, thinking or waiting for you — and sends it on the feed
+  as `chat.activity`, at most once per chat per second. Lists, the sidebar, Home and an
+  orchestration's tasks patch it in place instead of refetching. It is never stored: a chat with no
+  live process of Agentry's has none.
 - **Notifications**: a bell in the top bar collects what needs you or is worth knowing — a chat waiting
   for a permission, a question or a plan (always first, with a link to it, and settled once you
   answer), a chat or orchestration that finished or failed, an integration conflict, a rate limit or an
@@ -887,7 +935,9 @@ Across the app:
   to its side panel, and a finished workflow to the agent that ended it.
 - **Execution detail**: a subagent, a background task or a workflow agent opens in a side panel — prompt,
   type, status, duration, tokens, the full transcript, the result and, for a subagent, the tasks it
-  launched — from the chat that holds it, a workflow's agents and the inbox. It
+  launched — from the chat that holds it, a workflow's agents and the inbox. An orchestration's
+  worker opens there too, as its chat: state, model, directory, cost, what it is doing and its latest
+  transcript, with a link to the full chat. It
   follows the agent or the command's output while it runs, and it is part of the URL (`?detail=…`), so a
   reload or a link brings it back.
 - **Editor links**: the worktree of a chat or task, each changed file and each changed line (from the
@@ -899,11 +949,12 @@ Across the app:
   (tabs, sidebar navigation, reload), confirmation dialogs for destructive actions
   and toasts for every mutation.
 - **Form controls**: selects, suggestion lists, switches, checkboxes, sliders, number steppers,
-  tooltips, collapsible sections and a date picker of Agentry's own are built on Radix primitives
+  tooltips, collapsible sections, menus, sheets (a bottom sheet on a phone, a side panel on a wide
+  screen) and a date picker of Agentry's own are built on Radix primitives
   (the calendar on the WAI-ARIA date picker pattern, with no library) and styled with the app's theme
   tokens, so no control falls back to the operating system's look; all of them work from the keyboard.
-- **Motion**: page transitions, staggered lists, sliding tab indicators and animated status, all
-  disabled under `prefers-reduced-motion`. Fonts (Inter, JetBrains Mono) and icons are bundled —
+- **Motion**: page transitions, staggered lists, sliding tab indicators and animated status, at the
+  level chosen under Appearance. Fonts (Inter, JetBrains Mono) and icons are bundled —
   the container needs no network access to render.
 
 ### What is not reachable
