@@ -1,0 +1,54 @@
+{
+  "activity": {
+    "editing": "Editing",
+    "reading": "Reading",
+    "running": "Running",
+    "searching": "Searching",
+    "delegating": "Delegating",
+    "browsing": "Browsing",
+    "writing": "Writing",
+    "thinking": "Thinking",
+    "waiting": "Waiting for you",
+    "working": "Working"
+  },
+  "progress": {
+    "done": "{{done}} of {{total}} done",
+    "doneOf": "{{done}} of {{total}} {{unit}} done",
+    "running_one": "{{count}} running",
+    "running_other": "{{count}} running",
+    "failed_one": "{{count}} failed",
+    "failed_other": "{{count}} failed",
+    "skipped_one": "{{count}} skipped",
+    "skipped_other": "{{count}} skipped",
+    "nothing": "Nothing to do yet"
+  },
+  "step": {
+    "done": "Done",
+    "current": "In progress",
+    "waiting": "Waiting for you",
+    "failed": "Failed",
+    "skipped": "Skipped",
+    "pending": "Not started"
+  },
+  "menu": {
+    "more": "More actions"
+  },
+  "splitButton": {
+    "more": "More options for {{action}}"
+  },
+  "sheet": {
+    "close": "Close"
+  },
+  "toolbar": {
+    "search": "Search",
+    "searchLabel": "Search this list",
+    "filters": "Filters",
+    "filtersActive_one": "Filters, {{count}} active",
+    "filtersActive_other": "Filters, {{count}} active",
+    "activeFilters": "Active filters",
+    "removeFilter": "Remove filter {{filter}}",
+    "sort": "Sort by",
+    "reset": "Reset",
+    "views": "Show"
+  }
+}

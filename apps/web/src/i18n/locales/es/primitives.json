@@ -1,0 +1,54 @@
+{
+  "activity": {
+    "editing": "Editando",
+    "reading": "Leyendo",
+    "running": "Ejecutando",
+    "searching": "Buscando",
+    "delegating": "Delegando",
+    "browsing": "Navegando",
+    "writing": "Escribiendo",
+    "thinking": "Pensando",
+    "waiting": "Te espera",
+    "working": "Trabajando"
+  },
+  "progress": {
+    "done": "Completado: {{done}} de {{total}}",
+    "doneOf": "Completado: {{done}} de {{total}} {{unit}}",
+    "running_one": "{{count}} en curso",
+    "running_other": "{{count}} en curso",
+    "failed_one": "{{count}} con error",
+    "failed_other": "{{count}} con error",
+    "skipped_one": "{{count}} sin ejecutar",
+    "skipped_other": "{{count}} sin ejecutar",
+    "nothing": "Todavía no hay nada que hacer"
+  },
+  "step": {
+    "done": "Hecho",
+    "current": "En curso",
+    "waiting": "Te espera",
+    "failed": "Con error",
+    "skipped": "Omitido",
+    "pending": "Sin empezar"
+  },
+  "menu": {
+    "more": "Más acciones"
+  },
+  "splitButton": {
+    "more": "Más opciones de {{action}}"
+  },
+  "sheet": {
+    "close": "Cierra"
+  },
+  "toolbar": {
+    "search": "Busca",
+    "searchLabel": "Busca en esta lista",
+    "filters": "Filtros",
+    "filtersActive_one": "Filtros, {{count}} activo",
+    "filtersActive_other": "Filtros, {{count}} activos",
+    "activeFilters": "Filtros activos",
+    "removeFilter": "Quita el filtro {{filter}}",
+    "sort": "Ordena por",
+    "reset": "Restablece",
+    "views": "Muestra"
+  }
+}

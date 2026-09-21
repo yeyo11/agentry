@@ -529,3 +529,158 @@
   justify-content: flex-end;
   margin-top: 8px;
 }
+
+/* ---------- Menu: the dropdown behind a ⋯ ---------- */
+/* Radix's dropdown has no viewport element of its own, so the content itself is the scroller. */
+.menu-dropdown {
+  padding: 5px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.menu-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
+}
+.menu-group-label {
+  display: block;
+  padding: 6px 9px 3px;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.menu-item-icon {
+  flex: none;
+  color: var(--text-faint);
+}
+.menu-item-icon.is-off {
+  opacity: 0;
+}
+.menu-item-key {
+  flex: none;
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.menu-item.is-destructive,
+.menu-item.is-destructive .menu-item-icon {
+  color: var(--bad);
+}
+/* Disabled but still reachable: the reason is the point of keeping it there. */
+.menu-item.is-disabled {
+  cursor: default;
+  color: var(--text-faint);
+}
+.menu-item-why {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  white-space: normal;
+}
+.menu-item.is-disabled .menu-item-text > span:first-child {
+  text-decoration: line-through;
+  text-decoration-color: var(--border-strong);
+}
+
+/* ---------- Sheet: a bottom sheet on a phone, a side panel on a desktop ---------- */
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1150;
+  background: var(--scrim);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  animation: fade-rise var(--dur-base) var(--ease-out);
+}
+.sheet {
+  position: fixed;
+  z-index: 1160;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-lg);
+  transition: transform var(--dur-fast) linear;
+}
+.sheet:focus-visible {
+  outline: none;
+}
+.sheet-bottom {
+  inset: auto 0 0 0;
+  max-height: min(86dvh, 720px);
+  padding-bottom: env(safe-area-inset-bottom);
+  border-width: 1px 0 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  animation: sheet-up var(--dur-base) var(--ease-out);
+}
+.sheet-right {
+  inset: 0 0 0 auto;
+  width: min(420px, 100vw);
+  border-width: 0 0 0 1px;
+  animation: sheet-in var(--dur-base) var(--ease-out);
+}
+/* The strip a thumb pulls down on. It is decoration: the close button is the way out for everyone else. */
+.sheet-grab {
+  flex: none;
+  height: 22px;
+  cursor: grab;
+  touch-action: none;
+}
+.sheet-grab::after {
+  content: '';
+  display: block;
+  width: 36px;
+  height: 4px;
+  margin: 9px auto 0;
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.sheet-head-text {
+  flex: 1;
+  min-width: 0;
+}
+.sheet-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.sheet-description {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+.sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sheet-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes sheet-in {
+  from {
+    transform: translateX(100%);
+  }
+}
