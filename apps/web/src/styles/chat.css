@@ -1,0 +1,499 @@
+/* Chat view: the run stage, composer, permission prompts, attachments, detail panel. */
+.run-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
+  height: calc(100dvh - var(--topbar-h) - 74px);
+  min-height: 440px;
+}
+
+.run-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.run-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.run-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.run-title h1 {
+  font-size: 18px;
+}
+
+.run-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.run-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 10px 18px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  -webkit-mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 14px), transparent);
+}
+
+.jump-latest {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  translate: -50% 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-md);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.jump-latest:hover {
+  border-color: var(--accent);
+}
+
+.run-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 2px;
+}
+
+.composer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--bg-glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-md);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-base);
+}
+
+.composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring), var(--shadow-md);
+}
+
+.composer textarea {
+  flex: 1;
+  min-height: 34px;
+  max-height: 220px;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  resize: none;
+}
+
+.composer textarea:focus {
+  box-shadow: none;
+}
+
+.composer .btn {
+  border-radius: 12px;
+}
+
+.side-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.side-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+@media (max-width: 1100px) {
+.run-layout {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+/* The layout above is as tall as its content now, and against that a zero flex basis resolves to
+     the content height and wins over `height`: the stage would grow with the log, `.run-scroll`
+     would never scroll (`.main` would), and the windowed log would measure a viewport as tall as
+     itself and never move its window. */
+.run-stage {
+    flex: none;
+    height: 62vh;
+  }
+}
+
+@media (max-width: 900px) {
+/* A chat's header and rows on a phone: the title wraps instead of being cut to nothing beside the badges */
+.run-title {
+    flex-wrap: wrap;
+  }
+.run-title h1.ellipsis {
+    flex: 1 1 12ch;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Tool calls a run is holding until someone decides. */
+.permission-list {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  flex-shrink: 0;
+  margin-top: 12px;
+  /* Pinned, so it must never outgrow the transcript: a tall one scrolls inside instead of hiding its top */
+  max-height: 55dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius);
+}
+
+.permission-list ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.permission {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+  border-radius: var(--radius);
+  /* Opaque: the transcript scrolls underneath */
+  background: color-mix(in srgb, var(--warn) 10%, var(--bg-elev));
+}
+
+.permission-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.permission-input {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--bg-sunken);
+  border-radius: calc(var(--radius) - 3px);
+}
+
+.permission-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.permission-reason {
+  flex: 1;
+  min-width: 200px;
+}
+
+.permission-question .tabs {
+  margin: 0 -4px 10px;
+}
+
+.question-num {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--bg-sunken);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.question {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+  animation: fade-rise var(--dur-base) var(--ease-out);
+}
+
+.question-text {
+  margin: 0;
+  font-weight: 600;
+}
+
+.question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.question-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 3px);
+  background: var(--bg-elev);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+
+.question-option:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-sunken);
+}
+
+.question-option.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elev));
+}
+
+/* Radio for one answer, checkbox for several */
+.question-mark {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  color: #fff;
+}
+
+.question-option.is-multi .question-mark {
+  border-radius: 4px;
+}
+
+.question-option.is-on .question-mark {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.question-mark svg {
+  width: 11px;
+  height: 11px;
+}
+
+.question-label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.question-other {
+  width: 100%;
+}
+
+.question-spacer {
+  flex: 1;
+}
+
+/* A plan can run long: it scrolls inside the prompt so the buttons stay in reach */
+.permission-plan-body {
+  max-height: 340px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  overflow-y: auto;
+  border-radius: calc(var(--radius) - 3px);
+  background: var(--bg-sunken);
+}
+
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+
+a.attachment-chip:hover {
+  background: var(--bg-hover);
+}
+
+.attachment-chip.is-error {
+  border-color: var(--bad);
+}
+
+.attachment-name {
+  max-width: 24ch;
+}
+
+.attachment-error {
+  color: var(--bad);
+  max-width: 32ch;
+}
+
+.attachment-thumb {
+  display: block;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.attachment-thumb img {
+  max-width: 240px;
+  max-height: 180px;
+  object-fit: contain;
+  background: var(--bg-sunken);
+}
+
+.attachment-mini {
+  width: 20px;
+  height: 20px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.attachments-pending {
+  margin: 0 0 8px;
+}
+
+.attach-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.attach-row .attachments-pending {
+  margin: 0;
+}
+
+.composer-attach {
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
+/* The dialog body is as tall as its content, so a zero basis would collapse this to nothing */
+.detail-scroll {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.detail-facts {
+  color: var(--text);
+}
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.detail-live {
+  margin-left: 6px;
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.detail-output {
+  max-height: min(64dvh, 720px);
+  overflow-y: auto;
+}
+
+.detail-output .task-output {
+  max-height: none;
+  overflow: visible;
+}
+
+.detail-task-link {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+/* Every message here is a subagent's, so the marker that sets one apart in a run adds nothing */
+.detail-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.detail-transcript .transcript {
+  align-self: stretch;
+}
+
+.detail-transcript .msg-sidechain {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
+}
+
+.detail-transcript .msg-head .badge-info {
+  display: none;
+}

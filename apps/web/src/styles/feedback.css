@@ -1,0 +1,483 @@
+/* Status and feedback: badges, dots, alerts, empty states, skeletons, facts. */
+/*
+ * A badge is data, not decoration: mono text, no fill, a 1px border and the tone carried by the
+ * icon or dot beside the word. `--tone` is the only thing a variant sets, so a new one is a line.
+ */
+.badge {
+  --tone: var(--text-faint);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.7;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.badge > svg,
+.badge > .spinner {
+  color: var(--tone);
+}
+
+a.badge:hover {
+  text-decoration: none;
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.badge-ok {
+  --tone: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 26%, var(--border));
+  color: var(--ok);
+}
+
+.badge-bad {
+  --tone: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 26%, var(--border));
+  color: var(--bad);
+}
+
+.badge-warn {
+  --tone: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 26%, var(--border));
+  color: var(--warn);
+}
+
+.badge-info {
+  --tone: var(--info);
+  border-color: color-mix(in srgb, var(--info) 26%, var(--border));
+  color: var(--info);
+}
+
+.badge-idle {
+  --tone: var(--idle);
+  border-color: color-mix(in srgb, var(--idle) 26%, var(--border));
+  color: var(--idle);
+}
+
+/* Something happening now is `--live`, not the accent: the accent is what you can press. */
+.badge-active {
+  --tone: var(--live);
+  border-color: color-mix(in srgb, var(--live) 30%, var(--border));
+  color: var(--live);
+}
+
+.badge-project {
+  --tone: var(--accent-2);
+  border-color: color-mix(in srgb, var(--accent-2) 26%, var(--border));
+  color: var(--accent-2);
+}
+
+.status-dot {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot, var(--text-faint));
+}
+
+.badge .status-dot {
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+}
+
+.status-dot-ping {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: ping 1.6s var(--ease-out) infinite;
+}
+
+.tone-ok {
+  --dot: var(--ok);
+}
+
+.tone-warn {
+  --dot: var(--warn);
+}
+
+.tone-bad {
+  --dot: var(--bad);
+}
+
+.tone-info {
+  --dot: var(--info);
+}
+
+.tone-idle {
+  --dot: var(--idle);
+}
+
+.tone-active {
+  --dot: var(--accent);
+}
+
+.tone-ok:not(.is-live) {
+  box-shadow: 0 0 0 3px var(--ok-soft);
+}
+
+/* Legacy dots still used by a few tables */
+.pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--text-faint);
+}
+
+.dot-ok {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px var(--ok-soft);
+}
+
+.dot-warn {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px var(--warn-soft);
+}
+
+.dot-bad {
+  background: var(--bad);
+  box-shadow: 0 0 0 3px var(--bad-soft);
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: -2px;
+}
+
+.spinner-xs {
+  width: 9px;
+  height: 9px;
+  border-width: 1.5px;
+  border-color: color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
+  vertical-align: 0;
+}
+
+.thinking-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+}
+
+.thinking-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: bounce-dot 1.2s ease-in-out infinite;
+}
+
+.thinking-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.thinking-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.ring {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  --ring-from: #e58a63;
+  --ring-to: #c8527a;
+}
+
+.ring-ok {
+  --ring-from: var(--ok);
+  --ring-to: var(--ok);
+}
+
+.ring-warn {
+  --ring-from: var(--warn);
+  --ring-to: #e88a4a;
+}
+
+.ring-bad {
+  --ring-from: var(--bad);
+  --ring-to: #d8456b;
+}
+
+.ring-track {
+  stroke: var(--bg-hover);
+}
+
+.ring-value {
+  transition: stroke-dashoffset 0.9s var(--ease-out);
+}
+
+.ring-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 26px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.state-empty {
+  flex-direction: column;
+  gap: 5px;
+  padding: 30px 22px;
+}
+
+.state-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: radial-gradient(circle at 30% 20%, var(--accent-soft), var(--accent-2-soft) 70%, transparent);
+  color: var(--accent);
+}
+
+.state-empty strong {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.state-empty .muted {
+  max-width: 46ch;
+  font-size: 13px;
+}
+
+.state-action {
+  margin-top: 12px;
+}
+
+.alert {
+  display: flex;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 13px;
+  overflow-wrap: anywhere;
+  animation: fade-rise var(--dur-base) var(--ease-out);
+}
+
+.alert-icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.alert-body {
+  min-width: 0;
+}
+
+.alert-bad {
+  border-color: color-mix(in srgb, var(--bad) 35%, transparent);
+  background: var(--bad-soft);
+}
+
+.alert-bad .alert-icon {
+  color: var(--bad);
+}
+
+.alert-warn {
+  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+  background: var(--warn-soft);
+}
+
+.alert-warn .alert-icon {
+  color: var(--warn);
+}
+
+.skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 6px 0;
+}
+
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(100deg, var(--bg-hover) 30%, var(--border-strong) 50%, var(--bg-hover) 70%);
+  background-size: 220% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 136px minmax(0, 1fr);
+  gap: 8px 14px;
+  margin: 0;
+}
+
+.kv-narrow {
+  grid-template-columns: 96px minmax(0, 1fr);
+}
+
+.kv dt {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.kv dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.kv .kv-full {
+  grid-column: 1 / -1;
+}
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.inline-form > :first-child {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+/* A row of a few short facts that folds onto a second line on a narrow screen rather than squeezing them */
+.list-row-flow {
+  flex-wrap: wrap;
+}
+
+.list-row-flow > .break {
+  flex: 1 1 12rem;
+}
+
+.meters {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gauges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px 32px;
+}
+
+.gauge {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.gauge-value {
+  font-size: 18px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+}
+
+.gauge-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.gauge-name {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.meter-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  text-transform: capitalize;
+}
+
+.meter-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+
+.meter-thin {
+  height: 5px;
+}
+
+.meter-fill {
+  height: 100%;
+  background: var(--gradient-accent);
+  border-radius: 999px;
+  transition: width 0.7s var(--ease-out);
+}
+
+.meter-fill.is-warn {
+  background: var(--warn);
+}
+
+.meter-fill.is-bad {
+  background: var(--bad);
+}
+
+@media (max-width: 900px) {
+.kv {
+    grid-template-columns: 108px minmax(0, 1fr);
+  }
+}
+
+/* Floating jump-to-ends control for long scrollers (session transcripts, run logs). */
+.scroll-jump {
+  position: sticky;
+  bottom: 18px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  /* Sits in the flow but must not take space from it, or it would push the content up. */
+  height: 0;
+  margin-left: auto;
+  pointer-events: none;
+}
+
+.scroll-jump .icon-btn {
+  pointer-events: auto;
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.28);
+  backdrop-filter: blur(6px);
+}
