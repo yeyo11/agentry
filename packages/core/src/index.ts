@@ -225,10 +225,33 @@ export class Core {
     this.schedules = new Scheduler(config, {
       chat: (request) => this.chats.create(request),
       orchestration: (spec) => this.orchestrator.create(spec),
+      // A chat waiting on a person is still in its turn: it has not ended, whatever it waits for
+      running: ({ chatId, orchestrationId }) => {
+        if (chatId) {
+          const chat = this.runtime.get(chatId);
+          return !!chat && stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }) !== 'idle';
+        }
+        return !!orchestrationId && this.orchestrator.get(orchestrationId)?.status === 'running';
+      },
+    });
+    this.schedules.bus = this.events;
+    // A queued slot follows its predecessor as soon as it ends, not on the next tick. Not before the
+    // chats are restored, though: until then a chat still going looks like one that ended
+    let schedulesStarted = false;
+    this.events.observe((event) => {
+      if (!schedulesStarted) return;
+      const ended =
+        (event.type === 'run.updated' && event.status !== event.previousStatus) ||
+        event.type === 'run.ended' ||
+        event.type === 'run.removed' ||
+        (event.type === 'orchestration.updated' && event.status !== 'running') ||
+        event.type === 'orchestration.removed';
+      if (ended) void this.schedules.drain().catch(() => undefined);
     });
     void this.runtime.restore(this.sessions).finally(() => {
       this.orchestrator.recover();
       this.schedules.start();
+      schedulesStarted = true;
     });
     this.connectors = new Connectors(config);
     this.resources = new ConfigResources();

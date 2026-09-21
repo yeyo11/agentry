@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { NewChatRequest, OrchestrationSpec, ScheduleTarget } from '@agentry/shared';
+import type { AgentryEvent, NewChatRequest, OrchestrationSpec, ScheduleChangedEvent, ScheduleFiredEvent, ScheduleTarget } from '@agentry/shared';
+import { EventBus } from '../src/events.ts';
 import { previewCron, Scheduler, type ScheduleLauncher } from '../src/schedules.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -11,7 +12,14 @@ const chatTarget: ScheduleTarget = { kind: 'chat', chat: { prompt: 'summarise th
 
 /** A scheduler on a clock the test moves, with launchers that record what they were asked to start. */
 function rig(config = tempConfig(), start = '2026-09-20T08:00:00Z') {
-  const state = { now: at(start), chats: [] as NewChatRequest[], orchestrations: [] as OrchestrationSpec[], failWith: null as string | null };
+  const state = {
+    now: at(start),
+    chats: [] as NewChatRequest[],
+    orchestrations: [] as OrchestrationSpec[],
+    failWith: null as string | null,
+    /** Chats and orchestrations still going, by id: what an overlap policy asks about */
+    live: new Set<string>(),
+  };
   const launcher: ScheduleLauncher = {
     chat: async (request) => {
       if (state.failWith) throw new Error(state.failWith);
@@ -22,10 +30,21 @@ function rig(config = tempConfig(), start = '2026-09-20T08:00:00Z') {
       state.orchestrations.push(spec);
       return { id: `orch-${state.orchestrations.length}` };
     },
+    running: ({ chatId, orchestrationId }) => state.live.has(chatId ?? orchestrationId ?? ''),
   };
-  const open = () => new Scheduler(config, launcher, () => state.now);
-  return { config, state, scheduler: open(), open };
+  const bus = new EventBus();
+  const events: AgentryEvent[] = [];
+  bus.subscribe((e) => events.push(e));
+  const open = () => {
+    const scheduler = new Scheduler(config, launcher, () => state.now);
+    scheduler.bus = bus;
+    return scheduler;
+  };
+  return { config, state, bus, events, scheduler: open(), open };
 }
+
+const changes = (events: AgentryEvent[]) => events.filter((e): e is ScheduleChangedEvent => e.type === 'schedule.changed');
+const fires = (events: AgentryEvent[]) => events.filter((e): e is ScheduleFiredEvent => e.type === 'schedule.fired');
 
 const daily = { name: 'daily', cron: '0 9 * * *', timezone: 'UTC', target: chatTarget };
 
@@ -231,4 +250,270 @@ test('the preview says what an expression does, or which field is wrong, and sav
   assert.equal(bad.valid, false);
   assert.match(bad.error ?? '', /hour: 25 is outside/);
   assert.deepEqual(bad.next, []);
+});
+
+// ---------- overlap ----------
+
+const everyTen = { ...daily, cron: '*/10 * * * *' };
+
+test('parallel, the default, starts a slot while the last run is still going', async () => {
+  const { scheduler, state } = rig();
+  const created = await scheduler.create(everyTen);
+  assert.equal(created.overlap, 'parallel');
+  state.now = at('2026-09-20T08:10:02Z');
+  await scheduler.tick();
+  state.live.add('chat-1');
+  state.now = at('2026-09-20T08:20:02Z');
+  await scheduler.tick();
+  assert.equal(state.chats.length, 2);
+  assert.deepEqual(scheduler.history(created.id).map((r) => r.status), ['started', 'started']);
+  scheduler.close();
+});
+
+test('skip writes an overlapped run and starts nothing while the last run is going, then fires again once it ended', async () => {
+  const { scheduler, state } = rig();
+  const { id } = await scheduler.create({ ...everyTen, overlap: 'skip' });
+  state.now = at('2026-09-20T08:10:02Z');
+  await scheduler.tick();
+  state.live.add('chat-1');
+
+  state.now = at('2026-09-20T08:20:02Z');
+  await scheduler.tick();
+  assert.equal(state.chats.length, 1, 'nothing started');
+  const [overlapped, first] = scheduler.history(id);
+  assert.equal(overlapped?.status, 'overlapped');
+  assert.equal(overlapped?.slot, '2026-09-20T08:20:00.000Z');
+  assert.match(overlapped?.error ?? '', /still going/);
+  assert.equal(scheduler.get(id).lastRunAt, first?.at, 'a slot set aside is not a run');
+
+  state.live.delete('chat-1');
+  state.now = at('2026-09-20T08:30:02Z');
+  await scheduler.tick();
+  assert.equal(state.chats.length, 2);
+  assert.equal(scheduler.history(id)[0]?.status, 'started');
+  scheduler.close();
+});
+
+test('an orchestration still running counts as the last run going', async () => {
+  const { scheduler, state } = rig();
+  const spec: OrchestrationSpec = { name: 'nightly', tasks: [{ id: 'a', name: 'check', prompt: 'check' }] };
+  const { id } = await scheduler.create({ ...everyTen, overlap: 'skip', target: { kind: 'orchestration', spec } });
+  state.now = at('2026-09-20T08:10:02Z');
+  await scheduler.tick();
+  state.live.add('orch-1');
+  state.now = at('2026-09-20T08:20:02Z');
+  await scheduler.tick();
+  assert.equal(state.orchestrations.length, 1);
+  assert.equal(scheduler.history(id)[0]?.status, 'overlapped');
+  scheduler.close();
+});
+
+test('queue holds one slot until the last run ends, a newer slot replaces it, and the run says which slot it answers', async () => {
+  const { scheduler, state } = rig();
+  const { id } = await scheduler.create({ ...everyTen, overlap: 'queue' });
+  state.now = at('2026-09-20T08:10:02Z');
+  await scheduler.tick();
+  state.live.add('chat-1');
+
+  state.now = at('2026-09-20T08:20:02Z');
+  await scheduler.tick();
+  assert.equal(state.chats.length, 1);
+  assert.equal(scheduler.history(id)[0]?.status, 'queued');
+
+  state.now = at('2026-09-20T08:30:02Z');
+  await scheduler.tick();
+  const [newest, replaced] = scheduler.history(id);
+  assert.equal(newest?.status, 'queued');
+  assert.equal(newest?.slot, '2026-09-20T08:30:00.000Z');
+  assert.equal(replaced?.status, 'overlapped');
+  assert.equal(replaced?.slot, '2026-09-20T08:20:00.000Z');
+  assert.match(replaced?.error ?? '', /Replaced by the 2026-09-20T08:30:00.000Z slot/);
+
+  // Still going: a drain changes nothing
+  await scheduler.drain();
+  assert.equal(state.chats.length, 1);
+
+  state.live.delete('chat-1');
+  state.now = at('2026-09-20T08:34:00Z');
+  await scheduler.drain();
+  assert.equal(state.chats.length, 2, 'it starts when the previous run ends, not at the next slot');
+  const [started] = scheduler.history(id);
+  assert.equal(started?.status, 'started');
+  assert.equal(started?.chatId, 'chat-2');
+  assert.equal(started?.slot, '2026-09-20T08:30:00.000Z');
+  assert.equal(started?.at, '2026-09-20T08:34:00.000Z');
+  assert.equal(scheduler.get(id).lastRunAt, started?.at);
+
+  await scheduler.drain();
+  assert.equal(state.chats.length, 2, 'a queued run starts once');
+  scheduler.close();
+});
+
+test('a queued run is started by the tick when nothing told the scheduler the run ended', async () => {
+  const { scheduler, state } = rig();
+  const { id } = await scheduler.create({ ...everyTen, overlap: 'queue' });
+  state.now = at('2026-09-20T08:10:02Z');
+  await scheduler.tick();
+  state.live.add('chat-1');
+  state.now = at('2026-09-20T08:20:02Z');
+  await scheduler.tick();
+  state.live.delete('chat-1');
+  state.now = at('2026-09-20T08:21:00Z');
+  await scheduler.tick();
+  assert.equal(state.chats.length, 2);
+  assert.equal(scheduler.history(id)[0]?.slot, '2026-09-20T08:20:00.000Z');
+  scheduler.close();
+});
+
+test('a queued run is set aside when its schedule is switched off or stops queueing', async () => {
+  const { scheduler, state } = rig();
+  const { id } = await scheduler.create({ ...everyTen, overlap: 'queue' });
+  state.now = at('2026-09-20T08:10:02Z');
+  await scheduler.tick();
+  state.live.add('chat-1');
+  state.now = at('2026-09-20T08:20:02Z');
+  await scheduler.tick();
+  await scheduler.update(id, { enabled: false });
+  state.live.delete('chat-1');
+  await scheduler.drain();
+  assert.equal(state.chats.length, 1);
+  assert.equal(scheduler.history(id)[0]?.status, 'overlapped');
+  assert.match(scheduler.history(id)[0]?.error ?? '', /switched off/);
+
+  const other = await scheduler.create({ ...everyTen, name: 'other', overlap: 'queue' });
+  state.now = at('2026-09-20T08:30:02Z');
+  await scheduler.tick(); // chat-2
+  state.live.add('chat-2');
+  state.now = at('2026-09-20T08:40:02Z');
+  await scheduler.tick();
+  assert.equal(scheduler.history(other.id)[0]?.status, 'queued');
+  await scheduler.update(other.id, { overlap: 'skip' });
+  state.live.delete('chat-2');
+  await scheduler.drain();
+  assert.equal(state.chats.length, 2);
+  assert.match(scheduler.history(other.id)[0]?.error ?? '', /stopped queueing/);
+  scheduler.close();
+});
+
+test('run now ignores the overlap policy: a person asked for it', async () => {
+  const { scheduler, state } = rig();
+  const { id } = await scheduler.create({ ...everyTen, overlap: 'skip' });
+  await scheduler.runNow(id);
+  state.live.add('chat-1');
+  const run = await scheduler.runNow(id);
+  assert.equal(run.status, 'started');
+  assert.equal(state.chats.length, 2);
+  scheduler.close();
+});
+
+test('the overlap policy is stored in the file, validated, and absent means parallel', async () => {
+  const { scheduler, config } = rig();
+  await assert.rejects(scheduler.create({ ...daily, overlap: 'later' as never }), /overlap must be "parallel", "skip" or "queue"/);
+  const { id } = await scheduler.create({ ...daily, overlap: 'queue' });
+  assert.equal(scheduler.get(id).overlap, 'queue');
+  assert.equal((await scheduler.update(id, { overlap: 'skip' })).overlap, 'skip');
+  await assert.rejects(scheduler.update(id, { overlap: 'never' as never }), /overlap must be/);
+  const file = join(config.dataDir, 'schedules.json');
+  const doc = JSON.parse(readFileSync(file, 'utf8')) as { schedules: Array<Record<string, unknown>> };
+  assert.equal(doc.schedules[0]?.overlap, 'skip');
+
+  // A file from before there was a choice
+  delete doc.schedules[0]?.overlap;
+  writeFileSync(file, JSON.stringify(doc));
+  assert.equal(scheduler.get(id).overlap, 'parallel');
+  scheduler.close();
+});
+
+// ---------- events ----------
+
+test('schedule.changed announces create, edit, switch, reschedule and delete', async () => {
+  const { scheduler, state, events } = rig();
+  const { id } = await scheduler.create(daily);
+  await scheduler.update(id, { name: 'morning' });
+  await scheduler.update(id, { enabled: false });
+  await scheduler.update(id, { enabled: true, cron: '0 10 * * *' });
+  state.now = at('2026-09-20T10:00:05Z');
+  await scheduler.tick();
+  await scheduler.tick(); // nothing due: nothing was recomputed
+  await scheduler.remove(id);
+
+  const seen = changes(events);
+  assert.deepEqual(seen.map((e) => e.action), ['created', 'updated', 'disabled', 'enabled', 'rescheduled', 'deleted']);
+  assert.ok(seen.every((e) => e.scheduleId === id));
+  assert.equal(seen[0]?.scheduleName, 'daily');
+  assert.equal(seen[0]?.nextRunAt, '2026-09-20T09:00:00.000Z');
+  assert.equal(seen[1]?.scheduleName, 'morning');
+  assert.equal(seen[2]?.nextRunAt, null);
+  assert.equal(seen[4]?.nextRunAt, '2026-09-21T10:00:00.000Z', 'the next fire, computed after this one');
+  assert.equal(seen[5]?.nextRunAt, null);
+  assert.ok(seen.every((e) => e.title.length > 0));
+  scheduler.close();
+});
+
+test('starting the scheduler announces every enabled schedule as rescheduled', async () => {
+  const { scheduler, events } = rig();
+  const on = await scheduler.create(daily);
+  await scheduler.create({ ...daily, name: 'off', enabled: false });
+  events.length = 0;
+  scheduler.start();
+  assert.deepEqual(
+    changes(events).map((e) => [e.scheduleId, e.action]),
+    [[on.id, 'rescheduled']],
+  );
+  scheduler.close();
+});
+
+test('schedule.fired follows every run row: started, failed, skipped, overlapped and queued', async () => {
+  const { scheduler, state, events, open } = rig();
+  const { id } = await scheduler.create({ ...everyTen, overlap: 'queue' });
+
+  state.now = at('2026-09-20T08:10:02Z');
+  await scheduler.tick(); // started chat-1
+  state.live.add('chat-1');
+  state.now = at('2026-09-20T08:20:02Z');
+  await scheduler.tick(); // queued
+  state.now = at('2026-09-20T08:30:02Z');
+  await scheduler.tick(); // queued, the 08:20 one overlapped
+  state.live.delete('chat-1');
+  await scheduler.drain(); // the 08:30 one started
+  state.failWith = 'no workspace';
+  await scheduler.runNow(id); // failed
+  scheduler.close();
+
+  state.failWith = null;
+  state.now = at('2026-09-20T09:35:00Z'); // 08:40 to 09:30 went by while it was down
+  const second = open();
+  await second.tick();
+
+  const seen = fires(events);
+  assert.deepEqual(
+    seen.map((e) => e.status),
+    ['started', 'queued', 'overlapped', 'queued', 'started', 'failed', 'skipped'],
+  );
+  assert.ok(seen.every((e) => e.scheduleId === id && e.scheduleName === 'daily'));
+  assert.equal(seen[0]?.chatId, 'chat-1');
+  assert.equal(seen[1]?.runId, seen[2]?.runId, 'the replaced run is the one that was queued');
+  assert.equal(seen[3]?.runId, seen[4]?.runId, 'the queued run is the one that started');
+  assert.equal(seen[4]?.chatId, 'chat-2');
+  assert.equal(seen[5]?.chatId, null);
+  assert.match(seen[5]?.title ?? '', /no workspace/);
+  const history = new Set(second.history(id).map((r) => r.id));
+  assert.ok(seen.every((e) => history.has(e.runId)), 'every event names a row the history has');
+  second.close();
+});
+
+test('a client that reconnects with the last id it saw gets the schedule events it missed', async () => {
+  const { scheduler, state, bus } = rig();
+  const { id } = await scheduler.create(everyTen);
+  const cursor = bus.lastEventId;
+  state.now = at('2026-09-20T08:10:02Z');
+  await scheduler.tick();
+  await scheduler.update(id, { enabled: false });
+  const replay = bus.since(cursor);
+  assert.ok('events' in replay);
+  assert.deepEqual(
+    replay.events.map((e) => (e.type === 'schedule.changed' ? `${e.type}:${e.action}` : e.type)),
+    ['schedule.fired', 'schedule.changed:rescheduled', 'schedule.changed:disabled'],
+  );
+  scheduler.close();
 });
