@@ -3,6 +3,18 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.15.0](https://github.com/yeyo11/agentry/compare/v0.14.0...v0.15.0) (2026-09-21)
+
+
+### Features
+
+* close what the roadmap left open after [#60](https://github.com/yeyo11/agentry/issues/60) and [#62](https://github.com/yeyo11/agentry/issues/62) ([#64](https://github.com/yeyo11/agentry/issues/64)) ([161cff2](https://github.com/yeyo11/agentry/commit/161cff2af7930fab299f51573d25b8039b6fbd43))
+
+
+### Bug fixes
+
+* **core:** judge a command by the stage that does the work, not a trailing echo ([#63](https://github.com/yeyo11/agentry/issues/63)) ([d130694](https://github.com/yeyo11/agentry/commit/d130694c47ac00b422bf117c8b44f7fdb48aef4e))
+
 ## [0.14.0](https://github.com/yeyo11/agentry/compare/v0.13.1...v0.14.0) (2026-09-21)
 
 
