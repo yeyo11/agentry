@@ -223,7 +223,7 @@ const StepView = memo(function StepView({ row, current, subagents }: { row: Extr
       <span className="avatar-gap" aria-hidden />
       <div className="msg-body">
         <Collapsible
-          className={`fold step ${current ? 'live-rail' : ''}`}
+          className={`fold tool-step ${current ? 'live-rail' : ''}`}
           open={open}
           onOpenChange={setChosen}
           title={
