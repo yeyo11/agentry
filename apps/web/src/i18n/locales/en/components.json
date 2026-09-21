@@ -215,7 +215,12 @@
     "workflowAgent": "Workflow agent",
     "taskOutput": "Task output",
     "chat": "Chat",
-    "theChat": "the chat"
+    "theChat": "the chat",
+    "chatFailed": "Could not read this chat",
+    "cost": "Cost",
+    "openChat": "Open the chat",
+    "earlierInChat_one": "{{count}} earlier entry in the chat",
+    "earlierInChat_other": "{{count}} earlier entries in the chat"
   },
   "permissions": {
     "waitingForYou": "Waiting for you",
