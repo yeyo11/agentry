@@ -391,7 +391,7 @@ stored; the token itself exists once, in the answer that created it.
 | PUT | `/security/auth` | `{ mode?, oidc?, readOnly? }`. A mode that would lock everyone out is refused; stays reachable in read-only mode, because it is the switch |
 | POST | `/security/token` | Set or rotate the bearer token — `{ token? }`, generated when omitted. Returned once |
 | DELETE | `/security/token` | Remove it; refused while the mode is `token` |
-| GET | `/audit?limit=&from=&path=` | Mutating requests, newest first: when, actor (token id, OIDC subject or `local`), method, path, status and a one-line summary from the route. Bodies are never recorded |
+| GET | `/audit?limit=&from=&path=&method=&status=` | Mutating requests, newest first: when, actor (token id, OIDC subject, `local`, or `env` for a token reset from the environment), method, path, status and a one-line summary from the route. `path` matches anywhere and literally, `method` exactly, `status` a code (`404`) or a class (`4xx`). Bodies are never recorded |
 
 ### Accounts (multi-account)
 

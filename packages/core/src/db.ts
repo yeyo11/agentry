@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import type {
   AuditEntry,
+  AuditFilter,
   AuditPage,
   AutoSwitchEvent,
   EffectiveEnvironment,
@@ -356,13 +357,33 @@ export class Db {
     return { ...entry, id: String(result.lastInsertRowid) };
   }
 
-  /** Newest first. `path` matches anywhere in the path, which is how the panel filters by route. */
-  auditPage(opts: { limit?: number; from?: number; path?: string } = {}): AuditPage {
+  /**
+   * Newest first. `path` matches anywhere in the path, which is how the panel filters by route;
+   * `method` and `status` narrow it further, and every filter narrows `total` with the page.
+   */
+  auditPage(opts: { limit?: number; from?: number } & AuditFilter = {}): AuditPage {
     const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 50), 1), 500);
     const from = Math.max(Math.trunc(opts.from ?? 0), 0);
-    const filter = opts.path?.trim();
-    const where = filter ? 'WHERE path LIKE ?' : '';
-    const params: SQLInputValue[] = filter ? [`%${filter}%`] : [];
+    const clauses: string[] = [];
+    const params: SQLInputValue[] = [];
+    const path = opts.path?.trim();
+    if (path) {
+      // Paths hold `_` in ids and `%` in encoded segments, which LIKE would read as wildcards
+      clauses.push("path LIKE ? ESCAPE '\\'");
+      params.push(`%${path.replace(/[\\%_]/g, '\\$&')}%`);
+    }
+    const method = opts.method?.trim();
+    if (method) {
+      clauses.push('method = ?');
+      params.push(method.toUpperCase());
+    }
+    const status = opts.status?.trim();
+    if (status) {
+      const range = statusRange(status);
+      clauses.push('status BETWEEN ? AND ?');
+      params.push(range[0], range[1]);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const totalRow = this.db.prepare(`SELECT COUNT(*) AS n FROM audit ${where}`).get(...params) as { n: number } | undefined;
     const rows = this.db
       .prepare(`SELECT * FROM audit ${where} ORDER BY id DESC LIMIT ? OFFSET ?`)
@@ -654,4 +675,14 @@ export class Db {
   close(): void {
     this.db.close();
   }
+}
+
+/** `404` is one code, `4xx` its whole class; anything else is refused rather than matching nothing. */
+function statusRange(status: string): [number, number] {
+  const code = /^([1-5])(\d\d|xx)$/i.exec(status);
+  if (!code?.[1] || !code[2]) throw new Error('status must be a code such as 404 or a class such as 4xx');
+  const hundreds = Number(code[1]) * 100;
+  if (code[2].toLowerCase() === 'xx') return [hundreds, hundreds + 99];
+  const exact = hundreds + Number(code[2]);
+  return [exact, exact];
 }

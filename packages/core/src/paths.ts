@@ -11,6 +11,7 @@ import type { PermissionMode } from '@agentry/shared';
 const AUTH_ENV_KEYS = [
   'AGENTRY_AUTH_MODE',
   'AGENTRY_AUTH_TOKEN',
+  'AGENTRY_AUTH_TOKEN_RESET',
   'AGENTRY_READ_ONLY',
   'AGENTRY_OIDC_ISSUER',
   'AGENTRY_OIDC_AUDIENCE',
