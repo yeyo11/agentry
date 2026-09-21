@@ -8,6 +8,7 @@ import {
   entryText,
   normalizeMessage,
   type Attachment,
+  type ChatActivity,
   type ChatFork,
   type ChatOrigin,
   type ChatSettingsUpdate,
@@ -26,6 +27,7 @@ import {
   type TranscriptEntry,
 } from '@agentry/shared';
 import { authFreeEnv, type Launch } from './accounts.ts';
+import { activityKey, ChatActivityTracker } from './chat-activity.ts';
 import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import { commandKind } from './commands.ts';
 import { chatsFromRuns, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
@@ -149,6 +151,8 @@ export interface ChatRuntime {
   permissionPrompts: 'host' | 'none';
   /** Prompts waiting for someone right now: the chat is stuck until they are answered */
   pendingPrompts: number;
+  /** What the live process is doing right now; null when there is none */
+  activity: ChatActivity | null;
   /** The tool preset and MCP servers Agentry started it with; null when it picked none */
   tools?: ChatToolConfig | null;
   executions: Execution[];
@@ -250,6 +254,10 @@ class LiveChat {
   pendingPrompts = 0;
   /** The turn is ending because someone interrupted it, not because it failed */
   interruptRequested = false;
+  /** What the live process is doing right now, folded from the stream as it arrives */
+  readonly activity: ChatActivityTracker;
+  /** The last activity announced on the feed, so a line that changes nothing costs no summary */
+  activityKey = '';
   /** The CLI's `tool_progress` heartbeats for the commands still running, by tool call */
   readonly heartbeats = new Map<string, { elapsedSeconds: number; at: string }>();
   /** Foreground commands started and not answered, for the history of how long each kind takes */
@@ -293,6 +301,7 @@ class LiveChat {
     this.model = opts.model ?? null;
     this.created = created;
     this.name = opts.name ?? `${basename(this.cwd)}-${this.id.slice(0, 6)}`;
+    this.activity = new ChatActivityTracker(this.cwd);
     this.emitter.setMaxListeners(100);
   }
 
@@ -441,6 +450,8 @@ class LiveChat {
       account: this.opts.account ?? null,
       permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
       pendingPrompts: this.pendingPrompts,
+      // A chat with no process of ours is doing nothing, whatever the last stream left behind
+      activity: this.alive ? this.activity.current() : null,
       tools: this.tools,
       executions: this.executions,
       backgroundTasks: [...this.tasks.values()],
@@ -681,6 +692,18 @@ export class ChatManager extends EventEmitter {
       // Partials only stream text and stderr changes nothing a list shows
       if (event.kind !== 'partial' && event.kind !== 'stderr') this.publisher.observe(chat.summary());
     });
+  }
+
+  /**
+   * Announces what the chat is doing, when it changed. Called after every line the CLI writes, so
+   * the comparison comes first: a chat streaming a paragraph produces dozens of lines a second and
+   * none of them changes the one word the ticker shows.
+   */
+  private noteActivity(chat: LiveChat): void {
+    const key = activityKey(chat.alive ? chat.activity.current() : null);
+    if (key === chat.activityKey) return;
+    chat.activityKey = key;
+    this.publisher.activity(chat.summary());
   }
 
   list(): ChatRuntime[] {
@@ -1084,6 +1107,7 @@ export class ChatManager extends EventEmitter {
       return;
     }
     chat.pendingPrompts++;
+    chat.activity.setPendingPrompts(chat.pendingPrompts, now());
     void broker
       .ask({
         id: requestId,
@@ -1098,6 +1122,8 @@ export class ChatManager extends EventEmitter {
       })
       .then((decision) => {
         chat.pendingPrompts = Math.max(0, chat.pendingPrompts - 1);
+        chat.activity.setPendingPrompts(chat.pendingPrompts, now());
+        this.noteActivity(chat);
         // Withdrawn by the CLI, or the process is gone: nobody is waiting for an answer
         if (!decision || !processUp(proc)) return;
         reply(toControlDecision(decision, input));
@@ -1287,6 +1313,8 @@ export class ChatManager extends EventEmitter {
     chat.openCommands.clear();
     chat.cancelled.clear();
     chat.beginExecution();
+    // Whatever the last process was doing went with it
+    chat.activity.clear();
     chat.setStatus('starting');
 
     const launch = this.launchOf(chat);
@@ -1301,7 +1329,9 @@ export class ChatManager extends EventEmitter {
     const current = () => chat.proc === proc;
 
     createInterface({ input: proc.stdout }).on('line', (line) => {
-      if (current()) this.handleLine(chat, proc, line);
+      if (!current()) return;
+      this.handleLine(chat, proc, line);
+      this.noteActivity(chat);
     });
     createInterface({ input: proc.stderr }).on('line', (line) => {
       if (!line.trim() || !current()) return;
@@ -1379,7 +1409,9 @@ export class ChatManager extends EventEmitter {
     if (execution) {
       Object.assign(execution, { endedAt: chat.endedAt, outcome: executionOutcome(status), error: chat.error });
     }
+    chat.activity.clear();
     chat.setStatus(status);
+    this.noteActivity(chat);
     this.persist();
     this.maybeRotate(chat);
   }
@@ -1462,7 +1494,11 @@ export class ChatManager extends EventEmitter {
       if (raw.parent_tool_use_id != null) return;
       const event = (raw.event ?? {}) as Record<string, unknown>;
       if (event.type === 'content_block_start') {
-        const blockType = (event.content_block as Record<string, unknown> | undefined)?.type;
+        const block = (event.content_block ?? {}) as Record<string, unknown>;
+        const blockType = block.type;
+        // The ticker reacts to the block, not to the message that closes it: a tool call is named
+        // here, seconds before its arguments have finished streaming
+        chat.activity.blockStarted(block, now());
         chat.partial = blockType === 'text' || blockType === 'thinking' ? { block: blockType, text: '' } : null;
       } else if (event.type === 'content_block_delta' && chat.partial) {
         const delta = (event.delta ?? {}) as Record<string, unknown>;
@@ -1472,6 +1508,7 @@ export class ChatManager extends EventEmitter {
           chat.emitPartial();
         }
       } else if (event.type === 'content_block_stop') {
+        chat.activity.blockStopped();
         chat.partial = null;
       }
       return;
@@ -1492,6 +1529,7 @@ export class ChatManager extends EventEmitter {
       if (!entry) return;
       this.trackSubagents(chat, entry);
       this.trackCommands(chat, entry);
+      this.trackActivity(chat, entry);
       // The CLI can start a turn on its own (e.g. after a background task notification)
       if (entry.role === 'assistant' && chat.status === 'idle') {
         if (chat.idleTimer) clearTimeout(chat.idleTimer);
@@ -1519,7 +1557,10 @@ export class ChatManager extends EventEmitter {
         ...(typeof raw.permissionMode === 'string' ? { permissionMode: reportedMode(raw.permissionMode) } : {}),
         ...(typeof raw.model === 'string' ? { model: raw.model } : {}),
       });
-      if (typeof raw.cwd === 'string') chat.workingDir = raw.cwd;
+      if (typeof raw.cwd === 'string') {
+        chat.workingDir = raw.cwd;
+        chat.activity.setCwd(raw.cwd);
+      }
       const environment = toEnvironment(chat.cwd, chat.id, raw);
       this.environments.set(chat.cwd, environment);
       try {
@@ -1574,6 +1615,7 @@ export class ChatManager extends EventEmitter {
       // An interrupted turn ends as an error by the CLI's account, but nothing went wrong
       if (isError && !chat.interruptRequested) chat.error = result || String(subtype ?? 'error');
       chat.interruptRequested = false;
+      chat.activity.turnEnded();
       this.persist();
       chat.push({
         kind: 'result',
@@ -1628,6 +1670,22 @@ export class ChatManager extends EventEmitter {
         } catch {
           // the history only loses one run of a command
         }
+      }
+    }
+  }
+
+  /**
+   * Feeds the ticker the calls of the main agent and their results. A sidechain entry belongs to a
+   * subagent: what the chat is doing is the `Task` call that started it, which stays open until the
+   * subagent reports back.
+   */
+  private trackActivity(chat: LiveChat, entry: NonNullable<ReturnType<typeof normalizeMessage>>): void {
+    if (entry.isSidechain) return;
+    for (const block of entry.blocks) {
+      if (block.type === 'tool_use') {
+        chat.activity.called(block.id, block.name, (block.input ?? {}) as Record<string, unknown>, entry.timestamp || now());
+      } else if (block.type === 'tool_result') {
+        chat.activity.answered(block.toolUseId);
       }
     }
   }

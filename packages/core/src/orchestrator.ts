@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import type {
+  ChatActivity,
   Health,
   LaunchOrchestrationTemplateRequest,
   Orchestration,
@@ -400,14 +401,20 @@ export class Orchestrator {
   }
 
   /**
-   * The orchestration as a client reads it: each running task carries its health, which is a fact of
-   * the clock and so is worked out when it is read, never stored. A copy, so nothing that is
-   * persisted grows a field that only means something for a moment.
+   * The orchestration as a client reads it: each running task carries its health and what its
+   * worker is doing right now, both facts of this moment and so worked out when it is read, never
+   * stored. A copy, so nothing that is persisted grows a field that only means something for a moment.
    */
   view(orch: Orchestration): Orchestration {
     const read = this.health;
-    if (!read || !orch.tasks.some((t) => t.status === 'running' && t.runId)) return orch;
-    return { ...orch, tasks: orch.tasks.map((t) => (t.status === 'running' && t.runId ? { ...t, health: read(t) } : t)) };
+    const now = new Map<string, { health: Health | null; activity: ChatActivity | null }>();
+    for (const task of orch.tasks) {
+      if (task.status !== 'running' || !task.runId) continue;
+      now.set(task.id, { health: read ? read(task) : null, activity: this.runs.get(task.runId)?.activity ?? null });
+    }
+    // Nothing of this moment to say: the stored graph is already the answer, copies and all
+    if ([...now.values()].every((of) => !of.health && !of.activity)) return orch;
+    return { ...orch, tasks: orch.tasks.map((t) => (now.has(t.id) ? { ...t, ...now.get(t.id) } : t)) };
   }
 
   /** The graph and task a chat works for, with the limits that apply to it; null for a chat that is not a running task. */

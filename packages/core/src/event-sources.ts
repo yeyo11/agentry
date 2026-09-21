@@ -1,5 +1,6 @@
 import { watch, type FSWatcher } from 'node:fs';
 import type {
+  ChatActivity,
   IntegrationStatus,
   Orchestration,
   OrchestrationTaskStatus,
@@ -8,6 +9,7 @@ import type {
   RunWaitingReason,
   VerificationStatus,
 } from '@agentry/shared';
+import { activityKey } from './chat-activity.ts';
 import type { ChatRuntime } from './chats.ts';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from './cli-facts.ts';
 import type { AgentryEventInput, EventBus } from './events.ts';
@@ -20,6 +22,11 @@ import type { AgentryEventInput, EventBus } from './events.ts';
 
 /** Chatty updates of one run are folded into one event per this many milliseconds. */
 export const RUN_UPDATE_COALESCE_MS = 250;
+/**
+ * What a chat is doing is announced at most this often per chat. An agent changes tool several
+ * times a second; a list row shows one line, and a person reads it at about this rate.
+ */
+export const ACTIVITY_THROTTLE_MS = 1000;
 /** File changes under the projects directory are folded the same way, into one `sessions.changed`. */
 export const SESSIONS_COALESCE_MS = 1000;
 
@@ -32,6 +39,19 @@ export const runRef = (run: ChatRuntime): RunEventRef => ({
   orchestrationId: run.orchestrationId,
   internal: run.origin === 'internal',
 });
+
+const ACTIVITY_TITLES: Record<Exclude<ChatActivity['kind'], 'tool'>, (name: string) => string> = {
+  writing: (name) => `${name} is writing`,
+  thinking: (name) => `${name} is thinking`,
+  waiting: (name) => `${name} is waiting for a person`,
+};
+
+/** One line saying what the chat is doing, for whoever shows the event as it is. */
+export function activityTitle(name: string, activity: ChatActivity | null): string {
+  if (!activity) return `${name} is not doing anything`;
+  if (activity.kind !== 'tool') return ACTIVITY_TITLES[activity.kind](name);
+  return `${name} is using ${activity.tool ?? 'a tool'}${activity.target ? ` on ${activity.target}` : ''}`;
+}
 
 /** The run may be gone by the time its prompt is answered; the id still says which one it was. */
 export const runRefOr = (runId: string, run: ChatRuntime | null): RunEventRef =>
@@ -85,6 +105,14 @@ const workflowCounts =(w: WorkflowRun) => ({
   agentsTotal: w.agents.length,
 });
 
+/** The throttle of one run's activity: what was last said, when, and what is waiting to be said. */
+interface ActivityState {
+  sent: string;
+  at: number;
+  timer: NodeJS.Timeout | null;
+  latest: ChatRuntime | null;
+}
+
 interface RunSnapshot {
   status: ChatRuntime['status'];
   turns: number;
@@ -109,10 +137,12 @@ interface RunSnapshot {
  */
 export class RunEventPublisher {
   private readonly snapshots = new Map<string, RunSnapshot>();
+  private readonly activities = new Map<string, ActivityState>();
 
   constructor(
     private readonly emit: (event: AgentryEventInput) => void,
     private readonly windowMs = RUN_UPDATE_COALESCE_MS,
+    private readonly activityWindowMs = ACTIVITY_THROTTLE_MS,
   ) {}
 
   /** Records where a run stands without announcing it: what happens from here on is the news. */
@@ -143,10 +173,55 @@ export class RunEventPublisher {
     const snap = this.snapshots.get(runId);
     if (snap?.timer) clearTimeout(snap.timer);
     this.snapshots.delete(runId);
+    const activity = this.activities.get(runId);
+    if (activity?.timer) clearTimeout(activity.timer);
+    this.activities.delete(runId);
+  }
+
+  /**
+   * Announces what a run is doing, at most once per run per window. A change inside the window is
+   * not dropped but held: the newest one goes out when the window closes, so the last thing a
+   * client hears is always what the run is really doing. Callers hand in a whole run because the
+   * event carries its name and the orchestration it works for as well.
+   */
+  activity(run: ChatRuntime, nowMs = Date.now()): void {
+    const state = this.activities.get(run.id) ?? { sent: '', at: 0, timer: null, latest: null };
+    this.activities.set(run.id, state);
+    if (activityKey(run.activity) === state.sent) return;
+    state.latest = run;
+    if (state.timer) return;
+    const wait = state.at + this.activityWindowMs - nowMs;
+    if (wait > 0) {
+      state.timer = setTimeout(() => this.flushActivity(run.id), wait);
+      state.timer.unref();
+      return;
+    }
+    this.sendActivity(state, run, nowMs);
+  }
+
+  private flushActivity(runId: string): void {
+    const state = this.activities.get(runId);
+    if (!state) return;
+    state.timer = null;
+    const run = state.latest;
+    if (run && activityKey(run.activity) !== state.sent) this.sendActivity(state, run, Date.now());
+  }
+
+  private sendActivity(state: ActivityState, run: ChatRuntime, nowMs: number): void {
+    state.sent = activityKey(run.activity);
+    state.at = nowMs;
+    state.latest = null;
+    this.emit({
+      type: 'chat.activity',
+      title: activityTitle(run.name, run.activity),
+      ...runRef(run),
+      taskId: run.orchestrationTaskId,
+      activity: run.activity,
+    });
   }
 
   dispose(): void {
-    for (const id of [...this.snapshots.keys()]) this.forget(id);
+    for (const id of [...new Set([...this.snapshots.keys(), ...this.activities.keys()])]) this.forget(id);
   }
 
   /** Compares the run with what was last announced and emits the difference. */

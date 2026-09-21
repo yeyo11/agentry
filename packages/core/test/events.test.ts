@@ -140,6 +140,7 @@ function summary(over: Partial<ChatRuntime> = {}): ChatRuntime {
     account: null,
     permissionPrompts: 'none',
     pendingPrompts: 0,
+    activity: null,
     executions: [],
     backgroundTasks: [],
     subagents: [],
