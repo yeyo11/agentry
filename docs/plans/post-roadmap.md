@@ -1,8 +1,12 @@
 # Plan: what the roadmap left open
 
-Status: **specified, not launched**. Written on 2026-09-21 on top of `main` at `3aca743`
+Status: **built; final verification pending**. Written on 2026-09-21 on top of `main` at `3aca743`
 (v0.14.0), after the two orchestrations that built [agents-redesign.md](agents-redesign.md) (#60)
-and [roadmap-completion.md](roadmap-completion.md) (#62). It closes the **Not built yet** list of
+and [roadmap-completion.md](roadmap-completion.md) (#62), and run as one orchestration the same day.
+Every task below landed; what each one delivered, and where it went past or around this text, is in
+[Outcome](#outcome). `pnpm typecheck` and `pnpm test` are green on the integrated branch, and **no
+task ran `pnpm e2e`** (the rules forbade it), so the browser specs the tasks wrote are unrun until
+the verification phase runs the suite. It closes the **Not built yet** list of
 [ROADMAP.md](../../ROADMAP.md), minus what was decided against (below), and re-records the README's
 media, which still shows the navigation from before #60.
 
@@ -367,4 +371,149 @@ delivered, what it left out, and how it verified it.
 
 ## Outcome
 
-Written by the `docs` task from what the branches actually contain.
+What the seventeen branches contain, read from them rather than from the task reports: roughly 8,600
+lines added over 143 files, with the OpenAPI schemas regenerated alongside.
+
+### Stage 0
+
+- **`types`** — every shape of this plan landed in `packages/shared/src/types.ts` at once, each
+  existing reader given the neutral default and nothing more (`costUsd: 0`, `overlap: 'parallel'`,
+  connector strings wrapped in a `Localized` and still rendered by their `text`), and the new events
+  registered in the web feed so its exhaustive maps stayed exhaustive. Server strings took the second
+  of the two shapes this plan offered: `HealthSignal` keeps its plain `reason` and `hint` and gains
+  `reasonCode`, `hintCode` and `params`, so a reader that does not translate is untouched.
+
+### Stage 1 — core and API
+
+- **`security-2`** — `GET /audit` takes `method` (exact, case-insensitive) and `status` (a code or a
+  class), and the path filter is escaped with `ESCAPE '\'`, so `%` and `_` — common in ids and
+  encoded segments — match themselves. An unreadable status is a `400`, not an empty page.
+  `AGENTRY_AUTH_TOKEN_RESET=1` makes the token in the environment replace the stored hash on start,
+  audited with actor `env`; the hash of the value applied is kept, so a restart with the variables
+  still set does not undo a token rotated since. Only the credential changes: mode, OIDC and
+  read-only stay what `auth.json` says.
+- **`tool-presets-2`** — `GET /config/tool-presets` answers `{ defaultPresetId, presets }`,
+  `PUT /config/tool-presets/default` sets it (the first of the two options this plan allowed), and
+  `POST /config/tool-presets/restore` rewrites the three shipped presets while leaving every other
+  one, and the default, alone. A fork inherits its source's `ChatToolConfig` unless the request picks
+  otherwise — a copy that quietly gained tools its source was denied would be a way around them — and
+  a resume that names no servers writes the `--mcp-config` file again from their current definitions,
+  so an edited URL or a rotated token is picked up and a server removed since is left out.
+- **`verification-2`** — `maxCostUsd` reaches the CLI as `--max-budget-usd` with what is left after
+  each fixer attempt; once spent, the verification is `failed` and the report says so, and
+  `VerificationState.costUsd` (0 for states stored before) is counted in the graph's cost. With
+  `install` absent, the nearest lockfile from the graph's directory up to the integration worktree
+  picks pnpm, npm or yarn and the install runs where the lockfile is, as its own row; a spec whose
+  checks already hold that command does not install twice. `failGraph: true` ends the graph `failed`
+  with the checks as its error and refuses the pull request, and checks run again by hand move the
+  graph between `completed` and `failed` accordingly.
+- **`loose-rotation`** — a policy with `looseChats` governs the chats under no project, both when one
+  spawns and when a rate limit moves one, before the global auto-switch. At most one policy holds
+  them, such a policy may list no project, and a project without a policy of its own does not borrow
+  it: it belongs to a project, and the global auto-switch stays in charge of it.
+- **`scheduling-2`** — `parallel`, `skip` and `queue`, with `schedule.changed` and `schedule.fired`
+  on the bus and resumable by `Last-Event-ID` like every other event. Two things go past this text.
+  `ScheduleRunStatus` gained **`queued`**: without a row for the waiting slot it would stay unclaimed
+  and be judged missed a minute later. And the queued run is a row rather than memory, so it survives
+  a restart and two processes on one data directory cannot both start it — moving it from `queued` to
+  `started` is a conditional update only one caller wins. Core hears its own events through a new
+  `EventBus.observe`, which does not count as a listener, or the drain would keep awake the watchers
+  that only run while a client listens.
+- **`usage-2`** — `GET /projects/:id/export?format=markdown|json`, streamed a chat at a time from an
+  async generator so only one transcript is in memory, the project resolved before the first byte (an
+  unknown one is still a `404`), and `content-disposition` on the response. A chat that disappears
+  between the listing and its turn is named in its place in the Markdown and left out of the JSON;
+  housekeeping chats are not exported, being Agentry's errands rather than work done in the project.
+  The route takes `?token=` like the chat export, since a browser follows it as a download.
+- **`i18n-server-strings`** — every health reason and hint is written from a catalogue keyed by a
+  stable code over the params that made it fire, and `health.changed` carries the worst signal's code
+  and params, so a notification can be translated too. The connector's authorisation steps, link
+  labels and out-of-reach reasons carry the same. A test pins the list of codes, so renaming one
+  fails on purpose, and checks that every signal the rules raise has a code whose sentence, filled
+  with its params, is the text it carries.
+- **`supervisor`** — built as §3 of [agent-observability.md](agent-observability.md) describes, off
+  by default. The once-per-signal-per-chat rule is a unique key on the proposals table, so neither a
+  monitor tick nor a restart asks twice. Sending goes through the hint route that already existed, so
+  a worker with no live process refuses it and the proposal stays `proposed`. Its cost lands on the
+  graph and not the task, because a task's cost is replaced by each result, and it lands whether or
+  not the answer was usable, because it was spent either way.
+- **`editor-settings-server`** — `editor.json` behind `GET`/`PUT /settings/editor`, with the scheme
+  check moved into core so the server refuses a template the web would never link. `GET` answers
+  `{ stored, settings }`, and `stored` stays false until the first `PUT`: that is what lets a browser
+  migrate its old `localStorage` key exactly once.
+- **`e2e-health-actions`** — `e2e/fake-cli/claude` speaks just enough stream-json (init, a turn
+  scripted by `run:` lines in the prompt, each a real `sh -c` child with `tool_progress` heartbeats,
+  the control requests, a result per turn and on stdin close) and logs what it heard to a file, which
+  is how a spec knows a hint reached the process. An `elapsed:` line inflates its heartbeats, so the
+  `hung-command` signal fires at once without loosening the limits in core. `run.mjs` puts it first
+  on `PATH` only for specs that export `fakeCli = true`; those run last, behind one restart of the
+  server, so every other spec keeps the real CLI. The CI `test` job's `timeout-minutes` went to 20 —
+  the one change this task made outside `e2e/`.
+
+### Stage 2 — the web
+
+- **`web-security-2`** — method and status filters on the audit list (a status the server would
+  refuse with a `400` is named under the filter and never sent), and **Allow** and **Deny** on a
+  waiting notification for a plain tool permission, answered without opening the chat; a question, a
+  plan or an edited-arguments request keeps only its link, because two buttons cannot answer those.
+  The token card names `AGENTRY_AUTH_TOKEN_RESET` as the way back in.
+- **`web-chats-tools`** — the default preset and **Restore shipped presets** behind a confirmation;
+  the new-chat, resume and fork forms each saying what leaving the preset unpicked runs with, each
+  able to opt out with "No preset"; a template renamed where it is listed, through the `PATCH` that
+  already existed; the schedule form filled from an orchestration that already ran (read from
+  `GET /orchestrations/:id`, so the fields the form does not show come along, with permission prompts
+  set to none, since nobody is at the keyboard when a schedule fires); and "Chats without a project"
+  on the policies card, disabled with a reason while another policy holds them.
+- **`web-orchestration-3`** — `maxCostUsd`, the install step (detected, a command of one's own, or
+  none) and `failGraph` in the launch form; the card shows what the fixer spent against its limit and
+  marks the install row; a graph its checks failed says so at the top and is offered no pull request,
+  because the server refuses one. The supervisor's proposal shows on a chat's and a task's health
+  with **Send**, **Edit** and **Dismiss**, a hint sent from the prefilled box answers the proposal,
+  and `supervisor.proposed` makes a notification that opens where it can be sent. The Editor tab
+  reads and writes `/settings/editor` and moves a browser's old copy there once.
+- **`web-schedules-usage-2`** — the two 30 s `refetchInterval`s are gone; both schedule queries poll
+  only while the stream is down. `overlap` is in the form with a sentence saying what the chosen one
+  does, and `overlapped` and `queued` runs have their own tags, since both are the policy at work
+  rather than a failure. The `DatePicker` in `components/controls` is Agentry's own: the WAI-ARIA
+  date picker pattern, one focusable day moved by the arrows, Home/End and Page Up/Down, today marked
+  by more than colour, the week starting where the locale starts it, and the arithmetic in
+  `lib/calendar` so it is tested without a DOM. The project export is two download links, on the
+  project's Activity tab and on the Usage page. A `server` namespace translates health and connector
+  strings by code, formatting each figure by what its name says and falling back to the server's
+  English for a code this build does not know; a test checks the English keys against core's own
+  catalogues, so a reworded server sentence fails here instead of drifting.
+
+### Stage 3
+
+- **`media`** — `scripts/record-media.mjs`, behind `pnpm media`, boots an isolated wrapper at a fixed
+  sandbox path (refused rather than reused if it exists), with the fake CLI first on `PATH`, a stub
+  claude-swap holding three accounts and `TZ=UTC` on both sides. It seeds three invented
+  repositories, six transcripts, a day of usage readings, three schedules with a run history, a live
+  chat that really writes and commits in its own worktree, and a four-worker graph with checks on the
+  merged branch, then drives one headless Chrome through `e2e/driver.mjs` at 1280×800. Chrome and the
+  wrapper each lead their own process group and are killed by pid on every way out. The fake CLI grew
+  `say:`, `--worktree` and `AGENTRY_FAKE_CLI_SCRIPTS` for it, with every default left as it was, so
+  the specs that use the fake see no change. Frames are `Page.captureScreenshot` PNGs decoded in the
+  script and encoded with **gifenc** — pure JavaScript, no dependencies of its own, no native binary,
+  and `ffmpeg` is not on the machines that build this — over one palette quantized across every
+  frame, so a pixel that did not change is written transparent: 37 frames, 26.5 s, 1.03 MB against
+  the 1.5 MB the script enforces.
+- **`docs`** — this status and this section; the README (the feature list, the rows of every route
+  the tasks added checked one by one against `routes.ts`, the four stills where they belong and the
+  tour's new alt text, the `?token=` list grown to five routes, the recovery path, and the Known
+  limitations this orchestration closed); `SECURITY.md` and `.env.example`; the ROADMAP's **Done**
+  and a **Next** that now holds only decisions; and the landed notes on
+  [agents-redesign.md](agents-redesign.md) and [agent-observability.md](agent-observability.md).
+
+### What no task built, and why
+
+- The three items under [Decided against](#decided-against-and-why) were never in scope, and they
+  are now nearly the whole of the roadmap's **Next**: a read-only banner, a sign-in through an
+  identity provider, and the packaging work.
+- Nothing in this plan turned out to be impossible over the CLI, so nothing was dropped for that
+  reason. The supervisor, the one piece that needed a second model, asks for it the way every other
+  Agentry feature does: a `claude` process with a preset and a budget.
+- One thing was seen and left alone: a chat Agentry starts is titled with the name the wrapper
+  generated until its transcript is on disk, after which its first prompt becomes the title. It is on
+  the roadmap's short **Noticed and not fixed** list, because it belongs to how a chat is named
+  rather than to any task here.
