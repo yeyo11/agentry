@@ -56,7 +56,10 @@ test('two commands running at once each get their own process, in the order they
   try {
     assert.ok(first.pid && second.pid);
     await until(() => processTable().some((p) => p.pid === second.pid));
-    const table = processTable();
+    // This process stands in for the CLI, but it has children of its own (tsx's esbuild service,
+    // started moments before the first test), and one inside the window would take the first slot
+    const ours = new Set([first.pid, second.pid]);
+    const table = processTable().filter((p) => p.ppid !== process.pid || ours.has(p.pid));
     const { roots } = commandRoots(table, process.pid, [t1, t2], 50);
     assert.equal(roots[0]?.pid, first.pid);
     assert.equal(roots[1]?.pid, second.pid);
