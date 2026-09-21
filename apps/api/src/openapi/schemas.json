@@ -5704,9 +5704,10 @@
       "started",
       "failed",
       "skipped",
-      "overlapped"
+      "overlapped",
+      "queued"
     ],
-    "description": "`started`: it launched, and what happened next belongs to the chat or the orchestration. `skipped`: the slot passed while the wrapper was down. `overlapped`: the slot fired while the last run was still going and the policy was `skip`."
+    "description": "`started`: it launched, and what happened next belongs to the chat or the orchestration. `skipped`: the slot passed while the wrapper was down. `overlapped`: the slot fired while the last run was still going and the policy was `skip`, or it was `queue` and a newer slot took its place before it could start. `queued`: the slot fired while the last run was still going and the policy was `queue`; it becomes `started` (keeping its `slot`) when that run ends."
   },
   "SupervisorProposedEvent": {
     "type": "object",

@@ -98,6 +98,20 @@ test('the bus says when the first listener arrives and the last one leaves', () 
   assert.deepEqual(calls, [true, false]);
 });
 
+test('core can observe its own events without counting as a listener that wakes the watchers', () => {
+  const bus = new EventBus();
+  const calls: boolean[] = [];
+  bus.onDemand = (wanted) => calls.push(wanted);
+  const heard: string[] = [];
+  const stop = bus.observe((e) => heard.push(e.title));
+  bus.emit(ping('one'));
+  stop();
+  bus.emit(ping('two'));
+  assert.deepEqual(heard, ['one']);
+  assert.equal(bus.subscribers, 0);
+  assert.deepEqual(calls, []);
+});
+
 // ---------- runs ----------
 
 function summary(over: Partial<ChatRuntime> = {}): ChatRuntime {
