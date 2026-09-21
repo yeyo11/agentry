@@ -2,7 +2,9 @@
 // relaunched, launched from the template, and re-run from one task; the launch form takes limits and
 // a verification phase. A template is renamed where it is listed, and a schedule is filled from a
 // graph that already ran. Nothing is logged in inside the sandbox, so every worker fails at once: the
-// graph is stopped to be a finished one, which is what these controls are for.
+// graph is stopped to be a finished one, which is what these controls are for. On the way, the
+// detail page is read as steps (followed, picked, back to the latest), a task's chat opens beside it,
+// the graph view carries every stage's progress, and the list is searched and has its templates tab.
 //
 // The verification outcome card is not driven here: an outcome only exists once the core runs the
 // checks on a real integration branch, which needs a repository and a logged-in CLI.
@@ -40,6 +42,13 @@ export default async ({ page, api, check, dirs }) => {
   };
   const clickButton = (text, within = 'main') => page.click(`${within} button`, text, 600);
   const dialogButton = (text) => page.click('[role=dialog] button', text, 600);
+  // Everything but the page's primary action is in its `⋯` menu, which opens from the keyboard like a person would
+  const openActions = async () => {
+    await page.focus('main .orch-actions button[aria-label="More actions"]');
+    await page.press('Enter');
+    await page.waitFor(`return !!document.querySelector('[role=menu]')`, { label: 'the actions menu' });
+  };
+  const menuItem = (text) => page.click('[role=menu] [role=menuitem]', text, 600);
 
   try {
     // ---------- a finished graph ----------
@@ -62,12 +71,45 @@ export default async ({ page, api, check, dirs }) => {
 
     await page.goto(`/orchestration/${source}`, 1500);
     await page.waitFor(`return [...document.querySelectorAll('main button')].some((b) => b.textContent.includes('Edit and relaunch'))`, { label: 'the relaunch button' });
-    check((await page.text('main')).includes('Save as template'), 'a finished graph offers to be saved as a template');
+
+    // ---------- the steps ----------
+    // The survey failed and the fix never ran: two stages, and the page follows the one that failed
+    const steps = await page.eval(`return [...document.querySelectorAll('main .stepper .step')].map((s) => s.textContent)`);
+    check(steps.length === 2 && steps[0].includes('Stage 1') && steps[1].includes('Stage 2'), `the stepper shows both stages (${JSON.stringify(steps)})`);
+    check(steps[0].includes('Failed'), 'the failed stage says so in words, not in colour alone');
+    check(
+      (await page.eval(`return document.querySelector('main .stepper [aria-current=step]')?.textContent ?? ''`)).includes('Stage 1'),
+      'the stepper follows the step where the graph stopped',
+    );
+    check((await page.text('main .step-panel')).includes('Survey'), "the followed stage's panel lists its task");
+    await page.click('main .stepper .step', 'Stage 2', 400);
+    await page.waitFor(`return new URLSearchParams(location.search).get('step') === 'stage-2'`, { label: 'the picked step in the address' });
+    check((await page.text('main .step-panel')).includes('Fix'), "picking a step shows that stage's tasks");
+    await clickButton('Back to the latest step');
+    await page.waitFor(`return !new URLSearchParams(location.search).has('step')`, { label: 'following the graph again' });
+    const surveyChat = (await orchestration(source)).tasks.find((t) => t.id === 'survey')?.sessionId;
+    if (surveyChat) {
+      await page.click('main .task-row-name button', 'Survey', 600);
+      await page.waitFor(`return new URLSearchParams(location.search).get('detail') === 'chat:${surveyChat}' && !!document.querySelector('[role=dialog]')`, {
+        label: "the task's chat opened beside the graph",
+      });
+      check((await page.eval('return location.pathname')) === `/orchestration/${source}`, 'opening the chat did not leave the orchestration');
+      await page.press('Escape');
+      await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: 'the chat panel closed' });
+    }
+
+    // ---------- the graph view ----------
+    await page.click('main .orch-view-bar [role=radio]', 'Graph', 600);
+    await page.waitFor(`return new URLSearchParams(location.search).get('view') === 'graph' && !!document.querySelector('main .board')`, { label: 'the graph view' });
     const rerunButtons = await page.eval(`return [...document.querySelectorAll('.board-task button')].filter((b) => b.textContent.includes('Re-run')).length`);
     check(rerunButtons === 2, `each task of a finished graph offers a re-run (saw ${rerunButtons})`);
+    const stageBars = await page.eval(`return document.querySelectorAll('main .board-col-head [role=progressbar]').length`);
+    check(stageBars === 2, `each stage of the graph carries its progress (saw ${stageBars})`);
 
     // ---------- save as a template ----------
-    await clickButton('Save as template');
+    await openActions();
+    check((await page.text('[role=menu]')).includes('Save as template'), 'a finished graph offers to be saved as a template');
+    await menuItem('Save as template');
     await page.fill('[role=dialog] input', 'e2e-v2 template');
     await dialogButton('Save template');
     await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: 'the save dialog closed' });
@@ -94,8 +136,18 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.text('main')).includes('Relaunched from an earlier run'), 'the relaunched graph links back to its origin');
     await finish(relaunched.id);
 
+    // ---------- the list ----------
+    await page.goto('/orchestration?q=e2e-v2-source', 1500);
+    check((await page.text('main .orch-list')).includes('e2e-v2-source'), 'searching finds the graph by name');
+    check(await page.eval(`return !!document.querySelector('main .orch-list [role=progressbar][aria-label*="tasks done"]')`), 'a row carries its progress, named in words');
+    await page.goto('/orchestration?q=no-such-graph-anywhere', 1200);
+    check((await page.text('main')).includes('No orchestration matches'), 'a search that finds nothing says so');
+
     // ---------- launch the template ----------
+    // Templates are a tab of the page, with their count, not a card above the list
     await page.goto('/orchestration', 1500);
+    await page.click('main [role=tab]', 'Templates', 600);
+    await page.waitFor(`return new URLSearchParams(location.search).get('tab') === 'templates'`, { label: 'the templates tab' });
     check((await page.text('main')).includes('e2e-v2 template'), 'the template is listed');
     await clickButton('Launch');
     await page.fill('[role=dialog] textarea', 'the same graph on another objective');
@@ -108,7 +160,7 @@ export default async ({ page, api, check, dirs }) => {
     await finish(launched.id);
 
     // ---------- re-run one task ----------
-    await page.goto(`/orchestration/${source}`, 1500);
+    await page.goto(`/orchestration/${source}?view=graph`, 1500);
     const beforeRerun = (await orchestration(source)).status;
     await page.click('.board-task button', 'Re-run', 600);
     await dialogButton('Re-run');
@@ -159,7 +211,7 @@ export default async ({ page, api, check, dirs }) => {
     }
 
     // ---------- rename a template in place ----------
-    await page.goto('/orchestration', 1500);
+    await page.goto('/orchestration?tab=templates', 1500);
     await page.click('button[aria-label="Rename template e2e-v2 template"]', undefined, 400);
     await page.fill('input[aria-label="New name for e2e-v2 template"]', 'e2e-v2 renamed');
     await page.click('button[aria-label="Save the name"]', undefined, 800);
@@ -170,7 +222,7 @@ export default async ({ page, api, check, dirs }) => {
     check(await page.eval(`return location.pathname === '/orchestration' && !document.querySelector('[role=dialog]')`), 'renaming did not open the graph');
 
     // ---------- delete the template ----------
-    await page.goto('/orchestration', 1500);
+    await page.goto('/orchestration?tab=templates', 1500);
     await page.click('button[aria-label^="Delete template"]', undefined, 600);
     await dialogButton('Delete');
     await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: 'the delete dialog closed' });

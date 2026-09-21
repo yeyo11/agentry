@@ -9,6 +9,7 @@ const REFS: DetailRef[] = [
   { kind: 'task', chatId: 'c1', taskId: 'bg-1' },
   { kind: 'subagent', chatId: 'c1', agentId: 'a1b2c3' },
   { kind: 'workflow-agent', chatId: 'c1', workflowId: 'wf_5c79d6c0-b39', agentId: 'a4fdeef8' },
+  { kind: 'chat', chatId: 'c1' },
 ];
 
 test('every kind of panel decodes back to what was encoded', () => {
@@ -19,6 +20,7 @@ test('the encoding is the kind followed by each id, colon-separated', () => {
   assert.equal(encodeDetail(REFS[0] as DetailRef), 'task:c1:bg-1');
   assert.equal(encodeDetail(REFS[1] as DetailRef), 'subagent:c1:a1b2c3');
   assert.equal(encodeDetail(REFS[2] as DetailRef), 'workflow-agent:c1:wf_5c79d6c0-b39:a4fdeef8');
+  assert.equal(encodeDetail(REFS[3] as DetailRef), 'chat:c1');
 });
 
 test('an id holding a colon, a slash or a space does not shift the parts after it', () => {
@@ -42,6 +44,7 @@ test('nothing, or something that is not a panel, decodes to null', () => {
 });
 
 test('the wrong number of ids for a kind is not a panel', () => {
+  assert.equal(decodeDetail('chat:c1:extra'), null);
   assert.equal(decodeDetail('task:c1:bg-1:extra'), null);
   assert.equal(decodeDetail('subagent:c1'), null);
   assert.equal(decodeDetail('subagent:c1:a1:extra'), null);

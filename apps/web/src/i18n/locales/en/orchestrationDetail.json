@@ -4,5 +4,28 @@
   "deleteTitle": "Delete {{name}}?",
   "taskBoard": "Task board",
   "synthesisHeld": "Held until the blocked tasks are retried or given up: a report over a graph with a hole in it would read as the final one.",
-  "chat": "Chat"
+  "chat": "Chat",
+  "objective": "Objective",
+  "showMore": "Show more",
+  "showLess": "Show less",
+  "elapsedLabel": "Elapsed",
+  "costLabel": "Cost",
+  "moreActions": "More actions",
+  "viewLabel": "View",
+  "viewSteps": "Steps",
+  "viewGraph": "Graph",
+  "stepsLabel": "Steps of this orchestration",
+  "backToLive": "Back to live",
+  "backToLatest": "Back to the latest step",
+  "steps": {
+    "integrationHeld": "The task branches are merged into one once every task has finished.",
+    "integrationNothing": "No task completed on a branch of its own, so there is nothing to merge.",
+    "verificationHeld": "The checks run on the merged branch once it is built.",
+    "verificationSkipped": "The checks did not run: the graph ended before its branches were merged.",
+    "pullRequestHeld": "A pull request can be opened once the task branches are merged into one.",
+    "openPullRequest": "Open the pull request",
+    "synthesisWriting": "The synthesis agent is writing the final report.",
+    "synthesisNoReport": "The synthesis ended without a report. Its chat says why.",
+    "synthesisSkipped": "No synthesis ran: no task completed, or the graph was stopped first."
+  }
 }

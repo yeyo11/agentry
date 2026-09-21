@@ -224,7 +224,12 @@
     "workflowAgent": "Agente de workflow",
     "taskOutput": "Salida de la tarea",
     "chat": "Chat",
-    "theChat": "el chat"
+    "theChat": "el chat",
+    "chatFailed": "No se pudo leer este chat",
+    "cost": "Coste",
+    "openChat": "Abrir el chat",
+    "earlierInChat_one": "{{count}} entrada anterior en el chat",
+    "earlierInChat_other": "{{count}} entradas anteriores en el chat"
   },
   "permissions": {
     "waitingForYou": "Te está esperando",
