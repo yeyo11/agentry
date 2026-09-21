@@ -82,6 +82,19 @@ test('cancelling one command answers with what was killed, and a second try says
   assert.equal(unknown.statusCode, 404);
 });
 
+test('a chat that is running a command says so on its summary, in the list and on its own page', async () => {
+  const { id } = await sleepingChat();
+  const listed = (await app.inject('/api/chats')).json<ChatSummary[]>().find((chat) => chat.id === id);
+  assert.deepEqual(listed?.activity, { kind: 'tool', tool: 'Bash', target: 'sleep 60', since: listed?.activity?.since ?? '' });
+  const page = (await app.inject(`/api/chats/${id}`)).json<ChatDetail>().chat;
+  assert.equal(page.activity?.tool, 'Bash');
+
+  await app.inject({ method: 'POST', url: `/api/chats/${id}/stop` });
+  await core.runtime.exited(id);
+  const ended = (await app.inject(`/api/chats/${id}`)).json<ChatDetail>().chat;
+  assert.equal(ended.activity, null, 'a chat with no process of ours is doing nothing');
+});
+
 test('the health of a chat that is running a command carries the call to cancel and a text to send', async () => {
   const { id, toolUseId } = await sleepingChat();
   await until(() => core.runtime.pulse(id)?.commands[0]?.heartbeat, 'the heartbeat');
@@ -127,11 +140,14 @@ test('an orchestration reports the health of the tasks that are running and take
 
   const running = await until(async () => {
     const got = (await app.inject(`/api/orchestrations/${orch.id}`)).json<Orchestration>();
-    return got.tasks[0]?.status === 'running' && got.tasks[0].health ? got : null;
-  }, 'a running task with its health');
+    return got.tasks[0]?.status === 'running' && got.tasks[0].health && got.tasks[0].activity ? got : null;
+  }, 'a running task with its health and what it is doing');
   assert.equal(running.tasks[0]?.health?.level, 'ok');
+  assert.deepEqual(running.tasks[0]?.activity?.kind, 'tool', 'the board says what the worker is doing right now');
+  assert.equal(running.tasks[0]?.activity?.target, 'sleep 60');
   const listed = (await app.inject('/api/orchestrations')).json<Orchestration[]>().find((o) => o.id === orch.id);
   assert.ok(listed?.tasks[0]?.health, 'the list carries it too');
+  assert.ok(listed?.tasks[0]?.activity, 'and what it is doing');
 
   const bad = await app.inject({ method: 'POST', url: '/api/orchestrations', payload: { name: 'bad', cwd: workspace, tasks: [{ id: 'a', name: 'a', prompt: 'x', limits: { maxMinutes: -5 } }] } });
   assert.equal(bad.statusCode, 400);

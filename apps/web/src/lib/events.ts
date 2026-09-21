@@ -1,6 +1,15 @@
 import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import type { AgentryEvent, AgentryEventType, StreamHelloEvent, StreamResyncEvent } from '@agentry/shared';
+import type {
+  AgentryEvent,
+  AgentryEventType,
+  ChatActivityEvent,
+  ChatSummary,
+  Orchestration,
+  Overview,
+  StreamHelloEvent,
+  StreamResyncEvent,
+} from '@agentry/shared';
 import { keys } from '../api';
 import { withToken } from './auth';
 import { dispatchEvent, setFeedState, useFeedState, type FeedState } from './feed';
@@ -62,6 +71,7 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'orchestration.task': true,
   'orchestration.conflict': true,
   'changes.updated': true,
+  'chat.activity': true,
   'health.changed': true,
   'sessions.changed': true,
   'schedule.changed': true,
@@ -141,6 +151,11 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'changes.updated':
       // Whatever the board reads about this graph's branches sits under its key, changes included
       return [[keys.orchestration(event.orchestrationId), NOW]];
+    case 'chat.activity':
+      // Nothing is refetched: the event carries the whole line, and `patchActivity` writes it into
+      // the caches that show it. A working agent changes it every few seconds, and reading every
+      // list again for one line of text is what the server's throttle was meant to spare.
+      return [];
     case 'schedule.changed':
     case 'schedule.fired':
       // The runs of every schedule sit under the same prefix as the list
@@ -158,6 +173,30 @@ export function targetsFor(event: AgentryEvent): Target[] {
         [keys.chats, CHATS], [['chat'], CHATS], [keys.projects, CHATS], [keys.overview, CHATS], [['usage'], CHATS], ...activity(CHATS),
       ];
   }
+}
+
+/**
+ * Writes what a chat is doing into the caches that show it, in place. Lists, the overview and an
+ * orchestration's board all carry the chat as a summary or as a task, so each is patched where it
+ * holds one; a cache that does not have the chat is left alone, and nothing is refetched.
+ */
+export function patchActivity(client: QueryClient, event: ChatActivityEvent): void {
+  const chatId = event.sessionId ?? event.runId;
+  if (!chatId) return;
+  const { activity } = event;
+  const patchChat = (chat: ChatSummary): ChatSummary => (chat.id === chatId ? { ...chat, activity } : chat);
+
+  client.setQueriesData<ChatSummary[]>({ queryKey: keys.chats }, (chats) =>
+    chats?.some((chat) => chat.id === chatId) ? chats.map(patchChat) : chats,
+  );
+  client.setQueriesData<Overview>({ queryKey: keys.overview }, (overview) =>
+    overview?.recentChats.some((chat) => chat.id === chatId) ? { ...overview, recentChats: overview.recentChats.map(patchChat) } : overview,
+  );
+  if (!event.orchestrationId || !event.taskId) return;
+  const patchGraph = (orch: Orchestration): Orchestration =>
+    orch.id === event.orchestrationId ? { ...orch, tasks: orch.tasks.map((task) => (task.id === event.taskId ? { ...task, activity } : task)) } : orch;
+  client.setQueriesData<Orchestration>({ queryKey: keys.orchestration(event.orchestrationId) }, (orch) => (orch ? patchGraph(orch) : orch));
+  client.setQueriesData<Orchestration[]>({ queryKey: keys.orchestrations }, (list) => list?.map(patchGraph));
 }
 
 /**
@@ -218,6 +257,7 @@ function startEventFeed(client: QueryClient): () => void {
     }
     if (event.id <= lastId) return;
     lastId = event.id;
+    if (event.type === 'chat.activity') patchActivity(client, event);
     invalidations.schedule(targetsFor(event));
     dispatchEvent(event);
   };

@@ -204,6 +204,8 @@ export class ChatService {
       }),
       control,
       execution: live,
+      // Only a process of ours streams what it is doing; a chat a terminal holds says nothing
+      activity: (own && runtime?.activity) || null,
       executions,
       context: usage?.context ? { used: usage.context.used, window: usage.context.model ? this.deps.windowOf(usage.context.model) : null } : null,
       // Dollars exist only where the CLI reported them, so a chat nobody launched from here has none

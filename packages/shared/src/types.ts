@@ -626,6 +626,18 @@ export interface ChatChildren {
   workflows: ChatWorkflow[];
 }
 
+/** What a live execution is doing right now, from its latest stream-json events. */
+export interface ChatActivity {
+  /** `tool`: a tool call without its result yet; `writing`/`thinking`: a text or thinking block is streaming; `waiting`: blocked on a permission prompt */
+  kind: 'tool' | 'writing' | 'thinking' | 'waiting';
+  /** The CLI's tool name (`Edit`, `Bash`, `Grep`, `Task`…) when `kind` is `tool` */
+  tool?: string;
+  /** A short human label for the tool's input: a path relative to the chat's cwd, a command's description or its first 80 characters, a pattern, a subagent's description, a URL's host */
+  target?: string;
+  /** When this activity started (ISO) */
+  since: string;
+}
+
 /** What Claude loaded when the chat last started. */
 export interface ChatEnvironment {
   observedAt: string;
@@ -668,6 +680,8 @@ export interface Chat {
   control: ChatControl;
   /** The live execution, when Agentry has a process on the chat; also the last of `executions` */
   execution: Execution | null;
+  /** What that execution is doing right now; `null` whenever none is live */
+  activity?: ChatActivity | null;
   /** Every execution, oldest first */
   executions: Execution[];
   /** Null until the chat has had a response */
@@ -1118,6 +1132,8 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   costUsd: number;
   /** Computed while it runs, from the same signals as a chat's; absent once it has ended */
   health?: Health | null;
+  /** What the worker's live execution is doing right now; absent once the task has ended */
+  activity?: ChatActivity | null;
   /**
    * Where the task's time limit counts from: when it first started, or when a person last sent it
    * around again. `startedAt` cannot serve, since it survives a retry and the limit would trip the
@@ -2383,6 +2399,20 @@ export interface HealthChangedEvent extends AgentryEventBase, RunEventRef {
   signals: HealthSignalKind[];
 }
 
+/**
+ * What a chat's live execution is doing right now changed: a tool call started or was answered, a
+ * text or thinking block began streaming, or a permission prompt blocked it. Sent at most once per
+ * chat per second, and carrying the whole {@link ChatActivity}, so a list patches the line it shows
+ * instead of reading every chat again. `activity` is null when the chat stopped doing anything
+ * nameable: its turn ended, or its process is gone.
+ */
+export interface ChatActivityEvent extends AgentryEventBase, RunEventRef {
+  type: 'chat.activity';
+  /** Set for a worker of an orchestration, so its board patches the task too */
+  taskId: string | null;
+  activity: ChatActivity | null;
+}
+
 /** Files under the CLI's projects directory changed: a session was created, grew or ended. */
 export interface SessionsChangedEvent extends AgentryEventBase {
   type: 'sessions.changed';
@@ -2445,6 +2475,7 @@ export type AgentryEvent =
   | OrchestrationTaskEvent
   | OrchestrationConflictEvent
   | ChangesUpdatedEvent
+  | ChatActivityEvent
   | HealthChangedEvent
   | SessionsChangedEvent
   | ScheduleChangedEvent
