@@ -8,10 +8,13 @@ import { api, keys, useProjectCandidates, useProjects } from '../api';
 import { Collapsible, Combobox } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
 import { ICON_SM, Monogram } from '../components/icons';
-import { Stagger } from '../components/motion';
+import { ListToolbar } from '../components/ListToolbar';
 import { useToast } from '../components/Toast';
 import { Card, Empty, ErrorBox, Field, Loading, PageHeader, Tag } from '../components/ui';
 import { formatNumber, timeAgo } from '../lib/format';
+import { matchesText, PROJECT_SORTERS, type ProjectSort } from '../lib/lists';
+
+const PROJECT_SORTS = Object.keys(PROJECT_SORTERS) as ProjectSort[];
 
 /** What a change to the projects makes stale: the list, what is offered, and everything scoped by a project. */
 function useRefreshProjects() {
@@ -212,12 +215,17 @@ function ProjectCard({ project }: { project: Project }) {
   };
 
   return (
-    <div className="card project-card">
-      <div className="project-head">
-        <Monogram name={project.name} />
-        <div className="project-head-text">
+    <li className={`lrow project-row ${project.exists ? '' : 'is-warn'}`.trim()}>
+      <div className="lrow-head">
+        <span className="lrow-mark">
+          <Monogram name={project.name} />
+        </span>
+        <div className="lrow-main">
           {renaming === null ? (
-            <h2 className="project-name break">{project.name}</h2>
+            <h2 className="lrow-title">
+              {project.name}
+              {!project.exists && <Tag tone="warn">{t('work:projects.missing')}</Tag>}
+            </h2>
           ) : (
             <form
               className="rename-form"
@@ -235,20 +243,18 @@ function ProjectCard({ project }: { project: Project }) {
               </button>
             </form>
           )}
-          <div className="mono small muted break">{project.path}</div>
-        </div>
-        {!project.exists && <Tag tone="warn">{t('work:projects.missing')}</Tag>}
-      </div>
-      <div className="meta">
-        <span>{t('card.chats', { count: project.chatCount, n: formatNumber(project.chatCount) })}</span>
-        <span>{t('work:projects.lastActivity', { ago: timeAgo(project.lastActivity) })}</span>
-        {project.worktrees.length > 0 && (
-          <span className="meta-icon">
-            <GitBranch size={12} strokeWidth={1.75} aria-hidden /> {t('work:projects.worktrees', { count: project.worktrees.length })}
+          <span className="lrow-sub">
+            <span className="mono">{project.path}</span>
+            <span>{t('card.chats', { count: project.chatCount, n: formatNumber(project.chatCount) })}</span>
+            <span>{t('work:projects.lastActivity', { ago: timeAgo(project.lastActivity) })}</span>
+            {project.worktrees.length > 0 && (
+              <span className="meta-icon">
+                <GitBranch size={12} strokeWidth={1.75} aria-hidden /> {t('work:projects.worktrees', { count: project.worktrees.length })}
+              </span>
+            )}
           </span>
-        )}
-      </div>
-      <div className="card-foot">
+        </div>
+        <div className="lrow-actions">
         <Link to={`/?project=${encodeURIComponent(project.id)}`} className="btn btn-small btn-primary" aria-label={t('card.openNamed', { name: project.name })}>
           {t('common:actions.open')} <ArrowRight {...ICON_SM} />
         </Link>
@@ -261,8 +267,9 @@ function ProjectCard({ project }: { project: Project }) {
         <button type="button" className="btn btn-small btn-danger" onClick={() => void askPurge()} disabled={purge.isPending} aria-label={t('card.purgeNamed', { name: project.name })}>
           <Eraser {...ICON_SM} /> {t('card.purge')}
         </button>
+        </div>
       </div>
-    </div>
+    </li>
   );
 }
 
@@ -275,6 +282,9 @@ export function Projects() {
   const candidates = useProjectCandidates(!isLoading);
   const offered = candidates.data ?? [];
   const first = !isLoading && projects.length === 0;
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<ProjectSort>('activity');
+  const shown = projects.filter((project) => matchesText(search, [project.name, project.path])).sort(PROJECT_SORTERS[sort]);
 
   return (
     <>
@@ -308,11 +318,21 @@ export function Projects() {
           </Empty>
         )
       ) : (
-        <Stagger className="cards project-cards">
-          {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
-        </Stagger>
+        <div>
+          <ListToolbar
+            search={{ value: search, onChange: setSearch, placeholder: t('list.searchPlaceholder'), label: t('list.searchLabel') }}
+            sort={{ value: sort, options: PROJECT_SORTS.map((value) => ({ value, label: t(`list.sort.${value}`) })), onChange: (v) => setSort(PROJECT_SORTS.find((s) => s === v) ?? 'activity'), label: t('list.sortLabel') }}
+          />
+          {shown.length === 0 ? (
+            <Empty icon={FolderGit2} title={t('list.noneMatch')} />
+          ) : (
+            <ul className="lrows">
+              {shown.map((project) => (
+                <ProjectCard key={project.id} project={project} />
+              ))}
+            </ul>
+          )}
+        </div>
       )}
       {offered.length > 0 && <Candidates candidates={offered} first={first} />}
     </>
