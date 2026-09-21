@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api';
 import { cancellable, healthWord, type HealthWord } from '../../lib/observe';
+import { healthReason, signalHint, signalReason } from '../../lib/server-strings';
 import { Tooltip } from '../controls/Tooltip';
 import { useConfirm } from '../Dialog';
 import { ICON_SM } from '../icons';
@@ -21,7 +22,7 @@ export function HealthBadge({ health }: { health: Pick<Health, 'level' | 'signal
   const word = healthWord(health);
   const Icon = ICON[word];
   return (
-    <Tooltip content={health.reason}>
+    <Tooltip content={healthReason(health)}>
       <span className={`badge badge-${TONE[word]}`}>
         <Icon size={12} strokeWidth={2} aria-hidden />
         {t(`health.word.${word}`)}
@@ -95,6 +96,7 @@ function SignalRow({
     },
   });
   const toolUseId = cancellable(signal) ? signal.toolUseId : null;
+  const hint = signalHint(signal);
   // `detail` is a command or a path for most signals, and the word `time` or `cost` for a budget
   const detail = signal.detail && signal.detail !== 'time' && signal.detail !== 'cost' ? signal.detail : null;
 
@@ -104,11 +106,11 @@ function SignalRow({
         <TriangleAlert {...ICON_SM} />
         <span>
           <span className="sr-only">{t(`observe:health.level.${signal.level}`)}: </span>
-          {signal.reason}
+          {signalReason(signal)}
         </span>
       </div>
       {detail && <div className="mono small muted break">{detail}</div>}
-      {live && chatId && (toolUseId || signal.hint) && (
+      {live && chatId && (toolUseId || hint) && (
         <div className="task-actions">
           {toolUseId && (
             <button
@@ -134,7 +136,7 @@ function SignalRow({
               <CircleSlash {...ICON_SM} /> {t('observe:health.cancel')}
             </button>
           )}
-          {signal.hint && !hinting && (
+          {hint && !hinting && (
             <button type="button" className="btn btn-small" onClick={() => setHinting(true)}>
               <Send {...ICON_SM} /> {t('observe:health.hint')}
             </button>
@@ -142,7 +144,7 @@ function SignalRow({
         </div>
       )}
       <ErrorBox error={cancel.error} />
-      {hinting && <HintBox initial={signal.hint ?? ''} send={sendHint} onDone={() => setHinting(false)} />}
+      {hinting && <HintBox initial={hint ?? ''} send={sendHint} onDone={() => setHinting(false)} />}
     </li>
   );
 }

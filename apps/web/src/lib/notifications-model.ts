@@ -1,6 +1,7 @@
 import type { AgentryEvent, ChatSummary, PermissionRequest, RunWaitingReason } from '@agentry/shared';
 import i18n from '../i18n';
 import { detailHref } from './detail';
+import { serverText } from './server-strings';
 
 /*
  * What a notification is and which events make one. Pure on purpose (no React, no DOM, no
@@ -247,7 +248,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           priority: event.level === 'bad' ? 'high' : 'normal',
           tone: event.level === 'bad' ? 'bad' : 'warn',
           title: event.title,
-          body: event.reason,
+          body: serverText(event.reasonCode, event.params, event.reason),
           href: chatHref(event.runId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,

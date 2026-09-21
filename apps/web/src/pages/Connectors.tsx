@@ -7,6 +7,7 @@ import { api, keys } from '../api';
 import { ICON_SM } from '../components/icons';
 import { Card, Empty, ErrorBox, PageHeader, Skeleton, StatusBadge, Tag } from '../components/ui';
 import { formatDateTime } from '../lib/format';
+import { connectorActionLabel, connectorLimitName, localized } from '../lib/server-strings';
 import { useProjectScope } from '../lib/project-scope';
 
 const KIND_ICON: Record<ConnectorKind, LucideIcon> = { docs: FileText, gmail: Mail, calendar: CalendarDays, other: Plug };
@@ -31,13 +32,13 @@ function Authorisation({ guide }: { guide: ConnectorsOverview['authorisation'] }
       <div className="strong small">{t('authorise.title')}</div>
       <ol className="small">
         {guide.steps.map((step) => (
-          <li key={step.code}>{step.text}</li>
+          <li key={step.code}>{localized(step)}</li>
         ))}
       </ol>
       <div className="meta">
         {guide.links.map((link) => (
           <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="meta-icon">
-            <ExternalLink {...ICON_SM} /> {link.label.text}
+            <ExternalLink {...ICON_SM} /> {localized(link.label)}
           </a>
         ))}
       </div>
@@ -80,9 +81,9 @@ function ConnectorCard({
                 className="btn btn-small"
                 disabled={pending !== null}
                 onClick={() => onAsk(connector, action)}
-                aria-label={t('ask.named', { action: action.label, connector: connector.name })}
+                aria-label={t('ask.named', { action: connectorActionLabel(action), connector: connector.name })}
               >
-                <MessageSquarePlus {...ICON_SM} /> {pending === `${connector.id}:${action.id}` ? t('ask.starting') : action.label}
+                <MessageSquarePlus {...ICON_SM} /> {pending === `${connector.id}:${action.id}` ? t('ask.starting') : connectorActionLabel(action)}
               </button>
             ))}
           </div>
@@ -168,8 +169,8 @@ export function Connectors() {
             <ul className="list">
               {data.unavailable.map((item) => (
                 <li key={item.id} className="stack-tight">
-                  <span className="strong small">{item.name}</span>
-                  <span className="muted small">{item.reason.text}</span>
+                  <span className="strong small">{connectorLimitName(item)}</span>
+                  <span className="muted small">{localized(item.reason)}</span>
                 </li>
               ))}
             </ul>

@@ -1,0 +1,75 @@
+{
+  "health": {
+    "hungCommand": {
+      "usual": "`{{command}}` has been running for {{minutes}} min; commands like it usually take {{usualSeconds}}.",
+      "fixed": "`{{command}}` has been running for {{minutes}} min, past the {{limitMinutes}} min a command is expected to need."
+    },
+    "silence": "Nothing has happened for {{minutes}} min and no command is running: the model or an API call may be stalled.",
+    "lastExecution": {
+      "interrupted": "The last execution was cut short: its process was lost.",
+      "failed": "The last execution failed.",
+      "failedWithError": "The last execution failed: {{error}}"
+    },
+    "waiting": "Stopped until a person answers a permission, a question or a plan.",
+    "context": "{{percent}}% of the context window is in use: Claude Code compacts the conversation when it fills.",
+    "branches_one": "{{count}} branch failed.",
+    "branches_other": "{{count}} branches failed.",
+    "repeatStall": "`{{kind}}` has hung {{count}} times in a row ({{count}} runs, each past {{limitSeconds}}).",
+    "loop": {
+      "command": "`{{command}}` ran {{count}} times with the same result.",
+      "call": "The same {{tool}} call ran {{count}} times with the same result.",
+      "error": "The same error came back {{count}} times: \"{{error}}\""
+    },
+    "weakenedTest": {
+      "assertionsRemoved_one": "`{{file}}` was edited so that it asserts less: {{count}} assertion removed.",
+      "assertionsRemoved_other": "`{{file}}` was edited so that it asserts less: {{count}} assertions removed.",
+      "skipped": "`{{file}}` was edited so that it asserts less: a test is skipped.",
+      "tautology": "`{{file}}` was edited so that it asserts less: an assertion that cannot fail was added.",
+      "weakMatchers": "`{{file}}` was edited so that it asserts less: specific assertions were replaced by ones that pass for almost anything."
+    },
+    "noProgress": "Working for {{minutes}} min with no commit and no change to the files (a task that only reads can be fine).",
+    "budget": {
+      "timeNear": "{{minutes}} min of its {{limitMinutes}} min used.",
+      "timePast": "Past its time limit: {{minutes}} min of {{limitMinutes}} min.",
+      "cost": "{{spentUsd}} of its {{limitUsd}} spent."
+    },
+    "ok": "Nothing unusual.",
+    "hint": {
+      "hungCommand": "`{{command}}` is taking far longer than it should. Something may be left open (a server, a browser, a connection). Stop waiting on it, find out what it is waiting for, and run long commands under `timeout` from now on.",
+      "repeatStall": "`{{kind}}` has hung {{count}} times in a row. Do not run it again as it is: work out what it is waiting on first, run it under `timeout`, and check for processes an earlier run left behind.",
+      "noProgress": "You have not committed or changed a file for {{minutes}} min. Tell me what is blocking you. If the approach is not working, change it, and commit what already works.",
+      "loop": "You are repeating the same step and getting the same result. Stop and think about why it does not work: try something different, or say what is blocking you.",
+      "weakenedTest": "You edited `{{file}}` so that it asserts less. Fix the code so the original assertion passes. If the behaviour changed on purpose, say so, and update the assertion to the new behaviour instead of weakening it.",
+      "silence": "I have heard nothing from you for {{minutes}} min. Reply with what you are doing right now.",
+      "budget": {
+        "time": "You are close to its time limit of {{limitMinutes}} min. Wrap up: commit what works and report what is left.",
+        "cost": "You are close to its cost limit of {{limitUsd}}. Wrap up: commit what works and report what is left."
+      }
+    }
+  },
+  "connectors": {
+    "authorise": {
+      "cli": "Run `claude` in a terminal, type `/mcp`, pick the connector and choose to authenticate. The CLI opens the browser for the sign-in.",
+      "claudeAi": "Or enable and authorise it in claude.ai's connector settings; the CLI lists the connectors of the claude.ai account it is signed in with.",
+      "refresh": "Then refresh this page: Agentry only reads the state the CLI reports and cannot authorise a connector for you."
+    },
+    "link": {
+      "settings": "Connector settings on claude.ai",
+      "mcpDocs": "Claude Code: connect to tools with MCP"
+    },
+    "unavailable": {
+      "webArtifacts": "The artifacts made in claude.ai have no public API and no CLI command, so Agentry cannot list, read or create them.",
+      "claudeAiMemory": "What claude.ai remembers about you has no public API and no CLI command. Claude Code's file memory is a different thing, on the Memory tab."
+    },
+    "action": {
+      "docs-recent": "Summarise my recent docs",
+      "gmail-unread": "Summarise my unread email",
+      "calendar-tomorrow": "Summarise tomorrow's calendar",
+      "calendar-week": "Find free time this week"
+    },
+    "limit": {
+      "web-artifacts": "Web artifacts",
+      "claude-ai-memory": "claude.ai memory"
+    }
+  }
+}
