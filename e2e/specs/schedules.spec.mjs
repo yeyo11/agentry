@@ -1,5 +1,6 @@
 // Schedules: a recurring chat is created from the cron builder (which says in words what it will
-// do before anything is saved), turned off and on, run by hand, its history read, and deleted.
+// do before anything is saved), given an overlap policy, turned off and on (also from the API, which
+// the page hears on the event feed instead of polling), run by hand, its history read, and deleted.
 // Whatever a run-now starts is removed afterwards, because the chats spec counts what the sandbox holds.
 
 const NAME = 'e2e nightly check';
@@ -48,6 +49,14 @@ export default async ({ page, api, check }) => {
     check(await page.eval(`return [...document.querySelectorAll('[role=dialog] button')].find((b) => b.textContent.includes('Create schedule')).disabled`), 'an invalid expression cannot be saved');
     await noViolations(page, 'the schedule form', check, { include: '[role=dialog]', rules: OVERLAY_RULES });
 
+    // The overlap policy says in a sentence what each choice does
+    check(/even while the previous one/.test(await page.text('[data-testid=overlap-hint]')), 'the default policy starts every slot, and says so');
+    await page.click('[role=dialog] [role=radio]', 'Skip', 400);
+    check(/recorded as overlapped/.test(await page.text('[data-testid=overlap-hint]')), 'skip says a slot is recorded as overlapped');
+    await page.click('[role=dialog] [role=radio]', 'Queue', 400);
+    check(/At most one waits/.test(await page.text('[data-testid=overlap-hint]')), 'queue says only one slot waits');
+    await page.click('[role=dialog] [role=radio]', 'Skip', 400);
+
     await page.fill('[role=dialog] input.mono', '0 9 * * 1-5');
     await page.waitFor(`return !document.querySelector('[data-testid=cron-preview]')?.classList.contains('is-invalid') && /Monday to Friday/.test(document.querySelector('[data-testid=cron-preview]')?.innerText ?? '')`, { label: 'the valid expression accepted' });
     await page.click('[role=dialog] button', 'Create schedule', 800);
@@ -57,7 +66,9 @@ export default async ({ page, api, check }) => {
     check(list.length === 1 && list[0].name === NAME, 'the schedule was stored');
     check(list[0].cron === '0 9 * * 1-5' && list[0].enabled === true, 'it stored the expression and starts enabled');
     check(list[0].target.kind === 'chat' && list[0].target.chat.permissionPrompts === 'none', 'a scheduled chat does not wait for a permission prompt');
+    check(list[0].overlap === 'skip', `the overlap policy was stored (${list[0].overlap})`);
     scheduleId = list[0].id;
+    check((await page.text('.schedule-card')).includes('Skips overlaps'), 'the card says it skips overlaps, in words');
 
     const card = await page.text('.schedule-card');
     check(card.includes('0 9 * * 1-5'), 'the card shows the expression');
@@ -73,6 +84,12 @@ export default async ({ page, api, check }) => {
     await page.click('.schedule-card [role=switch]');
     await page.waitFor(`return document.querySelector('.schedule-card')?.innerText.includes('Next run')`, { label: 'the card firing again' });
     check((await api.get(`/schedules/${scheduleId}`)).body.enabled === true, 'turning it on is stored');
+
+    // A change made elsewhere reaches the page through schedule.changed, with no reload and no 30 s poll
+    await api.post(`/schedules/${scheduleId}/disable`);
+    await page.waitFor(`return document.querySelector('.schedule-card')?.innerText.includes('Paused')`, { label: 'the page hearing the change from the feed', timeout: 8000 });
+    await api.post(`/schedules/${scheduleId}/enable`);
+    await page.waitFor(`return document.querySelector('.schedule-card')?.innerText.includes('Next run')`, { label: 'the page hearing it back on', timeout: 8000 });
 
     // ---------- run now, and the history ----------
     await page.click('.schedule-card button', 'Run now', 800);

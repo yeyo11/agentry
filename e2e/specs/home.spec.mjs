@@ -1,5 +1,6 @@
 // Home is the selected project's page: the top bar's selector decides what it is about, a deep link
-// overrides the remembered choice, and with All projects only Activity is left.
+// overrides the remembered choice, and with All projects only Activity is left. The Activity tab and
+// the Usage page offer the selected project's export as a download.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -32,6 +33,28 @@ export default async ({ page, api, check, dirs }) => {
 
     // Notifications and the rest of the shell do not depend on the selection
     check(await page.eval(`return !!document.querySelector('.bell')`), 'the bell is there whatever is selected');
+
+    // The project's export: plain download links, streamed by the server with a file name
+    await page.waitFor(`return !!document.querySelector('main .project-export a[data-format=markdown]')`, { label: 'the export on the Activity tab' });
+    check((await page.text('main .project-export')).includes('Export e2e-home'), 'the export names the project');
+    const md = await page.eval(
+      `const r = await fetch(document.querySelector('main .project-export a[data-format=markdown]').href); return { status: r.status, type: r.headers.get('content-type'), disposition: r.headers.get('content-disposition'), body: await r.text() }`,
+    );
+    check(md.status === 200 && /attachment/.test(md.disposition ?? '') && /\.md"/.test(md.disposition ?? ''), `the Markdown export downloads as a .md file (${md.status}, ${md.disposition})`);
+    check(/markdown/.test(md.type ?? '') && md.body.includes('e2e-home'), 'the Markdown export is about the project');
+    const json = await page.eval(
+      `const r = await fetch(document.querySelector('main .project-export a[data-format=json]').href); return { status: r.status, disposition: r.headers.get('content-disposition'), body: await r.json() }`,
+    );
+    check(json.status === 200 && /\.json"/.test(json.disposition ?? ''), `the JSON export downloads as a .json file (${json.status}, ${json.disposition})`);
+    check(json.body.project?.id === id && Array.isArray(json.body.chats), 'the JSON export is a ProjectExport of this project');
+    check(await page.eval(`return !!document.querySelector('main .project-export a[download][href*="/api/projects/"]')`), 'the export is a download link, not a button that fetches');
+
+    // The Usage page offers the same file for the selected project, and says it ignores the range
+    await page.goto('/usage', 1200);
+    await page.waitFor(`return !!document.querySelector('main .project-export a[data-format=json]')`, { label: 'the export on the Usage page' });
+    check(/whole project/.test(await page.text('main .project-export')), 'the Usage page says the export covers the whole project, not the range');
+    await page.goto('/', 1200);
+    await page.waitFor(`return document.querySelector('main h1')?.textContent === 'e2e-home'`, { label: 'back on the project page' });
 
     // Back to everything through the selector
     await page.click('.project-selector', undefined, 400);

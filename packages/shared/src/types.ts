@@ -1970,9 +1970,12 @@ export interface Schedule {
 /**
  * `started`: it launched, and what happened next belongs to the chat or the orchestration.
  * `skipped`: the slot passed while the wrapper was down.
- * `overlapped`: the slot fired while the last run was still going and the policy was `skip`.
+ * `overlapped`: the slot fired while the last run was still going and the policy was `skip`, or it
+ * was `queue` and a newer slot took its place before it could start.
+ * `queued`: the slot fired while the last run was still going and the policy was `queue`; it becomes
+ * `started` (keeping its `slot`) when that run ends.
  */
-export type ScheduleRunStatus = 'started' | 'failed' | 'skipped' | 'overlapped';
+export type ScheduleRunStatus = 'started' | 'failed' | 'skipped' | 'overlapped' | 'queued';
 
 export interface ScheduleRun {
   id: string;
@@ -2373,6 +2376,10 @@ export interface HealthChangedEvent extends AgentryEventBase, RunEventRef {
   previousLevel: HealthLevel;
   /** The first (worst) signal's line, or `Nothing unusual.` when the chat recovered */
   reason: string;
+  /** Stable key of `reason` (`health.ok` when the chat recovered), as on {@link HealthSignal} */
+  reasonCode?: string;
+  /** The figures `reason` was built from */
+  params?: LocalizedParams;
   signals: HealthSignalKind[];
 }
 

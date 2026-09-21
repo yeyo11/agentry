@@ -2,6 +2,7 @@
 // need instead: the barrel would load the lazy form-controls chunk on first paint.
 export { Collapsible } from './Collapsible';
 export { Combobox, type ComboboxOption } from './Combobox';
+export { DatePicker } from './DatePicker';
 export { hasOpenLayer } from './layer';
 export { NumberInput } from './NumberInput';
 export { Select, type SelectOption } from './Select';

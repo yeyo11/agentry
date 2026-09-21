@@ -1,7 +1,8 @@
 // Usage and export: cost and tokens over time, by project and by model, with a range picker, the
 // chart's figures also given as a table (a chart drawn in colour alone fails the accessibility spec),
-// and a chat's transcript downloaded as Markdown and as JSON. A chat is laid out on disk the way the
-// CLI keeps it and removed afterwards, because the chats spec counts what the sandbox holds.
+// the custom range typed or picked from Agentry's own calendar, and a chat's transcript downloaded as
+// Markdown and as JSON. A chat is laid out on disk the way the CLI keeps it and removed afterwards,
+// because the chats spec counts what the sandbox holds.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -86,12 +87,41 @@ export default async ({ page, api, check, dirs }) => {
     // A range that cannot be asked for is said to be wrong instead of being sent
     const daysAgo = (n) => day(new Date(today.getFullYear(), today.getMonth(), today.getDate() - n));
     await page.click('main [role=radio]', 'Custom', 500);
-    await page.fill('main .filter-bar label:first-child input', '2026-02-31');
-    await page.fill('main .filter-bar label:nth-child(2) input', day(today));
+    await page.fill('main .filter-bar .field:first-child input', '2026-02-31');
+    await page.fill('main .filter-bar .field:nth-child(2) input', day(today));
     await page.waitFor(`return document.querySelector('main .filter-bar')?.innerText.includes('YYYY-MM-DD')`, { label: 'the invalid day said out loud' });
-    await page.fill('main .filter-bar label:first-child input', daysAgo(4));
+    await page.fill('main .filter-bar .field:first-child input', daysAgo(4));
     await page.waitFor(`return document.querySelectorAll('main .usage-table tbody tr').length === 5`, { label: 'the custom range applied' });
-    await page.fill('main .filter-bar label:first-child input', daysAgo(-2));
+
+    // The calendar: opened from its button, focus on the chosen day, moved and picked with the keyboard
+    check(!(await page.eval(`return !!document.querySelector('main input[type=date]')`)), 'no native date input');
+    await page.click('main .filter-bar .field:nth-child(2) .date-picker-button', undefined, 500);
+    await page.waitFor(`return !!document.querySelector('.date-picker-panel [role=grid]')`, { label: 'the calendar' });
+    check((await page.eval(`return document.activeElement?.dataset.day ?? ''`)) === day(today), 'the calendar opens on the chosen day, with focus on it');
+    const grid = await page.eval(
+      `const g = document.querySelector('.date-picker-panel [role=grid]'); return { label: document.getElementById(g.getAttribute('aria-labelledby') ?? '')?.textContent ?? '', heads: g.querySelectorAll('thead th[abbr]').length, today: !!g.querySelector('[aria-current=date]'), tabbable: g.querySelectorAll('button[tabindex="0"]').length, named: [...g.querySelectorAll('button[data-day]')].every((b) => (b.getAttribute('aria-label') ?? '').length > 6) }`,
+    );
+    check(grid.label.length > 0 && grid.heads === 7, `the grid is named by its month and its columns by weekday (${grid.label}, ${grid.heads})`);
+    check(grid.today && grid.tabbable === 1 && grid.named, 'today is marked, one day is in the tab order, every day is named in full');
+    // The start of the range is the earliest day the end can take
+    check(await page.eval(`return document.querySelector('.date-picker-panel button[data-day="${daysAgo(5)}"]')?.getAttribute('aria-disabled') === 'true'`), 'a day before the start cannot be picked as the end');
+    // The panel is portalled outside the landmarks, like every popover: `region` does not apply to it
+    const calendarIssues = (await page.axe({ include: '.date-picker-panel', rules: { region: { enabled: false } } })).flatMap((v) => v.nodes.map((n) => `${v.id}: ${n.target} ${n.why}`));
+    check(calendarIssues.length === 0, `the open calendar has accessibility violations:\n${calendarIssues.join('\n')}`);
+    await page.key('ArrowLeft');
+    check((await page.eval(`return document.activeElement?.dataset.day ?? ''`)) === daysAgo(1), 'the left arrow moves to the day before');
+    await page.press('Enter');
+    await page.waitFor(`return !document.querySelector('.date-picker-panel')`, { label: 'the calendar closed on a pick' });
+    check((await page.eval(`return document.querySelector('main .filter-bar .field:nth-child(2) input').value`)) === daysAgo(1), 'the picked day is written in the field');
+    await page.waitFor(`return document.querySelectorAll('main .usage-table tbody tr').length === 4`, { label: 'the picked range applied' });
+    await page.click('main .filter-bar .field:nth-child(2) .date-picker-button', undefined, 500);
+    await page.waitFor(`return !!document.querySelector('.date-picker-panel [role=grid]')`, { label: 'the calendar again' });
+    await page.key('Escape');
+    await page.waitFor(`return !document.querySelector('.date-picker-panel')`, { label: 'Escape closes the calendar' });
+    await page.fill('main .filter-bar .field:nth-child(2) input', day(today));
+    await page.waitFor(`return document.querySelectorAll('main .usage-table tbody tr').length === 5`, { label: 'the typed range applied again' });
+
+    await page.fill('main .filter-bar .field:first-child input', daysAgo(-2));
     await page.waitFor(`return document.querySelector('main .filter-bar')?.innerText.includes('after the end')`, { label: 'a backwards range said out loud' });
     check((await rows(page)) === 5, 'the last range that could be asked for stays on screen while the next one is wrong');
     await page.click('main [role=radio]', '30 days', 500);

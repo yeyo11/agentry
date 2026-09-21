@@ -12,7 +12,7 @@ import {
   type RunStatus,
 } from '@agentry/shared';
 import { slowAfterMs, type UsualDuration } from './commands.ts';
-import { HINTS } from './health.ts';
+import { HEALTH_REASONS, oneLine, said, wholeMinutes } from './health-strings.ts';
 
 // The adapter between what the Claude Code CLI reports and Agentry's model. Everything the CLI says
 // in its own words (stream statuses, `claude agents --json` fields, who has a process on a session)
@@ -187,10 +187,6 @@ export function lastEndedOf(executions: readonly Execution[]): HealthFacts['last
   return last?.outcome ? { outcome: last.outcome, error: last.error } : null;
 }
 
-const minutes = (ms: number): string => `${Math.max(1, Math.round(ms / 60_000))} min`;
-/** Seconds up to a minute and a half, minutes after: what "usually 80 s" reads as */
-const durationText = (ms: number): string => (ms < 90_000 ? `${Math.max(1, Math.round(ms / 1000))} s` : minutes(ms));
-
 /**
  * How long a command has been running. The CLI's heartbeat says so in its own clock, which does
  * not count the time a permission prompt kept the call waiting to start; without one, the time
@@ -201,10 +197,6 @@ function commandAge(command: RunningCommandFacts, nowMs: number): number {
   if (beat) return beat.elapsedSeconds * 1000 + Math.max(0, nowMs - Date.parse(beat.at));
   return nowMs - Date.parse(command.startedAt);
 }
-const oneLine = (text: string, max: number): string => {
-  const flat = text.replace(/\s+/g, ' ').trim();
-  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
-};
 
 /**
  * Whether a chat is working as it should, from the signals that can be told from what Agentry
@@ -223,16 +215,16 @@ export function chatHealth(facts: HealthFacts, nowMs = Date.now()): ChatHealth {
       const limit = command.usual ? slowAfterMs(command.usual) : HUNG_COMMAND_MS;
       const badAt = command.usual ? 2 * limit : HUNG_COMMAND_BAD_MS;
       if (age < limit) continue;
-      const expected = command.usual
-        ? `; commands like it usually take ${durationText(command.usual.medianMs)}`
-        : `, past the ${minutes(HUNG_COMMAND_MS)} a command is expected to need`;
+      // One param for the reason and the hint, so the command is cut once, to the hint's length
+      const figures = { command: oneLine(command.command, 80), minutes: wholeMinutes(age) };
       signals.push({
         kind: 'hung-command',
         level: age >= badAt ? 'bad' : 'warn',
-        reason: `\`${oneLine(command.command, 60)}\` has been running for ${minutes(age)}${expected}.`,
+        ...(command.usual
+          ? said('health.hungCommand.usual', { ...figures, usualSeconds: Math.round(command.usual.medianMs / 1000) }, 'health.hint.hungCommand')
+          : said('health.hungCommand.fixed', { ...figures, limitMinutes: wholeMinutes(HUNG_COMMAND_MS) }, 'health.hint.hungCommand')),
         since: command.startedAt,
         detail: command.command,
-        hint: HINTS.hungCommand(command.command),
         ...(command.toolUseId ? { toolUseId: command.toolUseId } : {}),
       });
     }
@@ -243,9 +235,8 @@ export function chatHealth(facts: HealthFacts, nowMs = Date.now()): ChatHealth {
       signals.push({
         kind: 'silence',
         level: quiet >= SILENCE_BAD_MS ? 'bad' : 'warn',
-        reason: `Nothing has happened for ${minutes(quiet)} and no command is running: the model or an API call may be stalled.`,
+        ...said('health.silence', { minutes: wholeMinutes(quiet) }, 'health.hint.silence'),
         since: facts.live.lastEventAt,
-        hint: HINTS.silence(minutes(quiet)),
       });
     }
   }
@@ -253,26 +244,30 @@ export function chatHealth(facts: HealthFacts, nowMs = Date.now()): ChatHealth {
   if (facts.live) signals.push(...(facts.standing ?? []));
 
   const ended = facts.lastEnded;
-  if (ended?.outcome === 'interrupted') signals.push({ kind: 'last-execution', level: 'bad', reason: 'The last execution was cut short: its process was lost.' });
+  if (ended?.outcome === 'interrupted') signals.push({ kind: 'last-execution', level: 'bad', ...said('health.lastExecution.interrupted', {}) });
   else if (ended?.outcome === 'failed') {
-    signals.push({ kind: 'last-execution', level: 'bad', reason: `The last execution failed${ended.error ? `: ${ended.error}` : '.'}` });
+    signals.push({
+      kind: 'last-execution',
+      level: 'bad',
+      ...(ended.error ? said('health.lastExecution.failedWithError', { error: ended.error }) : said('health.lastExecution.failed', {})),
+    });
   }
-  if (facts.state === 'waiting') signals.push({ kind: 'waiting', level: 'warn', reason: 'Stopped until a person answers a permission, a question or a plan.' });
+  if (facts.state === 'waiting') signals.push({ kind: 'waiting', level: 'warn', ...said('health.waiting', {}) });
   const window = facts.context?.window ?? null;
   if (facts.context && window !== null && window > 0 && facts.context.used / window >= CONTEXT_WARN) {
     const share = facts.context.used / window;
     signals.push({
       kind: 'context',
       level: share >= CONTEXT_FULL ? 'bad' : 'warn',
-      reason: `${Math.round(share * 100)}% of the context window is in use: Claude Code compacts the conversation when it fills.`,
+      ...said('health.context', { percent: Math.round(share * 100) }),
     });
   }
   if (facts.failedBranches > 0) {
-    signals.push({ kind: 'branches', level: 'warn', reason: `${facts.failedBranches} ${facts.failedBranches === 1 ? 'branch' : 'branches'} failed.` });
+    signals.push({ kind: 'branches', level: 'warn', ...said('health.branches', { count: facts.failedBranches }) });
   }
 
   // Worst first; among equals the order above, which is the order of how much the clock says
   signals.sort((a, b) => Number(b.level === 'bad') - Number(a.level === 'bad'));
   const first = signals[0];
-  return first ? { level: first.level, reason: first.reason, signals } : { level: 'ok', reason: 'Nothing unusual.', signals };
+  return first ? { level: first.level, reason: first.reason, signals } : { level: 'ok', reason: HEALTH_REASONS['health.ok'](), signals };
 }

@@ -29,6 +29,7 @@ import { api, keys } from '../api';
 import { attemptLabel, blockedBy, decisionsOn, waitingSummary } from '../lib/orchestration-board';
 import { durationBetween, formatCost } from '../lib/format';
 import { canRerun, dependantsOf } from '../lib/orchestration-v2';
+import { healthReason } from '../lib/server-strings';
 import { Collapsible } from './controls';
 import { useConfirm } from './Dialog';
 import { ICON_SM } from './icons';
@@ -312,7 +313,7 @@ export function TaskCard({
       {task.status === 'running' && task.health && task.health.level !== 'ok' && (
         <div className="stack-tight">
           <HealthBadge health={task.health} />
-          <div className="small">{task.health.reason}</div>
+          <div className="small">{healthReason(task.health)}</div>
         </div>
       )}
       <h4 id={titleId} className="board-task-name">

@@ -253,6 +253,7 @@ export const api = {
    * from the query string here, as it does for the streams and an attachment.
    */
   chatExportUrl: (id: string, format: ExportFormat) => withToken(`${BASE}/chats/${enc(id)}/export?format=${format}`),
+  projectExportUrl: (id: string, format: ExportFormat) => withToken(`${BASE}/projects/${enc(id)}/export?format=${format}`),
   schedules: () => request<Schedule[]>('/schedules'),
   schedulePreview: (cron: string, timezone: string | undefined, count = 5) =>
     request<SchedulePreview>(`/schedules/preview${qs({ cron, timezone, count: String(count) })}`),
@@ -554,14 +555,13 @@ export const useUsageSeries = (range: UsageRange, bucket: UsageBucket) =>
 export const useUsageBreakdown = (range: UsageRange) =>
   useQuery({ queryKey: keys.usageBreakdown(range), queryFn: () => api.usageBreakdown(range), refetchInterval: useFallbackInterval(), placeholderData: keepPreviousData });
 
-/**
- * The schedule list. A fire launches a chat, which the event feed reports as `run.created`, but a
- * schedule has no event of its own, so `nextRunAt` and `lastRunAt` would go stale without this.
- */
-export const useSchedules = () => useQuery({ queryKey: keys.schedules, queryFn: api.schedules, refetchInterval: 30_000 });
+// `schedule.changed` and `schedule.fired` keep both fresh (lib/events.ts), `nextRunAt` included
+export const useSchedules = () => useQuery({ queryKey: keys.schedules, queryFn: api.schedules, refetchInterval: useFallbackInterval() });
 
-export const useScheduleRuns = (id: string, enabled: boolean) =>
-  useQuery({ queryKey: keys.scheduleRuns(id), queryFn: () => api.scheduleRuns(id), enabled, refetchInterval: enabled ? 30_000 : false });
+export const useScheduleRuns = (id: string, enabled: boolean) => {
+  const fallback = useFallbackInterval();
+  return useQuery({ queryKey: keys.scheduleRuns(id), queryFn: () => api.scheduleRuns(id), enabled, refetchInterval: enabled ? fallback : false });
+};
 
 /** Usage refreshes on claude-swap's own cadence; polling faster would only re-read its cache. */
 export const useAccounts = () =>

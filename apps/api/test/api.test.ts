@@ -306,6 +306,46 @@ test('a chat is exported as Markdown or JSON, as a download, and an unknown one 
   assert.match((await app.inject('/api/chats/export-1/export?format=pdf')).json().error, /markdown or json/);
 });
 
+test('a project is exported as Markdown or JSON, streamed, with its own chats only', async () => {
+  const transcript = (cwd: string, id: string, at: string, question: string) => {
+    const dir = join(core.config.projectsDir, cwd.replace(/[^a-zA-Z0-9]/g, '-'));
+    mkdirSync(dir, { recursive: true });
+    const line = (uuid: string, role: 'user' | 'assistant', content: unknown) => JSON.stringify({ type: role, uuid, timestamp: at, cwd, sessionId: id, isSidechain: false, message: { role, content } });
+    writeFileSync(join(dir, `${id}.jsonl`), `${line(`${id}-u`, 'user', question)}\n${line(`${id}-a`, 'assistant', [{ type: 'text', text: `Answer to ${id}.` }])}\n`);
+  };
+  const res = await app.inject({ method: 'POST', url: '/api/projects', ...json({ name: 'shipping' }) });
+  const project = res.json();
+  transcript(project.path, 'ship-2', '2026-04-02T10:00:00Z', 'Second question');
+  transcript(project.path, 'ship-1', '2026-04-01T10:00:00Z', 'First question');
+  transcript(join(core.config.workspaceDir, 'elsewhere'), 'elsewhere-1', '2026-04-01T10:00:00Z', 'Not in the project');
+
+  const md = await app.inject(`/api/projects/${project.id}/export`);
+  assert.equal(md.statusCode, 200);
+  assert.match(md.headers['content-type'] as string, /^text\/markdown/);
+  assert.equal(md.headers['content-disposition'], `attachment; filename="shipping-${project.id.slice(0, 8)}.md"`);
+  assert.equal(md.headers['content-length'], undefined, 'streamed, not buffered');
+  assert.match(md.body, /^# shipping\n/);
+  assert.match(md.body, /\*\*Chats:\*\* 2/);
+  assert.match(md.body, /\*\*Range:\*\* 2026-04-01T10:00:00Z to 2026-04-02T10:00:00Z/);
+  assert.match(md.body, /### User/);
+  assert.ok(md.body.indexOf('Answer to ship-1.') > 0 && md.body.indexOf('Answer to ship-1.') < md.body.indexOf('Answer to ship-2.'), 'oldest first');
+  assert.doesNotMatch(md.body, /Not in the project/);
+
+  const exported = await app.inject(`/api/projects/${project.id}/export?format=json`);
+  assert.equal(exported.statusCode, 200);
+  assert.match(exported.headers['content-type'] as string, /^application\/json/);
+  assert.match(exported.headers['content-disposition'] as string, /\.json"$/);
+  const body = exported.json();
+  assert.equal(body.project.id, project.id);
+  assert.deepEqual(body.chats.map((c: { chat: { id: string } }) => c.chat.id), ['ship-1', 'ship-2']);
+  assert.deepEqual(body.chats[0].entries.map((e: { uuid: string }) => e.uuid), ['ship-1-u', 'ship-1-a']);
+
+  assert.equal((await app.inject('/api/projects/nope/export')).statusCode, 404);
+  assert.match((await app.inject(`/api/projects/${project.id}/export?format=pdf`)).json().error, /markdown or json/);
+  // Other tests count the projects
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/projects/${project.id}` })).statusCode, 200);
+});
+
 test('a message may carry attachments, and an unknown one fails the request', async () => {
   const res = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hi', attachments: ['00000000-0000-0000-0000-000000000000'] }) });
   assert.equal(res.statusCode, 404);

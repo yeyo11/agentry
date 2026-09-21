@@ -6,6 +6,7 @@ import type { Db } from './db.ts';
 import { runRef } from './event-sources.ts';
 import type { AgentryEventInput } from './events.ts';
 import { git, headCommit, isGitRepo } from './git.ts';
+import { HEALTH_REASONS } from './health-strings.ts';
 import { budget, lastFileChangeAt, loop, noProgress, repeatStall, runningCommands, weakenedTests } from './health.ts';
 
 /** What a chat's health needs beyond what its process shows: the parts only the chat service knows. */
@@ -248,7 +249,9 @@ export class HealthMonitor {
       taskName: task?.taskName ?? null,
       level,
       previousLevel: before.level,
-      reason: worst?.reason ?? 'Nothing unusual.',
+      reason: worst?.reason ?? HEALTH_REASONS['health.ok'](),
+      ...(worst?.reasonCode || !worst ? { reasonCode: worst?.reasonCode ?? 'health.ok' } : {}),
+      ...(worst?.params ? { params: worst.params } : {}),
       signals: signals.map((s) => s.kind),
     });
     if (level === 'bad') this.deps.onBad?.(chat, task, signals);
