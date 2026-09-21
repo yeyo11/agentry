@@ -1,4 +1,15 @@
 {
+  "list": {
+    "searchPlaceholder": "Search name or path…",
+    "searchLabel": "Search projects",
+    "sortLabel": "Sort by",
+    "sort": {
+      "activity": "Recent activity",
+      "name": "Name",
+      "chats": "Most chats"
+    },
+    "noneMatch": "No projects match"
+  },
   "page": {
     "subtitle": "{{n}} imported · a project is a directory you import by hand; its worktrees belong to it",
     "importDirectory": "Import a directory",

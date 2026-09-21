@@ -1,4 +1,15 @@
 {
+  "list": {
+    "searchPlaceholder": "Busca por nombre o ruta…",
+    "searchLabel": "Buscar proyectos",
+    "sortLabel": "Ordenar por",
+    "sort": {
+      "activity": "Actividad reciente",
+      "name": "Nombre",
+      "chats": "Más chats"
+    },
+    "noneMatch": "Ningún proyecto coincide"
+  },
   "page": {
     "subtitle": "{{n}} importados · un proyecto es un directorio que importas a mano; sus worktrees le pertenecen",
     "importDirectory": "Importa un directorio",

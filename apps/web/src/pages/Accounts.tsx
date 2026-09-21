@@ -67,18 +67,25 @@ function AccountCard({
   onRemove: () => void;
 }) {
   const { t } = useTranslation(['config', 'common']);
+  const rail = account.usageStatus !== 'ok' ? 'is-warn' : account.disabled ? 'is-muted' : account.active ? 'is-ok' : '';
   return (
-    <Card
-      title={
-        <span className="meta">
-          <span className="strong break">{account.alias ?? account.email}</span>
-          {account.active && <Tag tone="ok">{t('accounts.active')}</Tag>}
-          {account.disabled && <Tag tone="muted">{t('accounts.outOfRotation')}</Tag>}
-          {account.usageStatus !== 'ok' && <StatusBadge status={account.usageStatus} />}
-        </span>
-      }
-      actions={
-        <span className="toolbar">
+    <li className={`lrow account-row ${rail}`.trim()}>
+      <div className="lrow-head">
+        <div className="lrow-main">
+          <span className="lrow-title">
+            <span className="break">{account.alias ?? account.email}</span>
+            {account.active && <Tag tone="ok">{t('accounts.active')}</Tag>}
+            {account.disabled && <Tag tone="muted">{t('accounts.outOfRotation')}</Tag>}
+            {account.usageStatus !== 'ok' && <StatusBadge status={account.usageStatus} />}
+          </span>
+          <span className="lrow-sub">
+            <span className="mono">#{account.number}</span>
+            <span className="break">{account.email}</span>
+            {account.organizationName && <span className="break">{account.organizationName}</span>}
+            {account.headroomPct !== null && <span className="mono">{t('accounts.quotaLeft', { pct: account.headroomPct })}</span>}
+          </span>
+        </div>
+        <span className="lrow-actions">
           {!account.active && (
             <button type="button" className="btn btn-small" onClick={onSwitch} disabled={busy} aria-label={t('accounts.useAccount', { name: account.alias ?? account.email })}>
               <CirclePlay {...ICON_SM} /> {t('accounts.use')}
@@ -101,15 +108,8 @@ function AccountCard({
             </button>
           </Tooltip>
         </span>
-      }
-    >
-      <div className="meters">
-        <div className="meta small">
-          <span className="mono">#{account.number}</span>
-          <span className="muted break">{account.email}</span>
-          {account.organizationName && <span className="muted break">{account.organizationName}</span>}
-          {account.headroomPct !== null && <span>{t('accounts.quotaLeft', { pct: account.headroomPct })}</span>}
-        </div>
+      </div>
+      <div className="meters lrow-body">
         {account.usage ? (
           <>
             <Meter label={t('accounts.fiveHours')} window={account.usage.fiveHour} />
@@ -126,7 +126,7 @@ function AccountCard({
         {account.usageFetchedAt && <div className="muted small">{t('accounts.usageRead', { ago: timeAgo(account.usageFetchedAt) })}</div>}
       </div>
       <ConfigDirPanel account={account} config={config} />
-    </Card>
+    </li>
   );
 }
 
@@ -319,7 +319,7 @@ export function Accounts() {
         </Empty>
       ) : (
         <>
-          <div className="grid-2">
+          <ul className="lrows accounts-list">
             {data.accounts.map((account) => (
               <AccountCard
                 key={account.number}
@@ -360,7 +360,7 @@ export function Accounts() {
                 }
               />
             ))}
-          </div>
+          </ul>
 
           {data.accounts.length === 0 && (
             <Empty icon={Users} title={t('accounts.none')}>
