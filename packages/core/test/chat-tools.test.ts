@@ -256,3 +256,133 @@ test('the tools a chat runs with survive a restart of the wrapper', async () => 
     again.shutdown();
   }
 });
+
+test('a default preset is taken by a new chat that picks no tools, and can be refused', async () => {
+  const { core, spawns } = setup();
+  try {
+    assert.equal(core.toolPresets.overview().defaultPresetId, null, 'a fresh install has no default');
+    await assert.rejects(core.toolPresets.setDefault({ defaultPresetId: 'ghost' }), /tool preset 'ghost' not found/);
+    await assert.rejects(core.toolPresets.setDefault({ defaultPresetId: 3 }), /preset id or null/);
+    assert.deepEqual(await core.toolPresets.setDefault({ defaultPresetId: 'no-network' }), { defaultPresetId: 'no-network' });
+    assert.equal(core.toolPresets.overview().defaultPresetId, 'no-network');
+    // Its rules hold no spaces, which keeps them whole in the spawn log
+    const noNetwork = core.toolPresets.get('no-network');
+
+    // Nothing picked: the default
+    const plain = await core.chats.create({ prompt: 'x' });
+    await until(() => spawns().length === 1, 'the first process');
+    assert.equal(flagged(spawns()[0], '--allowedTools='), `--allowedTools=${noNetwork?.allowedTools.join(',')}`);
+    assert.equal((await core.chats.get(plain.id))?.tools?.preset?.id, 'no-network');
+
+    // Only disallowed tools said: still the default, with that list winning over the preset's
+    await core.chats.create({ prompt: 'x', disallowedTools: ['WebFetch'] });
+    await until(() => spawns().length === 2, 'the second process');
+    assert.equal(flagged(spawns()[1], '--allowedTools='), `--allowedTools=${noNetwork?.allowedTools.join(',')}`);
+    assert.equal(flagged(spawns()[1], '--disallowedTools='), '--disallowedTools=WebFetch');
+
+    // An explicit list, another preset or `null` each keep the default out
+    await core.chats.create({ prompt: 'x', allowedTools: ['Read'] });
+    await until(() => spawns().length === 3, 'the third process');
+    assert.equal(flagged(spawns()[2], '--allowedTools='), '--allowedTools=Read');
+    assert.equal(flagged(spawns()[2], '--disallowedTools'), undefined);
+
+    await core.chats.create({ prompt: 'x', toolPreset: 'everything' });
+    await until(() => spawns().length === 4, 'the fourth process');
+    assert.match(flagged(spawns()[3], '--allowedTools=') ?? '', /WebSearch/);
+
+    const optedOut = await core.chats.create({ prompt: 'x', toolPreset: null });
+    await until(() => spawns().length === 5, 'the fifth process');
+    assert.equal(flagged(spawns()[4], '--allowedTools'), undefined);
+    assert.equal(flagged(spawns()[4], '--disallowedTools'), undefined);
+    assert.equal((await core.chats.get(optedOut.id))?.tools?.preset ?? null, null);
+
+    // The default lives in the same document, and goes with its preset
+    await core.toolPresets.remove('no-network');
+    assert.equal(core.toolPresets.overview().defaultPresetId, null);
+    assert.equal(core.toolPresets.defaultPreset(), null);
+    // `default` names the route that sets it, so no preset may take it
+    await assert.rejects(core.toolPresets.upsert('default', { name: 'x' }), /reserved/);
+  } finally {
+    core.shutdown();
+  }
+});
+
+test('restoring the shipped presets rewrites those three and leaves the rest alone', async () => {
+  const { core } = setup();
+  try {
+    await core.toolPresets.upsert('read-only', { name: 'Just reading', allowedTools: ['Read'] });
+    await core.toolPresets.remove('everything');
+    await core.toolPresets.upsert('review', { name: 'Review', allowedTools: ['Read', 'Grep'] });
+    await core.toolPresets.setDefault({ defaultPresetId: 'review' });
+
+    const restored = await core.toolPresets.restore();
+    assert.equal(restored.defaultPresetId, 'review', 'the default is not touched');
+    for (const shipped of DEFAULT_TOOL_PRESETS) {
+      assert.deepEqual(core.toolPresets.get(shipped.id), { ...shipped, disallowedTools: shipped.disallowedTools ?? [] }, `${shipped.id} is as it ships`);
+    }
+    assert.deepEqual(core.toolPresets.get('review'), { id: 'review', name: 'Review', allowedTools: ['Read', 'Grep'], disallowedTools: [] });
+    // An edited one keeps its place; a deleted one comes back at the end
+    assert.deepEqual(core.toolPresets.list().map((p) => p.id), ['read-only', 'no-network', 'review', 'everything']);
+    assert.deepEqual(restored.presets, core.toolPresets.list());
+  } finally {
+    core.shutdown();
+  }
+});
+
+test('a fork runs with the tools and servers of its source unless it picks others', async () => {
+  const { core, spawns } = setup();
+  try {
+    const source = await core.chats.create({ prompt: 'x', toolPreset: 'read-only', allowedTools: ['Read'], mcp: { servers: ['files'] } });
+    await until(() => spawns().length === 1, 'the source process');
+    await stopped(core, source.id);
+
+    const copy = await core.chats.fork(source.id, { prompt: 'go on elsewhere' });
+    await until(() => spawns().length === 2, 'the fork process');
+    const argv = spawns()[1];
+    assert.ok(argv?.includes('--fork-session'), 'it is a fork');
+    assert.equal(flagged(argv, '--allowedTools='), '--allowedTools=Read');
+    assert.equal(flagged(argv, '--disallowedTools='), flagged(spawns()[0], '--disallowedTools='));
+    assert.equal(flagged(argv, '--mcp-config='), flagged(spawns()[0], '--mcp-config='));
+    assert.ok(argv?.includes('--strict-mcp-config'));
+    const tools = (await core.chats.get(copy.id))?.tools;
+    assert.equal(tools?.preset?.id, 'read-only');
+    assert.deepEqual(tools?.allowedTools, ['Read']);
+    assert.deepEqual(tools?.mcp?.servers, ['files']);
+
+    // Picking a preset replaces the tools and still carries the servers
+    const wider = await core.chats.fork(source.id, { prompt: 'wider', toolPreset: 'everything' });
+    await until(() => spawns().length === 3, 'the second fork');
+    assert.match(flagged(spawns()[2], '--allowedTools=') ?? '', /WebSearch/);
+    assert.equal(flagged(spawns()[2], '--mcp-config='), flagged(spawns()[0], '--mcp-config='));
+    assert.equal((await core.chats.get(wider.id))?.tools?.preset?.id, 'everything');
+
+    // `toolPreset: null` with `mcp: null` is a fork with the CLI's own of both
+    await core.chats.fork(source.id, { prompt: 'bare', toolPreset: null, mcp: null });
+    await until(() => spawns().length === 4, 'the third fork');
+    assert.equal(flagged(spawns()[3], '--allowedTools'), undefined);
+    assert.equal(flagged(spawns()[3], '--mcp-config'), undefined);
+  } finally {
+    core.shutdown();
+  }
+});
+
+test('a resume that picks no servers starts them as they are defined now', async () => {
+  const { core, spawns, config } = setup();
+  try {
+    const chat = await core.chats.create({ prompt: 'x', mcp: { servers: ['docs', 'files'] } });
+    await until(() => spawns().length === 1, 'the first process');
+    await stopped(core, chat.id);
+
+    // A person edits one server and removes the other
+    writeFileSync(config.globalConfigFile, JSON.stringify({ mcpServers: { docs: { type: 'http', url: 'https://docs.example/v2/mcp' } } }));
+
+    await core.chats.resume(chat.id, { prompt: 'again' });
+    await until(() => spawns().length === 2, 'the resumed process');
+    const file = flagged(spawns()[1], '--mcp-config=')?.slice('--mcp-config='.length) ?? '';
+    assert.ok(spawns()[1]?.includes('--strict-mcp-config'));
+    assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { mcpServers: { docs: { type: 'http', url: 'https://docs.example/v2/mcp' } } });
+    assert.deepEqual((await core.chats.get(chat.id))?.tools?.mcp, { servers: ['docs'], config: file });
+  } finally {
+    core.shutdown();
+  }
+});

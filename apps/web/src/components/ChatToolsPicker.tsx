@@ -69,7 +69,7 @@ export function ChatToolsPicker({
           onChange={(toolPreset) => onChange({ ...value, toolPreset: toolPreset || undefined })}
           options={[
             { value: '', label: keepPreset },
-            ...(presets.data ?? []).map((p) => ({ value: p.id, label: p.name, hint: p.description })),
+            ...(presets.data?.presets ?? []).map((p) => ({ value: p.id, label: p.name, hint: p.description })),
           ]}
         />
         <span className="field-hint">{t('tools.presetHint')}</span>

@@ -362,7 +362,10 @@ export class ChatService {
 
   /** Starts a new chat. */
   async create(request: NewChatRequest): Promise<ChatSummary> {
-    const chosen = await this.deps.tools.resolve(request, resolve(request.cwd ?? this.deps.config.workspaceDir), null);
+    // `toolPreset: null` is how a request says it wants no preset, the default included
+    const fallback = request.toolPreset === undefined && request.allowedTools === undefined ? this.deps.tools.presets.defaultPreset() : null;
+    const picked = fallback ? { ...request, toolPreset: fallback.id } : request;
+    const chosen = await this.deps.tools.resolve(picked, resolve(request.cwd ?? this.deps.config.workspaceDir), null);
     const started = this.deps.runtime.start({ ...request, ...chosen });
     return this.require(started.id);
   }
@@ -426,13 +429,17 @@ export class ChatService {
     return this.require(id);
   }
 
-  /** Continues a chat in a copy, which is a new chat that records where it came from. */
+  /**
+   * Continues a chat in a copy, which is a new chat that records where it came from. The copy runs
+   * with the source's tools and servers unless the request picks others: it carries on the same
+   * work, and a fork that quietly gained tools the source was denied would be a way around them.
+   */
   async fork(id: string, request: ForkChatRequest): Promise<ChatSummary> {
     const chat = await this.summaryOf(id);
     if (!chat) throw new Error('chat not found');
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to fork.', null);
     const adoption = await this.adoptionOf(chat);
-    const chosen = await this.deps.tools.resolve(request, adoption.cwd, null);
+    const chosen = await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null, { fresh: true });
     const forked = this.deps.runtime.fork(id, { ...request, ...chosen }, adoption);
     return this.require(forked.id);
   }

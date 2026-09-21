@@ -6686,8 +6686,11 @@
         }
       },
       "toolPreset": {
-        "type": "string",
-        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it"
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it. A new chat that names neither this nor `allowedTools` takes the default preset; `null` opts out of it (and, on a resume or a fork, drops the preset the chat had)."
       },
       "mcp": {
         "anyOf": [
@@ -6771,8 +6774,11 @@
         }
       },
       "toolPreset": {
-        "type": "string",
-        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it"
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it. A new chat that names neither this nor `allowedTools` takes the default preset; `null` opts out of it (and, on a resume or a fork, drops the preset the chat had)."
       },
       "mcp": {
         "anyOf": [
@@ -6844,8 +6850,11 @@
         }
       },
       "toolPreset": {
-        "type": "string",
-        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it"
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it. A new chat that names neither this nor `allowedTools` takes the default preset; `null` opts out of it (and, on a resume or a fork, drops the preset the chat had)."
       },
       "mcp": {
         "anyOf": [
