@@ -406,7 +406,8 @@ export function Orchestration() {
   const { t } = useTranslation(['orchestration', 'config']);
   const { t: tv } = useTranslation('orchestrationV2');
   const { data, error, isLoading } = useOrchestrations();
-  const [creating, setCreating] = useState(false);
+  // `?new=1` is how the top bar's "New chat ▾" menu and the palette open the form directly
+  const [creating, setCreating] = useState(() => new URLSearchParams(window.location.search).has('new'));
   // A template opened for editing: the form starts from its graph instead of an empty one. The
   // counter is the form's key, so opening a second template replaces the first instead of keeping its state.
   const [editing, setEditing] = useState<{ template: OrchestrationTemplate; n: number } | undefined>();
