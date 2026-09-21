@@ -17,6 +17,7 @@ import { Link } from 'react-router-dom';
 import { api, keys, useChats, useOrchestrations, useOverview, useUsage } from '../../api';
 import { ICON_SM } from '../../components/icons';
 import { ProgressRing } from '../../components/motion';
+import { ProjectExportCard } from '../../components/ProjectExport';
 import { Card, Empty, Skeleton, StatusBadge, Tag } from '../../components/ui';
 import { detailHref } from '../../lib/detail';
 import { formatCost, formatDuration, formatNumber, timeAgo, timeUntil, truncate } from '../../lib/format';
@@ -402,6 +403,8 @@ export function Activity({ project }: { project: Project | null }) {
           </div>
         </Card>
       )}
+
+      {project && <ProjectExportCard project={project} />}
     </>
   );
 }

@@ -95,6 +95,11 @@ import type {
   SwitchAccountRequest,
   SwitchResult,
   SettingsDoc,
+  EditorSettingsDoc,
+  SupervisorConfig,
+  SupervisorProposal,
+  UpdateEditorSettingsRequest,
+  UpdateSupervisorConfigRequest,
   RunWorkflowRequest,
   WorkflowDefinition,
   SystemInfo,
@@ -248,6 +253,7 @@ export const api = {
    * from the query string here, as it does for the streams and an attachment.
    */
   chatExportUrl: (id: string, format: ExportFormat) => withToken(`${BASE}/chats/${enc(id)}/export?format=${format}`),
+  projectExportUrl: (id: string, format: ExportFormat) => withToken(`${BASE}/projects/${enc(id)}/export?format=${format}`),
   schedules: () => request<Schedule[]>('/schedules'),
   schedulePreview: (cron: string, timezone: string | undefined, count = 5) =>
     request<SchedulePreview>(`/schedules/preview${qs({ cron, timezone, count: String(count) })}`),
@@ -320,6 +326,14 @@ export const api = {
   chatDiff: (id: string, path: string) => request<FileDiff>(`/chats/${enc(id)}/changes/diff${qs({ path })}`),
   chatChecklist: (id: string) => request<Checklist>(`/chats/${enc(id)}/checklist`),
   hintChat: (id: string, req: HintRequest) => request<ChatSummary>(`/chats/${enc(id)}/hint`, { method: 'POST', body: req }),
+  // A task's proposal goes through its task's routes, so the hint reaches it the way a task's hint does
+  settleSupervisorProposal: (proposal: SupervisorProposal, action: 'send' | 'dismiss') =>
+    request<SupervisorProposal>(
+      proposal.orchestrationId && proposal.taskId
+        ? `/orchestrations/${enc(proposal.orchestrationId)}/tasks/${enc(proposal.taskId)}/supervisor/${enc(proposal.id)}/${action}`
+        : `/chats/${enc(proposal.chatId)}/supervisor/${enc(proposal.id)}/${action}`,
+      { method: 'POST' },
+    ),
   cancelCommand: (id: string, toolUseId: string, req: CancelCommandRequest = {}) =>
     request<CancelCommandResult>(`/chats/${enc(id)}/commands/${enc(toolUseId)}/cancel`, { method: 'POST', body: req }),
   /** The executions of a chat, without the transcript: how each attempt of a task ended. */
@@ -365,6 +379,10 @@ export const api = {
   putToolPreset: (id: string, preset: Pick<ToolPreset, 'name' | 'description' | 'allowedTools' | 'disallowedTools'>) =>
     request<ToolPreset>(`/config/tool-presets/${enc(id)}`, { method: 'PUT', body: preset }),
   deleteToolPreset: (id: string) => request<{ ok: true }>(`/config/tool-presets/${enc(id)}`, { method: 'DELETE' }),
+  supervisorConfig: () => request<SupervisorConfig>('/settings/supervisor'),
+  putSupervisorConfig: (config: UpdateSupervisorConfigRequest) => request<SupervisorConfig>('/settings/supervisor', { method: 'PUT', body: config }),
+  editorSettings: () => request<EditorSettingsDoc>('/settings/editor'),
+  putEditorSettings: (settings: UpdateEditorSettingsRequest) => request<EditorSettingsDoc>('/settings/editor', { method: 'PUT', body: settings }),
   resources: (scope: Scope, kind: ResourceKind) =>
     request<ConfigResource[]>(`/config/resources/${kind}${scoped(scope)}`),
   resource: (scope: Scope, kind: ResourceKind, name: string) =>
@@ -469,6 +487,8 @@ export const keys = {
     ['config', 'instructions', scope.projectId ?? 'user', variant] as const,
   mcp: (scope: Scope) => ['config', 'mcp', scope.projectId ?? 'user'] as const,
   toolPresets: ['config', 'tool-presets'] as const,
+  supervisor: ['settings', 'supervisor'] as const,
+  editor: ['settings', 'editor'] as const,
   resources: (scope: Scope, kind: ResourceKind) => ['config', 'resources', scope.projectId ?? 'user', kind] as const,
   fileRoots: ['config', 'files', 'roots'] as const,
   fileTree: (root: string) => ['config', 'files', 'tree', root] as const,
@@ -535,14 +555,13 @@ export const useUsageSeries = (range: UsageRange, bucket: UsageBucket) =>
 export const useUsageBreakdown = (range: UsageRange) =>
   useQuery({ queryKey: keys.usageBreakdown(range), queryFn: () => api.usageBreakdown(range), refetchInterval: useFallbackInterval(), placeholderData: keepPreviousData });
 
-/**
- * The schedule list. A fire launches a chat, which the event feed reports as `run.created`, but a
- * schedule has no event of its own, so `nextRunAt` and `lastRunAt` would go stale without this.
- */
-export const useSchedules = () => useQuery({ queryKey: keys.schedules, queryFn: api.schedules, refetchInterval: 30_000 });
+// `schedule.changed` and `schedule.fired` keep both fresh (lib/events.ts), `nextRunAt` included
+export const useSchedules = () => useQuery({ queryKey: keys.schedules, queryFn: api.schedules, refetchInterval: useFallbackInterval() });
 
-export const useScheduleRuns = (id: string, enabled: boolean) =>
-  useQuery({ queryKey: keys.scheduleRuns(id), queryFn: () => api.scheduleRuns(id), enabled, refetchInterval: enabled ? 30_000 : false });
+export const useScheduleRuns = (id: string, enabled: boolean) => {
+  const fallback = useFallbackInterval();
+  return useQuery({ queryKey: keys.scheduleRuns(id), queryFn: () => api.scheduleRuns(id), enabled, refetchInterval: enabled ? fallback : false });
+};
 
 /** Usage refreshes on claude-swap's own cadence; polling faster would only re-read its cache. */
 export const useAccounts = () =>

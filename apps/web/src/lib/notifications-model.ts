@@ -1,6 +1,7 @@
 import type { AgentryEvent, ChatSummary, PermissionRequest, RunWaitingReason } from '@agentry/shared';
 import i18n from '../i18n';
 import { detailHref } from './detail';
+import { serverText } from './server-strings';
 
 /*
  * What a notification is and which events make one. Pure on purpose (no React, no DOM, no
@@ -256,8 +257,32 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           priority: event.level === 'bad' ? 'high' : 'normal',
           tone: event.level === 'bad' ? 'bad' : 'warn',
           title: event.title,
-          body: event.reason,
+          body: serverText(event.reasonCode, event.params, event.reason),
           href: chatHref(event.runId),
+          runId: event.runId,
+          orchestrationId: event.orchestrationId,
+        }),
+      ];
+    }
+
+    case 'supervisor.proposed': {
+      const { proposal } = event;
+      // A task's proposal is acted on where its health is shown with the task's hint route: the board
+      const href =
+        proposal.orchestrationId && proposal.taskId
+          ? `${orchestrationHref(proposal.orchestrationId)}?task=${encodeURIComponent(proposal.taskId)}`
+          : chatHref(proposal.chatId);
+      return [
+        draft(event, {
+          // One proposal per signal per chat, so its id is the news
+          key: `supervisor:${proposal.id}`,
+          dedupeMs: 0,
+          kind: 'health',
+          priority: 'normal',
+          tone: 'info',
+          title: i18n.t('components:notificationText.supervisorProposed', { name: event.taskName ?? event.runName }),
+          body: proposal.hint,
+          href,
           runId: event.runId,
           orchestrationId: event.orchestrationId,
         }),

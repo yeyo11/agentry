@@ -3,7 +3,7 @@
 // fake that stopped answering. Needs no build, no browser and no server.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -36,10 +36,11 @@ const alive = (pid) => {
 };
 
 /** A chat with the fake: `send` writes a line, `next(match)` waits for the first event after the last one read that matches. */
-function chat(env = {}) {
+function chat(env = {}, { args = [], setup } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'agentry-fake-cli-'));
   const logFile = join(dir, 'log.jsonl');
-  const proc = spawn(bin, ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--session-id', 'fake-session', '--model', 'haiku'], {
+  setup?.(dir);
+  const proc = spawn(bin, ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--session-id', 'fake-session', '--model', 'haiku', ...args], {
     cwd: dir,
     env: { ...process.env, AGENTRY_FAKE_CLI_LOG: logFile, ...env },
     stdio: ['pipe', 'pipe', 'inherit'],
@@ -165,5 +166,50 @@ test('an unknown control request gets an error answer, never silence', async () 
   c.send({ type: 'control_request', request_id: 'r-2', request: { subtype: 'mcp_status' } });
   const answer = await c.next((e) => e.type === 'control_response');
   assert.equal(answer.response.subtype, 'error');
+  await c.done();
+});
+
+test('say: lines are the assistant\'s own prose, in their place among the calls', async () => {
+  const c = chat();
+  c.say('say: Looking at the routes first.\nrun: echo routes\nsay: Two handlers, both tested.');
+  assert.equal(text(await c.next((e) => e.type === 'assistant')), 'Looking at the routes first.');
+  await c.next((e) => toolUse(e) && e.message.content[0].input.command === 'echo routes');
+  assert.equal(text(await c.next((e) => e.type === 'assistant' && text(e) !== '')), 'Two handlers, both tested.');
+  const result = await c.next((e) => e.type === 'result');
+  assert.equal(result.result, 'Two handlers, both tested.');
+  assert.ok(!c.events.some((e) => /^Running|^All done/.test(text(e))), 'a scripted turn has none of the fake\'s own words');
+  await c.done();
+});
+
+test('a message holding a key of the scripts file is played as its script', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'agentry-fake-cli-scripts-'));
+  const scripts = join(dir, 'scripts.json');
+  writeFileSync(scripts, JSON.stringify({ 'Tidy the imports': 'say: Sorted them.\nrun: echo sorted' }));
+  const c = chat({ AGENTRY_FAKE_CLI_SCRIPTS: scripts });
+  c.say('You are a worker.\n\nYour task (tidy):\nTidy the imports\n\nFinish with a report.');
+  assert.equal(text(await c.next((e) => e.type === 'assistant')), 'Sorted them.');
+  await c.next((e) => toolUse(e) && e.message.content[0].input.command === 'echo sorted');
+  await c.next((e) => e.type === 'result');
+  c.say('anything else');
+  assert.equal(text(await c.next((e) => e.type === 'assistant')), 'Heard: anything else');
+  await c.done();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('--worktree works in a worktree of the repository, on its own branch, as the CLI does', async () => {
+  const git = (cwd, ...a) => spawnSync('git', a, { cwd, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 'Fake', GIT_AUTHOR_EMAIL: 'fake@example.com', GIT_COMMITTER_NAME: 'Fake', GIT_COMMITTER_EMAIL: 'fake@example.com' } });
+  const c = chat({}, {
+    args: ['--worktree', 'tidy'],
+    setup: (dir) => {
+      git(dir, 'init', '-q');
+      git(dir, 'commit', '-q', '--allow-empty', '-m', 'start');
+    },
+  });
+  const init = await c.next((e) => e.type === 'system' && e.subtype === 'init');
+  assert.match(init.cwd, /\/\.claude\/worktrees\/tidy$/);
+  assert.equal(git(init.cwd, 'branch', '--show-current').stdout.trim(), 'worktree-tidy');
+  c.say('run: pwd');
+  await c.next(toolUse);
+  assert.equal((await c.next((e) => e.type === 'user')).message.content[0].content, init.cwd);
   await c.done();
 });

@@ -8,14 +8,26 @@
 // much to what the heartbeats of this process say from then on. A prompt with no `run:` line is
 // answered with `Heard: <its first line>`. Messages that arrive while a turn runs are answered the
 // same way at its next step, between two calls; messages that arrive between turns start one each.
-import { spawn } from 'node:child_process';
+// A line `say: <text>` is a paragraph of the assistant's, in its place among the calls.
+import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, readdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 
-const VERSION = '2.1.0-fake';
 const argv = process.argv.slice(2);
 const env = process.env;
+// A recording of the UI wants a footer that reads like an account, not like the test double it is
+const VERSION = env.AGENTRY_FAKE_CLI_VERSION || '2.1.0-fake';
+function authStatus() {
+  let extra = {};
+  try {
+    extra = env.AGENTRY_FAKE_CLI_AUTH ? JSON.parse(env.AGENTRY_FAKE_CLI_AUTH) : {};
+  } catch {
+    // an unreadable override leaves the fake's own answer
+  }
+  return { loggedIn: true, authMethod: 'fake', apiProvider: 'firstParty', ...extra };
+}
 function numberEnv(name, fallback) {
   const raw = env[name];
   return raw !== undefined && raw !== '' && Number(raw) >= 0 ? Number(raw) : fallback;
@@ -50,7 +62,7 @@ function flag(name) {
 function subcommand() {
   const [first, second, third] = argv.filter((a) => !a.startsWith('-'));
   if (argv[0] === '--version' || argv[0] === '-v') return `${VERSION} (Claude Code)\n`;
-  if (first === 'auth' && second === 'status') return `${JSON.stringify({ loggedIn: true, authMethod: 'fake', apiProvider: 'firstParty' })}\n`;
+  if (first === 'auth' && second === 'status') return `${JSON.stringify(authStatus())}\n`;
   if (first === 'agents') return '[]\n';
   if (first === 'mcp' && second === 'list') return 'No MCP servers configured. Use `claude mcp add` to add a server.\n';
   if (first === 'plugin' && (second === 'list' || (second === 'marketplace' && third === 'list'))) return '[]\n';
@@ -79,6 +91,32 @@ const modelName = (m) => (m.includes('-') ? m : `claude-${m}-5`);
 let model = modelName(flag('--model') ?? 'sonnet');
 let turns = 0;
 let costUsd = 0;
+
+/**
+ * `--worktree <name>` as the CLI does it: a worktree of the repository under `.claude/worktrees/<name>`,
+ * on a branch `worktree-<name>`, which the session then works in. Outside a repository the flag
+ * changes nothing, and the fake says so on stderr instead of failing the chat.
+ */
+function enterWorktree(name) {
+  const git = (...args) => spawnSync('git', args, { cwd: process.cwd(), encoding: 'utf8' });
+  const top = git('rev-parse', '--show-toplevel');
+  if (top.status !== 0) {
+    process.stderr.write(`fake claude: --worktree ${name} outside a git repository; working in place\n`);
+    return;
+  }
+  const dir = join(top.stdout.trim(), '.claude', 'worktrees', name);
+  if (!existsSync(dir)) {
+    mkdirSync(dirname(dir), { recursive: true });
+    const added = git('worktree', 'add', '-q', '-b', `worktree-${name}`, dir, 'HEAD');
+    if (added.status !== 0) {
+      process.stderr.write(`fake claude: could not add the worktree: ${added.stderr}`);
+      process.exit(1);
+    }
+  }
+  process.chdir(dir);
+}
+const worktree = flag('--worktree');
+if (worktree) enterWorktree(worktree);
 
 const emit = (message) => process.stdout.write(`${JSON.stringify({ ...message, session_id: sessionId })}\n`);
 const assistant = (content) =>
@@ -163,33 +201,63 @@ function textOf(message) {
 const firstLine = (text) => text.trim().split('\n')[0] ?? '';
 const heard = (text) => ({ type: 'text', text: `Heard: ${firstLine(text)}` });
 
-function startTurn(text) {
+/**
+ * Turns written elsewhere, so the prompt a page shows reads like a person's and not like a script:
+ * `AGENTRY_FAKE_CLI_SCRIPTS` names a JSON object of `{ "<text>": "<script>" }`, and a message that
+ * contains one of the texts is played as its script. A worker's prompt is its task wrapped in the
+ * orchestrator's own words, which is why a key is looked for inside the message and not matched whole.
+ */
+function scriptFor(text) {
+  if (!env.AGENTRY_FAKE_CLI_SCRIPTS) return text;
+  let scripts;
+  try {
+    scripts = JSON.parse(readFileSync(env.AGENTRY_FAKE_CLI_SCRIPTS, 'utf8'));
+  } catch {
+    return text;
+  }
+  const key = Object.keys(scripts).find((k) => k && text.includes(k));
+  return key === undefined ? text : String(scripts[key]);
+}
+
+function startTurn(message) {
+  const text = scriptFor(message);
   const offset = /^\s*elapsed:\s*(\d+)\s*$/m.exec(text)?.[1];
   if (offset !== undefined) elapsedOffsetS = Number(offset);
-  const commands = text
+  const steps = text
     .split('\n')
-    .map((l) => /^\s*run:\s*(.+)$/.exec(l)?.[1]?.trim())
-    .filter(Boolean);
-  turn = { commands, current: null, startedAt: Date.now(), interrupted: false };
+    .map((l) => /^\s*(run|say):\s*(.+)$/.exec(l))
+    .filter((m) => m?.[2]?.trim())
+    .map((m) => ({ kind: m[1], text: m[2].trim() }));
+  const commands = steps.filter((s) => s.kind === 'run').map((s) => s.text);
+  // A turn that writes its own prose needs none of the fake's around it
+  const scripted = steps.some((s) => s.kind === 'say');
+  turn = { steps, current: null, startedAt: Date.now(), interrupted: false, scripted, lastSaid: '' };
   log('turn', { text, commands });
-  if (commands.length === 0) {
+  if (steps.length === 0) {
     assistant([heard(text)]);
     endTurn({ result: `Heard: ${firstLine(text)}` });
     return;
   }
-  assistant([{ type: 'text', text: `Running ${commands.length} ${commands.length === 1 ? 'command' : 'commands'}.` }]);
+  if (!scripted) assistant([{ type: 'text', text: `Running ${commands.length} ${commands.length === 1 ? 'command' : 'commands'}.` }]);
   nextStep();
 }
 
 function nextStep() {
   const own = turn;
   if (!own) return;
-  const command = own.commands.shift();
-  if (command === undefined) {
-    assistant([{ type: 'text', text: 'All done.' }]);
-    endTurn({ result: 'All done.' });
+  const step = own.steps.shift();
+  if (step === undefined) {
+    if (!own.scripted) assistant([{ type: 'text', text: 'All done.' }]);
+    endTurn({ result: own.scripted ? own.lastSaid : 'All done.' });
     return;
   }
+  if (step.kind === 'say') {
+    own.lastSaid = step.text;
+    assistant([{ type: 'text', text: step.text }]);
+    setTimeout(() => turn === own && nextStep(), SETTLE_MS);
+    return;
+  }
+  const command = step.text;
   const id = `toolu_fake_${randomUUID().replaceAll('-', '').slice(0, 20)}`;
   // A direct child of this process, the way the CLI's shell calls are: the wrapper finds it under our
   // pid, by its start time against the call's (it allows two seconds either way). It is started and

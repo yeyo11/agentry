@@ -22,6 +22,8 @@
  *    - `schedules`: the Schedules page and its form (pages/Schedules, pages/schedules/*)
  *    - `usage`: the Usage page (pages/Usage)
  *    - `work`: what is left of the pages the chats redesign removed (Dashboard, Agents, Sessions…)
+ *    - `server`: sentences the server writes with a stable code (health signals, connector steps),
+ *      keyed by that code and read through lib/server-strings, never with `t` directly
  * 2. Add the key to `locales/en/<ns>.json` with today's English text, byte for byte (the e2e specs
  *    find elements by it), and the same key to `locales/es/<ns>.json`. Group keys by screen or
  *    component (`"runView": { "send": "Send" }`). A key missing from either file fails

@@ -14,6 +14,7 @@ import { api } from '../../api';
 import { formatTokens } from '../../lib/chat-model';
 import { useDetailPanel } from '../../lib/detail';
 import { durationBetween, formatCost, formatDateTime, formatNumber, timeAgo } from '../../lib/format';
+import { healthReason, signalReason } from '../../lib/server-strings';
 
 // Its Select and Combobox are Radix controls kept out of the shell bundle this page lives in
 const LiveSettings = lazy(() => import('./Controls').then((m) => ({ default: m.LiveSettings })));
@@ -236,7 +237,9 @@ export function HealthCard({ chat }: { chat: Chat }) {
   const { health } = chat;
   const facts = health.signals.filter((s) => !isStepIn(s));
   const notes: Array<{ kind: string; level: HealthLevel; reason: string }> =
-    health.signals.length > 0 ? facts : [{ kind: 'ok', level: 'ok', reason: health.reason }];
+    health.signals.length > 0
+      ? facts.map((signal) => ({ kind: signal.kind, level: signal.level, reason: signalReason(signal) }))
+      : [{ kind: 'ok', level: 'ok', reason: healthReason(health) }];
   return (
     <Card title={t('side.health.title')} actions={<HealthBadge health={health} />}>
       <HealthPanel health={health} chatId={chat.id} live={Boolean(chat.execution)} badge={false} sendHint={(text) => api.hintChat(chat.id, { text })} />

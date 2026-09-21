@@ -36,7 +36,11 @@
     "pausedNote": "En pausa: no se disparará hasta que la actives",
     "last": "Última ejecución {{ago}}",
     "neverRan": "Aún no se ha ejecutado",
-    "history": "Historial de ejecuciones"
+    "history": "Historial de ejecuciones",
+    "overlap": {
+      "skip": "Omite solapes",
+      "queue": "Encola solapes"
+    }
   },
   "history": {
     "empty": "Todavía no se ha disparado nada.",
@@ -47,7 +51,9 @@
     "started": "Lanzada",
     "byHand": "Ejecutada a mano",
     "openChat": "Abre el chat",
-    "openOrchestration": "Abre la orquestación"
+    "openOrchestration": "Abre la orquestación",
+    "overlapped": "Solapada",
+    "queued": "En cola"
   },
   "form": {
     "newTitle": "Nueva programación",
@@ -127,6 +133,21 @@
     "fromOrchestrationNone": "Aún no hay orquestaciones",
     "fromOrchestrationOption_one": "{{count}} tarea · {{ago}}",
     "fromOrchestrationOption_other": "{{count}} tareas · {{ago}}",
-    "fromOrchestrationFailed": "No se pudo leer esa orquestación"
+    "fromOrchestrationFailed": "No se pudo leer esa orquestación",
+    "overlap": "Si la última ejecución sigue en marcha",
+    "overlaps": {
+      "parallel": {
+        "label": "Iniciar igualmente",
+        "hint": "Cada franja inicia su propia ejecución, aunque la anterior siga trabajando."
+      },
+      "skip": {
+        "label": "Omitir",
+        "hint": "Una franja que llega mientras la última ejecución sigue en marcha no inicia nada y queda registrada como solapada."
+      },
+      "queue": {
+        "label": "Encolar",
+        "hint": "Una franja que llega mientras la última ejecución sigue en marcha espera y empieza cuando esta termina. Solo espera una: una franja más reciente ocupa su lugar."
+      }
+    }
   }
 }

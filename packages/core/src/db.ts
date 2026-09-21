@@ -3,6 +3,7 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import type {
   AuditEntry,
   AuditFilter,
+  HealthSignalKind,
   AuditPage,
   AutoSwitchEvent,
   EffectiveEnvironment,
@@ -10,6 +11,8 @@ import type {
   Orchestration,
   OrchestrationSpec,
   PlanDraftSummary,
+  SupervisorProposal,
+  SupervisorProposalStatus,
   UsageHistoryPoint,
   UsageWindowKind,
 } from '@agentry/shared';
@@ -134,6 +137,22 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      PRIMARY KEY (account, window, at)
    );
    CREATE INDEX usage_history_at ON usage_history (at);`,
+
+  // What the supervisor proposed when a worker's health turned bad. Rows, because they accumulate;
+  // the unique key is the rule "once per signal per chat", held by the store and not by a map that
+  // a restart would empty.
+  `CREATE TABLE supervisor_proposals (
+     id               TEXT PRIMARY KEY,
+     chat_id          TEXT NOT NULL,
+     task_id          TEXT,
+     orchestration_id TEXT,
+     signal           TEXT NOT NULL,
+     hint             TEXT NOT NULL,
+     cost_usd         REAL NOT NULL,
+     at               TEXT NOT NULL,
+     status           TEXT NOT NULL
+   );
+   CREATE UNIQUE INDEX supervisor_proposals_signal ON supervisor_proposals (chat_id, signal);`,
 ];
 
 /** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
@@ -672,6 +691,36 @@ export class Db {
     return out;
   }
 
+  // ---------- supervisor proposals ----------
+
+  /** False when the chat already has one for that signal: the supervisor answers each signal once. */
+  saveProposal(p: SupervisorProposal): boolean {
+    const result = this.db
+      .prepare(
+        `INSERT OR IGNORE INTO supervisor_proposals (id, chat_id, task_id, orchestration_id, signal, hint, cost_usd, at, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(p.id, p.chatId, p.taskId ?? null, p.orchestrationId ?? null, p.signal, p.hint, p.costUsd, p.at, p.status);
+    return Number(result.changes) > 0;
+  }
+
+  proposal(id: string): SupervisorProposal | null {
+    const row = this.db.prepare('SELECT * FROM supervisor_proposals WHERE id = ?').get(id) as ProposalRow | undefined;
+    return row ? proposalOf(row) : null;
+  }
+
+  /** The chat's proposals, newest first. */
+  proposalsOf(chatId: string): SupervisorProposal[] {
+    const rows = this.db.prepare('SELECT * FROM supervisor_proposals WHERE chat_id = ? ORDER BY at DESC').all(chatId) as unknown as ProposalRow[];
+    return rows.map(proposalOf);
+  }
+
+  /** Moves a proposal on from `proposed`; false when it had already been sent or dismissed. */
+  settleProposal(id: string, status: Exclude<SupervisorProposalStatus, 'proposed'>): boolean {
+    const result = this.db.prepare("UPDATE supervisor_proposals SET status = ? WHERE id = ? AND status = 'proposed'").run(status, id);
+    return Number(result.changes) > 0;
+  }
+
   close(): void {
     this.db.close();
   }
@@ -685,4 +734,30 @@ function statusRange(status: string): [number, number] {
   if (code[2].toLowerCase() === 'xx') return [hundreds, hundreds + 99];
   const exact = hundreds + Number(code[2]);
   return [exact, exact];
+}
+
+interface ProposalRow {
+  id: string;
+  chat_id: string;
+  task_id: string | null;
+  orchestration_id: string | null;
+  signal: string;
+  hint: string;
+  cost_usd: number;
+  at: string;
+  status: string;
+}
+
+function proposalOf(row: ProposalRow): SupervisorProposal {
+  return {
+    id: row.id,
+    chatId: row.chat_id,
+    ...(row.task_id ? { taskId: row.task_id } : {}),
+    ...(row.orchestration_id ? { orchestrationId: row.orchestration_id } : {}),
+    signal: row.signal as HealthSignalKind,
+    hint: row.hint,
+    costUsd: row.cost_usd,
+    at: row.at,
+    status: row.status as SupervisorProposalStatus,
+  };
 }

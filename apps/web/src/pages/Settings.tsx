@@ -15,6 +15,7 @@ import { PluginsTab } from './config/PluginsTab';
 import { ResourcesTab } from './config/ResourcesTab';
 import { SecurityTab } from './config/SecurityTab';
 import { SettingsTab } from './config/SettingsTab';
+import { SupervisorTab } from './config/SupervisorTab';
 import { ToolPresetsTab } from './config/ToolPresetsTab';
 
 const RESOURCE_TABS: ResourceKind[] = ['agents', 'skills', 'commands', 'output-styles', 'rules', 'workflows'];
@@ -36,6 +37,7 @@ const TABS = [
   { id: 'memory', label: 'home:settings.tabs.memory' },
   { id: 'plugins', label: 'home:settings.tabs.plugins' },
   { id: 'editor', label: 'observe:editor.tab' },
+  { id: 'supervisor', label: 'observe:supervisor.tab' },
   { id: 'security', label: 'config:config.tabs.security' },
 ] as const;
 
@@ -147,6 +149,7 @@ function SettingsInner() {
         {tab === 'memory' && <MemoryOverview />}
         {tab === 'plugins' && <PluginsTab />}
         {tab === 'editor' && <EditorTab />}
+        {tab === 'supervisor' && <SupervisorTab />}
         {tab === 'security' && <SecurityTab />}
       </TabPanel>
     </>

@@ -1,4 +1,4 @@
-import type { ChatContext, ChatHealth, ChatState, HealthLevel, HealthSignal, HealthSignalKind, TaskLimits } from '@agentry/shared';
+import type { ChatContext, ChatHealth, ChatState, HealthLevel, HealthSignal, HealthSignalKind, SupervisorProposal, TaskLimits } from '@agentry/shared';
 import { chatHealth, HUNG_COMMAND_MS, stateFromRun, type HealthFacts } from './chat-model.ts';
 import type { ChatManager, ChatRuntime } from './chats.ts';
 import { commandKind, usualDuration, type UsualDuration } from './commands.ts';
@@ -127,7 +127,25 @@ export class HealthService {
       ...weakenedTests(trace),
       ...(base.limits ? [budget(base.limits, { elapsedMs: base.taskElapsedMs ?? 0, costUsd: base.taskSpentUsd ?? 0 })] : []),
     ].filter((s): s is HealthSignal => s !== null);
-    return chatHealth(facts, nowMs);
+    const health = chatHealth(facts, nowMs);
+    return { ...health, proposal: this.proposalFor(id, health) };
+  }
+
+  /** What the supervisor answered for the worst of the signals it has answered; a chat that is well needs none. */
+  private proposalFor(id: string, health: ChatHealth): SupervisorProposal | null {
+    if (health.level === 'ok') return null;
+    let proposals: SupervisorProposal[];
+    try {
+      proposals = this.db.proposalsOf(id);
+    } catch {
+      return null;
+    }
+    if (!proposals.length) return null;
+    for (const signal of health.signals) {
+      const found = proposals.find((p) => p.signal === signal.kind);
+      if (found) return found;
+    }
+    return null;
   }
 }
 
@@ -138,6 +156,7 @@ const STUCK: ReadonlySet<HealthSignalKind> = new Set(['hung-command', 'repeat-st
 
 /** What the monitor needs to know about a chat that only the orchestrator does. */
 export interface TaskContext {
+  orchestrationId: string;
   taskId: string;
   taskName: string;
   limits: TaskLimits | null;
@@ -153,6 +172,8 @@ export interface HealthMonitorDeps {
   emit: (event: AgentryEventInput) => void;
   /** The task a chat works for, when it is a worker of a graph */
   taskOf: (chat: ChatRuntime) => TaskContext | null;
+  /** Told when an announced change leaves a chat `bad`, with its stuck signals worst first: what wakes the supervisor */
+  onBad?: (chat: ChatRuntime, task: TaskContext | null, signals: HealthSignal[]) => void;
 }
 
 /**
@@ -233,5 +254,6 @@ export class HealthMonitor {
       ...(worst?.params ? { params: worst.params } : {}),
       signals: signals.map((s) => s.kind),
     });
+    if (level === 'bad') this.deps.onBad?.(chat, task, signals);
   }
 }

@@ -2,7 +2,7 @@
   "editor": {
     "tab": "Editor",
     "title": "Links into your editor",
-    "intro": "A changed file or a worktree gets a link that opens it in your editor. These settings are kept in this browser, because the editor runs on this machine and the server cannot know how to reach it.",
+    "intro": "A changed file or a worktree gets a link that opens it in your editor. These settings are kept on the server, so every browser you open Agentry in builds the same links. The server refuses a template that could run script, too.",
     "template": "Link template",
     "templateHint": "{path}, {line} and {column} are filled in. For VS Code: vscode://file/{path}:{line}. For Cursor: cursor://file/{path}:{line}.",
     "diffCommand": "Side-by-side diff command (optional)",
@@ -32,7 +32,9 @@
     "openWorktree": "Open worktree in editor",
     "copyDiffCommand": "Copy the diff command",
     "openFile": "Open {{path}} in the editor",
-    "openAtLine": "Open {{path}} at line {{line}} in the editor"
+    "openAtLine": "Open {{path}} at line {{line}} in the editor",
+    "saving": "Saving…",
+    "resetDone": "Editor settings reset to the default"
   },
   "changes": {
     "title": "Changes",
@@ -108,5 +110,27 @@
     "title": "Work of {{name}}",
     "close": "Close",
     "notStarted": "This task has not started, so it has done nothing yet."
+  },
+  "supervisor": {
+    "tab": "Supervisor",
+    "settingsTitle": "Supervisor",
+    "intro": "When a worker's health turns bad, a small model reads its last steps and proposes a hint of one or two lines. The proposal shows on the worker's health, where you send it, edit it first or dismiss it. It asks once per signal per chat, and each answer is a housekeeping chat of the CLI, counted in the cost of the worker's orchestration.",
+    "enabled": "Propose hints for workers that look stuck",
+    "model": "Model",
+    "modelHint": "A small one is enough: it reads a few lines and writes two.",
+    "maxCost": "Cost limit per proposal (USD)",
+    "maxCostHint": "Passed to the CLI as --max-budget-usd for each question.",
+    "costInvalid": "The limit has to be above $0 and at most ${{max}}.",
+    "autoSend": "Send each proposal to the worker on its own",
+    "autoSendHint": "Off, a proposal waits for you. On, it reaches the worker as soon as it is written, and stays on the health card as sent.",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Supervisor settings saved",
+    "title": "The supervisor's proposal",
+    "proposes": "The supervisor proposes this hint",
+    "badgeHint": "The supervisor proposes a hint.",
+    "send": "Send",
+    "edit": "Edit",
+    "dismiss": "Dismiss"
   }
 }
