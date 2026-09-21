@@ -18,18 +18,19 @@ const OPEN = new Set([`${API_PREFIX}/health`]);
 
 /**
  * `EventSource` and the browser's own GETs (an `<img src>`, a link) cannot carry an
- * `Authorization` header, so these four accept the credential as `?token=`. They are the only
+ * `Authorization` header, so these five accept the credential as `?token=`. They are the only
  * ones: a token in a query string ends up in access logs, and a route that can be called with
  * `fetch` has no excuse. `GET /api/events` is the one the plan names; the chat stream is the same
  * kind of `EventSource`, an attachment is what the chat renders inline, and a transcript export is
  * a download link the browser follows itself — fetching a whole transcript into a blob to save it
- * would hold it twice in memory for no gain.
+ * would hold it twice in memory for no gain. A project export is the same download, only longer.
  */
 const QUERY_TOKEN = [
   /^\/api\/events$/,
   /^\/api\/chats\/[^/]+\/stream$/,
   /^\/api\/uploads\/[^/]+\/content$/,
   /^\/api\/chats\/[^/]+\/export$/,
+  /^\/api\/projects\/[^/]+\/export$/,
 ];
 
 /**

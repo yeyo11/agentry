@@ -15,7 +15,7 @@ function fence(text: string, lang = ''): string {
 
 const escapeHtml = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-const oneLine = (text: string, max: number): string => {
+export const oneLine = (text: string, max: number): string => {
   const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 };
@@ -44,11 +44,11 @@ function details(summary: string, body: string): string {
   return `<details>\n<summary>${summary}</summary>\n\n${body}\n\n</details>`;
 }
 
-const usd = (n: number): string => `$${n.toFixed(n < 0.01 ? 4 : 2)}`;
-const count = (n: number): string => n.toLocaleString('en-US');
+export const usd = (n: number): string => `$${n.toFixed(n < 0.01 ? 4 : 2)}`;
+export const count = (n: number): string => n.toLocaleString('en-US');
 
-function header(chat: Chat, entries: TranscriptEntry[], hidden: number): string {
-  const lines: string[] = [`# ${oneLine(chat.title || chat.id, 200)}`, ''];
+function header(chat: Chat, entries: TranscriptEntry[], hidden: number, depth: number): string {
+  const lines: string[] = [`${'#'.repeat(depth)} ${oneLine(chat.title || chat.id, 200)}`, ''];
   const fact = (label: string, value: string | null): void => {
     if (value) lines.push(`- **${label}:** ${value}`);
   };
@@ -76,8 +76,9 @@ const speaker = (entry: TranscriptEntry): string => (entry.role === 'user' ? 'Us
  * A chat as Markdown a person can read: the header says what it cost and which models answered,
  * then the conversation in turns, with every tool call folded into a `<details>` block that holds
  * the call and its result. Subagent messages are left out; the JSON export keeps every event.
+ * `depth` is the level of the chat's own heading, so a chat can be a section of a larger document.
  */
-export function chatToMarkdown(chat: Chat, entries: TranscriptEntry[]): string {
+export function chatToMarkdown(chat: Chat, entries: TranscriptEntry[], { depth = 1 }: { depth?: number } = {}): string {
   const main = entries.filter((e) => !e.isSidechain);
   const results = new Map<string, Extract<ContentBlock, { type: 'tool_result' }>>();
   const called = new Set<string>();
@@ -94,7 +95,7 @@ export function chatToMarkdown(chat: Chat, entries: TranscriptEntry[]): string {
     return fence(shown || '(empty)');
   };
 
-  const out: string[] = [header(chat, main, entries.length - main.length)];
+  const out: string[] = [header(chat, main, entries.length - main.length, depth)];
   let previous = '';
   for (const entry of main) {
     const parts: string[] = [];
@@ -128,7 +129,7 @@ export function chatToMarkdown(chat: Chat, entries: TranscriptEntry[]): string {
     if (!parts.length) continue;
     // The CLI writes one entry per content block: a turn is the run of them by the same speaker
     const who = speaker(entry);
-    const heading = who === previous ? '' : `## ${who}${entry.timestamp ? ` · ${entry.timestamp}` : ''}\n\n`;
+    const heading = who === previous ? '' : `${'#'.repeat(depth + 1)} ${who}${entry.timestamp ? ` · ${entry.timestamp}` : ''}\n\n`;
     previous = who;
     out.push(`${heading}${parts.join('\n\n')}`);
   }
@@ -137,7 +138,12 @@ export function chatToMarkdown(chat: Chat, entries: TranscriptEntry[]): string {
 
 /** A name for the downloaded file: the title in a form any file system takes, and the start of the id so two chats never share one. */
 export function exportFilename(chat: Pick<Chat, 'id' | 'title'>, format: ExportFormat): string {
-  const slug = chat.title
+  return `${slugOf(chat.title, 'chat')}-${chat.id.slice(0, 8)}.${format === 'markdown' ? 'md' : 'json'}`;
+}
+
+/** A name in a form any file system takes; `fallback` when nothing of it survives. */
+export function slugOf(name: string, fallback: string): string {
+  const slug = name
     .normalize('NFKD')
     .replace(/[^\w\s-]/g, '')
     .trim()
@@ -145,5 +151,5 @@ export function exportFilename(chat: Pick<Chat, 'id' | 'title'>, format: ExportF
     .toLowerCase()
     .slice(0, 50)
     .replace(/-+$/, '');
-  return `${slug || 'chat'}-${chat.id.slice(0, 8)}.${format === 'markdown' ? 'md' : 'json'}`;
+  return slug || fallback;
 }

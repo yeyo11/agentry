@@ -120,6 +120,8 @@ test('the event stream takes the token in the query string, which EventSource ca
   // 404: what matters is that the guard let it reach the route.
   assert.equal((await app.inject('/api/chats/nope/export')).statusCode, 401);
   assert.equal((await app.inject(`/api/chats/nope/export?format=json&token=${encodeURIComponent(token)}`)).statusCode, 404);
+  assert.equal((await app.inject('/api/projects/nope/export')).statusCode, 401);
+  assert.equal((await app.inject(`/api/projects/nope/export?token=${encodeURIComponent(token)}`)).statusCode, 404);
 
   // Only the routes a browser cannot put a header on: anything callable with `fetch` may not
   assert.equal((await app.inject(`/api/overview?token=${encodeURIComponent(token)}`)).statusCode, 401);

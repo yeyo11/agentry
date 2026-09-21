@@ -89,6 +89,13 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /projects/import': d('Projects', 'Import a directory as a project', { description: 'Every chat under the directory belongs to it from then on, retroactively. A git worktree is refused: it belongs to its repository.', body: ref('ImportProjectRequest'), ok: ref('Project'), created: true }),
   'POST /projects': d('Projects', 'Create a project in the workspace', { description: 'Creates an empty directory, or clones `gitUrl` into it, and imports it.', body: ref('CreateProjectRequest'), ok: ref('Project'), created: true }),
   'PATCH /projects/:id': d('Projects', 'Rename a project', { params: obj({ id: str('Project id') }), body: ref('UpdateProjectRequest'), ok: ref('Project') }),
+  'GET /projects/:id/export': d('Projects', 'Export a project\'s chats as Markdown or JSON', {
+    description:
+      'A download, streamed a chat at a time. `markdown` (default) opens with the project, the dates its chats span, the models that answered, the cost as the CLI reported it (chats started outside Agentry report none, and the header counts them) and a numbered list of the chats, then every chat oldest first as a section rendered like `GET /chats/:id/export`. `json` is a `ProjectExport`: the project and a `ChatExport` per chat. Housekeeping chats are left out.',
+    params: obj({ id: str('Project id') }),
+    querystring: obj({ format: str('Output format', { enum: ['markdown', 'json'] }) }),
+    ok: ref('ProjectExport'),
+  }),
   'DELETE /projects/:id': d('Projects', 'Remove a project from Agentry', { description: 'Harmless: nothing on disk changes, and importing the directory again adopts its chats again. Distinct from `DELETE /projects/:id/state`.', params: obj({ id: str('Project id') }), ok: OK }),
   'DELETE /projects/:id/state': d('Projects', 'Purge everything Claude Code keeps about a project', { description: 'Transcripts, tasks, file history and the config entry, through `claude project purge`. Irreversible; the project stays imported.', params: obj({ id: str('Project id') }), ok: obj({ detail: str('What the CLI reported') }) }),
 
