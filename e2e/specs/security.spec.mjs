@@ -22,6 +22,7 @@ export default async ({ page, api, check }) => {
   const initial = await panelText();
   for (const heading of ['Read-only mode', 'Access', 'Token', 'Audit log']) check(initial.toLowerCase().includes(heading.toLowerCase()), `the security tab has a "${heading}" card`);
   check(initial.toLowerCase().includes('open'), 'the unguarded mode is said in words, not only shown');
+  check(initial.includes('AGENTRY_AUTH_TOKEN_RESET'), 'the token card names the recovery path for a lost token');
 
   // A mode that would lock everyone out is named before the click, not after it
   await page.click('[role=radio]', 'Token');
@@ -80,8 +81,30 @@ export default async ({ page, api, check }) => {
     const rows = await page.text('[role=tabpanel] table');
     check(rows.includes('PUT') && rows.includes('token:'), 'the audit log names the method and the token that made the write');
     check(/done/.test(rows), 'a result is said in words as well as a status code');
+
+    // Method and status narrow the same list; every row left is what was asked for
+    const auditRows = `[...document.querySelectorAll('[role=tabpanel] table tbody tr')]`;
+    await page.select('[role=tabpanel] .filter-bar .select-trigger', 'PUT');
+    await page.waitFor(`const r=${auditRows};return r.length>0&&r.every(tr=>tr.querySelector('.strong')?.textContent==='PUT')`, { label: 'only PUT rows' });
+    await page.fill('input[type=search]', '');
+    await page.select('[role=tabpanel] .filter-bar .select-trigger', 'POST');
+    await page.fill('[role=tabpanel] input[role=combobox]', '4xx');
+    // The write refused while read-only was on is a POST that ended in a 405
+    await page.waitFor(
+      `const r=${auditRows};return r.length>0&&r.every(tr=>tr.querySelector('.strong')?.textContent==='POST'&&/^4\\d\\d/.test(tr.querySelector('.badge')?.textContent??''))&&r.some(tr=>tr.textContent.includes('/api/projects'))`,
+      { label: 'only POST rows that ended in a 4xx' },
+    );
+    await page.fill('[role=tabpanel] input[role=combobox]', '405');
+    await page.waitFor(`const r=${auditRows};return r.length>0&&r.every(tr=>/^405/.test(tr.querySelector('.badge')?.textContent??''))`, { label: 'only 405 rows' });
+    // A status the server would refuse is named in the form and never sent
+    await page.fill('[role=tabpanel] input[role=combobox]', '4x');
+    await page.waitFor(`return document.querySelector('[role=tabpanel]').textContent.includes('a code such as 404 or a class such as 4xx')`, { label: 'the invalid status message' });
+    check(!(await page.eval(`return !!document.querySelector('[role=tabpanel] .alert-bad')`)), 'an invalid status does not reach the server as a failed request');
+    await page.click('[role=tabpanel] button', 'Clear filters', 600);
+    check((await page.eval(`return document.querySelector('[role=tabpanel] input[role=combobox]').value`)) === '', 'clearing the filters empties the status too');
+
     await page.fill('input[type=search]', 'zz-no-such-path');
-    await page.waitFor(`return document.querySelector('[role=tabpanel]').textContent.includes('No entry for that path')`, { label: 'an empty filter result' });
+    await page.waitFor(`return document.querySelector('[role=tabpanel]').textContent.includes('No entry matches these filters')`, { label: 'an empty filter result' });
 
     // A 401 is a screen that says what to do; a wrong token fails in the form, the right one returns the app
     await page.eval(`localStorage.removeItem(${JSON.stringify(TOKEN_KEY)}); return true`);

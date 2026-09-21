@@ -1796,6 +1796,9 @@ a.list-row:hover {
   width: auto;
   max-width: 220px;
 }
+.filter-bar .audit-status {
+  width: 160px;
+}
 .search-field {
   position: relative;
   display: flex;
