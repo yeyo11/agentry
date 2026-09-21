@@ -1,8 +1,10 @@
 import type { TaskLimits } from '@agentry/shared';
 import { useTranslation } from 'react-i18next';
-import { limitsOf, type VerificationDraft } from '../lib/orchestration-v2';
-import { Combobox, NumberInput, Switch } from './controls';
+import { limitsOf, type InstallMode, type VerificationDraft } from '../lib/orchestration-v2';
+import { Combobox, NumberInput, Select, Switch } from './controls';
 import { Field, MODEL_OPTIONS } from './ui';
+
+const INSTALL_MODES: readonly InstallMode[] = ['detected', 'command', 'none'];
 
 /** What every task may spend unless it says otherwise. A task's own limits win. */
 export function DefaultLimits({ value, onChange }: { value: TaskLimits | undefined; onChange: (limits: TaskLimits | undefined) => void }) {
@@ -62,6 +64,26 @@ export function VerificationFields({ value, onChange }: { value: VerificationDra
               onChange={(e) => onChange({ ...value, commands: e.target.value })}
             />
           </Field>
+          <div className="form-grid">
+            <Field label={t('verification.install')} hint={t(`verification.installHint.${value.install}`)}>
+              <Select<InstallMode>
+                aria-label={t('verification.install')}
+                value={value.install}
+                onChange={(install) => onChange({ ...value, install })}
+                options={INSTALL_MODES.map((mode) => ({ value: mode, label: t(`verification.installMode.${mode}`) }))}
+              />
+            </Field>
+            {value.install === 'command' && (
+              <Field label={t('verification.installCommand')}>
+                <input
+                  className="mono"
+                  value={value.installCommand}
+                  placeholder={t('verification.installPlaceholder')}
+                  onChange={(e) => onChange({ ...value, installCommand: e.target.value })}
+                />
+              </Field>
+            )}
+          </div>
           <Switch checked={value.fixer} onChange={(fixer) => onChange({ ...value, fixer })}>
             {t('verification.fixer')}
           </Switch>
@@ -79,8 +101,23 @@ export function VerificationFields({ value, onChange }: { value: VerificationDra
                   options={MODEL_OPTIONS}
                 />
               </Field>
+              <Field label={t('verification.maxCost')} hint={t('verification.maxCostHint')}>
+                <NumberInput
+                  aria-label={t('verification.maxCost')}
+                  min={0.1}
+                  max={1000}
+                  step={0.5}
+                  placeholder={t('limits.none')}
+                  value={value.maxCostUsd}
+                  onChange={(maxCostUsd) => onChange({ ...value, maxCostUsd })}
+                />
+              </Field>
             </div>
           )}
+          <Switch checked={value.failGraph} onChange={(failGraph) => onChange({ ...value, failGraph })}>
+            {t('verification.failGraph')}
+          </Switch>
+          <p className="muted small">{t('verification.failGraphHint')}</p>
         </>
       )}
     </div>

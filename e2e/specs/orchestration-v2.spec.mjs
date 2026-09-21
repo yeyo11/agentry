@@ -125,6 +125,13 @@ export default async ({ page, api, check, dirs }) => {
     }
     await page.eval(`[...document.querySelectorAll('main [role=switch]')].find((s) => s.closest('label')?.textContent.includes('Verify the integration branch')).click(); return true`);
     await page.waitFor(`return !!document.querySelector('main textarea[placeholder="pnpm build"]')`, { label: 'the verification commands' });
+    // The fixer's ceiling, the install step Agentry adds and whether failed checks fail the graph
+    const checks = await page.text('main');
+    for (const text of ['Install step', 'Detected from the lockfile', 'Fixer cost limit (USD)', 'Fail the graph when the checks fail']) {
+      check(checks.includes(text), `the verification fields have "${text}"`);
+    }
+    await page.select('main [aria-label="Install step"]', 'A command of my own');
+    await page.waitFor(`return !!document.querySelector('main input[placeholder="pnpm install --frozen-lockfile"]')`, { label: 'the install command field' });
 
     // ---------- delete the template ----------
     await page.goto('/orchestration', 1500);
