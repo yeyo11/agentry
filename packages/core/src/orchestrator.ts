@@ -392,7 +392,7 @@ export class Orchestrator {
     for (const orch of this.items.values()) {
       const task = orch.tasks.find((t) => t.runId === chatId);
       if (!task || task.status !== 'running') continue;
-      return { taskId: task.id, taskName: task.name, limits: effectiveLimits(orch.limits, task.limits), elapsedMs: elapsedMs(task, nowMs), spentUsd: spentUsd(task) };
+      return { orchestrationId: orch.id, taskId: task.id, taskName: task.name, limits: effectiveLimits(orch.limits, task.limits), elapsedMs: elapsedMs(task, nowMs), spentUsd: spentUsd(task) };
     }
     return null;
   }
@@ -1840,6 +1840,17 @@ ${quoted}
     if (!task.runId || this.relaunching.has(`${orch.id}:${task.id}`)) throw new Error('the worker is between two executions: try again in a moment');
     this.runs.send(task.runId, `A hint from the person following this orchestration:\n\n${text.trim()}`);
     return orch;
+  }
+
+  /**
+   * What the supervisor spent watching one of this graph's workers. It goes on the graph and not on
+   * the task: a task's cost is its chat's own total, which each result replaces, and would drop it.
+   */
+  chargeSupervisor(id: string, costUsd: number): void {
+    const orch = this.items.get(id);
+    if (!orch || !(costUsd > 0)) return;
+    orch.costUsd += costUsd;
+    this.persist();
   }
 
   // ---------- the workflow engine ----------

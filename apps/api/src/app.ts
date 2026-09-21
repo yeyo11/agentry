@@ -18,6 +18,7 @@ import { pluginRoutes } from './routes/plugins.ts';
 import { projectRoutes } from './routes/projects.ts';
 import { securityRoutes } from './routes/security.ts';
 import { scheduleRoutes } from './routes/schedules.ts';
+import { supervisorRoutes } from './routes/supervisor.ts';
 import { systemRoutes } from './routes/system.ts';
 import { toolPresetRoutes } from './routes/tool-presets.ts';
 import { uploadRoutes } from './routes/uploads.ts';
@@ -72,6 +73,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(memoryRoutes, { core });
       await api.register(uploadRoutes, { core });
       await api.register(scheduleRoutes, { core });
+      await api.register(supervisorRoutes, { core });
     },
     { prefix: '/api' },
   );
