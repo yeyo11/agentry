@@ -67,8 +67,6 @@
     "pullRequestHeld": "No se ofrece pull request: las comprobaciones fallaron y este grafo se lanzó para fallar en ese caso."
   },
   "templates": {
-    "title_one": "Plantillas ({{count}})",
-    "title_other": "Plantillas ({{count}})",
     "none": "Aún no hay plantillas",
     "noneHint": "Guarda un grafo desde su página o desde el formulario para lanzarlo de nuevo con otro objetivo.",
     "taskCount_one": "{{count}} tarea",

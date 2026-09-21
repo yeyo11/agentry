@@ -4,5 +4,28 @@
   "deleteTitle": "¿Eliminar {{name}}?",
   "taskBoard": "Tablero de tareas",
   "synthesisHeld": "En espera hasta que las tareas bloqueadas se reintenten o se descarten: un informe sobre un grafo con un hueco parecería el final.",
-  "chat": "Chat"
+  "chat": "Chat",
+  "objective": "Objetivo",
+  "showMore": "Ver más",
+  "showLess": "Ver menos",
+  "elapsedLabel": "Tiempo transcurrido",
+  "costLabel": "Coste",
+  "moreActions": "Más acciones",
+  "viewLabel": "Vista",
+  "viewSteps": "Pasos",
+  "viewGraph": "Grafo",
+  "stepsLabel": "Pasos de esta orquestación",
+  "backToLive": "Volver a lo que está en marcha",
+  "backToLatest": "Volver al último paso",
+  "steps": {
+    "integrationHeld": "Las ramas de las tareas se fusionan en una cuando todas las tareas han terminado.",
+    "integrationNothing": "Ninguna tarea se completó en una rama propia, así que no hay nada que fusionar.",
+    "verificationHeld": "Las comprobaciones se ejecutan sobre la rama fusionada en cuanto existe.",
+    "verificationSkipped": "Las comprobaciones no se ejecutaron: el grafo terminó antes de fusionar sus ramas.",
+    "pullRequestHeld": "Se puede abrir una pull request cuando las ramas de las tareas se han fusionado en una.",
+    "openPullRequest": "Abrir la pull request",
+    "synthesisWriting": "El agente de síntesis está escribiendo el informe final.",
+    "synthesisNoReport": "La síntesis terminó sin informe. Su chat explica por qué.",
+    "synthesisSkipped": "No hubo síntesis: ninguna tarea se completó o el grafo se detuvo antes."
+  }
 }

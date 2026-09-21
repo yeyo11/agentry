@@ -530,23 +530,23 @@
   color: var(--text-muted);
 }
 
-/* ---- a step: a turn's tool calls folded into one line ---- */
+/* ---- a step: a turn's tool calls folded into one line (`tool-step`, since `.step` is the Stepper's) ---- */
 .msg-step .msg-body {
   gap: 0;
 }
 
-.fold.step > .collapsible-trigger {
+.fold.tool-step > .collapsible-trigger {
   padding: 4px 8px;
   border-radius: var(--radius-sm);
   font: 12px var(--mono);
   color: var(--text-muted);
 }
 
-.fold.step > .collapsible-trigger:hover {
+.fold.tool-step > .collapsible-trigger:hover {
   background: var(--bg-hover);
 }
 
-.fold.step.live-rail {
+.fold.tool-step.live-rail {
   padding-left: 10px;
 }
 
@@ -659,7 +659,7 @@
   height: 26px;
 }
 
-.fold[data-state='open']:not(.fold-call, .fold-thinking, .step) > .collapsible-trigger {
+.fold[data-state='open']:not(.fold-call, .fold-thinking, .tool-step) > .collapsible-trigger {
   margin-bottom: 6px;
 }
 

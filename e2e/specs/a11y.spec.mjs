@@ -305,6 +305,12 @@ export default async ({ page, api, check, dirs }) => {
       await page.key('Escape');
       await page.waitFor(`return document.querySelector('[role=dialog]') === null`, { label: `the ${what} closed` });
     }
+    // A worker's chat opened beside its orchestration, the panel a task's name opens
+    await page.goto(`/orchestration/${orchestrationId}?detail=${encodeURIComponent(`chat:${SESSION}`)}`, 800);
+    await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText.trim().length > 20`, { label: 'the chat panel' });
+    await scan(page, 'chat panel', { rules: OVERLAY_RULES });
+    await page.key('Escape');
+    await page.waitFor(`return document.querySelector('[role=dialog]') === null`, { label: 'the chat panel closed' });
 
     await settle(page, '/orchestration');
     await page.click('button', 'New orchestration', 700);

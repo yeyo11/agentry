@@ -34,6 +34,7 @@ export function Stepper({
   selected,
   onSelect,
   compact = false,
+  expanded,
   className = '',
 }: {
   steps: readonly StepItem[];
@@ -43,6 +44,12 @@ export function Stepper({
   onSelect?: (id: string) => void;
   /** The tighter form for a widget: no meta line, smaller markers */
   compact?: boolean;
+  /**
+   * Shown inside the selected step, under it: what a timeline on a phone opens in place, so only
+   * the step being looked at is expanded. Meant for the vertical form; a wide stepper puts its
+   * panel after the whole row instead.
+   */
+  expanded?: ReactNode;
   className?: string;
 }) {
   const { t } = useTranslation('primitives');
@@ -76,6 +83,7 @@ export function Stepper({
                   {body}
                 </span>
               )}
+              {expanded !== undefined && selected === step.id && <div className="step-expanded">{expanded}</div>}
             </li>
           );
         })}

@@ -20,10 +20,15 @@
 
 .board {
   overflow-x: auto;
+  max-width: 100%;
+  min-width: 0;
   padding: 4px 2px 10px;
 }
 
+/* As wide as its stages need and never narrower than the box: a wide graph scrolls inside it instead of being cut */
 .board-track {
+  width: max-content;
+  min-width: 100%;
   display: flex;
   gap: 34px;
   align-items: flex-start;
@@ -50,8 +55,9 @@
 
 .board-col-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 9px;
+  gap: 6px 9px;
   min-height: 35px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
@@ -87,8 +93,8 @@
 }
 
 .board-link.is-flowing {
-  color: var(--accent);
-  background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 12px);
+  color: var(--live);
+  background: repeating-linear-gradient(90deg, var(--live) 0 6px, transparent 6px 12px);
   background-size: 24px 100%;
   animation: flow 0.7s linear infinite;
 }
@@ -129,13 +135,12 @@
 }
 
 .board-task.status-running {
-  --task-tone: var(--accent);
-  border-color: var(--ring);
+  --task-tone: var(--live);
+  border-color: color-mix(in srgb, var(--live) 45%, var(--border));
 }
 
 .board-task.status-running::before {
-  background: var(--gradient-accent);
-  animation: pulse 1.4s ease-in-out infinite;
+  animation: rail-pulse var(--pulse-cycle) var(--ease-in-out) infinite;
 }
 
 .board-task.status-completed {
@@ -183,6 +188,7 @@
 @media (max-width: 768px) {
 /* Stages stack top to bottom in dependency order, so nothing scrolls sideways and the sideways connectors have no place */
 .board-track {
+    width: auto;
     flex-direction: column;
     align-items: stretch;
     gap: 22px;
@@ -342,4 +348,330 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* ---- The redesigned orchestration page: a sticky summary, the steps, the selected step's panel ---- */
+
+/* Stays in view while the steps scroll under it: name, state, clock, cost and progress are the page's answer */
+.orch-summary {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.orch-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.orch-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orch-figures {
+  display: inline-flex;
+  gap: 12px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.orch-progress {
+  flex: 1 1 140px;
+  min-width: 100px;
+  max-width: 320px;
+}
+
+.orch-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.orch-meta {
+  font-size: 12px;
+}
+
+.orch-section-label {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.orch-objective {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.orch-objective-text {
+  max-width: 90ch;
+  white-space: pre-wrap;
+}
+
+.orch-objective-text.is-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.orch-view-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.orch-steps {
+  min-width: 0;
+}
+
+/* The selected step's panel, opened in place under its step on the timeline form */
+.step-expanded {
+  padding: 8px 0 14px 12px;
+  border-left: 2px solid var(--border);
+}
+
+.step-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.step-panel-progress {
+  max-width: 480px;
+}
+
+.step-note {
+  margin: 0;
+}
+
+/* A stage's tasks: rows with a rail, not boxes, one under the other */
+.task-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.task-row-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.task-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 4px 10px 12px;
+  border-left: var(--rail-w) solid var(--task-tone, transparent);
+}
+
+/* `.live-rail` draws its own rail, so the border would be a second one */
+.task-row.live-rail {
+  border-left-color: transparent;
+}
+
+.task-row.status-completed {
+  --task-tone: var(--ok);
+}
+
+.task-row.status-failed {
+  --task-tone: var(--bad);
+}
+
+.task-row.status-blocked,
+.task-row.status-stopped,
+.task-row.status-interrupted {
+  --task-tone: var(--warn);
+}
+
+.task-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.task-row-name {
+  margin: 0;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.task-name-btn {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.task-row-facts {
+  display: inline-flex;
+  gap: 10px;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-ticker {
+  max-width: 100%;
+}
+
+.board-col-title {
+  flex: 1 1 auto;
+}
+
+.board-col-progress {
+  flex: 1 0 100%;
+}
+
+/*
+ * A graph node fills as it goes: a stripe that sweeps while it runs, full once it has an outcome.
+ * Drawn along the bottom edge, so it never covers a word.
+ */
+.board-task-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.board-task-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  transform: scaleX(0);
+  background: var(--task-tone, var(--border-strong));
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+
+.board-task.status-completed .board-task-fill::after,
+.board-task.status-failed .board-task-fill::after,
+.board-task.status-skipped .board-task-fill::after {
+  transform: scaleX(1);
+}
+
+.board-task.status-running .board-task-fill::after {
+  transform: scaleX(0.35);
+  animation: orch-fill-sweep 1.6s var(--ease-in-out) infinite;
+}
+
+@keyframes orch-fill-sweep {
+  from {
+    transform: translateX(-35%) scaleX(0.35);
+  }
+  to {
+    transform: translateX(100%) scaleX(0.35);
+  }
+}
+
+:root[data-motion='subtle'] .board-task.status-running .board-task-fill::after,
+:root[data-motion='off'] .board-task.status-running .board-task-fill::after {
+  animation: none;
+  transform: scaleX(0.5);
+}
+
+/* The list: a running graph's row says where it is, in one line */
+.list-row.orch-row.live-rail {
+  padding-left: 14px;
+}
+
+.orch-row-live {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-muted);
+}
+
+.orch-row-where {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orch-row-where::after {
+  content: ':';
+}
+
+.orch-row-ticker {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.orch-row-objective {
+  overflow-wrap: anywhere;
+}
+
+.orch-row-progress {
+  max-width: 420px;
+}
+
+.orch-advanced .form {
+  padding-top: 10px;
+}
+
+/* An orchestration worker's chat, opened beside the graph */
+.detail-ticker {
+  padding: 6px 0;
+}
+
+@media (max-width: 900px) {
+  .orch-title {
+    font-size: 16px;
+    flex-basis: calc(100% - 60px);
+  }
+  .orch-progress {
+    order: 5;
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .task-row-facts {
+    margin-left: 0;
+  }
+  .orch-row-where {
+    max-width: 55%;
+  }
+}
+
+@media (pointer: coarse) {
+  .task-name-btn,
+  .orch-view-bar .segment,
+  .back-to-live {
+    min-height: 44px;
+  }
 }

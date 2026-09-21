@@ -2,15 +2,16 @@ import type { AgentTranscript, ChatBackgroundTask } from '@agentry/shared';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { useAgentDetail, useChatTasks, useTaskOutput, type AgentRef } from '../lib/chats';
+import { useAgentDetail, useChatTasks, useChatTranscript, useTaskOutput, type AgentRef } from '../lib/chats';
 import { useDetailPanel, type DetailRef } from '../lib/detail';
-import { durationBetween, formatDateTime, formatDuration, formatNumber } from '../lib/format';
+import { durationBetween, formatCost, formatDateTime, formatDuration, formatNumber } from '../lib/format';
+import { ActivityTicker } from './ActivityTicker';
 import { CodeBlock } from './CodeBlock';
 import { Collapsible } from './controls/Collapsible';
 import { Dialog } from './Dialog';
 import { ScrollJump } from './ScrollJump';
 import { RichText, Transcript } from './Transcript';
-import { BranchStatus } from './ChatBadges';
+import { BranchStatus, StateBadge } from './ChatBadges';
 import { ErrorBox, Loading, Tag } from './ui';
 
 /** A transcript can run to thousands of entries; the newest are what a panel is opened for. */
@@ -281,7 +282,80 @@ function AgentBody({ target }: { target: AgentTarget }) {
   );
 }
 
+// ---------- a whole chat ----------
+
+/**
+ * A chat read beside the page that links to it, so following an orchestration's worker does not
+ * mean leaving the orchestration. The newest entries only: the chat's own page is one link away.
+ */
+function ChatBody({ chatId }: { chatId: string }) {
+  const { t } = useTranslation('components');
+  const { query, chat } = useChatTranscript(chatId, false);
+  const working = chat?.state === 'working';
+  const follow = useFollow<HTMLDivElement>(query.data?.total, working);
+
+  if (query.isLoading) return <Loading />;
+  if (!chat || !query.data) return <ErrorBox error={query.error} title={t('detail.chatFailed')} />;
+
+  const entries = query.data.entries.slice(-RENDERED_ENTRIES);
+  const path = `/chats/${encodeURIComponent(chat.id)}`;
+  return (
+    <div className="detail-scroll" ref={follow.ref} onScroll={follow.onScroll} data-scroll-root>
+      <Facts>
+        <dt>{t('detail.status')}</dt>
+        <dd>
+          <StateBadge state={chat.state} />
+        </dd>
+        {chat.model && (
+          <>
+            <dt>{t('detail.model')}</dt>
+            <dd className="mono">{chat.model}</dd>
+          </>
+        )}
+        <dt>{t('detail.directory')}</dt>
+        <dd className="mono break">{chat.cwd}</dd>
+        {chat.cost.usd !== null && chat.cost.usd > 0 && (
+          <>
+            <dt>{t('detail.cost')}</dt>
+            <dd className="mono">{formatCost(chat.cost.usd)}</dd>
+          </>
+        )}
+        <dt>{t('detail.chat')}</dt>
+        <dd>
+          <Link to={path}>{t('detail.openChat')}</Link>
+        </dd>
+      </Facts>
+      {chat.activity && <ActivityTicker activity={chat.activity} className="detail-ticker" />}
+
+      <section className="detail-section">
+        <h3 className="dialog-section">
+          {t('detail.transcript', { total: query.data.total })} {working && <span className="detail-live">{t('detail.live')}</span>}
+        </h3>
+        {entries.length === 0 ? (
+          <div className="muted small">{t('detail.nothingYet')}</div>
+        ) : (
+          <div className="detail-transcript">
+            {query.data.total > entries.length && (
+              <Link className="btn btn-small" to={path}>
+                {t('detail.earlierInChat', { count: query.data.total - entries.length })}
+              </Link>
+            )}
+            <Transcript entries={entries} />
+          </div>
+        )}
+      </section>
+      <ScrollJump screens={1} label="transcript" />
+    </div>
+  );
+}
+
 // ---------- the panel ----------
+
+function ChatTitle({ chatId }: { chatId: string }) {
+  const { t } = useTranslation('components');
+  const { chat } = useChatTranscript(chatId, false);
+  return <span className="ellipsis">{chat?.title || t('detail.chat')}</span>;
+}
 
 function TaskTitle({ chatId, taskId }: { chatId: string; taskId: string }) {
   const { t } = useTranslation('components');
@@ -301,10 +375,17 @@ function AgentTitle({ target }: { target: AgentTarget }) {
 }
 
 /**
- * The side panel for one subagent, background task or workflow agent. One dialog serves all three,
- * so opening a task from a subagent's list swaps the content instead of stacking a second panel.
+ * The side panel for one chat, subagent, background task or workflow agent. One dialog serves them
+ * all, so opening a task from a subagent's list swaps the content instead of stacking a second panel.
  */
 export default function DetailPanel({ target, onClose }: { target: DetailRef; onClose: () => void }) {
+  if (target.kind === 'chat') {
+    return (
+      <Dialog title={<ChatTitle chatId={target.chatId} />} onClose={onClose} variant="drawer" width={760}>
+        <ChatBody key={target.chatId} chatId={target.chatId} />
+      </Dialog>
+    );
+  }
   return (
     <Dialog title={target.kind === 'task' ? <TaskTitle chatId={target.chatId} taskId={target.taskId} /> : <AgentTitle target={target} />} onClose={onClose} variant="drawer" width={760}>
       {target.kind === 'task' ? (
