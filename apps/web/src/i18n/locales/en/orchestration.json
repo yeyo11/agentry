@@ -44,6 +44,7 @@
     "hintPlaceholder": "One thing it should know or change",
     "sending": "Sending…",
     "sendHint": "Send hint",
+    "work": "Work",
     "sendAHint": "Send a hint",
     "retryTitle": "One more execution of the same chat, in the worktree it left, told what went wrong",
     "retry": "Retry",

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { request } from 'node:http';
@@ -138,6 +138,47 @@ test('resuming an orchestration that does not exist is a 404, not a hang', async
   assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/nope/resume' })).statusCode, 404);
 });
 
+test('re-running and relaunching what does not exist are 404s', async () => {
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/nope/tasks/a/rerun' })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/nope/relaunch', ...json({}) })).statusCode, 404);
+});
+
+test('verification is refused where it could not run, and checking what does not exist is a 404', async () => {
+  const graph = { name: 'checked', cwd: tmpdir(), tasks: [{ id: 'a', name: 'a', prompt: 'do it' }] };
+  const shared = await app.inject({ method: 'POST', url: '/api/orchestrations', ...json({ ...graph, verification: { commands: ['true'], fixer: false, maxAttempts: 1 } }) });
+  assert.equal(shared.statusCode, 400);
+  assert.match(shared.json().error, /worktree per task/);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/nope/verify', ...json({}) })).statusCode, 404);
+});
+
+test('orchestration templates are saved, listed, edited, launched and deleted over the API', async () => {
+  const graph = { name: 'review', objective: 'old', cwd: join(tmpdir()), tasks: [{ id: 'a', name: 'a', prompt: 'do it' }] };
+  assert.deepEqual((await app.inject('/api/orchestrations/templates')).json(), []);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/templates', ...json({ name: 'x' }) })).statusCode, 400);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/templates', ...json({ name: 'bad', spec: { ...graph, tasks: [] } }) })).statusCode, 400);
+
+  const created = await app.inject({ method: 'POST', url: '/api/orchestrations/templates', ...json({ name: 'Review', spec: graph }) });
+  assert.equal(created.statusCode, 201);
+  const template = created.json();
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/templates', ...json({ name: 'review', spec: graph }) })).statusCode, 400);
+  assert.equal((await app.inject(`/api/orchestrations/templates/${template.id}`)).json().name, 'Review');
+  assert.equal((await app.inject('/api/orchestrations/templates/nope')).statusCode, 404);
+
+  const renamed = await app.inject({ method: 'PATCH', url: `/api/orchestrations/templates/${template.id}`, ...json({ name: 'Review v2' }) });
+  assert.equal(renamed.json().name, 'Review v2');
+  assert.equal((await app.inject('/api/orchestrations/templates')).json().length, 1);
+
+  const launched = await app.inject({ method: 'POST', url: `/api/orchestrations/templates/${template.id}/launch`, ...json({ objective: 'new' }) });
+  assert.equal(launched.statusCode, 201);
+  assert.equal(launched.json().objective, 'new');
+  assert.equal(launched.json().templateId, template.id);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations/templates/nope/launch', ...json({}) })).statusCode, 404);
+  core.orchestrator.stop(launched.json().id);
+
+  assert.deepEqual((await app.inject({ method: 'DELETE', url: `/api/orchestrations/templates/${template.id}` })).json(), { ok: true });
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/orchestrations/templates/${template.id}` })).statusCode, 404);
+});
+
 test('planner drafts are listed and fetched by run', async () => {
   assert.deepEqual((await app.inject('/api/orchestrations/plans')).json(), []);
   // No such planner run: a clear 4xx rather than a hang
@@ -221,6 +262,48 @@ test('usage is reported over a range of days and refuses a malformed one', async
   assert.equal(report.total.costUsd, null, 'nothing was spent, so there is no cost to show');
   assert.deepEqual([report.days, report.projects, report.orchestrations], [[], [], []]);
   assert.match((await app.inject('/api/usage?from=yesterday')).json().error, /YYYY-MM-DD/);
+});
+
+test('usage is served as a series and a breakdown over a range, and a bad bucket, day or range is a 400', async () => {
+  const series = (await app.inject('/api/usage/series?bucket=week&from=2026-03-09&to=2026-03-22')).json();
+  assert.equal(series.bucket, 'week');
+  assert.deepEqual(series.points.map((p: { at: string }) => p.at), ['2026-03-09', '2026-03-16'], 'a point per week, empty ones included');
+  assert.equal(series.points[0].costUsd, null);
+  assert.equal((await app.inject('/api/usage/series?from=2026-03-09&to=2026-03-10')).json().bucket, 'day', 'days by default');
+
+  const breakdown = (await app.inject('/api/usage/breakdown?from=2026-03-01&to=2026-03-31')).json();
+  assert.deepEqual([breakdown.byProject, breakdown.byModel], [[], []]);
+
+  assert.match((await app.inject('/api/usage/series?bucket=month')).json().error, /day or week/);
+  assert.equal((await app.inject('/api/usage/series?from=2020-01-01&to=2026-01-01')).statusCode, 400);
+  assert.match((await app.inject('/api/usage/breakdown?to=soon')).json().error, /YYYY-MM-DD/);
+  assert.match((await app.inject('/api/usage/breakdown?from=2026-03-31&to=2026-03-01')).json().error, /must not be after/);
+});
+
+test('a chat is exported as Markdown or JSON, as a download, and an unknown one or format is refused', async () => {
+  const cwd = join(core.config.workspaceDir, 'exported');
+  const dir = join(core.config.projectsDir, cwd.replace(/[^a-zA-Z0-9]/g, '-'));
+  mkdirSync(dir, { recursive: true });
+  const message = (uuid: string, role: 'user' | 'assistant', content: unknown) => JSON.stringify({ type: role, uuid, timestamp: '2026-03-10T10:00:00Z', cwd, sessionId: 'export-1', isSidechain: false, message: { role, content } });
+  writeFileSync(join(dir, 'export-1.jsonl'), `${message('u1', 'user', 'What is 2+2?')}\n${message('a1', 'assistant', [{ type: 'text', text: 'Four.' }])}\n`);
+
+  const md = await app.inject('/api/chats/export-1/export');
+  assert.equal(md.statusCode, 200);
+  assert.match(md.headers['content-type'] as string, /^text\/markdown/);
+  assert.match(md.headers['content-disposition'] as string, /^attachment; filename="[\w-]+\.md"$/);
+  assert.match(md.body, /## User/);
+  assert.match(md.body, /What is 2\+2\?/);
+  assert.match(md.body, /Four\./);
+
+  const exported = await app.inject('/api/chats/export-1/export?format=json');
+  assert.equal(exported.statusCode, 200);
+  assert.match(exported.headers['content-disposition'] as string, /\.json"$/);
+  const body = exported.json();
+  assert.equal(body.chat.id, 'export-1');
+  assert.deepEqual(body.entries.map((e: { uuid: string; role: string }) => [e.uuid, e.role]), [['u1', 'user'], ['a1', 'assistant']]);
+
+  assert.equal((await app.inject('/api/chats/nope/export')).statusCode, 404);
+  assert.match((await app.inject('/api/chats/export-1/export?format=pdf')).json().error, /markdown or json/);
 });
 
 test('a message may carry attachments, and an unknown one fails the request', async () => {
@@ -313,4 +396,15 @@ test('projects are imported by hand, renamed and removed without touching anythi
   assert.deepEqual((await app.inject({ method: 'DELETE', url: `/api/projects/${id}` })).json(), { ok: true });
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/projects/${id}` })).statusCode, 404);
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/projects/${id}/state` })).statusCode, 404);
+});
+
+test('connectors: an unreachable CLI is an error, with the guidance and the limits intact', async () => {
+  const res = await app.inject('/api/connectors?refresh=true');
+  assert.equal(res.statusCode, 200);
+  const overview = res.json();
+  assert.deepEqual(overview.connectors, []);
+  assert.deepEqual(overview.notListed, ['docs', 'gmail', 'calendar']);
+  assert.ok(overview.error);
+  assert.ok(overview.authorisation.steps.length > 0);
+  assert.deepEqual(overview.unavailable.map((l: { id: string }) => l.id), ['web-artifacts', 'claude-ai-memory']);
 });

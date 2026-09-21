@@ -1,16 +1,28 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type {
   Attachment,
+  AccountConfig,
   AccountsOverview,
   AgentTranscript,
   AddAccountTokenRequest,
   ApiError,
+  AuditPage,
+  AuthConfig,
+  AuthMode,
   AuthStatus,
+  AuthTokenResult,
+  SetAuthTokenRequest,
+  UpdateAuthConfigRequest,
   AuthVerification,
   AutoSwitchEvent,
   AutoSwitchSettings,
   AvailablePlugin,
   BackgroundTaskOutput,
+  CancelCommandRequest,
+  CancelCommandResult,
+  ChangeSummary,
+  ChatChanges,
+  Checklist,
   ChatBackgroundTask,
   ChatBackgroundTaskEntry,
   ChatDetail,
@@ -18,6 +30,7 @@ import type {
   ChatOrigin,
   ChatSettingsUpdate,
   ChatState,
+  CliVersionInfo,
   ChatSubagentEntry,
   ChatSummary,
   ChatWorkflowEntry,
@@ -26,8 +39,14 @@ import type {
   ConfigFileNode,
   ConfigFileRoot,
   ConfigFileVariant,
+  ConnectorsOverview,
+  LaunchOrchestrationTemplateRequest,
   CreateProjectRequest,
+  FileDiff,
+  CreateScheduleRequest,
+  ExportFormat,
   ForkChatRequest,
+  HintRequest,
   ImportProjectRequest,
   NewChatRequest,
   EffectiveEnvironment,
@@ -38,20 +57,37 @@ import type {
   McpScope,
   McpServerEntry,
   McpServerHealth,
+  ToolPreset,
   Orchestration,
   OrchestrationSpec,
+  OrchestrationTemplate,
   Overview,
   PermissionDecision,
   PermissionRequest,
   PlanDraftSummary,
   PlanRequest,
+  RelaunchOrchestrationRequest,
   ResumeOrchestrationRequest,
+  RotationPolicy,
+  RotationPolicyRequest,
+  SaveOrchestrationTemplateRequest,
+  UpdateAccountConfigRequest,
+  UpdateOrchestrationTemplateRequest,
+  UsageHistoryPoint,
+  UsageWindowKind,
   PluginActionRequest,
   PluginsOverview,
   Project,
   ProjectCandidate,
   ResourceKind,
   ResumeChatRequest,
+  Schedule,
+  SchedulePreview,
+  ScheduleRun,
+  UpdateScheduleRequest,
+  UsageBreakdown,
+  UsageBucket,
+  UsageSeries,
   SetCredentialsRequest,
   SwitchAccountRequest,
   SwitchResult,
@@ -66,6 +102,7 @@ import type {
   UsageReport,
 } from '@agentry/shared';
 import i18n from './i18n';
+import { authHeaders, setChallenge, withToken } from './lib/auth';
 import { useFallbackInterval } from './lib/feed';
 
 export const BASE = '/api';
@@ -95,7 +132,7 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
   try {
     res = await fetch(`${BASE}${path}`, {
       method: init.method ?? 'GET',
-      headers: hasBody ? { 'content-type': 'application/json' } : undefined,
+      headers: { ...(hasBody ? { 'content-type': 'application/json' } : {}), ...authHeaders() },
       body: hasBody ? JSON.stringify(init.body) : undefined,
       signal: AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS),
     });
@@ -113,7 +150,10 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     // non-JSON body (e.g. proxy error page)
   }
   if (!res.ok) {
-    const err = json as Partial<ApiError> | null;
+    const err = json as (Partial<ApiError> & { mode?: AuthMode }) | null;
+    // The guard refused the credential: every page is about to fail the same way, so the app
+    // shows one sign-in screen instead of an error on each of them
+    if (res.status === 401) setChallenge(err?.mode ?? 'token');
     throw new ApiRequestError(err?.error ?? `HTTP ${res.status} ${res.statusText}`, res.status, err?.detail);
   }
   return json as T;
@@ -125,7 +165,7 @@ export const enc = encodeURIComponent;
 async function uploadFile(file: File): Promise<Attachment> {
   const res = await fetch(`${BASE}/uploads?name=${encodeURIComponent(file.name || 'pasted')}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/octet-stream' },
+    headers: { 'content-type': 'application/octet-stream', ...authHeaders() },
     body: file,
     signal: AbortSignal.timeout(5 * 60_000),
   });
@@ -156,6 +196,8 @@ export const api = {
   setCredentials: (credentials: SetCredentialsRequest) =>
     request<AuthStatus>('/auth/credentials', { method: 'PUT', body: credentials }),
   clearCredentials: () => request<AuthStatus>('/auth/credentials', { method: 'DELETE' }),
+  cliVersion: () => request<CliVersionInfo>('/system/cli-version'),
+  checkCliVersion: () => request<CliVersionInfo>('/system/cli-version/check', { method: 'POST' }),
   verifyAuth: () => request<AuthVerification>('/auth/verify', { method: 'POST' }),
   projects: () => request<Project[]>('/projects'),
   projectCandidates: () => request<ProjectCandidate[]>('/projects/candidates'),
@@ -195,6 +237,23 @@ export const api = {
   answerPermission: (id: string, requestId: string, decision: PermissionDecision) =>
     request<PermissionRequest>(`/chats/${enc(id)}/permissions/${enc(requestId)}`, { method: 'POST', body: decision }),
   usage: (range: { from?: string; to?: string } = {}) => request<UsageReport>(`/usage${qs(range)}`),
+  usageSeries: (range: UsageRange, bucket: UsageBucket) => request<UsageSeries>(`/usage/series${qs({ from: range.from, to: range.to, bucket })}`),
+  usageBreakdown: (range: UsageRange) => request<UsageBreakdown>(`/usage/breakdown${qs({ from: range.from, to: range.to })}`),
+  /**
+   * A link, not a fetch: the route answers with `Content-Disposition: attachment`, so the browser
+   * saves it. A link carries no `Authorization` header, so a guarded wrapper takes the credential
+   * from the query string here, as it does for the streams and an attachment.
+   */
+  chatExportUrl: (id: string, format: ExportFormat) => withToken(`${BASE}/chats/${enc(id)}/export?format=${format}`),
+  schedules: () => request<Schedule[]>('/schedules'),
+  schedulePreview: (cron: string, timezone: string | undefined, count = 5) =>
+    request<SchedulePreview>(`/schedules/preview${qs({ cron, timezone, count: String(count) })}`),
+  createSchedule: (req: CreateScheduleRequest) => request<Schedule>('/schedules', { method: 'POST', body: req }),
+  updateSchedule: (id: string, req: UpdateScheduleRequest) => request<Schedule>(`/schedules/${enc(id)}`, { method: 'PATCH', body: req }),
+  deleteSchedule: (id: string) => request<{ ok: true }>(`/schedules/${enc(id)}`, { method: 'DELETE' }),
+  setScheduleEnabled: (id: string, enabled: boolean) => request<Schedule>(`/schedules/${enc(id)}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' }),
+  runScheduleNow: (id: string) => request<ScheduleRun>(`/schedules/${enc(id)}/run`, { method: 'POST' }),
+  scheduleRuns: (id: string, limit = 50) => request<ScheduleRun[]>(`/schedules/${enc(id)}/runs${qs({ limit: String(limit) })}`),
   environments: (cwd: string) => request<EffectiveEnvironment[]>(`/environments${qs({ cwd })}`),
   memoryProjects: () => request<MemoryProjectSummary[]>('/memory'),
   memoryFiles: (projectId: string) => request<MemoryFile[]>(`/memory/${enc(projectId)}`),
@@ -232,8 +291,34 @@ export const api = {
     request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/retry-clean`, { method: 'POST' }),
   skipOrchestrationTask: (id: string, taskId: string) =>
     request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/skip`, { method: 'POST' }),
+  rerunOrchestrationTask: (id: string, taskId: string) =>
+    request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/rerun`, { method: 'POST' }),
+  relaunchOrchestration: (id: string, req: RelaunchOrchestrationRequest) =>
+    request<Orchestration>(`/orchestrations/${enc(id)}/relaunch`, { method: 'POST', body: req }),
+  orchestrationTemplates: () => request<OrchestrationTemplate[]>('/orchestrations/templates'),
+  saveOrchestrationTemplate: (req: SaveOrchestrationTemplateRequest) =>
+    request<OrchestrationTemplate>('/orchestrations/templates', { method: 'POST', body: req }),
+  updateOrchestrationTemplate: (templateId: string, req: UpdateOrchestrationTemplateRequest) =>
+    request<OrchestrationTemplate>(`/orchestrations/templates/${enc(templateId)}`, { method: 'PATCH', body: req }),
+  deleteOrchestrationTemplate: (templateId: string) =>
+    request<{ ok: true }>(`/orchestrations/templates/${enc(templateId)}`, { method: 'DELETE' }),
+  launchOrchestrationTemplate: (templateId: string, req: LaunchOrchestrationTemplateRequest) =>
+    request<Orchestration>(`/orchestrations/templates/${enc(templateId)}/launch`, { method: 'POST', body: req }),
   hintOrchestrationTask: (id: string, taskId: string, req: TaskHintRequest) =>
     request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/hint`, { method: 'POST', body: req }),
+  // What a worker changed on disk, and the plan it kept for itself (see docs: agent observability)
+  taskChanges: (id: string, taskId: string) => request<ChangeSummary>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes`),
+  taskDiff: (id: string, taskId: string, path: string) =>
+    request<FileDiff>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes/diff${qs({ path })}`),
+  taskChecklist: (id: string, taskId: string) => request<Checklist>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/checklist`),
+  integrationChanges: (id: string) => request<ChangeSummary>(`/orchestrations/${enc(id)}/integration/changes`),
+  integrationDiff: (id: string, path: string) => request<FileDiff>(`/orchestrations/${enc(id)}/integration/changes/diff${qs({ path })}`),
+  chatChanges: (id: string) => request<ChatChanges>(`/chats/${enc(id)}/changes`),
+  chatDiff: (id: string, path: string) => request<FileDiff>(`/chats/${enc(id)}/changes/diff${qs({ path })}`),
+  chatChecklist: (id: string) => request<Checklist>(`/chats/${enc(id)}/checklist`),
+  hintChat: (id: string, req: HintRequest) => request<ChatSummary>(`/chats/${enc(id)}/hint`, { method: 'POST', body: req }),
+  cancelCommand: (id: string, toolUseId: string, req: CancelCommandRequest = {}) =>
+    request<CancelCommandResult>(`/chats/${enc(id)}/commands/${enc(toolUseId)}/cancel`, { method: 'POST', body: req }),
   /** The executions of a chat, without the transcript: how each attempt of a task ended. */
   chatExecutions: (id: string) => request<ChatDetail>(`/chats/${enc(id)}?limit=1`).then((detail) => detail.chat.executions),
   deleteOrchestration: (id: string) => request<{ ok: true }>(`/orchestrations/${enc(id)}`, { method: 'DELETE' }),
@@ -270,6 +355,10 @@ export const api = {
     request<{ ok: true }>(`/config/mcp/${enc(name)}${qs({ project: scope.projectId, scope: mcpScope })}`, {
       method: 'DELETE',
     }),
+  toolPresets: () => request<ToolPreset[]>('/config/tool-presets'),
+  putToolPreset: (id: string, preset: Pick<ToolPreset, 'name' | 'description' | 'allowedTools' | 'disallowedTools'>) =>
+    request<ToolPreset>(`/config/tool-presets/${enc(id)}`, { method: 'PUT', body: preset }),
+  deleteToolPreset: (id: string) => request<{ ok: true }>(`/config/tool-presets/${enc(id)}`, { method: 'DELETE' }),
   resources: (scope: Scope, kind: ResourceKind) =>
     request<ConfigResource[]>(`/config/resources/${kind}${scoped(scope)}`),
   resource: (scope: Scope, kind: ResourceKind, name: string) =>
@@ -300,6 +389,26 @@ export const api = {
     request<{ ok: true }>(`/accounts/${number}/alias`, { method: 'PUT', body: { alias } }),
   setAutoSwitch: (body: Partial<AutoSwitchSettings>) =>
     request<AutoSwitchSettings>('/accounts/autoswitch', { method: 'PUT', body }),
+  securityAuth: () => request<AuthConfig>('/security/auth'),
+  updateSecurityAuth: (body: UpdateAuthConfigRequest) => request<AuthConfig>('/security/auth', { method: 'PUT', body }),
+  /** The only answer that ever carries the token; it cannot be read back afterwards. */
+  setSecurityToken: (body: SetAuthTokenRequest = {}) => request<AuthTokenResult>('/security/token', { method: 'POST', body }),
+  clearSecurityToken: () => request<AuthConfig>('/security/token', { method: 'DELETE' }),
+  audit: (page: { limit?: number; from?: number; path?: string } = {}) =>
+    request<AuditPage>(`/audit${qs({ limit: num(page.limit), from: num(page.from), path: page.path })}`),
+  setAccountConfig: (number: number, body: UpdateAccountConfigRequest) =>
+    request<AccountConfig>(`/accounts/${number}/config`, { method: 'PUT', body }),
+  accountPolicies: () => request<RotationPolicy[]>('/accounts/policies'),
+  createAccountPolicy: (body: RotationPolicyRequest) => request<RotationPolicy>('/accounts/policies', { method: 'POST', body }),
+  updateAccountPolicy: (id: string, body: RotationPolicyRequest) =>
+    request<RotationPolicy>(`/accounts/policies/${enc(id)}`, { method: 'PUT', body }),
+  deleteAccountPolicy: (id: string) => request<{ ok: true }>(`/accounts/policies/${enc(id)}`, { method: 'DELETE' }),
+  accountUsageHistory: (query: { account?: number; window?: UsageWindowKind; since?: string; limit?: number } = {}) =>
+    request<UsageHistoryPoint[]>(
+      `/accounts/usage${qs({ account: num(query.account), window: query.window, since: query.since, limit: num(query.limit) })}`,
+    ),
+  /** `refresh` asks the CLI again instead of reading the 60 seconds it keeps the answer for */
+  connectors: (refresh = false) => request<ConnectorsOverview>(`/connectors${qs({ refresh: refresh ? 'true' : '' })}`, { timeoutMs: 100_000 }),
   plugins: () => request<PluginsOverview>('/plugins'),
   availablePlugins: (q: string) => request<AvailablePlugin[]>(`/plugins/available${qs({ q })}`),
   pluginAction: (action: 'install' | 'uninstall' | 'enable' | 'disable', req: PluginActionRequest) =>
@@ -318,6 +427,7 @@ export const api = {
 export const keys = {
   overview: ['overview'] as const,
   auth: ['auth'] as const,
+  cliVersion: ['cli-version'] as const,
   projects: ['projects'] as const,
   projectCandidates: ['projects', 'candidates'] as const,
   // Prefixes the event feed invalidates: every list and every open chat sits under them
@@ -327,6 +437,11 @@ export const keys = {
   chatScope: (id: string) => ['chat', id] as const,
   chat: (id: string, sidechains: boolean) => ['chat', id, sidechains] as const,
   usage: (range: { from?: string; to?: string }) => ['usage', range.from ?? '', range.to ?? ''] as const,
+  usageSeries: (range: UsageRange, bucket: UsageBucket) => ['usage', 'series', range.from ?? '', range.to ?? '', bucket] as const,
+  usageBreakdown: (range: UsageRange) => ['usage', 'breakdown', range.from ?? '', range.to ?? ''] as const,
+  schedules: ['schedules'] as const,
+  schedulePreview: (cron: string, timezone: string | undefined) => ['schedules', 'preview', cron, timezone ?? ''] as const,
+  scheduleRuns: (id: string) => ['schedules', 'runs', id] as const,
   tasks: ['tasks'] as const,
   subagents: ['subagents'] as const,
   workflows: ['workflows'] as const,
@@ -347,6 +462,7 @@ export const keys = {
   instructions: (scope: Scope, variant: ConfigFileVariant) =>
     ['config', 'instructions', scope.projectId ?? 'user', variant] as const,
   mcp: (scope: Scope) => ['config', 'mcp', scope.projectId ?? 'user'] as const,
+  toolPresets: ['config', 'tool-presets'] as const,
   resources: (scope: Scope, kind: ResourceKind) => ['config', 'resources', scope.projectId ?? 'user', kind] as const,
   fileRoots: ['config', 'files', 'roots'] as const,
   fileTree: (root: string) => ['config', 'files', 'tree', root] as const,
@@ -356,7 +472,12 @@ export const keys = {
   memoryFiles: (projectId: string) => ['memory', projectId] as const,
   accounts: ['accounts'] as const,
   accountEvents: ['accounts', 'events'] as const,
+  accountUsage: (account: number | 'all', window: UsageWindowKind, since: string) => ['accounts', 'usage', account, window, since] as const,
+  orchestrationTemplates: ['orchestrations', 'templates'] as const,
+  connectors: ['connectors'] as const,
   plugins: ['plugins'] as const,
+  securityAuth: ['security', 'auth'] as const,
+  audit: (page: { from?: number; path?: string }) => ['security', 'audit', page.from ?? 0, page.path ?? ''] as const,
   availablePlugins: (q: string) => ['plugins', 'available', q] as const,
   pluginDetails: (plugin: string) => ['plugins', 'details', plugin] as const,
 };
@@ -394,6 +515,27 @@ export const useChats = (filter: ChatFilter = {}) => {
 /** What the chats spent over a range of days (`YYYY-MM-DD`, inclusive), or ever. */
 export const useUsage = (range: { from?: string; to?: string } = {}) =>
   useQuery({ queryKey: keys.usage(range), queryFn: () => api.usage(range), refetchInterval: useFallbackInterval() });
+
+export interface UsageRange {
+  from?: string;
+  to?: string;
+}
+
+// The previous range stays on screen while the next one loads, so picking a range does not blank the page
+export const useUsageSeries = (range: UsageRange, bucket: UsageBucket) =>
+  useQuery({ queryKey: keys.usageSeries(range, bucket), queryFn: () => api.usageSeries(range, bucket), refetchInterval: useFallbackInterval(), placeholderData: keepPreviousData });
+
+export const useUsageBreakdown = (range: UsageRange) =>
+  useQuery({ queryKey: keys.usageBreakdown(range), queryFn: () => api.usageBreakdown(range), refetchInterval: useFallbackInterval(), placeholderData: keepPreviousData });
+
+/**
+ * The schedule list. A fire launches a chat, which the event feed reports as `run.created`, but a
+ * schedule has no event of its own, so `nextRunAt` and `lastRunAt` would go stale without this.
+ */
+export const useSchedules = () => useQuery({ queryKey: keys.schedules, queryFn: api.schedules, refetchInterval: 30_000 });
+
+export const useScheduleRuns = (id: string, enabled: boolean) =>
+  useQuery({ queryKey: keys.scheduleRuns(id), queryFn: () => api.scheduleRuns(id), enabled, refetchInterval: enabled ? 30_000 : false });
 
 /** Usage refreshes on claude-swap's own cadence; polling faster would only re-read its cache. */
 export const useAccounts = () =>

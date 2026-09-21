@@ -24,11 +24,14 @@ export const TAGS = [
   { name: 'Events', description: 'One Server-Sent Events stream announcing every change, so clients do not have to poll.' },
   { name: 'Chats', description: 'Claude Code conversations, one per session id: resumed in place, forked into copies, each with the executions Agentry ran on it.' },
   { name: 'Orchestration', description: 'A DAG of tasks, each executed by its own Claude worker.' },
+  { name: 'Schedules', description: 'Cron-like recurring chats and orchestrations, with the history of what each run produced. A slot missed while Agentry was down is skipped, never replayed.' },
   { name: 'Configuration', description: 'Settings, instructions, MCP servers and markdown resources, per user or per project (`?project=`).' },
   { name: 'Config files', description: "Generic editor confined to a scope's Claude dir; secrets and runtime state are refused." },
   { name: 'Memory', description: "Claude Code's per-project file memory." },
   { name: 'Plugins', description: 'Delegated to `claude plugin`; actions return the CLI output.' },
+  { name: 'Connectors', description: 'The claude.ai connectors (Docs, Gmail, Calendar) as the CLI reports them. Read-only: Agentry cannot authorise one.' },
   { name: 'Uploads', description: 'Files to attach to a message. Images and PDFs reach Claude as content blocks, any other file by its path.' },
+  { name: 'Security', description: 'Who may call this API, whether it accepts changes, and the trail every change leaves.' },
 ];
 
 interface RouteDoc {
@@ -52,6 +55,8 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   // ---- System
   'GET /health': d('System', 'Liveness and readiness', { ok: obj({ ok: { type: 'boolean' }, cli: { type: 'boolean' }, loggedIn: { type: 'boolean' } }) }),
   'GET /system': d('System', 'CLI installation, auth status and paths', { querystring: obj({ refresh: str('`1` bypasses the 30s cache') }), ok: ref('SystemInfo') }),
+  'GET /system/cli-version': d('System', 'Claude Code version in use and the newest published', { description: 'What the last check learned; it never reads the registry itself. `checkedAt` says how old the answer is.', ok: ref('CliVersionInfo') }),
+  'POST /system/cli-version/check': d('System', 'Check for a newer Claude Code now', { description: 'Reads the npm registry metadata of `@anthropic-ai/claude-code`. The server also does it once a day unless `AGENTRY_CLI_UPDATE_CHECK=off`. A failure keeps the previous answer and reports `error`.', ok: ref('CliVersionInfo') }),
   'GET /overview': d('System', 'Everything the dashboard needs in one call', { ok: ref('Overview') }),
 
   // ---- Account
@@ -68,6 +73,12 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /accounts/:number/enable': d('Accounts', 'Return an account to the rotation', { ok: OK }),
   'POST /accounts/:number/disable': d('Accounts', 'Hold an account out of the rotation', { ok: OK }),
   'PUT /accounts/:number/alias': d('Accounts', 'Set or clear the account alias', { body: ref('SetAccountAliasRequest'), ok: OK }),
+  'PUT /accounts/:number/config': d('Accounts', 'Give an account its own config directory, or take it back', { description: 'Sets `CLAUDE_CONFIG_DIR` for every process started for the account; `null` goes back to sharing the wrapper\'s. Nothing is moved or copied: the directory is created empty and `projects/` (plus, with `shareSettings`, the shared settings) is symlinked into it. Clearing it removes only the symlinks Agentry made. A chat on such an account runs `claude` directly against the directory, so the login is whatever it holds.', body: ref('UpdateAccountConfigRequest'), ok: ref('AccountConfig') }),
+  'GET /accounts/policies': d('Accounts', 'Per-project rotation policies', { description: 'A project with no policy keeps the global auto-switch.', ok: list('RotationPolicy') }),
+  'POST /accounts/policies': d('Accounts', 'Create a rotation policy', { description: 'Which accounts the chats of some projects may use, in which order, and the usage threshold past which the next one is taken. A project is governed by at most one policy.', body: ref('RotationPolicyRequest'), ok: ref('RotationPolicy'), created: true }),
+  'PUT /accounts/policies/:id': d('Accounts', 'Replace a rotation policy', { body: ref('RotationPolicyRequest'), ok: ref('RotationPolicy') }),
+  'DELETE /accounts/policies/:id': d('Accounts', 'Delete a rotation policy', { ok: OK }),
+  'GET /accounts/usage': d('Accounts', 'Usage history per account', { description: 'Readings of the 5h and 7d windows as claude-swap reported them, kept as rows, oldest first: one series per account and window.', querystring: obj({ account: str('Slot number'), window: str('`5h` or `7d`'), since: str('ISO-8601 lower bound'), until: str('ISO-8601 upper bound'), limit: str('Max readings (default 5000, keeps the newest)') }), ok: list('UsageHistoryPoint') }),
   'GET /accounts/events': d('Accounts', 'Rotation history', { description: 'Every poll, switch and failure claude-swap reported, persisted across restarts. `GET /accounts` carries only the last 200.', querystring: obj({ limit: str('Max events to return (default 200, max 5000)'), since: str('ISO-8601 timestamp; only newer events are returned') }), ok: list('AutoSwitchEvent') }),
   'GET /accounts/autoswitch': d('Accounts', 'Auto-rotation settings', { ok: ref('AutoSwitchSettings') }),
   'PUT /accounts/autoswitch': d('Accounts', 'Change the auto-rotation settings', { description: 'Enabling it supervises a `cswap auto --json` process that rotates before the active account reaches `threshold`. `rotateOnLimit` also rotates and resumes a run that died against its limit.', body: ref('AutoSwitchSettings'), ok: ref('AutoSwitchSettings') }),
@@ -109,6 +120,24 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
     querystring: obj({ from: str('First day, `YYYY-MM-DD` (inclusive)'), to: str('Last day, `YYYY-MM-DD` (inclusive)') }),
     ok: ref('UsageReport'),
   }),
+  'GET /usage/series': d('Chats', 'Cost and tokens over time, by day or by week', {
+    description:
+      'One point per bucket from `from` to `to`, empty buckets included so a chart has no gaps; without a range it spans the days that have something, up to today. A week starts on Monday and is named by that day. Days are cut by the range before they are bucketed, so the first week of a range that starts mid-week holds only the days asked for. `costUsd` is what the CLI reported and is `null` for a bucket where no chat reported one: nothing is estimated from token counts. At most 1000 points.',
+    querystring: obj({ bucket: str('Width of a point', { enum: ['day', 'week'] }), from: str('First day, `YYYY-MM-DD` (inclusive)'), to: str('Last day, `YYYY-MM-DD` (inclusive)') }),
+    ok: ref('UsageSeries'),
+  }),
+  'GET /usage/breakdown': d('Chats', 'What the chats spent, per project and per model', {
+    description:
+      'The same range cut two ways, most spent first. Tokens come from the transcripts and cover every chat. The cost per model is the CLI\'s own (`modelUsage[model].costUSD` of each result); an execution recorded before Agentry kept that split is put on the model it ran. `costUsd` is `null` for a slice no chat reported a cost for. Chats under no project are the slice `loose`; messages that named no model are the slice `unknown`.',
+    querystring: obj({ from: str('First day, `YYYY-MM-DD` (inclusive)'), to: str('Last day, `YYYY-MM-DD` (inclusive)') }),
+    ok: ref('UsageBreakdown'),
+  }),
+  'GET /chats/:id/export': d('Chats', 'Export a chat\'s transcript as Markdown or JSON', {
+    description:
+      'A download. `markdown` (default) is for a person: a header with the project, models, cost as the CLI reported it and tokens, then the turns, each tool call folded into a `<details>` block with its result (results over 4000 characters are cut) and subagent messages left out. `json` is a `ChatExport`: the chat and every transcript entry in order, subagents included, nothing cut.',
+    querystring: obj({ format: str('Output format', { enum: ['markdown', 'json'] }) }),
+    ok: ref('ChatExport'),
+  }),
   'POST /chats': d('Chats', 'Start a chat', { description: 'Spawns `claude -p` with stream-json I/O under a session id Agentry chooses. With `keepAlive` (default) the process stays up for follow-up turns.', body: ref('NewChatRequest'), ok: ref('ChatSummary'), created: true }),
   'GET /chats/:id': d('Chats', 'A chat and a window of its transcript', {
     description:
@@ -117,6 +146,19 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
     ok: ref('ChatDetail'),
   }),
   'GET /chats/:id/search': d('Chats', 'Search the whole transcript', { description: 'Case-insensitive plain-text match over what the transcript view shows of each entry: text, thinking, tool names and inputs, tool results. Any run of whitespace in `q` matches any run in the text. One hit per matching entry, `index` in the same space as a page\'s `from` and `total`, so a hit on a page not loaded yet is reached by reading back to it. At most 500 hits, the newest; `truncated` says older ones were left out.', querystring: obj({ q: str('Text to find (required, up to 200 characters)'), sidechains: str('`1` includes subagent messages, as the page read with it does') }, ['q']), ok: ref('TranscriptSearchResult') }),
+  'GET /chats/:id/changes': d('Chats', 'What a chat changed on disk', {
+    description: 'For a chat in a git worktree, the branch, its base, the commits and the files it changed against that base, and what it has not committed yet. Any chat also gets the files its `Write`/`Edit`/`NotebookEdit` calls touched, read from the transcript, so a chat outside git still answers. A worker of an orchestration is measured from where its own branch was cut.',
+    ok: ref('ChatChanges'),
+  }),
+  'GET /chats/:id/changes/diff': d('Chats', 'The diff of one file of a chat in a worktree', {
+    description: "Everything the branch did to the file since its base, committed or not. A file created and not yet added shows as all new. Refused for a chat with no worktree of its own.",
+    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    ok: ref('FileDiff'),
+  }),
+  'GET /chats/:id/checklist': d('Chats', "The chat's own checklist", {
+    description: 'The plan the agent kept with its `TaskCreate`/`TaskUpdate` or `TodoWrite` calls, as of its last update. Empty for one that never planned.',
+    ok: ref('Checklist'),
+  }),
   'GET /chats/:id/stream': d('Chats', 'Live event stream (Server-Sent Events)', {
     description:
       'Replays buffered events with `seq > since` (or `Last-Event-ID`), then streams live ones. Each message is `data: <RunEvent JSON>`. Ephemeral `partial` events carry the text generated so far (token streaming); they have no SSE id and are never replayed. Only a chat Agentry has driven has a stream; to follow one, take the last event\'s `seq` from the page you hold and pass it as `since`.',
@@ -129,6 +171,8 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /chats/:id/messages': d('Chats', 'Send another turn', { description: 'To a chat with a live execution. `attachments` are upload ids from `POST /uploads`; with attachments the text may be empty. A chat without one is refused with 409: resume it.', body: ref('ChatMessageRequest'), ok: ref('ChatSummary') }),
   'POST /chats/:id/stop': d('Chats', 'Stop what is working on the chat', { description: 'The execution Agentry runs, or for a background session the CLI itself holds, `claude stop`, so no pid is signalled directly. The conversation is kept and can be resumed.', ok: ref('ChatSummary') }),
   'POST /chats/:id/interrupt': d('Chats', 'Interrupt the current turn', { description: 'Ends the turn in progress and keeps the process, which waits for the next message. Any prompt the chat was holding is withdrawn.', ok: ref('ChatSummary') }),
+  'POST /chats/:id/hint': d('Chats', 'Send a hint to a chat that is working', { description: 'A nudge: the text reaches the worker as its next user message. For a chat whose process is up; one with none is refused with 409, and a message resumes it. The suggested text for each signal of the chat\'s health is on the signal (`hint`).', body: ref('HintRequest'), ok: ref('ChatSummary') }),
+  'POST /chats/:id/commands/:toolUseId/cancel': d('Chats', 'Cancel one command without ending the turn', { description: 'Kills the process tree of one shell command the chat is running, found under the CLI process by the tree and by when each process started, never by matching a command line. The CLI hands the worker a failed result for that call and the turn goes on; the worker is told a person did it. Refused with 409 when the call is not a command that is running, or its process cannot be told apart from another. Needs `/proc`, so Linux only. Which call to cancel is on the health signal (`toolUseId`).', body: ref('CancelCommandRequest'), ok: ref('CancelCommandResult') }),
   'PATCH /chats/:id': d('Chats', 'Change the permission mode or the model', { description: 'A live process switches at once; a chat whose process has exited gets the new settings when the next execution starts.', body: ref('ChatSettingsUpdate'), ok: ref('ChatSummary') }),
   'DELETE /chats/:id': d('Chats', 'Delete a chat', { description: 'Its transcript, its sidecar files and Agentry\'s record of it. Refused with 409 while something is running on it.', ok: OK }),
   'GET /chats/:id/logs': d('Chats', "A background session's recent terminal output", { description: 'From `claude logs`: the process output, which the transcripts do not contain.', ok: obj({ logs: str('Raw terminal output') }) }),
@@ -149,21 +193,51 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
 
   // ---- Orchestration
   'GET /orchestrations': d('Orchestration', 'List orchestrations', { ok: list('Orchestration') }),
-  'POST /orchestrations': d('Orchestration', 'Launch an orchestration', { description: 'Independent tasks run in parallel up to `concurrency`; results of dependencies are passed to dependent tasks; `synthesize` adds a final report worker. Task ids must be unique and the graph acyclic.', body: ref('OrchestrationSpec'), ok: ref('Orchestration'), created: true }),
+  'POST /orchestrations': d('Orchestration', 'Launch an orchestration', { description: 'Independent tasks run in parallel up to `concurrency`; results of dependencies are passed to dependent tasks; `synthesize` adds a final report worker. Task ids must be unique and the graph acyclic. `limits` (on the graph, as the default, and on each task) cap what a worker may spend: `maxCostUsd` is passed to the CLI as `--max-budget-usd`, and `maxMinutes` is enforced by Agentry, which tells the worker to wrap up at 80% and stops the task at the limit, failing it with the reason.', body: ref('OrchestrationSpec'), ok: ref('Orchestration'), created: true }),
   'POST /orchestrations/plan': d('Orchestration', 'Draft a task graph from an objective', { description: 'Runs a planner agent with structured output; can take a couple of minutes. The draft is not launched.', body: ref('PlanRequest'), ok: ref('OrchestrationSpec') }),
   'POST /orchestrations/plan/start': d('Orchestration', 'Start the planner without waiting', { description: 'Returns the planner chat immediately; stream it at `/chats/:id/stream` and fetch the draft from `/orchestrations/plans/:runId` (the id of the planner chat) when it finishes. Preferred over `POST /orchestrations/plan`, which holds the request open for the whole run.', body: ref('PlanRequest'), ok: ref('ChatSummary'), created: true }),
   'GET /orchestrations/plans': d('Orchestration', 'Plans generated but not yet launched', { description: 'Recorded when a planner run finishes, so a draft survives a lost response or a reload.', querystring: obj({ limit: str('Max drafts to return (default 20, max 100)') }), ok: list('PlanDraftSummary') }),
   'GET /orchestrations/plans/:runId': d('Orchestration', 'The draft a planner run produced', { ok: ref('OrchestrationSpec') }),
-  'GET /orchestrations/:id': d('Orchestration', 'State of every task, results and cost', { ok: ref('Orchestration') }),
+  'GET /orchestrations/:id': d('Orchestration', 'State of every task, results and cost', { description: 'A task that is running carries its `health`, worked out when it is read: the same signals as a chat\'s, with the call to cancel and a suggested hint on each. The list carries it too.', ok: ref('Orchestration') }),
   'POST /orchestrations/:id/resume': d('Orchestration', 'Resume a stopped orchestration', { description: 'Runs again every task that did not complete and keeps the results of those that did; a task that already has a chat continues it, in a new execution. The body can correct the settings that stopped it — worktrees, where permission prompts go, allowed tools, permission mode — so a graph started with the wrong ones is picked up instead of rebuilt.', body: ref('ResumeOrchestrationRequest'), ok: ref('Orchestration') }),
   'POST /orchestrations/:id/tasks/:taskId/retry': d('Orchestration', 'Run a failed task again in its own chat', { description: 'Only a task that failed for good (its attempts ran out, or it failed in a way that is never retried automatically). A new execution of the same chat, in the worktree it left, told what went wrong; the tasks blocked behind it go back to waiting for their turn. One more execution, however many attempts the graph allows: if it fails again the task is left for a decision again.', ok: ref('Orchestration') }),
   'POST /orchestrations/:id/tasks/:taskId/retry-clean': d('Orchestration', 'Start a failed task over', { description: 'A new chat, in a worktree rebuilt from the base commit: the failed chat stays listed as what was tried, and its worktree and branch are removed, uncommitted work included.', ok: ref('Orchestration') }),
+  'POST /orchestrations/:id/tasks/:taskId/rerun': d('Orchestration', 'Run a task of a finished graph again', { description: 'For a graph that completed, failed or was stopped: the task and every task that depends on it start over, each in a new chat and a worktree rebuilt from what it now depends on, and the graph integrates and synthesises again. The integration branch is rebuilt from the base. Tasks that do not depend on it keep their work. Refused while the graph runs or waits for a decision (use retry or skip there), for a workflow, while any affected task has a process, and once the integration branch was pushed for a pull request.', ok: ref('Orchestration') }),
+  'POST /orchestrations/:id/relaunch': d('Orchestration', 'Relaunch a graph with corrections as a new orchestration', { description: 'Starts from what the graph ran with. `spec` overrides its settings (name, objective, model, concurrency, worktrees…), and `tasks` replaces the whole task list: merging two graphs by task id is not attempted. The new orchestration records the original in `relaunchedFrom`; the original is left as it was. Refused while the original runs.', body: ref('RelaunchOrchestrationRequest'), ok: ref('Orchestration'), created: true }),
+  'GET /orchestrations/templates': d('Orchestration', 'List orchestration templates', { description: 'Saved graphs, by name. Stored as a JSON file in the data directory.', ok: list('OrchestrationTemplate') }),
+  'POST /orchestrations/templates': d('Orchestration', 'Save a graph as a template', { description: 'Give the graph as `spec` (a draft plan, say) or as `fromOrchestration`, the id of an orchestration to take it from. The task graph is validated as for a launch; names are unique.', body: ref('SaveOrchestrationTemplateRequest'), ok: ref('OrchestrationTemplate'), created: true }),
+  'GET /orchestrations/templates/:templateId': d('Orchestration', 'One orchestration template', { ok: ref('OrchestrationTemplate') }),
+  'PATCH /orchestrations/templates/:templateId': d('Orchestration', 'Edit an orchestration template', { description: 'Rename it, change its description or replace its spec.', body: ref('UpdateOrchestrationTemplateRequest'), ok: ref('OrchestrationTemplate') }),
+  'DELETE /orchestrations/templates/:templateId': d('Orchestration', 'Delete an orchestration template', { description: 'Orchestrations launched from it are not affected.', ok: OK }),
+  'POST /orchestrations/templates/:templateId/launch': d('Orchestration', 'Launch an orchestration template', { description: "Launches the template's graph with a new `objective`, `cwd`, `name` or `model`; what is given applies to this run only, and the template is not changed. The orchestration records the template in `templateId`.", body: ref('LaunchOrchestrationTemplateRequest'), ok: ref('Orchestration'), created: true }),
   'POST /orchestrations/:id/tasks/:taskId/skip': d('Orchestration', 'Give a branch up', { description: 'Skips a failed or blocked task and every task that depends on it, so the graph can finish without them. Nothing is deleted. A graph waiting on nothing else then integrates and synthesises.', ok: ref('Orchestration') }),
   'POST /orchestrations/:id/tasks/:taskId/hint': d('Orchestration', 'Send a hint to a running worker', { description: 'A nudge for a worker whose task is still running, delivered as a message to its chat. Refused for a task that finished: its result already fed the tasks that depend on it, and its way forward is a fork of its chat.', body: ref('TaskHintRequest'), ok: ref('Orchestration') }),
+  'GET /orchestrations/:id/tasks/:taskId/changes': d('Orchestration', 'What a task changed on disk', {
+    description: "The task's branch, the commit it started from (its dependencies' work is not counted as its own), the commits and the files it changed since, and what it has not committed yet. Refused for a graph without worktrees. A task that has not started has an empty summary. Announced by a `changes.updated` event while the worker runs.",
+    ok: ref('ChangeSummary'),
+  }),
+  'GET /orchestrations/:id/tasks/:taskId/changes/diff': d('Orchestration', 'The diff of one file of a task', {
+    description: 'Everything the task did to the file since it started, committed or not. A file created and not yet added shows as all new.',
+    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    ok: ref('FileDiff'),
+  }),
+  'GET /orchestrations/:id/tasks/:taskId/checklist': d('Orchestration', "A task's own checklist", {
+    description: "The plan the worker kept with its `TaskCreate`/`TaskUpdate` or `TodoWrite` calls, read from its chat's transcript, as of its last update. Empty for a worker that never planned or one that has not started.",
+    ok: ref('Checklist'),
+  }),
+  'GET /orchestrations/:id/integration/changes': d('Orchestration', 'What the integration branch changed', {
+    description: "The same summary for the branch that merges every task's work, against the graph's base commit. Empty until the graph starts integrating.",
+    ok: ref('ChangeSummary'),
+  }),
+  'GET /orchestrations/:id/integration/changes/diff': d('Orchestration', 'The diff of one file of the integration branch', {
+    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    ok: ref('FileDiff'),
+  }),
   'DELETE /orchestrations/:id': d('Orchestration', 'Delete an orchestration', { description: 'Refused while it runs. Removes its worktrees and keeps their branches; refused if one holds uncommitted work, so a deletion never takes it.', ok: OK }),
   'POST /orchestrations/:id/integrate': d('Orchestration', 'Integrate the task branches again', { description: "Merges every completed task's branch into the graph's integration branch (`agentry/<name>-<id>`), handing conflicts to an integrator agent. Runs by itself when a worktree graph finishes; this retries it after resolving by hand, or integrates a graph that finished before orchestrations did so. Returns at once; follow `integration.status`.", ok: ref('Orchestration') }),
   'GET /orchestrations/:id/workflow': d('Orchestration', 'The graph as a workflow script', { description: 'The script a graph with `engine: "workflow"` runs: generated from its tasks, dependencies, concurrency and synthesis. For a graph that never ran as a workflow it is generated on the spot.', ok: obj({ path: str('Where the wrapper keeps it'), script: str() }) }),
   'POST /orchestrations/:id/workflow/save': d('Orchestration', 'Save the graph as a project workflow', { description: "Copies the script into the project's `.claude/workflows/`, where the Workflow tool (and `GET /workflows/saved`) can run it by name. Refuses to replace an existing one unless `overwrite`.", body: ref('SaveOrchestrationWorkflowRequest'), ok: ref('WorkflowDefinition'), created: true }),
+  'POST /orchestrations/:id/verify': d('Orchestration', 'Run the graph\'s checks on the integration branch', { description: 'Runs `verification.commands` in order on the merged branch, each under its time limit, and records the outcome on `verification`: `passed`, `fixed` (with the fixer\'s commits) or `failed` (with a report). With a fixer, a failing command goes to an agent whose rules come from Agentry, up to `maxAttempts` times, and every command runs again from the first after a fix. It runs by itself when a worktree graph finishes; this runs it by hand, or again after the branch changed. Give `verification` to check a graph launched without any. Returns at once; follow `verification.status`. Refused while the graph runs or waits, without a merged integration branch, and while the checks already run. Stopping the orchestration stops them.', body: ref('VerifyOrchestrationRequest'), ok: ref('Orchestration') }),
   'POST /orchestrations/:id/pull-request': d('Orchestration', 'Push the integration branch and open a pull request', { description: 'Pushes the integrated branch to `origin` and opens a pull request with `gh`, using the objective and final report as its body. When `gh` is missing or fails, the branch is still pushed and `detail` says why no pull request was opened.', ok: obj({ branch: str(), url: str('Pull request URL, or null when none was opened'), detail: str() }) }),
   'POST /orchestrations/:id/worktrees/prune': d('Orchestration', "Remove the graph's worktrees", { description: 'Branches are always kept, so committed work survives. A worktree with uncommitted changes is left alone and reported unless `force` is set.', body: obj({ force: str('Remove even with uncommitted changes') }), ok: obj({ results: str('One entry per task: removed, and why not when it was kept') }) }),
   'POST /orchestrations/:id/stop': d('Orchestration', 'Stop all workers', { ok: ref('Orchestration') }),
@@ -177,6 +251,9 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /config/mcp/health': d('Configuration', 'Real MCP connection checks', { description: 'Runs `claude mcp list`; takes several seconds. Call on demand.', querystring: scopeQuery(), ok: list('McpServerHealth') }),
   'PUT /config/mcp/:name': d('Configuration', 'Create or replace an MCP server', { description: 'Written through `claude mcp add-json`. `config` is e.g. `{"type":"http","url":"…"}` or `{"command":"npx","args":["-y","pkg"],"env":{}}`.', querystring: scopeQuery(), body: obj({ config: { type: 'object', additionalProperties: true }, scope: ref('McpScope') }, ['config']), ok: ref('McpServerEntry') }),
   'DELETE /config/mcp/:name': d('Configuration', 'Remove an MCP server', { querystring: scopeQuery({ scope: ref('McpScope') }), ok: OK }),
+  'GET /config/tool-presets': d('Configuration', 'Tool presets', { description: 'Named sets of `--allowedTools` / `--disallowedTools`, picked with `toolPreset` when a chat is created, resumed or forked. A fresh install lists the shipped ones (`builtIn`); they are edited like any other.', ok: list('ToolPreset') }),
+  'PUT /config/tool-presets/:id': d('Configuration', 'Create or replace a tool preset', { params: obj({ id: str('Lowercase letters, digits and `-`') }), body: obj({ name: str(), description: str(), allowedTools: { type: 'array', items: str() }, disallowedTools: { type: 'array', items: str() } }, ['name']), ok: ref('ToolPreset') }),
+  'DELETE /config/tool-presets/:id': d('Configuration', 'Delete a tool preset', { description: 'A chat already running with it keeps the tools it was given.', params: obj({ id: str() }), ok: OK }),
   'GET /config/resources/:kind': d('Configuration', 'List resources', { description: 'Saved workflows of the scope only: `GET /workflows/saved` also merges in the user\'s.', params: obj({ kind: KIND }), querystring: scopeQuery(), ok: list('ConfigResource') }),
   'GET /config/resources/:kind/:name': d('Configuration', 'Read a resource', { params: obj({ kind: KIND, name: str() }), querystring: scopeQuery(), ok: ref('ConfigResource') }),
   'PUT /config/resources/:kind/:name': d('Configuration', 'Create or replace a resource', { description: 'Skills are stored as `skills/<name>/SKILL.md`, workflows as the script `workflows/<name>.js` (an existing one keeps its own file, and is named by its `meta.name`), the other kinds as `<kind>/<name>.md`. `format` says which of the two the content is.', params: obj({ kind: KIND, name: str() }), querystring: scopeQuery(), body: obj({ content: str() }, ['content']), ok: ref('ConfigResource') }),
@@ -195,6 +272,9 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'PUT /memory/:project/:name': d('Memory', 'Create or overwrite a memory file', { description: '`name` must end in `.md`.', body: obj({ content: str() }, ['content']), ok: ref('MemoryFile') }),
   'DELETE /memory/:project/:name': d('Memory', 'Delete a memory file', { ok: OK }),
 
+  // ---- Connectors
+  'GET /connectors': d('Connectors', 'claude.ai connectors and their status', { description: 'Read from `claude mcp list` (it connects to every server, so it takes seconds and is cached for a minute). Only servers named `claude.ai …` count as connectors. Each has prepared prompts a client can open a new chat with; the answer also says what a person has to do to authorise one and which claude.ai features (web artifacts, claude.ai memory) have no CLI surface.', querystring: obj({ refresh: str('`true` skips the one-minute cache', { enum: ['true', 'false'] }) }), ok: ref('ConnectorsOverview') }),
+
   // ---- Plugins
   'GET /plugins': d('Plugins', 'Installed plugins and marketplaces', { ok: ref('PluginsOverview') }),
   'GET /plugins/available': d('Plugins', 'Search the marketplaces', { querystring: obj({ q: str('Free-text filter') }), description: 'At most 100 results.', ok: list('AvailablePlugin') }),
@@ -207,10 +287,29 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /plugins/marketplaces/update': d('Plugins', 'Update one or all marketplaces', { body: obj({ name: str('Omit to update all') }), ok: ref('CliTextResult') }),
   'DELETE /plugins/marketplaces/:name': d('Plugins', 'Remove a marketplace', { ok: ref('CliTextResult') }),
 
+  // ---- Security
+  'GET /security/auth': d('Security', 'How the API is guarded', { description: 'The token is never returned: only whether one is set.', ok: ref('AuthConfig') }),
+  'PUT /security/auth': d('Security', 'Change the auth mode or read-only', { description: 'Turning on `token` needs a token already set, and `oidc` an issuer and an audience, so a mode cannot lock everyone out. This route stays reachable in read-only mode: it is the switch.', body: ref('UpdateAuthConfigRequest'), ok: ref('AuthConfig') }),
+  'POST /security/token': d('Security', 'Set or rotate the bearer token', { description: 'Returns the token once and keeps only its SHA-256. Omit `token` to have one generated. Send it as `Authorization: Bearer …`; `GET /events`, `GET /chats/{id}/stream` and `GET /uploads/{id}/content` also accept `?token=`, because a browser cannot set a header on those.', body: ref('SetAuthTokenRequest'), ok: ref('AuthTokenResult') }),
+  'DELETE /security/token': d('Security', 'Remove the bearer token', { description: 'Refused while the mode is `token`.', ok: ref('AuthConfig') }),
+  'GET /audit': d('Security', 'Mutating requests, newest first', { description: 'When, who (token id, OIDC subject, or `local`), method, path, status and a one-line summary built from the route. Bodies are never recorded: they carry prompts and secrets.', querystring: obj({ limit: str('1-500, default 50'), from: str('Offset within the filtered set'), path: str('Matches anywhere in the path') }), ok: ref('AuditPage') }),
+
   // ---- Uploads
   'POST /uploads': d('Uploads', 'Upload a file to attach', { description: 'The request body is the file itself, sent as `application/octet-stream`; `name` is its file name. The type is read from the bytes. Limits: images (PNG, JPEG, GIF, WebP) 5 MB, PDFs 32 MB, anything else 50 MB. Files are kept in the data dir, outside every project, and every run can read them.', querystring: obj({ name: str('File name') }), ok: ref('Attachment'), created: true }),
   'GET /uploads/:id': d('Uploads', "An upload's metadata", { ok: ref('Attachment') }),
   'GET /uploads/:id/content': d('Uploads', 'The uploaded file', { description: 'Images and PDFs are served inline; any other type as a download, never rendered.' }),
+
+  // ---- Schedules
+  'GET /schedules': d('Schedules', 'List schedules', { description: 'Oldest first, each with when it last fired and when it fires next (null while disabled).', ok: list('Schedule') }),
+  'GET /schedules/preview': d('Schedules', 'Say what a cron expression will do', { description: 'Nothing is saved. An invalid expression answers `valid: false` with the field that is wrong, so a form can show it while it is typed.', querystring: obj({ cron: str('Five fields, or `@hourly`, `@daily`, `@weekly`, `@monthly`, `@yearly`'), timezone: str('IANA zone; the server\'s when omitted'), count: { type: 'integer', description: 'How many upcoming fires to list (default 5, at most 20)' } }, ['cron']), ok: ref('SchedulePreview') }),
+  'POST /schedules': d('Schedules', 'Create a schedule', { description: 'The target is a chat (a `NewChatRequest`) or an orchestration (an `OrchestrationSpec`). It starts enabled unless `enabled` is false. The clock starts now: slots before creation are not missed windows.', body: ref('CreateScheduleRequest'), ok: ref('Schedule'), created: true }),
+  'GET /schedules/:id': d('Schedules', 'One schedule', { ok: ref('Schedule') }),
+  'PATCH /schedules/:id': d('Schedules', 'Edit a schedule', { description: 'Changing the expression or the zone, or switching it on, starts its clock afresh: the time it was off is not counted as missed.', body: ref('UpdateScheduleRequest'), ok: ref('Schedule') }),
+  'DELETE /schedules/:id': d('Schedules', 'Delete a schedule and its history', { description: 'Chats and orchestrations it already started are not touched.', ok: OK }),
+  'POST /schedules/:id/enable': d('Schedules', 'Switch a schedule on', { ok: ref('Schedule') }),
+  'POST /schedules/:id/disable': d('Schedules', 'Switch a schedule off', { ok: ref('Schedule') }),
+  'POST /schedules/:id/run': d('Schedules', 'Run a schedule now', { description: 'Starts its target immediately, whatever the timetable says and even while it is disabled. The run is recorded without a slot and does not affect when it fires next. A target that fails to start is a run with status `failed` and its error, not an HTTP error.', ok: ref('ScheduleRun'), created: true }),
+  'GET /schedules/:id/runs': d('Schedules', 'History of a schedule', { description: 'Newest first. `started` carries the chat or orchestration it produced; `failed` the error; `skipped` says that slots passed while Agentry was not running: those are never run late.', querystring: obj({ limit: { type: 'integer', description: 'At most 500, default 50' } }), ok: list('ScheduleRun') }),
 };
 
 /** Builds the Fastify route schema for a documented route; path params are derived from the URL. */

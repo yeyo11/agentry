@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { ConfigFileVariant, InstructionsDoc, SettingsDoc } from '@agentry/shared';
+import { restoreSecrets } from '../security/redact.ts';
 import { instructionsPath, settingsPath, type ConfigScope } from './scope.ts';
 
 export async function readJson(file: string): Promise<Record<string, unknown>> {
@@ -29,7 +30,11 @@ export class SettingsFiles {
     if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
       throw new Error('settings must be a JSON object');
     }
-    await writeAtomic(settingsPath(scope, variant), `${JSON.stringify(settings, null, 2)}\n`);
+    // `env` holds credentials the CLI passes to every process, and the API returns a placeholder
+    // for each one; a write that sends the placeholder back keeps what is on disk.
+    const path = settingsPath(scope, variant);
+    const merged = restoreSecrets(settings as Record<string, unknown>, await readJson(path));
+    await writeAtomic(path, `${JSON.stringify(merged, null, 2)}\n`);
     return this.getSettings(scope, variant);
   }
 

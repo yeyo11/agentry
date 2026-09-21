@@ -1,18 +1,22 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
-import { DEFAULT_ORIGINS } from '@agentry/core';
+import { chatToMarkdown, DEFAULT_ORIGINS, exportFilename } from '@agentry/core';
 import type {
+  CancelCommandRequest,
   ChatMessageRequest,
   ChatOrigin,
   ChatSettingsUpdate,
   ChatState,
+  ExportFormat,
   ForkChatRequest,
+  HintRequest,
   NewChatRequest,
   PermissionDecision,
   PermissionMode,
   ResumeChatRequest,
   RunEvent,
   RunWorkflowRequest,
+  UsageBucket,
 } from '@agentry/shared';
 
 const HEARTBEAT_MS = 15_000;
@@ -45,6 +49,14 @@ function dayOf(value: string | undefined, name: string): string | undefined {
   return value;
 }
 
+/** A day range from `from` and `to`, both optional and both checked. */
+function rangeOf(query: { from?: string; to?: string }): { from?: string; to?: string } {
+  const from = dayOf(query.from, 'from');
+  const to = dayOf(query.to, 'to');
+  if (from && to && from > to) throw new Error('from must not be after to');
+  return { ...(from ? { from } : {}), ...(to ? { to } : {}) };
+}
+
 export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   const { chats } = core;
 
@@ -59,10 +71,24 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     });
   });
 
-  app.get<{ Querystring: { from?: string; to?: string } }>('/usage', (req) => {
-    const from = dayOf(req.query.from, 'from');
-    const to = dayOf(req.query.to, 'to');
-    return chats.usage({ ...(from ? { from } : {}), ...(to ? { to } : {}) });
+  app.get<{ Querystring: { from?: string; to?: string } }>('/usage', (req) => chats.usage(rangeOf(req.query)));
+
+  app.get<{ Querystring: { bucket?: string; from?: string; to?: string } }>('/usage/series', (req) => {
+    const bucket = req.query.bucket ?? 'day';
+    if (bucket !== 'day' && bucket !== 'week') throw new Error('bucket must be day or week');
+    return chats.usageSeries(bucket satisfies UsageBucket, rangeOf(req.query));
+  });
+
+  app.get<{ Querystring: { from?: string; to?: string } }>('/usage/breakdown', (req) => chats.usageBreakdown(rangeOf(req.query)));
+
+  app.get<{ Params: { id: string }; Querystring: { format?: string } }>('/chats/:id/export', async (req, reply) => {
+    const format = req.query.format ?? 'markdown';
+    if (format !== 'markdown' && format !== 'json') throw new Error('format must be markdown or json');
+    const exported = await chats.export(req.params.id);
+    const kind: ExportFormat = format;
+    void reply.header('content-disposition', `attachment; filename="${exportFilename(exported.chat, kind)}"`);
+    if (kind === 'json') return exported;
+    return reply.type('text/markdown; charset=utf-8').send(chatToMarkdown(exported.chat, exported.entries));
   });
 
   app.post<{ Body: NewChatRequest }>('/chats', async (req, reply) => reply.status(201).send(await chats.create(req.body ?? ({} as NewChatRequest))));
@@ -74,6 +100,16 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
       ...(req.query.before !== undefined ? { before: Number(req.query.before) } : {}),
     }),
   );
+
+  // What the chat changed on disk: a worktree's git changes, and the files its own tool calls wrote
+  app.get<{ Params: { id: string } }>('/chats/:id/changes', (req) => core.changes.chatChanges(req.params.id));
+
+  app.get<{ Params: { id: string }; Querystring: { path?: string } }>('/chats/:id/changes/diff', (req) => {
+    if (!req.query.path) throw new Error('path is required');
+    return core.changes.chatDiff(req.params.id, req.query.path);
+  });
+
+  app.get<{ Params: { id: string } }>('/chats/:id/checklist', (req) => core.changes.chatChecklist(req.params.id));
 
   app.get<{ Params: { id: string }; Querystring: { q?: string; sidechains?: string } }>('/chats/:id/search', (req) =>
     chats.search(req.params.id, req.query.q ?? '', { includeSidechains: req.query.sidechains === '1' }),
@@ -95,6 +131,12 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
   app.post<{ Params: { id: string } }>('/chats/:id/stop', (req) => chats.stop(req.params.id));
 
   app.post<{ Params: { id: string } }>('/chats/:id/interrupt', (req) => chats.interrupt(req.params.id));
+
+  app.post<{ Params: { id: string }; Body: HintRequest }>('/chats/:id/hint', (req) => chats.hint(req.params.id, req.body ?? ({} as HintRequest)));
+
+  app.post<{ Params: { id: string; toolUseId: string }; Body: CancelCommandRequest }>('/chats/:id/commands/:toolUseId/cancel', (req) =>
+    chats.cancelCommand(req.params.id, req.params.toolUseId, req.body ?? {}),
+  );
 
   app.patch<{ Params: { id: string }; Body: ChatSettingsUpdate }>('/chats/:id', (req) => {
     const { permissionMode, model } = req.body ?? {};

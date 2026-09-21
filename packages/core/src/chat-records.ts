@@ -1,5 +1,5 @@
-import type { ChatFork, ChatOrigin, Execution, PermissionMode } from '@agentry/shared';
-import { executionOutcome } from './chat-model.ts';
+import type { ChatFork, ChatOrigin, ChatToolConfig, Execution, PermissionMode } from '@agentry/shared';
+import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import { emptyTokenUsage } from './usage.ts';
 
 /**
@@ -28,6 +28,8 @@ export interface ChatRecord {
   account: string | null;
   /** Where permissions, questions and plans go, kept so a resumed execution asks the same way */
   permissionPrompts: 'host' | 'none';
+  /** The tool preset and MCP servers it was started with; a process that resumes it is given them again */
+  tools?: ChatToolConfig | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -102,7 +104,7 @@ export function chatsFromRuns(runs: readonly LegacyRun[]): ConvertedRuns {
         startedAt: run.createdAt,
         endedAt: run.endedAt ?? run.updatedAt,
         outcome,
-        error: run.error,
+        error: run.error ?? (outcome === 'interrupted' ? INTERRUPTED_BY_RESTART : null),
         permissionMode: run.permissionMode,
         model: run.model,
         account: run.account,

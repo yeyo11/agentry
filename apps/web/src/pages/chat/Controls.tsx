@@ -2,6 +2,7 @@ import type { Chat, PermissionMode } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ChatToolsPicker } from '../../components/ChatToolsPicker';
 import { Combobox, Select } from '../../components/controls';
 import { ErrorBox, MODEL_OPTIONS, PERMISSION_MODES } from '../../components/ui';
 import { api, keys } from '../../api';
@@ -87,6 +88,7 @@ export function StartOptions({ chat, value, onChange }: { chat: Chat; value: Sta
           options={MODEL_OPTIONS}
         />
       </label>
+      <ChatToolsPicker value={value} onChange={(tools) => onChange({ ...value, ...tools })} scope={{ projectId: chat.project?.id }} current={chat.tools ?? null} />
     </div>
   );
 }

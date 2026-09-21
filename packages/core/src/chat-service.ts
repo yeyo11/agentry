@@ -1,9 +1,13 @@
+import { resolve } from 'node:path';
 import {
   entrySearchText,
   searchPattern,
   TranscriptSearch,
+  TRANSCRIPT_PAGE_MAX,
   type AgentTranscript,
   type BackgroundTaskOutput,
+  type CancelCommandRequest,
+  type CancelCommandResult,
   type Chat,
   type ChatBackgroundTaskEntry,
   type ChatControl,
@@ -19,19 +23,27 @@ import {
   type ChatSummary,
   type ChatWorkflowEntry,
   type ChatWorktree,
+  type ChatExport,
   type Execution,
   type ForkChatRequest,
+  type HintRequest,
   type NewChatRequest,
   type ResumeChatRequest,
   type RunEvent,
+  type TranscriptEntry,
   type TranscriptSearchResult,
+  type UsageBreakdown,
+  type UsageBucket,
   type UsageReport,
+  type UsageSeries,
 } from '@agentry/shared';
 import { pageSize } from './sessions.ts';
 import { toChatEnvironment, toChildren, type BranchFacts } from './chat-branches.ts';
-import { chatControl, chatHealth, chatState, lastEndedOf, sessionHolder, type SessionHolder } from './chat-model.ts';
+import { chatControl, chatState, lastEndedOf, sessionHolder, type SessionHolder } from './chat-model.ts';
+import type { ChatTools } from './chat-tools.ts';
 import type { AdoptedChat, ChatManager, ChatRuntime } from './chats.ts';
 import type { CliSession, TranscriptSummary } from './cli-facts.ts';
+import type { HealthService } from './health-service.ts';
 import { backgroundLogs, isLiveCliSession, listActiveCliSessions, stopBackgroundSession } from './cli.ts';
 import type { Orchestrator } from './orchestrator.ts';
 import type { CoreConfig } from './paths.ts';
@@ -39,6 +51,7 @@ import { drivesSession, streamJsonProcesses, type CliProcess } from './processes
 import type { SessionStore } from './sessions.ts';
 import { emptyTokenUsage, localDay } from './usage.ts';
 import { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
+import { usageBreakdown, usageSeries } from './usage-series.ts';
 
 /** How long `claude agents --json` is trusted between reads: it is an exec, and lists poll. */
 const CLI_TTL_MS = 1_500;
@@ -75,6 +88,8 @@ export interface Placement {
 export interface ChatServiceDeps {
   config: CoreConfig;
   runtime: ChatManager;
+  /** Turns the tool preset and MCP servers a request picks into what the CLI is given */
+  tools: ChatTools;
   sessions: SessionStore;
   orchestrator: Orchestrator;
   place: (dir: string, recorded: TranscriptSummary['worktree']) => Placement;
@@ -82,6 +97,7 @@ export interface ChatServiceDeps {
   environmentOf: (dir: string) => Parameters<typeof toChatEnvironment>[0] | undefined;
   /** The context window the CLI reported for this exact model id; null when it never has */
   windowOf: (model: string) => number | null;
+  health: HealthService;
 }
 
 export interface ChatFilter {
@@ -219,6 +235,20 @@ export class ChatService {
    * execution ended (or today, while it runs), because the CLI reports it as one figure per process.
    */
   async usage(range: DayRange = {}): Promise<UsageReport> {
+    return usageReport(await this.spends(), range);
+  }
+
+  /** Cost and tokens over time, cut by day or by week. */
+  async usageSeries(bucket: UsageBucket, range: DayRange = {}): Promise<UsageSeries> {
+    return usageSeries(await this.spends(), bucket, range);
+  }
+
+  /** The same range cut by project and by model. */
+  async usageBreakdown(range: DayRange = {}): Promise<UsageBreakdown> {
+    return usageBreakdown(await this.spends(), range);
+  }
+
+  private async spends(): Promise<ChatSpend[]> {
     const transcripts = new Map((await this.deps.sessions.listSessions()).map((t) => [t.id, t]));
     const runtimes = new Map(this.deps.runtime.list().map((r) => [r.id, r]));
     const orchestrations = this.chatOrchestrations();
@@ -229,9 +259,14 @@ export class ChatService {
       const dir = summary?.worktree?.path ?? summary?.projectPath ?? runtime?.workingDir ?? runtime?.cwd ?? '';
       const orch = orchestrations.get(id);
       const costs: ChatSpend['costs'] = [];
+      const modelCosts: NonNullable<ChatSpend['modelCosts']> = [];
       for (const e of runtime?.executions ?? []) {
         const day = localDay(e.endedAt ?? new Date().toISOString());
-        if (e.costUsd !== null && day) costs.push({ day, usd: e.costUsd });
+        if (e.costUsd === null || !day) continue;
+        costs.push({ day, usd: e.costUsd });
+        const split = Object.entries(e.modelCosts ?? {});
+        if (split.length) for (const [model, usd] of split) modelCosts.push({ day, model, usd });
+        else modelCosts.push({ day, model: e.model, usd: e.costUsd });
       }
       spend.push({
         chatId: id,
@@ -239,9 +274,10 @@ export class ChatService {
         orchestration: orch ? { id: orch.id, name: orch.name } : null,
         days: summary?.usage.days ?? [],
         costs,
+        modelCosts,
       });
     }
-    return usageReport(spend, range);
+    return spend;
   }
 
   /** A chat as its own page shows it, branches and environment included. Null when there is none. */
@@ -251,16 +287,17 @@ export class ChatService {
     const runtime = this.deps.runtime.get(id);
     const facts = await this.facts(opts.fresh, false);
     const heldByAnother = facts.cli.get(id)?.live === true && facts.cli.get(id)?.pid !== runtime?.pid;
-    const children = toChildren(await this.branchFacts(id, runtime, runtime?.pid != null || heldByAnother));
+    const children = toChildren(await this.branchFacts(id, runtime, runtime?.pid != null || heldByAnother), id);
     const env = this.deps.environmentOf(runtime?.cwd ?? summary.cwd);
-    const health = chatHealth({
+    const task = this.deps.orchestrator.taskContext(id);
+    const health = this.deps.health.read(id, {
       state: summary.state,
-      live: this.deps.runtime.pulse(id),
       lastEnded: lastEndedOf(summary.executions),
       context: summary.context,
       failedBranches: [...children.subagents, ...children.backgroundTasks, ...children.workflows].filter((b) => b.status === 'failed').length,
+      ...(task ? { limits: task.limits, taskElapsedMs: task.elapsedMs, taskSpentUsd: task.spentUsd } : {}),
     });
-    return { ...summary, children, environment: env ? toChatEnvironment(env) : null, health };
+    return { ...summary, children, environment: env ? toChatEnvironment(env) : null, health, tools: runtime?.tools ?? null };
   }
 
   /** The list's view of one chat, read fresh when a decision hangs on it. */
@@ -288,6 +325,26 @@ export class ChatService {
     return { chat, entries: visible.slice(from, until), from, total: visible.length };
   }
 
+  /**
+   * Every entry of a chat's transcript, subagents included, with the chat: what an export is made
+   * of. Read a page at a time from the newest back, so a transcript of tens of megabytes is never
+   * one read. A chat with no transcript is read from what its process streamed.
+   */
+  async export(id: string): Promise<ChatExport> {
+    const chat = await this.get(id);
+    if (!chat) throw new Error('chat not found');
+    const pages: TranscriptEntry[][] = [];
+    let before: number | undefined;
+    for (;;) {
+      const page = await this.deps.sessions.getSession(id, { includeSidechains: true, limit: TRANSCRIPT_PAGE_MAX, ...(before !== undefined ? { before } : {}) });
+      if (!page) break;
+      pages.unshift(page.entries);
+      if (page.from === 0 || page.entries.length === 0) return { exportedAt: new Date().toISOString(), chat, entries: pages.flat() };
+      before = page.from;
+    }
+    return { exportedAt: new Date().toISOString(), chat, entries: this.deps.runtime.messages(id) ?? [] };
+  }
+
   /** The whole transcript searched, in the index space `detail` pages in; a chat with none, over what its process streamed. */
   async search(id: string, query: string, opts: { includeSidechains?: boolean } = {}): Promise<TranscriptSearchResult> {
     const found = await this.deps.sessions.searchSession(id, query, opts);
@@ -305,8 +362,50 @@ export class ChatService {
 
   /** Starts a new chat. */
   async create(request: NewChatRequest): Promise<ChatSummary> {
-    const started = this.deps.runtime.start(request);
+    const chosen = await this.deps.tools.resolve(request, resolve(request.cwd ?? this.deps.config.workspaceDir), null);
+    const started = this.deps.runtime.start({ ...request, ...chosen });
     return this.require(started.id);
+  }
+
+  /**
+   * Sends a live chat a nudge: the text reaches the worker as its next user message, with no more
+   * ceremony than that. It is for a chat whose process is up; anything else would start one, which
+   * is what a message to a resumable chat is for, and a person should choose that knowing it.
+   */
+  async hint(id: string, request: HintRequest): Promise<ChatSummary> {
+    const text = request?.text?.trim();
+    if (!text) throw new Error('text is required');
+    const runtime = this.deps.runtime.get(id);
+    if (!runtime) throw new Error('chat not found');
+    if (runtime.pid === null) throw new ChatConflictError('The chat has no live process to nudge. Send it a message to continue it.', null);
+    this.deps.runtime.send(id, `A hint from the person following this chat:\n\n${text}`);
+    return this.require(id);
+  }
+
+  /**
+   * Stops one command a chat is running without ending its turn: the command's process tree is
+   * killed, the CLI hands the worker a failed result for that call, and the worker goes on. The worker
+   * is told a person did it, since a bare exit status looks like the command's own crash.
+   */
+  async cancelCommand(id: string, toolUseId: string, request: CancelCommandRequest = {}): Promise<CancelCommandResult> {
+    if (!this.deps.runtime.get(id)) throw new Error('chat not found');
+    let cancelled: { command: string; processes: number };
+    try {
+      cancelled = this.deps.runtime.cancelCommand(id, toolUseId);
+    } catch (err) {
+      throw new ChatConflictError(err instanceof Error ? err.message : String(err), null);
+    }
+    const reason = request?.reason?.trim();
+    this.deps.runtime.notice(id, `A person cancelled the command \`${cancelled.command.slice(0, 120)}\`${reason ? `: ${reason}` : '.'}`, { toolUseId });
+    try {
+      this.deps.runtime.send(
+        id,
+        `A person cancelled the command \`${cancelled.command.slice(0, 200)}\` while it was running${reason ? `: ${reason}` : '.'} It did not fail by itself.`,
+      );
+    } catch {
+      // the process went with it: there is nobody left to tell
+    }
+    return { toolUseId, command: cancelled.command, processes: cancelled.processes };
   }
 
   /**
@@ -321,7 +420,9 @@ export class ChatService {
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to resume.', null);
     if (chat.control.mode === 'readOnly') throw new ChatConflictError(chat.control.reason, chat.control.action);
     if (chat.control.mode === 'interactive') throw new ChatConflictError('This chat already has a live execution: send it a message instead.', null);
-    this.deps.runtime.resume(id, request, await this.adoptionOf(chat));
+    const adoption = await this.adoptionOf(chat);
+    const chosen = await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null);
+    this.deps.runtime.resume(id, { ...request, ...chosen }, adoption);
     return this.require(id);
   }
 
@@ -330,7 +431,9 @@ export class ChatService {
     const chat = await this.summaryOf(id);
     if (!chat) throw new Error('chat not found');
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to fork.', null);
-    const forked = this.deps.runtime.fork(id, request, await this.adoptionOf(chat));
+    const adoption = await this.adoptionOf(chat);
+    const chosen = await this.deps.tools.resolve(request, adoption.cwd, null);
+    const forked = this.deps.runtime.fork(id, { ...request, ...chosen }, adoption);
     return this.require(forked.id);
   }
 
@@ -473,7 +576,7 @@ export class ChatService {
         const runtime = this.deps.runtime.get(id);
         const ref = await this.refOf(id);
         if (!ref) throw new Error('chat not found');
-        const children = toChildren(await this.branchFacts(id, runtime, await this.liveIn(id)));
+        const children = toChildren(await this.branchFacts(id, runtime, await this.liveIn(id)), id);
         return { ref, children };
       }),
     );

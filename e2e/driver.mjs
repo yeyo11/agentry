@@ -1,9 +1,10 @@
 // Dependency-free browser driver over the Chrome DevTools Protocol (Node 22+: global fetch/WebSocket).
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { killGroup } from './processes.mjs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -20,7 +21,41 @@ function findChrome() {
   throw new Error('Chrome/Chromium not found. Set CHROME_BIN.');
 }
 
-export async function launch({ baseUrl, port = 9444, shotsDir }) {
+/**
+ * Chrome picks its own debugging port (`--remote-debugging-port=0`), so a browser left over from an
+ * earlier run, or a second suite beside this one, can never be mistaken for ours by a fixed port.
+ * It says which port in two places: a `DevTools listening on ws://…` line on stderr, and the
+ * `DevToolsActivePort` file in the profile. Either will do, and whichever comes first is taken: on
+ * the CI runner the file once did not appear within the wait at all. When neither comes,
+ * the error carries the end of what Chrome printed, since that is where it says why.
+ */
+async function devtoolsEndpoint(profile, chrome, output, wait = 30_000) {
+  const file = join(profile, 'DevToolsActivePort');
+  for (let waited = 0; waited < wait; waited += 100) {
+    const announced = /DevTools listening on ws:\/\/[^:\s]+:(\d+)\//.exec(output.text);
+    if (announced) return Number(announced[1]);
+    if (existsSync(file)) {
+      const [port] = readFileSync(file, 'utf8').split('\n');
+      if (Number(port) > 0) return Number(port);
+    }
+    if (chrome.exitCode !== null || chrome.signalCode !== null) {
+      throw new Error(`Chrome exited (${chrome.exitCode ?? chrome.signalCode}) before it exposed a debugging port${tail(output.text)}`);
+    }
+    await sleep(100);
+  }
+  throw new Error(`Chrome did not expose a debugging port in ${wait / 1000} s${tail(output.text)}`);
+}
+
+const tail = (text) => (text.trim() ? `. Chrome printed:\n${text.trim().split('\n').slice(-15).join('\n')}` : '');
+
+/**
+ * Starts headless Chrome and returns `{ page, close, pid }`. `close()` is idempotent and also runs
+ * from the process's 'exit', so the browser goes down on every way out: the end of the run, a
+ * failure, a timeout, a signal turned into an exit, an uncaught error. It is killed by the PID of
+ * the process started here (as the leader of its own group, so renderers and helpers go with it),
+ * never by matching a name.
+ */
+export async function launch({ baseUrl, port = 0, shotsDir }) {
   if (shotsDir) mkdirSync(shotsDir, { recursive: true });
   const profile = mkdtempSync(join(tmpdir(), 'agentry-e2e-chrome-'));
   // Its own process group, so the renderers and helpers go down with it and none outlives the run
@@ -29,8 +64,20 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
     ['--headless=new', '--disable-gpu', '--no-sandbox', '--hide-scrollbars', '--lang=en-US', `--user-data-dir=${profile}`, `--remote-debugging-port=${port}`, '--window-size=1440,900', 'about:blank'],
     // Specs click buttons by their English text; on a non-English host locale (LANG/LANGUAGE),
     // Chrome otherwise reports navigator.language from the OS regardless of --lang.
-    { stdio: 'ignore', detached: true, env: { ...process.env, LANGUAGE: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' } },
+    { stdio: ['ignore', 'ignore', 'pipe'], detached: true, env: { ...process.env, LANGUAGE: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' } },
   );
+  // Read for the port, and kept draining for the browser's whole life: a pipe nobody reads fills up
+  // and blocks Chrome on its next write. Only the start is kept, which is where the port and any
+  // reason it could not start are
+  const output = { text: '' };
+  chrome.stderr.setEncoding('utf8');
+  chrome.stderr.on('data', (chunk) => {
+    if (output.text.length < 64_000) output.text += chunk;
+  });
+  // The pipe must not keep the harness alive on its own: the browser's lifetime is `close()`'s business
+  chrome.stderr.unref?.();
+  // A Chrome that cannot start emits 'error' (nothing to kill then); without a listener it would be an uncaught one
+  chrome.on('error', () => {});
   let closed = false;
   const close = () => {
     if (closed) return;
@@ -40,38 +87,49 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
     } catch {
       // the socket is gone with the browser
     }
-    try {
-      process.kill(-chrome.pid, 'SIGKILL');
-    } catch {
-      chrome.kill('SIGKILL');
-    }
+    killGroup(chrome.pid);
     rmSync(profile, { recursive: true, force: true, maxRetries: 3 });
   };
-  // Every way out of the process (a signal turned into an exit, an uncaught error, a normal end) runs it
   process.once('exit', close);
   let ws;
-  let target;
-  for (let i = 0; i < 60 && !target; i++) {
-    try {
-      target = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()).find((t) => t.type === 'page');
-    } catch {
-      await sleep(250);
+  try {
+    const debuggingPort = port || (await devtoolsEndpoint(profile, chrome, output));
+    let target;
+    for (let i = 0; i < 60 && !target; i++) {
+      try {
+        target = (await (await fetch(`http://127.0.0.1:${debuggingPort}/json`)).json()).find((t) => t.type === 'page');
+      } catch {
+        await sleep(250);
+      }
     }
-  }
-  if (!target) {
+    if (!target) throw new Error('Chrome did not expose a debugging target');
+    ws = new WebSocket(target.webSocketDebuggerUrl);
+    await new Promise((resolve, reject) => {
+      ws.onopen = resolve;
+      ws.onerror = () => reject(new Error('could not connect to Chrome over the DevTools socket'));
+    });
+  } catch (error) {
     close();
-    throw new Error('Chrome did not expose a debugging target');
+    throw error;
   }
-  ws = new WebSocket(target.webSocketDebuggerUrl);
-  await new Promise((r) => (ws.onopen = r));
 
   let id = 0;
   const pending = new Map();
+  // A browser that dies mid-run answers nothing: fail what is waiting now instead of after the CDP timeout
+  ws.onclose = () => {
+    for (const { reject, timer } of pending.values()) {
+      clearTimeout(timer);
+      reject(new Error('Chrome closed the DevTools connection'));
+    }
+    pending.clear();
+  };
   const errors = [];
   ws.onmessage = (m) => {
     const d = JSON.parse(m.data);
     if (d.id && pending.has(d.id)) {
-      pending.get(d.id)(d);
+      const { resolve, timer } = pending.get(d.id);
+      clearTimeout(timer);
+      resolve(d);
       pending.delete(d.id);
     } else if (d.method === 'Runtime.exceptionThrown') {
       errors.push(d.params.exceptionDetails.exception?.description ?? d.params.exceptionDetails.text);
@@ -80,16 +138,13 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
     }
   };
   const send = (method, params = {}) =>
-    new Promise((res, rej) => {
+    new Promise((resolve, reject) => {
       const i = ++id;
       const timer = setTimeout(() => {
         pending.delete(i);
-        rej(new Error(`Chrome did not answer ${method} within ${CDP_TIMEOUT_MS / 1000}s`));
+        reject(new Error(`Chrome did not answer ${method} within ${CDP_TIMEOUT_MS / 1000}s`));
       }, CDP_TIMEOUT_MS);
-      pending.set(i, (message) => {
-        clearTimeout(timer);
-        res(message);
-      });
+      pending.set(i, { resolve, reject, timer });
       ws.send(JSON.stringify({ id: i, method, params }));
     });
   await send('Page.enable');
@@ -98,6 +153,16 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
   const page = {
     baseUrl,
     sleep,
+    /**
+     * Leaves the app and forgets what it stored (localStorage, sessionStorage, IndexedDB, cookies),
+     * so a spec starts from a fresh browser and not from what the specs before it left behind: the
+     * notification centre, for one, keeps every finished chat in localStorage.
+     */
+    async reset() {
+      // Blank first: the page being left would otherwise write its state back, and its event stream would go on
+      await send('Page.navigate', { url: 'about:blank' });
+      await send('Storage.clearDataForOrigin', { origin: new URL(baseUrl).origin, storageTypes: 'local_storage,session_storage,indexeddb,cookies' });
+    },
     /** Console errors and uncaught exceptions seen so far; `takeErrors()` also clears them. */
     takeErrors: () => errors.splice(0),
     async goto(path, wait = 1200) {
@@ -211,5 +276,5 @@ export async function launch({ baseUrl, port = 9444, shotsDir }) {
       writeFileSync(join(shotsDir, `${name}.png`), Buffer.from(r.result.data, 'base64'));
     },
   };
-  return { page, close };
+  return { page, close, pid: chrome.pid };
 }

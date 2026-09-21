@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ChevronLeft, CircleSlash, GitFork, Lock, MessageSquare, Radio, Square, Trash2, WifiOff } from 'lucide-react';
+import { ArrowDown, ChevronLeft, CircleSlash, Download, GitFork, Lock, MessageSquare, Radio, Square, Trash2, WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -18,7 +18,9 @@ import { api, keys } from '../api';
 import { useChatStream, useChatTranscript } from '../lib/chats';
 import { formatDateTime } from '../lib/format';
 import { Composer, type ComposerKind } from './chat/Composer';
+import { ChatActivityCard, ChatChangesCard } from '../components/observe/Work';
 import { BranchesCard, EnvironmentCard, ExecutionsCard, FactsCard, HealthCard, UsageCard } from './chat/Side';
+import { ToolsCard } from './chat/ToolsCard';
 
 /** One chat: its conversation, what it has cost, what it has run and delegated, and what can be done with it now. */
 export function ChatView() {
@@ -134,6 +136,15 @@ export function ChatView() {
                 {t('common:actions.stop')}
               </button>
             )}
+            {/* Plain links: the route answers with Content-Disposition: attachment, so the browser saves the file */}
+            {(['markdown', 'json'] as const).map((format) => (
+              <Tooltip key={format} content={t(`view.export.${format}Hint`)}>
+                <a className="btn" href={api.chatExportUrl(chat.id, format)} download>
+                  <Download {...ICON_SM} />
+                  {t(`view.export.${format}`)}
+                </a>
+              </Tooltip>
+            ))}
             <Tooltip content={t('view.forkHint')}>
               <button className="btn" aria-pressed={forking} onClick={() => setForking((open) => !open)}>
                 <GitFork {...ICON_SM} />
@@ -258,6 +269,9 @@ export function ChatView() {
         <ExecutionsCard chat={chat} />
         <BranchesCard chat={chat} />
         <HealthCard chat={chat} />
+        <ToolsCard chat={chat} />
+        <ChatActivityCard chat={chat} entries={transcript.items} />
+        <ChatChangesCard chat={chat} />
         <EnvironmentCard chat={chat} />
       </aside>
     </div>

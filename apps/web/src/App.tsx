@@ -1,5 +1,7 @@
 import {
   BookOpen,
+  CalendarClock,
+  ChartColumn,
   FolderGit2,
   House,
   Menu,
@@ -7,6 +9,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Play,
+  Plug,
   Plus,
   SearchX,
   Settings2,
@@ -27,7 +30,9 @@ import { BrandMark, ICON } from './components/icons';
 import { NotificationBell, NotificationHost } from './components/Notifications';
 import { AnimatePresence, motion, PageTransition, SlidingIndicator, StatusDot, useReducedMotion } from './components/motion';
 import { ProjectSelector } from './components/ProjectSelector';
+import { SignIn } from './components/SignIn';
 import { Empty, Skeleton } from './components/ui';
+import { useAuthChallenge } from './lib/auth';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
 import { ThemeToggle } from './lib/theme';
@@ -36,12 +41,15 @@ import { Home } from './pages/Home';
 // Only the landing pages ship in the main bundle; everything else loads on first visit
 const Accounts = lazy(() => import('./pages/Accounts').then((m) => ({ default: m.Accounts })));
 const ChatView = lazy(() => import('./pages/ChatView').then((m) => ({ default: m.ChatView })));
+const Connectors = lazy(() => import('./pages/Connectors').then((m) => ({ default: m.Connectors })));
 const Chats = lazy(() => import('./pages/Chats').then((m) => ({ default: m.Chats })));
 const NewChat = lazy(() => import('./pages/NewChat').then((m) => ({ default: m.NewChat })));
 const Orchestration = lazy(() => import('./pages/Orchestration').then((m) => ({ default: m.Orchestration })));
 const OrchestrationDetail = lazy(() => import('./pages/OrchestrationDetail').then((m) => ({ default: m.OrchestrationDetail })));
 const Projects = lazy(() => import('./pages/Projects').then((m) => ({ default: m.Projects })));
 const RunWorkflowDialog = lazy(() => import('./components/RunWorkflowDialog').then((m) => ({ default: m.RunWorkflowDialog })));
+const Schedules = lazy(() => import('./pages/Schedules').then((m) => ({ default: m.Schedules })));
+const Usage = lazy(() => import('./pages/Usage').then((m) => ({ default: m.Usage })));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 
 interface NavItem {
@@ -68,6 +76,10 @@ function isActive(item: NavItem, pathname: string): boolean {
 }
 
 export function App() {
+  // A guarded wrapper reached without a credential answers 401 to everything, so the shell is not
+  // mounted at all: one screen that asks, instead of every page failing on its own
+  const challenge = useAuthChallenge();
+  if (challenge) return <SignIn mode={challenge} />;
   // The project selector scopes pages far from the top bar, so it lives above all of them
   return (
     <ProjectScopeProvider>
@@ -81,7 +93,7 @@ function Shell() {
   const { project } = useProjectScope();
   const { pathname } = useLocation();
   const reduced = useReducedMotion();
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'connectors']);
   const overview = useOverview();
   // The one connection that keeps every page current; the sidebar footer shows when it is down
   const feed = useEventFeed();
@@ -149,6 +161,9 @@ function Shell() {
     { to: '/orchestration', label: t('nav.orchestrations'), icon: Workflow, count: { value: counts?.orchestrationsRunning, what: t('nav.badge.running') } },
     { to: '/projects', label: t('nav.projects'), icon: FolderGit2 },
     { to: '/accounts', label: t('nav.accounts'), icon: Users },
+    { to: '/schedules', label: t('nav.schedules'), icon: CalendarClock },
+    { to: '/usage', label: t('nav.usage'), icon: ChartColumn },
+    { to: '/connectors', label: t('connectors:nav'), icon: Plug },
     { to: '/settings', label: t('nav.settings'), icon: Settings2 },
   ];
 
@@ -334,6 +349,9 @@ function Shell() {
               <Route path="/orchestration" element={<Orchestration />} />
               <Route path="/orchestration/:id" element={<OrchestrationDetail />} />
               <Route path="/accounts" element={<Accounts />} />
+              <Route path="/schedules" element={<Schedules />} />
+              <Route path="/usage" element={<Usage />} />
+              <Route path="/connectors" element={<Connectors />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Empty icon={SearchX} title={t('shell.pageNotFound')} />} />
             </Routes>

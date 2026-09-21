@@ -1,14 +1,18 @@
 import type { PermissionDecision, PermissionRequest, PermissionUpdate } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCheck, ChevronLeft, ChevronRight, ClipboardList, MessageCircleQuestion, ShieldQuestion, X } from 'lucide-react';
-import { useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { api, keys } from '../api';
 import i18n from '../i18n';
 import { useChatPermissions } from '../lib/chats';
+import { PROMPT_PARAM } from '../lib/notifications-model';
 import { ICON_SM } from './icons';
 import { RichText } from './Transcript';
 import { ErrorBox, TabPanel, Tabs, useTabGroup } from './ui';
+
+const promptDomId = (permissionId: string) => `prompt-${permissionId}`;
 
 /** The shell command, the file, the url — whatever this particular tool is actually about. */
 function summarize(request: PermissionRequest): string {
@@ -61,7 +65,7 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
   const deny = () => answer.mutate({ behavior: 'deny', ...(reason.trim() ? { message: reason.trim() } : {}) });
 
   return (
-    <li className="permission" aria-live="polite">
+    <li className="permission" id={promptDomId(request.id)} tabIndex={-1} aria-live="polite">
       <div className="permission-head">
         <ShieldQuestion {...ICON_SM} aria-hidden />
         <strong>{request.toolName}</strong>
@@ -178,7 +182,7 @@ function QuestionPrompt({ request }: { request: PermissionRequest }) {
     });
 
   return (
-    <li className="permission permission-question" aria-live="polite">
+    <li className="permission permission-question" id={promptDomId(request.id)} tabIndex={-1} aria-live="polite">
       <div className="permission-head">
         <MessageCircleQuestion {...ICON_SM} aria-hidden />
         <strong>{t('permissions.claudeIsAsking')}</strong>
@@ -323,7 +327,7 @@ function PlanPrompt({ request }: { request: PermissionRequest }) {
   const plan = typeof request.input.plan === 'string' ? request.input.plan : summarize(request);
 
   return (
-    <li className="permission permission-plan" aria-live="polite">
+    <li className="permission permission-plan" id={promptDomId(request.id)} tabIndex={-1} aria-live="polite">
       <div className="permission-head">
         <ClipboardList {...ICON_SM} aria-hidden />
         <strong>{t('permissions.planReady')}</strong>
@@ -373,6 +377,21 @@ function Prompt({ request }: { request: PermissionRequest }) {
 export function PermissionPrompts({ chatId, live }: { chatId: string; live: boolean }) {
   const { t } = useTranslation('components');
   const { data } = useChatPermissions(chatId, live);
+
+  // A notification links to its prompt: bring it into view once per visit, not on every refetch
+  const { key } = useLocation();
+  const wanted = useSearchParams()[0].get(PROMPT_PARAM);
+  const shownFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!wanted || !data) return;
+    const element = document.getElementById(promptDomId(wanted));
+    const visit = `${key}:${wanted}`;
+    if (!element || shownFor.current === visit) return;
+    shownFor.current = visit;
+    element.scrollIntoView({ block: 'center' });
+    element.focus({ preventScroll: true });
+  }, [data, wanted, key]);
+
   if (!data?.length) return null;
   return (
     <section className="permission-list" aria-label={t('permissions.waitingForYou')}>

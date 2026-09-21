@@ -1,4 +1,4 @@
-import type { AgentryEvent } from '@agentry/shared';
+import type { AgentryEvent, ChatSummary, PermissionRequest, RunWaitingReason } from '@agentry/shared';
 import i18n from '../i18n';
 import { detailHref } from './detail';
 
@@ -11,7 +11,7 @@ import { detailHref } from './detail';
  * stored with the words it was born with, the way the browser's own notifications are.
  */
 
-export type NotificationKind = 'waiting' | 'run' | 'orchestration' | 'conflict' | 'limit' | 'activity';
+export type NotificationKind = 'waiting' | 'run' | 'orchestration' | 'conflict' | 'limit' | 'activity' | 'health';
 /** `high` needs the person, `normal` is worth knowing, `low` stays in the center without a toast. */
 export type NotificationPriority = 'high' | 'normal' | 'low';
 export type NotificationTone = 'ok' | 'bad' | 'warn' | 'info';
@@ -52,7 +52,7 @@ export interface NotificationPrefs {
 }
 
 /** In the order the preferences list them; their labels are `components:notificationPanel.kinds`. */
-export const KINDS: NotificationKind[] = ['waiting', 'run', 'orchestration', 'conflict', 'limit', 'activity'];
+export const KINDS: NotificationKind[] = ['waiting', 'run', 'orchestration', 'conflict', 'limit', 'activity', 'health'];
 
 export const MAX_NOTIFICATIONS = 200;
 const DEDUPE_MS = 60_000;
@@ -61,8 +61,12 @@ export function defaultPrefs(): NotificationPrefs {
   return { kinds: Object.fromEntries(KINDS.map((kind) => [kind, true])) as Record<NotificationKind, boolean>, toasts: true, browser: false };
 }
 
-// A run id on the wire is the id of the chat it works on
-const chatHref = (chatId: string) => `/chats/${encodeURIComponent(chatId)}`;
+/** The search param that names the prompt a chat page should bring into view. */
+export const PROMPT_PARAM = 'prompt';
+
+// A run id on the wire is the id of the chat it works on. With `promptId`, the chat opens scrolled
+// to that prompt instead of at the end of the transcript.
+const chatHref = (chatId: string, promptId?: string) => `/chats/${encodeURIComponent(chatId)}${promptId ? `?${PROMPT_PARAM}=${encodeURIComponent(promptId)}` : ''}`;
 const orchestrationHref = (id: string) => `/orchestration/${encodeURIComponent(id)}`;
 
 /** Work delegated inside a chat says which chat by its session, or by its run when it has one of ours. */
@@ -86,6 +90,40 @@ const WAITING_BODY = {
 
 const ACTIVITY_FAILED = new Set(['failed', 'killed', 'stopped', 'error']);
 
+/** AskUserQuestion and ExitPlanMode reach the host as tool permission requests like any other. */
+const reasonOf = (toolName: string): RunWaitingReason => (toolName === 'AskUserQuestion' ? 'question' : toolName === 'ExitPlanMode' ? 'plan' : 'permission');
+
+const WAITING_TITLE = {
+  permission: (name: string, tool: string) => i18n.t('components:notificationText.waitingPermission', { name, tool }),
+  question: (name: string) => i18n.t('components:notificationText.waitingQuestion', { name }),
+  plan: (name: string) => i18n.t('components:notificationText.waitingPlan', { name }),
+} as const;
+
+/**
+ * The `waiting` notifications for prompts a chat was already holding when the page loaded: their
+ * `run.waiting` events came before there was anyone to hear them. The key is the live event's, so a
+ * prompt that is in the list already is not told twice.
+ */
+export function waitingDrafts(chat: Pick<ChatSummary, 'id' | 'title' | 'orchestration'>, requests: readonly PermissionRequest[]): NotificationDraft[] {
+  return requests.map((request) => {
+    const reason = reasonOf(request.toolName);
+    return {
+      id: `${request.requestedAt}#${request.id}`,
+      at: request.requestedAt,
+      dedupeMs: 0,
+      key: `wait:${chat.id}:${request.id}`,
+      kind: 'waiting',
+      priority: 'high',
+      tone: 'warn',
+      title: reason === 'permission' ? WAITING_TITLE.permission(chat.title, request.toolName) : WAITING_TITLE[reason](chat.title),
+      body: WAITING_BODY[reason](request.toolName),
+      href: chatHref(chat.id, request.id),
+      runId: chat.id,
+      orchestrationId: chat.orchestration?.id ?? null,
+    };
+  });
+}
+
 /** The notifications an event calls for; empty for nearly all of them. */
 export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
   switch (event.type) {
@@ -102,7 +140,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: 'warn',
           title: event.title,
           body: WAITING_BODY[event.reason](event.toolName),
-          href: chatHref(event.runId),
+          href: chatHref(event.runId, event.permissionId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,
         }),
@@ -198,6 +236,25 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
       ];
     }
 
+    case 'health.changed': {
+      // A recovery is not news, and housekeeping runs are not something a person steps into
+      if (event.internal || event.level === 'ok') return [];
+      return [
+        draft(event, {
+          // The signals, not the level: a worker that goes from slow to looping is new news
+          key: `health:${event.runId}:${event.signals.join(',')}`,
+          kind: 'health',
+          priority: event.level === 'bad' ? 'high' : 'normal',
+          tone: event.level === 'bad' ? 'bad' : 'warn',
+          title: event.title,
+          body: event.reason,
+          href: chatHref(event.runId),
+          runId: event.runId,
+          orchestrationId: event.orchestrationId,
+        }),
+      ];
+    }
+
     case 'orchestration.conflict':
       return [
         draft(event, {
@@ -257,7 +314,8 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           tone: failed ? 'bad' : 'info',
           title: event.title,
           body: event.summary ?? '',
-          href: chatOf ? chatHref(chatOf) : null,
+          // Only workflows the CLI ids as `wf_…` have agent transcripts to open, as on the workflow card
+          href: chatOf ? (event.agentId && event.workflowId.startsWith('wf_') ? detailHref({ kind: 'workflow-agent', chatId: chatOf, workflowId: event.workflowId, agentId: event.agentId }, chatHref(chatOf)) : chatHref(chatOf)) : null,
           runId: event.runId || null,
         }),
       ];

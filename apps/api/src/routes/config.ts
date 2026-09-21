@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { parseMcpScope, parseVariant, RESOURCE_KINDS, type Core } from '@agentry/core';
+import { parseMcpScope, parseVariant, redactSecrets, RESOURCE_KINDS, type Core } from '@agentry/core';
 import type { ResourceKind, WriteConfigFileRequest } from '@agentry/shared';
 
 function parseKind(kind: string): ResourceKind {
@@ -16,12 +16,16 @@ interface ScopeQuery {
 
 export const configRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   // settings.json / settings.local.json
-  app.get<{ Querystring: ScopeQuery }>('/config/settings', async (req) =>
-    core.files.getSettings(await core.resolveScope(req.query.project), parseVariant(req.query.variant)),
-  );
-  app.put<{ Querystring: ScopeQuery; Body: { settings?: unknown } }>('/config/settings', async (req) =>
-    core.files.setSettings(await core.resolveScope(req.query.project), parseVariant(req.query.variant), req.body?.settings),
-  );
+  // `env` holds credentials the CLI hands to every process it starts: the names leave, the values
+  // do not. A write that sends the placeholder back keeps what is stored (core/security/redact).
+  app.get<{ Querystring: ScopeQuery }>('/config/settings', async (req) => {
+    const doc = await core.files.getSettings(await core.resolveScope(req.query.project), parseVariant(req.query.variant));
+    return { ...doc, settings: redactSecrets(doc.settings) };
+  });
+  app.put<{ Querystring: ScopeQuery; Body: { settings?: unknown } }>('/config/settings', async (req) => {
+    const doc = await core.files.setSettings(await core.resolveScope(req.query.project), parseVariant(req.query.variant), req.body?.settings);
+    return { ...doc, settings: redactSecrets(doc.settings) };
+  });
 
   // CLAUDE.md / CLAUDE.local.md
   app.get<{ Querystring: ScopeQuery }>('/config/instructions', async (req) =>
@@ -32,13 +36,18 @@ export const configRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { co
   );
 
   // MCP servers (user / project / local)
-  app.get<{ Querystring: ScopeQuery }>('/config/mcp', async (req) => core.mcp.list(await core.resolveScope(req.query.project)));
+  // Same for an MCP server's `env` and `headers`: an API key or a bearer token lives in both
+  app.get<{ Querystring: ScopeQuery }>('/config/mcp', async (req) => {
+    const entries = await core.mcp.list(await core.resolveScope(req.query.project));
+    return entries.map((entry) => ({ ...entry, config: redactSecrets(entry.config) }));
+  });
   app.get<{ Querystring: ScopeQuery }>('/config/mcp/health', async (req) => core.mcp.health(await core.resolveScope(req.query.project)));
   app.put<{ Params: { name: string }; Querystring: ScopeQuery; Body: { config?: unknown; scope?: unknown } }>(
     '/config/mcp/:name',
     async (req) => {
       const scope = await core.resolveScope(req.query.project);
-      return core.mcp.upsert(scope, parseMcpScope(req.body?.scope, scope), req.params.name, req.body?.config);
+      const entry = await core.mcp.upsert(scope, parseMcpScope(req.body?.scope, scope), req.params.name, req.body?.config);
+      return { ...entry, config: redactSecrets(entry.config) };
     },
   );
   app.delete<{ Params: { name: string }; Querystring: ScopeQuery }>('/config/mcp/:name', async (req) => {

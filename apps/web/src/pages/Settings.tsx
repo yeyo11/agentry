@@ -7,12 +7,15 @@ import { Card, Empty, ErrorBox, PageHeader, Skeleton, TabPanel, Tabs, useTabGrou
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
 import { timeAgo } from '../lib/format';
 import { AccountTab } from './config/AccountTab';
+import { EditorTab } from './config/EditorTab';
 import { FilesTab } from './config/FilesTab';
 import { InstructionsTab } from './config/InstructionsTab';
 import { McpTab } from './config/McpTab';
 import { PluginsTab } from './config/PluginsTab';
 import { ResourcesTab } from './config/ResourcesTab';
+import { SecurityTab } from './config/SecurityTab';
 import { SettingsTab } from './config/SettingsTab';
+import { ToolPresetsTab } from './config/ToolPresetsTab';
 
 const RESOURCE_TABS: ResourceKind[] = ['agents', 'skills', 'commands', 'output-styles', 'rules', 'workflows'];
 
@@ -22,6 +25,7 @@ const TABS = [
   { id: 'instructions', label: 'config:config.tabs.instructions' },
   { id: 'settings', label: 'config:config.tabs.settings' },
   { id: 'mcp', label: 'config:config.tabs.mcp' },
+  { id: 'tools', label: 'config:config.tabs.tools' },
   { id: 'agents', label: 'config:config.tabs.agents' },
   { id: 'skills', label: 'config:config.tabs.skills' },
   { id: 'commands', label: 'config:config.tabs.commands' },
@@ -31,6 +35,8 @@ const TABS = [
   { id: 'files', label: 'config:config.tabs.files' },
   { id: 'memory', label: 'home:settings.tabs.memory' },
   { id: 'plugins', label: 'home:settings.tabs.plugins' },
+  { id: 'editor', label: 'observe:editor.tab' },
+  { id: 'security', label: 'config:config.tabs.security' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -109,7 +115,7 @@ function MemoryOverview() {
 }
 
 function SettingsInner() {
-  const { t } = useTranslation(['home', 'config', 'work']);
+  const { t } = useTranslation(['home', 'config', 'work', 'observe']);
   const [params, setParams] = useSearchParams();
   const dirtyKeys = useDirtyKeys();
   const guard = useLeaveGuard();
@@ -135,10 +141,13 @@ function SettingsInner() {
         {tab === 'instructions' && <InstructionsTab scope={USER_SCOPE} scopeKey="user" />}
         {tab === 'settings' && <SettingsTab scope={USER_SCOPE} scopeKey="user" filesHref="/settings?tab=files" />}
         {tab === 'mcp' && <McpTab scope={USER_SCOPE} />}
+        {tab === 'tools' && <ToolPresetsTab />}
         {RESOURCE_TABS.includes(tab as ResourceKind) && <ResourcesTab scope={USER_SCOPE} kind={tab as ResourceKind} />}
         {tab === 'files' && <FilesTab scope={USER_SCOPE} />}
         {tab === 'memory' && <MemoryOverview />}
         {tab === 'plugins' && <PluginsTab />}
+        {tab === 'editor' && <EditorTab />}
+        {tab === 'security' && <SecurityTab />}
       </TabPanel>
     </>
   );

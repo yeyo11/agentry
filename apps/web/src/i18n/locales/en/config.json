@@ -26,11 +26,146 @@
       "output-styles": "Output styles",
       "rules": "Rules",
       "files": "Files",
-      "workflows": "Workflows"
+      "workflows": "Workflows",
+      "tools": "Tool presets",
+      "security": "Security"
+    }
+  },
+  "security": {
+    "footnote": "Agentry checks a credential; it does not sign anyone in. Terminate TLS in a reverse proxy in front of it, so a token never crosses the network in the clear.",
+    "saveFailed": "Could not save the security settings",
+    "readOnly": {
+      "title": "Read-only mode",
+      "on": "read-only",
+      "off": "writes allowed",
+      "intro": "Turn it on to show the panel to someone without letting them change anything: every request that would write is refused with 405.",
+      "label": "Refuse every write",
+      "note": "Answering a permission prompt still works, so a chat someone is watching can be unblocked, and so does this switch. Everything else, including the token below, is refused until it is turned off.",
+      "enabled": "Read-only mode is on",
+      "disabled": "Read-only mode is off"
+    },
+    "access": {
+      "title": "Access",
+      "intro": "Choose what a request must carry to be answered. Only the health check stays open.",
+      "modeLabel": "Authentication mode",
+      "modes": {
+        "none": {
+          "label": "None",
+          "tag": "open",
+          "body": "Anyone who can reach the port can use Agentry. Fine on a loopback-only local install; not on a network."
+        },
+        "token": {
+          "label": "Token",
+          "tag": "token",
+          "body": "Every request must carry the bearer token set below. This browser keeps it in its own storage."
+        },
+        "oidc": {
+          "label": "OIDC",
+          "tag": "OIDC",
+          "body": "Every request must carry a JWT signed by your identity provider, for the issuer and audience given here."
+        }
+      },
+      "issuer": "Issuer",
+      "issuerHint": "The provider's URL. Its signing keys are fetched from there.",
+      "audience": "Audience",
+      "audienceHint": "The audience a token must be issued for.",
+      "clientId": "Client ID",
+      "clientIdHint": "Optional. The client your proxy signs users in with.",
+      "oidcNoLogin": "Agentry only validates a JWT: it never talks to a token endpoint. The credential comes from a proxy in front of it, or is pasted on the sign-in screen.",
+      "missing": {
+        "token": "Set a token below before turning token authentication on: without one nobody could get in.",
+        "oidc": "The issuer and the audience are required."
+      },
+      "save": "Save access",
+      "saved": "Access settings saved",
+      "confirm": {
+        "action": "Turn it on",
+        "token": {
+          "title": "Require a token?",
+          "body": "From the next request on, everything is refused without the token. This browser already holds it, so you stay signed in; anything else that uses the API needs the token too.",
+          "noStoredToken": "From the next request on, everything is refused without the token, and this browser does not hold it: you will be asked for it on the sign-in screen. Keep the token you set at hand."
+        },
+        "oidc": {
+          "title": "Require an OIDC token?",
+          "body": "From the next request on, everything is refused without a JWT from your identity provider, and this browser will ask for one on the sign-in screen. Make sure you can get one before you continue."
+        }
+      }
+    },
+    "token": {
+      "title": "Token",
+      "set": "set",
+      "notSet": "not set",
+      "intro": "Agentry keeps only a hash of the token, so it can be shown once and never again. Rotating replaces it: the old one stops working at once.",
+      "generate": "Generate token",
+      "rotate": "Rotate token",
+      "own": "Use my own token…",
+      "remove": "Remove token",
+      "removeBlocked": "Switch the mode away from Token before removing it.",
+      "shownOnce": "Copy this token now",
+      "shownOnceBody": "It is shown only this once. If you lose it, rotate the token. This browser already uses it.",
+      "copy": "Copy the token",
+      "copied": "I have copied it",
+      "ownLabel": "Your token",
+      "ownHint": "At least {{min}} characters. It is not shown again.",
+      "ownSave": "Set token",
+      "saved": "Token set",
+      "saveFailed": "Could not set the token",
+      "removed": "Token removed",
+      "removeFailed": "Could not remove the token",
+      "rotateConfirm": {
+        "title": "Rotate the token?",
+        "body": "The current token stops working at once, for everyone who holds it. This browser switches to the new one."
+      },
+      "removeConfirm": {
+        "title": "Remove the token?",
+        "body": "Its hash is deleted. Turning token authentication on again needs a new one."
+      }
+    },
+    "audit": {
+      "title": "Audit log",
+      "intro": "Every request that changed something, newest first: who, what, and how it ended. The request body is never recorded, since it holds prompts and secrets.",
+      "filterLabel": "Filter by path",
+      "filterPlaceholder": "Filter by path, e.g. /chats or /security",
+      "none": "Nothing recorded yet",
+      "noneHint": "A write to the API will appear here.",
+      "noMatch": "No entry for that path",
+      "noMatchHint": "Try a shorter part of the path.",
+      "when": "When",
+      "actor": "Who",
+      "request": "Request",
+      "result": "Result",
+      "what": "What it did",
+      "newer": "Newer",
+      "older": "Older",
+      "range": "{{first}}–{{last}} of {{total}}",
+      "outcome": {
+        "ok": "done",
+        "unauthorized": "not allowed",
+        "readOnly": "refused, read-only",
+        "rejected": "rejected",
+        "failed": "failed"
+      }
     }
   },
   "scope": {
     "label": "Scope"
+  },
+  "cli": {
+    "title": "Claude Code",
+    "version": "In use",
+    "notInstalled": "not installed",
+    "pinned": "Pinned by the image",
+    "notPinned": "not pinned (the image installs whatever was current when it was built)",
+    "latest": "Newest published",
+    "never": "not checked yet",
+    "checked": "Last checked {{when}}",
+    "check": "Check for updates",
+    "checking": "Checking…",
+    "upToDate": "Claude Code is up to date.",
+    "updateAvailable": "Claude Code {{latest}} is available.",
+    "updateHow": "Agentry does not update the CLI inside a running container, so a restart always gives the same version. Rebuild the image with CLAUDE_CODE_VERSION={{latest}} (Docker Compose: set it in .env and run docker compose build), or pull a newer Agentry image. On a plain install, run claude update.",
+    "checkFailed": "Could not check for updates",
+    "note": "Checked when you ask and once a day, never when a page loads. It reads the npm registry, not claude.ai."
   },
   "account": {
     "tokenSource": {
@@ -273,6 +408,36 @@
     "editNamed": "Edit {{name}}",
     "editInUserNamed": "Edit {{name}} in user scope",
     "removeNamed": "Remove {{name}}"
+  },
+  "toolPresets": {
+    "intro": "Named sets of allowed and blocked tools. Pick one when you start or resume a chat; a chat keeps the set it was given even if you edit the preset later.",
+    "add": "New preset",
+    "new": "New preset",
+    "edit": "Edit {{name}}",
+    "name": "Name",
+    "idHint": "Identifier: {{id}}",
+    "clash": "A preset with the identifier {{id}} already exists",
+    "description": "Description",
+    "descriptionHint": "One line saying what it is for",
+    "allowed": "Allowed without asking",
+    "allowedHint": "Tool rules such as Read, Bash or Bash(git status:*)",
+    "disallowed": "Blocked",
+    "disallowedHint": "Tools the chat cannot use at all, in the same notation",
+    "addRule": "Add rule",
+    "noRules": "No rules",
+    "save": "Save preset",
+    "saved": "Saved {{name}}",
+    "saveFailed": "Could not save the preset",
+    "removed": "Removed {{name}}",
+    "removeFailed": "Could not remove the preset",
+    "shipped": "Shipped",
+    "editNamed": "Edit {{name}}",
+    "removeNamed": "Remove {{name}}",
+    "removeTitle": "Remove {{name}}?",
+    "removeBody": "Chats already running keep the tools they were given.",
+    "removeShippedBody": "This preset ships with Agentry. Once removed it stays removed; you can create it again by hand.",
+    "empty": "No presets",
+    "emptyHint": "Without a preset a chat uses the CLI's own defaults."
   },
   "resources": {
     "kinds": {

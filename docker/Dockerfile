@@ -15,10 +15,15 @@ USER node
 ENV HOME=/home/node \
     PATH=/home/node/.local/bin:$PATH
 
-# Claude Code native build. Pin with --build-arg CLAUDE_CODE_VERSION=2.1.276
-ARG CLAUDE_CODE_VERSION=latest
+# Claude Code native build, pinned so that an image is the same tomorrow as today: the CLI moves
+# faster than this project, and a rebuild must not change behaviour by accident. Bump it on purpose
+# (the System page says when a newer one exists), or override it with
+# --build-arg CLAUDE_CODE_VERSION=<version>. `latest` and `stable` still work and count as unpinned.
+ARG CLAUDE_CODE_VERSION=2.1.278
 RUN curl -fsSL https://claude.ai/install.sh | bash -s -- ${CLAUDE_CODE_VERSION} \
  && claude --version
+# Read by the update check, which compares it with the newest published version
+ENV AGENTRY_CLAUDE_CODE_PINNED=${CLAUDE_CODE_VERSION}
 
 # claude-swap owns the account credentials when several accounts are registered (multi-account
 # rotation). Its own data dir is a volume, so the accounts survive a rebuild.
@@ -41,6 +46,7 @@ RUN pnpm --filter @agentry/web build
 
 # Keeping .claude.json inside the config dir means one volume persists the whole account setup
 ENV NODE_ENV=production \
+    AGENTRY_PID_FILE=/tmp/agentry.pid \
     PORT=8787 \
     HOST=0.0.0.0 \
     CLAUDE_CONFIG_DIR=/home/node/.claude \
@@ -52,7 +58,10 @@ ENV NODE_ENV=production \
 EXPOSE 8787
 VOLUME ["/home/node/.claude", "/workspace", "/data", "/home/node/.local/share/claude-swap"]
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s \
-  CMD curl -fsS http://localhost:8787/api/health || exit 1
+# The script also ends the server after a few failed probes, which is what makes a restart policy
+# act on an unhealthy container (see docs/deploy.md)
+COPY --chown=node:node --chmod=755 docker/healthcheck.sh /app/healthcheck.sh
+HEALTHCHECK --interval=30s --timeout=15s --start-period=20s --retries=3 \
+  CMD ["/app/healthcheck.sh"]
 
 CMD ["pnpm", "--filter", "@agentry/api", "start"]

@@ -1,7 +1,10 @@
 # Plan: see what every agent is really doing, and step in on time
 
-Status: **planned, top priority** (see [ROADMAP](../../ROADMAP.md)). Written on 2026-09-19 after
-the first large orchestration Agentry ran on its own repository.
+Status: **landed, except the optional supervisor** (see [ROADMAP](../../ROADMAP.md)). Written on
+2026-09-19 after the first large orchestration Agentry ran on its own repository, and built by the
+orchestration in [roadmap-completion.md](roadmap-completion.md). Each section below starts with a
+**Landed** note saying what shipped, where it differs from the text, and what did not. The text
+itself is left as it was planned, and says `run` where the code now says `chat`.
 
 Today the panel shows what an agent *says* it did: its status, its last message, its transcript.
 It does not show what changed on disk, and it does not notice when an agent is stuck. Both had to
@@ -32,6 +35,20 @@ hung e2e process tree. Both should be one click away.
 
 ## 1. Execution detail: progress, commits, files, diffs
 
+> **Landed.** `GET /orchestrations/:id/tasks/:taskId/changes` (and `…/changes/diff?path=`), the same
+> two under `/orchestrations/:id/integration/`, `GET /chats/:id/changes` (and its `diff`), and the
+> checklist at `GET …/checklist` for a task and for a chat. A chat with a worktree gets the git
+> summary; any chat also gets the files its own `Write`/`Edit`/`NotebookEdit` calls touched, so one
+> outside git still answers. A task is measured from where its own branch was cut (`baseCommit`), not
+> from the graph's base, or a dependent task would be credited with its dependencies' work. It is
+> live through a `changes.updated` event, looked at every 3 s only while a client listens. The UI
+> is a **Work** panel on a task (`?task=<id>`) and **Doing now** and **Changes** cards on a chat, with
+> the diff drawn by the existing code-block grammar, so no library was added.
+>
+> Two differences from the sketch: "what it is doing now" is read from the last unanswered tool call
+> in the transcript, so it only shows while something works, and the time since its last event
+> keeps growing during a long command that is alive.
+
 For every orchestration task that has a worktree, and for the integration branch:
 
 - **Branch and base**: the branch it works on, the commit it started from, how many commits ahead.
@@ -59,6 +76,16 @@ and `GET …/changes/diff?path=` → the unified diff of one file. The same for 
 
 ## 2. Open it in the editor
 
+> **Landed, with the settings in the browser.** Open the worktree, jump to a changed file or a
+> changed line (from the diff's hunk headers), a link template, the container-to-host path rows and
+> the optional `code --diff` command, edited in the **Editor** tab of Settings with a live preview.
+> Templates whose scheme is `javascript:`, `data:`, `vbscript:`, `file:` or `blob:` are refused.
+> **Not as planned:** the settings live in `localStorage` (`agentry-editor:v1`), not on the server,
+> because they describe the machine the browser runs on and a server copy would need a route and a
+> schema for one person's preference. And a browser cannot run `code --diff`, so that button copies
+> the command instead of running it, and only on a task (a chat has no main-checkout path for the left
+> side).
+
 VS Code registers a URL scheme that the panel can link to:
 
 ```
@@ -82,6 +109,29 @@ Limits and settings:
   JetBrains IDEs. Default: VS Code.
 
 ## 3. Detect a stuck agent
+
+> **Landed, apart from the supervisor.** All seven signals are computed in core
+> (`hung-command`, `repeat-stall`, `no-progress`, `loop`, `weakened-test`, `silence`, `budget`), next
+> to the facts a chat already had (last execution, waiting, context, branches). "Longer than usual"
+> is measured from a SQLite table of command durations by kind, with the fixed 3 minutes until there
+> are five runs, and a hang that was cancelled never lowers the bar. The rules prefer silence to a
+> false positive: a test edit only counts when every assertion is gone, a test is skipped, an
+> assertion that cannot fail is added or precise ones are swapped for lax ones. A loop needs the same
+> call with the same answer four times. `health.changed` is on the feed and in the notification
+> centre; a task carries its health in `GET /orchestrations`.
+>
+> The actions are `POST /chats/:id/commands/:toolUseId/cancel` (that command's process tree, found
+> under the CLI's pid from the process tree and start times, never from a command line; Linux
+> only), `POST /chats/:id/hint` and the task hint route that already existed. Each signal carries a
+> hint text Agentry writes.
+>
+> **Levels are `ok`, `warn`, `bad`, not the plan's ok, slow, stuck and looping.** Those mix a
+> severity with three kinds of signal, and severity is what the panel already rendered. The badge maps
+> them: `warn` reads "slow", `bad` reads "stuck", and `bad` with a `loop` or `repeat-stall` reads
+> "looping".
+>
+> **Not built: the optional supervisor** (the Haiku agent below). It stays open, see the note in the
+> section.
 
 The CLI already reports what is needed. While a command runs it sends a heartbeat every 30 s:
 
@@ -116,8 +166,21 @@ What happens when one fires:
 - **Optional supervisor**: a cheap agent (Haiku) that only wakes when a signal fires, reads the
   worker's last steps and drafts the hint. Off by default; when on, it proposes and a person
   approves, unless set to send on its own.
+  Not built by the orchestration that finished the rest of this section (`roadmap-completion.md`):
+  every signal already carries a suggested hint text, written by Agentry, which covers the same
+  ground without a second model to pay for, watch and trust. Still open.
 
 ## 4. Prevent it in the first place
+
+> **Landed.** Worker prompts now carry the split of checks (see section 5) and tell workers to run
+> long commands under `timeout`. The e2e harness has a limit per spec (`E2E_SPEC_TIMEOUT`, 180 s)
+> and per run (`E2E_TIMEOUT`, 900 s), Chrome takes its own debugging port and is killed by the pid the
+> harness started on every way out (pass, failure, timeout, `SIGINT`, `SIGTERM`, `SIGHUP`, a crash),
+> and `e2e/harness.test.mjs` proves that no browser or server outlives a forced timeout. Per-task
+> limits are `TaskLimits { maxMinutes?, maxCostUsd? }` on a task or a graph: the cost goes to the CLI
+> as `--max-budget-usd` (a retry only gets what is left), and the time is Agentry's own clock, which
+> warns the worker at 80 % and ends the task with the reason at the limit. A workflow graph refuses
+> limits instead of ignoring them.
 
 - **Worker prompts** tell workers to run long commands under `timeout`, and leave the e2e suite to
   the verification phase (section 5). The worker in the case above switched to `timeout` once told.
@@ -127,6 +190,21 @@ What happens when one fires:
   (`--max-budget-usd`) and only needs exposing per task, with a soft warning before the hard stop.
 
 ## 5. Verify once, after integrating
+
+> **Landed.** `verification: { commands, fixer, maxAttempts, model?, timeoutMinutes? }` on the
+> orchestration, run in `finish()` after integration and before the synthesis, so the synthesis
+> prompt and the pull request body carry the outcome. Each command runs alone under a timeout (default
+> 20 min) and a hung one's process tree is killed by pid. The fixer's rules come from Agentry, it
+> sees the failure, its earlier attempts and what each task did, and each command has its own
+> `maxAttempts`; after each fix every command runs again from the first. The outcome is `passed`,
+> `fixed` (with the fixer's commits) or `failed` (with the report and the checks that never ran),
+> and `POST /orchestrations/:id/verify` runs it by hand. Required: `worktree: true` on the graph
+> engine.
+>
+> **Left out:** a cost limit for the fixer (its attempts are bounded, its spend is not), an install
+> step (a fresh worktree has no `node_modules`, so the commands list one), and turning the graph
+> `failed` when verification fails (the graph's status stays about its tasks and `verification` is
+> its own field).
 
 The same orchestration showed where the time goes: in the e2e suite, run by every worker on its own
 part of the change. A worker cannot see the whole: the one building notifications does not have
@@ -152,6 +230,11 @@ Split the checks by what each step can actually judge:
 
 ## Smaller items noted on the way
 
+> **Landed, each as its own commit** — except answering from the notification, which stays open:
+> the seeded notification, the link that opens the prompt (`/chats/:id?prompt=<id>`), the restart
+> reason and time, `agentId` on `workflow.ended`, `sessionId` on every subagent, and the `detail.ts`
+> tests. The two polls at the end were kept on purpose and are still worth revisiting.
+
 - A run cut off by a wrapper restart is restored as `stopped` with no reason. Record "interrupted by
   a wrapper restart" and the real time it stopped.
 
@@ -171,6 +254,9 @@ Left over from 0.11.0, which brought the event feed, the notifications and the d
   transcript announces each line).
 
 ## Suggested order
+
+All five steps were done except the second half of the fifth: per-task limits landed, the supervisor
+did not.
 
 1. Execution detail (section 1). The detail views for subagents and background tasks come with the
    orchestration that builds the global event feed, and this builds on both.

@@ -35,5 +35,16 @@
     "unknown": "unknown",
     "working": "working",
     "blocked": "blocked"
+  },
+  "signIn": {
+    "title": "This wrapper asks for a credential",
+    "tokenBody": "Agentry is running with token authentication. Paste the token you were given when it was created; it is kept in this browser only.",
+    "oidcBody": "Agentry is running with OIDC authentication. Paste an access token from your identity provider, or reach the wrapper through the proxy that adds one.",
+    "label": "Token",
+    "placeholder": "Paste the token",
+    "submit": "Sign in",
+    "rejected": "That credential was not accepted. Check it has not expired and that it is the one this wrapper knows.",
+    "failed": "The wrapper could not be reached to check the credential.",
+    "hint": "A token is shown once, when it is created. Lost it? Rotate it from the machine that runs Agentry."
   }
 }

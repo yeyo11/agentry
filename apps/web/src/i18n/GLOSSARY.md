@@ -40,6 +40,7 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | MCP, MCP server | el servidor MCP, los servidores MCP |
 | skill | la skill, las skills |
 | plugin | el plugin, los plugins |
+| preset, tool preset | el preset, los presets (de herramientas) |
 | marketplace | el marketplace |
 | workflow | el workflow, los workflows |
 | token | el token, los tokens |
@@ -100,6 +101,11 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | Background tasks | Tareas en segundo plano |
 | Projects / Project | Proyectos / Proyecto |
 | Orchestration | Orquestación |
+| Template | Plantilla |
+| Re-run (a task) / Relaunch (a graph) | Repite / Relanza |
+| Connector | Conector |
+| Rotation policy | Política de rotación |
+| Config directory | Directorio de configuración |
 | Accounts / Account | Cuentas / Cuenta |
 | Memory | Memoria |
 | Config | Configuración |
@@ -138,6 +144,12 @@ terminal. They take the article and gender shown, and form the plural with `-s`.
 | Threshold | Umbral |
 | Language | Idioma |
 | Theme: system / light / dark | Tema del sistema / claro / oscuro |
+| Schedule (a recurring chat or orchestration) | Programación, las programaciones |
+| Cron expression | Expresión cron |
+| Slot (the moment a schedule was due) | Hueco |
+| Skipped (a slot missed while the wrapper was down) | Omitida |
+| Range (of days) | Rango |
+| Export (a transcript) | Exporta |
 | Workspace (the wrapper's) | Espacio de trabajo |
 | Working directory | Directorio de trabajo |
 | Default (value) | Predeterminado |

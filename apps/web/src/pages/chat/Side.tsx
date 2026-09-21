@@ -5,10 +5,12 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { BranchStatus, ContextMeter, OutcomeBadge } from '../../components/ChatBadges';
 import { Collapsible } from '../../components/controls/Collapsible';
+import { HealthBadge, HealthPanel, isStepIn } from '../../components/observe/Health';
 import { EnvironmentBody } from '../../components/EnvironmentPanel';
 import { ICON_SM } from '../../components/icons';
 import { Card } from '../../components/ui';
 import { WorkflowCard } from '../../components/WorkflowCard';
+import { api } from '../../api';
 import { formatTokens } from '../../lib/chat-model';
 import { useDetailPanel } from '../../lib/detail';
 import { durationBetween, formatCost, formatDateTime, formatNumber, timeAgo } from '../../lib/format';
@@ -225,27 +227,35 @@ export function BranchesCard({ chat }: { chat: Chat }) {
 const NOTE_ICON: Record<HealthLevel, typeof Info> = { ok: CircleCheck, warn: TriangleAlert, bad: TriangleAlert };
 // The icon is decorative, so the level is also said in words (side.health.level)
 
-/** What core says of the chat's health: every signal that fired, or the reason it is fine. */
+/**
+ * What core says of the chat's health: the facts of the chat itself as notes, and the signals a
+ * person can step in on with their actions (cancel the command, send a written hint, interrupt).
+ */
 export function HealthCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation('chat');
   const { health } = chat;
-  const notes: Array<{ kind: string; level: HealthLevel; reason: string }> = health.signals.length > 0 ? health.signals : [{ kind: 'ok', level: 'ok', reason: health.reason }];
+  const facts = health.signals.filter((s) => !isStepIn(s));
+  const notes: Array<{ kind: string; level: HealthLevel; reason: string }> =
+    health.signals.length > 0 ? facts : [{ kind: 'ok', level: 'ok', reason: health.reason }];
   return (
-    <Card title={t('side.health.title')}>
-      <ul className="chat-notes">
-        {notes.map((note) => {
-          const Icon = NOTE_ICON[note.level];
-          return (
-            <li key={note.kind} className={`chat-note chat-note-${note.level}`}>
-              <Icon {...ICON_SM} />
-              <span>
-                <span className="sr-only">{t('side.health.levelSaid', { level: t(`side.health.level.${note.level}`) })} </span>
-                {note.reason}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+    <Card title={t('side.health.title')} actions={<HealthBadge health={health} />}>
+      <HealthPanel health={health} chatId={chat.id} live={Boolean(chat.execution)} badge={false} sendHint={(text) => api.hintChat(chat.id, { text })} />
+      {notes.length > 0 && (
+        <ul className="chat-notes">
+          {notes.map((note) => {
+            const Icon = NOTE_ICON[note.level];
+            return (
+              <li key={note.kind} className={`chat-note chat-note-${note.level}`}>
+                <Icon {...ICON_SM} />
+                <span>
+                  <span className="sr-only">{t('side.health.levelSaid', { level: t(`side.health.level.${note.level}`) })} </span>
+                  {note.reason}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </Card>
   );
 }

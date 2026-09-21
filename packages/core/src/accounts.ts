@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type {
+  AccountConfig,
   AccountsOverview,
   AccountsSnapshot,
   AccountSummary,
@@ -14,7 +15,10 @@ import type {
   CswapInfo,
   SwitchResult,
   SwitchStrategy,
+  UpdateAccountConfigRequest,
+  UsageHistoryPoint,
 } from '@agentry/shared';
+import { AccountConfigs, pickAccount } from './account-config.ts';
 import { writeAtomic } from './config/files.ts';
 import type { Db } from './db.ts';
 import type { CoreConfig } from './paths.ts';
@@ -27,6 +31,13 @@ const LIST_TTL_MS = 30_000;
 const DETECT_TTL_MS = 60_000;
 const CMD_TIMEOUT_MS = 90_000;
 const RESTART_DELAY_MS = 5_000;
+/** How often the usage is read for the history when nobody is looking at the accounts page. */
+const SAMPLE_INTERVAL_MS = 5 * 60_000;
+/** A reading that did not move is still kept this often, so a flat stretch of the line has points. */
+const SAMPLE_KEEPALIVE_MS = 30 * 60_000;
+const KEEP_USAGE_DAYS = 90;
+/** A rate-limited account is not offered again by a policy for this long, whatever the usage says. */
+const EXHAUSTED_TTL_MS = 30 * 60_000;
 /** How much of the rotation history `overview()` carries; the rest is a query away. */
 const OVERVIEW_EVENTS = 200;
 
@@ -44,6 +55,14 @@ export const DEFAULT_AUTO_SWITCH: AutoSwitchSettings = {
   intervalSec: 60,
   rotateOnLimit: true,
 };
+
+/** Where a chat runs: the account that decides its credential, and the config dir its process gets. */
+export interface Launch {
+  /** Slot number as a string, or the identifier the chat was pinned with; null leaves the active credential */
+  account: string | null;
+  /** `CLAUDE_CONFIG_DIR` of that account, when it has one of its own */
+  configDir: string | null;
+}
 
 /** The environment a `claude` (or `cswap`) child gets while claude-swap owns the credentials. */
 export function authFreeEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
@@ -140,6 +159,12 @@ export class AccountManager extends EventEmitter {
   private auto: ChildProcessWithoutNullStreams | null = null;
   private restartTimer: NodeJS.Timeout | null = null;
   private stopped = false;
+  /** Config directories and per-project rotation policies */
+  readonly configs: AccountConfigs;
+  /** The project id a working directory belongs to; set by Core, which owns the projects */
+  projectOf: ((cwd: string) => string | null) | null = null;
+  private readonly exhausted = new Map<number, number>();
+  private sampler: NodeJS.Timeout | null = null;
   /** Serializes rotations so a reactive one never interleaves with a manual one */
   private queue: Promise<unknown> = Promise.resolve();
 
@@ -149,6 +174,7 @@ export class AccountManager extends EventEmitter {
   ) {
     super();
     this.file = join(config.dataDir, 'accounts.json');
+    this.configs = new AccountConfigs(config);
     if (existsSync(this.file)) {
       try {
         const saved = JSON.parse(readFileSync(this.file, 'utf8')) as { autoSwitch?: Partial<AutoSwitchSettings> };
@@ -228,7 +254,10 @@ export class AccountManager extends EventEmitter {
         : [];
     } catch {
       accounts = this.listCache?.value ?? []; // usage polling can fail transiently; keep the last picture
+      this.listCache = { at: Date.now(), value: accounts };
+      return accounts;
     }
+    this.sample(accounts);
     this.listCache = { at: Date.now(), value: accounts };
     return accounts;
   }
@@ -256,7 +285,107 @@ export class AccountManager extends EventEmitter {
       autoSwitch: this.autoSwitch,
       autoSwitchRunning: this.auto !== null,
       events: this.db.rotationEvents({ limit: OVERVIEW_EVENTS }),
+      configs: this.configs.list(),
+      policies: this.configs.policies(),
     };
+  }
+
+  // ---------- usage history ----------
+
+  /**
+   * Keeps what claude-swap just reported as rows. The reading's own timestamp is the key, so the
+   * same cached fetch seen twice is one row; a window that has not moved is written again only
+   * after a while, which keeps a quiet account from filling the table with one value.
+   */
+  private sample(accounts: readonly AccountSummary[]): void {
+    const now = Date.now();
+    const points: UsageHistoryPoint[] = [];
+    for (const account of accounts) {
+      const at = account.usageFetchedAt ?? new Date(now).toISOString();
+      for (const [window, reading] of [['5h', account.usage?.fiveHour], ['7d', account.usage?.sevenDay]] as const) {
+        if (!reading) continue;
+        const last = this.db.latestUsagePoint(account.number, window);
+        if (last && (last.at >= at || (last.pct === reading.pct && now - Date.parse(last.at) < SAMPLE_KEEPALIVE_MS))) continue;
+        points.push({ at, pct: reading.pct, window, account: account.number });
+      }
+    }
+    this.db.appendUsagePoints(points);
+  }
+
+  /** Readings of one or every account, oldest first, for a chart. */
+  usageHistory(opts: { account?: number; window?: UsageHistoryPoint['window']; since?: string; until?: string; limit?: number } = {}): UsageHistoryPoint[] {
+    return this.db.usageHistory(opts);
+  }
+
+  // ---------- where a chat runs ----------
+
+  private find(identifier: string): AccountSummary | undefined {
+    return this.listCache?.value.find((a) => identifier === String(a.number) || identifier === a.email || identifier === a.alias);
+  }
+
+  private exhaustedNumbers(): Set<number> {
+    const now = Date.now();
+    for (const [number, until] of this.exhausted) if (until <= now) this.exhausted.delete(number);
+    return new Set(this.exhausted.keys());
+  }
+
+  /** The policy governing the project a directory is in, if any. */
+  private policyOf(cwd: string) {
+    const project = this.projectOf?.(cwd) ?? null;
+    return project ? this.configs.policyFor(project) : null;
+  }
+
+  /**
+   * Decides where a chat runs, from what is cached: a chat is spawned synchronously, and a usage
+   * read is a subprocess. A chat pinned by hand keeps its account whatever a policy says; one under
+   * a project's policy takes the account that policy picks; any other stays on the active credential.
+   * Either way the account's own config directory, if it has one, rides along.
+   */
+  launchFor(chat: { account: string | null; cwd: string }): Launch {
+    const accounts = this.listCache?.value ?? [];
+    const active = accounts.find((a) => a.active);
+    let target = chat.account ? this.find(chat.account) : undefined;
+    if (!chat.account) {
+      const policy = this.policyOf(chat.cwd);
+      const picked = policy ? pickAccount(policy, accounts, { current: active?.number ?? null, exhausted: this.exhaustedNumbers() }) : null;
+      target = picked ?? undefined;
+    }
+    const account = target ? String(target.number) : chat.account;
+    const owner = target ?? (chat.account ? undefined : active);
+    return { account, configDir: owner ? this.configs.configDirOf(owner.number) : null };
+  }
+
+  /**
+   * A chat under a project's policy hit its limit: that account is set aside for a while and the
+   * policy is asked again, which moves the chat without touching the credential every other chat
+   * shares. Null when no policy governs the chat, so the global rotation handles it as before.
+   */
+  async rotateWithinPolicy(chat: { account: string | null; cwd: string }, reason: string): Promise<SwitchResult | null> {
+    if (chat.account || !this.policyOf(chat.cwd)) return null;
+    const from = this.launchFor(chat).account;
+    const fromAccount = from ? this.find(from) : undefined;
+    if (fromAccount) this.exhausted.set(fromAccount.number, Date.now() + EXHAUSTED_TTL_MS);
+    await this.list(true);
+    const to = this.launchFor(chat).account;
+    const toAccount = to && to !== from ? this.find(to) : undefined;
+    const fromLabel = fromAccount?.email ?? from ?? null;
+    if (!toAccount) {
+      const result = { switched: false, from: fromLabel, to: null, reason: 'no account the project\'s policy allows has quota left' };
+      this.record({ event: 'no-switch', reason: result.reason, detail: reason });
+      return result;
+    }
+    const result = { switched: true, from: fromLabel, to: toAccount.email, reason: 'project rotation policy' };
+    this.record({ event: 'rotate', from: result.from ?? undefined, to: result.to, reason: result.reason, detail: reason });
+    return result;
+  }
+
+  // ---------- config directory ----------
+
+  /** Sets or clears an account's config directory; the account has to be one claude-swap manages. */
+  async setConfig(identifier: unknown, request: UpdateAccountConfigRequest): Promise<AccountConfig | null> {
+    const account = this.find(AccountManager.account(identifier));
+    if (!account) throw new Error('account not found');
+    return this.configs.setConfigDir(account.number, request);
   }
 
   /** Cheap, cache-only view for the dashboard; null until claude-swap is known to be there. */
@@ -468,11 +597,22 @@ export class AccountManager extends EventEmitter {
   /** Called at boot: learns whether claude-swap owns the credentials and starts the supervisor. */
   async init(): Promise<void> {
     await this.list(true).catch(() => []);
+    this.startSampler();
     if (this.settings.enabled) await this.startAuto().catch(() => {});
+  }
+
+  /** Reads the usage now and then, so the history has points while nobody has the page open. */
+  private startSampler(): void {
+    if (this.sampler || this.stopped || !this.detectCache?.value.installed) return;
+    this.db.pruneUsageHistory(new Date(Date.now() - KEEP_USAGE_DAYS * 86_400_000).toISOString());
+    this.sampler = setInterval(() => void this.list(true).catch(() => []), SAMPLE_INTERVAL_MS);
+    this.sampler.unref();
   }
 
   shutdown(): void {
     this.stopped = true;
+    if (this.sampler) clearInterval(this.sampler);
+    this.sampler = null;
     this.stopAuto();
   }
 }

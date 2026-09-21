@@ -1,9 +1,23 @@
 import { Bell } from 'lucide-react';
-import { lazy, Suspense, useCallback, useId, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { api } from '../api';
 import { useAgentryEvents } from '../lib/events';
-import { getPrefs, hasUrgent, ingest, isRedundant, markRead, showBrowserNotification, unreadCount, useNotifications } from '../lib/notifications';
+import {
+  getPrefs,
+  hasUrgent,
+  ingest,
+  isRedundant,
+  markRead,
+  seedWaiting,
+  showBrowserNotification,
+  unreadCount,
+  useNotifications,
+  waitingDrafts,
+  type AppNotification,
+  type NotificationDraft,
+} from '../lib/notifications';
 import '../notifications.css';
 import { Tooltip } from './controls/Tooltip';
 import { ICON } from './icons';
@@ -69,9 +83,7 @@ export function NotificationHost() {
 
   const open = useCallback((href: string | null) => href && navigate(href), [navigate]);
 
-  useAgentryEvents((event) => {
-    const { added, settled } = ingest(event, (draft) => isRedundant(draft, where.current, document.visibilityState === 'visible'));
-    for (const n of settled) toast.dismissKey(n.key);
+  const announce = (added: AppNotification[]) => {
     const prefs = getPrefs();
     for (const n of added) {
       // Low priority stays in the center: a busy run finishes subagents all the time
@@ -100,7 +112,38 @@ export function NotificationHost() {
         open(href);
       });
     }
+  };
+  const seen = (draft: NotificationDraft) => isRedundant(draft, where.current, document.visibilityState === 'visible');
+
+  useAgentryEvents((event) => {
+    const { added, settled } = ingest(event, seen);
+    for (const n of settled) toast.dismissKey(n.key);
+    announce(added);
   });
+
+  // A chat that was already waiting when the page opened sent its `run.waiting` to nobody
+  const announceLatest = useRef(announce);
+  announceLatest.current = announce;
+  useEffect(() => {
+    const checkedAt = Date.now();
+    let cancelled = false;
+    void (async () => {
+      try {
+        const chats = await api.chats({ state: 'waiting' });
+        const drafts = (await Promise.all(chats.map(async (chat) => waitingDrafts(chat, await api.chatPermissions(chat.id))))).flat();
+        if (cancelled) return;
+        const { added, settled } = seedWaiting(drafts, checkedAt, seen);
+        for (const n of settled) toast.dismissKey(n.key);
+        announceLatest.current(added);
+      } catch {
+        // The feed still tells of what comes next; a failed read only loses what came before
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Once per load: `seen` reads the location through a ref
+  }, []);
 
   return null;
 }

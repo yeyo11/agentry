@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type {
   AccountsOverview,
   AuthVerification,
+  CliVersionInfo,
   ChatProject,
   ChatSummary,
   ChatWorktree,
@@ -24,18 +25,25 @@ import type {
 } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
+import { stateFromRun } from './chat-model.ts';
 import { ChatService, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatRuntime } from './chats.ts';
+import { Connectors } from './connectors.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
+import { CliVersionWatch } from './cli-version.ts';
 import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
+import { ChangeWatcher } from './change-watcher.ts';
+import { Changes } from './changes.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
 import { Db } from './db.ts';
+import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
 import { EventBus } from './events.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
+import { ChatTools, ToolPresetStore } from './chat-tools.ts';
 import { McpConfig } from './config/mcp.ts';
 import { ConfigResources } from './config/resources.ts';
 import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
@@ -45,16 +53,20 @@ import { MemoryStore } from './memory.ts';
 import { Orchestrator } from './orchestrator.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { attachProject, projectCandidates, ProjectStore, type ChatPlace } from './projects.ts';
+import { AuthStore } from './security/auth.ts';
+import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
+export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
-export { loadConfig, type CoreConfig } from './paths.ts';
+export { loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
 export { ChatConflictError, DEFAULT_ORIGINS, type ChatFilter, type Placement } from './chat-service.ts';
+export { compareVersions } from './cli-version.ts';
 export { DEFAULT_AUTO_SWITCH } from './accounts.ts';
 export {
   chatControl,
@@ -70,7 +82,14 @@ export {
 } from './chat-model.ts';
 export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
+export { usageBreakdown, usageSeries } from './usage-series.ts';
+export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { Db } from './db.ts';
+export { AuthStore } from './security/auth.ts';
+export { OidcVerifier, type FetchLike } from './security/oidc.ts';
+export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
+export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
+export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
 
 // Read from the package rather than written into this file: the release tooling then only edits
@@ -94,20 +113,32 @@ export class Core {
   readonly chats: ChatService;
   readonly sessions: SessionStore;
   readonly orchestrator: Orchestrator;
+  /** What a task, the integration branch or a chat has changed on disk */
+  readonly changes: Changes;
+  /** What a chat's health is read from: the calls it made, the history of how long commands take */
+  readonly health: HealthService;
+  private readonly healthMonitor: HealthMonitor;
+  readonly schedules: Scheduler;
   readonly files: SettingsFiles;
   readonly explorer: ConfigExplorer;
   readonly plugins: Plugins;
   readonly memory: MemoryStore;
   readonly mcp: McpConfig;
+  readonly toolPresets: ToolPresetStore;
+  readonly connectors: Connectors;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
+  /** How the API is guarded: the auth mode, the token hash and read-only */
+  readonly security: AuthStore;
   readonly uploads: UploadStore;
   readonly accounts: AccountManager;
+  readonly cliVersion: CliVersionWatch;
   readonly workspace: Workspace;
   readonly locator = new Locator();
   private readonly projectStore: ProjectStore;
   private readonly startedAt = Date.now();
   private readonly sessionsWatcher: SessionsWatcher;
+  private readonly changeWatcher: ChangeWatcher;
   private systemCache: { at: number; value: Omit<SystemInfo, 'uptimeSec'> } | null = null;
 
   constructor(config: CoreConfig = loadConfig()) {
@@ -116,7 +147,9 @@ export class Core {
     this.permissions = new PermissionBroker();
     // Must run before anything spawns the CLI: it injects stored credentials into process.env
     this.credentials = new CredentialStore(config);
+    this.security = new AuthStore(config);
     this.workspace = new Workspace(config);
+    this.cliVersion = new CliVersionWatch(config);
     this.projectStore = new ProjectStore(config);
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db);
@@ -144,25 +177,64 @@ export class Core {
     this.orchestrator = new Orchestrator(config, this.runtime, this.db);
     this.orchestrator.bus = this.events;
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
+    this.mcp = new McpConfig(config);
+    this.toolPresets = new ToolPresetStore(config);
+    this.health = new HealthService(this.runtime, this.db);
+    this.orchestrator.health = (task) => {
+      const chat = task.runId ? this.runtime.get(task.runId) : null;
+      const context = task.runId ? this.orchestrator.taskContext(task.runId) : null;
+      if (!chat || !context) return null;
+      return this.health.read(chat.id, {
+        state: stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }),
+        lastEnded: null,
+        context: null,
+        failedBranches: 0,
+        limits: context.limits,
+        taskElapsedMs: context.elapsedMs,
+        taskSpentUsd: context.spentUsd,
+      });
+    };
+    this.healthMonitor = new HealthMonitor({
+      runtime: this.runtime,
+      health: this.health,
+      emit: (event) => this.events.emit(event),
+      taskOf: (chat) => this.orchestrator.taskContext(chat.id),
+    });
+    this.healthMonitor.start();
     this.chats = new ChatService({
+      health: this.health,
       config,
       runtime: this.runtime,
+      tools: new ChatTools(config, this.mcp, this.toolPresets),
       sessions: this.sessions,
       orchestrator: this.orchestrator,
       place: (dir, recorded) => this.place(dir, recorded),
       environmentOf: (dir) => this.runtime.environments.get(dir),
       windowOf: (model) => this.db.modelWindow(model),
     });
+    this.changes = new Changes({ orchestrator: this.orchestrator, chats: this.chats, sessions: this.sessions, runtime: this.runtime });
+    this.changeWatcher = new ChangeWatcher(this.orchestrator, this.events);
+    this.changeWatcher.start();
     this.files = new SettingsFiles();
     this.explorer = new ConfigExplorer();
     this.plugins = new Plugins(config);
     this.memory = new MemoryStore(config);
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
-    void this.runtime.restore(this.sessions).finally(() => this.orchestrator.recover());
-    this.mcp = new McpConfig(config);
+    // Started last of all, once the chats it may resume or start are restored, so a slot judged at
+    // boot finds the runtime it launches into ready
+    this.schedules = new Scheduler(config, {
+      chat: (request) => this.chats.create(request),
+      orchestration: (spec) => this.orchestrator.create(spec),
+    });
+    void this.runtime.restore(this.sessions).finally(() => {
+      this.orchestrator.recover();
+      this.schedules.start();
+    });
+    this.connectors = new Connectors(config);
     this.resources = new ConfigResources();
     this.accounts = new AccountManager(config, this.db);
     this.runtime.accounts = this.accounts;
+    this.accounts.projectOf = (cwd) => this.attach(cwd)?.project.id ?? null;
     this.accounts.on('switched', (result: SwitchResult) => {
       this.systemCache = null; // the active account (and its email) changed
       this.events.emit({
@@ -198,7 +270,9 @@ export class Core {
   private async rotateAndResume(run: ChatRuntime): Promise<void> {
     if (!this.accounts.autoSwitch.rotateOnLimit || !this.accounts.managed) return;
     try {
-      const result = await this.accounts.rotate(`run ${run.name} hit its rate limit`);
+      // A project with a rotation policy moves within it; everything else uses the global rotation
+      const reason = `run ${run.name} hit its rate limit`;
+      const result = (await this.accounts.rotateWithinPolicy({ account: run.account, cwd: run.cwd }, reason)) ?? (await this.accounts.rotate(reason));
       if (!result.switched) {
         this.runtime.notice(run.id, `Rate limit reached and no account with quota left${result.reason ? ` (${result.reason})` : ''}.`);
         return;
@@ -385,6 +459,17 @@ export class Core {
     return roots;
   }
 
+  /** The CLI in use against the newest published one, as the last check left it: no network here. */
+  async cliVersionInfo(): Promise<CliVersionInfo> {
+    return this.cliVersion.info((await this.system()).cli.version);
+  }
+
+  /** Asks the registry now; the button on the System page, not something a page load may trigger. */
+  async checkCliVersion(): Promise<CliVersionInfo> {
+    await this.cliVersion.check();
+    return this.cliVersionInfo();
+  }
+
   async setCredentials(credentials: StoredCredentials): Promise<SystemInfo> {
     await this.credentials.set(credentials);
     return this.system(true);
@@ -530,7 +615,12 @@ export class Core {
   }
 
   shutdown(): void {
+    this.cliVersion.stop();
+    this.healthMonitor.stop();
+    this.orchestrator.close();
+    this.schedules.close();
     this.sessionsWatcher.close();
+    this.changeWatcher.close();
     this.permissions.close();
     this.accounts.shutdown();
     this.runtime.stopAll();

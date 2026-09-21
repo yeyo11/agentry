@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
-import type { AgentTranscript, BackgroundTaskOutput, ChatBackgroundTaskEntry, ChatDetail, TranscriptSearchResult } from '@agentry/shared';
+import type { AgentTranscript, BackgroundTaskOutput, ChatBackgroundTaskEntry, ChatDetail, ChatSubagentEntry, TranscriptSearchResult } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
 
 // Subagent and workflow-agent transcripts and task output over HTTP, against synthetic sessions
@@ -75,6 +75,16 @@ test('a subagent comes back with its prompt, usage, result and the tasks it laun
   const tail = (await app.inject(`/api/chats/${SESSION}/subagents/${AGENT}?after=4`)).json<AgentTranscript>();
   assert.equal(tail.from, 4);
   assert.equal(tail.entries.length, 1);
+});
+
+test('a subagent reads the same, sessionId included, in its chat and in the list of its chat', async () => {
+  const nested = (await app.inject(`/api/chats/${SESSION}`)).json<ChatDetail>().chat.children.subagents.find((s) => s.id === AGENT);
+  const own = (await app.inject(`/api/chats/${SESSION}/subagents`)).json<ChatSubagentEntry[]>().find((s) => s.id === AGENT);
+  assert.equal(nested?.sessionId, SESSION);
+  assert.equal(own?.sessionId, SESSION);
+  // The list adds the chat it came from (as does the aggregate, which only holds recent chats); nothing else differs
+  const { chat: _ownChat, ...ownFields } = own ?? ({} as ChatSubagentEntry);
+  assert.deepEqual(ownFields, nested);
 });
 
 test('a workflow agent is served under its run', async () => {

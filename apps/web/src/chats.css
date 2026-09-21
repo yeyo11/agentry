@@ -231,6 +231,29 @@
   color: var(--text-muted);
 }
 
+.chat-tools-picker {
+  flex: 1 1 100%;
+}
+/* Inside the resume options a label is a one-line control; here it stacks over its field */
+.chat-options .chat-tools-picker label.field {
+  display: flex;
+  align-items: stretch;
+  font-size: inherit;
+  color: inherit;
+}
+.chat-tools-servers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.chat-tools-servers legend {
+  padding: 0;
+  margin-bottom: 4px;
+}
+
 .list-plain {
   list-style: none;
   margin: 0;

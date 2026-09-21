@@ -1,0 +1,203 @@
+/* Schedules and Usage. Every colour is a theme token, so both themes read without a second set. */
+
+.alert-note {
+  background: var(--bg-elev);
+}
+.alert-note .alert-icon {
+  color: var(--text-muted);
+}
+
+/* Schedules */
+.schedules {
+  margin-top: 14px;
+}
+.schedule-when {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 12px 14px 14px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.fieldset > legend {
+  padding: 0 6px;
+}
+.cron-preview {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+}
+.cron-preview > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-muted);
+}
+/* An invalid expression is said in words too; the border is only a second cue */
+.cron-preview.is-invalid {
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+  background: var(--bad-soft);
+}
+.cron-next {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+}
+.task-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.task-draft-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.task-draft-head input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Usage */
+.usage-date {
+  width: 160px;
+}
+.usage-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin: 14px 0;
+}
+.usage-tile {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elev);
+}
+.usage-tile-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.usage-tile-value {
+  margin-top: 4px;
+  font-size: 22px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.usage-slices {
+  margin-top: 16px;
+}
+.usage-table .num,
+.usage-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* A row header, not a column header: undo the sticky uppercase look `.table th` gives the head */
+.usage-table tbody th {
+  position: static;
+  text-align: left;
+  font-size: inherit;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+  background: none;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.usage-table tbody tr:last-child th {
+  border-bottom: 0;
+}
+
+/* The chart: one series, one hue, so the only colour choice is the accent. Grid and axes recede. */
+.chart {
+  width: 100%;
+  min-width: 0;
+}
+.chart svg {
+  display: block;
+  overflow: visible;
+}
+.chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.chart-base {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+.chart-axis {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.chart-bar {
+  fill: var(--accent);
+  opacity: 0.85;
+  transition: opacity var(--dur-fast);
+}
+.chart-bar.is-active {
+  opacity: 1;
+}
+.chart-hit {
+  fill: transparent;
+}
+.chart-readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  min-height: 22px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Horizontal bars: the name and the figure are text, the bar only repeats them */
+.slice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.slice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+.slice-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.slice-track {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+.slice-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+}

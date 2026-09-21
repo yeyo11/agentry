@@ -12,6 +12,7 @@ import {
   type ChatOrigin,
   type ChatSettingsUpdate,
   type ChatStartOptions,
+  type ChatToolConfig,
   type EffectiveEnvironment,
   type Execution,
   type NewChatRequest,
@@ -24,8 +25,9 @@ import {
   type RunStatus,
   type TranscriptEntry,
 } from '@agentry/shared';
-import { authFreeEnv } from './accounts.ts';
-import { executionOutcome } from './chat-model.ts';
+import { authFreeEnv, type Launch } from './accounts.ts';
+import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
+import { commandKind } from './commands.ts';
 import { chatsFromRuns, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
@@ -33,7 +35,8 @@ import { RunEventPublisher } from './event-sources.ts';
 import type { EventBus } from './events.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
-import { drivesSession, streamJsonProcesses } from './processes.ts';
+import { runningCommands, type ToolCall, type Trace } from './health.ts';
+import { cliProcessOf, commandRoots, drivesSession, processTable, streamJsonProcesses, terminateTree } from './processes.ts';
 import type { SessionStore } from './sessions.ts';
 import { composeContent, type UploadStore } from './uploads.ts';
 import { emptyTokenUsage } from './usage.ts';
@@ -90,6 +93,15 @@ export interface NewChat extends NewChatRequest {
   keepAlive?: boolean;
   /** Housekeeping: no transcript is written (`--no-session-persistence`), so it cannot be resumed */
   internal?: boolean;
+  toolConfig?: ChatToolConfig | null;
+}
+
+/**
+ * What `ChatTools` made of the tool preset and MCP servers a request picked, next to the request:
+ * the lists and the config file the CLI is given, and the description of them a chat keeps.
+ */
+export interface ResolvedTools {
+  toolConfig?: ChatToolConfig | null;
 }
 
 export interface RunMeta {
@@ -137,6 +149,8 @@ export interface ChatRuntime {
   permissionPrompts: 'host' | 'none';
   /** Prompts waiting for someone right now: the chat is stuck until they are answered */
   pendingPrompts: number;
+  /** The tool preset and MCP servers Agentry started it with; null when it picked none */
+  tools?: ChatToolConfig | null;
   executions: Execution[];
   backgroundTasks: BackgroundTask[];
   subagents: SubagentInfo[];
@@ -147,6 +161,10 @@ export interface ChatRuntime {
 export interface RunningCommand {
   command: string;
   startedAt: string;
+  /** The tool call, which is what cancelling one command is addressed by */
+  toolUseId: string;
+  /** The CLI's heartbeat for it: how long it says the command has run, as of `at` */
+  heartbeat?: { elapsedSeconds: number; at: string };
 }
 
 /** What the process working on a chat is doing right now. */
@@ -202,6 +220,8 @@ class LiveChat {
   readonly workflows = new Map<string, WorkflowRun>();
   /** Every execution, oldest first; at most the last one is live */
   executions: Execution[] = [];
+  /** The execution a wrapper restart cut off, when this chat was restored with one: its stop time is still an estimate */
+  cutOff: Execution | null = null;
   proc: ChildProcessWithoutNullStreams | null = null;
   seq = 0;
   status: RunStatus = 'starting';
@@ -230,6 +250,12 @@ class LiveChat {
   pendingPrompts = 0;
   /** The turn is ending because someone interrupted it, not because it failed */
   interruptRequested = false;
+  /** The CLI's `tool_progress` heartbeats for the commands still running, by tool call */
+  readonly heartbeats = new Map<string, { elapsedSeconds: number; at: string }>();
+  /** Foreground commands started and not answered, for the history of how long each kind takes */
+  readonly openCommands = new Map<string, { command: string; kind: string; startedAt: string }>();
+  /** Commands a person cancelled: their failed result is the person's doing, and says nothing about how long the command takes */
+  readonly cancelled = new Set<string>();
   /**
    * Messages that arrived while the process was on its way out (stopped, or its stdin closed and it
    * finishing background work): one process replaces it when it exits and gets all of them. Each
@@ -287,6 +313,9 @@ class LiveChat {
         internal: record.origin === 'internal',
         ...(record.account ? { account: record.account } : {}),
         permissionPrompts: record.permissionPrompts,
+        // A resumed chat keeps the tools and servers it was given, not the ones the CLI would pick
+        ...(record.tools ? { toolConfig: record.tools, allowedTools: record.tools.allowedTools, disallowedTools: record.tools.disallowedTools } : {}),
+        ...(record.tools?.mcp?.config ? { mcp: record.tools.mcp } : {}),
       },
       { orchestrationId: record.orchestrationId ?? undefined, orchestrationTaskId: record.orchestrationTaskId ?? undefined },
       record.origin,
@@ -294,9 +323,14 @@ class LiveChat {
       config,
       true,
     );
-    chat.executions = executions.map((e) =>
-      e.endedAt === null ? { ...e, endedAt: record.updatedAt, outcome: executionOutcome('busy', true) } : e,
-    );
+    // `updatedAt` is a floor for when it stopped: the record is only written at a few moments of a
+    // turn, so the manager refines it from the transcript, which the CLI writes as it goes
+    chat.executions = executions.map((e) => {
+      if (e.endedAt !== null) return e;
+      const cut = { ...e, endedAt: record.updatedAt, outcome: executionOutcome('busy', true), error: e.error ?? INTERRUPTED_BY_RESTART };
+      chat.cutOff = cut;
+      return cut;
+    });
     const last = chat.executions[chat.executions.length - 1];
     // The process's own status, for whatever still asks: nothing is running, and how it ended is
     // what the last execution says
@@ -308,6 +342,17 @@ class LiveChat {
     chat.error = last?.error ?? null;
     chat.workingDir = record.workingDir;
     return chat;
+  }
+
+  /**
+   * What the chat runs with: what was resolved from a preset and servers, or, for a chat that only
+   * has tool lists (an orchestration worker), those lists, since they are what explains a refusal.
+   */
+  get tools(): ChatToolConfig | null {
+    const { toolConfig, allowedTools, disallowedTools } = this.opts;
+    if (toolConfig) return toolConfig;
+    if (!allowedTools?.length && !disallowedTools?.length) return null;
+    return { preset: null, allowedTools: allowedTools ?? [], disallowedTools: disallowedTools ?? [], mcp: null };
   }
 
   /** The live execution, when a process is working on the chat */
@@ -396,6 +441,7 @@ class LiveChat {
       account: this.opts.account ?? null,
       permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
       pendingPrompts: this.pendingPrompts,
+      tools: this.tools,
       executions: this.executions,
       backgroundTasks: [...this.tasks.values()],
       subagents: [...this.subagents.values()],
@@ -420,6 +466,7 @@ class LiveChat {
       permissionMode: this.permissionMode,
       account: this.opts.account ?? null,
       permissionPrompts: this.opts.permissionPrompts === 'host' ? 'host' : 'none',
+      tools: this.tools,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };
@@ -469,6 +516,8 @@ export interface AccountResolver {
   /** claude-swap is installed and has at least one account registered */
   readonly managed: boolean;
   isActive(identifier: string): boolean;
+  /** Which account, and which config directory, a chat starts with */
+  launchFor(chat: { account: string | null; cwd: string }): Launch;
 }
 
 export class ChatManager extends EventEmitter {
@@ -503,6 +552,16 @@ export class ChatManager extends EventEmitter {
     super();
     this.file = join(config.dataDir, 'runs.json');
     for (const env of db.loadEnvironments()) this.environments.set(env.cwd, env);
+  }
+
+  /** The CLI's per-model cost, cumulative over its process like the total, so it only ever grows. */
+  private learnModelCosts(execution: Execution, modelUsage: unknown): void {
+    if (!modelUsage || typeof modelUsage !== 'object') return;
+    for (const [model, entry] of Object.entries(modelUsage)) {
+      const usd = (entry as { costUSD?: unknown } | null)?.costUSD;
+      if (typeof usd !== 'number' || !Number.isFinite(usd)) continue;
+      execution.modelCosts = { ...execution.modelCosts, [model]: Math.max(execution.modelCosts?.[model] ?? 0, usd) };
+    }
   }
 
   /** The context window the CLI reports for each model that answered: the only real source of one. */
@@ -565,6 +624,14 @@ export class ChatManager extends EventEmitter {
       this.chats.set(chat.id, chat);
       const page = await sessions.getSession(chat.id, { includeSidechains: true }).catch(() => null);
       for (const item of page?.entries ?? []) chat.push({ kind: 'message', type: item.role, entry: item });
+      // The transcript is written as the CLI works, so its last line is when the process really
+      // stopped; the stored record can be older than that
+      const heard = page?.summary.updatedAt;
+      const cut = chat.cutOff;
+      if (cut?.endedAt && heard && heard > cut.endedAt && heard <= now()) {
+        cut.endedAt = heard;
+        chat.endedAt = heard;
+      }
       const pids = this.leftovers.get(chat.id);
       if (pids) {
         chat.push({
@@ -631,21 +698,85 @@ export class ChatManager extends EventEmitter {
    * live execution counts: a command a previous wrapper left unanswered is not running.
    */
   pulse(id: string): ChatPulse | null {
+    const trace = this.trace(id);
+    if (!trace) return null;
+    return {
+      lastEventAt: trace.lastEventAt,
+      commands: runningCommands(trace).map((call) => {
+        const beat = trace.heartbeats.get(call.id);
+        return {
+          command: typeof call.input.command === 'string' ? call.input.command : 'a command',
+          startedAt: call.at,
+          toolUseId: call.id,
+          ...(beat ? { heartbeat: beat } : {}),
+        };
+      }),
+    };
+  }
+
+  /**
+   * Every tool call the live execution has made and what came back, with the CLI's heartbeats for
+   * the ones still running: what the signals of a worker that is busy and getting nowhere are read
+   * from. Null when Agentry has no process on the chat. A turn that ended closes whatever was still
+   * open in it, so a call an interrupt left without an answer is not a command running for ever.
+   */
+  trace(id: string): Trace | null {
     const chat = this.chats.get(id);
     const live = chat?.execution;
     if (!chat || !live || !chat.alive) return null;
-    const open = new Map<string, RunningCommand>();
+    const calls = new Map<string, ToolCall>();
     for (const event of chat.events) {
       if (event.ts < live.startedAt) continue;
+      if (event.kind === 'result') {
+        for (const call of calls.values()) call.endedAt ??= event.ts;
+        continue;
+      }
       for (const block of event.entry?.blocks ?? []) {
-        if (block.type === 'tool_use' && block.name === 'Bash') {
-          const input = (block.input ?? {}) as Record<string, unknown>;
-          // A background command answers at once: what keeps running is the task, not the call
-          if (input.run_in_background !== true) open.set(block.id, { command: typeof input.command === 'string' ? input.command : 'a command', startedAt: event.ts });
-        } else if (block.type === 'tool_result') open.delete(block.toolUseId);
+        if (block.type === 'tool_use') {
+          const input = block.input && typeof block.input === 'object' ? (block.input as Record<string, unknown>) : {};
+          calls.set(block.id, { id: block.id, name: block.name, input, at: event.ts, endedAt: null, isError: false, result: '' });
+        } else if (block.type === 'tool_result') {
+          const call = calls.get(block.toolUseId);
+          if (call) Object.assign(call, { endedAt: event.ts, isError: block.isError, result: block.content.slice(0, 300) });
+        }
       }
     }
-    return { lastEventAt: chat.activityAt, commands: [...open.values()] };
+    return { executionStartedAt: live.startedAt, lastEventAt: chat.activityAt, calls: [...calls.values()], heartbeats: new Map(chat.heartbeats) };
+  }
+
+  /**
+   * Kills the process tree of one command a chat is running, and only that: the turn goes on, the
+   * CLI writes a failed result for the call and the worker carries on with it. Which processes are
+   * the command's is worked out from the tree under the CLI's pid and from when each started (see
+   * {@link commandRoots}); nothing is matched on a command line. Refuses rather than guesses when
+   * the command has no process of its own to be found.
+   */
+  cancelCommand(id: string, toolUseId: string): { command: string; processes: number } {
+    const chat = this.chats.get(id);
+    if (!chat) throw new Error('chat not found');
+    const trace = this.trace(id);
+    if (!trace || !chat.proc?.pid) throw new Error('the chat has no live process, so it runs no command');
+    const open = runningCommands(trace);
+    const at = open.findIndex((c) => c.id === toolUseId);
+    const call = open[at];
+    if (!call) throw new Error(`the call ${toolUseId} is not a command that is running: it may have ended already`);
+    const table = processTable();
+    if (table.length === 0) throw new Error('a command can only be cancelled where /proc lists the processes, which this system does not');
+    const cli = cliProcessOf(table, chat.proc.pid, chat.id);
+    if (!cli) throw new Error('the CLI process is gone');
+    const { roots, unclaimed } = commandRoots(table, cli.pid, open.map((c) => Date.parse(c.at)));
+    const root = roots[at];
+    if (!root) throw new Error('no process of this command was found: it has not started yet, or has ended');
+    // Never the CLI itself, whatever the clock says: that is stopping the chat, which has its own action
+    if (root.argv.includes('stream-json')) throw new Error('the process found for this command is a CLI, not a command');
+    // A background command also leaves a child of the CLI behind, and nothing says which one is whose
+    const earliest = Date.parse(open[0]?.at ?? call.at);
+    if (unclaimed > 0 && trace.calls.some((c) => c.name === 'Bash' && c.input.run_in_background === true && Date.parse(c.at) >= earliest - 2000)) {
+      throw new Error('cannot tell this command\'s process from a background command\'s started beside it: stop the chat or wait');
+    }
+    chat.cancelled.add(toolUseId);
+    const command = typeof call.input.command === 'string' ? call.input.command : 'a command';
+    return { command, processes: terminateTree(root, table) };
   }
 
   events(id: string, sinceSeq = 0): RunEvent[] {
@@ -692,7 +823,7 @@ export class ChatManager extends EventEmitter {
    * something holds the session is checked again here, on the process table, whatever the caller
    * saw a moment ago.
    */
-  resume(id: string, request: ResumeChatRequest, adopt?: AdoptedChat): ChatRuntime {
+  resume(id: string, request: ResumeChatRequest & ResolvedTools, adopt?: AdoptedChat): ChatRuntime {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new Error('prompt is required');
     let chat = this.chats.get(id);
     if (chat?.alive) throw new Error('the chat already has a live execution; send it a message instead');
@@ -722,7 +853,7 @@ export class ChatManager extends EventEmitter {
    * The copy's id is chosen here and imposed on the CLI (`--session-id` beside `--fork-session`), so
    * the chat exists under its final id from the first instant and no other row can stand for it.
    */
-  fork(sourceId: string, request: ResumeChatRequest, source: AdoptedChat): ChatRuntime {
+  fork(sourceId: string, request: ResumeChatRequest & ResolvedTools, source: AdoptedChat): ChatRuntime {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new Error('prompt is required');
     this.admit(request);
     const attachments = this.resolveAttachments(request.attachments);
@@ -753,12 +884,16 @@ export class ChatManager extends EventEmitter {
   }
 
   /** What a request chooses for the execution it starts, on top of what the chat already had. */
-  private applyStartOptions(chat: LiveChat, options: ChatStartOptions): void {
+  private applyStartOptions(chat: LiveChat, options: ChatStartOptions & ResolvedTools): void {
     const { opts } = chat;
     chat.setSettings({ ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}), ...(options.model ? { model: options.model } : {}) });
-    for (const key of ['model', 'effort', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'maxBudgetUsd', 'permissionPrompts', 'account'] as const) {
+    for (const key of ['model', 'effort', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts', 'account'] as const) {
       if (options[key] !== undefined) Object.assign(opts, { [key]: options[key] });
     }
+    // `null` takes the chat back to the servers the CLI loads on its own
+    if (options.mcp === null) delete opts.mcp;
+    else if (options.mcp) opts.mcp = options.mcp;
+    if (options.toolConfig !== undefined) opts.toolConfig = options.toolConfig;
   }
 
   private begin(chat: LiveChat, prompt: string, attachments: Attachment[]): ChatRuntime {
@@ -1083,6 +1218,10 @@ export class ChatManager extends EventEmitter {
     if (opts.effort) args.push('--effort', opts.effort);
     if (opts.appendSystemPrompt) args.push('--append-system-prompt', opts.appendSystemPrompt);
     if (opts.allowedTools?.length) args.push(`--allowedTools=${opts.allowedTools.join(',')}`);
+    if (opts.disallowedTools?.length) args.push(`--disallowedTools=${opts.disallowedTools.join(',')}`);
+    // Strict, because the point of choosing servers is that no other one loads. The `=` form keeps
+    // the variadic flag from taking whatever follows it as another file.
+    if (opts.mcp?.config) args.push(`--mcp-config=${opts.mcp.config}`, '--strict-mcp-config');
     // Attached files live outside every project; this is what lets Claude open them by path
     if (this.uploads) args.push('--add-dir', this.uploads.dir);
     // The CLI creates, names and locks the worktree itself, and works in it for the session
@@ -1112,10 +1251,17 @@ export class ChatManager extends EventEmitter {
    * that is already active would create a second credential copy that can drift, so it is
    * spawned as a plain `claude` instead.
    */
-  private command(chat: LiveChat, args: string[]): [string, string[]] {
-    const account = chat.opts.account;
-    if (!account || !this.accounts?.managed || this.accounts.isActive(account)) return [this.config.claudeBin, args];
-    return [this.config.cswapBin, ['chat', account, '--share-history', '--', ...args]];
+  private command(launch: Launch, args: string[]): [string, string[]] {
+    const { account } = launch;
+    // An account with a config directory of its own runs `claude` against it: `cswap run` would
+    // replace CLAUDE_CONFIG_DIR with its session profile, and the directory would be ignored
+    if (!account || launch.configDir || !this.accounts?.managed || this.accounts.isActive(account)) return [this.config.claudeBin, args];
+    return [this.config.cswapBin, ['run', account, '--share-history', '--', ...args]];
+  }
+
+  /** The launch of a chat, or the plain one when claude-swap does not manage the accounts. */
+  private launchOf(chat: LiveChat): Launch {
+    return this.accounts?.managed ? this.accounts.launchFor({ account: chat.opts.account ?? null, cwd: chat.cwd }) : { account: null, configDir: null };
   }
 
   /**
@@ -1136,12 +1282,19 @@ export class ChatManager extends EventEmitter {
     chat.endedAt = null;
     chat.error = null;
     chat.rateLimited = false;
+    // Whatever the last process left open went with it
+    chat.heartbeats.clear();
+    chat.openCommands.clear();
+    chat.cancelled.clear();
     chat.beginExecution();
     chat.setStatus('starting');
 
-    const [bin, argv] = this.command(chat, args);
-    // A pinned chat must never inherit a token from the environment: it would override the account
-    const proc = spawn(bin, argv, { cwd: chat.cwd, env: chat.opts.account ? authFreeEnv() : process.env, stdio: 'pipe' });
+    const launch = this.launchOf(chat);
+    const [bin, argv] = this.command(launch, args);
+    // A chat on an account must never inherit a token from the environment: it would override the account
+    const base = launch.account || launch.configDir || chat.opts.account ? authFreeEnv() : process.env;
+    const env = launch.configDir ? { ...base, CLAUDE_CONFIG_DIR: launch.configDir } : base;
+    const proc = spawn(bin, argv, { cwd: chat.cwd, env, stdio: 'pipe' });
     chat.proc = proc;
     // The chat's status follows the process it tracks and no other: an earlier process ending late
     // used to mark the chat failed while its current one was still working
@@ -1324,10 +1477,21 @@ export class ChatManager extends EventEmitter {
       return;
     }
 
+    // The CLI's heartbeat for a command that is still running, every 30 s. It is kept for the health
+    // of the chat and not pushed as an event: it says a command is alive and how long it has run,
+    // which no transcript view needs and which would fill the buffer with one line per beat
+    if (type === 'tool_progress') {
+      const id = typeof raw.tool_use_id === 'string' ? raw.tool_use_id : typeof raw.parent_tool_use_id === 'string' ? raw.parent_tool_use_id : null;
+      if (id && typeof raw.elapsed_time_seconds === 'number') chat.heartbeats.set(id, { elapsedSeconds: raw.elapsed_time_seconds, at: now() });
+      chat.activityAt = now();
+      return;
+    }
+
     if (type === 'assistant' || type === 'user') {
       const entry = normalizeMessage(raw);
       if (!entry) return;
       this.trackSubagents(chat, entry);
+      this.trackCommands(chat, entry);
       // The CLI can start a turn on its own (e.g. after a background task notification)
       if (entry.role === 'assistant' && chat.status === 'idle') {
         if (chat.idleTimer) clearTimeout(chat.idleTimer);
@@ -1399,6 +1563,7 @@ export class ChatManager extends EventEmitter {
         execution.turns += typeof raw.num_turns === 'number' ? raw.num_turns : 1;
         // The CLI's total is over its process, so per execution it only ever grows
         if (typeof raw.total_cost_usd === 'number') execution.costUsd = Math.max(execution.costUsd ?? 0, raw.total_cost_usd);
+        this.learnModelCosts(execution, raw.modelUsage);
       }
       this.learnWindows(raw.modelUsage);
       const isError = raw.is_error === true;
@@ -1439,6 +1604,32 @@ export class ChatManager extends EventEmitter {
     }
 
     chat.push({ kind: 'other', type, subtype, data: raw });
+  }
+
+  /**
+   * Notes how long each shell command took, by kind, once its result arrives: the history that
+   * "far longer than usual" is measured against. A command a person cancelled is recorded as such,
+   * and one that failed is too: neither says how long the command takes when it works.
+   */
+  private trackCommands(chat: LiveChat, entry: NonNullable<ReturnType<typeof normalizeMessage>>): void {
+    for (const block of entry.blocks) {
+      if (block.type === 'tool_use' && block.name === 'Bash') {
+        const input = (block.input ?? {}) as Record<string, unknown>;
+        const kind = typeof input.command === 'string' ? commandKind(input.command) : '';
+        if (kind && input.run_in_background !== true) chat.openCommands.set(block.id, { command: String(input.command), kind, startedAt: now() });
+      } else if (block.type === 'tool_result') {
+        chat.heartbeats.delete(block.toolUseId);
+        const open = chat.openCommands.get(block.toolUseId);
+        if (!open) continue;
+        chat.openCommands.delete(block.toolUseId);
+        const outcome = chat.cancelled.delete(block.toolUseId) ? 'cancelled' : block.isError ? 'error' : 'ok';
+        try {
+          this.db.recordCommand({ kind: open.kind, chatId: chat.id, toolUseId: block.toolUseId, startedAt: open.startedAt, durationMs: Date.now() - Date.parse(open.startedAt), outcome });
+        } catch {
+          // the history only loses one run of a command
+        }
+      }
+    }
   }
 
   private trackSubagents(chat: LiveChat, entry: NonNullable<ReturnType<typeof normalizeMessage>>): void {

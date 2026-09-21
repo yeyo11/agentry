@@ -6,6 +6,7 @@ import type {
   PermissionRequest,
   RunEventRef,
   RunWaitingReason,
+  VerificationStatus,
 } from '@agentry/shared';
 import type { ChatRuntime } from './chats.ts';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from './cli-facts.ts';
@@ -70,7 +71,15 @@ const fromSubagent = (task: BackgroundTask): boolean => (task as BackgroundTask 
 const workflowKey = (w: WorkflowRun): string =>
   `${w.totalTokens ?? ''}|${w.phases.length}|${w.agents.map((a) => `${a.state}${a.tokens ?? ''}`).join(',')}`;
 
-const workflowCounts = (w: WorkflowRun) => ({
+/** The agent to open when a workflow ends: the one that errored if it failed, else the last to report back. */
+export function endingAgentId(workflow: WorkflowRun): string | null {
+  const withTranscript = workflow.agents.filter((a) => a.agentId).sort((a, b) => a.index - b.index);
+  const errored = withTranscript.filter((a) => a.state === 'error');
+  const pool = workflow.status === 'failed' && errored.length > 0 ? errored : withTranscript;
+  return pool[pool.length - 1]?.agentId ?? null;
+}
+
+const workflowCounts =(w: WorkflowRun) => ({
   agentsRunning: w.agents.filter((a) => a.state === 'start' || a.state === 'progress').length,
   agentsDone: w.agents.filter((a) => a.state === 'done' || a.state === 'error').length,
   agentsTotal: w.agents.length,
@@ -317,6 +326,7 @@ export class RunEventPublisher {
             ...at,
             workflowId: wf.id,
             taskId: wf.taskId,
+            agentId: endingAgentId(wf),
             name: wf.name,
             status: wf.status,
             summary: wf.summary,
@@ -354,6 +364,7 @@ export class RunEventPublisher {
 interface OrchestrationSnapshot {
   status: Orchestration['status'];
   integration: IntegrationStatus | null;
+  verification: VerificationStatus | null;
   conflictKey: string;
   tasks: Map<string, OrchestrationTaskStatus>;
 }
@@ -366,6 +377,7 @@ export class OrchestrationEventTracker {
     return {
       status: o.status,
       integration: o.integration?.status ?? null,
+      verification: o.verification?.status ?? null,
       conflictKey: `${o.integration?.status ?? ''}:${o.integration?.conflicts.length ?? 0}`,
       tasks: new Map(o.tasks.map((t) => [t.id, t.status])),
     };
@@ -394,6 +406,20 @@ export class OrchestrationEventTracker {
           status: o.status,
           previousStatus: before?.status ?? null,
           integrationStatus: now.integration,
+          costUsd: o.costUsd,
+        });
+      }
+      // Told apart from a change of status: the graph is what it was, and what it checked is news
+      if (before && before.verification !== now.verification && now.verification !== null && now.verification !== 'pending') {
+        events.push({
+          type: 'orchestration.updated',
+          title: `Orchestration ${o.name}: verification ${now.verification}`,
+          orchestrationId: o.id,
+          orchestrationName: o.name,
+          status: o.status,
+          previousStatus: o.status,
+          integrationStatus: now.integration,
+          verificationStatus: now.verification,
           costUsd: o.costUsd,
         });
       }

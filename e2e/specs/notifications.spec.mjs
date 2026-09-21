@@ -25,10 +25,21 @@ const seed = (items) =>
 export default async ({ page, check }) => {
   await page.goto('/', 1000);
   await page.waitFor(`return !!document.querySelector('.bell')`, { label: 'the bell' });
-  check((await page.eval(`return document.querySelector('.bell').getAttribute('aria-label')`)) === 'Notifications', 'the bell has no count when nothing is unread');
+  const label = await page.eval(`return document.querySelector('.bell').getAttribute('aria-label')`);
+  check(label === 'Notifications', `the bell has no count when nothing is unread (its label is "${label}", the store holds ${await page.eval(`return localStorage.getItem(${JSON.stringify(KEY)})`)})`);
   check(!(await page.eval(`return !!document.querySelector('.bell-badge')`)), 'no badge without unread notifications');
 
-  await page.eval(seed([item('a', { kind: 'waiting', priority: 'high', tone: 'warn', title: 'fix the build needs your approval to use Bash' }), item('b', { read: true })]));
+  // A stored `waiting` notification is settled on load when no chat is holding that prompt any more,
+  // and the sandbox has no live process to hold one. This one is dated after the load, which is the
+  // case the reconciliation leaves alone: a question that arrived while the page was still coming up.
+  const waiting = item('a', {
+    kind: 'waiting',
+    priority: 'high',
+    tone: 'warn',
+    at: new Date(Date.now() + 60_000).toISOString(),
+    title: 'fix the build needs your approval to use Bash',
+  });
+  await page.eval(seed([waiting, item('b', { read: true })]));
   await page.goto('/', 1000);
   await page.waitFor(`return document.querySelector('.bell-badge')?.textContent === '1'`, { label: 'one unread in the badge' });
   check(await page.eval(`return document.querySelector('.bell').classList.contains('bell-urgent')`), 'a waiting question makes the bell urgent');

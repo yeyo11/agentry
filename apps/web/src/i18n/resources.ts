@@ -1,23 +1,35 @@
 // Every namespace of both languages, bundled: the UI never waits on a request to show its text.
+import enAccountsConfig from './locales/en/accountsConfig.json';
 import enChat from './locales/en/chat.json';
 import enChats from './locales/en/chats.json';
 import enCommon from './locales/en/common.json';
 import enComponents from './locales/en/components.json';
 import enConfig from './locales/en/config.json';
+import enConnectors from './locales/en/connectors.json';
 import enHome from './locales/en/home.json';
+import enObserve from './locales/en/observe.json';
 import enOrchestration from './locales/en/orchestration.json';
 import enOrchestrationDetail from './locales/en/orchestrationDetail.json';
+import enOrchestrationV2 from './locales/en/orchestrationV2.json';
 import enProjects from './locales/en/projects.json';
+import enSchedules from './locales/en/schedules.json';
+import enUsage from './locales/en/usage.json';
 import enWork from './locales/en/work.json';
+import esAccountsConfig from './locales/es/accountsConfig.json';
 import esChat from './locales/es/chat.json';
 import esChats from './locales/es/chats.json';
 import esCommon from './locales/es/common.json';
 import esComponents from './locales/es/components.json';
 import esConfig from './locales/es/config.json';
+import esConnectors from './locales/es/connectors.json';
 import esHome from './locales/es/home.json';
+import esObserve from './locales/es/observe.json';
 import esOrchestration from './locales/es/orchestration.json';
 import esOrchestrationDetail from './locales/es/orchestrationDetail.json';
+import esOrchestrationV2 from './locales/es/orchestrationV2.json';
 import esProjects from './locales/es/projects.json';
+import esSchedules from './locales/es/schedules.json';
+import esUsage from './locales/es/usage.json';
 import esWork from './locales/es/work.json';
 
 export const defaultNS = 'common';
@@ -33,6 +45,12 @@ export const en = {
   projects: enProjects,
   orchestration: enOrchestration,
   orchestrationDetail: enOrchestrationDetail,
+  observe: enObserve,
+  schedules: enSchedules,
+  usage: enUsage,
+  orchestrationV2: enOrchestrationV2,
+  accountsConfig: enAccountsConfig,
+  connectors: enConnectors,
 };
 
 export type Namespace = keyof typeof en;
@@ -51,6 +69,12 @@ export const es = {
   projects: esProjects,
   orchestration: esOrchestration,
   orchestrationDetail: esOrchestrationDetail,
+  observe: esObserve,
+  schedules: esSchedules,
+  usage: esUsage,
+  orchestrationV2: esOrchestrationV2,
+  accountsConfig: esAccountsConfig,
+  connectors: esConnectors,
 } satisfies Shape<typeof en>;
 
 // `satisfies` only catches keys Spanish lacks; a key only Spanish has is caught here instead, so a

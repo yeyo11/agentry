@@ -208,7 +208,8 @@ export default async ({ page, api, check, dirs }) => {
       '/orchestration',
       `/orchestration/${orchestrationId}`,
       '/accounts',
-      ...['account', 'instructions', 'settings', 'mcp', 'agents', 'skills', 'commands', 'output-styles', 'rules', 'files', 'memory', 'plugins'].map((tab) => `/settings?tab=${tab}`),
+      '/connectors',
+      ...['account', 'instructions', 'settings', 'mcp', 'agents', 'skills', 'commands', 'output-styles', 'rules', 'files', 'memory', 'plugins', 'security'].map((tab) => `/settings?tab=${tab}`),
       ...['activity', 'settings', 'memory', 'resources', 'worktrees'].map((tab) => `/?project=${projectId}&tab=${tab}`),
     ];
     for (const theme of ['dark', 'light']) {
@@ -295,7 +296,7 @@ export default async ({ page, api, check, dirs }) => {
     await scan(page, 'new orchestration form');
 
     // ---------- status is never colour alone ----------
-    for (const path of ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/accounts']) {
+    for (const path of ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/accounts', '/connectors']) {
       await settle(page, path);
       const bare = await page.eval(`
         const bare = [];

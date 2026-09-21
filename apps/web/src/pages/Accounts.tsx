@@ -1,4 +1,4 @@
-import type { AccountSummary, AccountUsageWindow, AutoSwitchSettings } from '@agentry/shared';
+import type { AccountConfig, AccountSummary, AccountUsageWindow, AutoSwitchSettings } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CirclePause, CirclePlay, CircleX, KeyRound, RefreshCw, Trash2, TriangleAlert, Users } from 'lucide-react';
 import { useState } from 'react';
@@ -10,6 +10,9 @@ import { ICON_SM } from '../components/icons';
 import { useToast } from '../components/Toast';
 import { Card, Empty, ErrorBox, Field, PageHeader, Skeleton, StatusBadge, Tag } from '../components/ui';
 import { formatDateTime, timeAgo } from '../lib/format';
+import { ConfigDirPanel } from './accounts/ConfigDirPanel';
+import { PoliciesCard } from './accounts/PoliciesCard';
+import { UsageHistoryCard } from './accounts/UsageHistoryCard';
 
 const STRATEGIES = ['best', 'consume-first'] as const;
 
@@ -50,12 +53,14 @@ function Meter({ label, window: win }: { label: string; window: AccountUsageWind
 
 function AccountCard({
   account,
+  config,
   busy,
   onSwitch,
   onToggle,
   onRemove,
 }: {
   account: AccountSummary;
+  config: AccountConfig | undefined;
   busy: boolean;
   onSwitch: () => void;
   onToggle: () => void;
@@ -120,6 +125,7 @@ function AccountCard({
         )}
         {account.usageFetchedAt && <div className="muted small">{t('accounts.usageRead', { ago: timeAgo(account.usageFetchedAt) })}</div>}
       </div>
+      <ConfigDirPanel account={account} config={config} />
     </Card>
   );
 }
@@ -318,6 +324,7 @@ export function Accounts() {
               <AccountCard
                 key={account.number}
                 account={account}
+                config={data.configs.find((c) => c.number === account.number)}
                 busy={busy}
                 onSwitch={() =>
                   void act(
@@ -371,6 +378,10 @@ export function Accounts() {
             <AddAccount onAdded={() => void refresh()} />
             <AutoSwitchPanel settings={data.autoSwitch} running={data.autoSwitchRunning} />
           </div>
+
+          <UsageHistoryCard accounts={data.accounts} threshold={data.autoSwitch.threshold} />
+
+          <PoliciesCard policies={data.policies} accounts={data.accounts} />
 
           <Card
             title={t('accounts.log')}
