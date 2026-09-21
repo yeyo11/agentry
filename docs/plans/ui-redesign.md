@@ -1,7 +1,7 @@
 # Plan: the UI redesign
 
-Status: **planned**. Written on 2026-09-21 on top of `main` at `0598aea` (v0.15.0), to be run as one
-orchestration. It redesigns the web UI (which is also what the desktop app shows) after a review of
+Status: **done** — every task delivered; see [Outcome](#outcome). Written on 2026-09-21 on top of
+`main` at `0598aea` (v0.15.0), and run as one orchestration. It redesigns the web UI (which is also what the desktop app shows) after a review of
 the running app at 1440×900 and 390×844.
 
 This document is the source of truth for every task of the orchestration that runs it. Where a task
@@ -453,4 +453,271 @@ verified it.
 
 ## Outcome
 
-Written by the `docs` task when the orchestration ends.
+Written by the `docs` task from what each task reported. Every task finished on its first attempt.
+No task ran `pnpm e2e`; the suite runs once, on the integrated branch, in the verification phase, and
+its result is not part of this section. Nothing needed a CLI surface Agentry does not already use:
+everything live comes from the stream-json events the CLI writes with `--include-partial-messages`.
+
+### `live-activity`
+
+**Delivered.** `ChatActivity` with exactly the planned shape, on `Chat` (so both `ChatSummary` and
+`ChatDetail.chat` carry it) and on `OrchestrationTaskState`, plus a `chat.activity` event in the
+`AgentryEvent` union carrying `taskId` and the activity or `null`. Core derives it in
+`packages/core/src/chat-activity.ts`: a pure `activityTarget(tool, input, cwd)` (paths relative to the
+cwd, a command's description, a pattern, a subagent's description, a URL's host, one line of at most
+80 characters) and a `ChatActivityTracker` fed event by event — a pending permission prompt wins over
+the newest open tool call, which wins over a streaming block; a call is registered at
+`content_block_start` and its label completed later without resetting `since`; sidechain entries are
+ignored, because what the chat is doing is the `Task` call. Only a process Agentry owns reports an
+activity. The feed throttles to one event per chat per second, keeping the newest change of the
+window rather than dropping it; the web patches it into the list, overview and orchestration caches
+(`patchActivity`) instead of refetching. OpenAPI schemas regenerated; `GET /events` documented.
+
+**Left out.** `waiting` carries neither `tool` nor `target` (the plan ties `tool` to `kind: 'tool'`;
+the tool waiting for approval is already in `PermissionRequest`). No UI, as scoped.
+
+**Worth knowing.** `Orchestrator.view()` now returns the stored graph untouched only when neither
+health nor activity has anything to add (a test checks that identity). A full `pnpm test` took over
+15 minutes on the worker's machine; give it a generous timeout.
+
+**Verified.** `pnpm typecheck` clean; core 436/436 and api 73/73; web 216/216 at the time; schemas
+regenerated without drift. e2e specs: none touched.
+
+### `foundation`
+
+**Delivered.** The stylesheet split into `apps/web/src/styles/*.css` by area in a commit that
+changes no rendered pixel (the built CSS compared rule by rule: 693 before, 693 after, every reordered
+pair checked). Tokens for the direction: `--live`/`--live-soft` (cyan, 10.95:1 on the dark background
+and 5.82:1 on the light one), flatter shadows, a tighter radius scale, `--rail-w`, `--statusbar-h`
+and motion tokens; `.badge` (so `StatusBadge` and `Tag`) quieter with the same API. The motion
+preference in `lib/motion.ts`, built like the theme: `localStorage`, `data-motion` on `<html>`,
+forced to `off` by reduced motion while keeping the stored choice, loops paused while the tab is
+hidden. The primitives: `Spinner`, `.live-rail`, `.live-energy`, `ProgressBar` (bar and blocks),
+`Stepper` (horizontal or vertical by container query), `AnimatedNumber`, `ActivityTicker`, `Menu`,
+`SplitButton`, `Sheet` and `ListToolbar`, with their logic in `lib/live.ts`, `lib/progress.ts` and
+`lib/media.ts`, and a `primitives` i18n namespace.
+
+**Left out.** The axe pass over a page rendering the primitives: no page rendered them yet, and a
+gallery route nobody asked for was not worth shipping. The pass landed with the page tasks, in
+`a11y.spec.mjs`. A `Menu` item that is a link was left for whoever needed it (`chat` added it).
+
+**Verified.** `pnpm typecheck` clean; core 426/426, web 237/237, api 72/72; the web build keeps
+`@property`, `@container` and the `data-motion` rules. e2e specs: added `motion.spec.mjs`.
+
+### `shell`
+
+**Delivered.** A one-row top bar: crumb, project, search, notifications, a live chip while anything
+runs (a menu of what is live) and **New chat ▾** (Run workflow, New orchestration); language and theme
+left it (`LanguageSwitch` and `ThemeToggle` deleted). A Live section in the sidebar (waiting chats,
+working chats with the ticker, running orchestrations with block progress; at most six rows, then
+"N more"; one button with the count in the collapsed rail), with its ordering in `lib/shell-live.ts`.
+On a phone (≤ 900 px) a bottom tab bar with counts and a More sheet replace the hamburger, hidden on
+`/chats/:id` and `/orchestration/:id`. Settings → Appearance as the first tab and the one `/settings`
+opens on: theme, language, motion level, the reduced-motion note and a small live preview. The
+palette gained language and motion commands, an Appearance entry and a Live group. The desktop hook:
+`lib/desktop.ts` stamps `is-desktop` and `desktop-<platform>`, and `styles/shell.css` makes the top
+bar and sidebar head the drag region with room for the window controls.
+
+**Left out.** Nothing of its section. Outside its scope it made `?new=1` open the orchestration form
+(later superseded by `orchestration`'s own handling), added `--tabbar-h` and removed the old
+slide-over scrim. `styles/motion.css` still names the removed `.nav-count-ping` (dead, harmless).
+
+**Verified.** `pnpm typecheck` clean; web 249/249; web build. Not seen in a browser before the
+integration. e2e specs: updated `a11y.spec.mjs` (tab bar and More sheet instead of the slide-over,
+Run workflow through the New chat menu, 32 Tab stops instead of 26 because the sidebar lists live
+items); added `shell.spec.mjs`.
+
+### `chat`
+
+**Delivered.** A one-line header: back, title, one pill for state, control and stream
+("Reconnecting" only after 3 s), health when it is not fine, the checklist as blocks, search,
+**Stop ▾** with Interrupt, ⓘ and a ⋯ menu (Export Markdown/JSON, Fork, Subagent messages, Copy id,
+Delete disabled with its reason). A pill composer with a mono status line that opens the running
+chat's settings or the resume options (a popover, a sheet on a phone); ■ interrupt when the box is
+empty and the chat works; `.live-energy` while it works. An inspector with Summary, Activity, Changes
+and Environment, a side panel from 1100 px remembered in `localStorage` (`agentry-chat-inspector`),
+a sheet below. The transcript shows the author only when it changes, groups consecutive tool calls
+into a step ("3 tools · 10s · 1 failed"), draws each call as a mono row with an outcome rail,
+replaces "Claude is working…" with the `ActivityTicker` (the chat's own stream first,
+`chat.activity` as fallback) and gives the streaming block a glowing caret. On a phone the page is
+the screen's height, only `.run-scroll` scrolls, the composer follows the keyboard and the `62vh` rule
+is gone. New chat puts the prompt first and the rest under "Advanced options". Small, compatible
+changes outside its files: `Menu` items accept `href`/`download`, `patchActivity` also updates the
+chat detail cache, `StreamingPartial` carries `since`.
+
+**Left out or changed.** A `Task` call's subagent opens in the existing detail panel
+(`?detail=subagent:…`), not inside the inspector; the transcript the CLI writes for a subagent does
+not keep the id of the call that launched it, so the two are matched by description and type, and
+when two match neither is linked. The export and fork tooltips are gone (`Menu` shows no hints). The
+inspector's tab is not in the URL. A step's duration comes from transcript timestamps and does not
+advance while the step runs.
+
+**Verified.** `pnpm typecheck` clean; web 256/256 (one earlier run failed `highlight.test.ts` under
+load and passed alone and on the next full run); web build; `node --check` on the ten specs touched.
+e2e specs: added `chat-page.spec.mjs`; updated `chats`, `detail`, `search`, `mobile`,
+`observability`, `usage`, `chat` (live), `controls` and `tool-presets` to open the inspector tab, the
+⋯ menu or "Advanced options" where things moved; `mobile` now checks that the composer is on screen
+and the page does not scroll instead of the `62vh` rule. No assertion loosened.
+
+### `orchestration`
+
+**Delivered.** `lib/orchestration-steps.ts`, pure and covered by 29 tests: the steps (the stages,
+then Integration, Verification, Synthesis, Pull request) and their states, the step the page follows,
+the progress counts and the running task a list row speaks for. The detail page: a sticky summary
+(status and spinner, live clock, cost counting up, segmented progress, Stop or Edit and relaunch,
+the rest in a ⋯ menu), the objective folded to three lines, a stepper that follows the live step and
+offers "Back to live" once another is pinned (`?step=`), stage panels with the task rows (live rail,
+ticker, duration, cost, attempts and every action the task cards had), and today's cards for the
+other steps. A chat in the side panel (`?detail=chat:<id>`). The graph view (`?view=graph`) scrolling
+in its own box, with connectors that flow into a running stage. Workflow orchestrations get steps
+from their phases, or one step until they report any. On a phone, a vertical timeline with only the
+selected step open (an optional `expanded` prop on `Stepper`). The list: tabs with counts (All, Live,
+Completed, Failed, Stopped), search and sort in the URL, rows with the segmented bar and "stage 3 ·
+task: …", templates as a tab (`?tab=templates`), and `?new` opening the form.
+
+**Deviated.** The phases are in the order core runs them — integration, verification, synthesis,
+then the pull request as a person's call — not the plan's "Verification, Integration": otherwise the
+step the page follows would not be the one happening.
+
+**Left out.** Task nodes cannot fill by real percentage, because nothing gives a per-task fraction:
+they show a moving stripe while running and a full bar once finished. `.live-energy` is not used (it
+was optional). No copy-id action, as before.
+
+**Verified.** `pnpm typecheck` clean; web 269/269; web build. e2e specs: updated
+`orchestration-v2.spec.mjs` (Save as template through the ⋯ menu, Re-run on `?view=graph`, templates
+on `?tab=templates`, plus the stepper, the chat beside the graph, stage progress and list search);
+added an axe scan of the chat side panel to `a11y.spec.mjs`.
+
+### `lists`
+
+**Delivered.** Chats on `ListToolbar`: state tabs whose counts apply the other filters, search, sort,
+and Filters (origin, project under All projects, model — without the CLI's `<synthetic>` —,
+orchestration workers and housekeeping chats) as removable chips with Reset; new `projects=` and
+`models=` parameters, the old ones still honoured. Day groups by calendar when sorted by activity.
+Two-line rows with a state rail and word, the ticker in place of the first prompt while working, at
+most two tags, a `ContextRing` and the cost. `j`/`k`/`Enter`/`x`/`/`/`Escape` in `lib/list-keys.ts`,
+ignored while typing or with a dialog or menu open. Multi-select with a bulk bar: Export Markdown
+(one download per chat) and Delete (one confirmation, the existing per-chat delete, skipping chats
+something runs on or holds and naming them). The duplicate "New chat" left the header. Schedules
+(search and All/On/Off), Projects (search and sort), Accounts and Connectors share one row style
+(`.lrows`/`.lrow`). Checked in headless Chrome against a running API at 1440, 768 and 390 px.
+
+**Left out.** `VirtualList` is not used: it is built for transcripts anchored to the end, and a
+windowed list would unmount a day's sticky header while it should stay; the list keeps paging 100
+rows at a time and `j` past the last row loads the next page. Accounts and Connectors have no toolbar:
+nothing on them is worth filtering.
+
+**Verified.** `pnpm typecheck` clean; web 256/256, core 436/436, api 73/73. e2e specs: updated
+`chats.spec.mjs` (tags, day headings, no header "New chat", filters and chips, keys, bulk bar, a bulk
+delete of a chat only that spec uses) and `connectors.spec.mjs` (row selector); `schedules.spec.mjs`
+unchanged on purpose.
+
+### `dashboard`
+
+**Delivered.** `pages/dashboard/layout.ts` (pure: `WidgetSize`, `DashboardLayout` v1,
+`validateLayout` dropping unknown types, widgets of the other scope, repeated or empty ids and
+non-object configs) and `registry.ts` (`WIDGETS`, `defaultLayout(scope)`, `resolveLayout`), every
+widget lazy. `Dashboard.tsx` renders any layout, each cell with its own `Suspense` and error boundary;
+a 12/6/1-column grid by container query. Widgets for a project: Now, Quick start, Limits,
+Orchestrations, Upcoming schedules, Pick up again, Today, Memory, Worktrees, Resources, Export; for
+All projects: Now, Orchestrations, Limits, Pick up again, Today, Upcoming schedules, Projects. The
+header: name, path with copy, ⚙. Settings, Memory, Resources and Worktrees stay full views at
+`/?view=…`, guarded by `lib/dirty`; `?tab=` redirects there (`?tab=activity` to the dashboard).
+`pages/home/Activity.tsx` is gone, all of it redistributed.
+
+**Left out.** The project's git branch in the header: no API field carries it, and adding one meant
+changing `types.ts`, outside the task. The stages in the Orchestrations widget come from its own pure
+`orchestrationStages`, because `layerTasks` was private and being rewritten in parallel; unify it
+with `lib/orchestration-steps.ts` later. Quick start is its own small form rather than the chat
+composer, built in parallel. `CommandPalette.tsx` and `Settings.tsx` still build `?tab=` links that
+work through the redirect. `.today-limits` in `lists.css` is dead.
+
+**Verified.** Web typecheck clean; web 260/260 (including `test/dashboard.test.ts`); web build with
+the widget chunks split. Not seen in a browser. e2e specs: `home.spec.mjs` partly rewritten (both
+default layouts, widget headings, Quick start's status line, ⚙ and the views, redirects, export);
+`pages.spec.mjs` and `config.spec.mjs` moved from `?tab=` to `?view=`; `a11y.spec.mjs` covers the
+dashboard and the four views at 420 px and sideways overflow at 768 px.
+
+**How to add a widget.**
+
+1. Write a component taking `WidgetProps` (`project`, `size`, `config`, `title`, `id`), framed with
+   `WidgetCard`, that returns `null` when it has nothing to show. Put it in one of the modules of
+   `pages/dashboard/widgets/`, or in its own module with a default export if it is heavy.
+2. Add its type to `WidgetType` and an entry to `WIDGETS` in `registry.ts`: `titleKey:
+   'widgets.<type>.title'` (with the key in `home.json`, `en` and `es`), `sizes`, `defaultSize`,
+   `scope` and `component: lazy(...)`.
+3. To show it by default, add it to `DEFAULT_TYPES` and update the default-layout test.
+4. A stored layout naming an unknown type loses it on validation. Editing and persisting a layout is
+   saving a `DashboardLayout` and passing it through `resolveLayout` before handing it to `Dashboard`.
+
+### `desktop`
+
+**Delivered.** An integrated title bar: `titleBarStyle: 'hidden'` with a 54 px overlay on Linux and
+Windows and the traffic lights at (18, 19) on macOS; the preload exposes `setTitleBarTheme`
+(accepted only from the local server's page, only hex colours) and `onNavigate`; the web sends the
+theme's `--bg` and `--text` whenever the theme changes. A tray whose tooltip and first menu line say
+what is live, with Open Agentry, New chat, up to eight live items and Quit, opening items through the
+page's router; its data comes only from the local server (`/api/overview`, the chat and
+orchestration lists when something runs, re-read from `/api/events` through a small hand-written SSE
+reader, at most every 1.5 s, polling every 30 s while the feed is down). `setProgressBar` with the
+running orchestrations' combined fraction and `setBadgeCount` with the waiting chats. `apps/desktop`
+has `pnpm test`, and the root `pnpm test` includes it.
+
+**Left out.** Closing the window still quits (no background mode was asked for). The tray and menus
+are English only. No badge on Windows (Electron needs an overlay icon there). A token set only from
+the UI is unknown to the tray, whose requests are then refused; it uses `AGENTRY_AUTH_TOKEN` from the
+environment.
+
+**Verified.** `pnpm typecheck` clean; desktop 17/17; web 252/252; the desktop bundle builds. The
+Electron app was never launched, so the title bar, tray, progress and badge have not been seen in a
+real window. e2e specs: none touched.
+
+### `media`
+
+**Delivered.** Finished the pending merge of the Stage 1 and 2 branches (the one conflict, in
+`pages/Orchestration.tsx`, resolved in favour of `orchestration`'s `?new` handling).
+`scripts/record-media.mjs` walks the new UI: the dashboard as Home, a working chat with the ticker
+and the inspector's Changes and diff, the orchestration's stepper on stage 2 with two running tasks
+and then Verification. New stills `home.png` and `chat-mobile.png` (390×844); `tour.gif` (28 frames,
+26.4 s, 903 KB), `chat.png`, `orchestration.png`, `accounts.png` and `schedules.png` regenerated. It
+also fixed an integration bug the stills showed: the transcript's step block used the class `step`,
+which the `Stepper` styles as a flex row with a top border, so a step's calls sat beside its header;
+renamed to `tool-step`.
+
+**Left out.** No still shows the bottom tab bar: the only phone still is a chat, where the plan
+hides it. The Limits widget in `home.png` reads "No usage limits reported yet." and the working chat
+"cost not available", because the fake CLI emits no rate-limit events and reports cost only at the
+end of a turn; extending it was out of scope.
+
+**Seen in the stills, for a follow-up.** At 390 px the chat's red Stop button is wide, the title is
+cut to "har…", the status line is cut ("MCP:…") and the top bar has no crumb. In the inspector's
+Changes tab the open-in-editor icon of each file takes a line of its own.
+
+**Verified.** `pnpm typecheck` clean; web 336/336; `pnpm build`; `pnpm media` wrote the seven files
+(exit 0). Every still and the key frames of the GIF checked by eye. e2e specs: none touched.
+
+### `docs`
+
+**Delivered.** README: the new tour and still descriptions, `home.png` and `chat-mobile.png`, the
+Home, Chats, Chat, Orchestration, Projects, Schedules and Settings rows of the UI table, and bullets
+for the top bar, the Live sidebar, the phone tab bar, the palette, keyboard shortcuts, Appearance
+(theme, motion, language), what an agent is doing right now (`chat.activity`) and the desktop title
+bar, tray and progress; `pnpm test` and `pnpm media` described as they now are. `docs/desktop.md`:
+the title bar, the tray, progress and badge, where the tray's data comes from, the desktop tests and
+the web's desktop hook. `ROADMAP.md`: this work under Done, and "Dashboard: editable layout persisted
+per project; Documents and Flows widgets" under Next. `CONTRIBUTING.md`: `Menu` and `Sheet` among the
+controls, and the stylesheet's one-file-per-area rule with the `--live`/orange split and the motion
+level. This Outcome.
+
+**Left out.** Nothing of its section.
+
+### What is left for later
+
+- The follow-ups the stills showed: the chat header and status line at 390 px, and the open icon in
+  the inspector's Changes tab.
+- One stage derivation instead of two (`pages/dashboard/model.ts` and `lib/orchestration-steps.ts`).
+- The palette's and Settings' `?tab=` links moved to `?view=`; dead CSS (`.nav-count-ping`,
+  `.today-limits`).
+- The project's git branch in the dashboard header, which needs a field on `Project`.
+- The editable, persisted dashboard and the Documents and Flows widgets, as planned (see
+  [ROADMAP.md](../../ROADMAP.md#next)).
