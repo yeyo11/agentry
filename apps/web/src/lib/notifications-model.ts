@@ -33,6 +33,11 @@ export interface AppNotification {
   read: boolean;
   /** A `waiting` notification whose question has been answered or withdrawn */
   resolved: boolean;
+  /**
+   * The request a plain tool permission waits on, which Allow and Deny can answer from the list.
+   * Null for a question or a plan, which two buttons cannot answer, and for every other kind.
+   */
+  permissionId: string | null;
 }
 
 /** A notification before the store gives it a read state. */
@@ -41,8 +46,8 @@ export type NotificationDraft = Omit<AppNotification, 'read' | 'resolved'> & {
   dedupeMs: number;
 };
 
-type DraftFields = Omit<NotificationDraft, 'id' | 'at' | 'dedupeMs' | 'runId' | 'orchestrationId'> &
-  Partial<Pick<NotificationDraft, 'dedupeMs' | 'runId' | 'orchestrationId'>>;
+type DraftFields = Omit<NotificationDraft, 'id' | 'at' | 'dedupeMs' | 'runId' | 'orchestrationId' | 'permissionId'> &
+  Partial<Pick<NotificationDraft, 'dedupeMs' | 'runId' | 'orchestrationId' | 'permissionId'>>;
 
 export interface NotificationPrefs {
   kinds: Record<NotificationKind, boolean>;
@@ -79,6 +84,7 @@ const draft = (event: AgentryEvent, fields: DraftFields): NotificationDraft => (
   dedupeMs: DEDUPE_MS,
   runId: null,
   orchestrationId: null,
+  permissionId: null,
   ...fields,
 });
 
@@ -120,6 +126,8 @@ export function waitingDrafts(chat: Pick<ChatSummary, 'id' | 'title' | 'orchestr
       href: chatHref(chat.id, request.id),
       runId: chat.id,
       orchestrationId: chat.orchestration?.id ?? null,
+      // A request that waits on a person by design wants more than a yes or a no
+      permissionId: reason === 'permission' && !request.requiresUserInteraction ? request.id : null,
     };
   });
 }
@@ -143,6 +151,7 @@ export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
           href: chatHref(event.runId, event.permissionId),
           runId: event.runId,
           orchestrationId: event.orchestrationId,
+          permissionId: event.reason === 'permission' ? event.permissionId : null,
         }),
       ];
     }
@@ -436,6 +445,7 @@ function parseItem(value: unknown): AppNotification | null {
     orchestrationId: stringOrNull(value.orchestrationId),
     read: value.read === true,
     resolved: value.resolved === true,
+    permissionId: stringOrNull(value.permissionId),
   };
 }
 

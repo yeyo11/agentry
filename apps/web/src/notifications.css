@@ -150,6 +150,19 @@
 .notif-high .notif-dot {
   background: var(--warn);
 }
+/* Allow and Deny sit under the text they answer, in the same highlighted band */
+.notif-item:has(+ .notif-actions) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.notif-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 10px 9px 36px;
+  border-bottom-left-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+}
 
 .notif-prefs {
   flex: none;

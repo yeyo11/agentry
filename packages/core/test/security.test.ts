@@ -131,6 +131,52 @@ test('an auth document that cannot be read stops the wrapper instead of unguardi
   assert.throws(() => new AuthStore(config, {}), /is not readable as JSON/);
 });
 
+test('AGENTRY_AUTH_TOKEN_RESET replaces a stored token once, and leaves the rest of the guard alone', async () => {
+  const config = tempConfig();
+  const store = new AuthStore(config, {});
+  const { token: lost } = await store.setToken();
+  await store.update({ mode: 'token', readOnly: true });
+
+  const env = { AGENTRY_AUTH_TOKEN: 'a-recovered-token-42', AGENTRY_AUTH_TOKEN_RESET: '1' };
+  const reset = new AuthStore(config, env);
+  assert.ok(reset.environmentReset, 'the start that applied it says so, for the audit row');
+  assert.equal(await reset.actorFor(lost), null);
+  assert.equal(await reset.actorFor('a-recovered-token-42'), 'token:env');
+  assert.equal(reset.mode, 'token');
+  assert.equal(reset.readOnly, true, 'read-only is not the reset\'s business');
+  const onDisk = readFileSync(join(config.dataDir, 'auth.json'), 'utf8');
+  assert.equal(onDisk.includes('a-recovered-token-42'), false);
+
+  // A token rotated since survives a restart with the variable still set
+  const { token: rotated } = await reset.setToken();
+  const restarted = new AuthStore(config, env);
+  assert.equal(restarted.environmentReset, null);
+  assert.equal(await restarted.actorFor(rotated), `token:${JSON.parse(readFileSync(join(config.dataDir, 'auth.json'), 'utf8')).tokenId as string}`);
+  assert.equal(await restarted.actorFor('a-recovered-token-42'), null);
+
+  // A different value is a new reset
+  const again = new AuthStore(config, { ...env, AGENTRY_AUTH_TOKEN: 'another-recovered-token' });
+  assert.ok(again.environmentReset);
+  assert.equal(await again.actorFor('another-recovered-token'), 'token:env');
+});
+
+test('AGENTRY_AUTH_TOKEN_RESET off, or seeding a fresh install, applies nothing on a later start', async () => {
+  const config = tempConfig();
+  const seeded = new AuthStore(config, { AGENTRY_AUTH_TOKEN: 'from-the-environment-42', AGENTRY_AUTH_TOKEN_RESET: '1' });
+  assert.equal(seeded.environmentReset, null, 'a fresh install is seeded, not reset');
+  const { token } = await seeded.setToken();
+  assert.equal(new AuthStore(config, { AGENTRY_AUTH_TOKEN: 'from-the-environment-42', AGENTRY_AUTH_TOKEN_RESET: '1' }).environmentReset, null);
+  const off = new AuthStore(config, { AGENTRY_AUTH_TOKEN: 'yet-another-token-value', AGENTRY_AUTH_TOKEN_RESET: '0' });
+  assert.equal(off.environmentReset, null);
+  assert.equal(await off.actorFor(token) !== null, true);
+});
+
+test('AGENTRY_AUTH_TOKEN_RESET without a token fails loudly instead of doing nothing', async () => {
+  const config = tempConfig();
+  await new AuthStore(config, {}).setToken();
+  assert.throws(() => new AuthStore(config, { AGENTRY_AUTH_TOKEN_RESET: '1' }), /needs AGENTRY_AUTH_TOKEN/);
+});
+
 // ---------- OIDC ----------
 
 interface Issuer {
@@ -262,4 +308,35 @@ test('mutating requests are rows, newest first, filterable and never carrying a 
   assert.equal(reopened.pruneAudit(2), 4);
   assert.equal(reopened.auditPage().total, 2);
   reopened.close();
+});
+
+test('the audit filters narrow by method and status, and take the path literally', () => {
+  const db = new Db(tempConfig());
+  const row = (method: string, path: string, status: number) =>
+    db.appendAudit({ at: '2026-09-20T10:00:00.000Z', actor: 'local', method, path, status, summary: 'x' });
+  row('POST', '/api/projects/100%25done/files', 201);
+  row('POST', '/api/projects/100x25done/files', 201);
+  row('PUT', '/api/config/my_agent', 200);
+  row('PUT', '/api/config/myXagent', 404);
+  row('DELETE', '/api/files/back\\slash', 500);
+  row('DELETE', '/api/files/backXslash', 204);
+
+  // `%` and `_` would be wildcards to LIKE; here they match only themselves
+  assert.deepEqual(db.auditPage({ path: '100%25' }).entries.map((e) => e.path), ['/api/projects/100%25done/files']);
+  assert.deepEqual(db.auditPage({ path: 'my_agent' }).entries.map((e) => e.path), ['/api/config/my_agent']);
+  assert.deepEqual(db.auditPage({ path: 'back\\slash' }).entries.map((e) => e.path), ['/api/files/back\\slash']);
+  assert.equal(db.auditPage({ path: '%' }).total, 1);
+  assert.equal(db.auditPage({ path: '_' }).total, 1);
+
+  assert.equal(db.auditPage({ method: 'put' }).total, 2);
+  assert.equal(db.auditPage({ method: 'PATCH' }).total, 0);
+  assert.equal(db.auditPage({ status: '404' }).total, 1);
+  assert.equal(db.auditPage({ status: '2xx' }).total, 4);
+  assert.equal(db.auditPage({ status: '5XX' }).total, 1);
+  const narrowed = db.auditPage({ method: 'DELETE', status: '2xx', path: 'files' });
+  assert.equal(narrowed.total, 1);
+  assert.equal(narrowed.entries[0]?.path, '/api/files/backXslash');
+
+  for (const bad of ['4x', '600', 'abc', '40', '4xxx']) assert.throws(() => db.auditPage({ status: bad }), /a code such as 404/);
+  db.close();
 });

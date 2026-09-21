@@ -31,13 +31,13 @@ function Authorisation({ guide }: { guide: ConnectorsOverview['authorisation'] }
       <div className="strong small">{t('authorise.title')}</div>
       <ol className="small">
         {guide.steps.map((step) => (
-          <li key={step}>{step}</li>
+          <li key={step.code}>{step.text}</li>
         ))}
       </ol>
       <div className="meta">
         {guide.links.map((link) => (
           <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="meta-icon">
-            <ExternalLink {...ICON_SM} /> {link.label}
+            <ExternalLink {...ICON_SM} /> {link.label.text}
           </a>
         ))}
       </div>
@@ -169,7 +169,7 @@ export function Connectors() {
               {data.unavailable.map((item) => (
                 <li key={item.id} className="stack-tight">
                   <span className="strong small">{item.name}</span>
-                  <span className="muted small">{item.reason}</span>
+                  <span className="muted small">{item.reason.text}</span>
                 </li>
               ))}
             </ul>

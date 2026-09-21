@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@agentry/core';
-import type { SetAuthTokenRequest, UpdateAuthConfigRequest } from '@agentry/shared';
+import type { AuditFilter, SetAuthTokenRequest, UpdateAuthConfigRequest } from '@agentry/shared';
 
 /**
  * The guard's own configuration, and the trail it leaves. The token is never returned here: it
@@ -12,11 +12,13 @@ export const securityRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
   app.post<{ Body: SetAuthTokenRequest }>('/security/token', (req) => core.security.setToken(req.body ?? {}));
   app.delete('/security/token', () => core.security.clearToken());
 
-  app.get<{ Querystring: { limit?: string; from?: string; path?: string } }>('/audit', (req) =>
+  app.get<{ Querystring: AuditFilter & { limit?: string; from?: string } }>('/audit', (req) =>
     core.db.auditPage({
       ...(req.query.limit ? { limit: Number(req.query.limit) } : {}),
       ...(req.query.from ? { from: Number(req.query.from) } : {}),
       ...(req.query.path ? { path: req.query.path } : {}),
+      ...(req.query.method ? { method: req.query.method } : {}),
+      ...(req.query.status ? { status: req.query.status } : {}),
     }),
   );
 };

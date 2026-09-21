@@ -53,9 +53,9 @@ test('overview reports what is missing, what a person must do and what has no CL
   const overview = await connectors.overview();
   assert.equal(overview.error, undefined);
   assert.deepEqual(overview.notListed, ['docs', 'calendar']);
-  assert.ok(overview.authorisation.steps.some((s) => s.includes('/mcp')));
+  assert.ok(overview.authorisation.steps.some((s) => s.text.includes('/mcp')));
   assert.deepEqual(overview.unavailable.map((l) => l.id), ['web-artifacts', 'claude-ai-memory']);
-  for (const limit of overview.unavailable) assert.match(limit.reason, /no public API and no CLI command/);
+  for (const limit of overview.unavailable) assert.match(limit.reason.text, /no public API and no CLI command/);
 
   // Served from the cache until a refresh is asked for
   await connectors.overview();

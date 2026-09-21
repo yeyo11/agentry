@@ -6,6 +6,7 @@ import type {
   AgentTranscript,
   AddAccountTokenRequest,
   ApiError,
+  AuditFilter,
   AuditPage,
   AuthConfig,
   AuthMode,
@@ -394,8 +395,8 @@ export const api = {
   /** The only answer that ever carries the token; it cannot be read back afterwards. */
   setSecurityToken: (body: SetAuthTokenRequest = {}) => request<AuthTokenResult>('/security/token', { method: 'POST', body }),
   clearSecurityToken: () => request<AuthConfig>('/security/token', { method: 'DELETE' }),
-  audit: (page: { limit?: number; from?: number; path?: string } = {}) =>
-    request<AuditPage>(`/audit${qs({ limit: num(page.limit), from: num(page.from), path: page.path })}`),
+  audit: (page: AuditFilter & { limit?: number; from?: number } = {}) =>
+    request<AuditPage>(`/audit${qs({ limit: num(page.limit), from: num(page.from), path: page.path, method: page.method, status: page.status })}`),
   setAccountConfig: (number: number, body: UpdateAccountConfigRequest) =>
     request<AccountConfig>(`/accounts/${number}/config`, { method: 'PUT', body }),
   accountPolicies: () => request<RotationPolicy[]>('/accounts/policies'),
@@ -477,7 +478,8 @@ export const keys = {
   connectors: ['connectors'] as const,
   plugins: ['plugins'] as const,
   securityAuth: ['security', 'auth'] as const,
-  audit: (page: { from?: number; path?: string }) => ['security', 'audit', page.from ?? 0, page.path ?? ''] as const,
+  audit: (page: AuditFilter & { from?: number }) =>
+    ['security', 'audit', page.from ?? 0, page.path ?? '', page.method ?? '', page.status ?? ''] as const,
   availablePlugins: (q: string) => ['plugins', 'available', q] as const,
   pluginDetails: (plugin: string) => ['plugins', 'details', plugin] as const,
 };

@@ -18,8 +18,7 @@ interface Wrapper {
   core: Core;
 }
 
-async function wrapper(env: NodeJS.ProcessEnv = {}): Promise<Wrapper> {
-  const root = mkdtempSync(join(tmpdir(), 'agentry-security-'));
+async function wrapper(env: NodeJS.ProcessEnv = {}, root = mkdtempSync(join(tmpdir(), 'agentry-security-'))): Promise<Wrapper> {
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -236,6 +235,16 @@ test('every write leaves an audit row, with who and what but never the body', as
   assert.equal(paged.entries.length, 1);
   assert.equal(paged.from, 1);
   assert.equal(paged.total, 3);
+
+  const deletes = (await app.inject('/api/audit?method=delete')).json();
+  assert.equal(deletes.total, 1);
+  assert.equal(deletes.entries[0].method, 'DELETE');
+  assert.equal((await app.inject('/api/audit?status=2xx')).json().total, 3);
+  assert.equal((await app.inject('/api/audit?status=201')).json().total, 1);
+  assert.equal((await app.inject('/api/audit?status=4xx&method=POST')).json().total, 0);
+  const refused = await app.inject('/api/audit?status=teapot');
+  assert.equal(refused.statusCode, 400);
+  assert.match(refused.json().error, /a code such as 404 or a class such as 4xx/);
 });
 
 test('a write refused for want of a credential is recorded as nobody', async (t) => {
@@ -266,4 +275,30 @@ test('the environment can hand a fresh install a closed door', async (t) => {
     readOnly: true,
   });
   assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...authed('a-token-from-a-secret', { name: 'x' }) })).statusCode, 405);
+});
+
+test('AGENTRY_AUTH_TOKEN_RESET lets someone who lost the token back in, once, and says so in the log', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'agentry-security-'));
+  const first = await wrapper({}, root);
+  const lost = await withToken(first.app);
+  await first.app.close();
+
+  const reset = { AGENTRY_AUTH_TOKEN: 'a-recovered-token-from-env', AGENTRY_AUTH_TOKEN_RESET: '1' };
+  const second = await wrapper(reset, root);
+  assert.equal((await second.app.inject({ url: '/api/overview', ...bearer(lost) })).statusCode, 401, 'the lost token no longer opens it');
+  assert.equal((await second.app.inject({ url: '/api/overview', ...bearer(reset.AGENTRY_AUTH_TOKEN) })).statusCode, 200);
+  const rows = (await second.app.inject({ url: '/api/audit?path=/api/security/token', ...bearer(reset.AGENTRY_AUTH_TOKEN) })).json();
+  const byEnv = rows.entries.filter((entry: { actor: string }) => entry.actor === 'env');
+  assert.equal(byEnv.length, 1);
+  assert.match(byEnv[0].summary, /AGENTRY_AUTH_TOKEN_RESET/);
+  // Someone rotates it from the UI; a restart with the variable still set must not undo that
+  const rotated = (await second.app.inject({ method: 'POST', url: '/api/security/token', ...authed(reset.AGENTRY_AUTH_TOKEN, {}) })).json() as { token: string };
+  await second.app.close();
+
+  const third = await wrapper(reset, root);
+  t.after(() => third.app.close());
+  assert.equal((await third.app.inject({ url: '/api/overview', ...bearer(rotated.token) })).statusCode, 200);
+  assert.equal((await third.app.inject({ url: '/api/overview', ...bearer(reset.AGENTRY_AUTH_TOKEN) })).statusCode, 401);
+  const after = (await third.app.inject({ url: '/api/audit?path=/api/security/token', ...bearer(rotated.token) })).json();
+  assert.equal(after.entries.filter((entry: { actor: string }) => entry.actor === 'env').length, 1, 'no second reset row');
 });

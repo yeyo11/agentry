@@ -37,6 +37,14 @@ What is and is not protected:
 
 **Bind it to localhost until the guard and a TLS proxy are both in place.**
 
+**Lost the token?** The environment seeds only a fresh install, so setting `AGENTRY_AUTH_TOKEN` again
+does nothing by itself. Set it to a new value together with `AGENTRY_AUTH_TOKEN_RESET=1` and restart:
+the new token replaces the stored hash, and the audit log records the change with actor `env`. The
+mode, OIDC settings and read-only stay as they were. The hash of the value applied is kept, so a
+restart with the variables still set changes nothing and a token rotated afterwards survives; set a
+different value to reset again. With access to the data volume, deleting `auth.json` also works, but
+it resets the whole guard to the environment's seed.
+
 ## Supported versions
 
 The project is pre-1.0 and moves on `main`. Fixes land there; there are no backported releases.

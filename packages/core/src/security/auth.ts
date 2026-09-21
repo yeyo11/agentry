@@ -16,6 +16,11 @@ interface StoredAuth {
   /** Names the credential in an audit row, so rotating the token is visible in the history */
   tokenId?: string;
   tokenCreatedAt?: string;
+  /**
+   * SHA-256 of the last `AGENTRY_AUTH_TOKEN` that `AGENTRY_AUTH_TOKEN_RESET` applied. A deployment
+   * that leaves the variable set would otherwise undo, on every restart, a token rotated since.
+   */
+  envResetHash?: string;
   oidc?: OidcConfig;
   readOnly: boolean;
 }
@@ -67,6 +72,11 @@ export class AuthStore {
   private readonly file: string;
   private stored: StoredAuth = { ...DEFAULTS };
   private readonly oidcVerifier: OidcVerifier;
+  /**
+   * When this start replaced the token from the environment. The store has no database, so the
+   * owner of both writes the audit row; nothing else should read it.
+   */
+  readonly environmentReset: { at: string } | null = null;
 
   constructor(config: CoreConfig, env: AuthEnv = config.authEnv, verifier = new OidcVerifier()) {
     this.file = join(config.dataDir, 'auth.json');
@@ -78,6 +88,12 @@ export class AuthStore {
         // Falling back to the default would open a wrapper that was closed, so nothing starts
         // until a person looks at the file: an unreadable guard is not an absent one.
         throw new Error(`${this.file} is not readable as JSON (${error instanceof Error ? error.message : String(error)}); fix or delete it`);
+      }
+      const reset = resetFromEnvironment(env, this.stored);
+      if (reset) {
+        this.stored = reset;
+        this.environmentReset = { at: reset.tokenCreatedAt ?? new Date().toISOString() };
+        this.persistSync();
       }
     } else {
       this.stored = fromEnvironment(env);
@@ -163,6 +179,7 @@ export class AuthStore {
   /** Removes the token. Refused while it is the credential in use, which would lock everyone out. */
   async clearToken(): Promise<AuthConfig> {
     if (this.stored.mode === 'token') throw new Error('switch the mode away from `token` before removing the token');
+    // `envResetHash` stays: forgetting it would let a variable still set re-apply a token removed on purpose
     const { tokenHash: _hash, tokenId: _id, tokenCreatedAt: _createdAt, ...rest } = this.stored;
     this.stored = rest;
     await this.persist();
@@ -204,6 +221,8 @@ function fromEnvironment(env: AuthEnv): StoredAuth {
     stored.tokenId = 'env';
     stored.tokenCreatedAt = new Date().toISOString();
     stored.mode = 'token';
+    // Seeding already applied this value, so a reset flag left on does not apply it a second time
+    if (flagOn(env.AGENTRY_AUTH_TOKEN_RESET)) stored.envResetHash = stored.tokenHash;
   }
   const issuer = env.AGENTRY_OIDC_ISSUER?.trim();
   const audience = env.AGENTRY_OIDC_AUDIENCE?.trim();
@@ -219,6 +238,28 @@ function fromEnvironment(env: AuthEnv): StoredAuth {
     stored.mode = parsed;
   }
   const readOnly = env.AGENTRY_READ_ONLY?.trim();
-  if (readOnly) stored.readOnly = readOnly !== '0' && readOnly.toLowerCase() !== 'false';
+  if (readOnly) stored.readOnly = flagOn(readOnly);
   return stored;
+}
+
+function flagOn(value: string | undefined): boolean {
+  const flag = value?.trim();
+  return Boolean(flag) && flag !== '0' && flag?.toLowerCase() !== 'false';
+}
+
+/**
+ * The way back in for someone who lost the token and cannot reach the data volume (a pod, a
+ * managed host): `AGENTRY_AUTH_TOKEN_RESET=1` with `AGENTRY_AUTH_TOKEN` replaces the stored hash on
+ * start. It changes the credential only; the mode, OIDC and read-only stay what the document says,
+ * because the reset is about a lost secret, not about reconfiguring the guard. Returns `null` when
+ * there is nothing to do, including a value already applied by an earlier start.
+ */
+function resetFromEnvironment(env: AuthEnv, stored: StoredAuth): StoredAuth | null {
+  if (!flagOn(env.AGENTRY_AUTH_TOKEN_RESET)) return null;
+  const token = env.AGENTRY_AUTH_TOKEN?.trim();
+  // A reset that silently did nothing would leave the person locked out and wondering why
+  if (!token) throw new Error('AGENTRY_AUTH_TOKEN_RESET needs AGENTRY_AUTH_TOKEN');
+  const hash = sha256(token).toString('hex');
+  if (stored.envResetHash === hash) return null;
+  return { ...stored, tokenHash: hash, tokenId: 'env', tokenCreatedAt: new Date().toISOString(), envResetHash: hash };
 }

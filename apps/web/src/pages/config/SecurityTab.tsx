@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, KeyRound, RefreshCw, Search } from 'lucide-r
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Switch } from '../../components/controls';
+import { Combobox, Select, Switch, type SelectOption } from '../../components/controls';
 import { useConfirm } from '../../components/Dialog';
 import { ICON, ICON_SM } from '../../components/icons';
 import { useToast } from '../../components/Toast';
@@ -17,6 +17,12 @@ const MODES: AuthMode[] = ['none', 'token', 'oidc'];
 const MIN_OWN_TOKEN = 16;
 const AUDIT_PAGE = 25;
 const NO_OIDC: OidcConfig = { issuer: '', audience: '', clientId: '' };
+// Only writes are recorded, so a GET filter could never match
+const AUDIT_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'] as const;
+type AuditMethod = '' | (typeof AUDIT_METHODS)[number];
+const AUDIT_CLASSES = ['2xx', '3xx', '4xx', '5xx'] as const;
+// What the server accepts; anything else would come back as a 400, so it is held back and named
+const STATUS_FILTER = /^[1-5](\d\d|xx)$/i;
 
 /**
  * Who may use this wrapper and what they may do. Everything here is administration of the guard
@@ -247,6 +253,7 @@ function TokenCard({ auth }: { auth: AuthConfig }) {
       actions={auth.tokenSet ? <Tag tone="ok">{t('config:security.token.set')}</Tag> : <Tag>{t('config:security.token.notSet')}</Tag>}
     >
       <p className="small muted">{t('config:security.token.intro')}</p>
+      <p className="small muted">{t('config:security.token.recovery', { token: 'AGENTRY_AUTH_TOKEN', reset: 'AGENTRY_AUTH_TOKEN_RESET' })}</p>
 
       {revealed && (
         <div className="alert alert-warn" role="status">
@@ -334,20 +341,33 @@ function AuditCard() {
   const { t } = useTranslation(['config', 'common']);
   const [filter, setFilter] = useState('');
   const [path, setPath] = useState('');
+  const [method, setMethod] = useState<AuditMethod>('');
+  const [statusText, setStatusText] = useState('');
+  const [status, setStatus] = useState('');
   const [from, setFrom] = useState(0);
+
+  const statusTyped = statusText.trim();
+  const statusInvalid = statusTyped !== '' && !STATUS_FILTER.test(statusTyped);
 
   // One request per pause in typing, not per keystroke
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setPath(filter.trim());
+      if (!statusInvalid) setStatus(statusTyped.toLowerCase());
       setFrom(0);
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [filter]);
+  }, [filter, statusTyped, statusInvalid]);
+
+  const filtered = path !== '' || method !== '' || status !== '';
+  const methodOptions: SelectOption<AuditMethod>[] = [
+    { value: '', label: t('config:security.audit.anyMethod') },
+    ...AUDIT_METHODS.map((value) => ({ value, label: value })),
+  ];
 
   const { data, error, isLoading, isFetching, refetch } = useQuery({
-    queryKey: keys.audit({ from, path }),
-    queryFn: () => api.audit({ limit: AUDIT_PAGE, from, path }),
+    queryKey: keys.audit({ from, path, method, status }),
+    queryFn: () => api.audit({ limit: AUDIT_PAGE, from, path, method: method || undefined, status: status || undefined }),
     refetchInterval: 15_000,
     placeholderData: (previous) => previous,
   });
@@ -376,13 +396,48 @@ function AuditCard() {
             onChange={(e) => setFilter(e.target.value)}
           />
         </div>
+        <Select
+          aria-label={t('config:security.audit.methodLabel')}
+          value={method}
+          options={methodOptions}
+          onChange={(next) => {
+            setMethod(next);
+            setFrom(0);
+          }}
+        />
+        <Combobox
+          aria-label={t('config:security.audit.statusLabel')}
+          placeholder={t('config:security.audit.statusPlaceholder')}
+          className={`audit-status ${statusInvalid ? 'is-invalid' : ''}`}
+          value={statusText}
+          options={AUDIT_CLASSES.map((value) => ({ value, hint: t(`config:security.audit.statusClass.${value}`) }))}
+          onChange={setStatusText}
+        />
+        {(filter !== '' || method !== '' || statusText !== '') && (
+          <button
+            type="button"
+            className="btn btn-small"
+            onClick={() => {
+              setFilter('');
+              setMethod('');
+              setStatusText('');
+            }}
+          >
+            {t('config:security.audit.clearFilters')}
+          </button>
+        )}
       </div>
+      {statusInvalid && (
+        <p className="field-hint text-err" role="status">
+          {t('config:security.audit.statusInvalid')}
+        </p>
+      )}
       <ErrorBox error={error} />
       {isLoading ? (
         <Skeleton rows={5} />
       ) : entries.length === 0 ? (
-        <Empty title={path ? t('config:security.audit.noMatch') : t('config:security.audit.none')}>
-          {path ? t('config:security.audit.noMatchHint') : t('config:security.audit.noneHint')}
+        <Empty title={filtered ? t('config:security.audit.noMatch') : t('config:security.audit.none')}>
+          {filtered ? t('config:security.audit.noMatchHint') : t('config:security.audit.noneHint')}
         </Empty>
       ) : (
         <>

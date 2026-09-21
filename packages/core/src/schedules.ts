@@ -283,6 +283,7 @@ export class Scheduler {
       ...(stored.timezone ? { timezone: stored.timezone } : {}),
       target: stored.target,
       enabled: stored.enabled,
+      overlap: 'parallel',
       lastRunAt: this.runs.lastFiredAt(stored.id),
       nextRunAt,
       createdAt: stored.createdAt,
