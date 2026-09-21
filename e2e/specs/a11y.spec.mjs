@@ -239,20 +239,30 @@ export default async ({ page, api, check, dirs }) => {
       if (overflow > 1) problems.push(`[768px ${path}] the page scrolls sideways by ${overflow}px`);
     }
 
-    // The slide-over navigation: out of the tab order while shut, focus in when open, Escape gives it back
+    // The phone's navigation is the tab bar: the sidebar is out of the tab order, "More" is a sheet
+    // that takes focus when open and gives it back to its button on Escape
     await page.viewport(420, 900);
     await settle(page, '/chats');
-    const shut = await page.eval(`return getComputedStyle(document.querySelector('#sidebar')).visibility`);
-    if (shut !== 'hidden') problems.push(`[420px] the closed navigation is still visible to the keyboard and screen readers (visibility: ${shut})`);
-    await page.focus('.topbar-menu');
+    const sidebarShown = await page.eval(`return document.querySelector('#sidebar').getClientRects().length > 0`);
+    if (sidebarShown) problems.push('[420px] the sidebar is still shown next to the tab bar');
+    const tabs = await page.eval(`return [...document.querySelectorAll('.tabbar a')].map((a) => a.getAttribute('href'))`);
+    for (const href of ['/', '/chats', '/orchestration']) if (!tabs.includes(href)) problems.push(`[420px] the tab bar has no ${href} tab`);
+    await page.focus('.tabbar-more');
     await page.press('Enter');
-    await page.waitFor(`return getComputedStyle(document.querySelector('#sidebar')).visibility === 'visible'`, { label: 'the navigation opens from the keyboard' });
-    const inside = await page.eval(`return document.querySelector('#sidebar').contains(document.activeElement)`);
-    if (!inside) problems.push('[420px] opening the navigation does not move focus into it');
-    if ((await page.eval(`return document.querySelector('.topbar-menu').getAttribute('aria-expanded')`)) !== 'true') problems.push('[420px] the menu button does not say the navigation is open');
+    await page.waitFor(`return !!document.querySelector('.more-sheet')`, { label: 'the More sheet opens from the keyboard' });
+    await page.sleep(300);
+    if (!(await page.eval(`return document.querySelector('.more-sheet').contains(document.activeElement)`))) problems.push('[420px] opening More does not move focus into it');
+    if ((await page.eval(`return document.querySelector('.tabbar-more').getAttribute('aria-expanded')`)) !== 'true') problems.push('[420px] the More button does not say its sheet is open');
+    const rest = await page.eval(`return [...document.querySelectorAll('.more-sheet a')].map((a) => a.getAttribute('href'))`);
+    for (const href of ['/projects', '/accounts', '/schedules', '/usage', '/connectors', '/settings', '/docs', '/settings?tab=account']) if (!rest.includes(href)) problems.push(`[420px] More does not offer ${href}`);
+    await scan(page, '420px more sheet', { rules: OVERLAY_RULES });
     await page.key('Escape');
-    await page.waitFor(`return getComputedStyle(document.querySelector('#sidebar')).visibility === 'hidden'`, { label: 'Escape closes the navigation' });
-    if (!(await page.eval(`return document.activeElement === document.querySelector('.topbar-menu')`))) problems.push('[420px] closing the navigation with Escape does not return focus to the menu button');
+    await page.waitFor(`return !document.querySelector('.more-sheet')`, { label: 'Escape closes More' });
+    await page.sleep(200);
+    if (!(await page.eval(`return document.activeElement === document.querySelector('.tabbar-more')`))) problems.push('[420px] closing More with Escape does not return focus to its button');
+    // A chat brings its own back button and composer: the tab bar steps aside there
+    await settle(page, `/chats/${SESSION}`);
+    if (await page.eval(`return !!document.querySelector('.tabbar')`)) problems.push('[420px] the tab bar covers a chat, which has its own footer');
     await page.viewport(1440, 900);
 
     // ---------- axe: what opens over the pages ----------
@@ -276,7 +286,12 @@ export default async ({ page, api, check, dirs }) => {
     await page.key('Escape');
     await page.waitFor(`return !document.querySelector('.notif-panel')`, { label: 'notification panel closed' });
 
-    await page.click('.topbar-workflow', undefined, 600);
+    // "Run workflow" lives behind "New chat ▾" now: the menu, then the dialog it opens
+    await page.focus('.topbar-new .split-btn-more');
+    await page.press('Enter');
+    await page.waitFor(`return !!document.querySelector('[role=menu]')`, { label: 'New chat menu open' });
+    await scan(page, 'new chat menu', { rules: { ...OVERLAY_RULES, 'landmark-one-main': { enabled: false }, 'page-has-heading-one': { enabled: false } } });
+    await page.click('[role=menu] [role=menuitem]', 'Run workflow', 600);
     await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'workflow dialog open' });
     await scan(page, 'run workflow dialog', { rules: OVERLAY_RULES });
     await page.key('Escape');
@@ -325,7 +340,7 @@ export default async ({ page, api, check, dirs }) => {
     // From the top of a fresh load again: focus moved to the page, and Tab goes on from where it is
     await settle(page, '/');
     const stops = [];
-    for (let i = 0; i < 26; i++) {
+    for (let i = 0; i < 32; i++) {
       await page.press('Tab');
       const stop = await page.eval(focusInfo);
       if (stop) stops.push(stop);
@@ -340,7 +355,8 @@ export default async ({ page, api, check, dirs }) => {
     for (const href of ['/', '/chats', '/orchestration', '/projects', '/accounts', '/settings']) {
       if (!reached.has(href)) problems.push(`[keyboard] the navigation link ${href} is not reachable with Tab`);
     }
-    for (const button of ['Run workflow', 'New chat']) {
+    // "Run workflow" and "New orchestration" sit in the menu behind "New chat ▾", whose arrow is its own stop
+    for (const button of ['New chat', 'More options for New chat']) {
       if (!stops.some((s) => s.name === button)) problems.push(`[keyboard] "${button}" is not reachable with Tab: it would exist only in the command palette`);
     }
     if (!stops.some((s) => s.cls?.includes('project-selector'))) problems.push('[keyboard] the project selector is not reachable with Tab');
@@ -351,7 +367,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return location.pathname === '/chats'`, { label: 'Enter follows the Chats link' });
     await page.sleep(300);
     if (!(await page.eval(`return document.querySelector('main').contains(document.activeElement)`))) problems.push('[keyboard] after following a link focus is not on the new page');
-    await page.focus('.topbar-new');
+    await page.focus('.topbar-new .split-btn-main');
     await page.press('Enter');
     await page.waitFor(`return location.pathname === '/chats/new'`, { label: 'Enter presses New chat' });
 
