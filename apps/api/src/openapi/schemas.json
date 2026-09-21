@@ -2065,6 +2065,13 @@
         ],
         "description": "What the checks on the integration branch did; absent when the graph asked for none"
       },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Why the graph failed when its tasks did not: its checks failed and it was launched with `verification.failGraph`. Null or absent otherwise."
+      },
       "relaunchedFrom": {
         "type": [
           "string",
@@ -2704,6 +2711,10 @@
     "properties": {
       "command": {
         "type": "string"
+      },
+      "install": {
+        "type": "boolean",
+        "description": "The install step that runs before the checks: detected from the lockfile, or the spec's `install`"
       },
       "status": {
         "$ref": "#/components/schemas/VerificationStatus"
@@ -7548,6 +7559,23 @@
   "UpdateEditorSettingsRequest": {
     "$ref": "#/components/schemas/EditorSettings",
     "description": "Replaces the whole document (`PUT /settings/editor`): it is small and the form always holds all of it."
+  },
+  "EditorSettingsDoc": {
+    "type": "object",
+    "properties": {
+      "stored": {
+        "type": "boolean",
+        "description": "False until the first `PUT`: `settings` is then the shipped default, and a browser may migrate its own"
+      },
+      "settings": {
+        "$ref": "#/components/schemas/EditorSettings"
+      }
+    },
+    "required": [
+      "stored",
+      "settings"
+    ],
+    "description": "`GET /settings/editor` and the answer to a `PUT`: the settings, and whether any were ever saved."
   },
   "CancelCommandRequest": {
     "type": "object",

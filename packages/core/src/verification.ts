@@ -1,4 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 import type { Commit, VerificationSpec } from '@agentry/shared';
 import { git } from './git.ts';
 import { processTable, terminateTree } from './processes.ts';
@@ -39,13 +41,66 @@ export function normalizeVerification(spec: VerificationSpec | null | undefined,
     throw new Error(`${label}.timeoutMinutes must be a number of minutes from more than 0 to ${String(MAX_VERIFY_MINUTES)}`);
   }
   const model = typeof spec.model === 'string' && spec.model.trim() ? spec.model.trim() : undefined;
+  const cost = spec.maxCostUsd ?? undefined;
+  if (cost !== undefined && (typeof cost !== 'number' || !Number.isFinite(cost) || cost <= 0)) {
+    throw new Error(`${label}.maxCostUsd must be a number of dollars greater than zero`);
+  }
+  let install: string | null | undefined;
+  if (spec.install === null) install = null;
+  else if (spec.install !== undefined) {
+    if (typeof spec.install !== 'string') throw new Error(`${label}.install must be a shell command, or null for no install step`);
+    install = spec.install.trim();
+    // An empty command would read as "no install step" to one person and "detect it" to another
+    if (install === '') throw new Error(`${label}.install must not be empty: leave it out to detect it, or give null for no install step`);
+    if (install.length > MAX_COMMAND_LENGTH) throw new Error(`${label}.install is at most ${String(MAX_COMMAND_LENGTH)} characters`);
+  }
+  if (spec.failGraph !== undefined && typeof spec.failGraph !== 'boolean') throw new Error(`${label}.failGraph must be true or false`);
   return {
     commands,
     fixer: spec.fixer === true,
     maxAttempts: attempts,
     timeoutMinutes: minutes,
     ...(model ? { model } : {}),
+    ...(cost !== undefined ? { maxCostUsd: cost } : {}),
+    ...(install !== undefined ? { install } : {}),
+    ...(spec.failGraph === true ? { failGraph: true } : {}),
   };
+}
+
+/** Lockfiles Agentry knows, in the order they are looked for, with the install that keeps to each. */
+const LOCKFILES: ReadonlyArray<readonly [file: string, command: string]> = [
+  ['pnpm-lock.yaml', 'pnpm install --frozen-lockfile'],
+  ['package-lock.json', 'npm ci'],
+  ['yarn.lock', 'yarn install --frozen-lockfile'],
+];
+
+/** The install step a verification runs first, and the directory it runs in. */
+export interface InstallStep {
+  command: string;
+  cwd: string;
+}
+
+/**
+ * The install step for checks that run in `dir`, inside the worktree `root`. A string in the spec is
+ * run as given, in `dir`; `null` is none. Absent, the nearest lockfile from `dir` up to `root` says
+ * which package manager to use, and the install runs where the lockfile is: a graph confined to a
+ * subdirectory of a workspace still installs the workspace. A spec whose checks already hold that
+ * very command (written before Agentry added the step) does not get it twice.
+ */
+export function installStep(spec: VerificationSpec, root: string, dir: string): InstallStep | null {
+  if (spec.install === null) return null;
+  if (typeof spec.install === 'string') return { command: spec.install, cwd: dir };
+  const top = resolve(root);
+  let at = resolve(dir);
+  for (;;) {
+    const found = LOCKFILES.find(([file]) => existsSync(join(at, file)));
+    if (found) return spec.commands.includes(found[1]) ? null : { command: found[1], cwd: at };
+    if (at === top) return null;
+    const up = dirname(at);
+    // Never above the worktree: a lockfile there belongs to some other checkout
+    if (up === at || relative(top, up).startsWith('..')) return null;
+    at = up;
+  }
 }
 
 export interface CommandOutcome {

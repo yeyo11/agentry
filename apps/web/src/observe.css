@@ -171,6 +171,16 @@ button.obs-file-name:hover {
 .obs-signal-bad {
   border-left-color: var(--bad);
 }
+.obs-proposal {
+  border-left-color: var(--accent);
+}
+.obs-proposal .obs-signal-line svg {
+  color: var(--accent);
+}
+.obs-proposal-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
 .obs-signal-line {
   display: flex;
   align-items: flex-start;

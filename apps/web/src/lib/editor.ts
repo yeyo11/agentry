@@ -1,16 +1,16 @@
-import type { EditorSettings } from '@agentry/shared';
-import { useSyncExternalStore } from 'react';
+import type { EditorSettings, EditorSettingsDoc } from '@agentry/shared';
 
 /*
- * How a path and a line become a link that opens the person's editor. It is kept per browser, like
- * the theme: the wrapper often runs in a container while the editor runs on the person's own
- * machine, so the template and the container-to-host mapping describe *that* machine, not the
- * server's. Nothing here reaches the CLI.
+ * How a path and a line become a link that opens the person's editor. The settings are kept on the
+ * server (`editor.json`), so every browser of the same person builds the same links; the server
+ * refuses an unsafe template too, and these checks stay here to say so while the person types.
+ * Nothing here reaches the CLI.
  */
 
 export const DEFAULT_EDITOR: EditorSettings = { template: 'vscode://file/{path}:{line}' };
 
-const STORAGE_KEY = 'agentry-editor:v1';
+/** Where each browser kept its own settings before the server did: read once, to move them there. */
+export const LEGACY_EDITOR_KEY = 'agentry-editor:v1';
 
 /** Schemes a link may never use, whatever the template says: a setting is text somebody pasted. */
 const UNSAFE_SCHEME = /^(javascript|data|vbscript|file|blob):/i;
@@ -96,48 +96,33 @@ export function diffCommand(settings: EditorSettings, left: string, right: strin
   return template.replaceAll('{left}', map(left)).replaceAll('{right}', map(right));
 }
 
-// ---------- the stored setting ----------
+// ---------- moving a browser's own settings to the server ----------
 
-const listeners = new Set<() => void>();
-let current: EditorSettings | null = null;
+/** What loading the settings comes to: what to apply, and what to do about this browser's old copy. */
+export interface EditorLoad {
+  settings: EditorSettings;
+  /** Send these to the server, and drop the old copy once it has them */
+  migrate: EditorSettings | null;
+  /** The old copy is of no more use: the server has settings of its own, or the copy is unusable */
+  dropLegacy: boolean;
+}
 
-function read(): EditorSettings {
+/**
+ * The server's settings win once it has any. Before that, the settings this browser kept for itself
+ * move there, once: after the first save the server says `stored`, and no other browser's copy is
+ * ever read again. A copy that is corrupt or whose template the server would refuse is dropped.
+ */
+export function planEditorLoad(doc: EditorSettingsDoc, legacy: string | null): EditorLoad {
+  const server = sanitizeEditor(doc.settings);
+  if (legacy === null) return { settings: server, migrate: null, dropLegacy: false };
+  if (doc.stored) return { settings: server, migrate: null, dropLegacy: true };
+  let parsed: unknown;
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return sanitizeEditor(JSON.parse(stored));
+    parsed = JSON.parse(legacy);
   } catch {
-    // storage blocked or corrupt: the default is a working setting
+    return { settings: server, migrate: null, dropLegacy: true };
   }
-  return DEFAULT_EDITOR;
+  const settings = sanitizeEditor(parsed);
+  if (templateProblem(settings.template) !== null) return { settings: server, migrate: null, dropLegacy: true };
+  return { settings, migrate: settings, dropLegacy: false };
 }
-
-export function getEditorSettings(): EditorSettings {
-  return (current ??= read());
-}
-
-export function setEditorSettings(next: EditorSettings): void {
-  current = sanitizeEditor(next);
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
-  } catch {
-    // not persisted; still applied for this visit
-  }
-  listeners.forEach((l) => l());
-}
-
-export function resetEditorSettings(): void {
-  current = DEFAULT_EDITOR;
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // nothing stored to remove
-  }
-  listeners.forEach((l) => l());
-}
-
-const subscribe = (listener: () => void): (() => void) => {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-};
-
-export const useEditorSettings = (): EditorSettings => useSyncExternalStore(subscribe, getEditorSettings);

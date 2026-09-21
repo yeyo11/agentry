@@ -12,14 +12,14 @@ import { ICON, ICON_SM } from '../components/icons';
 import { BoardStatusBadge, StageHead, TaskCard, WaitingNotice } from '../components/OrchestrationBoard';
 import { SaveTemplateDialog } from '../components/OrchestrationTemplates';
 import { RelaunchPanel } from '../components/RelaunchPanel';
-import { VerificationCard } from '../components/VerificationCard';
+import { FailedByChecksNotice, VerificationCard } from '../components/VerificationCard';
 import { CodeBlock } from '../components/CodeBlock';
 import { IntegrationChanges, TaskWork } from '../components/observe/Work';
 import { RichText } from '../components/Transcript';
 import { Card, ErrorBox, Field, Loading, PageHeader, StatusBadge } from '../components/ui';
 import { durationBetween, formatCost, formatDateTime, shortPath } from '../lib/format';
 import { costSplit } from '../lib/orchestration-board';
-import { canRelaunch, rerunBlockedByPullRequest } from '../lib/orchestration-v2';
+import { canRelaunch, pullRequestHeld, rerunBlockedByPullRequest } from '../lib/orchestration-v2';
 
 /** Groups tasks into columns by topological level (longest dependency chain). Cycles are tolerated. */
 function layerTasks(tasks: OrchestrationTaskState[]): OrchestrationTaskState[][] {
@@ -88,6 +88,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
   const hasWorktrees = orch.tasks.some((t) => t.worktree) || Boolean(integration?.worktree);
   // The branch is offered once the checks have said what they found, not while they still run
   const checking = orch.verification?.status === 'running' || orch.verification?.status === 'pending';
+  const prHeld = pullRequestHeld(orch);
 
   return (
     <Card
@@ -104,7 +105,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
                 <a className="btn btn-small" href={integration.pullRequestUrl} target="_blank" rel="noreferrer">
                   <ExternalLink {...ICON_SM} /> {t('config:detail.pullRequest')}
                 </a>
-              ) : (
+              ) : prHeld ? null : (
                 <button
                   type="button"
                   className="btn btn-small btn-primary"
@@ -161,6 +162,7 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
             {integration.integratorRunId && <Link to={`/chats/${integration.integratorRunId}`}>{t('integratorChat')}</Link>}
           </div>
           {checking && <p className="muted small">{tv('verification.holdsPush')}</p>}
+          {prHeld && !integration.pullRequestUrl && <p className="muted small">{tv('verification.pullRequestHeld')}</p>}
           {integration.status === 'resolving' && (
             <p className="muted small">{t('config:detail.resolving')}</p>
           )}
@@ -458,6 +460,7 @@ export function OrchestrationDetail() {
       />
       <ErrorBox error={error ?? stop.error ?? resume.error ?? remove.error} />
       <WaitingNotice orch={orch} />
+      <FailedByChecksNotice orch={orch} />
       {resuming && (
         <ResumePanel
           orch={orch}

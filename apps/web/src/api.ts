@@ -95,6 +95,11 @@ import type {
   SwitchAccountRequest,
   SwitchResult,
   SettingsDoc,
+  EditorSettingsDoc,
+  SupervisorConfig,
+  SupervisorProposal,
+  UpdateEditorSettingsRequest,
+  UpdateSupervisorConfigRequest,
   RunWorkflowRequest,
   WorkflowDefinition,
   SystemInfo,
@@ -320,6 +325,14 @@ export const api = {
   chatDiff: (id: string, path: string) => request<FileDiff>(`/chats/${enc(id)}/changes/diff${qs({ path })}`),
   chatChecklist: (id: string) => request<Checklist>(`/chats/${enc(id)}/checklist`),
   hintChat: (id: string, req: HintRequest) => request<ChatSummary>(`/chats/${enc(id)}/hint`, { method: 'POST', body: req }),
+  // A task's proposal goes through its task's routes, so the hint reaches it the way a task's hint does
+  settleSupervisorProposal: (proposal: SupervisorProposal, action: 'send' | 'dismiss') =>
+    request<SupervisorProposal>(
+      proposal.orchestrationId && proposal.taskId
+        ? `/orchestrations/${enc(proposal.orchestrationId)}/tasks/${enc(proposal.taskId)}/supervisor/${enc(proposal.id)}/${action}`
+        : `/chats/${enc(proposal.chatId)}/supervisor/${enc(proposal.id)}/${action}`,
+      { method: 'POST' },
+    ),
   cancelCommand: (id: string, toolUseId: string, req: CancelCommandRequest = {}) =>
     request<CancelCommandResult>(`/chats/${enc(id)}/commands/${enc(toolUseId)}/cancel`, { method: 'POST', body: req }),
   /** The executions of a chat, without the transcript: how each attempt of a task ended. */
@@ -365,6 +378,10 @@ export const api = {
   putToolPreset: (id: string, preset: Pick<ToolPreset, 'name' | 'description' | 'allowedTools' | 'disallowedTools'>) =>
     request<ToolPreset>(`/config/tool-presets/${enc(id)}`, { method: 'PUT', body: preset }),
   deleteToolPreset: (id: string) => request<{ ok: true }>(`/config/tool-presets/${enc(id)}`, { method: 'DELETE' }),
+  supervisorConfig: () => request<SupervisorConfig>('/settings/supervisor'),
+  putSupervisorConfig: (config: UpdateSupervisorConfigRequest) => request<SupervisorConfig>('/settings/supervisor', { method: 'PUT', body: config }),
+  editorSettings: () => request<EditorSettingsDoc>('/settings/editor'),
+  putEditorSettings: (settings: UpdateEditorSettingsRequest) => request<EditorSettingsDoc>('/settings/editor', { method: 'PUT', body: settings }),
   resources: (scope: Scope, kind: ResourceKind) =>
     request<ConfigResource[]>(`/config/resources/${kind}${scoped(scope)}`),
   resource: (scope: Scope, kind: ResourceKind, name: string) =>
@@ -469,6 +486,8 @@ export const keys = {
     ['config', 'instructions', scope.projectId ?? 'user', variant] as const,
   mcp: (scope: Scope) => ['config', 'mcp', scope.projectId ?? 'user'] as const,
   toolPresets: ['config', 'tool-presets'] as const,
+  supervisor: ['settings', 'supervisor'] as const,
+  editor: ['settings', 'editor'] as const,
   resources: (scope: Scope, kind: ResourceKind) => ['config', 'resources', scope.projectId ?? 'user', kind] as const,
   fileRoots: ['config', 'files', 'roots'] as const,
   fileTree: (root: string) => ['config', 'files', 'tree', root] as const,

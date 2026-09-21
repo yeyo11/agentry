@@ -209,7 +209,7 @@ export default async ({ page, api, check, dirs }) => {
       `/orchestration/${orchestrationId}`,
       '/accounts',
       '/connectors',
-      ...['account', 'instructions', 'settings', 'mcp', 'agents', 'skills', 'commands', 'output-styles', 'rules', 'files', 'memory', 'plugins', 'security'].map((tab) => `/settings?tab=${tab}`),
+      ...['account', 'instructions', 'settings', 'mcp', 'agents', 'skills', 'commands', 'output-styles', 'rules', 'files', 'memory', 'plugins', 'supervisor', 'security'].map((tab) => `/settings?tab=${tab}`),
       ...['activity', 'settings', 'memory', 'resources', 'worktrees'].map((tab) => `/?project=${projectId}&tab=${tab}`),
     ];
     for (const theme of ['dark', 'light']) {

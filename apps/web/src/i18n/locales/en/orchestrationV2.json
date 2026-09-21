@@ -40,7 +40,31 @@
     "output": "What it printed",
     "commits_one": "{{count}} commit by the fixer",
     "commits_other": "{{count}} commits by the fixer",
-    "holdsPush": "The branch can be pushed once the checks have finished."
+    "holdsPush": "The branch can be pushed once the checks have finished.",
+    "install": "Install step",
+    "installMode": {
+      "detected": "Detected from the lockfile",
+      "command": "A command of my own",
+      "none": "None"
+    },
+    "installHint": {
+      "detected": "Runs before the checks: pnpm, npm or yarn, from the lockfile of the merged branch. Left out when a check already runs it.",
+      "command": "Runs before the checks, in the graph's directory.",
+      "none": "The checks run on the merged branch as it is."
+    },
+    "installCommand": "Install command",
+    "installPlaceholder": "pnpm install --frozen-lockfile",
+    "installTag": "install",
+    "maxCost": "Fixer cost limit (USD)",
+    "maxCostHint": "Over every attempt of one run. The CLI enforces what is left at each attempt; once it is spent, the checks fail.",
+    "failGraph": "Fail the graph when the checks fail",
+    "failGraphHint": "Off, the graph's status is about its tasks and failed checks are only reported. On, the graph ends as failed and no pull request is offered.",
+    "failGraphOn": "Failed checks fail this graph and hold back its pull request.",
+    "cost": "The fixer spent {{cost}}.",
+    "costOf": "The fixer spent {{cost}} of its {{limit}} limit.",
+    "failedGraphTitle": "The checks failed this graph",
+    "failedGraphBody": "Every task finished, but the checks on the merged branch failed and the graph was launched to fail when they do. The verification card below says what failed; checks that pass on a later run bring the graph back.",
+    "pullRequestHeld": "No pull request is offered: the checks failed and this graph was launched to fail when they do."
   },
   "templates": {
     "title_one": "Templates ({{count}})",

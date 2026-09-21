@@ -378,7 +378,8 @@
     "conflict_other": "{{count}} files in {{branch}} need your attention.",
     "conflictResolving_one": "{{count}} file in {{branch}}.",
     "conflictResolving_other": "{{count}} files in {{branch}}.",
-    "fromSubagent": "Started by a subagent."
+    "fromSubagent": "Started by a subagent.",
+    "supervisorProposed": "{{name}}: the supervisor proposes a hint"
   },
   "codeBlock": {
     "label": "Code",

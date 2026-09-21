@@ -1,6 +1,6 @@
-import type { Health, HealthSignal } from '@agentry/shared';
+import type { Health, HealthSignal, SupervisorProposal } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleCheck, CircleSlash, Clock, Repeat, Send, TriangleAlert, OctagonX, type LucideIcon } from 'lucide-react';
+import { CircleCheck, CircleSlash, Clock, Lightbulb, Pencil, Repeat, Send, TriangleAlert, OctagonX, X, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api';
@@ -15,18 +15,98 @@ const TONE: Record<HealthWord, string> = { ok: 'ok', slow: 'warn', stuck: 'bad',
 // A shape per word besides the colour and the text: it still reads in greyscale
 const ICON: Record<HealthWord, LucideIcon> = { ok: CircleCheck, slow: Clock, stuck: OctagonX, looping: Repeat };
 
-/** ok, slow, stuck or looping: said in words and with a shape, the reason one hover away. */
-export function HealthBadge({ health }: { health: Pick<Health, 'level' | 'signals' | 'reason'> }) {
+/**
+ * ok, slow, stuck or looping: said in words and with a shape, the reason one hover away. A hint the
+ * supervisor proposed and nobody has judged yet is part of the badge, since it is what to act on.
+ */
+export function HealthBadge({ health }: { health: Pick<Health, 'level' | 'signals' | 'reason' | 'proposal'> }) {
   const { t } = useTranslation('observe');
   const word = healthWord(health);
   const Icon = ICON[word];
+  const proposed = health.proposal?.status === 'proposed';
   return (
-    <Tooltip content={health.reason}>
+    <Tooltip content={proposed ? `${health.reason} ${t('supervisor.badgeHint')}` : health.reason}>
       <span className={`badge badge-${TONE[word]}`}>
         <Icon size={12} strokeWidth={2} aria-hidden />
         {t(`health.word.${word}`)}
+        {proposed && (
+          <>
+            <Lightbulb size={12} strokeWidth={2} aria-hidden />
+            <span className="sr-only">{t('supervisor.badgeHint')}</span>
+          </>
+        )}
       </span>
     </Tooltip>
+  );
+}
+
+/**
+ * What the supervisor proposed for the worst signal. Send delivers it as written; Edit opens the
+ * hint box with it, and a hint sent from there answers the proposal, so it is dismissed after it.
+ */
+function ProposalRow({
+  proposal,
+  live,
+  sendHint,
+  onChanged,
+}: {
+  proposal: SupervisorProposal;
+  live: boolean;
+  sendHint: (text: string) => Promise<unknown>;
+  onChanged: () => void;
+}) {
+  const { t } = useTranslation(['observe', 'common']);
+  const toast = useToast();
+  const [editing, setEditing] = useState(false);
+  const settle = useMutation({
+    mutationFn: (action: 'send' | 'dismiss') => api.settleSupervisorProposal(proposal, action),
+    onSuccess: (_result, action) => {
+      if (action === 'send') toast.success(t('observe:health.hintSent'));
+      onChanged();
+    },
+  });
+  const sendEdited = async (text: string) => {
+    await sendHint(text);
+    // The hint reached the worker already; a proposal settled in the meantime is nothing to report
+    await api.settleSupervisorProposal(proposal, 'dismiss').catch(() => undefined);
+  };
+
+  return (
+    <div className="obs-signal obs-proposal" role="group" aria-label={t('observe:supervisor.title')}>
+      <div className="obs-signal-line">
+        <Lightbulb {...ICON_SM} />
+        <span className="strong">{t('observe:supervisor.proposes')}</span>
+      </div>
+      <p className="small break obs-proposal-text">{proposal.hint}</p>
+      {!editing && (
+        <div className="task-actions">
+          {live && (
+            <button type="button" className="btn btn-small btn-primary" disabled={settle.isPending} onClick={() => settle.mutate('send')}>
+              <Send {...ICON_SM} /> {t('observe:supervisor.send')}
+            </button>
+          )}
+          {live && (
+            <button type="button" className="btn btn-small" disabled={settle.isPending} onClick={() => setEditing(true)}>
+              <Pencil {...ICON_SM} /> {t('observe:supervisor.edit')}
+            </button>
+          )}
+          <button type="button" className="btn btn-small" disabled={settle.isPending} onClick={() => settle.mutate('dismiss')}>
+            <X {...ICON_SM} /> {t('observe:supervisor.dismiss')}
+          </button>
+        </div>
+      )}
+      <ErrorBox error={settle.error} />
+      {editing && (
+        <HintBox
+          initial={proposal.hint}
+          send={sendEdited}
+          onDone={() => {
+            setEditing(false);
+            onChanged();
+          }}
+        />
+      )}
+    </div>
   );
 }
 
@@ -170,6 +250,7 @@ export function HealthPanel({
   const { t } = useTranslation('observe');
   const queryClient = useQueryClient();
   const signals = health.signals.filter(isStepIn);
+  const proposal = health.proposal?.status === 'proposed' ? health.proposal : null;
   const refresh = () => {
     if (chatId) void queryClient.invalidateQueries({ queryKey: ['chat', chatId] });
     void queryClient.invalidateQueries({ queryKey: ['orchestration'] });
@@ -177,7 +258,7 @@ export function HealthPanel({
   };
   const interrupt = useMutation({ mutationFn: () => api.interruptChat(chatId ?? ''), onSuccess: refresh });
 
-  if (signals.length === 0) return null;
+  if (signals.length === 0 && !proposal) return null;
   return (
     <div className="stack-tight obs-health" role="group" aria-label={t('health.title')}>
       <div className="obs-health-head">
@@ -190,6 +271,7 @@ export function HealthPanel({
           </Tooltip>
         )}
       </div>
+      {proposal && <ProposalRow key={proposal.id} proposal={proposal} live={live && Boolean(chatId)} sendHint={sendHint} onChanged={refresh} />}
       <ul className="obs-signals">
         {signals.map((signal) => (
           <SignalRow key={`${signal.kind}:${signal.toolUseId ?? signal.detail ?? ''}`} signal={signal} chatId={chatId} live={live} sendHint={sendHint} onChanged={refresh} />

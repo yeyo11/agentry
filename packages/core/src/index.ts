@@ -44,6 +44,7 @@ import { EventBus } from './events.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
+import { EditorSettingsStore } from './editor-settings.ts';
 import { McpConfig } from './config/mcp.ts';
 import { ConfigResources } from './config/resources.ts';
 import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
@@ -56,11 +57,13 @@ import { attachProject, projectCandidates, ProjectStore, type ChatPlace } from '
 import { AuthStore } from './security/auth.ts';
 import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
+import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
 export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
+export { DEFAULT_EDITOR, parseEditorSettings, sanitizeEditor, templateProblem, type EditorTemplateProblem } from './editor-settings.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
@@ -91,6 +94,16 @@ export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './secur
 export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
 export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
+export {
+  DEFAULT_SUPERVISOR,
+  parseSupervisorConfig,
+  Supervisor,
+  SupervisorConflictError,
+  type ProposalOwner,
+  type SupervisorAnswer,
+  type SupervisorDeps,
+  type SupervisorQuestion,
+} from './supervisor.ts';
 
 // Read from the package rather than written into this file: the release tooling then only edits
 // package.json files, and never has to rewrite source to bump a version.
@@ -118,6 +131,8 @@ export class Core {
   /** What a chat's health is read from: the calls it made, the history of how long commands take */
   readonly health: HealthService;
   private readonly healthMonitor: HealthMonitor;
+  /** The optional model that drafts a hint when a worker's health turns bad; off unless `supervisor.json` says so */
+  readonly supervisor: Supervisor;
   readonly schedules: Scheduler;
   readonly files: SettingsFiles;
   readonly explorer: ConfigExplorer;
@@ -125,6 +140,8 @@ export class Core {
   readonly memory: MemoryStore;
   readonly mcp: McpConfig;
   readonly toolPresets: ToolPresetStore;
+  /** Where file links open: `editor.json`, one document for every browser */
+  readonly editor: EditorSettingsStore;
   readonly connectors: Connectors;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
@@ -190,6 +207,7 @@ export class Core {
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
     this.mcp = new McpConfig(config);
     this.toolPresets = new ToolPresetStore(config);
+    this.editor = new EditorSettingsStore(config);
     this.health = new HealthService(this.runtime, this.db);
     this.orchestrator.health = (task) => {
       const chat = task.runId ? this.runtime.get(task.runId) : null;
@@ -205,11 +223,25 @@ export class Core {
         taskSpentUsd: context.spentUsd,
       });
     };
+    this.supervisor = new Supervisor({
+      settings: new SupervisorSettings(config),
+      db: this.db,
+      ask: (question) => this.askSupervisor(question),
+      // A page is the newest entries, which is all the supervisor reads
+      steps: async (chatId) => (await this.sessions.getSession(chatId, { limit: 60 }))?.entries ?? [],
+      hint: async (proposal) => {
+        if (proposal.orchestrationId && proposal.taskId) this.orchestrator.hintTask(proposal.orchestrationId, proposal.taskId, proposal.hint);
+        else await this.chats.hint(proposal.chatId, { text: proposal.hint });
+      },
+      emit: (event) => this.events.emit(event),
+      charge: (orchestrationId, costUsd) => this.orchestrator.chargeSupervisor(orchestrationId, costUsd),
+    });
     this.healthMonitor = new HealthMonitor({
       runtime: this.runtime,
       health: this.health,
       emit: (event) => this.events.emit(event),
       taskOf: (chat) => this.orchestrator.taskContext(chat.id),
+      onBad: (chat, task, signals) => void this.supervisor.wake(chat, task, signals),
     });
     this.healthMonitor.start();
     this.chats = new ChatService({
@@ -506,6 +538,37 @@ export class Core {
     this.runtime.remove(run.id);
     const { auth } = await this.system(true);
     return { ok: !result.isError, detail: result.result.slice(0, 500), auth };
+  }
+
+  /**
+   * The supervisor's question as a housekeeping chat: no transcript, the `read-only` preset (the
+   * stored one, or the shipped one if it was deleted) and the configured ceiling as
+   * `--max-budget-usd`. Removed once it answers, like the auth check: the proposal is its record.
+   */
+  private async askSupervisor(question: SupervisorQuestion): Promise<SupervisorAnswer> {
+    const preset = this.toolPresets.get('read-only') ?? DEFAULT_SUPERVISOR_PRESET;
+    const allowedTools = preset.allowedTools ?? [];
+    const disallowedTools = preset.disallowedTools ?? [];
+    const run = this.runtime.start({
+      prompt: question.prompt,
+      cwd: question.cwd,
+      model: question.model,
+      name: 'supervisor',
+      keepAlive: false,
+      internal: true,
+      permissionMode: 'manual',
+      allowedTools,
+      disallowedTools,
+      toolConfig: { preset, allowedTools, disallowedTools, mcp: null },
+      maxBudgetUsd: question.maxCostUsd,
+    });
+    try {
+      const result = await this.runtime.waitForResult(run.id);
+      return { text: result.result, costUsd: result.costUsd, isError: result.isError };
+    } finally {
+      await Promise.race([this.runtime.exited(run.id), new Promise((r) => setTimeout(r, 10_000).unref())]);
+      this.runtime.remove(run.id);
+    }
   }
 
   /**
