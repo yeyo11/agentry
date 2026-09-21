@@ -13,6 +13,8 @@ export interface ListToolbarTab<T extends string> {
   id: T;
   label: string;
   count?: number;
+  /** What the tab means, when its label alone does not say it */
+  title?: string;
 }
 
 export interface ListFilterChip {
@@ -78,6 +80,7 @@ export function ListToolbar<T extends string>({
             onChange={tabs.onChange}
             options={tabs.options.map((tab) => ({
               value: tab.id,
+              ...(tab.title ? { title: tab.title } : {}),
               label: (
                 <>
                   {tab.label}
