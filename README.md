@@ -717,6 +717,7 @@ Claude Code precedence is local > project > user.
 | PUT | `/config/tool-presets/default` | `{ defaultPresetId }` — the preset a new chat takes when it names neither `toolPreset` nor `allowedTools` (`toolPreset: null` opts out); `null` clears it |
 | POST | `/config/tool-presets/restore` | Rewrite the three shipped presets as they ship; every other preset and the default are left alone |
 | PUT / DELETE | `/config/tool-presets/:id` | Create, replace or delete a preset — body `{ name, description?, allowedTools, disallowedTools? }` |
+| GET / PUT | `/settings/editor` | Where file links open (`editor.json`): `{ stored, settings: { template, diffCommand?, pathMap? } }`; the `PUT` body is the settings. A template needs a scheme and `{path}`; `javascript:`, `data:`, `vbscript:`, `file:` and `blob:` are refused |
 | GET / PUT / DELETE | `/config/resources/:kind/:name?project=` | Markdown content (a script for `workflows`, whose `format` is `javascript`) — body `{ content }` |
 
 ### Config file explorer

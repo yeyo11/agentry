@@ -1015,6 +1015,13 @@ export interface EditorSettings {
 /** Replaces the whole document (`PUT /settings/editor`): it is small and the form always holds all of it. */
 export type UpdateEditorSettingsRequest = EditorSettings;
 
+/** `GET /settings/editor` and the answer to a `PUT`: the settings, and whether any were ever saved. */
+export interface EditorSettingsDoc {
+  /** False until the first `PUT`: `settings` is then the shipped default, and a browser may migrate its own */
+  stored: boolean;
+  settings: EditorSettings;
+}
+
 // ---------- Orchestration ----------
 
 export interface OrchestrationTaskSpec {
