@@ -865,7 +865,7 @@ export interface CancelCommandResult {
   toolUseId: string;
   /** The command, as the worker wrote it */
   command: string;
-  /** How many processes of its tree were signalled */
+  /** How many processes of its tree were ended */
   processes: number;
 }
 

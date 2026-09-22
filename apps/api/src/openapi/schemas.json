@@ -7751,7 +7751,7 @@
       },
       "processes": {
         "type": "number",
-        "description": "How many processes of its tree were signalled"
+        "description": "How many processes of its tree were ended"
       }
     },
     "required": [
