@@ -31,6 +31,17 @@
   gap: 0;
 }
 
+/* The drawer sits flush against the window's right edge and the top bar, like the sidebar on the
+   left: the page's padding stays on the conversation's side only */
+.main:has(> .page > .run-layout.has-inspector) {
+  padding-top: 0;
+  padding-right: 0;
+}
+
+.run-layout.has-inspector > .run-main {
+  padding-top: 10px;
+}
+
 .run-main {
   display: flex;
   flex-direction: column;
@@ -368,7 +379,7 @@
 /* Laid out at its final width from the first frame, so the drawer slides open instead of reflowing */
 .chat-inspector.is-open > .chat-inspector-body {
   width: var(--insp-open-w);
-  padding-left: 14px;
+  padding: 6px 14px 16px;
   animation: fade-rise var(--dur-base) var(--ease-out);
 }
 
@@ -377,7 +388,7 @@
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding-top: 2px;
+  padding-top: 10px;
 }
 
 .insp-rail-sep {
