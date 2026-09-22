@@ -1,54 +1,46 @@
-import type { AgentryEvent, ChatSummary, PermissionRequest, RunWaitingReason } from '@agentry/shared';
+import {
+  chatHref,
+  KINDS,
+  notificationsFor as draftsFor,
+  orchestrationHref,
+  waitingDrafts as waitingDraftsFor,
+  type AgentryEvent,
+  type ChatSummary,
+  type NotificationDraft,
+  type NotificationKind,
+  type NotificationText,
+  type PermissionRequest,
+} from '@agentry/shared';
 import i18n from '../i18n';
-import { detailHref } from './detail';
 import { serverText } from './server-strings';
 
 /*
- * What a notification is and which events make one. Pure on purpose (no React, no DOM, no
- * storage): the store, the toasts and the tests all build on these functions, and this file is the
- * one place that decides what deserves a person's attention.
+ * The browser's own bookkeeping around notifications: the stored list, what is a repeat of what,
+ * read state and the preferences. What a notification *is*, and which events make one, lives in
+ * `@agentry/shared` (`packages/shared/src/notifications.ts`) so that the push sender on the server
+ * reads the same event through the same function; this file re-exports it, so nothing in the web
+ * has to know where it moved to.
  *
  * Its text is translated when the notification is made, not when it is shown: a notification is
  * stored with the words it was born with, the way the browser's own notifications are.
  */
 
-export type NotificationKind = 'waiting' | 'run' | 'orchestration' | 'conflict' | 'limit' | 'activity' | 'health';
-/** `high` needs the person, `normal` is worth knowing, `low` stays in the center without a toast. */
-export type NotificationPriority = 'high' | 'normal' | 'low';
-export type NotificationTone = 'ok' | 'bad' | 'warn' | 'info';
+export {
+  KINDS,
+  PROMPT_PARAM,
+  settlesWaiting,
+  type NotificationDraft,
+  type NotificationKind,
+  type NotificationPriority,
+  type NotificationTone,
+} from '@agentry/shared';
 
-export interface AppNotification {
-  id: string;
-  /** What makes two notifications the same news; see `dedupeMs` */
-  key: string;
-  at: string;
-  kind: NotificationKind;
-  priority: NotificationPriority;
-  tone: NotificationTone;
-  title: string;
-  body: string;
-  /** Where clicking it goes */
-  href: string | null;
-  runId: string | null;
-  orchestrationId: string | null;
+/** A notification once the store has given it a read state. */
+export type AppNotification = Omit<NotificationDraft, 'dedupeMs'> & {
   read: boolean;
   /** A `waiting` notification whose question has been answered or withdrawn */
   resolved: boolean;
-  /**
-   * The request a plain tool permission waits on, which Allow and Deny can answer from the list.
-   * Null for a question or a plan, which two buttons cannot answer, and for every other kind.
-   */
-  permissionId: string | null;
-}
-
-/** A notification before the store gives it a read state. */
-export type NotificationDraft = Omit<AppNotification, 'read' | 'resolved'> & {
-  /** Another draft with the same key inside this window is dropped; 0 keeps the key unique forever */
-  dedupeMs: number;
 };
-
-type DraftFields = Omit<NotificationDraft, 'id' | 'at' | 'dedupeMs' | 'runId' | 'orchestrationId' | 'permissionId'> &
-  Partial<Pick<NotificationDraft, 'dedupeMs' | 'runId' | 'orchestrationId' | 'permissionId'>>;
 
 export interface NotificationPrefs {
   kinds: Record<NotificationKind, boolean>;
@@ -57,323 +49,47 @@ export interface NotificationPrefs {
   browser: boolean;
 }
 
-/** In the order the preferences list them; their labels are `components:notificationPanel.kinds`. */
-export const KINDS: NotificationKind[] = ['waiting', 'run', 'orchestration', 'conflict', 'limit', 'activity', 'health'];
+/** The shared mapping asks for its words here, so the page says them in the active language. */
+const text: NotificationText = {
+  waitingPermission: (name, tool) => i18n.t('components:notificationText.waitingPermission', { name, tool }),
+  waitingQuestion: (name) => i18n.t('components:notificationText.waitingQuestion', { name }),
+  waitingPlan: (name) => i18n.t('components:notificationText.waitingPlan', { name }),
+  permission: (tool) => i18n.t('components:notificationText.permission', { tool }),
+  question: () => i18n.t('components:notificationText.question'),
+  plan: () => i18n.t('components:notificationText.plan'),
+  runFinished: (name) => i18n.t('components:notificationText.runFinished', { name }),
+  runReady: () => i18n.t('components:notificationText.runReady'),
+  runError: () => i18n.t('components:notificationText.runError'),
+  turns: (count) => i18n.t('components:notificationText.turns', { count }),
+  rateLimited: (name) => i18n.t('components:notificationText.rateLimited', { name }),
+  rateLimitedBody: () => i18n.t('components:notificationText.rateLimitedBody'),
+  rotated: (name) => i18n.t('components:notificationText.rotated', { name }),
+  previousAccount: () => i18n.t('components:notificationText.previousAccount'),
+  nextAccount: () => i18n.t('components:notificationText.nextAccount'),
+  rotatedBody: (from, to) => i18n.t('components:notificationText.rotatedBody', { from, to }),
+  rotatedBodyReplayed: (from, to) => i18n.t('components:notificationText.rotatedBodyReplayed', { from, to }),
+  orchestrationFinished: (name) => i18n.t('components:notificationText.orchestrationFinished', { name }),
+  orchestrationFailed: (name) => i18n.t('components:notificationText.orchestrationFailed', { name }),
+  orchestrationDoneBody: () => i18n.t('components:notificationText.orchestrationDoneBody'),
+  orchestrationFailedBody: () => i18n.t('components:notificationText.orchestrationFailedBody'),
+  conflict: (count, branch) => i18n.t('components:notificationText.conflict', { count, branch }),
+  conflictResolving: (count, branch) => i18n.t('components:notificationText.conflictResolving', { count, branch }),
+  fromSubagent: () => i18n.t('components:notificationText.fromSubagent'),
+  supervisorProposed: (name) => i18n.t('components:notificationText.supervisorProposed', { name }),
+  serverText,
+};
+
+/** The notifications an event calls for, in the active language; empty for nearly all of them. */
+export const notificationsFor = (event: AgentryEvent): NotificationDraft[] => draftsFor(event, text);
+
+/** The `waiting` notifications for the prompts a chat is holding right now, in the active language. */
+export const waitingDrafts = (chat: Pick<ChatSummary, 'id' | 'title' | 'orchestration'>, requests: readonly PermissionRequest[]): NotificationDraft[] =>
+  waitingDraftsFor(chat, requests, text);
 
 export const MAX_NOTIFICATIONS = 200;
-const DEDUPE_MS = 60_000;
 
 export function defaultPrefs(): NotificationPrefs {
   return { kinds: Object.fromEntries(KINDS.map((kind) => [kind, true])) as Record<NotificationKind, boolean>, toasts: true, browser: false };
-}
-
-/** The search param that names the prompt a chat page should bring into view. */
-export const PROMPT_PARAM = 'prompt';
-
-// A run id on the wire is the id of the chat it works on. With `promptId`, the chat opens scrolled
-// to that prompt instead of at the end of the transcript.
-const chatHref = (chatId: string, promptId?: string) => `/chats/${encodeURIComponent(chatId)}${promptId ? `?${PROMPT_PARAM}=${encodeURIComponent(promptId)}` : ''}`;
-const orchestrationHref = (id: string) => `/orchestration/${encodeURIComponent(id)}`;
-
-/** Work delegated inside a chat says which chat by its session, or by its run when it has one of ours. */
-const activityChat = (runId: string, sessionId: string | null): string | null => sessionId || runId || null;
-
-// The event id alone would collide after a server restart, which restarts the ids
-const draft = (event: AgentryEvent, fields: DraftFields): NotificationDraft => ({
-  id: `${event.at}#${event.id}`,
-  at: event.at,
-  dedupeMs: DEDUPE_MS,
-  runId: null,
-  orchestrationId: null,
-  permissionId: null,
-  ...fields,
-});
-
-const WAITING_BODY = {
-  permission: (tool: string) => i18n.t('components:notificationText.permission', { tool }),
-  question: () => i18n.t('components:notificationText.question'),
-  plan: () => i18n.t('components:notificationText.plan'),
-} as const;
-
-const ACTIVITY_FAILED = new Set(['failed', 'killed', 'stopped', 'error']);
-
-/** AskUserQuestion and ExitPlanMode reach the host as tool permission requests like any other. */
-const reasonOf = (toolName: string): RunWaitingReason => (toolName === 'AskUserQuestion' ? 'question' : toolName === 'ExitPlanMode' ? 'plan' : 'permission');
-
-const WAITING_TITLE = {
-  permission: (name: string, tool: string) => i18n.t('components:notificationText.waitingPermission', { name, tool }),
-  question: (name: string) => i18n.t('components:notificationText.waitingQuestion', { name }),
-  plan: (name: string) => i18n.t('components:notificationText.waitingPlan', { name }),
-} as const;
-
-/**
- * The `waiting` notifications for prompts a chat was already holding when the page loaded: their
- * `run.waiting` events came before there was anyone to hear them. The key is the live event's, so a
- * prompt that is in the list already is not told twice.
- */
-export function waitingDrafts(chat: Pick<ChatSummary, 'id' | 'title' | 'orchestration'>, requests: readonly PermissionRequest[]): NotificationDraft[] {
-  return requests.map((request) => {
-    const reason = reasonOf(request.toolName);
-    return {
-      id: `${request.requestedAt}#${request.id}`,
-      at: request.requestedAt,
-      dedupeMs: 0,
-      key: `wait:${chat.id}:${request.id}`,
-      kind: 'waiting',
-      priority: 'high',
-      tone: 'warn',
-      title: reason === 'permission' ? WAITING_TITLE.permission(chat.title, request.toolName) : WAITING_TITLE[reason](chat.title),
-      body: WAITING_BODY[reason](request.toolName),
-      href: chatHref(chat.id, request.id),
-      runId: chat.id,
-      orchestrationId: chat.orchestration?.id ?? null,
-      // A request that waits on a person by design wants more than a yes or a no
-      permissionId: reason === 'permission' && !request.requiresUserInteraction ? request.id : null,
-    };
-  });
-}
-
-/** The notifications an event calls for; empty for nearly all of them. */
-export function notificationsFor(event: AgentryEvent): NotificationDraft[] {
-  switch (event.type) {
-    case 'run.waiting': {
-      // Housekeeping runs (planner, auth check) never wait for a person
-      if (event.internal) return [];
-      return [
-        draft(event, {
-          // The permission id, not the run: a run can hold several prompts and each is its own news
-          key: `wait:${event.runId}:${event.permissionId}`,
-          dedupeMs: 0,
-          kind: 'waiting',
-          priority: 'high',
-          tone: 'warn',
-          title: event.title,
-          body: WAITING_BODY[event.reason](event.toolName),
-          href: chatHref(event.runId, event.permissionId),
-          runId: event.runId,
-          orchestrationId: event.orchestrationId,
-          permissionId: event.reason === 'permission' ? event.permissionId : null,
-        }),
-      ];
-    }
-
-    case 'run.updated': {
-      // busy → idle is a finished turn: what an interactive run's "done" looks like. `run.ended`
-      // covers the process exiting, and shares this key so that a one-shot run tells it once.
-      if (event.internal || event.orchestrationId || event.previousStatus !== 'busy' || event.status !== 'idle') return [];
-      return [
-        draft(event, {
-          key: `run-done:${event.runId}:${event.turns}`,
-          kind: 'run',
-          priority: 'normal',
-          tone: 'ok',
-          title: i18n.t('components:notificationText.runFinished', { name: event.runName }),
-          body: i18n.t('components:notificationText.runReady'),
-          href: chatHref(event.runId),
-          runId: event.runId,
-        }),
-      ];
-    }
-
-    case 'run.ended': {
-      // A worker of an orchestration reports through the orchestration; a stop is the person's own doing
-      if (event.internal || event.orchestrationId || event.status === 'stopped') return [];
-      const failed = event.status === 'failed';
-      return [
-        draft(event, {
-          key: `${failed ? 'run-failed' : 'run-done'}:${event.runId}:${event.turns}`,
-          kind: 'run',
-          priority: 'normal',
-          tone: failed ? 'bad' : 'ok',
-          title: event.title,
-          body: failed ? (event.error ?? i18n.t('components:notificationText.runError')) : i18n.t('components:notificationText.turns', { count: event.turns }),
-          href: chatHref(event.runId),
-          runId: event.runId,
-        }),
-      ];
-    }
-
-    case 'run.rateLimited':
-      if (event.internal) return [];
-      return [
-        draft(event, {
-          key: `limit:${event.runId}`,
-          kind: 'limit',
-          priority: 'normal',
-          tone: 'warn',
-          title: i18n.t('components:notificationText.rateLimited', { name: event.runName }),
-          body: i18n.t('components:notificationText.rateLimitedBody'),
-          href: chatHref(event.runId),
-          runId: event.runId,
-          orchestrationId: event.orchestrationId,
-        }),
-      ];
-
-    case 'run.accountRotated':
-      if (event.internal) return [];
-      return [
-        draft(event, {
-          key: `rotated:${event.runId}`,
-          kind: 'limit',
-          priority: 'normal',
-          tone: 'info',
-          title: i18n.t('components:notificationText.rotated', { name: event.runName }),
-          body: i18n.t(event.resumed ? 'components:notificationText.rotatedBodyReplayed' : 'components:notificationText.rotatedBody', {
-            from: event.from ?? i18n.t('components:notificationText.previousAccount'),
-            to: event.to ?? i18n.t('components:notificationText.nextAccount'),
-          }),
-          href: chatHref(event.runId),
-          runId: event.runId,
-          orchestrationId: event.orchestrationId,
-        }),
-      ];
-
-    case 'orchestration.updated': {
-      if (event.previousStatus === null || event.previousStatus === event.status) return [];
-      if (event.status !== 'completed' && event.status !== 'failed') return [];
-      const failed = event.status === 'failed';
-      return [
-        draft(event, {
-          key: `orchestration:${event.orchestrationId}:${event.status}`,
-          kind: 'orchestration',
-          priority: 'normal',
-          tone: failed ? 'bad' : 'ok',
-          title: i18n.t(failed ? 'components:notificationText.orchestrationFailed' : 'components:notificationText.orchestrationFinished', { name: event.orchestrationName }),
-          body: i18n.t(failed ? 'components:notificationText.orchestrationFailedBody' : 'components:notificationText.orchestrationDoneBody'),
-          href: orchestrationHref(event.orchestrationId),
-          orchestrationId: event.orchestrationId,
-        }),
-      ];
-    }
-
-    case 'health.changed': {
-      // A recovery is not news, and housekeeping runs are not something a person steps into
-      if (event.internal || event.level === 'ok') return [];
-      return [
-        draft(event, {
-          // The signals, not the level: a worker that goes from slow to looping is new news
-          key: `health:${event.runId}:${event.signals.join(',')}`,
-          kind: 'health',
-          priority: event.level === 'bad' ? 'high' : 'normal',
-          tone: event.level === 'bad' ? 'bad' : 'warn',
-          title: event.title,
-          body: serverText(event.reasonCode, event.params, event.reason),
-          href: chatHref(event.runId),
-          runId: event.runId,
-          orchestrationId: event.orchestrationId,
-        }),
-      ];
-    }
-
-    case 'supervisor.proposed': {
-      const { proposal } = event;
-      // A task's proposal is acted on where its health is shown with the task's hint route: the board
-      const href =
-        proposal.orchestrationId && proposal.taskId
-          ? `${orchestrationHref(proposal.orchestrationId)}?task=${encodeURIComponent(proposal.taskId)}`
-          : chatHref(proposal.chatId);
-      return [
-        draft(event, {
-          // One proposal per signal per chat, so its id is the news
-          key: `supervisor:${proposal.id}`,
-          dedupeMs: 0,
-          kind: 'health',
-          priority: 'normal',
-          tone: 'info',
-          title: i18n.t('components:notificationText.supervisorProposed', { name: event.taskName ?? event.runName }),
-          body: proposal.hint,
-          href,
-          runId: event.runId,
-          orchestrationId: event.orchestrationId,
-        }),
-      ];
-    }
-
-    case 'orchestration.conflict':
-      return [
-        draft(event, {
-          key: `conflict:${event.orchestrationId}:${event.branch}:${event.integrationStatus}`,
-          kind: 'conflict',
-          priority: 'normal',
-          tone: 'warn',
-          title: event.title,
-          body: i18n.t(event.resolving ? 'components:notificationText.conflictResolving' : 'components:notificationText.conflict', { count: event.paths.length, branch: event.branch }),
-          href: orchestrationHref(event.orchestrationId),
-          orchestrationId: event.orchestrationId,
-        }),
-      ];
-
-    case 'task.ended': {
-      const chatOf = activityChat(event.runId, event.sessionId);
-      const failed = ACTIVITY_FAILED.has(event.status);
-      return [
-        draft(event, {
-          key: `task:${event.runId}:${event.taskId}`,
-          kind: 'activity',
-          priority: failed ? 'normal' : 'low',
-          tone: failed ? 'bad' : 'info',
-          title: event.title,
-          body: event.summary ?? (event.fromSubagent ? i18n.t('components:notificationText.fromSubagent') : ''),
-          href: chatOf ? detailHref({ kind: 'task', chatId: chatOf, taskId: event.taskId }, chatHref(chatOf)) : null,
-          runId: event.runId || null,
-        }),
-      ];
-    }
-
-    case 'subagent.ended': {
-      const chatOf = activityChat(event.runId, event.sessionId);
-      const failed = event.status !== 'completed';
-      return [
-        draft(event, {
-          key: `subagent:${event.runId}:${event.toolUseId}`,
-          kind: 'activity',
-          priority: failed ? 'normal' : 'low',
-          tone: failed ? 'bad' : 'info',
-          title: event.title,
-          body: event.description,
-          href: chatOf ? (event.agentId ? detailHref({ kind: 'subagent', chatId: chatOf, agentId: event.agentId }, chatHref(chatOf)) : chatHref(chatOf)) : null,
-          runId: event.runId || null,
-        }),
-      ];
-    }
-
-    case 'workflow.ended': {
-      const chatOf = activityChat(event.runId, event.sessionId);
-      const failed = event.status === 'failed';
-      return [
-        draft(event, {
-          key: `workflow:${event.runId}:${event.workflowId}`,
-          kind: 'activity',
-          priority: failed ? 'normal' : 'low',
-          tone: failed ? 'bad' : 'info',
-          title: event.title,
-          body: event.summary ?? '',
-          // Only workflows the CLI ids as `wf_…` have agent transcripts to open, as on the workflow card
-          href: chatOf ? (event.agentId && event.workflowId.startsWith('wf_') ? detailHref({ kind: 'workflow-agent', chatId: chatOf, workflowId: event.workflowId, agentId: event.agentId }, chatHref(chatOf)) : chatHref(chatOf)) : null,
-          runId: event.runId || null,
-        }),
-      ];
-    }
-
-    default:
-      return [];
-  }
-}
-
-/**
- * Which existing notifications an event settles. A `waiting` one is over when its question is
- * answered, withdrawn, or its run is gone: the person no longer has anything to do about it.
- */
-export function settlesWaiting(event: AgentryEvent): ((notification: AppNotification) => boolean) | null {
-  switch (event.type) {
-    case 'permission.resolved':
-      return (n) => n.key === `wait:${event.runId}:${event.permissionId}`;
-    case 'run.ended':
-    case 'run.removed':
-      return (n) => n.kind === 'waiting' && n.runId === event.runId;
-    default:
-      return null;
-  }
 }
 
 /** The person is already looking at what the notification is about, so a toast would only repeat it. */
