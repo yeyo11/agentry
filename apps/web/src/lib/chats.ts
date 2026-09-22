@@ -1,9 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { TRANSCRIPT_PAGE_MAX } from '@agentry/shared';
-import type { AgentTranscript, Chat, RunEvent } from '@agentry/shared';
+import type { AgentTranscript, Chat, ChatDetail, RunEvent, TranscriptEntry } from '@agentry/shared';
 import { api, BASE, enc, keys } from '../api';
 import { withToken } from './auth';
+import { appendStreamed, ChatStreamStore, spliceTail, streamMark, type StreamingPartial, type StreamSnapshot } from './chat-stream';
 import { useFallbackInterval } from './feed';
 
 // ---------- reads ----------
@@ -33,6 +34,9 @@ export interface Paged<T> {
 /** How many entries to read at once to get back to `index` from `from`. */
 const stretch = (from: number, index: number) => Math.min(TRANSCRIPT_PAGE_MAX, Math.max(1, from - index));
 
+/** Nothing held: one array for all of them, so an empty page is not a new one each render. */
+const NO_ITEMS: never[] = [];
+
 /**
  * Holds a contiguous run of a transcript, `[from, total)`, from the newest page back. The query
  * fetches the newest page and keeps it current; pages read further back are kept here and spliced
@@ -41,28 +45,35 @@ const stretch = (from: number, index: number) => Math.min(TRANSCRIPT_PAGE_MAX, M
 function usePages<T>(
   page: { items: T[]; from: number; total: number } | undefined,
   fetchBefore: (before: number, limit?: number) => Promise<{ items: T[]; from: number; total: number }>,
-  reset: unknown,
+  reset: string,
 ): Paged<T> {
-  const [earlier, setEarlier] = useState<{ items: T[]; from: number }>({ items: [], from: -1 });
-  const [loadingMore, setLoadingMore] = useState(false);
+  // Pages read further back, with the transcript they belong to: another transcript shows none of
+  // them from its very first render, rather than for the one render before an effect clears them
+  const [held, setHeld] = useState<{ owner: string; items: T[]; from: number }>({ owner: reset, items: [], from: -1 });
+  const [loadingFor, setLoadingFor] = useState<string | null>(null);
   const busy = useRef(false);
   // A page that lands after the reader switched transcripts belongs to the previous one
   const generation = useRef(0);
 
   useEffect(() => {
     generation.current++;
-    setEarlier({ items: [], from: -1 });
-    setLoadingMore(false);
     busy.current = false;
   }, [reset]);
 
-  const tail = page?.items ?? [];
+  const own = held.owner === reset;
+  const earlierItems = own ? held.items : NO_ITEMS;
+  const earlierFrom = own ? held.from : -1;
+  const tail = page?.items ?? NO_ITEMS;
   const tailFrom = page?.from ?? 0;
   // The newest page slid past what is held (the conversation grew faster than it was read): the
   // pages no longer meet, and the honest thing is to show the newest run rather than a false one.
-  const joined = earlier.from >= 0 && earlier.from + earlier.items.length >= tailFrom;
-  const items = joined ? [...earlier.items.slice(0, tailFrom - earlier.from), ...tail] : tail;
-  const from = joined ? earlier.from : tailFrom;
+  const joined = earlierFrom >= 0 && earlierFrom + earlierItems.length >= tailFrom;
+  // The same array until something is added: the rows are worked out from it
+  const items = useMemo(
+    () => (joined ? [...earlierItems.slice(0, tailFrom - earlierFrom), ...tail] : tail),
+    [joined, earlierItems, earlierFrom, tailFrom, tail],
+  );
+  const from = joined ? earlierFrom : tailFrom;
   const total = page?.total ?? 0;
   const fromNow = useRef(from);
   useEffect(() => {
@@ -75,34 +86,35 @@ function usePages<T>(
       const started = generation.current;
       const older = await fetchBefore(before, limit);
       if (started !== generation.current || older.items.length === 0) return before;
-      setEarlier((held) =>
-        held.from >= 0 && held.from <= older.from ? held : { items: [...older.items, ...(held.from >= 0 ? held.items : [])], from: older.from },
-      );
+      setHeld((current) => {
+        const kept = current.owner === reset && current.from >= 0 ? current : null;
+        return kept && kept.from <= older.from ? kept : { owner: reset, items: [...older.items, ...(kept ? kept.items : [])], from: older.from };
+      });
       return older.from;
     },
-    [fetchBefore],
+    [fetchBefore, reset],
   );
 
   const loadEarlier = useCallback(() => {
     if (busy.current || from <= 0) return;
     busy.current = true;
-    setLoadingMore(true);
+    setLoadingFor(reset);
     void readBefore(from)
       .catch(() => {
         // the page stays as it is; the reader can ask again
       })
       .finally(() => {
         busy.current = false;
-        setLoadingMore(false);
+        setLoadingFor((owner) => (owner === reset ? null : owner));
       });
-  }, [readBefore, from]);
+  }, [readBefore, from, reset]);
 
   const reach = useCallback(
     async (index: number) => {
       // A page the reader asked for is already on its way: wait for it rather than read it twice
       while (busy.current) await new Promise((resolve) => setTimeout(resolve, 50));
       busy.current = true;
-      setLoadingMore(true);
+      setLoadingFor(reset);
       try {
         let at = fromNow.current;
         while (at > index) {
@@ -112,27 +124,43 @@ function usePages<T>(
         }
       } finally {
         busy.current = false;
-        setLoadingMore(false);
+        setLoadingFor((owner) => (owner === reset ? null : owner));
       }
     },
-    [readBefore],
+    [readBefore, reset],
   );
 
-  return { items, from, total, more: from > 0, loadingMore, loadEarlier, reach };
+  return { items, from, total, more: from > 0, loadingMore: loadingFor === reset, loadEarlier, reach };
 }
 
 /** How often a live chat is read again for the signals only time can fire. */
 const HEALTH_REFRESH_MS = 30_000;
 
 /**
+ * Entries read back at once to follow a chat whose page is held. What the chat said since the last
+ * read is usually a handful; a burst longer than this is read as a whole page instead.
+ */
+const TAIL_READ = 50;
+
+/**
  * A chat and its transcript, newest page first, reading backwards on demand. The chat comes with
  * the page, so the header and the conversation are never out of step.
  */
 export function useChatTranscript(id: string, sidechains: boolean) {
+  const client = useQueryClient();
   const fallback = useFallbackInterval();
   const query = useQuery({
     queryKey: keys.chat(id, sidechains),
-    queryFn: () => api.chat(id, sidechains),
+    // Once a page is held, only its end is read again and spliced on: every event that says the
+    // chat moved asks for this, and reading the newest page each time would re-send all of it
+    queryFn: async (): Promise<ChatDetail> => {
+      const key = keys.chat(id, sidechains);
+      if (!client.getQueryData<ChatDetail>(key)) return api.chat(id, sidechains);
+      const since = streamMark();
+      const fresh = await api.chat(id, sidechains, { limit: TAIL_READ });
+      const held = client.getQueryData<ChatDetail>(key);
+      return (held && spliceTail(held, fresh, since)) ?? api.chat(id, sidechains);
+    },
     // Only a chat something is working on changes by itself; the events say when, and this covers the
     // feed being down. Its health is a fact of the clock (a command running too long sends no event),
     // so a live execution is read again at a slow pace even with the feed up.
@@ -154,52 +182,96 @@ export function useChatTranscript(id: string, sidechains: boolean) {
 
 // ---------- the live stream of a chat ----------
 
-/** Text generated so far for the block Claude is streaming right now (ephemeral, never stored). */
-export interface StreamingPartial {
-  block: 'text' | 'thinking';
-  text: string;
-  /** When this block started streaming (ISO): what the ticker counts from */
-  since: string;
-}
+/** A quiet spell after stored messages, after which what the stream put on the page is read back. */
+const CONFIRM_AFTER_MS = 1000;
+/** ...and the longest a busy stream goes without that. */
+const CONFIRM_AT_LEAST_EVERY_MS = 4000;
+/** A block stored while its page was not held shows until the page is read, or this long at most. */
+const SETTLE_FALLBACK_MS = 3000;
+/** Longest wait between attempts to open a stream the server refused. */
+const RECONNECT_MAX_MS = 30_000;
+/**
+ * A hidden tab lets go of its stream after this long. Browsers allow six connections per host
+ * over HTTP/1.1, shared by every tab, and a few chats left open in the background would take them.
+ */
+const HIDDEN_CLOSE_MS = 30_000;
 
-/** A stored event that means the streamed block is now final (or the turn is over). */
-function endsPartial(event: RunEvent): boolean {
-  if (event.kind === 'message') return event.entry?.role === 'assistant';
-  if (event.kind === 'result') return true;
-  return event.kind === 'status' && event.status !== 'busy';
+/** What a component shows of the stream, read so it renders again only when that changes. */
+export function useStreamSnapshot<T>(store: ChatStreamStore, select: (snapshot: StreamSnapshot) => T): T {
+  return useSyncExternalStore(store.subscribe, () => select(store.get()));
 }
 
 /**
- * What the transcript file cannot show in time: the block being written right now. Stored events
- * are not kept here — a stored message only asks the page to read the transcript again, so there
- * is one source for what has been said.
+ * What the transcript file cannot show in time: the block being written right now, and each
+ * stored message the moment it is said, put on the cached page until a read of the transcript
+ * confirms it. Returns the chat's stream store; the page subscribes to what it shows of it.
  *
  * The stream starts past every stored event: the page already has them, and replaying a chat that
  * has been going for hours to throw the replay away would be the cost of opening it.
  */
-export function useChatStream(id: string, enabled: boolean): { partial: StreamingPartial | null; connected: boolean } {
+export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
   const client = useQueryClient();
-  const [partial, setPartial] = useState<StreamingPartial | null>(null);
-  const [connected, setConnected] = useState(false);
+  // Made during render, one per chat: the first render of another chat already reads its own
+  const store = useMemo(() => new ChatStreamStore(id), [id]);
 
   useEffect(() => {
-    setPartial(null);
-    setConnected(false);
+    store.clearPartial();
+    store.setConnected(false);
     if (!enabled) return;
+    const transcripts = [keys.chat(id, false), keys.chat(id, true)];
+    let source: EventSource | null = null;
     let frame = 0;
-    let stale: ReturnType<typeof setTimeout> | undefined;
     let next: StreamingPartial | null | undefined;
     let streaming: { block: 'text' | 'thinking'; since: string } | null = null;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let hidden: ReturnType<typeof setTimeout> | undefined;
+    let confirm: ReturnType<typeof setTimeout> | undefined;
+    let confirmBy = 0;
+    let turnEnd: ReturnType<typeof setTimeout> | undefined;
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+    let dropped = false;
+    // The last stored event seen: a stream opened again replays what came after it
+    let lastSeq = 0;
+
     const apply = () => {
       frame = 0;
-      if (next !== undefined) setPartial(next);
+      if (next) store.setPartial(next);
+      else if (next === null) store.clearPartial();
       next = undefined;
     };
-    const source = new EventSource(withToken(`${BASE}/chats/${enc(id)}/stream?since=${Number.MAX_SAFE_INTEGER}`));
-    source.onopen = () => setConnected(true);
-    // The browser reconnects by itself, and says so through readyState
-    source.onerror = () => setConnected(source.readyState === EventSource.OPEN);
-    source.onmessage = (msg) => {
+    const flush = () => {
+      if (!frame) return;
+      cancelAnimationFrame(frame);
+      apply();
+    };
+    const confirmNow = () => {
+      clearTimeout(confirm);
+      confirm = undefined;
+      confirmBy = 0;
+      for (const queryKey of transcripts) void client.invalidateQueries({ queryKey, exact: true });
+    };
+    const scheduleConfirm = () => {
+      const now = Date.now();
+      if (!confirmBy) confirmBy = now + CONFIRM_AT_LEAST_EVERY_MS;
+      clearTimeout(confirm);
+      confirm = setTimeout(confirmNow, Math.max(0, Math.min(CONFIRM_AFTER_MS, confirmBy - now)));
+    };
+    /** Puts a stored message on the pages held; says whether one of them now shows it. */
+    const show = (entry: TranscriptEntry): 'appended' | 'present' | 'skipped' => {
+      let outcome: 'appended' | 'present' | 'skipped' = 'skipped';
+      for (const queryKey of transcripts) {
+        client.setQueryData<ChatDetail>(queryKey, (page) => {
+          if (!page) return page;
+          const result = appendStreamed(page, entry);
+          if (result.outcome === 'appended' || outcome === 'skipped') outcome = result.outcome;
+          return result.page;
+        });
+      }
+      return outcome;
+    };
+
+    const onMessage = (msg: MessageEvent) => {
       let event: RunEvent;
       try {
         event = JSON.parse(String(msg.data)) as RunEvent;
@@ -212,25 +284,108 @@ export function useChatStream(id: string, enabled: boolean): { partial: Streamin
         const since = streaming && streaming.block === block ? streaming.since : event.ts || new Date().toISOString();
         streaming = { block, since };
         next = { block, text: event.text ?? '', since };
-      } else if (endsPartial(event)) {
-        streaming = null;
-        next = null;
-        // Wait for the CLI to write what was just said before asking for it
-        clearTimeout(stale);
-        stale = setTimeout(() => void client.invalidateQueries({ queryKey: ['chat', id] }), 400);
-      } else {
+        if (!frame) frame = requestAnimationFrame(apply);
         return;
       }
-      if (!frame) frame = requestAnimationFrame(apply);
+      lastSeq = Math.max(lastSeq, event.seq);
+      if (event.kind === 'message' && event.entry) {
+        const outcome = show(event.entry);
+        scheduleConfirm();
+        if (event.entry.role !== 'assistant') return;
+        // The block is final: whatever text of it is still waiting for a frame goes first
+        flush();
+        streaming = null;
+        if (outcome === 'present') return store.clearPartial();
+        // It leaves once the transcript shows the message (the page settles it), never before
+        store.endPartial();
+        clearTimeout(settle);
+        settle = setTimeout(() => {
+          if (store.ending) store.clearPartial();
+        }, SETTLE_FALLBACK_MS);
+        return;
+      }
+      if (event.kind === 'result' || (event.kind === 'status' && event.status !== 'busy')) {
+        if (frame) cancelAnimationFrame(frame);
+        frame = 0;
+        next = undefined;
+        streaming = null;
+        // A block cut off by an interrupt is never stored; one that was stays until it shows
+        if (!store.ending) store.clearPartial();
+        // The turn is over: everything the chat's page reads may have moved, once
+        clearTimeout(confirm);
+        confirm = undefined;
+        confirmBy = 0;
+        clearTimeout(turnEnd);
+        turnEnd = setTimeout(() => void client.invalidateQueries({ queryKey: keys.chatScope(id) }), 400);
+      }
     };
-    return () => {
-      if (frame) cancelAnimationFrame(frame);
-      clearTimeout(stale);
-      source.close();
-    };
-  }, [id, enabled, client]);
 
-  return { partial, connected };
+    const connect = () => {
+      retry = undefined;
+      const es = new EventSource(withToken(`${BASE}/chats/${enc(id)}/stream?since=${lastSeq || Number.MAX_SAFE_INTEGER}`));
+      source = es;
+      es.onopen = () => {
+        attempts = 0;
+        store.setConnected(true);
+        if (!dropped) return;
+        dropped = false;
+        // What was being written while the stream was down has been stored or dropped by now, and
+        // a message said in the gap may not be replayed: read the transcript back
+        if (frame) cancelAnimationFrame(frame);
+        frame = 0;
+        next = undefined;
+        streaming = null;
+        store.clearPartial();
+        confirmNow();
+      };
+      es.onerror = () => {
+        dropped = true;
+        // While the browser is retrying by itself it says CONNECTING; CLOSED means it gave up (the
+        // server answered with an error), and only a new EventSource can recover
+        store.setConnected(es.readyState === EventSource.OPEN);
+        if (es.readyState !== EventSource.CLOSED) return;
+        es.close();
+        source = null;
+        retry = setTimeout(connect, Math.min(1000 * 2 ** attempts++, RECONNECT_MAX_MS));
+      };
+      es.onmessage = onMessage;
+    };
+    const disconnect = () => {
+      clearTimeout(retry);
+      retry = undefined;
+      source?.close();
+      source = null;
+    };
+
+    const onVisibility = () => {
+      clearTimeout(hidden);
+      if (document.visibilityState === 'hidden') {
+        hidden = setTimeout(() => {
+          if (!source && !retry) return;
+          disconnect();
+          dropped = true;
+          store.setConnected(false);
+        }, HIDDEN_CLOSE_MS);
+        return;
+      }
+      if (source) return;
+      clearTimeout(retry);
+      attempts = 0;
+      connect();
+    };
+
+    connect();
+    if (document.visibilityState === 'hidden') onVisibility();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (frame) cancelAnimationFrame(frame);
+      for (const timer of [hidden, confirm, turnEnd, settle]) clearTimeout(timer);
+      disconnect();
+    };
+  }, [id, enabled, client, store]);
+
+  return store;
 }
 
 // ---------- what a branch shows: a subagent's transcript and a task's output ----------
