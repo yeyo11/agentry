@@ -9,6 +9,7 @@ import { timeAgo } from '../lib/format';
 import { AccountTab } from './config/AccountTab';
 import { EditorTab } from './config/EditorTab';
 import { FilesTab } from './config/FilesTab';
+import { InstallTab } from './config/InstallTab';
 import { InstructionsTab } from './config/InstructionsTab';
 import { McpTab } from './config/McpTab';
 import { PluginsTab } from './config/PluginsTab';
@@ -37,6 +38,7 @@ const TABS = [
   { id: 'memory', label: 'home:settings.tabs.memory' },
   { id: 'plugins', label: 'home:settings.tabs.plugins' },
   { id: 'editor', label: 'observe:editor.tab' },
+  { id: 'install', label: 'config:config.tabs.install' },
   { id: 'supervisor', label: 'observe:supervisor.tab' },
   { id: 'security', label: 'config:config.tabs.security' },
 ] as const;
@@ -149,6 +151,7 @@ function SettingsInner() {
         {tab === 'memory' && <MemoryOverview />}
         {tab === 'plugins' && <PluginsTab />}
         {tab === 'editor' && <EditorTab />}
+        {tab === 'install' && <InstallTab />}
         {tab === 'supervisor' && <SupervisorTab />}
         {tab === 'security' && <SecurityTab />}
       </TabPanel>
