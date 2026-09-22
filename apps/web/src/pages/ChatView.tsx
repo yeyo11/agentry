@@ -135,7 +135,7 @@ export function ChatView() {
   const stepCurrent = working && stream.partial?.block !== 'text';
 
   return (
-    <div className={`run-layout ${inspector.wide && inspector.open ? 'has-inspector' : ''}`.trim()}>
+    <div className={`run-layout ${inspector.rail ? 'has-inspector' : ''}`.trim()}>
       <section className="run-main" aria-label={t('view.conversation')}>
         <ChatHeader
           chat={chat}
@@ -149,7 +149,7 @@ export function ChatView() {
             stop: { run: () => stop.mutate(), pending: stop.isPending },
             interrupt: { run: () => interrupt.mutate(), pending: interrupt.isPending },
             remove: { run: () => remove.requestDelete(chat), pending: remove.isPending },
-            inspector: { open: inspector.open, toggle: inspector.toggle, show: inspector.show },
+            inspector: { open: inspector.open, rail: inspector.rail, toggle: inspector.toggle, show: inspector.show },
           }}
         />
         <ErrorBox error={stop.error ?? interrupt.error} />

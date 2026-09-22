@@ -72,17 +72,22 @@ export default async ({ page, api, check }) => {
     await page.key('Escape');
     await page.waitFor(`return !document.querySelector('[role=menu]')`, { label: 'the menu closes' });
 
-    // ---- the inspector: four tabs, open by default on a wide screen, and remembered closed ----
+    // ---- the inspector: a drawer with four tabs, open by default on a wide screen, and remembered closed ----
     const tabs = await page.eval(`return [...document.querySelectorAll('.chat-inspector [role=tab]')].map((t)=>t.textContent.trim()).join('|')`);
     check(tabs === 'Summary|Activity|Changes|Environment', `the inspector has its four tabs (${tabs})`);
     check((await page.text('.chat-inspector')).includes(SESSION), 'the id lives in the inspector');
-    await page.click('.chat-head button[aria-label="Chat details"]');
-    await page.waitFor(`return !document.querySelector('.chat-inspector')`, { label: 'the inspector closes' });
+    check(!(await page.eval(`return !!document.querySelector('.chat-head button[aria-label="Chat details"]')`)), 'with a drawer beside it the header needs no details button');
+    await page.click('.chat-inspector button[aria-label="Hide details"]');
+    await page.waitFor(`return !document.querySelector('.chat-inspector [role=tab]') && !!document.querySelector('.chat-inspector .insp-rail')`, { label: 'the drawer folds into its rail' });
+    const railWidth = await page.eval(`return document.querySelector('.chat-inspector').getBoundingClientRect().width`);
+    check(railWidth <= 60, `the folded drawer is a thin rail (${railWidth}px)`);
     await page.goto(`/chats/${SESSION}`, 1200);
     await page.waitFor(`return !!document.querySelector('.chat-head h1')`, { label: 'the chat again' });
-    check(!(await page.eval(`return !!document.querySelector('.chat-inspector')`)), 'a closed inspector stays closed after a reload');
-    await page.click('.chat-head button[aria-label="Chat details"]');
-    await page.waitFor(`return !!document.querySelector('.chat-inspector')`, { label: 'the inspector opens again' });
+    check(!(await page.eval(`return !!document.querySelector('.chat-inspector [role=tab]')`)), 'a folded drawer stays folded after a reload');
+    // A tab's own button in the rail opens the drawer on that tab
+    await page.click('.insp-rail button[aria-label="Changes"]');
+    await page.waitFor(`return document.querySelector('.chat-inspector [role=tab][aria-selected=true]')?.textContent.trim() === 'Changes'`, { label: 'the drawer opens on Changes' });
+    await page.click('.chat-inspector [role=tab]', 'Summary');
 
     // ---- the status line under the composer opens what a resume may start with ----
     const status = await page.text('.composer-status');
@@ -99,6 +104,20 @@ export default async ({ page, api, check }) => {
     check(!(await page.eval(`return !!document.querySelector('.chat-inspector')`)), 'no side panel on a phone');
     const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
     check(overflow <= 1, `the chat does not scroll sideways on a phone (${overflow}px)`);
+    // At the narrowest phone the header keeps its title and every action inside the screen
+    await page.viewport(320, 640);
+    await page.waitFor(`return !!document.querySelector('.chat-head button[aria-label="More chat actions"]')`, { label: 'the header at 320px' });
+    const past = await page.eval(`return [...document.querySelectorAll('.chat-head *')].filter((e)=>{const r=e.getBoundingClientRect();return r.width>0&&(r.right>innerWidth+0.5||r.left<-0.5)}).length`);
+    check(past === 0, `nothing in the header leaves a 320px screen (${past} elements do)`);
+    const titleWidth = await page.eval(`return document.querySelector('.chat-head h1').getBoundingClientRect().width`);
+    check(titleWidth >= 60, `the title keeps room to be read at 320px (${titleWidth}px)`);
+    await page.focus('.chat-head button[aria-label="More chat actions"]');
+    await page.key('Enter');
+    await page.waitFor(`return !!document.querySelector('[role=menu]')`, { label: 'the chat menu on a phone' });
+    check((await page.text('[role=menu]')).includes('Search'), 'on a phone search is in the menu');
+    await page.key('Escape');
+    await page.waitFor(`return !document.querySelector('[role=menu]')`, { label: 'the menu closes' });
+    await page.viewport(390, 844);
     await page.click('.chat-head button[aria-label="Chat details"]');
     await page.waitFor(`return !!document.querySelector('[role=dialog] .chat-inspector-body')`, { label: 'the inspector as a sheet' });
     await page.key('Escape');

@@ -8,6 +8,9 @@ import { useSyncExternalStore } from 'react';
 /** Below this the UI is a phone's: one column, bottom bars, sheets instead of popovers. */
 export const NARROW = '(max-width: 900px)';
 
+/** A phone held upright: a one-line header keeps its title only by folding actions into a menu. */
+export const COMPACT = '(max-width: 560px)';
+
 /** The width from which a chat can afford a side panel next to its transcript. */
 export const WIDE = '(min-width: 1100px)';
 

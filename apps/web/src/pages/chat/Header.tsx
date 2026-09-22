@@ -16,6 +16,7 @@ import type { TranscriptFind } from '../../components/TranscriptSearch';
 import { ICON, ICON_SM } from '../../components/icons';
 import { api } from '../../api';
 import { chatPill, checklistCounts, RECONNECTING_AFTER_MS } from '../../lib/chat-live';
+import { COMPACT, useMediaQuery } from '../../lib/media';
 import { checklistProgress } from '../../lib/observe';
 import type { InspectorTab } from './Inspector';
 
@@ -47,7 +48,7 @@ export function StatePill({ chat, connected }: { chat: Chat; connected: boolean 
     <Tooltip content={hint}>
       <span className={`chat-pill is-${pill.tone} ${pill.link === 'reconnecting' ? 'is-reconnecting' : ''}`.trim()}>
         {Icon ? <Icon size={12} strokeWidth={2} aria-hidden /> : <Spinner />}
-        <span>{t(`badges.state.${pill.tone}`)}</span>
+        <span className="chat-pill-word">{t(`badges.state.${pill.tone}`)}</span>
         <span className="chat-pill-sep" aria-hidden>
           ·
         </span>
@@ -89,7 +90,8 @@ export interface HeaderActions {
   stop: { run: () => void; pending: boolean };
   interrupt: { run: () => void; pending: boolean };
   remove: { run: () => void; pending: boolean };
-  inspector: { open: boolean; toggle: () => void; show: (tab: InspectorTab) => void };
+  /** `rail`: the inspector keeps a strip of its own on the right edge, so the header needs no button for it */
+  inspector: { open: boolean; rail: boolean; toggle: () => void; show: (tab: InspectorTab) => void };
 }
 
 /**
@@ -105,8 +107,25 @@ export function ChatHeader({ chat, connected, actions }: { chat: Chat; connected
   const held = control.mode === 'readOnly';
   const { find, inspector } = actions;
   const mac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
+  // On a phone the title would get no room: search and interrupt move into the menu, Stop keeps its icon
+  const compact = useMediaQuery(COMPACT);
+  const stoppable = control.mode === 'interactive';
 
   const entries: MenuEntry[] = [
+    ...(compact
+      ? [
+          {
+            id: 'here',
+            items: [
+              { id: 'find', label: t('components:find.button'), icon: Search, checked: find.open, onSelect: () => (find.open ? find.close() : find.show()) },
+              ...(stoppable && working
+                ? [{ id: 'interrupt', label: t('work:runView.interrupt'), icon: CircleSlash, disabled: actions.interrupt.pending, onSelect: actions.interrupt.run }]
+                : []),
+            ],
+          },
+          { id: 'sep-0', separator: true as const },
+        ]
+      : []),
     {
       id: 'export',
       items: [
@@ -158,13 +177,21 @@ export function ChatHeader({ chat, connected, actions }: { chat: Chat; connected
       {chat.health.level !== 'ok' && <HealthBadge health={chat.health} />}
       <ChecklistProgress chat={chat} onOpen={() => inspector.show('activity')} />
       <div className="chat-head-actions">
-        <Tooltip content={t('components:find.buttonHint', { shortcut: `${mac ? '⌘' : 'Ctrl+'}F` })}>
-          <button type="button" className="icon-btn" aria-label={t('components:find.button')} aria-pressed={find.open} onClick={() => (find.open ? find.close() : find.show())}>
-            <Search {...ICON_SM} />
-          </button>
-        </Tooltip>
-        {control.mode === 'interactive' &&
-          (working ? (
+        {!compact && (
+          <Tooltip content={t('components:find.buttonHint', { shortcut: `${mac ? '⌘' : 'Ctrl+'}F` })}>
+            <button type="button" className="icon-btn" aria-label={t('components:find.button')} aria-pressed={find.open} onClick={() => (find.open ? find.close() : find.show())}>
+              <Search {...ICON_SM} />
+            </button>
+          </Tooltip>
+        )}
+        {stoppable &&
+          (compact ? (
+            <Tooltip content={t('common:actions.stop')}>
+              <button type="button" className="btn btn-small btn-danger chat-stop is-icon" aria-label={t('common:actions.stop')} disabled={actions.stop.pending} onClick={actions.stop.run}>
+                <Square {...ICON_SM} />
+              </button>
+            </Tooltip>
+          ) : working ? (
             <SplitButton
               className="chat-stop"
               variant="danger"
@@ -180,11 +207,13 @@ export function ChatHeader({ chat, connected, actions }: { chat: Chat; connected
               {t('common:actions.stop')}
             </button>
           ))}
-        <Tooltip content={inspector.open ? t('view.hideDetails') : t('view.showDetails')}>
-          <button type="button" className="icon-btn" aria-label={t('view.details')} aria-pressed={inspector.open} onClick={inspector.toggle}>
-            <Info {...ICON_SM} />
-          </button>
-        </Tooltip>
+        {!inspector.rail && (
+          <Tooltip content={inspector.open ? t('view.hideDetails') : t('view.showDetails')}>
+            <button type="button" className="icon-btn" aria-label={t('view.details')} aria-pressed={inspector.open} onClick={inspector.toggle}>
+              <Info {...ICON_SM} />
+            </button>
+          </Tooltip>
+        )}
         <Menu entries={entries} label={t('view.moreActions')} />
       </div>
     </header>

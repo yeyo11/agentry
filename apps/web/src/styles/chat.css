@@ -25,8 +25,10 @@
   padding-bottom: var(--keyboard-inset, 0px);
 }
 
+/* The inspector's column is as wide as the drawer is: its rail when closed, the panel when open */
 .run-layout.has-inspector {
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0;
 }
 
 .run-main {
@@ -345,13 +347,74 @@
   min-width: 0;
 }
 
-/* ---- the inspector ---- */
+/* ---- the inspector: a drawer docked on the right, folded into a rail of its tabs ---- */
 .chat-inspector {
+  --insp-open-w: 360px;
+  --insp-rail-w: 44px;
   display: flex;
   flex-direction: column;
+  width: var(--insp-rail-w);
   min-height: 0;
-  padding-left: 16px;
+  margin-left: 12px;
   border-left: 1px solid var(--border);
+  overflow: hidden;
+  transition: width var(--dur-base) var(--ease-in-out);
+}
+
+.chat-inspector.is-open {
+  width: var(--insp-open-w);
+}
+
+/* Laid out at its final width from the first frame, so the drawer slides open instead of reflowing */
+.chat-inspector.is-open > .chat-inspector-body {
+  width: var(--insp-open-w);
+  padding-left: 14px;
+  animation: fade-rise var(--dur-base) var(--ease-out);
+}
+
+.insp-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.insp-rail-sep {
+  width: 18px;
+  height: 1px;
+  margin: 2px 0;
+  background: var(--border);
+}
+
+.insp-top {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.insp-top > .tabs {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Four tabs share the drawer's width instead of scrolling past its edge */
+.insp-top .tab {
+  flex: 1 1 auto;
+  justify-content: center;
+  padding-inline: 6px;
+  font-size: 13px;
+}
+
+.insp-collapse {
+  flex: none;
 }
 
 .chat-inspector-body {
@@ -363,20 +426,12 @@
   padding: 0 2px 16px 0;
 }
 
-.chat-inspector-body > .tabs {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  flex: none;
-  background: var(--bg);
-}
-
 .chat-inspector-sheet .chat-inspector-body {
   overflow: visible;
   padding: 0;
 }
 
-.chat-inspector-sheet .chat-inspector-body > .tabs {
+.chat-inspector-sheet .insp-top {
   background: var(--bg-elev);
 }
 
@@ -472,6 +527,19 @@
 }
 
 @media (max-width: 560px) {
+  .chat-head {
+    gap: 4px;
+  }
+
+  .chat-head .chat-stop.is-icon {
+    padding-inline: 8px;
+  }
+
+  .insp-top .tab {
+    padding-inline: 3px;
+    font-size: 12.5px;
+  }
+
   /* The state stays; who holds the chat is in the pill's hint and in the inspector */
   .chat-pill-sep,
   .chat-pill-link,
@@ -481,6 +549,27 @@
 
   .chat-pill.is-reconnecting .chat-pill-link {
     display: inline;
+  }
+}
+
+@media (max-width: 420px) {
+  /* The pill keeps its spinner or icon; the word stays for screen readers and in its hint */
+  .chat-pill-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .chat-pill {
+    padding-inline: 6px;
+  }
+
+  /* Model and mode are what a glance needs; the rest is one press away in the options */
+  .composer-status-word:nth-child(n + 3) {
+    display: none;
   }
 }
 

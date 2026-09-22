@@ -481,6 +481,13 @@ a.list-row:hover {
   scrollbar-width: none;
 }
 
+/* The strip says it goes on: its far edge fades instead of cutting a tab in half */
+@media (max-width: 560px) {
+  .chats-toolbar .segmented {
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+}
+
 .crow-group-head {
   position: sticky;
   top: 0;
@@ -880,6 +887,13 @@ a.list-row:hover {
     flex-shrink: 1;
     min-width: 0;
     max-width: 35%;
+  }
+}
+
+@media (max-width: 420px) {
+  /* Too narrow for tags beside the prompt: they are all on the chat's own page */
+  .crow-tag {
+    display: none;
   }
 }
 
