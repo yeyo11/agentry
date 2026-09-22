@@ -25,7 +25,7 @@ export default async ({ page, api, check }) => {
     // ---------- the cron builder says what it will do ----------
     await page.click('main .page-actions a', 'New schedule');
     await page.waitFor(`return location.pathname === '/schedules/new' && !!document.querySelector('main .schedule-form')`, { label: 'the form, on a page of its own' });
-    check(!(await page.eval(`return !!document.querySelector('.schedule-form')`)), 'a new schedule is a page, not a dialog');
+    check(!(await page.eval(`return !!document.querySelector('[aria-modal=true]')`)), 'a new schedule is a page, not a modal dialog');
     const preview = async () => page.eval(`return document.querySelector('[data-testid=cron-preview]')?.innerText ?? ''`);
     await page.waitFor(`return /At 09:00/.test(document.querySelector('[data-testid=cron-preview]')?.innerText ?? '')`, { label: 'the default timetable in words' });
 

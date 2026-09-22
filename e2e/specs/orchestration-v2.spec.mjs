@@ -189,18 +189,18 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---------- a schedule filled from a graph that ran ----------
     await page.goto('/schedules', 1200);
-    await page.click('main .page-actions button', 'New schedule');
-    await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the schedule form' });
-    await page.click('[role=dialog] [role=radio]', 'An orchestration', 400);
-    await page.select('[role=dialog] [aria-label="From an existing orchestration"]', 'e2e-v2-source');
+    await page.click('main .page-actions a', 'New schedule');
+    await page.waitFor(`return !!document.querySelector('main .schedule-form')`, { label: 'the schedule form' });
+    await page.click('.schedule-form [role=radio]', 'An orchestration', 400);
+    await page.select('.schedule-form [aria-label="From an existing orchestration"]', 'e2e-v2-source');
     await page.waitFor(
-      `return [...document.querySelectorAll('[role=dialog] textarea')].some((t) => t.value === 'Fix what the survey found')`,
+      `return [...document.querySelectorAll('.schedule-form textarea')].some((t) => t.value === 'Fix what the survey found')`,
       { label: 'the tasks filled from the graph' },
     );
-    const filledName = await page.eval(`return document.querySelector('[role=dialog] input[placeholder="Morning dependency check"]').value`);
+    const filledName = await page.eval(`return document.querySelector('.schedule-form input[placeholder="Morning dependency check"]').value`);
     check(filledName === 'e2e-v2-source', `an empty schedule name takes the graph's (${filledName})`);
-    await page.click('[role=dialog] button', 'Create schedule', 1000);
-    await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: 'the schedule form closed' });
+    await page.click('.schedule-form button', 'Create schedule', 1000);
+    await page.waitFor(`return location.pathname === '/schedules'`, { label: 'back on the schedules list' });
     const scheduled = (await api.get('/schedules')).body.find((s) => s.name === 'e2e-v2-source');
     check(scheduled?.target.kind === 'orchestration', 'the schedule starts an orchestration');
     if (scheduled) {
