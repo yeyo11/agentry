@@ -15,6 +15,10 @@ export interface BlockSplit {
   text: string;
   /** Where each block starts; the first is always 0 and the last is the block still growing. */
   starts: number[];
+  /** The text as it was given, which the next call compares with to tell it only grew. */
+  input?: string;
+  /** Nothing in it may be cut: see `WHOLE_DOCUMENT`. */
+  whole?: boolean;
 }
 
 /**
@@ -32,13 +36,21 @@ export function normalizeMarkdown(value: string): string {
 /**
  * The split of `text`, reusing `previous` when `text` extends it: the blocks already cut stay cut
  * (a cut depends only on the text before it and on the complete line after it), so only the text
- * from the last cut on is scanned again.
+ * from the last cut on is scanned again. Streaming calls this on every frame with a longer answer,
+ * so an answer that only grew is normalised and checked from where it grew, not from its start.
  */
 export function splitMarkdownBlocks(previous: BlockSplit | null, input: string): BlockSplit {
-  const text = normalizeMarkdown(input);
-  if (text.startsWith('---\n') || WHOLE_DOCUMENT.test(text)) return { text, starts: [0] };
-  const reuse = previous !== null && text.startsWith(previous.text);
-  const starts = reuse ? previous.starts.slice() : [0];
+  const held = previous?.input;
+  // A byte-order mark only counts at the very start, and a `\r` at the old end may pair with a `\n`
+  // that just arrived: in either case the whole text is normalised again
+  const grew = previous !== null && held !== undefined && held.length > 0 && !held.endsWith('\r') && input.startsWith(held);
+  const text = grew ? previous.text + input.slice(held.length).replace(/\r\n?/g, '\n') : normalizeMarkdown(input);
+  // A definition opens a line, so only the line the old text ended in and the new ones are checked
+  const recheck = grew ? text.slice(previous.text.lastIndexOf('\n') + 1) : text;
+  const whole = (grew && previous.whole === true) || text.startsWith('---\n') || WHOLE_DOCUMENT.test(recheck);
+  if (whole) return { text, starts: [0], input, whole };
+  const reuse = grew || (previous !== null && text.startsWith(previous.text));
+  const starts = reuse && previous ? previous.starts.slice() : [0];
   const from = starts[starts.length - 1] ?? 0;
   const lines = text.slice(from).split('\n');
   // The last piece is a line still being written (or empty after a trailing newline)
@@ -53,7 +65,7 @@ export function splitMarkdownBlocks(previous: BlockSplit | null, input: string):
     const start = lineStarts[index];
     if (start !== undefined) starts.push(start);
   }
-  return { text, starts };
+  return { text, starts, input };
 }
 
 /** Lines, after the first, that open a top-level block right after a blank line. */
