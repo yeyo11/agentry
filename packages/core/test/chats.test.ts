@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
@@ -460,6 +460,28 @@ test('what a chat is running shows the shell commands it started and has not had
     await finished(core, started.id, 1);
     assert.equal(core.runtime.pulse(started.id), null);
   } finally {
+    core.shutdown();
+  }
+});
+
+test("the CLI's list of sessions is read once for everyone asking at the same time, and again once invalidated", async () => {
+  const { config, core } = setup();
+  const log = join(config.dataDir, 'spawns.log');
+  mkdirSync(config.dataDir, { recursive: true });
+  writeFileSync(log, '');
+  process.env.FAKE_CLAUDE_SPAWNS = log;
+  const reads = () => readFileSync(log, 'utf8').split('\n').filter((l) => / agents --json$/.test(l)).length;
+  try {
+    core.chats.invalidateCliSessions();
+    await Promise.all([core.chats.cliSessions(), core.chats.cliSessions(), core.chats.list(), core.chats.allActivity()]);
+    assert.equal(reads(), 1, 'one exec shared by every caller');
+    await core.chats.list();
+    assert.equal(reads(), 1, 'served from what was read while it is fresh');
+    core.chats.invalidateCliSessions();
+    await core.chats.cliSessions();
+    assert.equal(reads(), 2, 'read again once invalidated');
+  } finally {
+    delete process.env.FAKE_CLAUDE_SPAWNS;
     core.shutdown();
   }
 });
