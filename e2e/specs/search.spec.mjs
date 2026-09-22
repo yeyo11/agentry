@@ -86,7 +86,7 @@ export default async ({ page, api, check }) => {
     check(!(await page.eval(`return !!document.querySelector('.transcript > [data-focused]')`)), 'closing drops the focused hit');
 
     // The header button opens it again, with the query kept
-    await page.click('button', 'Search');
+    await page.click('.chat-head button[aria-label="Search"]');
     await page.waitFor(`return document.querySelector('.find-input')?.value === 'platypus'`, { label: 'the button reopens the search' });
   } finally {
     // Later specs count the seeded chats

@@ -1,0 +1,791 @@
+/* Transcript: messages, tool calls, markdown, code blocks and the transcript search. */
+/* Tree guide for the nested workers */
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Above a windowed transcript: what is still unread further back */
+.transcript-earlier {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 10px;
+}
+
+.msg {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Where the avatar would be on a row that does not repeat who wrote it */
+.avatar-gap {
+  flex: none;
+  width: 26px;
+}
+
+/* Same author as the row above: drawn as part of it */
+.msg.is-continued,
+.msg-step {
+  margin-top: -6px;
+}
+
+.avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 1px;
+  border-radius: 8px;
+}
+
+.avatar-user {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+.avatar .brand-mark {
+  box-shadow: none;
+}
+
+.msg-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.msg-user .msg-body {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 4px var(--radius-lg) var(--radius-lg) var(--radius-lg);
+  background: var(--bg-elev);
+  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-sm);
+}
+
+
+.msg-sidechain {
+  margin-left: 38px;
+  padding-left: 12px;
+  border-left: 2px solid var(--accent-2);
+}
+
+.msg-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+}
+
+.msg-role {
+  font-weight: 650;
+  font-size: 13px;
+}
+
+/* The time of a row shows when the reader points at it or moves into it, not on every row at once */
+.msg-time {
+  margin-left: auto;
+  color: var(--text-faint);
+  font: 11px var(--mono);
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+
+.msg:hover .msg-time,
+.msg:focus-within .msg-time {
+  opacity: 1;
+}
+
+/* A row without a head keeps its time in the corner */
+.msg-body > .msg-time {
+  position: absolute;
+  top: 2px;
+  right: 0;
+}
+
+.msg-model {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.62;
+}
+
+/* ---- Markdown in Claude's answers ---- */
+.md {
+  min-width: 0;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.md > * {
+  margin: 0;
+}
+
+.md > * + * {
+  margin-top: 10px;
+}
+
+.md p,
+.md ul,
+.md ol,
+.md blockquote,
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin-bottom: 0;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  font-weight: 650;
+  letter-spacing: -0.012em;
+  line-height: 1.35;
+}
+
+.md > h1:not(:first-child),
+.md > h2:not(:first-child),
+.md > h3:not(:first-child) {
+  margin-top: 18px;
+}
+
+.md h1 {
+  font-size: 19px;
+}
+
+.md h2 {
+  font-size: 16.5px;
+}
+
+.md h3 {
+  font-size: 15px;
+}
+
+.md h4,
+.md h5,
+.md h6 {
+  font-size: 14px;
+}
+
+/* Headings in an answer are styled blocks, not part of the page's outline */
+.md .md-h {
+  font-weight: 650;
+  letter-spacing: -0.012em;
+  line-height: 1.35;
+  font-size: 14px;
+}
+
+.md .md-h1 {
+  font-size: 19px;
+}
+
+.md .md-h2 {
+  font-size: 16.5px;
+}
+
+.md .md-h3 {
+  font-size: 15px;
+}
+
+.md > .md-h1:not(:first-child),
+.md > .md-h2:not(:first-child),
+.md > .md-h3:not(:first-child) {
+  margin-top: 18px;
+}
+
+.md ul,
+.md ol {
+  padding-left: 22px;
+}
+
+.md li + li,
+.md li > ul,
+.md li > ol {
+  margin-top: 4px;
+}
+
+.md li > p + p {
+  margin-top: 6px;
+}
+
+.md li::marker {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.md .contains-task-list {
+  padding-left: 2px;
+  list-style: none;
+}
+
+.md-task {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 7px;
+  vertical-align: -2px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 4px;
+}
+
+.md-task.is-done {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.md-task.is-done::after {
+  content: '';
+  width: 6px;
+  height: 3px;
+  margin-top: -2px;
+  border: solid #fff;
+  border-width: 0 0 1.5px 1.5px;
+  rotate: -45deg;
+}
+
+.md blockquote {
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-muted);
+}
+
+.md a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  text-underline-offset: 3px;
+}
+
+.md a:hover {
+  text-decoration-color: var(--accent);
+}
+
+.md hr {
+  margin: 16px 0;
+}
+
+.md strong {
+  font-weight: 650;
+}
+
+.md del {
+  color: var(--text-muted);
+}
+
+.md-table {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.md-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.md-table th,
+.md-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: normal;
+}
+
+.md-table th + th,
+.md-table td + td {
+  border-left: 1px solid var(--border);
+}
+
+.md-table th {
+  background: var(--bg-sunken);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.md-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.md-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+/* While Claude is writing, the caret follows the last block */
+.streaming-text > :last-child::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.18em;
+  border-radius: 2px;
+  background: var(--live);
+  box-shadow: 0 0 6px var(--live), 0 0 14px var(--live-soft);
+  animation: caret-blink 1s steps(2, start) infinite;
+}
+
+.streaming-text > .code-block:last-child::after {
+  display: none;
+}
+
+.code-block {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.code-block-bar {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+
+.code-block:hover .code-block-bar,
+.code-block:focus-within .code-block-bar {
+  opacity: 1;
+}
+
+/* No hover on touch: the copy button would be there but unseen */
+@media (hover: none) {
+  .code-block-bar {
+    opacity: 1;
+  }
+}
+
+.code-block-bar .icon-btn {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+}
+
+.code-lang {
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  font: 11px var(--mono);
+  color: var(--text-faint);
+}
+
+.code {
+  margin: 0;
+  padding: 11px 14px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: 12.5px/1.6 var(--mono);
+  font-variant-ligatures: none;
+  overflow: auto;
+  max-height: 420px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.code-block > .code {
+  border: 0;
+  border-radius: 0;
+}
+
+/* A code block in an answer: a bar with the language and copy, lines that scroll instead of wrapping */
+.code-block.has-header .code-block-bar {
+  position: static;
+  justify-content: space-between;
+  padding: 4px 6px 4px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+  opacity: 1;
+}
+
+.code-block.has-header .code-lang {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 11.5px;
+}
+
+.code-block.has-header .code-block-bar .icon-btn {
+  border-color: transparent;
+  background: none;
+}
+
+.code-block.has-header > .code {
+  max-height: none;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+/* Highlighted runs carry both themes' colours, and so does a highlighted block for the runs left
+   bare; the theme in force picks one */
+.code[style],
+.code span[style] {
+  color: var(--shiki-dark);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .code[style],
+  :root:not([data-theme='dark']) .code span[style] {
+    color: var(--shiki-light);
+  }
+}
+
+:root[data-theme='light'] .code[style],
+:root[data-theme='light'] .code span[style] {
+  color: var(--shiki-light);
+}
+
+.code-block.is-error {
+  border-color: color-mix(in srgb, var(--bad) 40%, transparent);
+  background: var(--bad-soft);
+}
+
+.code-block.is-error .code {
+  background: transparent;
+  color: var(--bad);
+}
+
+.fold {
+  min-width: 0;
+}
+
+.fold > .collapsible-trigger {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.fold-thinking {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  transition: border-color var(--dur-fast);
+}
+
+.fold-thinking:hover {
+  border-color: var(--border-strong);
+}
+
+.fold-thinking > .collapsible-trigger {
+  padding: 6px 10px;
+}
+
+.fold-thinking > .fold-body {
+  margin: 0 8px 8px;
+}
+
+.fold-body {
+  padding: 2px 4px 4px;
+  font-size: 13px;
+}
+
+.fold-icon {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.tool-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  flex: none;
+}
+
+.tool-hint {
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  color: var(--text-muted);
+}
+
+/* ---- a step: a turn's tool calls folded into one line (`tool-step`, since `.step` is the Stepper's) ---- */
+.msg-step .msg-body {
+  gap: 0;
+}
+
+.fold.tool-step > .collapsible-trigger {
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font: 12px var(--mono);
+  color: var(--text-muted);
+}
+
+.fold.tool-step > .collapsible-trigger:hover {
+  background: var(--bg-hover);
+}
+
+.fold.tool-step.live-rail {
+  padding-left: 10px;
+}
+
+.step-count {
+  flex: none;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.step-tools {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-icon.is-error {
+  color: var(--bad);
+}
+
+.msg-step.is-current .step-icon {
+  color: var(--live);
+}
+
+.step-parts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0 4px 8px;
+}
+
+.step-parts > .fold-thinking {
+  margin: 2px 0 2px 10px;
+}
+
+/* ---- one tool call: name and target in mono, a rail coloured by how it came back ---- */
+.call-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  padding-left: 10px;
+}
+
+.call-row::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 0;
+  width: var(--rail-w);
+  border-radius: var(--rail-w);
+  background: var(--border-strong);
+}
+
+.call-row.is-ok::before {
+  background: var(--ok);
+}
+
+.call-row.is-error::before {
+  background: var(--bad);
+}
+
+.call-row.is-running::before {
+  background: var(--live);
+}
+
+.call-row > .fold-call {
+  flex: 1;
+  min-width: 0;
+}
+
+.fold-call > .collapsible-trigger {
+  padding: 3px 6px;
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+}
+
+.fold-call > .collapsible-trigger:hover {
+  background: var(--bg-hover);
+}
+
+.call-row.is-running .fold-icon {
+  color: var(--live);
+}
+
+.call-row.is-error .tool-name,
+.call-row.is-error .fold-icon,
+.fold-call.is-error .tool-name {
+  color: var(--bad);
+}
+
+.call-outcome {
+  flex: none;
+  color: var(--bad);
+  font: 11.5px var(--mono);
+}
+
+.call-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0 6px 6px;
+}
+
+.icon-btn.call-open {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+
+.fold[data-state='open']:not(.fold-call, .fold-thinking, .tool-step) > .collapsible-trigger {
+  margin-bottom: 6px;
+}
+
+.msg-streaming .prose {
+  min-height: 1.6em;
+}
+
+.caret {
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.18em;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: caret-blink 1s steps(2, start) infinite;
+}
+
+.streaming-thinking {
+  padding: 8px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  font-size: 13px;
+  max-height: 180px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.streaming-thinking-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: transparent;
+  background: linear-gradient(90deg, var(--text-faint) 30%, var(--text) 50%, var(--text-faint) 70%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: shimmer 1.8s linear infinite;
+}
+
+.streaming-thinking-label svg {
+  color: var(--text-muted);
+}
+
+.evt {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 0 0 38px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 900px) {
+.msg-sidechain {
+    margin-left: 14px;
+  }
+.evt {
+    padding-left: 14px;
+  }
+}
+
+.find-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.find-icon {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.find-input {
+  flex: 1;
+  padding: 4px 8px;
+}
+
+.find-count {
+  flex: none;
+  min-width: 6.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.find-context {
+  padding-left: 22px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.find-snippet mark,
+::highlight(transcript-find-current) {
+  /* --warn is dark in the light theme, so a fixed dark text on it would not read */
+  background: color-mix(in srgb, var(--warn) 40%, var(--bg-elev));
+  color: var(--text);
+}
+
+::highlight(transcript-find) {
+  background: var(--warn-soft);
+}
+
+.transcript > [data-focused] {
+  outline: 2px solid var(--warn);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}

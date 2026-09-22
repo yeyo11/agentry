@@ -43,6 +43,8 @@ export default async ({ page, api, check, dirs }) => {
     // The chat page: the task hangs off the subagent that launched it, and its output opens in a
     // panel that the address remembers
     await page.goto(`/chats/${SESSION}`, 1200);
+    // Branches are on the inspector's Environment tab
+    await page.click('.chat-inspector [role=tab]', 'Environment');
     await page.waitFor(`return document.querySelector('main').innerText.includes('Branches (')`, { label: 'the branches of the chat' });
     await page.click('main .detail-task-link', shown);
     await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText.includes('rebuilt in 12ms')`, { label: 'the task output in the panel' });
@@ -57,6 +59,7 @@ export default async ({ page, api, check, dirs }) => {
     check(!(await page.eval('return location.search')).includes('detail='), 'closing drops it from the address');
 
     // The subagent's prompt, result and transcript, and its task one click away
+    await page.click('.chat-inspector [role=tab]', 'Environment');
     await page.click('main .detail-task-link', 'Survey the build scripts');
     await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText.includes('List the build scripts')`, { label: 'the subagent prompt in the panel' });
     const panel = await page.text('[role=dialog]');

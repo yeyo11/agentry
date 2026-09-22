@@ -34,9 +34,6 @@
       "held": "retenido",
       "interrupted": "interrumpido"
     },
-    "stageDone": "hechas",
-    "stageDoneFailed": "hechas, tiene tareas fallidas",
-    "stageDoneBlocked": "hechas, tiene tareas bloqueadas",
     "hintSent": "Pista enviada",
     "hintSentBody": "{{name}} la verá en su siguiente paso.",
     "hintLabel": "Pista para este worker",
@@ -85,6 +82,34 @@
     "blockedBehindIt_other": "y {{count}} están bloqueadas tras ella",
     "blockedBehindThem_one": "y {{count}} está bloqueada tras ellas",
     "blockedBehindThem_other": "y {{count}} están bloqueadas tras ellas",
-    "decide": "Decide en las tarjetas de abajo."
+    "decide": "Decide en las tarjetas de abajo.",
+    "tasksUnit": "tareas",
+    "openChatBeside": "Abrir su chat junto al grafo"
+  },
+  "list": {
+    "sections": "Orquestaciones y plantillas",
+    "orchestrations": "Orquestaciones",
+    "templates": "Plantillas",
+    "statusLabel": "Mostrar orquestaciones por estado",
+    "status": {
+      "all": "Todas",
+      "live": "En marcha",
+      "completed": "Completadas",
+      "failed": "Fallidas",
+      "stopped": "Detenidas"
+    },
+    "searchPlaceholder": "Busca por nombre, objetivo o tarea",
+    "searchLabel": "Buscar orquestaciones",
+    "sortLabel": "Ordenar orquestaciones",
+    "sort": {
+      "recent": "Más recientes",
+      "oldest": "Más antiguas",
+      "cost": "Más caras",
+      "name": "Nombre"
+    },
+    "noMatch": "Ninguna orquestación coincide",
+    "showAll": "Mostrarlas todas",
+    "where": "etapa {{stage}} · {{task}}",
+    "advanced": "Opciones avanzadas"
   }
 }

@@ -1,0 +1,1003 @@
+/* Chat view: the run stage, composer, permission prompts, attachments, detail panel. */
+
+/*
+ * The chat page owns the height of the window: the page does not scroll, the transcript does. That
+ * holds at every width, so `.run-scroll` is always the scroller and the windowed log always measures
+ * a real viewport (a stage as tall as its content would make it measure itself and never move).
+ */
+.main:has(> .page > .run-layout) {
+  padding: 10px 20px 0;
+  overflow: hidden;
+}
+
+.page:has(> .run-layout) {
+  height: 100%;
+}
+
+.run-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  /* What the on-screen keyboard covers (set from `visualViewport`): the composer stays above it */
+  padding-bottom: var(--keyboard-inset, 0px);
+}
+
+/* The inspector's column is as wide as the drawer is: its rail when closed, the panel when open */
+.run-layout.has-inspector {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0;
+}
+
+.run-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ---- the one-line header ---- */
+.chat-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.chat-head-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.chat-head .btn-small.chat-stop,
+.chat-head .chat-stop .btn {
+  min-height: 30px;
+  padding-block: 4px;
+}
+
+.chat-pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font: 500 11.5px/1.5 var(--mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.chat-pill.is-working {
+  border-color: color-mix(in srgb, var(--live) 45%, var(--border));
+  background: var(--live-soft);
+  color: var(--live);
+}
+
+.chat-pill.is-waiting {
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.chat-pill.is-reconnecting .chat-pill-link {
+  color: var(--warn);
+}
+
+.chat-pill-sep {
+  color: var(--text-faint);
+}
+
+.chat-checklist {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  font: 12px var(--mono);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.chat-checklist:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.chat-banner {
+  flex: none;
+}
+
+/* ---- the conversation ---- */
+.run-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.run-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px 10px 12px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  -webkit-mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 14px), transparent);
+}
+
+/* The ticker sits where the next row will appear, lined up with the messages' text */
+.chat-now {
+  flex: none;
+  padding: 0 0 4px 38px;
+}
+
+.jump-latest {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  translate: -50% 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-md);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.jump-latest:hover {
+  border-color: var(--accent);
+}
+
+/* ---- the composer: a pill, and the status line under it ---- */
+.composer-wrap {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
+}
+
+.composer {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  padding: 5px 5px 5px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 22px;
+  background: var(--bg-elev);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-base);
+}
+
+.composer:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* The turning border says it is working; the focus ring can stay, the plain border steps aside */
+.composer.is-working {
+  border-color: transparent;
+}
+
+.composer textarea {
+  flex: 1;
+  min-height: 34px;
+  max-height: 220px;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  resize: none;
+}
+
+.composer textarea:focus {
+  box-shadow: none;
+}
+
+.composer-send {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: var(--gradient-accent);
+  color: var(--accent-text);
+  cursor: pointer;
+  transition: opacity var(--dur-fast), transform var(--dur-fast);
+}
+
+.composer-send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.composer-send:not(:disabled):active {
+  transform: scale(0.94);
+}
+
+.composer-send.is-interrupt {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.composer-status {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  margin-left: 10px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  font: 11.5px/1.6 var(--mono);
+  cursor: pointer;
+}
+
+.composer-status:hover,
+.composer-status[aria-expanded='true'] {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.composer-status.is-changed {
+  color: var(--text);
+}
+
+.composer-status-words {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.composer-status-word {
+  flex: none;
+}
+
+.composer-status-word:last-child {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.composer-status-word + .composer-status-word::before {
+  content: '·';
+  margin: 0 6px;
+  color: var(--text-faint);
+}
+
+.popover.composer-options {
+  width: min(440px, calc(100vw - 24px));
+  max-height: min(70dvh, 560px);
+  overflow-y: auto;
+}
+
+/* In the popover the start options stack: each one is a labelled field, not an inline control */
+.composer-options .chat-options {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+}
+
+.composer-options .chat-options > label {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.chat-fork {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-fork-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 10px;
+  color: var(--text-muted);
+}
+
+.chat-fork-head > .small {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- the inspector: a drawer docked on the right, folded into a rail of its tabs ---- */
+.chat-inspector {
+  --insp-open-w: 360px;
+  --insp-rail-w: 44px;
+  display: flex;
+  flex-direction: column;
+  width: var(--insp-rail-w);
+  min-height: 0;
+  margin-left: 12px;
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+  transition: width var(--dur-base) var(--ease-in-out);
+}
+
+.chat-inspector.is-open {
+  width: var(--insp-open-w);
+}
+
+/* Laid out at its final width from the first frame, so the drawer slides open instead of reflowing */
+.chat-inspector.is-open > .chat-inspector-body {
+  width: var(--insp-open-w);
+  padding-left: 14px;
+  animation: fade-rise var(--dur-base) var(--ease-out);
+}
+
+.insp-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.insp-rail-sep {
+  width: 18px;
+  height: 1px;
+  margin: 2px 0;
+  background: var(--border);
+}
+
+.insp-top {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.insp-top > .tabs {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Four tabs share the drawer's width instead of scrolling past its edge */
+.insp-top .tab {
+  flex: 1 1 auto;
+  justify-content: center;
+  padding-inline: 6px;
+  font-size: 13px;
+}
+
+.insp-collapse {
+  flex: none;
+}
+
+.chat-inspector-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 2px 16px 0;
+}
+
+.chat-inspector-sheet .chat-inspector-body {
+  overflow: visible;
+  padding: 0;
+}
+
+.chat-inspector-sheet .insp-top {
+  background: var(--bg-elev);
+}
+
+.insp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.insp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.insp-panel > .insp-section:first-child {
+  padding-top: 2px;
+  border-top: 0;
+}
+
+.insp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 22px;
+}
+
+.insp-head h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-muted);
+}
+
+.insp-id {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.insp-fold > .collapsible-trigger {
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.insp-checklist .step-label {
+  overflow-wrap: anywhere;
+}
+
+.side-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.side-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* ---- phones and tablets ---- */
+@media (max-width: 900px) {
+  .main:has(> .page > .run-layout) {
+    padding: 0 10px;
+  }
+
+  .run-layout {
+    gap: 0;
+  }
+
+  .chat-head {
+    min-height: 44px;
+    padding: 0;
+    gap: 6px;
+  }
+
+  .run-scroll {
+    padding-right: 4px;
+  }
+}
+
+@media (max-width: 560px) {
+  .chat-head {
+    gap: 4px;
+  }
+
+  .chat-head .chat-stop.is-icon {
+    padding-inline: 8px;
+  }
+
+  .insp-top .tab {
+    padding-inline: 3px;
+    font-size: 12.5px;
+  }
+
+  /* The state stays; who holds the chat is in the pill's hint and in the inspector */
+  .chat-pill-sep,
+  .chat-pill-link,
+  .chat-checklist .progress-blocks {
+    display: none;
+  }
+
+  .chat-pill.is-reconnecting .chat-pill-link {
+    display: inline;
+  }
+}
+
+@media (max-width: 420px) {
+  /* The pill keeps its spinner or icon; the word stays for screen readers and in its hint */
+  .chat-pill-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .chat-pill {
+    padding-inline: 6px;
+  }
+
+  /* Model and mode are what a glance needs; the rest is one press away in the options */
+  .composer-status-word:nth-child(n + 3) {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .chat-head .icon-btn,
+  .composer-send {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .composer-status {
+    min-height: 32px;
+  }
+}
+
+/* ---- New chat: the prompt first and large, the rest folded under it ---- */
+.new-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 900px;
+}
+
+.new-chat-prompt {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elev);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-base);
+}
+
+.new-chat-prompt:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.new-chat-prompt textarea {
+  min-height: 180px;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 15px;
+  resize: vertical;
+}
+
+.new-chat-prompt textarea:focus {
+  box-shadow: none;
+}
+
+.new-chat-prompt .attachments-pending {
+  margin: 0 12px 6px;
+}
+
+.new-chat-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 8px;
+  border-top: 1px solid var(--border);
+}
+
+.new-chat-hint {
+  flex: 1;
+  min-width: 0;
+}
+
+.new-chat-keys {
+  flex: none;
+}
+
+.new-chat-advanced > .collapsible-trigger {
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 6px 2px;
+}
+
+.new-chat-advanced-title {
+  font-weight: 600;
+}
+
+.new-chat-advanced-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-chat-options {
+  padding: 10px 2px 4px;
+}
+
+@media (max-width: 560px) {
+  .new-chat-hint,
+  .new-chat-keys {
+    display: none;
+  }
+
+  .new-chat-bar > .btn-primary {
+    margin-left: auto;
+  }
+}
+
+/* Tool calls a run is holding until someone decides. */
+.permission-list {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  flex-shrink: 0;
+  margin-top: 12px;
+  /* Pinned, so it must never outgrow the transcript: a tall one scrolls inside instead of hiding its top */
+  max-height: 55dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius);
+}
+
+.permission-list ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.permission {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+  border-radius: var(--radius);
+  /* Opaque: the transcript scrolls underneath */
+  background: color-mix(in srgb, var(--warn) 10%, var(--bg-elev));
+}
+
+.permission-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.permission-input {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--bg-sunken);
+  border-radius: calc(var(--radius) - 3px);
+}
+
+.permission-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.permission-reason {
+  flex: 1;
+  min-width: 200px;
+}
+
+.permission-question .tabs {
+  margin: 0 -4px 10px;
+}
+
+.question-num {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--bg-sunken);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.question {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+  animation: fade-rise var(--dur-base) var(--ease-out);
+}
+
+.question-text {
+  margin: 0;
+  font-weight: 600;
+}
+
+.question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.question-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 3px);
+  background: var(--bg-elev);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+
+.question-option:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-sunken);
+}
+
+.question-option.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elev));
+}
+
+/* Radio for one answer, checkbox for several */
+.question-mark {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  color: #fff;
+}
+
+.question-option.is-multi .question-mark {
+  border-radius: 4px;
+}
+
+.question-option.is-on .question-mark {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.question-mark svg {
+  width: 11px;
+  height: 11px;
+}
+
+.question-label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.question-other {
+  width: 100%;
+}
+
+.question-spacer {
+  flex: 1;
+}
+
+/* A plan can run long: it scrolls inside the prompt so the buttons stay in reach */
+.permission-plan-body {
+  max-height: 340px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  overflow-y: auto;
+  border-radius: calc(var(--radius) - 3px);
+  background: var(--bg-sunken);
+}
+
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+
+a.attachment-chip:hover {
+  background: var(--bg-hover);
+}
+
+.attachment-chip.is-error {
+  border-color: var(--bad);
+}
+
+.attachment-name {
+  max-width: 24ch;
+}
+
+.attachment-error {
+  color: var(--bad);
+  max-width: 32ch;
+}
+
+.attachment-thumb {
+  display: block;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.attachment-thumb img {
+  max-width: 240px;
+  max-height: 180px;
+  object-fit: contain;
+  background: var(--bg-sunken);
+}
+
+.attachment-mini {
+  width: 20px;
+  height: 20px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.attachments-pending {
+  margin: 0 0 8px;
+}
+
+.attach-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.attach-row .attachments-pending {
+  margin: 0;
+}
+
+.composer-attach {
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
+/* The dialog body is as tall as its content, so a zero basis would collapse this to nothing */
+.detail-scroll {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.detail-facts {
+  color: var(--text);
+}
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.detail-live {
+  margin-left: 6px;
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.detail-output {
+  max-height: min(64dvh, 720px);
+  overflow-y: auto;
+}
+
+.detail-output .task-output {
+  max-height: none;
+  overflow: visible;
+}
+
+.detail-task-link {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+/* Every message here is a subagent's, so the marker that sets one apart in a run adds nothing */
+.detail-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.detail-transcript .transcript {
+  align-self: stretch;
+}
+
+.detail-transcript .msg-sidechain {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
+}
+
+.detail-transcript .msg-head .badge-info {
+  display: none;
+}

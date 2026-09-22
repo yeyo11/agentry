@@ -7,6 +7,7 @@ import { Card, Empty, ErrorBox, PageHeader, Skeleton, TabPanel, Tabs, useTabGrou
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
 import { timeAgo } from '../lib/format';
 import { AccountTab } from './config/AccountTab';
+import { AppearanceTab } from './config/AppearanceTab';
 import { EditorTab } from './config/EditorTab';
 import { FilesTab } from './config/FilesTab';
 import { InstructionsTab } from './config/InstructionsTab';
@@ -22,6 +23,7 @@ const RESOURCE_TABS: ResourceKind[] = ['agents', 'skills', 'commands', 'output-s
 
 // The label is a translation key, not text: the constant is built once, the language can change
 const TABS = [
+  { id: 'appearance', label: 'shell:appearance.tab' },
   { id: 'account', label: 'config:config.tabs.account' },
   { id: 'instructions', label: 'config:config.tabs.instructions' },
   { id: 'settings', label: 'config:config.tabs.settings' },
@@ -117,13 +119,13 @@ function MemoryOverview() {
 }
 
 function SettingsInner() {
-  const { t } = useTranslation(['home', 'config', 'work', 'observe']);
+  const { t } = useTranslation(['home', 'config', 'work', 'observe', 'shell']);
   const [params, setParams] = useSearchParams();
   const dirtyKeys = useDirtyKeys();
   const guard = useLeaveGuard();
   const group = useTabGroup();
 
-  const tab: TabId = TABS.find((item) => item.id === params.get('tab'))?.id ?? 'account';
+  const tab: TabId = TABS.find((item) => item.id === params.get('tab'))?.id ?? 'appearance';
   const select = (next: TabId) => void guard().then((ok) => ok && setParams({ tab: next }, { replace: true }));
 
   return (
@@ -139,6 +141,7 @@ function SettingsInner() {
       />
 
       <TabPanel className="tab-panel" key={tab} group={group} tab={tab}>
+        {tab === 'appearance' && <AppearanceTab />}
         {tab === 'account' && <AccountTab />}
         {tab === 'instructions' && <InstructionsTab scope={USER_SCOPE} scopeKey="user" />}
         {tab === 'settings' && <SettingsTab scope={USER_SCOPE} scopeKey="user" filesHref="/settings?tab=files" />}

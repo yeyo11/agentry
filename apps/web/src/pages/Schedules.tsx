@@ -9,19 +9,26 @@ import { Collapsible, Switch, Tooltip } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
 import { ICON_SM } from '../components/icons';
 import { useToast } from '../components/Toast';
-import { Card, Empty, ErrorBox, PageHeader, Skeleton, StatusBadge, Tag } from '../components/ui';
+import { ListToolbar, type ListToolbarTab } from '../components/ListToolbar';
+import { Empty, ErrorBox, PageHeader, Skeleton, StatusBadge, Tag } from '../components/ui';
 import { formatDateTime, formatDuration, timeAgo, toMs } from '../lib/format';
-import { useProjectScope } from '../lib/project-scope';
-import { ScheduleForm } from './schedules/ScheduleForm';
+import { matchesText, scheduleFields, scheduleView, type ScheduleView } from '../lib/lists';
 import '../insights.css';
 
 /** The recurring chats and orchestrations, with the timetable of each said in words and what each run produced. */
 export function Schedules() {
   const { t } = useTranslation(['schedules', 'common']);
-  const { project } = useProjectScope();
   const schedules = useSchedules();
-  // `undefined`: closed; `null`: a new one; a schedule: that one
-  const [editing, setEditing] = useState<Schedule | null | undefined>(undefined);
+  const [search, setSearch] = useState('');
+  const [view, setView] = useState<ScheduleView>('all');
+  const all = schedules.data ?? [];
+  const found = all.filter((schedule) => matchesText(search, scheduleFields(schedule)));
+  const shown = found.filter((schedule) => view === 'all' || scheduleView(schedule) === view);
+  const tabs: Array<ListToolbarTab<ScheduleView>> = [
+    { id: 'all', label: t('list.all'), count: found.length },
+    { id: 'on', label: t('list.on'), count: found.filter((s) => s.enabled).length },
+    { id: 'off', label: t('list.off'), count: found.filter((s) => !s.enabled).length },
+  ];
 
   return (
     <>
@@ -29,9 +36,9 @@ export function Schedules() {
         title={t('page.title')}
         subtitle={t('page.subtitle')}
         actions={
-          <button type="button" className="btn btn-primary" onClick={() => setEditing(null)}>
+          <Link to="/schedules/new" className="btn btn-primary">
             <Plus {...ICON_SM} /> {t('page.new')}
-          </button>
+          </Link>
         }
       />
       <div className="alert alert-note" role="note">
@@ -49,28 +56,37 @@ export function Schedules() {
           icon={CalendarClock}
           title={t('page.emptyTitle')}
           action={
-            <button type="button" className="btn btn-primary" onClick={() => setEditing(null)}>
+            <Link to="/schedules/new" className="btn btn-primary">
               <Plus {...ICON_SM} /> {t('page.new')}
-            </button>
+            </Link>
           }
         >
           {t('page.emptyBody')}
         </Empty>
       ) : (
-        <div className="stack schedules">
-          {(schedules.data ?? []).map((schedule) => (
-            <ScheduleCard key={schedule.id} schedule={schedule} onEdit={() => setEditing(schedule)} />
-          ))}
+        <div className="schedules">
+          <ListToolbar
+            search={{ value: search, onChange: setSearch, placeholder: t('list.searchPlaceholder'), label: t('list.searchLabel') }}
+            tabs={{ value: view, options: tabs, onChange: setView, label: t('list.show') }}
+          />
+          {shown.length === 0 ? (
+            <Empty icon={CalendarClock} title={t('list.noneMatch')}>
+              {t('list.noneMatchBody')}
+            </Empty>
+          ) : (
+            <ul className="lrows">
+              {shown.map((schedule) => (
+                <ScheduleCard key={schedule.id} schedule={schedule} />
+              ))}
+            </ul>
+          )}
         </div>
-      )}
-      {editing !== undefined && (
-        <ScheduleForm schedule={editing ?? undefined} defaultCwd={project?.exists ? project.path : undefined} onClose={() => setEditing(undefined)} />
       )}
     </>
   );
 }
 
-function ScheduleCard({ schedule, onEdit }: { schedule: Schedule; onEdit: () => void }) {
+function ScheduleCard({ schedule }: { schedule: Schedule }) {
   const { t } = useTranslation(['schedules', 'common']);
   const toast = useToast();
   const confirm = useConfirm();
@@ -116,18 +132,30 @@ function ScheduleCard({ schedule, onEdit }: { schedule: Schedule; onEdit: () => 
   const last = schedule.lastRunAt;
 
   return (
-    <Card
-      className="schedule-card"
-      title={
-        <span className="meta">
-          <span className="strong break">{schedule.name}</span>
-          <Tag>{t(`card.kind.${schedule.target.kind}`)}</Tag>
-          {!schedule.enabled && <Tag tone="muted">{t('card.off')}</Tag>}
-          {schedule.overlap !== 'parallel' && <Tag>{t(`card.overlap.${schedule.overlap}`)}</Tag>}
-        </span>
-      }
-      actions={
-        <span className="toolbar">
+    <li className={`lrow schedule-card ${schedule.enabled ? 'is-ok' : 'is-muted'}`}>
+      <div className="lrow-head">
+        <div className="lrow-main">
+          <span className="lrow-title">
+            <span className="break">{schedule.name}</span>
+            <Tag>{t(`card.kind.${schedule.target.kind}`)}</Tag>
+            {!schedule.enabled && <Tag tone="muted">{t('card.off')}</Tag>}
+            {schedule.overlap !== 'parallel' && <Tag>{t(`card.overlap.${schedule.overlap}`)}</Tag>}
+          </span>
+          <span className="lrow-sub schedule-when">
+            <code className="mono">{schedule.cron}</code>
+            {schedule.timezone && <span className="mono">{schedule.timezone}</span>}
+            {words.data?.valid && <span>{words.data.description}</span>}
+            <span>
+              {schedule.enabled
+                ? next !== null
+                  ? t('card.next', { date: formatDateTime(schedule.nextRunAt), in: t('common:time.in', { duration: formatDuration(Math.max(0, next - Date.now())) }) })
+                  : t('card.neverAgain')
+                : t('card.pausedNote')}
+            </span>
+            <span>{last ? t('card.last', { ago: timeAgo(last) }) : t('card.neverRan')}</span>
+          </span>
+        </div>
+        <span className="lrow-actions">
           <Switch checked={schedule.enabled} onChange={(enabled) => toggle.mutate(enabled)} disabled={toggle.isPending}>
             {t('card.enabledLabel')}
           </Switch>
@@ -137,9 +165,9 @@ function ScheduleCard({ schedule, onEdit }: { schedule: Schedule; onEdit: () => 
             </button>
           </Tooltip>
           <Tooltip content={t('card.edit')}>
-            <button type="button" className="btn btn-small" onClick={onEdit} aria-label={t('card.editNamed', { name: schedule.name })}>
+            <Link to={`/schedules/${schedule.id}/edit`} className="btn btn-small" aria-label={t('card.editNamed', { name: schedule.name })}>
               <Pencil {...ICON_SM} />
-            </button>
+            </Link>
           </Tooltip>
           <Tooltip content={t('card.delete')}>
             <button
@@ -160,29 +188,11 @@ function ScheduleCard({ schedule, onEdit }: { schedule: Schedule; onEdit: () => 
             </button>
           </Tooltip>
         </span>
-      }
-    >
-      <div className="stack-tight">
-        <div className="schedule-when">
-          <code className="mono">{schedule.cron}</code>
-          {schedule.timezone && <span className="muted small">{schedule.timezone}</span>}
-          <span>{words.data?.valid ? words.data.description : ''}</span>
-        </div>
-        <div className="meta small muted">
-          <span>
-            {schedule.enabled
-              ? next !== null
-                ? t('card.next', { date: formatDateTime(schedule.nextRunAt), in: t('common:time.in', { duration: formatDuration(Math.max(0, next - Date.now())) }) })
-                : t('card.neverAgain')
-              : t('card.pausedNote')}
-          </span>
-          <span>{last ? t('card.last', { ago: timeAgo(last) }) : t('card.neverRan')}</span>
-        </div>
-        <Collapsible title={t('card.history')} open={historyOpen} onOpenChange={setHistoryOpen}>
-          <RunHistory runs={runs.data} loading={runs.isPending} error={runs.error} />
-        </Collapsible>
       </div>
-    </Card>
+      <Collapsible title={t('card.history')} open={historyOpen} onOpenChange={setHistoryOpen}>
+        <RunHistory runs={runs.data} loading={runs.isPending} error={runs.error} />
+      </Collapsible>
+    </li>
   );
 }
 

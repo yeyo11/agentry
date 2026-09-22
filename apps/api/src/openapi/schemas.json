@@ -539,6 +539,17 @@
         ],
         "description": "The live execution, when Agentry has a process on the chat; also the last of `executions`"
       },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What that execution is doing right now; `null` whenever none is live"
+      },
       "executions": {
         "type": "array",
         "items": {
@@ -890,6 +901,38 @@
       "total"
     ],
     "description": "Tokens counted in the four ways the API bills them."
+  },
+  "ChatActivity": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "tool",
+          "writing",
+          "thinking",
+          "waiting"
+        ],
+        "description": "`tool`: a tool call without its result yet; `writing`/`thinking`: a text or thinking block is streaming; `waiting`: blocked on a permission prompt"
+      },
+      "tool": {
+        "type": "string",
+        "description": "The CLI's tool name (`Edit`, `Bash`, `Grep`, `Task`…) when `kind` is `tool`"
+      },
+      "target": {
+        "type": "string",
+        "description": "A short human label for the tool's input: a path relative to the chat's cwd, a command's description or its first 80 characters, a pattern, a subagent's description, a URL's host"
+      },
+      "since": {
+        "type": "string",
+        "description": "When this activity started (ISO)"
+      }
+    },
+    "required": [
+      "kind",
+      "since"
+    ],
+    "description": "What a live execution is doing right now, from its latest stream-json events."
   },
   "ChatContext": {
     "type": "object",
@@ -2231,6 +2274,17 @@
           }
         ],
         "description": "Computed while it runs, from the same signals as a chat's; absent once it has ended"
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What the worker's live execution is doing right now; absent once the task has ended"
       },
       "clockStartedAt": {
         "type": [
@@ -4001,6 +4055,9 @@
         "$ref": "#/components/schemas/ChangesUpdatedEvent"
       },
       {
+        "$ref": "#/components/schemas/ChatActivityEvent"
+      },
+      {
         "$ref": "#/components/schemas/HealthChangedEvent"
       },
       {
@@ -5464,6 +5521,81 @@
     ],
     "description": "A worker committed, or its uncommitted work moved: what `GET …/changes` answers is stale. Sent for a running task and for the integration branch while it is built, at most once per few seconds each, so a commit is one event and a burst of edits is not many."
   },
+  "ChatActivityEvent": {
+    "type": "object",
+    "properties": {
+      "runId": {
+        "type": "string"
+      },
+      "runName": {
+        "type": "string"
+      },
+      "sessionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null until the CLI reports the session id"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration"
+      },
+      "internal": {
+        "type": "boolean",
+        "description": "Housekeeping runs (planner, auth check) that consumers usually leave out of notifications"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "chat.activity"
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set for a worker of an orchestration, so its board patches the task too"
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "activity",
+      "at",
+      "id",
+      "internal",
+      "orchestrationId",
+      "runId",
+      "runName",
+      "sessionId",
+      "taskId",
+      "title",
+      "type"
+    ],
+    "description": "What a chat's live execution is doing right now changed: a tool call started or was answered, a text or thinking block began streaming, or a permission prompt blocked it. Sent at most once per chat per second, and carrying the whole  {@link  ChatActivity } , so a list patches the line it shows instead of reading every chat again. `activity` is null when the chat stopped doing anything nameable: its turn ended, or its process is gone."
+  },
   "HealthChangedEvent": {
     "type": "object",
     "properties": {
@@ -5952,6 +6084,17 @@
           }
         ],
         "description": "The live execution, when Agentry has a process on the chat; also the last of `executions`"
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What that execution is doing right now; `null` whenever none is live"
       },
       "executions": {
         "type": "array",
@@ -7608,7 +7751,7 @@
       },
       "processes": {
         "type": "number",
-        "description": "How many processes of its tree were signalled"
+        "description": "How many processes of its tree were ended"
       }
     },
     "required": [

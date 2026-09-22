@@ -10,6 +10,10 @@ const BASE_STYLE = `
   pre { margin: 0; max-width: 640px; max-height: 40vh; overflow: auto; text-align: left; white-space: pre-wrap;
         background: #181a1f; border: 1px solid #2a2d34; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #c4c8d0; }
   .row { display: flex; gap: 10px; }
+  /* The window has no system title bar: these pages are dragged by their body, like the UI by its top bar */
+  body { -webkit-app-region: drag; user-select: none; padding-top: 54px; box-sizing: border-box; }
+  a, pre { -webkit-app-region: no-drag; }
+  pre { user-select: text; }
   a.btn { padding: 7px 16px; border-radius: 7px; border: 1px solid #3a3e48; color: #e6e7ea; text-decoration: none; }
   a.primary { background: #d97757; border-color: #d97757; color: #101114; font-weight: 600; }
 `;

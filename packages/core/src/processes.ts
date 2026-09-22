@@ -177,8 +177,10 @@ export function commandRoots(
  * Signals a process tree: the descendants first, so nothing is left to be adopted by init and
  * escape, then the root. What survives the grace period gets SIGKILL, but only if it is still the
  * same process (same pid, same start time): a pid the system has reused since is somebody else's.
- * Returns how many processes were signalled, at once: the escalation runs on its own timer, so the
- * request that asked for the cancel does not wait for it.
+ * Returns how many processes of the tree were ended, at once: the escalation runs on its own timer,
+ * so the request that asked for the cancel does not wait for it. One that is gone by the time its
+ * turn comes counts: a shell waiting on the child just signalled exits and is reaped by its parent
+ * in between, and it ended with the tree all the same.
  */
 export function terminateTree(root: ProcessEntry, table: readonly ProcessEntry[], graceMs = 2000): number {
   const victims = [...descendantsOf(table, root.pid), root];
@@ -187,15 +189,22 @@ export function terminateTree(root: ProcessEntry, table: readonly ProcessEntry[]
       process.kill(entry.pid, name);
       return true;
     } catch {
-      return false; // gone already
+      return false; // gone already, or not ours to signal
     }
   };
-  const signalled = victims.filter((victim) => signal(victim, 'SIGTERM')).length;
+  const ended = victims.filter((victim) => {
+    try {
+      process.kill(victim.pid, 'SIGTERM');
+      return true;
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === 'ESRCH';
+    }
+  }).length;
   setTimeout(() => {
     const now = processTable();
     for (const victim of victims) {
       if (now.some((p) => p.pid === victim.pid && p.started === victim.started)) signal(victim, 'SIGKILL');
     }
   }, graceMs).unref();
-  return signalled;
+  return ended;
 }

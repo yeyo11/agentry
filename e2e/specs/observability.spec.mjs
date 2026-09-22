@@ -115,6 +115,8 @@ export default async ({ page, api, check }) => {
     // A full load: the page's copy of the settings was read before the reset
     await page.goto('/', 500);
     await page.goto(`/chats/${SESSION}`, 1500);
+    // What it changed is the inspector's Changes tab
+    await page.click('.chat-inspector [role=tab]', 'Changes');
     await page.waitFor(`return !!document.querySelector('.obs-changes')`, { label: 'the changes card' });
 
     // Branch, base and the commit
@@ -150,13 +152,17 @@ export default async ({ page, api, check }) => {
     const worktreeLink = await page.eval(`return [...document.querySelectorAll('.obs-changes a.btn')].find((a) => a.textContent.includes('Open worktree in editor'))?.getAttribute('href') ?? null`);
     check(worktreeLink === `vscode://file${repo.tree}`, `the worktree link has no line (${worktreeLink})`);
 
-    // What it is doing now, and its own checklist
+    // What it is doing now, and its own checklist, on the Activity tab
+    await page.click('.chat-inspector [role=tab]', 'Activity');
+    await page.waitFor(`return !!document.querySelector('.insp-checklist')`, { label: 'the checklist' });
     const side = await page.text('.run-side');
     // Nothing works on this chat, so its unanswered call is a stale one and it is not said to be running
     check(!side.includes('Running Bash:'), 'a chat nobody is working on is not said to run a command');
     check(/Last event in the transcript .+ ago/.test(side), 'the time since its last event is shown');
     check(side.includes('1 of 3 done') && side.includes('working on: Update the callers'), 'the checklist says what is done and what it is on');
-    check(await page.eval(`return [...document.querySelectorAll('.obs-check .sr-only')].map((e) => e.textContent.trim()).join('|') === 'Done:|In progress:|To do:'`), 'each checklist item says its state in words');
+    check(await page.eval(`return [...document.querySelectorAll('.insp-checklist .step .sr-only')].map((e) => e.textContent.trim()).join('|') === 'Done|In progress|Not started'`), 'each checklist item says its state in words');
+    // The header says how far along the checklist is, and opens it
+    check(await page.eval(`return document.querySelector('.chat-checklist')?.textContent.includes('1/3') ?? false`), 'the header shows the checklist progress');
 
     // The editor settings: the template, the container-to-host mapping and the diff command
     await page.goto('/settings?tab=editor', 1500);
@@ -183,6 +189,7 @@ export default async ({ page, api, check }) => {
 
     // Back on the chat, the link follows the setting and the host path
     await page.goto(`/chats/${SESSION}`, 1500);
+    await page.click('.chat-inspector [role=tab]', 'Changes');
     await page.waitFor(`return !!document.querySelector('.obs-changes')`, { label: 'the changes card again' });
     const mapped = await page.eval(`return [...document.querySelectorAll('.obs-changes a.btn')].find((a) => a.textContent.includes('Open worktree in editor'))?.getAttribute('href') ?? null`);
     check(mapped === 'cursor://file/home/dev/feature', `the worktree link uses the template and the host path (${mapped})`);

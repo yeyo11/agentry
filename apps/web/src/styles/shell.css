@@ -1,0 +1,913 @@
+/* Shell: sidebar, top bar, navigation, the main column and the sign-in screen. */
+.shell {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  height: 100dvh;
+  transition: grid-template-columns var(--dur-slow) var(--ease-out);
+}
+
+.shell-rail {
+  grid-template-columns: 68px minmax(0, 1fr);
+}
+
+.sidebar {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px 12px 12px;
+  background: var(--bg-sunken);
+  border-right: 1px solid var(--border);
+  overflow: hidden auto;
+  min-width: 0;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 4px;
+  color: var(--text);
+  font-weight: 650;
+  font-size: 14.5px;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+}
+
+.brand:hover {
+  text-decoration: none;
+}
+
+.brand-mark {
+  flex: none;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px -2px var(--ring);
+  transition: transform var(--dur-slow) var(--ease-spring);
+}
+
+.brand:hover .brand-mark {
+  transform: rotate(45deg) scale(1.05);
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: color var(--dur-fast), background var(--dur-fast);
+}
+
+.nav-link:hover {
+  color: var(--text);
+  background: var(--highlight);
+  text-decoration: none;
+}
+
+.nav-link.is-active {
+  color: var(--text);
+}
+
+/* The current page: a flat highlight and the accent rail, no raised pill */
+.nav-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+}
+
+.nav-pill::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  bottom: 7px;
+  width: var(--rail-w);
+  border-radius: 0 var(--rail-w) var(--rail-w) 0;
+  background: var(--accent);
+}
+
+.nav-icon,
+.nav-label,
+.nav-count {
+  position: relative;
+  z-index: 1;
+}
+
+.nav-icon {
+  display: inline-flex;
+  width: 18px;
+  justify-content: center;
+  transition: color var(--dur-fast), transform var(--dur-base) var(--ease-spring);
+}
+
+.nav-link:hover .nav-icon {
+  transform: scale(1.08);
+}
+
+.nav-link.is-active .nav-icon {
+  color: var(--accent);
+}
+
+.nav-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A count, not a call to action: mono and outlined, like the badges */
+.nav-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  color: var(--text);
+  font: 600 11px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.nav-link-ext {
+  margin-top: auto;
+}
+
+.nav-link-ext + .sidebar-foot {
+  margin-top: 0;
+}
+
+.sidebar-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  min-width: 0;
+  transition: background var(--dur-fast);
+}
+
+.sidebar-foot:hover {
+  text-decoration: none;
+  background: var(--highlight);
+}
+
+.sidebar-foot-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.sidebar-foot-title {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.sidebar-foot-detail {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* ---- Live: what is running and what waits for a person, under the navigation ---- */
+.live-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.live-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 2px;
+  color: var(--text-faint);
+  font: 600 10.5px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.live-section-count {
+  color: var(--live);
+  font-variant-numeric: tabular-nums;
+}
+
+.live-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.live-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 5px 10px 5px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  transition: background var(--dur-fast);
+}
+
+.live-row:hover {
+  text-decoration: none;
+  background: var(--highlight);
+}
+
+.live-row.active {
+  background: var(--bg-hover);
+}
+
+.live-row-title {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.live-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-left: calc(1ch + 7px);
+  color: var(--text-muted);
+  font: 11.5px var(--mono);
+}
+
+.live-row .ticker {
+  padding-left: calc(1ch + 7px);
+}
+
+/* The spinner is already on the title line; the ticker's own would be a second one */
+.live-row .ticker-spinner {
+  display: none;
+}
+
+.live-row .ticker-line {
+  font-size: 11.5px;
+}
+
+.live-row-state {
+  color: var(--live);
+}
+
+.live-row.is-waiting .live-row-state {
+  color: var(--warn);
+}
+
+/* Waiting is a person's turn, not work in progress: a still dot in the warning colour, never a spinner */
+.live-waiting-dot {
+  flex: none;
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  align-self: center;
+}
+
+.live-more {
+  padding: 3px 10px 3px 12px;
+  color: var(--text-muted);
+  font: 11.5px var(--mono);
+}
+
+.live-more:hover {
+  color: var(--text);
+}
+
+.live-rail-btn {
+  width: 100%;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.live-rail-btn .nav-icon {
+  color: var(--live);
+}
+
+.live-count {
+  border-color: var(--live);
+  color: var(--live);
+}
+
+/* The rows of the live menus in the top bar and the rail */
+.live-menu-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  max-width: 340px;
+}
+
+.live-menu-meta {
+  flex: none;
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--text-muted);
+  font: 11.5px var(--mono);
+}
+
+/* Icon rail. The labels are still the links' names, so they are visually hidden, never display:none */
+.shell-rail .brand-name,
+.shell-rail .nav-label,
+.shell-rail .sidebar-foot-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.shell-rail .sidebar {
+  padding-left: 10px;
+  padding-right: 10px;
+  overflow: visible;
+}
+
+.shell-rail .sidebar-head {
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shell-rail .nav-link {
+  justify-content: center;
+  padding: 9px 0;
+}
+
+.shell-rail .nav-count {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  font-size: 9.5px;
+  background: var(--bg-sunken);
+}
+
+.shell-rail .sidebar-foot {
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100dvh;
+  isolation: isolate;
+}
+
+.topbar {
+  flex: none;
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--topbar-h);
+  padding: 0 20px 0 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.crumb-group,
+.crumb-sep {
+  color: var(--text-faint);
+}
+
+.crumb-page {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.select-trigger.project-selector {
+  width: auto;
+  min-width: 150px;
+  max-width: 240px;
+}
+
+/* "⠹ 2 working · post-roadmap 11/17": the only thing in the bar in the live colour */
+.live-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 320px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--live);
+  border-radius: 999px;
+  background: var(--live-soft);
+  color: var(--text);
+  font: 500 12px var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+
+.live-chip.is-waiting {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.live-chip:hover {
+  background: var(--bg-hover);
+}
+
+.live-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-new {
+  flex: none;
+}
+
+.main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 26px 28px 48px;
+  scroll-padding-bottom: 80px;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  min-width: 0;
+}
+
+/* Children with their own overflow (board, tables) must not shrink inside the column */
+.page > * {
+  flex-shrink: 0;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 2px;
+}
+
+.page-header-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.page-header h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.page-header-text > .muted {
+  max-width: 880px;
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.title-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  transition: all var(--dur-fast);
+}
+
+.title-back:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+  transform: translateX(-2px);
+}
+
+.title-icon,
+.meta-icon,
+.link-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.link-more {
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text-muted);
+}
+
+.link-more:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.link-more svg {
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.link-more:hover svg {
+  transform: translateX(3px);
+}
+
+
+/* ---- The phone's bottom tab bar: hidden until the sidebar is ---- */
+.tabbar {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .shell,
+  .shell-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Below 900 px the tab bar and its "More" sheet carry the navigation */
+  .sidebar,
+  .shell-rail .sidebar {
+    display: none;
+  }
+
+  .topbar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .crumb-group,
+  .crumb-sep {
+    display: none;
+  }
+
+  /* The tab bar has "New" and badges for what is live; the bar keeps crumb, project, search, bell */
+  .topbar .live-chip,
+  .topbar .topbar-new {
+    display: none;
+  }
+
+  .main {
+    padding: 16px 14px 36px;
+  }
+
+  .shell-has-tabbar .main {
+    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 24px);
+    scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 24px);
+  }
+
+  .tabbar {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+    padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    border-top: 1px solid var(--border);
+    background: var(--bg-elev);
+  }
+
+  .tabbar-tab {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+    min-height: 44px;
+    padding: 4px 2px;
+    border: 0;
+    background: none;
+    color: var(--text-muted);
+    font: 500 10.5px var(--sans);
+    cursor: pointer;
+  }
+
+  .tabbar-tab:hover {
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .tabbar-tab.is-active {
+    color: var(--text);
+  }
+
+  .tabbar-tab.is-active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 28%;
+    right: 28%;
+    height: var(--rail-w);
+    border-radius: 0 0 var(--rail-w) var(--rail-w);
+    background: var(--accent);
+  }
+
+  .tabbar-tab.is-active .tabbar-icon {
+    color: var(--accent);
+  }
+
+  .tabbar-tab:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -4px;
+    border-radius: var(--radius-sm);
+  }
+
+  .tabbar-icon {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .tabbar-new-icon {
+    padding: 3px 12px;
+    border-radius: 999px;
+    background: var(--gradient-accent);
+    color: var(--accent-text);
+  }
+
+  .tabbar-label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tabbar-badge {
+    position: absolute;
+    top: -6px;
+    left: calc(100% - 6px);
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border: 1px solid var(--live);
+    border-radius: var(--radius-xs);
+    background: var(--bg-elev);
+    color: var(--live);
+    font: 600 10px/14px var(--mono);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+
+  /* Toasts stay above the tab bar instead of under a thumb */
+  :root:has(.shell-has-tabbar) .toasts {
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 12px);
+  }
+}
+
+/* The "More" sheet: the rest of the navigation, the API reference and the connection */
+.more-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.more-nav .nav-link {
+  min-height: 44px;
+}
+
+.more-nav .nav-link.is-active {
+  background: var(--bg-hover);
+}
+
+.more-connection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.more-connection-head {
+  padding: 0 10px;
+  color: var(--text-faint);
+  font: 600 10.5px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 480px) {
+  /* The page's own h1 says where you are; the crumb only costs the actions their room */
+  .crumbs {
+    display: none;
+  }
+
+  .topbar-actions {
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  .select-trigger.project-selector {
+    min-width: 0;
+    max-width: 132px;
+  }
+}
+
+/*
+ * The desktop app (lib/desktop.ts stamps these classes). Its window has no system title bar, so
+ * the top bar is the drag region, everything a person clicks in it opts out, and the window
+ * controls get their room: `env(titlebar-area-*)` describes where the controls are not, when the
+ * window reports it (Window Controls Overlay); otherwise nothing is reserved.
+ */
+.is-desktop .topbar,
+.is-desktop .sidebar-head {
+  app-region: drag;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.is-desktop .topbar :is(a, button, input, select, textarea, [role='button'], [role='combobox'], .split-btn, .live-chip),
+.is-desktop .sidebar-head :is(a, button) {
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
+}
+
+.is-desktop .topbar {
+  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px);
+}
+
+/* macOS keeps its traffic lights top-left, over the sidebar's head (or the bar when it is hidden) */
+.desktop-darwin .sidebar-head {
+  padding-left: max(env(titlebar-area-x, 0px), 68px);
+}
+
+.desktop-darwin .shell-rail .sidebar-head {
+  padding-left: 0;
+  padding-top: 26px;
+}
+
+@media (max-width: 900px) {
+  .desktop-darwin .topbar {
+    padding-left: max(env(titlebar-area-x, 0px), 76px);
+  }
+}
+
+/* ---- Settings → Appearance ---- */
+.appearance {
+  display: flex;
+  flex-direction: column;
+}
+
+.appearance-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 12px 24px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+
+.appearance-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.appearance-row-title {
+  font-weight: 600;
+}
+
+.appearance-row-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.appearance-forced {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border-left: var(--rail-w) solid var(--info);
+  background: var(--info-soft);
+  color: var(--text);
+}
+
+.appearance-forced svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--info);
+}
+
+.appearance-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.appearance-preview-label {
+  color: var(--text-faint);
+  font: 600 10.5px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 700px) {
+  .appearance-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The sign-in screen: the whole app when the API answered 401, so it centres on its own */
+.signin {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.signin-card {
+  width: min(440px, 100%);
+}
+
+.signin-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.signin-head h1 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.signin-card .btn {
+  align-self: flex-start;
+}

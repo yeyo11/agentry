@@ -1,4 +1,4 @@
-/* Command palette and theme toggle. Built on the shared tokens; newer tokens carry fallbacks. */
+/* Command palette and the round icon buttons of the top bar (the bell). Built on the shared tokens; newer tokens carry fallbacks. */
 
 .theme-toggle {
   display: inline-grid;
@@ -25,10 +25,6 @@
 .palette-trigger:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-.theme-toggle-icon {
-  display: grid;
-  place-items: center;
 }
 
 .palette-trigger {

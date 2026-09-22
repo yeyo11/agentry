@@ -158,6 +158,8 @@ export function useChatTranscript(id: string, sidechains: boolean) {
 export interface StreamingPartial {
   block: 'text' | 'thinking';
   text: string;
+  /** When this block started streaming (ISO): what the ticker counts from */
+  since: string;
 }
 
 /** A stored event that means the streamed block is now final (or the turn is over). */
@@ -187,6 +189,7 @@ export function useChatStream(id: string, enabled: boolean): { partial: Streamin
     let frame = 0;
     let stale: ReturnType<typeof setTimeout> | undefined;
     let next: StreamingPartial | null | undefined;
+    let streaming: { block: 'text' | 'thinking'; since: string } | null = null;
     const apply = () => {
       frame = 0;
       if (next !== undefined) setPartial(next);
@@ -204,8 +207,13 @@ export function useChatStream(id: string, enabled: boolean): { partial: Streamin
         return; // keep-alives and malformed frames
       }
       if (event.kind === 'partial') {
-        next = { block: event.block ?? 'text', text: event.text ?? '' };
+        const block = event.block ?? 'text';
+        // The same block growing keeps its start; a new one (thinking gave way to text) starts again
+        const since = streaming && streaming.block === block ? streaming.since : event.ts || new Date().toISOString();
+        streaming = { block, since };
+        next = { block, text: event.text ?? '', since };
       } else if (endsPartial(event)) {
+        streaming = null;
         next = null;
         // Wait for the CLI to write what was just said before asking for it
         clearTimeout(stale);

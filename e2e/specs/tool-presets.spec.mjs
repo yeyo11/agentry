@@ -23,6 +23,8 @@ export default async ({ page, api, check }) => {
   check((await page.text('[role=tabpanel] tbody')).includes('Default'), 'the default is marked in the list');
 
   await page.goto('/chats/new', 1200);
+  // Tools are among the advanced options, folded until opened
+  await page.click('.new-chat-advanced .collapsible-trigger', undefined, 400);
   const unpicked = await page.text('[aria-label="Tool preset"]');
   check(unpicked.includes('Default (E2E docs)'), `a new chat that picks no preset says it takes the default (${unpicked})`);
   check((await page.text('main')).includes('the default preset, E2E docs'), 'the hint names the default preset');

@@ -17,7 +17,7 @@
     "typecheck": "pnpm -r typecheck",
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
-    "test": "pnpm --filter @agentry/core --filter @agentry/api --filter @agentry/web test",
+    "test": "pnpm --filter @agentry/core --filter @agentry/api --filter @agentry/web --filter @agentry/desktop test",
     "e2e": "node e2e/run.mjs",
     "media": "node scripts/record-media.mjs",
     "desktop:dev": "pnpm --filter @agentry/desktop dev",

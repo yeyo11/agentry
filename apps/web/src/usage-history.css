@@ -4,12 +4,9 @@
   margin: 12px 0 0;
 }
 
+/* Drawn at the width it is given (see `useWidth`), so its text stays at the page's size */
 .usage-chart-svg {
   display: block;
-  width: 100%;
-  height: auto;
-  /* A phone shows it smaller, not scrolled: the text stays legible down to about this width */
-  min-width: 320px;
 }
 
 .usage-legend {

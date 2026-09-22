@@ -1,0 +1,916 @@
+/* Lists and tables: rows, filters, the inbox and the project lists. */
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  /* Also worn by <ul>s, which must not keep the browser's indent */
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  margin: 0 -4px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-fast), transform var(--dur-base) var(--ease-out);
+}
+
+.list-row:last-child {
+  border-bottom-color: transparent;
+}
+
+.list-row:hover {
+  background: var(--bg-hover);
+  border-bottom-color: transparent;
+  text-decoration: none;
+}
+
+a.list-row:hover {
+  transform: translateX(2px);
+}
+
+.list-row-button {
+  background: none;
+  border-width: 0 0 1px;
+  border-style: solid;
+  border-color: var(--border);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+
+.list-row.is-selected {
+  background: var(--accent-soft);
+}
+
+.list-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.list-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.list-row-wrap {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.list-row-wrap:last-child {
+  border-bottom: 0;
+}
+
+.list-row-wrap > .list-row {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+
+.table-wrap {
+  overflow: auto;
+  max-height: 72vh;
+  border-radius: var(--radius-sm);
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 8px 12px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  transition: background var(--dur-fast);
+}
+
+.table tbody tr:hover td {
+  background: var(--highlight);
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* Sessions: filter bar, project sections, nested orchestration workers */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elev);
+  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-sm);
+}
+
+.filter-bar .select-trigger {
+  width: auto;
+  max-width: 220px;
+}
+
+.filter-bar .audit-status {
+  width: 160px;
+}
+
+.search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 220px;
+  color: var(--text-faint);
+}
+
+.search-field > svg {
+  position: absolute;
+  left: 11px;
+  pointer-events: none;
+}
+
+.search-field input {
+  padding-left: 32px;
+}
+
+.chip-toggle {
+  background: none;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 3px 11px;
+}
+
+.chip-toggle:active {
+  transform: scale(0.97);
+}
+
+.scard {
+  padding: 8px;
+  gap: 0;
+}
+
+@media (max-width: 900px) {
+.filter-bar .select-trigger {
+    max-width: none;
+    flex: 1 1 140px;
+  }
+}
+
+@media (max-width: 560px) {
+.list-row-title .ellipsis {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Targets of at least 24px where the text alone is shorter than that */
+.chip-toggle,
+.detail-task-link,
+.meta .link-btn {
+  min-height: 24px;
+}
+
+.meta .link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inbox {
+  border-color: color-mix(in srgb, var(--bad) 40%, var(--border));
+}
+
+.inbox-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.inbox-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.inbox-row:last-child {
+  border-bottom: 0;
+}
+
+.inbox-icon {
+  flex: none;
+  display: inline-flex;
+  color: var(--bad);
+}
+
+.inbox-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.inbox-what {
+  overflow-wrap: anywhere;
+}
+
+.inbox-row .btn {
+  flex: none;
+}
+
+.today-table {
+  margin-top: 8px;
+}
+
+.today-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.today-table th[scope='row'] {
+  text-align: left;
+  font-weight: 500;
+}
+
+.today-limits {
+  margin-top: 14px;
+}
+
+.candidate-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.candidate-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.candidate-row:last-child {
+  border-bottom: 0;
+}
+
+.candidate-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rename-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rename-form input {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * The row every list page shares: a rail on the left that says the row's state from across the
+ * page, a title line, one line of data in mono, and the row's actions on the right. No box around
+ * it: rows are separated by a 1px line.
+ */
+.lrows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.lrow {
+  --row-rail: transparent;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 11px 10px 11px 14px;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--dur-fast);
+}
+
+.lrow::before {
+  content: '';
+  position: absolute;
+  inset: 11px auto 11px 0;
+  width: var(--rail-w);
+  border-radius: var(--rail-w);
+  background: var(--row-rail);
+}
+
+.lrow:hover {
+  background: var(--bg-hover);
+}
+
+.lrow.is-ok {
+  --row-rail: var(--ok);
+}
+
+.lrow.is-warn {
+  --row-rail: var(--warn);
+}
+
+.lrow.is-bad {
+  --row-rail: var(--bad);
+}
+
+.lrow.is-muted {
+  --row-rail: var(--border-strong);
+}
+
+.lrow-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.lrow-mark {
+  flex: none;
+}
+
+.lrow-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lrow-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.lrow-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 14px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.lrow-sub .mono,
+.lrow-sub code {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.lrow-actions {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.lrow-body {
+  min-width: 0;
+}
+
+/* An account's usage windows sit side by side on a wide screen rather than stretching across it */
+.accounts-list .meters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px 28px;
+  max-width: 900px;
+}
+
+@media (max-width: 560px) {
+  .lrow-head {
+    flex-wrap: wrap;
+  }
+  .lrow-actions {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+}
+
+/*
+ * The chat list. Rows are two lines and never wider than the page: everything on a line that can
+ * be long gives way with an ellipsis, and what a row only needs on demand shows on hover or focus.
+ */
+.crow-list {
+  padding: 0;
+}
+
+.crow-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Four tabs with counts are wider than a phone: they scroll inside their own strip */
+.chats-toolbar .segmented {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+/* The strip says it goes on: its far edge fades instead of cutting a tab in half */
+@media (max-width: 560px) {
+  .chats-toolbar .segmented {
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+}
+
+.crow-group-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 10px 5px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.crow-group-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.crow {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  padding-left: 8px;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--dur-fast);
+}
+
+/* The rail says the state from across the page; the word beside the title says it in words */
+.crow::before {
+  content: '';
+  position: absolute;
+  inset: 8px auto 8px 0;
+  width: var(--rail-w);
+  border-radius: var(--rail-w);
+  background: transparent;
+}
+
+.crow.is-waiting::before {
+  background: var(--warn);
+}
+
+.crow.live-rail {
+  padding-left: 8px;
+}
+
+.crow:hover,
+.crow.is-cursor {
+  background: var(--bg-hover);
+}
+
+.crow.is-selected {
+  background: var(--accent-soft);
+}
+
+.crow-select {
+  flex: none;
+  display: flex;
+  align-items: center;
+  width: 0;
+  overflow: hidden;
+  transition: width var(--dur-fast) var(--ease-out);
+}
+
+.crow-select .check {
+  padding: 4px;
+}
+
+.crow:hover .crow-select,
+.crow:focus-within .crow-select,
+.crow-list.is-selecting .crow-select {
+  width: 30px;
+}
+
+.crow-link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 9px 10px 9px 4px;
+  color: var(--text);
+}
+
+.crow-link:hover {
+  text-decoration: none;
+}
+
+.crow-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.crow-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.crow-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.crow-state {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.crow-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid var(--text-faint);
+}
+
+.crow-state.is-live {
+  color: var(--live);
+}
+
+.crow-state.is-warn {
+  color: var(--warn);
+}
+
+.crow-state.is-warn .crow-dot {
+  border-color: var(--warn);
+  background: var(--warn);
+}
+
+.crow-state.is-bad {
+  color: var(--bad);
+}
+
+.crow-state.is-bad .crow-dot {
+  border-color: var(--bad);
+  background: var(--bad);
+}
+
+.crow-sub {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.crow-prompt,
+.crow-ticker {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crow-place {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 45%;
+  color: var(--text-faint);
+}
+
+.crow-place svg {
+  flex: none;
+}
+
+.crow-place-name,
+.crow-tag {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crow-tag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 18ch;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.crow-tag svg {
+  flex: none;
+}
+
+.crow-tag.is-interactive {
+  color: var(--ok);
+}
+
+.crow-tag.is-readOnly {
+  color: var(--warn);
+}
+
+.crow-extra {
+  display: none;
+  flex: none;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.crow:hover .crow-extra,
+.crow:focus-within .crow-extra {
+  display: inline-flex;
+}
+
+.crow-side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.crow-time {
+  color: var(--text-faint);
+}
+
+.crow-numbers {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.crow-more {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+}
+
+.crow-keys {
+  margin: 0;
+  padding: 10px;
+  font-family: var(--mono);
+}
+
+/* A context window as a ring: amber and red as it fills, with the words in its accessible name */
+.ring {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ring circle {
+  fill: none;
+  stroke-width: 2;
+}
+
+.ring-track {
+  stroke: var(--border-strong);
+}
+
+.ring-fill {
+  stroke: var(--accent);
+  stroke-linecap: round;
+}
+
+.ring-warn .ring-fill {
+  stroke: var(--warn);
+}
+
+.ring-full .ring-fill {
+  stroke: var(--bad);
+}
+
+.ring-warn .ring-text {
+  color: var(--warn);
+}
+
+.ring-full .ring-text {
+  color: var(--bad);
+}
+
+/* The facets behind the Filters button */
+.facets {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 240px;
+}
+
+.facet {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.facet-legend {
+  margin-bottom: 4px;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.facet .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.facet-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.facet-count {
+  margin-left: auto;
+  padding-left: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+/* What can be done with the rows picked: stays in sight while the list scrolls under it */
+.bulk-bar {
+  position: sticky;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-md);
+}
+
+.bulk-count {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.bulk-skipped {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+@media (max-width: 560px) {
+  .crow-extra {
+    display: none !important;
+  }
+  /* On a phone the prompt keeps enough room to be read; the place and the tags give way first */
+  .crow-prompt,
+  .crow-ticker {
+    flex: 1 1 45%;
+  }
+  .crow-place,
+  .crow-tag {
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 35%;
+  }
+}
+
+@media (max-width: 420px) {
+  /* Too narrow for tags beside the prompt: they are all on the chat's own page */
+  .crow-tag {
+    display: none;
+  }
+}
+
+/* No hover on a touch screen: the box to pick a row is always there, and big enough for a finger */
+@media (pointer: coarse) {
+  .crow-select {
+    width: 44px;
+  }
+  .crow-select .check {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+  .crow-keys {
+    display: none;
+  }
+  .facet .check {
+    min-height: 44px;
+  }
+}

@@ -1,4 +1,14 @@
 {
+  "list": {
+    "all": "All",
+    "on": "On",
+    "off": "Off",
+    "show": "Show",
+    "searchPlaceholder": "Search name, expression, prompt…",
+    "searchLabel": "Search schedules",
+    "noneMatch": "No schedules match",
+    "noneMatchBody": "Try another search, or show every schedule."
+  },
   "page": {
     "title": "Schedules",
     "subtitle": "Chats and orchestrations that start on a timetable",
@@ -58,6 +68,8 @@
   "form": {
     "newTitle": "New schedule",
     "editTitle": "Edit schedule",
+    "back": "Back to schedules",
+    "notFound": "This schedule no longer exists",
     "saving": "Saving…",
     "save": "Save",
     "create": "Create schedule",

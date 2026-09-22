@@ -34,9 +34,6 @@
       "held": "held",
       "interrupted": "interrupted"
     },
-    "stageDone": "done",
-    "stageDoneFailed": "done, has failed tasks",
-    "stageDoneBlocked": "done, has blocked tasks",
     "hintSent": "Hint sent",
     "hintSentBody": "{{name}} will see it with its next step.",
     "hintLabel": "Hint for this worker",
@@ -85,6 +82,34 @@
     "blockedBehindIt_other": "and {{count}} are blocked behind it",
     "blockedBehindThem_one": "and {{count}} is blocked behind them",
     "blockedBehindThem_other": "and {{count}} are blocked behind them",
-    "decide": "Decide on the cards below."
+    "decide": "Decide on the cards below.",
+    "tasksUnit": "tasks",
+    "openChatBeside": "Open its chat beside the graph"
+  },
+  "list": {
+    "sections": "Orchestrations and templates",
+    "orchestrations": "Orchestrations",
+    "templates": "Templates",
+    "statusLabel": "Show orchestrations by status",
+    "status": {
+      "all": "All",
+      "live": "Live",
+      "completed": "Completed",
+      "failed": "Failed",
+      "stopped": "Stopped"
+    },
+    "searchPlaceholder": "Search by name, objective or task",
+    "searchLabel": "Search orchestrations",
+    "sortLabel": "Sort orchestrations",
+    "sort": {
+      "recent": "Newest first",
+      "oldest": "Oldest first",
+      "cost": "Most expensive",
+      "name": "Name"
+    },
+    "noMatch": "No orchestration matches",
+    "showAll": "Show them all",
+    "where": "stage {{stage}} · {{task}}",
+    "advanced": "Advanced options"
   }
 }

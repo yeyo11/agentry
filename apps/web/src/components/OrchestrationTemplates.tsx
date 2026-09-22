@@ -1,6 +1,6 @@
 import type { OrchestrationSpec, OrchestrationTemplate } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookmarkPlus, Check, Pencil, Play, TextCursorInput, Trash2, X } from 'lucide-react';
+import { Check, Pencil, Play, TextCursorInput, Trash2, X } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { Combobox, Tooltip } from './controls';
 import { Dialog, useConfirm } from './Dialog';
 import { ICON_SM } from './icons';
 import { useToast } from './Toast';
-import { Card, Empty, ErrorBox, Field, Loading, MODEL_OPTIONS } from './ui';
+import { Empty, ErrorBox, Field, Loading, MODEL_OPTIONS } from './ui';
 
 /**
  * Saves a graph as a template. Given a spec (the launch form's, or a plan's) it takes the graph as
@@ -225,7 +225,7 @@ function RenameTemplate({ template, onDone }: { template: OrchestrationTemplate;
 }
 
 /** The saved graphs: launch one on a new objective, open one in the form to edit, rename or delete it. */
-export function TemplatesCard({ onEdit }: { onEdit: (template: OrchestrationTemplate) => void }) {
+export function TemplatesList({ onEdit }: { onEdit: (template: OrchestrationTemplate) => void }) {
   const { t } = useTranslation(['orchestrationV2', 'common']);
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -243,13 +243,7 @@ export function TemplatesCard({ onEdit }: { onEdit: (template: OrchestrationTemp
   const list = data ?? [];
 
   return (
-    <Card
-      title={
-        <span className="title-icon">
-          <BookmarkPlus {...ICON_SM} /> {t('templates.title', { count: list.length })}
-        </span>
-      }
-    >
+    <div className="stack">
       <ErrorBox error={error ?? remove.error} />
       {isLoading ? (
         <Loading />
@@ -316,6 +310,6 @@ export function TemplatesCard({ onEdit }: { onEdit: (template: OrchestrationTemp
         </ul>
       )}
       {launching && <LaunchTemplateDialog template={launching} onClose={() => setLaunching(null)} />}
-    </Card>
+    </div>
   );
 }

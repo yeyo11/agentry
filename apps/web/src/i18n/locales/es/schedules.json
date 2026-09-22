@@ -1,4 +1,14 @@
 {
+  "list": {
+    "all": "Todas",
+    "on": "Activas",
+    "off": "Apagadas",
+    "show": "Mostrar",
+    "searchPlaceholder": "Busca por nombre, expresión, prompt…",
+    "searchLabel": "Buscar programaciones",
+    "noneMatch": "Ninguna programación coincide",
+    "noneMatchBody": "Prueba otra búsqueda o muestra todas las programaciones."
+  },
   "page": {
     "title": "Programaciones",
     "subtitle": "Chats y orquestaciones que arrancan según un horario",
@@ -58,6 +68,8 @@
   "form": {
     "newTitle": "Nueva programación",
     "editTitle": "Edita la programación",
+    "back": "Volver a programaciones",
+    "notFound": "Esta programación ya no existe",
     "saving": "Guardando…",
     "save": "Guarda",
     "create": "Crea la programación",

@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatDateTime } from '../../lib/format';
+import { useWidth } from '../../lib/use-width';
 import '../../usage-history.css';
 import { pathOf, summarise, xOf, yOf, type AccountSeries, type Frame } from '../../lib/usage-history';
 
@@ -10,7 +11,6 @@ import { pathOf, summarise, xOf, yOf, type AccountSeries, type Frame } from '../
  * the chart, and the chart itself has a description a screen reader reads out.
  */
 
-const WIDTH = 720;
 const HEIGHT = 240;
 const FRAME_PAD = { left: 40, right: 44, top: 12, bottom: 26 };
 
@@ -35,20 +35,21 @@ export function UsageChart({
 }) {
   const { t } = useTranslation('accountsConfig');
   const id = useId();
-  const frame: Frame = { from, to, width: WIDTH, height: HEIGHT, ...FRAME_PAD };
+  const [box, width] = useWidth<HTMLElement>(320, 720);
+  const frame: Frame = { from, to, width, height: HEIGHT, ...FRAME_PAD };
   const summary = summarise(series);
   const description = summary
     .map((s) => t('history.describeSeries', { account: labelOf(s.account), latest: Math.round(s.latest), peak: Math.round(s.peak) }))
     .join(' ');
 
   return (
-    <figure className="usage-chart">
-      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-labelledby={`${id}-title ${id}-desc`} className="usage-chart-svg">
+    <figure className="usage-chart" ref={box}>
+      <svg viewBox={`0 0 ${width} ${HEIGHT}`} width={width} height={HEIGHT} role="img" aria-labelledby={`${id}-title ${id}-desc`} className="usage-chart-svg">
         <title id={`${id}-title`}>{t('history.chartTitle')}</title>
         <desc id={`${id}-desc`}>{description}</desc>
         {[0, 25, 50, 75, 100].map((pct) => (
           <g key={pct} aria-hidden>
-            <line x1={FRAME_PAD.left} x2={WIDTH - FRAME_PAD.right} y1={yOf(frame, pct)} y2={yOf(frame, pct)} stroke="var(--border)" strokeWidth={1} />
+            <line x1={FRAME_PAD.left} x2={width - FRAME_PAD.right} y1={yOf(frame, pct)} y2={yOf(frame, pct)} stroke="var(--border)" strokeWidth={1} />
             <text x={FRAME_PAD.left - 6} y={yOf(frame, pct) + 4} textAnchor="end" fontSize={11} fill="var(--text-muted)">
               {pct}%
             </text>
@@ -56,9 +57,9 @@ export function UsageChart({
         ))}
         {threshold !== undefined && (
           <g aria-hidden>
-            <line x1={FRAME_PAD.left} x2={WIDTH - FRAME_PAD.right} y1={yOf(frame, threshold)} y2={yOf(frame, threshold)} stroke="var(--text-muted)" strokeWidth={1} strokeDasharray="1 4" />
+            <line x1={FRAME_PAD.left} x2={width - FRAME_PAD.right} y1={yOf(frame, threshold)} y2={yOf(frame, threshold)} stroke="var(--text-muted)" strokeWidth={1} strokeDasharray="1 4" />
             {/* Inside the plot, above the line: the right margin is too narrow for the words */}
-            <text x={WIDTH - FRAME_PAD.right} y={yOf(frame, threshold) - 4} textAnchor="end" fontSize={11} fill="var(--text-muted)">
+            <text x={width - FRAME_PAD.right} y={yOf(frame, threshold) - 4} textAnchor="end" fontSize={11} fill="var(--text-muted)">
               {t('history.threshold', { pct: threshold })}
             </text>
           </g>
@@ -67,7 +68,7 @@ export function UsageChart({
           <text x={FRAME_PAD.left} y={HEIGHT - 6} fontSize={11} fill="var(--text-muted)">
             {formatDateTime(from)}
           </text>
-          <text x={WIDTH - FRAME_PAD.right} y={HEIGHT - 6} textAnchor="end" fontSize={11} fill="var(--text-muted)">
+          <text x={width - FRAME_PAD.right} y={HEIGHT - 6} textAnchor="end" fontSize={11} fill="var(--text-muted)">
             {formatDateTime(to)}
           </text>
         </g>
