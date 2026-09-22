@@ -3,6 +3,9 @@ import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from '
 /** Closer to the end than this is at the end: coming back there follows again. */
 const NEAR_END_PX = 80;
 
+/** Keys that scroll up when the scroller, or something in it, has focus. */
+const UP_KEYS = new Set(['ArrowUp', 'PageUp', 'Home']);
+
 /**
  * Keeps a scroller at its end while what is in it grows, and is the only thing that does: rows
  * being measured, stored messages, the block being streamed and the prompts under it all change
@@ -45,18 +48,44 @@ export function useStickToBottom(ref: RefObject<HTMLElement | null>, mounted: bo
       if (following.current) el.scrollTop = el.scrollHeight;
       lastTop = el.scrollTop;
     };
+    const release = () => {
+      if (!following.current) return;
+      following.current = false;
+      setFollowState(false);
+    };
     const onScroll = () => {
       const top = el.scrollTop;
       const movedUp = top < lastTop - 1;
       lastTop = top;
       const near = el.scrollHeight - top - el.clientHeight < NEAR_END_PX;
-      if (near === following.current) return;
       // Rows measured above the view move it by exactly what they move the end, so they never leave
-      // it far from the end; moving up and away is the reader (or a jump to a search hit)
-      if (near || movedUp) {
-        following.current = near;
-        setFollowState(near);
+      // it far from the end; moving up and away is the reader (or a jump to a search hit). Coming
+      // back near the end follows again, but not on the way up: that is the reader leaving it
+      if (!near && movedUp) release();
+      else if (near && !movedUp && !following.current) {
+        following.current = true;
+        setFollowState(true);
       }
+    };
+    // A small nudge up stays near the end, and while Claude writes the pin would pull it straight
+    // back before the scroll could count: a wheel, a key or a finger going up lets go at once
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) release();
+    };
+    const onKey = (event: KeyboardEvent) => {
+      // Keys typed into a field (a prompt's answer) move its caret, not the conversation
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select'))) return;
+      if (UP_KEYS.has(event.key) || (event.key === ' ' && event.shiftKey)) release();
+    };
+    let touchY: number | null = null;
+    const onTouchStart = (event: TouchEvent) => {
+      touchY = event.touches[0]?.clientY ?? null;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      const y = event.touches[0]?.clientY;
+      // The finger going down drags the content down, which shows what is above
+      if (touchY !== null && y !== undefined && y > touchY + 2) release();
     };
 
     const sizes = new ResizeObserver(pin);
@@ -71,11 +100,19 @@ export function useStickToBottom(ref: RefObject<HTMLElement | null>, mounted: bo
     });
     children.observe(el, { childList: true });
     el.addEventListener('scroll', onScroll, { passive: true });
+    el.addEventListener('wheel', onWheel, { passive: true });
+    el.addEventListener('keydown', onKey);
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: true });
     pin();
     return () => {
       sizes.disconnect();
       children.disconnect();
       el.removeEventListener('scroll', onScroll);
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('keydown', onKey);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
     };
   }, [ref, mounted]);
 
