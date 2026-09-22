@@ -255,7 +255,7 @@ const StepView = memo(function StepView({ row, current, subagents }: { row: Extr
 export function StreamingEntry({ block, text, continued = false }: { block: 'text' | 'thinking'; text: string; continued?: boolean }) {
   const { t } = useTranslation('components');
   return (
-    <article className={`msg msg-assistant msg-streaming ${continued ? 'is-continued' : ''}`} aria-live="off">
+    <article className={`msg msg-assistant msg-streaming ${continued ? 'is-continued' : ''}`} aria-live="off" data-find-ignore>
       {continued ? <span className="avatar-gap" aria-hidden /> : <Avatar role="assistant" />}
       <div className="msg-body">
         {!continued && (
