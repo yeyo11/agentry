@@ -1,5 +1,5 @@
 import type { AgentTranscript, ChatBackgroundTask } from '@agentry/shared';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useAgentDetail, useChatTasks, useChatTranscript, useTaskOutput, type AgentRef } from '../lib/chats';
@@ -154,11 +154,13 @@ function AgentBody({ target }: { target: AgentTarget }) {
   useTick(running);
   const follow = useFollow<HTMLDivElement>(data?.total, running);
   const [showAll, setShowAll] = useState(false);
+  const hidden = data && !showAll ? Math.max(0, data.entries.length - RENDERED_ENTRIES) : 0;
+  // Held across the tick above: a new array every second would fold the whole transcript again
+  const shown = useMemo(() => (data ? (hidden > 0 ? data.entries.slice(hidden) : data.entries) : []), [data, hidden]);
 
   if (isLoading) return <Loading />;
   if (error || !data) return <ErrorBox error={error} title={t('detail.agentFailed')} />;
 
-  const hidden = showAll ? 0 : Math.max(0, data.entries.length - RENDERED_ENTRIES);
   const { usage } = data;
   return (
     <div className="detail-scroll" ref={follow.ref} onScroll={follow.onScroll} data-scroll-root>
@@ -273,7 +275,7 @@ function AgentBody({ target }: { target: AgentTarget }) {
                 {t('detail.showEarlier', { count: hidden })}
               </button>
             )}
-            <Transcript entries={hidden > 0 ? data.entries.slice(hidden) : data.entries} />
+            <Transcript entries={shown} />
           </div>
         )}
       </section>
@@ -293,11 +295,12 @@ function ChatBody({ chatId }: { chatId: string }) {
   const { query, chat } = useChatTranscript(chatId, false);
   const working = chat?.state === 'working';
   const follow = useFollow<HTMLDivElement>(query.data?.total, working);
+  const held = query.data?.entries;
+  const entries = useMemo(() => (held ? held.slice(-RENDERED_ENTRIES) : []), [held]);
 
   if (query.isLoading) return <Loading />;
   if (!chat || !query.data) return <ErrorBox error={query.error} title={t('detail.chatFailed')} />;
 
-  const entries = query.data.entries.slice(-RENDERED_ENTRIES);
   const path = `/chats/${encodeURIComponent(chat.id)}`;
   return (
     <div className="detail-scroll" ref={follow.ref} onScroll={follow.onScroll} data-scroll-root>
