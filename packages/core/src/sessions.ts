@@ -1,7 +1,7 @@
 import { createReadStream, existsSync, type Stats } from 'node:fs';
 import { open, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join, sep } from 'node:path';
+import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
   entrySearchText,
@@ -482,10 +482,12 @@ export class SessionStore {
 
   /**
    * Drops what was read after something outside this store changed the transcripts on disk: of one
-   * project's directory when that is all that changed, or of all of them.
+   * project's directory when that is all that changed, or of all of them. A project's directory
+   * name is also the start of its worktrees', and those go with it: dropping too much only costs a
+   * read, keeping a deleted transcript would list it.
    */
   invalidate(projectId?: string): void {
-    const prefix = projectId === undefined ? null : join(this.config.projectsDir, projectId) + sep;
+    const prefix = projectId === undefined ? null : join(this.config.projectsDir, projectId);
     const drop = (file: string) => prefix === null || file.startsWith(prefix);
     for (const file of [...this.transcripts.keys()]) if (drop(file)) this.transcripts.delete(file);
     for (const [id, at] of [...this.files]) if (drop(at.file)) this.files.delete(id);
