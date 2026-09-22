@@ -116,6 +116,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
       project: str('Only chats of this project'),
       loose: str('`1` for chats under no project'),
       origin: str('Comma-separated origins to include: `agentry`, `external`, `orchestration`, `internal` (default `agentry,external`)'),
+      workers: str('`0` leaves out the workers of orchestrations and keeps their syntheses, which share the `orchestration` origin', { enum: ['0', '1'] }),
       state: str('Only chats in this state', { enum: ['working', 'waiting', 'idle'] }),
       limit: str('Max chats to return'),
     }),

@@ -41,6 +41,12 @@ export interface ProjectScope {
   projects: Project[];
   /** The list has been answered, so `project === null` really means All projects */
   ready: boolean;
+  /**
+   * `projectId` is final: the list has been answered, or it is not needed because no project was
+   * asked for or the one asked for is already found. A read scoped by it can start without waiting
+   * for `ready`, and a failed refresh of the projects does not unscope it.
+   */
+  settled: boolean;
   /** `null` selects All projects */
   select: (id: string | null) => void;
 }
@@ -86,7 +92,7 @@ export function ProjectScopeProvider({ children }: { children: ReactNode }) {
     const wanted = linked ? (linked === ALL_PROJECTS ? null : linked) : stored;
     // A project that was removed since it was chosen falls back to All projects
     const project = wanted ? (projects.find((p) => p.id === wanted) ?? null) : null;
-    return { project, projectId: project?.id ?? null, projects, ready: isSuccess, select };
+    return { project, projectId: project?.id ?? null, projects, ready: isSuccess, settled: isSuccess || !wanted || project !== null, select };
   }, [data, isSuccess, linked, stored, select]);
 
   return <Context.Provider value={value}>{children}</Context.Provider>;

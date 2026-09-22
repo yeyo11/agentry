@@ -1,10 +1,10 @@
 import type { ChatOrigin, ChatState, ChatSummary } from '@agentry/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { CheckSquare, Cog, Download, GitBranch, GitFork, Lock, MessageSquare, Network, Play, Terminal, Trash2, X, Zap, type LucideIcon } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { api, keys, useChats } from '../api';
+import { api, keys, useChats, useProjects } from '../api';
 import { ActivityTicker } from '../components/ActivityTicker';
 import { ContextRing } from '../components/ContextRing';
 import { Checkbox, hasOpenLayer } from '../components/controls';
@@ -22,7 +22,7 @@ import {
   groupByDay,
   lastEnded,
   matchesFilters,
-  originsToFetch,
+  listRequest,
   ORIGIN_LABEL,
   rowTags,
   SORT_LABEL,
@@ -39,6 +39,8 @@ import {
 } from '../lib/chat-model';
 import { formatDateTime, formatNumber, timeAgo } from '../lib/format';
 import { useListKeys } from '../lib/list-keys';
+import { useMinute } from '../lib/minute';
+import { ALL_PROJECTS, useProjectScope } from '../lib/project-scope';
 import i18n from '../i18n';
 
 /*
@@ -83,7 +85,17 @@ function StateMark({ chat }: { chat: ChatSummary }) {
   );
 }
 
-function ChatRow({
+/** How long ago, kept current by the shared minute clock rather than by whatever re-renders the row. */
+function Ago({ iso }: { iso: string | null }) {
+  useMinute();
+  return <>{timeAgo(iso)}</>;
+}
+
+/*
+ * Memoized, and handed callbacks that take the chat's id, so a keystroke in the search, a cursor
+ * move or one row's live numbers re-render the rows that changed rather than a hundred of them.
+ */
+const ChatRow = memo(function ChatRow({
   chat,
   index,
   cursor,
@@ -95,8 +107,8 @@ function ChatRow({
   index: number;
   cursor: boolean;
   selected: boolean;
-  onSelect: (on: boolean) => void;
-  onFocus: () => void;
+  onSelect: (id: string, on: boolean) => void;
+  onFocus: (id: string) => void;
 }) {
   const { t } = useTranslation(['chats', 'chat']);
   const firstLine = chat.firstPrompt?.split('\n')[0]?.trim() ?? '';
@@ -104,15 +116,17 @@ function ChatRow({
   const OriginIcon = ORIGIN_ICON[chat.origin];
   const live = chat.state === 'working' && chat.activity;
   const place = chat.origin === 'orchestration' && chat.orchestration ? originLabel(chat) : (chat.project?.name ?? t('list.noProject'));
+  const tags = rowTags(chat);
   return (
     <li
       className={`crow is-${chat.state} ${chat.state === 'working' ? 'live-rail' : ''} ${cursor ? 'is-cursor' : ''} ${selected ? 'is-selected' : ''}`}
       data-row={index}
+      data-id={chat.id}
     >
       <span className="crow-select">
-        <Checkbox checked={selected} onChange={onSelect} aria-label={t('list.selectChat', { title: chat.title })} />
+        <Checkbox checked={selected} onChange={(on) => onSelect(chat.id, on)} aria-label={t('list.selectChat', { title: chat.title })} />
       </span>
-      <Link to={`/chats/${chat.id}`} className="crow-link" onFocus={onFocus}>
+      <Link to={`/chats/${chat.id}`} className="crow-link" onFocus={() => onFocus(chat.id)}>
         <span className="crow-main">
           <span className="crow-line">
             <StateMark chat={chat} />
@@ -129,7 +143,7 @@ function ChatRow({
               {chat.origin !== 'orchestration' && <span className="sr-only">{ORIGIN_LABEL[chat.origin]}</span>}
               <span className="crow-place-name">{place}</span>
             </span>
-            {rowTags(chat).map((tag) => {
+            {tags.map((tag) => {
               const Icon = TAG_ICON[tag];
               return (
                 <span key={tag} className={`crow-tag is-${tag}`}>
@@ -141,7 +155,7 @@ function ChatRow({
             {/* What the chat itself says in full, here only for whoever points at the row */}
             <span className="crow-extra">
               {chat.model && <span className="mono">{chat.model}</span>}
-              {chat.worktree?.branch && !rowTags(chat).includes('worktree') && <span className="mono">{chat.worktree.branch}</span>}
+              {chat.worktree?.branch && !tags.includes('worktree') && <span className="mono">{chat.worktree.branch}</span>}
               <span>{t('list.messages', { n: formatNumber(chat.messageCount) })}</span>
             </span>
           </span>
@@ -149,7 +163,9 @@ function ChatRow({
         <span className="crow-side">
           <time className="crow-time" dateTime={chat.updatedAt ?? undefined}>
             <span className="sr-only">{formatDateTime(chat.updatedAt)}</span>
-            <span aria-hidden>{timeAgo(chat.updatedAt)}</span>
+            <span aria-hidden>
+              <Ago iso={chat.updatedAt} />
+            </span>
           </time>
           <span className="crow-numbers">
             <ContextRing chat={chat} />
@@ -168,7 +184,7 @@ function ChatRow({
       </Link>
     </li>
   );
-}
+});
 
 function Facet({
   legend,
@@ -282,11 +298,16 @@ export function Chats() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState('');
+  // Typing stays instant; the filtering of a few thousand rows follows when the browser has time
+  const deferredSearch = useDeferredValue(search);
   const [shown, setShown] = useState(PAGE);
-  const [cursor, setCursor] = useState<number | null>(null);
+  // The row's id, not its position: a list re-sorted by a live update must not move the cursor to
+  // another chat under the person's Enter or x
+  const [cursor, setCursor] = useState<string | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const listRef = useRef<HTMLDivElement>(null);
   const focusCursor = useRef(false);
+  const minute = useMinute();
 
   const state = STATES.find((s) => s === params.get('state')) ?? null;
   const sort = SORTS.find((s) => s === params.get('sort')) ?? 'activity';
@@ -301,17 +322,30 @@ export function Chats() {
   const modelsParam = params.get('models');
   const projects = useMemo(() => listParam(projectsParam), [projectsParam]);
   const models = useMemo(() => listParam(modelsParam), [modelsParam]);
-  // The project chosen in the top bar; `loose` is the chats under no project
-  const scope = params.get('project');
-  const project = scope === null ? undefined : scope === 'loose' ? null : scope;
+  // The project chosen in the top bar, as every page it scopes reads it. A `?project=` link is what
+  // the scope reads first; `loose`, the chats under no project, is a link the top bar has no entry for.
+  const { projectId, settled } = useProjectScope();
+  // Read for its failure only: without projects the scope never settles, and the list is read unscoped
+  const projectsFailed = useProjects(false).isError;
+  const linked = params.get('project');
+  // A chosen project is kept even while a refresh of the projects fails, so the list never widens
+  // to every project behind the person's back
+  const project: string | null | undefined =
+    linked === 'loose' ? null : (projectId ?? (!settled && linked && linked !== ALL_PROJECTS ? linked : undefined));
   // With one project chosen above, a project facet could only ever say that project
   const byProject = project === undefined;
 
   const filters: ChatFilters = useMemo(
-    () => ({ origins, state, workers, internal, search, ...(byProject ? { projects } : {}), models }),
-    [origins, state, workers, internal, search, byProject, projects, models],
+    () => ({ origins, state, workers, internal, search: deferredSearch, ...(byProject ? { projects } : {}), models }),
+    [origins, state, workers, internal, deferredSearch, byProject, projects, models],
   );
-  const chats = useChats({ origin: originsToFetch(filters), ...(project !== undefined ? { project } : {}) });
+  const chats = useChats({
+    ...listRequest(filters),
+    ...(project !== undefined ? { project } : {}),
+    // A project remembered from last time is only known once the projects are: until then the list
+    // would be read for every project, then again for that one
+    enabled: settled || linked !== null || projectsFailed,
+  });
 
   const patch = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(params);
@@ -326,12 +360,18 @@ export function Chats() {
 
   const all = useMemo(() => chats.data ?? [], [chats.data]);
   const visible = useMemo(() => all.filter((chat) => matchesFilters(chat, filters)).sort(SORTERS[sort]), [all, filters, sort]);
-  const counts = stateCounts(all, filters);
-  const page = visible.slice(0, shown);
-  const groups = sort === 'activity' ? groupByDay(page) : [{ group: null, chats: page }];
-  const projectOptions: FacetOption[] = byProject ? facetOptions(all, 'project', t('list.noProject')) : [];
-  const modelOptions = facetOptions(all, 'model');
-  const selectedChats = visible.filter((chat) => selected.has(chat.id));
+  const counts = useMemo(() => stateCounts(all, filters), [all, filters]);
+  const page = useMemo(() => visible.slice(0, shown), [visible, shown]);
+  // The minute is a dependency so that rows move under "Yesterday" when the day turns over
+  const groups = useMemo(() => (sort === 'activity' ? groupByDay(page, new Date(minute * 60_000)) : [{ group: null, chats: page }]), [sort, page, minute]);
+  const noProject = t('list.noProject');
+  const projectOptions: FacetOption[] = useMemo(() => (byProject ? facetOptions(all, 'project', noProject) : []), [byProject, all, noProject]);
+  const modelOptions = useMemo(() => facetOptions(all, 'model'), [all]);
+  // Chats picked and then hidden by a filter stay picked for when they come back, but the bar and
+  // the list both speak of the ones on screen: nothing is deleted that cannot be seen
+  const selectedChats = useMemo(() => visible.filter((chat) => selected.has(chat.id)), [visible, selected]);
+  const selecting = selectedChats.length > 0;
+  const cursorIndex = cursor === null ? null : visible.findIndex((chat) => chat.id === cursor);
 
   // ---------- filters said as chips ----------
   const setFacet = (key: 'projects' | 'models', held: ReadonlySet<string>, value: string, on: boolean) => {
@@ -367,7 +407,7 @@ export function Chats() {
     setSearch('');
     setShown(PAGE);
     setCursor(null);
-    setParams(scope ? { project: scope } : {}, { replace: true });
+    setParams(linked ? { project: linked } : {}, { replace: true });
   };
 
   // ---------- selection and keyboard ----------
@@ -385,7 +425,7 @@ export function Chats() {
   useEffect(() => {
     if (!focusCursor.current || cursor === null) return;
     focusCursor.current = false;
-    const link = listRef.current?.querySelector<HTMLElement>(`[data-row="${cursor}"] .crow-link`);
+    const link = listRef.current?.querySelector<HTMLElement>(`[data-id="${CSS.escape(cursor)}"] .crow-link`);
     link?.focus({ preventScroll: true });
     link?.scrollIntoView({ block: 'nearest' });
   }, [cursor, shown]);
@@ -404,14 +444,15 @@ export function Chats() {
       }
       if (action === 'next' || action === 'previous') {
         event.preventDefault();
-        const next = stepCursor(visible.length, cursor, action === 'next' ? 1 : -1);
-        if (next === null) return;
+        const next = stepCursor(visible.length, cursorIndex, action === 'next' ? 1 : -1);
+        const target = next === null ? undefined : visible[next];
+        if (next === null || !target) return;
         if (next >= shown) setShown((n) => Math.max(n + PAGE, next + 1));
         focusCursor.current = true;
-        setCursor(next);
+        setCursor(target.id);
         return;
       }
-      const chat = cursor === null ? undefined : visible[cursor];
+      const chat = cursorIndex === null ? undefined : visible[cursorIndex];
       if (!chat) return;
       event.preventDefault();
       if (action === 'select') toggleSelected(chat.id, !selected.has(chat.id));
@@ -427,6 +468,10 @@ export function Chats() {
     { id: 'idle' as const, label: STATE_LABEL.idle, count: counts.idle },
   ];
 
+  // Nothing to count or to call empty until a list has arrived: a failed first read is its error alone
+  const loading = chats.isPending && !chats.error;
+  const answered = chats.data !== undefined;
+
   let rowIndex = 0;
 
   return (
@@ -435,7 +480,7 @@ export function Chats() {
         title={t('list.title')}
         subtitle={
           <span role="status">
-            {t('list.count', { shown: formatNumber(visible.length), total: formatNumber(all.length) })}
+            {answered && t('list.count', { shown: formatNumber(visible.length), total: formatNumber(all.length) })}
           </span>
         }
       />
@@ -492,11 +537,11 @@ export function Chats() {
 
       <ErrorBox error={chats.error} />
 
-      {chats.isLoading ? (
+      {loading ? (
         <Card>
           <Skeleton rows={8} height={20} />
         </Card>
-      ) : visible.length === 0 ? (
+      ) : !answered ? null : visible.length === 0 ? (
         <Card>
           <Empty
             icon={MessageSquare}
@@ -513,7 +558,7 @@ export function Chats() {
           </Empty>
         </Card>
       ) : (
-        <div className={`scard crow-list ${selected.size > 0 ? 'is-selecting' : ''}`} ref={listRef}>
+        <div className={`scard crow-list ${selecting ? 'is-selecting' : ''}`} ref={listRef}>
           {groups.map(({ group, chats: rows }) => (
             <div key={group ?? 'all'} className="crow-group">
               {group && (
@@ -523,20 +568,17 @@ export function Chats() {
                 </h2>
               )}
               <ul className="list-plain">
-                {rows.map((chat) => {
-                  const index = rowIndex++;
-                  return (
-                    <ChatRow
-                      key={chat.id}
-                      chat={chat}
-                      index={index}
-                      cursor={cursor === index}
-                      selected={selected.has(chat.id)}
-                      onSelect={(on) => toggleSelected(chat.id, on)}
-                      onFocus={() => setCursor(index)}
-                    />
-                  );
-                })}
+                {rows.map((chat) => (
+                  <ChatRow
+                    key={chat.id}
+                    chat={chat}
+                    index={rowIndex++}
+                    cursor={cursor === chat.id}
+                    selected={selected.has(chat.id)}
+                    onSelect={toggleSelected}
+                    onFocus={setCursor}
+                  />
+                ))}
               </ul>
             </div>
           ))}
@@ -553,7 +595,7 @@ export function Chats() {
         </div>
       )}
 
-      {selectedChats.length > 0 && (
+      {selecting && (
         <div className="bulk-bar" role="region" aria-label={t('bulk.region')}>
           <span className="bulk-count" role="status">
             <CheckSquare {...ICON_SM} aria-hidden /> {t('bulk.selected', { count: selectedChats.length })}

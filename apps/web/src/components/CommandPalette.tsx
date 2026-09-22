@@ -126,8 +126,8 @@ export function CommandPalette() {
 
   // Data is only fetched while the palette is open; the pages keep their own polling.
   const projects = useQuery({ queryKey: keys.projects, queryFn: api.projects, enabled: open });
-  const working = useQuery({ queryKey: keys.chatList({ state: 'working' }), queryFn: () => api.chats({ state: 'working' }), enabled: open });
-  const waiting = useQuery({ queryKey: keys.chatList({ state: 'waiting' }), queryFn: () => api.chats({ state: 'waiting' }), enabled: open });
+  const working = useQuery({ queryKey: keys.chatList({ state: 'working' }), queryFn: ({ signal }) => api.chats({ state: 'working' }, { signal }), enabled: open });
+  const waiting = useQuery({ queryKey: keys.chatList({ state: 'waiting' }), queryFn: ({ signal }) => api.chats({ state: 'waiting' }, { signal }), enabled: open });
   const orchestrations = useQuery({ queryKey: keys.orchestrations, queryFn: api.orchestrations, enabled: open });
   const overview = useQuery({ queryKey: keys.overview, queryFn: api.overview, enabled: open });
 

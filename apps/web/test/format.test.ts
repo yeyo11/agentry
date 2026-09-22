@@ -56,6 +56,9 @@ test('Spanish output', () => {
     assert.equal(formatBytes(1536), '1,5 KB');
     assert.equal(formatNumber(1500), '1500');
     assert.equal(formatNumber(15000), '15.000');
+    // The cached formatter follows the language like the one `toLocaleString` builds each time
+    const at = Date.UTC(2026, 8, 19, 14, 3, 0);
+    assert.equal(formatDateTime(at), new Date(at).toLocaleString('es-ES'));
   } finally {
     setLanguage('en');
   }

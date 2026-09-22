@@ -96,6 +96,31 @@ export function originsToFetch(filters: Pick<ChatFilters, 'internal'>): ChatOrig
   return [...ALL_ORIGINS, ...(filters.internal ? (['internal'] as const) : [])];
 }
 
+/**
+ * What the list asks the server for. Workers share their origin with the syntheses the list shows,
+ * so they are left out there unless asked for, rather than downloaded to be hidden.
+ */
+export function listRequest(filters: Pick<ChatFilters, 'internal' | 'workers'>): { origin: ChatOrigin[]; workers?: false } {
+  return { origin: originsToFetch(filters), ...(filters.workers ? {} : { workers: false as const }) };
+}
+
+// A row object is replaced whenever the chat changes (react-query keeps the ones that did not), so
+// its text is lowered once per version instead of on every keystroke of a search
+const searchTexts = new WeakMap<ChatSummary, string>();
+
+/** Everything a search looks in, lowered and joined: what `matchesFilters` tests the needle against. */
+export function searchText(chat: ChatSummary): string {
+  let text = searchTexts.get(chat);
+  if (text === undefined) {
+    // A line break cannot be typed into the search box, so a needle never matches across two fields
+    text = [chat.title, chat.firstPrompt ?? '', chat.project?.name ?? '', chat.cwd, chat.id, chat.orchestration?.name ?? '', chat.orchestration?.taskName ?? '']
+      .join('\n')
+      .toLowerCase();
+    searchTexts.set(chat, text);
+  }
+  return text;
+}
+
 export function matchesFilters(chat: ChatSummary, filters: ChatFilters): boolean {
   if (chat.origin === 'internal') {
     if (!filters.internal) return false;
@@ -108,10 +133,7 @@ export function matchesFilters(chat: ChatSummary, filters: ChatFilters): boolean
   if (filters.projects?.size && !filters.projects.has(projectKey(chat))) return false;
   if (filters.models?.size && (chat.model === null || !filters.models.has(chat.model))) return false;
   const needle = filters.search.trim().toLowerCase();
-  if (!needle) return true;
-  return [chat.title, chat.firstPrompt ?? '', chat.project?.name ?? '', chat.cwd, chat.id, chat.orchestration?.name ?? '', chat.orchestration?.taskName ?? ''].some((v) =>
-    v.toLowerCase().includes(needle),
-  );
+  return !needle || searchText(chat).includes(needle);
 }
 
 export type ChatSort = 'activity' | 'started' | 'context' | 'messages';
@@ -145,8 +167,9 @@ export const projectKey = (chat: Pick<ChatSummary, 'project'>): string => chat.p
 /** How many chats each state tab would show with every other filter as it is. */
 export function stateCounts(chats: readonly ChatSummary[], filters: ChatFilters): Record<ChatState | 'all', number> {
   const counts = { all: 0, working: 0, waiting: 0, idle: 0 };
+  const anyState = { ...filters, state: null };
   for (const chat of chats) {
-    if (!matchesFilters(chat, { ...filters, state: null })) continue;
+    if (!matchesFilters(chat, anyState)) continue;
     counts.all++;
     counts[chat.state]++;
   }

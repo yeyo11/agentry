@@ -251,6 +251,8 @@ test('chats are listed with filters that say when they are wrong, and the run, s
   assert.equal((await app.inject('/api/chats?state=asleep')).statusCode, 400);
   assert.match((await app.inject('/api/chats?origin=robot')).json().error, /origin must be one of/);
   assert.equal((await app.inject('/api/chats?origin=agentry,external,orchestration,internal&loose=1&limit=5')).statusCode, 200);
+  assert.equal((await app.inject('/api/chats?origin=orchestration&workers=0')).statusCode, 200);
+  assert.match((await app.inject('/api/chats?workers=no')).json().error, /workers must be 0 or 1/);
   for (const url of ['/api/runs', '/api/runs/ghost', '/api/sessions', '/api/sessions/ghost', '/api/active', '/api/projects/x/sessions']) {
     assert.equal((await app.inject(url)).statusCode, 404, url);
   }

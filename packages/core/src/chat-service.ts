@@ -111,6 +111,11 @@ export interface ChatFilter {
   project?: string | null;
   /** Origins to include; workers and housekeeping are left out unless asked for */
   origins?: readonly ChatOrigin[];
+  /**
+   * `false` leaves out the workers of orchestrations while keeping their syntheses, which share the
+   * `orchestration` origin: a list that hides workers need not download them
+   */
+  workers?: boolean;
   state?: ChatState;
   limit?: number;
 }
@@ -292,6 +297,8 @@ export class ChatService {
       if (filter.state && standing.state !== filter.state) continue;
       const chat = this.assemble(id, facts, runtime, facts.transcripts.get(id) ?? null, standing);
       if (!chat) continue;
+      // Every chat of an orchestration but its synthesis is a worker, one whose graph is gone included
+      if (filter.workers === false && chat.origin === 'orchestration' && chat.orchestration?.taskId !== null) continue;
       if (filter.project !== undefined && (chat.project?.id ?? null) !== filter.project) continue;
       out.push(chat);
     }

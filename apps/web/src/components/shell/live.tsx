@@ -32,13 +32,13 @@ export function useLive(counts: Counts): LiveSummary & { any: boolean } {
   const running = counts?.orchestrationsRunning ?? 0;
   const workingChats = useQuery({
     queryKey: keys.chatList({ state: 'working', limit: LIVE_LIMIT }),
-    queryFn: () => api.chats({ state: 'working', limit: LIVE_LIMIT }),
+    queryFn: ({ signal }) => api.chats({ state: 'working', limit: LIVE_LIMIT }, { signal }),
     enabled: working > 0,
     refetchInterval: fallback,
   });
   const waitingChats = useQuery({
     queryKey: keys.chatList({ state: 'waiting', limit: LIVE_LIMIT }),
-    queryFn: () => api.chats({ state: 'waiting', limit: LIVE_LIMIT }),
+    queryFn: ({ signal }) => api.chats({ state: 'waiting', limit: LIVE_LIMIT }, { signal }),
     enabled: waiting > 0,
     refetchInterval: fallback,
   });
