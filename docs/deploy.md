@@ -1,6 +1,7 @@
 # Deploying Agentry
 
-Three ways to run the image, from one machine to a cluster, and what to know about restarts.
+Three ways to run the image, from one machine to a cluster, what a phone needs from it, and what
+to know about restarts.
 
 ## Docker Compose
 
@@ -50,6 +51,42 @@ starts. Do not scale it.
 
 The `auth.*` values seed a volume that has no `auth.json` yet. After that the settings saved in the UI
 win, so changing the value and upgrading does not change a running install.
+
+## Notifications on a phone
+
+Agentry installs to a home screen and can push a notification to it while the app is closed. Both
+rest on a service worker, and a browser gives a page a service worker **only on a secure origin**:
+`https://…`, or `localhost`. There is nothing to configure beyond that — no push account, no
+Firebase project, no key of anyone else's.
+
+- **Serve it over TLS.** `docker compose --profile tls up -d` is the short answer: Caddy in front of
+  Agentry, with `AGENTRY_DOMAIN` set to a public name so it fetches and renews a certificate. Behind
+  a proxy of your own, the requirements are the ones above — plus letting the `Authorization` header
+  through, since the push routes are guarded like every other one.
+- **A LAN install over plain HTTP gets the app, not the push.** On `http://192.168.1.10:8787` a phone
+  can still add Agentry to its home screen, but the browser registers no worker there: no cached
+  shell, and no notification while the app is closed. Settings → Notifications says exactly that,
+  naming the origin, rather than showing a switch that does nothing. A browser on the same machine as
+  the server is the exception: `http://localhost:8787` is a secure origin, so push works untouched.
+- **The keypair is made on first use** and kept as `push.json` in the data directory (mode 600, in
+  the mode 700 directory). The private half never leaves the server and no route returns it. It is
+  made once and never rotated, because every subscription was taken out against that public key:
+  keep the data volume and push survives a restart, a rebuild and a new image. Lose it and every
+  registered install goes quiet until it subscribes again.
+- **Set `AGENTRY_PUSH_SUBJECT`** to a `mailto:` or `https:` a push service can complain to, before
+  the first push goes out — the claim is stored with the keypair when it is made. The default is
+  `mailto:agentry@localhost`, which the push services accept but nobody can reach.
+- **Outbound only.** The server POSTs each notification to whatever endpoint the browser handed it —
+  `*.push.services.mozilla.com`, `web.push.apple.com`, `fcm.googleapis.com`. A wrapper behind NAT
+  needs nothing opened; an egress-filtered one needs those hosts allowed, and without them a push is
+  a log line and nothing else.
+- **In Kubernetes**, `push.json` sits on the same PersistentVolumeClaim as the rest of the data
+  directory, which the chart keeps through `helm uninstall`. Bring your own Ingress, and terminate
+  TLS there.
+
+The payload itself holds only what a lock screen shows anyway — the kind, a title and body, the chat
+or orchestration id and the path to open — because it passes through a push service nobody here runs.
+See "Securing it" in the [README](../README.md#securing-it).
 
 ## Pinned Claude Code
 
