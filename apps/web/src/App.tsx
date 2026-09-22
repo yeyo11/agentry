@@ -16,10 +16,11 @@ import {
   Users,
   Workflow,
 } from 'lucide-react';
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { useOverview } from './api';
+import { chatListQuery, useOverview } from './api';
 import { CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
 import type { MenuEntry } from './components/controls/Menu';
 import { Tooltip } from './components/controls/Tooltip';
@@ -34,6 +35,7 @@ import { SignIn } from './components/SignIn';
 import { SplitButton } from './components/SplitButton';
 import { Empty, Skeleton } from './components/ui';
 import { useAuthChallenge } from './lib/auth';
+import { listRequest } from './lib/chat-model';
 import { useDesktopNavigation } from './lib/desktop';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
@@ -44,7 +46,9 @@ import { Home } from './pages/Home';
 const Accounts = lazy(() => import('./pages/Accounts').then((m) => ({ default: m.Accounts })));
 const ChatView = lazy(() => import('./pages/ChatView').then((m) => ({ default: m.ChatView })));
 const Connectors = lazy(() => import('./pages/Connectors').then((m) => ({ default: m.Connectors })));
-const Chats = lazy(() => import('./pages/Chats').then((m) => ({ default: m.Chats })));
+// Loaded ahead of a visit too: the list is where most visits go after the landing page
+const loadChats = () => import('./pages/Chats');
+const Chats = lazy(() => loadChats().then((m) => ({ default: m.Chats })));
 const NewChat = lazy(() => import('./pages/NewChat').then((m) => ({ default: m.NewChat })));
 const Orchestration = lazy(() => import('./pages/Orchestration').then((m) => ({ default: m.Orchestration })));
 const OrchestrationDetail = lazy(() => import('./pages/OrchestrationDetail').then((m) => ({ default: m.OrchestrationDetail })));
@@ -56,6 +60,8 @@ const Usage = lazy(() => import('./pages/Usage').then((m) => ({ default: m.Usage
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 
 const RAIL_KEY = 'cw:sidebar-collapsed';
+/** A list prefetched on hover is used as it is if the click comes within this long. */
+const PREFETCH_FRESH_MS = 10_000;
 
 function readCollapsed(): boolean {
   try {
@@ -95,6 +101,25 @@ function Shell() {
   const live = useLive(counts);
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [workflowOpen, setWorkflowOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Pointing at Chats is a good sign of a click: its code and the list it opens on (no filters, the
+  // top bar's project) start loading then, so the page opens with its rows instead of a skeleton.
+  // The code alone is also fetched once the browser is idle; the list is not, being the heaviest read.
+  const warmChats = useCallback(() => {
+    void loadChats();
+    const filter = { ...listRequest({ internal: false, workers: false }), ...(project ? { project: project.id } : {}) };
+    void queryClient.prefetchQuery({ ...chatListQuery(filter), staleTime: PREFETCH_FRESH_MS });
+  }, [queryClient, project]);
+  useEffect(() => {
+    const load = () => void loadChats();
+    if (typeof requestIdleCallback === 'function') {
+      const idle = requestIdleCallback(load, { timeout: 5000 });
+      return () => cancelIdleCallback(idle);
+    }
+    const timer = setTimeout(load, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     try {
@@ -222,7 +247,12 @@ function Shell() {
               const badge = item.count?.value;
               return (
                 <Tooltip key={item.to} content={railTip(item.label)} side="right">
-                  <NavLink to={item.to} end={item.to === '/'} className={`nav-link ${active ? 'is-active' : ''}`}>
+                  <NavLink
+                    to={item.to}
+                    end={item.to === '/'}
+                    className={`nav-link ${active ? 'is-active' : ''}`}
+                    {...(item.to === '/chats' && !active ? { onPointerEnter: warmChats, onFocus: warmChats } : {})}
+                  >
                     {active && <SlidingIndicator layoutId="nav-pill" className="nav-pill" />}
                     <span className="nav-icon">
                       <Icon {...ICON} />
