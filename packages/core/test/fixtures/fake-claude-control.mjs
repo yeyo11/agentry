@@ -6,9 +6,11 @@
 //
 //   ASK <tool>     asks permission for <tool> and ends the turn with the decision it got back
 //   BASH <command> starts that shell command and never answers it, like one that hangs
-//   SLEEP <seconds> runs `sleep` as a real child process tree (`sh -c 'sleep N & wait'`) for a Bash call,
+//   SLEEP <seconds> runs `sleep` as a real child process tree (`sh -c 'sleep N & wait $!'`) for a Bash call,
 //                  reports a heartbeat for it, and answers the call with an error result when the tree
-//                  is killed, or a plain one when it ends: what a hung command a person cancels looks like
+//                  is killed, or a plain one when it ends: what a hung command a person cancels looks like.
+//                  `wait $!`, not a bare `wait`: that one returns 0 whatever its child died of, so a
+//                  `sleep` killed before its shell made the shell exit cleanly and the call look done
 //   REPLAY <file>  writes each JSON line of <file> to stdout, then ends the turn
 //   … scriptPath "<file>" …  runs that workflow script as the Workflow tool would, with agents that
 //                  answer "done:<label>" (or nothing, for a task whose prompt says FAIL-ONCE on a
@@ -74,7 +76,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       const id = `toolu_sleep_${randomUUID()}`;
       out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id, name: 'Bash', input: { command: `sleep ${sleep[1]}` } }] } });
       // Its own process group, so that the fake going away takes the tree with it and no test leaves a `sleep` behind
-      const child = spawn('sh', ['-c', `sleep ${sleep[1]} & wait`], { stdio: 'ignore', detached: true });
+      const child = spawn('sh', ['-c', `sleep ${sleep[1]} & wait $!`], { stdio: 'ignore', detached: true });
       const reap = () => {
         try {
           process.kill(-child.pid, 'SIGKILL');
