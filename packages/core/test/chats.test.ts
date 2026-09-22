@@ -287,6 +287,8 @@ test('a chat that belongs to an orchestration is read-only whoever holds it, and
     // Workers stay out of the list unless asked for
     assert.equal((await core.chats.list()).some((c) => c.id === worker.id), false);
     assert.equal((await core.chats.list({ origins: ['orchestration'] })).some((c) => c.id === worker.id), true);
+    // A list that hides workers can leave them out while still asking for the syntheses
+    assert.equal((await core.chats.list({ origins: ['orchestration'], workers: false })).some((c) => c.id === worker.id), false);
   } finally {
     core.shutdown();
   }

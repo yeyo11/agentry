@@ -60,12 +60,14 @@ function rangeOf(query: { from?: string; to?: string }): { from?: string; to?: s
 export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   const { chats } = core;
 
-  app.get<{ Querystring: { project?: string; loose?: string; origin?: string; state?: string; limit?: string } }>('/chats', (req) => {
-    const { project, loose, origin, state, limit } = req.query;
+  app.get<{ Querystring: { project?: string; loose?: string; origin?: string; workers?: string; state?: string; limit?: string } }>('/chats', (req) => {
+    const { project, loose, origin, workers, state, limit } = req.query;
+    if (workers !== undefined && workers !== '0' && workers !== '1') throw new Error('workers must be 0 or 1');
     const [wanted] = listOf(state, STATES, 'state') ?? [];
     return chats.list({
       origins: listOf(origin, ORIGINS, 'origin') ?? DEFAULT_ORIGINS,
       ...(loose === '1' ? { project: null } : project ? { project } : {}),
+      ...(workers === '0' ? { workers: false } : {}),
       ...(wanted ? { state: wanted } : {}),
       ...(count(limit, 'limit') ? { limit: count(limit, 'limit') as number } : {}),
     });
