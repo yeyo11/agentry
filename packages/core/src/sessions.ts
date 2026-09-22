@@ -1,7 +1,7 @@
 import { createReadStream, existsSync, type Stats } from 'node:fs';
 import { open, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
   entrySearchText,
@@ -780,6 +780,13 @@ export class SessionStore {
     await rm(found.file.slice(0, -'.jsonl'.length), { recursive: true, force: true });
     this.transcripts.delete(found.file);
     this.files.delete(sessionId);
+    // Its folds and its sidecar's go too: nothing else would ever let go of them
+    const base = found.file.slice(0, -'.jsonl'.length);
+    const gone = (file: string) => file === found.file || file.startsWith(`${base}${sep}`);
+    this.activities.forget(gone);
+    this.toolEntries.forget(gone);
+    this.agentFiles.forget(gone);
+    this.workflowMemo.forget(gone);
   }
 
   /**
