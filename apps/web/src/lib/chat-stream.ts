@@ -8,8 +8,16 @@ import type { ChatDetail, TranscriptEntry } from '@agentry/shared';
  * confirmed them, each with when it was put there. Marked on the entry, not the page: other caches
  * patch the page (the activity line) and a mark on the page object would be lost with it.
  */
-const streamed = new WeakMap<TranscriptEntry, number>();
+const streamed = new WeakMap<TranscriptEntry, { mark: number; at: number }>();
 let appended = 0;
+
+/**
+ * How long a message the stream said may be missing from a read of the transcript before the read
+ * is believed. The CLI streams a message and writes its line in no set order, so a read that lands
+ * in between would take back what was just shown until some later read, which can be a whole tool
+ * call away.
+ */
+const WRITE_GRACE_MS = 2000;
 
 /** Where the stream's appends are now: a read started here cannot hold what is appended after. */
 export const streamMark = (): number => appended;
@@ -34,7 +42,7 @@ const DEDUPE_WINDOW = 50;
  * that got there first). A subagent's entry is left to the next read: where it falls among the
  * chat's own is the transcript's to say.
  */
-export function appendStreamed(page: ChatDetail, entry: TranscriptEntry): { page: ChatDetail; outcome: 'appended' | 'present' | 'skipped' } {
+export function appendStreamed(page: ChatDetail, entry: TranscriptEntry, now = Date.now()): { page: ChatDetail; outcome: 'appended' | 'present' | 'skipped' } {
   if (entry.isSidechain) return { page, outcome: 'skipped' };
   // Older than the page's end: a replay (a restarted server replays a restored chat whole), whose
   // place is somewhere above and not at the end
@@ -45,7 +53,7 @@ export function appendStreamed(page: ChatDetail, entry: TranscriptEntry): { page
       if (page.entries[i]?.uuid === entry.uuid) return { page, outcome: 'present' };
     }
   }
-  streamed.set(entry, ++appended);
+  streamed.set(entry, { mark: ++appended, at: now });
   return { page: { ...page, entries: [...page.entries, entry], total: page.total + 1 }, outcome: 'appended' };
 }
 
@@ -53,11 +61,11 @@ export function appendStreamed(page: ChatDetail, entry: TranscriptEntry): { page
  * The newest entries read back (`fresh`, a short page from the end) spliced onto what is held, so
  * following a live chat costs what it said since, not the newest page again. Everything from where
  * `fresh` starts is replaced, which confirms (or corrects) the entries the stream put there; those
- * the stream appended after the read started (`since`) are kept after it, since it cannot have
- * them yet. Null when the two do not meet or disagree where they overlap (the transcript was
+ * the stream appended after the read started (`since`), or too recently for the CLI to have written
+ * them, are kept after it. Null when the two do not meet or disagree where they overlap (the transcript was
  * rewritten, or grew by more than `fresh` holds): then only a whole page is honest.
  */
-export function spliceTail(held: ChatDetail, fresh: ChatDetail, since = Number.POSITIVE_INFINITY): ChatDetail | null {
+export function spliceTail(held: ChatDetail, fresh: ChatDetail, since = Number.POSITIVE_INFINITY, now = Date.now()): ChatDetail | null {
   const confirmedEnd = held.from + held.entries.length - unconfirmedTail(held);
   if (fresh.from < held.from || fresh.total < confirmedEnd) return null;
   const at = fresh.from - held.from;
@@ -72,7 +80,8 @@ export function spliceTail(held: ChatDetail, fresh: ChatDetail, since = Number.P
   const late: TranscriptEntry[] = [];
   for (const entry of held.entries.slice(at)) {
     const readBack = read.has(entry.uuid) || (entry.role === 'user' && said.has(entryText(entry)));
-    if ((streamed.get(entry) ?? 0) > since && !readBack) late.push(entry);
+    const mark = streamed.get(entry);
+    if (mark && (mark.mark > since || now - mark.at < WRITE_GRACE_MS) && !readBack) late.push(entry);
     // What is replaced is confirmed now, even where the read hands back the very same objects
     else streamed.delete(entry);
   }

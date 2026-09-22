@@ -48,7 +48,7 @@ test('a short read from the end replaces what the stream put there and keeps wha
   const held = appendStreamed(appendStreamed(page(100, ['a', 'b', 'c']), entry('echo')).page, entry('d')).page;
   // The transcript names the wrapper's copy of a user message differently: the read's version wins
   const fresh = page(101, ['b', 'c', 'user', 'd']);
-  const merged = spliceTail(held, fresh);
+  const merged = spliceTail(held, fresh, Number.POSITIVE_INFINITY, Date.now() + 60_000);
   assert.ok(merged);
   assert.deepEqual(uuids(merged), ['a', 'b', 'c', 'user', 'd']);
   assert.equal(merged.from, 100);
@@ -84,6 +84,15 @@ test('what the stream appended while the read was on its way is kept after it', 
   assert.equal(merged?.total, 3);
   // A read that has it drops the kept copy
   assert.deepEqual(uuids(spliceTail(later, page(1, ['b', 'c']), since)), ['a', 'b', 'c']);
+});
+
+test('a message the CLI has not written yet is not taken back by a read that just missed it', () => {
+  const at = 1_000_000;
+  const held = appendStreamed(page(0, ['a']), entry('b'), at).page;
+  // The read started after the stream said it, but the transcript's line was not there yet
+  assert.deepEqual(uuids(spliceTail(held, page(0, ['a']), Number.POSITIVE_INFINITY, at + 100)), ['a', 'b']);
+  // Long after, a read without it is believed
+  assert.deepEqual(uuids(spliceTail(held, page(0, ['a']), Number.POSITIVE_INFINITY, at + 60_000)), ['a']);
 });
 
 test('a user message sent while the read was on its way is not kept twice under two names', () => {
