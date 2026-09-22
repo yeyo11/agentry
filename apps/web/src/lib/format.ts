@@ -6,8 +6,9 @@ import { intlLocale } from '../i18n/language';
 // the tests in test/format.test.ts pin down.
 
 // Lists call these once per row: building an Intl formatter is far dearer than using one.
-const formatters = new Map<string, Intl.NumberFormat | Intl.RelativeTimeFormat>();
-function cached<T extends Intl.NumberFormat | Intl.RelativeTimeFormat>(key: string, make: (locale: string) => T): T {
+type Formatter = Intl.NumberFormat | Intl.RelativeTimeFormat | Intl.DateTimeFormat;
+const formatters = new Map<string, Formatter>();
+function cached<T extends Formatter>(key: string, make: (locale: string) => T): T {
   const locale = intlLocale();
   const id = `${locale}|${key}`;
   let formatter = formatters.get(id);
@@ -19,6 +20,12 @@ function cached<T extends Intl.NumberFormat | Intl.RelativeTimeFormat>(key: stri
 }
 
 type Unit = 'second' | 'minute' | 'hour' | 'day';
+
+// The fields `toLocaleDateString`, `toLocaleTimeString` and `toLocaleString` print by default,
+// through one formatter each instead of the one those methods build on every call
+const DATE: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'numeric', day: 'numeric' };
+const TIME: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: 'numeric', second: 'numeric' };
+const dateTime = (key: string, options: Intl.DateTimeFormatOptions) => cached(`dt:${key}`, (l) => new Intl.DateTimeFormat(l, options));
 
 // English keeps its narrow `2h 5m`; Spanish's narrow units run into the number (`5min`), so it
 // gets the short ones, which are just as brief there (`2 h 5 min`).
@@ -59,7 +66,7 @@ export function timeAgo(value: string | number | null | undefined): string {
   if (h < 24) return ago(h, 'hour');
   const d = Math.floor(h / 24);
   if (d < 30) return ago(d, 'day');
-  return new Date(ms).toLocaleDateString(intlLocale());
+  return dateTime('date', DATE).format(ms);
 }
 
 export function timeUntil(epochSeconds: number | undefined): string {
@@ -76,12 +83,12 @@ export function durationBetween(start: string | number | null, end: string | num
 
 export function formatDateTime(value: string | number | null | undefined): string {
   const ms = toMs(value);
-  return ms == null ? '—' : new Date(ms).toLocaleString(intlLocale());
+  return ms == null ? '—' : dateTime('datetime', { ...DATE, ...TIME }).format(ms);
 }
 
 export function formatClock(value: string | null | undefined): string {
   const ms = toMs(value);
-  return ms == null ? '' : new Date(ms).toLocaleTimeString(intlLocale());
+  return ms == null ? '' : dateTime('time', TIME).format(ms);
 }
 
 export function formatCost(usd: number | null | undefined): string {
