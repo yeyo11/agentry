@@ -169,6 +169,8 @@ async function fromJournal(dir: string, id: string, scriptsDir: string, sessionI
  * them are polled every couple of seconds, and a record carries the whole script and its result.
  */
 export class WorkflowMemo {
+  /** Runs kept at most, least recently read going first: each holds its script, and a long uptime sees many */
+  private static readonly MAX_RUNS = 256;
   private readonly runs = new Map<string, { mtimeMs: number; size: number; live: boolean; run: WorkflowRun | null }>();
 
   /**
@@ -178,10 +180,18 @@ export class WorkflowMemo {
   async get(file: string, live: boolean, read: () => Promise<WorkflowRun | null>, settled: (run: WorkflowRun | null) => boolean = () => true): Promise<WorkflowRun | null> {
     const info = await stat(file).catch(() => null);
     const known = this.runs.get(file);
-    if (info && known && known.mtimeMs === info.mtimeMs && known.size === info.size && known.live === live) return known.run;
+    if (info && known && known.mtimeMs === info.mtimeMs && known.size === info.size && known.live === live) {
+      this.runs.delete(file);
+      this.runs.set(file, known);
+      return known.run;
+    }
     const run = await read();
+    this.runs.delete(file);
     if (info && settled(run)) this.runs.set(file, { mtimeMs: info.mtimeMs, size: info.size, live, run });
-    else this.runs.delete(file);
+    for (const oldest of this.runs.keys()) {
+      if (this.runs.size <= WorkflowMemo.MAX_RUNS) break;
+      this.runs.delete(oldest);
+    }
     return run;
   }
 
