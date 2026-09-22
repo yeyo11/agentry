@@ -403,7 +403,8 @@ function startEventFeed(client: QueryClient): () => void {
         park = undefined;
         if (stopped || document.visibilityState !== 'hidden' || !parkable()) return;
         disconnect();
-        // Not `closed`: nothing is down, and the fallback polls it would start are for a server gone
+        // Not `closed`: nothing is down, the stream is only paused until the tab is shown again (the
+        // fallback intervals this starts do not run in a hidden tab anyway)
         setFeedState('connecting');
       }, HIDDEN_PARK_MS);
     } else if (!stopped && source === null && retry === undefined) {
