@@ -83,5 +83,6 @@ export function useDetailPanel(): { current: DetailRef | null; open: (ref: Detai
       ),
     [setParams],
   );
-  return { current, open, close };
+  // One object while none of it changes: pages build callbacks on it
+  return useMemo(() => ({ current, open, close }), [current, open, close]);
 }
