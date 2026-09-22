@@ -516,6 +516,18 @@ One Server-Sent Events stream for the whole app, so a client never has to poll.
 curl -N localhost:8787/api/events
 ```
 
+### Push
+
+Web Push over VAPID, signed and sent by this server: a chat that stops for a permission prompt reaches a phone whose app is closed. The keypair is made on first use and kept as `push.json` in the data directory (mode 600); the private half never leaves the server, and there is no third-party push account. What is worth a notification is decided by the same function the browser runs on the same event, so the in-page toast and the notification on a lock screen cannot disagree.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/push/key` | The VAPID public key to subscribe with, and whether push is configured at all |
+| GET | `/push/subscriptions` | The registered installs. Endpoints are truncated: a full push endpoint URL is a capability to notify that install |
+| POST | `/push/subscriptions` | Register or refresh one — body is the browser's `PushSubscription` JSON plus `kinds` (every kind when omitted) and a `label` for the list. An endpoint already registered is refreshed, keeping its `createdAt` |
+| DELETE | `/push/subscriptions` | Unregister by `endpoint` (what a browser turning the switch off knows) or by `id` (what the list shows) |
+| POST | `/push/test` | Send one test notification to an install by `endpoint` or `id`, or to every registered one. An endpoint the push service reports as gone (404/410) is deleted |
+
 ### Chats
 
 A chat is one Claude Code conversation, and its id is the session id: however many times it is

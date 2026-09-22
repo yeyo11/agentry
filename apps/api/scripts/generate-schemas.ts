@@ -46,6 +46,8 @@ const ROOT_TYPES = [
   'UsageSeries', 'UsageBreakdown', 'ExportFormat', 'ChatExport', 'ProjectExport',
   // Server strings a client translates by code, and the supervisor
   'Localized', 'SupervisorConfig', 'UpdateSupervisorConfigRequest', 'SupervisorProposal',
+  // Web Push
+  'PushKeyInfo', 'RegisterPushSubscriptionRequest', 'PushSubscriptionSummary', 'RemovePushSubscriptionRequest', 'SendTestPushRequest', 'PushSendResult', 'PushPayload',
   // Packaging
   'CliVersionInfo',
 ];
