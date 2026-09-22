@@ -143,6 +143,23 @@ export interface ReadOptions {
   signal?: AbortSignal;
 }
 
+/**
+ * Aborts when either does, with that one's reason, so a timeout still reads as one. `AbortSignal.any`
+ * is recent (Safari 17.4, Firefox 124): without it every read would throw before being sent.
+ */
+function either(a: AbortSignal, b: AbortSignal): AbortSignal {
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([a, b]);
+  const controller = new AbortController();
+  for (const signal of [a, b]) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true, signal: controller.signal });
+  }
+  return controller.signal;
+}
+
 async function request<T>(path: string, init: { method?: string; body?: unknown; timeoutMs?: number; signal?: AbortSignal } = {}): Promise<T> {
   const hasBody = init.body !== undefined;
   const timeout = AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS);
@@ -152,7 +169,7 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
       method: init.method ?? 'GET',
       headers: { ...(hasBody ? { 'content-type': 'application/json' } : {}), ...authHeaders() },
       body: hasBody ? JSON.stringify(init.body) : undefined,
-      signal: init.signal ? AbortSignal.any([init.signal, timeout]) : timeout,
+      signal: init.signal ? either(init.signal, timeout) : timeout,
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'TimeoutError') {
