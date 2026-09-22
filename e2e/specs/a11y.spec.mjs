@@ -209,7 +209,7 @@ export default async ({ page, api, check, dirs }) => {
       `/orchestration/${orchestrationId}`,
       '/accounts',
       '/connectors',
-      ...['account', 'instructions', 'settings', 'mcp', 'agents', 'skills', 'commands', 'output-styles', 'rules', 'files', 'memory', 'plugins', 'supervisor', 'security', 'install'].map((tab) => `/settings?tab=${tab}`),
+      ...['account', 'instructions', 'settings', 'mcp', 'agents', 'skills', 'commands', 'output-styles', 'rules', 'files', 'memory', 'plugins', 'supervisor', 'security', 'install', 'notifications'].map((tab) => `/settings?tab=${tab}`),
       ...['activity', 'settings', 'memory', 'resources', 'worktrees'].map((tab) => `/?project=${projectId}&tab=${tab}`),
     ];
     for (const theme of ['dark', 'light']) {
@@ -225,7 +225,7 @@ export default async ({ page, api, check, dirs }) => {
     // ---------- axe: phone width ----------
     await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
     await page.viewport(420, 900);
-    const narrow = ['/', '/chats', '/chats/new', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/settings?tab=settings', '/settings?tab=install', `/?project=${projectId}&tab=settings`];
+    const narrow = ['/', '/chats', '/chats/new', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/settings?tab=settings', '/settings?tab=install', '/settings?tab=notifications', `/?project=${projectId}&tab=settings`];
     for (const path of narrow) {
       await settle(page, path);
       await scan(page, `420px ${path}`);

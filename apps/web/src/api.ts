@@ -82,6 +82,12 @@ import type {
   PluginsOverview,
   Project,
   ProjectCandidate,
+  PushKeyInfo,
+  PushSendResult,
+  PushSubscriptionSummary,
+  RegisterPushSubscriptionRequest,
+  RemovePushSubscriptionRequest,
+  SendTestPushRequest,
   ResourceKind,
   ResumeChatRequest,
   Schedule,
@@ -444,6 +450,13 @@ export const api = {
     request<CliTextResult>(`/plugins/marketplaces/${enc(name)}`, { method: 'DELETE' }),
   updateMarketplaces: (name?: string) =>
     request<CliTextResult>('/plugins/marketplaces/update', { method: 'POST', body: name ? { name } : {} }),
+  /** The VAPID public key to subscribe against; the server makes its keypair when this is first asked */
+  pushKey: () => request<PushKeyInfo>('/push/key'),
+  pushSubscriptions: () => request<PushSubscriptionSummary[]>('/push/subscriptions'),
+  registerPush: (body: RegisterPushSubscriptionRequest) => request<PushSubscriptionSummary>('/push/subscriptions', { method: 'POST', body }),
+  removePush: (body: RemovePushSubscriptionRequest) => request<{ removed: boolean }>('/push/subscriptions', { method: 'DELETE', body }),
+  /** No body at all means every registered install; `{ id }` the one row a person aimed at */
+  testPush: (body: SendTestPushRequest = {}) => request<PushSendResult>('/push/test', { method: 'POST', body }),
 };
 
 // ---------- Query hooks ----------
@@ -505,6 +518,7 @@ export const keys = {
   securityAuth: ['security', 'auth'] as const,
   audit: (page: AuditFilter & { from?: number }) =>
     ['security', 'audit', page.from ?? 0, page.path ?? '', page.method ?? '', page.status ?? ''] as const,
+  pushSubscriptions: ['push', 'subscriptions'] as const,
   availablePlugins: (q: string) => ['plugins', 'available', q] as const,
   pluginDetails: (plugin: string) => ['plugins', 'details', plugin] as const,
 };

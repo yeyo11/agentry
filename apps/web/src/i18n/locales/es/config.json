@@ -29,7 +29,8 @@
       "workflows": "Workflows",
       "tools": "Presets de herramientas",
       "security": "Seguridad",
-      "install": "Instalar"
+      "install": "Instalar",
+      "notifications": "Notificaciones"
     }
   },
   "security": {
@@ -953,5 +954,29 @@
     "ios": "En iPhone y iPad ninguna página puede ofrecer un botón de instalación: abre Agentry en Safari, toca Compartir y después Añadir a pantalla de inicio.",
     "manual": "Este navegador instala la aplicación desde su propio menú, donde la opción se llama Instalar o Añadir a pantalla de inicio. Chrome y Edge la ofrecen aquí como botón, tanto en Android como en el escritorio.",
     "insecure": "Esta página se sirve desde {{origin}}, que los navegadores no consideran un origen seguro. Añadir Agentry a la pantalla de inicio sigue funcionando, pero nada que dependa de un service worker: ni arranque inmediato ni notificaciones con la aplicación cerrada. Para eso hace falta https:// o localhost."
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "intro": "Qué te llega y por dónde. Estos interruptores son de este navegador; las notificaciones push se registran en el servidor, y son las que hacen que un aviso llegue con Agentry cerrado.",
+    "devices": {
+      "title": "Dispositivos registrados para push",
+      "intro": "Cada instalación que activó las notificaciones push. Una suscripción pertenece a una instalación y no a una persona, así que todas reciben las mismas notificaciones, y quitar una silencia ese dispositivo para todo el mundo.",
+      "none": "No hay ningún dispositivo registrado",
+      "noneHint": "Activa el interruptor de arriba desde el móvil o el ordenador en el que quieras enterarte.",
+      "thisDevice": "Este dispositivo",
+      "kinds_one": "{{count}} tipo",
+      "kinds_other": "{{count}} tipos",
+      "lastSeen": "visto {{when}}",
+      "test": "Probar",
+      "testNamed": "Probar {{name}} con una notificación",
+      "testSent": "Notificación de prueba enviada",
+      "testGone": "Ese dispositivo ya no existe en su servicio push, así que se ha quitado de la lista",
+      "testFailed": "No se pudo enviar la notificación de prueba",
+      "remove": "Quitar",
+      "removeNamed": "Quitar {{name}}",
+      "removeTitle": "¿Quitar este dispositivo?",
+      "removeBody": "{{name}} dejará de recibir notificaciones. Puede volver a registrarse desde sus propios ajustes.",
+      "removeFailed": "No se pudo quitar ese dispositivo"
+    }
   }
 }

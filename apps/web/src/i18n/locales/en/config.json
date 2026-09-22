@@ -29,7 +29,8 @@
       "workflows": "Workflows",
       "tools": "Tool presets",
       "security": "Security",
-      "install": "Install"
+      "install": "Install",
+      "notifications": "Notifications"
     }
   },
   "security": {
@@ -953,5 +954,29 @@
     "ios": "On iPhone and iPad there is no install button a page may offer: open Agentry in Safari, tap Share and then Add to Home Screen.",
     "manual": "This browser installs an app from its own menu, where the item is called Install or Add to Home Screen. Chrome and Edge offer it here as a button instead, on Android and on the desktop.",
     "insecure": "This page is served from {{origin}}, which browsers do not treat as a secure origin. Adding Agentry to the home screen still works, but nothing that needs a service worker does: no immediate cold start, and no notifications while the app is closed. That needs https:// or localhost."
+  },
+  "notifications": {
+    "title": "Notifications",
+    "intro": "What reaches you, and how. These switches are this browser's own; push is registered with the server, and it is what lets a notification arrive while Agentry is closed.",
+    "devices": {
+      "title": "Devices registered for push",
+      "intro": "Every install that turned push on. A subscription belongs to an install and not to a person, so each of these is sent the same notifications, and removing one silences that device for everybody.",
+      "none": "No device is registered",
+      "noneHint": "Turn the switch above on, from the phone or the computer you want to be told on.",
+      "thisDevice": "This device",
+      "kinds_one": "{{count}} kind",
+      "kinds_other": "{{count}} kinds",
+      "lastSeen": "last seen {{when}}",
+      "test": "Test",
+      "testNamed": "Test {{name}} with a notification",
+      "testSent": "Test notification sent",
+      "testGone": "That device is gone from its push service, so it was removed from the list",
+      "testFailed": "The test notification could not be sent",
+      "remove": "Remove",
+      "removeNamed": "Remove {{name}}",
+      "removeTitle": "Remove this device?",
+      "removeBody": "{{name}} stops being sent notifications. It can register again from its own settings.",
+      "removeFailed": "Could not remove that device"
+    }
   }
 }

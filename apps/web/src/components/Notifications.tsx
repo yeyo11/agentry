@@ -18,6 +18,7 @@ import {
   type AppNotification,
   type NotificationDraft,
 } from '../lib/notifications';
+import { pushIsActive, syncPush } from '../lib/push';
 import '../notifications.css';
 import { Tooltip } from './controls/Tooltip';
 import { ICON } from './icons';
@@ -107,10 +108,14 @@ export function NotificationHost() {
             : undefined,
         });
       }
-      showBrowserNotification(n, (href) => {
-        markRead(n.id);
-        open(href);
-      });
+      // With push on, the same news is already on its way to this device from the server, under the
+      // same tag; the page showing its own would be the one notification twice.
+      if (!pushIsActive()) {
+        showBrowserNotification(n, (href) => {
+          markRead(n.id);
+          open(href);
+        });
+      }
     }
   };
   const seen = (draft: NotificationDraft) => isRedundant(draft, where.current, document.visibilityState === 'visible');
@@ -120,6 +125,29 @@ export function NotificationHost() {
     for (const n of settled) toast.dismissKey(n.key);
     announce(added);
   });
+
+  /*
+   * A notification tapped on a lock screen is opened by the service worker, which has no router:
+   * it focuses this page and hands it the path, and the page answers so the worker knows it does
+   * not have to reload it. A worker with nobody listening falls back to `navigate()`.
+   */
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const onMessage = (event: MessageEvent<unknown>) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object' || (data as { type?: unknown }).type !== 'agentry:open') return;
+      const href = (data as { href?: unknown }).href;
+      if (typeof href !== 'string') return;
+      navigate(href);
+      event.ports[0]?.postMessage('opened');
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, [navigate]);
+
+  // What this browser is registered for, brought in line with what it holds: the subscription may
+  // have been rotated or dropped while no page of ours was open.
+  useEffect(() => void syncPush(), []);
 
   // A chat that was already waiting when the page opened sent its `run.waiting` to nobody
   const announceLatest = useRef(announce);
