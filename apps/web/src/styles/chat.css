@@ -13,6 +13,8 @@
 
 .page:has(> .run-layout) {
   height: 100%;
+  /* The chat takes the whole window, so its drawer reaches the edge on a wide screen too */
+  max-width: none;
 }
 
 .run-layout {
