@@ -39,8 +39,12 @@ export function DatePicker({
 
   return (
     <RadixPopover.Root open={open} onOpenChange={setOpen}>
-      <div className={`date-picker ${className}`}>
-        <RadixPopover.Anchor asChild>
+      {/* The whole field is the anchor, not the input: Radix mounts the trigger wrapped in an anchor
+          of its own first and remounts it bare once it sees this one, which left the input's anchor
+          replaced by a button no longer in the page, and the calendar drawn at the window's corner.
+          A parent's ref is attached after its children's, so the field is the anchor that stays. */}
+      <RadixPopover.Anchor asChild>
+        <div className={`date-picker ${className}`}>
           <input
             aria-label={ariaLabel}
             inputMode="numeric"
@@ -59,13 +63,13 @@ export function DatePicker({
               }
             }}
           />
-        </RadixPopover.Anchor>
-        <RadixPopover.Trigger asChild>
-          <button type="button" className="icon-btn date-picker-button" aria-label={t('datePicker.open', { field: ariaLabel })}>
-            <CalendarDays {...ICON_SM} />
-          </button>
-        </RadixPopover.Trigger>
-      </div>
+          <RadixPopover.Trigger asChild>
+            <button type="button" className="icon-btn date-picker-button" aria-label={t('datePicker.open', { field: ariaLabel })}>
+              <CalendarDays {...ICON_SM} />
+            </button>
+          </RadixPopover.Trigger>
+        </div>
+      </RadixPopover.Anchor>
       <RadixPopover.Portal>
         <RadixPopover.Content
           {...LAYER_ATTR}
