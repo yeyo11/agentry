@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
+import { KINDS, type NotificationKind } from '@agentry/shared';
 import type {
   AuditEntry,
   AuditFilter,
@@ -153,6 +154,21 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      status           TEXT NOT NULL
    );
    CREATE UNIQUE INDEX supervisor_proposals_signal ON supervisor_proposals (chat_id, signal);`,
+
+  // One row per install that asked to be pushed to. Rows, because they accumulate and each one is
+  // a fact about a device rather than a setting of this server. The endpoint is the identity a push
+  // service gives an install, so it is the unique key: a browser that re-subscribes with the same
+  // endpoint refreshes its row instead of adding a second one.
+  `CREATE TABLE push_subscriptions (
+     id           TEXT PRIMARY KEY,
+     endpoint     TEXT NOT NULL UNIQUE,
+     p256dh       TEXT NOT NULL,
+     auth         TEXT NOT NULL,
+     kinds        TEXT NOT NULL,
+     label        TEXT NOT NULL,
+     created_at   TEXT NOT NULL,
+     last_seen_at TEXT NOT NULL
+   );`,
 ];
 
 /** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
@@ -721,6 +737,59 @@ export class Db {
     return Number(result.changes) > 0;
   }
 
+  // ---------- push subscriptions ----------
+
+  /**
+   * Registers an install, or refreshes the one that already holds this endpoint. The row keeps the
+   * `createdAt` of the first registration: a browser rotating its keys is the same device.
+   */
+  savePushSubscription(record: PushSubscriptionRecord): PushSubscriptionRecord {
+    this.db
+      .prepare(
+        `INSERT INTO push_subscriptions (id, endpoint, p256dh, auth, kinds, label, created_at, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(endpoint) DO UPDATE SET
+           p256dh = excluded.p256dh, auth = excluded.auth, kinds = excluded.kinds,
+           label = excluded.label, last_seen_at = excluded.last_seen_at`,
+      )
+      .run(
+        record.id,
+        record.endpoint,
+        record.p256dh,
+        record.auth,
+        JSON.stringify(record.kinds),
+        record.label,
+        record.createdAt,
+        record.lastSeenAt,
+      );
+    return this.pushSubscription({ endpoint: record.endpoint }) ?? record;
+  }
+
+  /** Oldest first, which is the order the Settings list shows them in. */
+  pushSubscriptions(): PushSubscriptionRecord[] {
+    const rows = this.db.prepare('SELECT * FROM push_subscriptions ORDER BY created_at').all() as unknown as PushRow[];
+    return rows.map(pushRecordOf);
+  }
+
+  pushSubscription(ref: { id?: string; endpoint?: string }): PushSubscriptionRecord | null {
+    const row = ref.endpoint
+      ? (this.db.prepare('SELECT * FROM push_subscriptions WHERE endpoint = ?').get(ref.endpoint) as PushRow | undefined)
+      : ref.id
+        ? (this.db.prepare('SELECT * FROM push_subscriptions WHERE id = ?').get(ref.id) as PushRow | undefined)
+        : undefined;
+    return row ? pushRecordOf(row) : null;
+  }
+
+  /** False when there was no such install, which is what a second unsubscribe of the same one is. */
+  deletePushSubscription(ref: { id?: string; endpoint?: string }): boolean {
+    const result = ref.endpoint
+      ? this.db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(ref.endpoint)
+      : ref.id
+        ? this.db.prepare('DELETE FROM push_subscriptions WHERE id = ?').run(ref.id)
+        : { changes: 0 };
+    return Number(result.changes) > 0;
+  }
+
   close(): void {
     this.db.close();
   }
@@ -734,6 +803,50 @@ function statusRange(status: string): [number, number] {
   if (code[2].toLowerCase() === 'xx') return [hundreds, hundreds + 99];
   const exact = hundreds + Number(code[2]);
   return [exact, exact];
+}
+
+/** One install that asked to be pushed to, with the endpoint and keys the sender needs. */
+export interface PushSubscriptionRecord {
+  /** Derived from the endpoint by the caller, so the same install always has the same id */
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  kinds: NotificationKind[];
+  label: string;
+  createdAt: string;
+  lastSeenAt: string;
+}
+
+interface PushRow {
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  kinds: string;
+  label: string;
+  created_at: string;
+  last_seen_at: string;
+}
+
+function pushRecordOf(row: PushRow): PushSubscriptionRecord {
+  let kinds: NotificationKind[] = [];
+  try {
+    const parsed: unknown = JSON.parse(row.kinds);
+    if (Array.isArray(parsed)) kinds = parsed.filter((k): k is NotificationKind => KINDS.includes(k as NotificationKind));
+  } catch {
+    // a hand-edited row asking for nothing is better than one that breaks every send
+  }
+  return {
+    id: row.id,
+    endpoint: row.endpoint,
+    p256dh: row.p256dh,
+    auth: row.auth,
+    kinds,
+    label: row.label,
+    createdAt: row.created_at,
+    lastSeenAt: row.last_seen_at,
+  };
 }
 
 interface ProposalRow {
