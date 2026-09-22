@@ -57,7 +57,8 @@ if (typeof window !== 'undefined') {
   });
 }
 
-function isStandalone(): boolean {
+/** Running from the home screen rather than in a tab — which on iOS is what Web Push requires. */
+export function isStandalone(): boolean {
   if (typeof window === 'undefined') return false;
   // `navigator.standalone` is Safari's own, and the only signal an installed iOS app gives
   const safari = navigator as Navigator & { standalone?: boolean };

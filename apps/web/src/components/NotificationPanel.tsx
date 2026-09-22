@@ -7,24 +7,11 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { timeAgo } from '../lib/format';
-import {
-  browserPermission,
-  clearNotifications,
-  enableBrowserNotifications,
-  KINDS,
-  markAllRead,
-  markRead,
-  removeNotification,
-  setPrefs,
-  unreadCount,
-  useNotificationPrefs,
-  useNotifications,
-  type AppNotification,
-} from '../lib/notifications';
+import { clearNotifications, markAllRead, markRead, removeNotification, unreadCount, useNotifications, type AppNotification } from '../lib/notifications';
 import { Collapsible } from './controls/Collapsible';
 import { LAYER_ATTR } from './controls/layer';
-import { Switch } from './controls/Toggle';
 import { ICON, ICON_SM } from './icons';
+import { NotificationPreferences } from './NotificationPreferences';
 import { useToast } from './Toast';
 
 function iconFor(n: AppNotification): LucideIcon {
@@ -119,36 +106,16 @@ function NotificationItem({ n, onOpen }: { n: AppNotification; onOpen: (n: AppNo
   );
 }
 
+/**
+ * The same switches Settings → Notifications shows, where the person reading a notification is:
+ * the panel owns the disclosure, `NotificationPreferences` owns what is inside it.
+ */
 function Preferences() {
   const { t } = useTranslation('components');
-  const prefs = useNotificationPrefs();
-  const [permission, setPermission] = useState(browserPermission);
-
-  const toggleBrowser = async (on: boolean) => {
-    if (!on) return setPrefs((p) => ({ ...p, browser: false }));
-    // Asked here, from the click, because browsers ignore a permission request made any other way
-    setPermission(await enableBrowserNotifications());
-  };
 
   return (
     <Collapsible title={t('notificationPanel.preferences')} className="notif-prefs" triggerClassName="small muted">
-      <div className="notif-prefs-body">
-        <Switch checked={prefs.toasts} onChange={(toasts) => setPrefs((p) => ({ ...p, toasts }))}>
-          {t('notificationPanel.popupToasts')}
-        </Switch>
-        <div>
-          <Switch checked={prefs.browser && permission === 'granted'} disabled={permission === 'unsupported'} onChange={toggleBrowser}>
-            {t('notificationPanel.browserNotifications')}
-          </Switch>
-          <div className="field-hint">{t(`notificationPanel.browserHint.${permission}`)}</div>
-        </div>
-        <div className="notif-prefs-group">{t('notificationPanel.notifyMeWhen')}</div>
-        {KINDS.map((kind) => (
-          <Switch key={kind} checked={prefs.kinds[kind]} onChange={(on) => setPrefs((p) => ({ ...p, kinds: { ...p.kinds, [kind]: on } }))}>
-            {t(`notificationPanel.kinds.${kind}`)}
-          </Switch>
-        ))}
-      </div>
+      <NotificationPreferences />
     </Collapsible>
   );
 }
