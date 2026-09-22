@@ -258,6 +258,12 @@ export class Core {
       windowOf: (model) => this.db.modelWindow(model),
     });
     this.changes = new Changes({ orchestrator: this.orchestrator, chats: this.chats, sessions: this.sessions, runtime: this.runtime });
+    // The CLI's list of sessions is kept a while; a process of ours that started or ended changes
+    // what it says about that chat, and a stale one would read it as held by someone else
+    this.events.observe((event) => {
+      const started = event.type === 'run.updated' && event.status !== event.previousStatus && event.status === 'starting';
+      if (started || event.type === 'run.created' || event.type === 'run.ended' || event.type === 'run.removed') this.chats.invalidateCliSessions();
+    });
     this.changeWatcher = new ChangeWatcher(this.orchestrator, this.events);
     this.changeWatcher.start();
     this.files = new SettingsFiles();
@@ -297,6 +303,9 @@ export class Core {
       this.orchestrator.recover();
       this.schedules.start();
       schedulesStarted = true;
+      // Every transcript is read once now rather than by whoever opens the first list, which
+      // otherwise waits for seconds on a machine with hundreds of megabytes of them
+      void this.sessions.listSessions().catch(() => undefined);
     });
     this.connectors = new Connectors(config);
     this.resources = new ConfigResources();
@@ -469,7 +478,8 @@ export class Core {
     if (!project) throw new Error('project not found');
     const res = await execCli(this.config, ['project', 'purge', project.path, '--yes'], { timeoutMs: 60_000 });
     if (res.code !== 0) throw new Error(res.stderr.trim() || 'claude project purge failed');
-    this.sessions.invalidate();
+    // Only that project's transcripts went; the rest stay as they were read
+    this.sessions.invalidate(encodeProjectId(project.path));
     return { detail: res.stdout.trim() };
   }
 
@@ -695,9 +705,13 @@ export class Core {
   }
 
   async overview(): Promise<Overview> {
-    const [system, chats] = await Promise.all([this.system(), this.chats.list({ origins: ['agentry', 'external', 'orchestration'] })]);
-    // The same lists the screens show, so a count can never disagree with the page it links to
-    const [tasks, subagents, workflows] = await Promise.all([this.chats.allBackgroundTasks(), this.chats.allSubagents(), this.chats.allWorkflows()]);
+    // The same lists the screens show, so a count can never disagree with the page it links to; read
+    // in one pass, not once per kind
+    const [system, chats, { tasks, subagents, workflows }] = await Promise.all([
+      this.system(),
+      this.chats.list({ origins: ['agentry', 'external', 'orchestration'] }),
+      this.chats.allActivity(),
+    ]);
     return {
       system,
       rateLimit: this.runtime.lastRateLimit,
