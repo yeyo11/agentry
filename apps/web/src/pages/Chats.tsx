@@ -71,6 +71,9 @@ function StateMark({ chat }: { chat: ChatSummary }) {
   const ended = chat.state === 'idle' && !chat.execution ? lastEnded(chat) : null;
   const bad = ended?.outcome && ended.outcome !== 'completed' ? ended.outcome : null;
   const tone = chat.state === 'working' ? 'live' : chat.state === 'waiting' ? 'warn' : bad ? 'bad' : 'idle';
+  // A working chat with an activity has its ticker on the line below, spinner and verb included:
+  // a second spinner and "Working" above it would say the same thing twice
+  if (chat.state === 'working' && chat.activity) return <span className="sr-only">{STATE_LABEL.working}</span>;
   return (
     <span className={`crow-state is-${tone}`}>
       {chat.state === 'working' ? <Spinner className="crow-spinner" /> : <span className="crow-dot" aria-hidden />}
