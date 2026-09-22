@@ -899,19 +899,24 @@ a.attachment-chip:hover {
   max-width: 32ch;
 }
 
+/* A fixed box, taken before the image loads: a thumbnail that sizes itself on arrival changes the
+   height of its row, and the windowed transcript measured that row already */
 .attachment-thumb {
   display: block;
+  width: 240px;
+  max-width: 100%;
+  height: 180px;
   border: 1px solid var(--border-strong);
   border-radius: 10px;
   overflow: hidden;
   line-height: 0;
+  background: var(--bg-sunken);
 }
 
 .attachment-thumb img {
-  max-width: 240px;
-  max-height: 180px;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
-  background: var(--bg-sunken);
 }
 
 .attachment-mini {
