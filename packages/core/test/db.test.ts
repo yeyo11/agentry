@@ -169,6 +169,16 @@ test('chats round-trip with their executions, newest first, and the cap drops th
   db.close();
 });
 
+test('a save of only what changed keeps the executions it leaves out, and trims nothing unless asked', () => {
+  const db = new Db(tempConfig());
+  db.saveChats([chat('a', '2026-09-18T10:00:00Z', [execution('a-1', '2026-09-18T10:00:00Z')]), chat('b', '2026-09-18T11:00:00Z')], 200);
+  db.saveChats([chat('a', '2026-09-18T10:00:00Z', [execution('a-2', '2026-09-18T10:30:00Z')])], null);
+  assert.deepEqual(db.loadChats().find((c) => c.record.id === 'a')?.executions.map((e) => e.id), ['a-1', 'a-2']);
+  db.saveChats([chat('c', '2026-09-18T12:00:00Z')], null);
+  assert.equal(db.loadChats().length, 3);
+  db.close();
+});
+
 test('saving a chat again updates its executions in place instead of adding a second history', () => {
   const db = new Db(tempConfig());
   const live = execution('e1', '2026-09-18T10:00:00Z', { endedAt: null, outcome: null, costUsd: null });

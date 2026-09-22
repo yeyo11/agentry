@@ -531,8 +531,16 @@ export interface AccountResolver {
   launchFor(chat: { account: string | null; cwd: string }): Launch;
 }
 
+/** A chat as it was last written: its record and each execution, as JSON. */
+interface SavedChat {
+  record: string;
+  executions: Map<string, string>;
+}
+
 export class ChatManager extends EventEmitter {
   private readonly chats = new Map<string, LiveChat>();
+  /** What was last written of each chat, so that a save writes only what changed since */
+  private readonly saved = new Map<string, SavedChat>();
   lastRateLimit: RateLimitInfo | null = null;
   /** Set when claude-swap manages the accounts; null leaves chats on the active credential */
   accounts: AccountResolver | null = null;
@@ -594,9 +602,28 @@ export class ChatManager extends EventEmitter {
     // the chat list", not "disposable": the orchestration planner is internal and costs real
     // money, and dropping it on restart took the only record of that work with it. The other
     // internal chat, the auth check, removes itself as soon as it finishes.
-    const stored = [...this.chats.values()].map((chat) => ({ record: chat.record(), executions: chat.executions }));
+    //
+    // Every chat is compared with what was last written of it and only what changed is written:
+    // this runs on every turn of every chat, and rewriting all of them each time was most of its
+    // cost. The table is trimmed only when a chat is new to it, the only way it can grow.
+    const changed: StoredChat[] = [];
+    const written: Array<[string, SavedChat]> = [];
+    let added = false;
+    for (const chat of this.chats.values()) {
+      const record = chat.record();
+      const known = this.saved.get(chat.id);
+      const recordJson = JSON.stringify(record);
+      const executionJson = new Map(chat.executions.map((e) => [e.id, JSON.stringify(e)]));
+      const executions = chat.executions.filter((e) => known?.executions.get(e.id) !== executionJson.get(e.id));
+      if (known && known.record === recordJson && executions.length === 0) continue;
+      added ||= !known;
+      changed.push({ record, executions });
+      written.push([chat.id, { record: recordJson, executions: executionJson }]);
+    }
+    if (changed.length === 0) return;
     try {
-      this.db.saveChats(stored, MAX_PERSISTED_CHATS);
+      this.db.saveChats(changed, added ? MAX_PERSISTED_CHATS : null);
+      for (const [id, saved] of written) this.saved.set(id, saved);
     } catch {
       // persistence is best-effort: losing a save must never take the live chat down with it
     }
@@ -1137,6 +1164,7 @@ export class ChatManager extends EventEmitter {
     this.publisher.forget(id);
     this.bus?.emit({ type: 'run.removed', title: `${chat.name} removed`, runId: id });
     this.db.deleteChat(id);
+    this.saved.delete(id);
     this.persist();
     return true;
   }

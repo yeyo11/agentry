@@ -504,9 +504,10 @@ export class Db {
 
   /**
    * Saves the given chats with their executions and trims the table to the newest `keep` chats by
-   * creation time; the executions of a chat that goes, go with it.
+   * creation time; the executions of a chat that goes, go with it. With `keep` null nothing is
+   * trimmed: only a new chat can push an old one out.
    */
-  saveChats(chats: StoredChat[], keep: number): void {
+  saveChats(chats: StoredChat[], keep: number | null): void {
     const upsertChat = this.db.prepare(
       `INSERT INTO chats (id, created_at, json) VALUES (?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at, json = excluded.json`,
@@ -520,7 +521,7 @@ export class Db {
         upsertChat.run(record.id, record.createdAt, JSON.stringify(record));
         for (const execution of executions) upsertExecution.run(execution.id, record.id, execution.startedAt, JSON.stringify(execution));
       }
-      this.db.prepare('DELETE FROM chats WHERE id NOT IN (SELECT id FROM chats ORDER BY created_at DESC LIMIT ?)').run(keep);
+      if (keep !== null) this.db.prepare('DELETE FROM chats WHERE id NOT IN (SELECT id FROM chats ORDER BY created_at DESC LIMIT ?)').run(keep);
     });
   }
 
