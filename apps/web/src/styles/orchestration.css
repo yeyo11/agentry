@@ -355,7 +355,7 @@
 /* Stays in view while the steps scroll under it: name, state, clock, cost and progress are the page's answer */
 .orch-summary {
   position: sticky;
-  top: 0;
+  top: var(--stick-top, 0px);
   z-index: 3;
   display: flex;
   flex-direction: column;

@@ -69,7 +69,7 @@
 
 .save-bar {
   position: sticky;
-  bottom: -48px;
+  bottom: var(--stick-bottom, 0px);
   z-index: 5;
   display: flex;
   align-items: center;
@@ -547,12 +547,6 @@ button.master-item-on:hover {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-}
-
-@media (max-width: 900px) {
-.save-bar {
-    bottom: -36px;
-  }
 }
 
 @media (max-width: 900px) {

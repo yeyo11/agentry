@@ -410,6 +410,12 @@
   background: var(--bg);
 }
 
+.topbar-brand {
+  display: none;
+  flex: none;
+  padding: 0;
+}
+
 .crumbs {
   display: flex;
   align-items: center;
@@ -482,12 +488,26 @@
   flex: none;
 }
 
+/*
+ * The page's padding is kept in variables so a sticky bar can undo it. A sticky element sticks to
+ * the edge of its scroll container's *content* box, so `top: 0` inside `.main` left a strip of the
+ * padding above it where the page scrolled by between the bar and the top bar. Bars stick at
+ * `var(--stick-top)` / `var(--stick-bottom)` instead, which any scroll container with padding
+ * declares (see `.run-scroll`), so they sit flush against its visible edge.
+ */
 .main {
+  --main-pad-top: 26px;
+  --main-pad-x: 28px;
+  --main-pad-bottom: 48px;
+  /* What lies under the phone's tab bar, which covers the bottom of the page */
+  --main-covered-bottom: 0px;
+  --stick-top: calc(-1 * var(--main-pad-top));
+  --stick-bottom: calc(-1 * var(--main-pad-bottom));
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 26px 28px 48px;
-  scroll-padding-bottom: 80px;
+  padding: var(--main-pad-top) var(--main-pad-x) calc(var(--main-pad-bottom) + var(--main-covered-bottom));
+  scroll-padding-bottom: calc(80px + var(--main-covered-bottom));
 }
 
 .page {
@@ -591,6 +611,10 @@
 }
 
 @media (max-width: 900px) {
+  .topbar-brand {
+    display: flex;
+  }
+
   .shell,
   .shell-rail {
     grid-template-columns: minmax(0, 1fr);
@@ -619,12 +643,15 @@
   }
 
   .main {
-    padding: 16px 14px 36px;
+    --main-pad-top: 16px;
+    --main-pad-x: 14px;
+    --main-pad-bottom: 36px;
   }
 
   .shell-has-tabbar .main {
-    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 24px);
-    scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 24px);
+    --main-pad-bottom: 24px;
+    --main-covered-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(var(--main-covered-bottom) + var(--main-pad-bottom));
   }
 
   .tabbar {
