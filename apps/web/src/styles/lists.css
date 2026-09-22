@@ -490,7 +490,7 @@ a.list-row:hover {
 
 .crow-group-head {
   position: sticky;
-  top: 0;
+  top: var(--stick-top, 0px);
   z-index: 2;
   display: flex;
   align-items: baseline;
@@ -842,19 +842,18 @@ a.list-row:hover {
   color: var(--text-faint);
 }
 
-/* What can be done with the rows picked: stays in sight while the list scrolls under it */
+/* What can be done with the rows picked: a footer flush with the page's bottom edge while the list scrolls under it */
 .bulk-bar {
   position: sticky;
-  bottom: calc(12px + env(safe-area-inset-bottom));
+  bottom: var(--stick-bottom, 0px);
   z-index: 5;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-top: 12px;
-  padding: 8px 10px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
+  padding: 10px;
+  border-top: 1px solid var(--border-strong);
   background: var(--bg-elev);
   box-shadow: var(--shadow-md);
 }

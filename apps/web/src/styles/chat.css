@@ -5,8 +5,9 @@
  * holds at every width, so `.run-scroll` is always the scroller and the windowed log always measures
  * a real viewport (a stage as tall as its content would make it measure itself and never move).
  */
+/* No padding on top: the chat's header is a bar of its own, right under the top bar */
 .main:has(> .page > .run-layout) {
-  padding: 10px 20px 0;
+  padding: 0 20px;
   overflow: hidden;
 }
 
@@ -15,6 +16,7 @@
 }
 
 .run-layout {
+  --chat-bar-h: 48px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 18px;
@@ -31,15 +33,9 @@
   gap: 0;
 }
 
-/* The drawer sits flush against the window's right edge and the top bar, like the sidebar on the
-   left: the page's padding stays on the conversation's side only */
+/* The drawer sits flush against the window's right edge, like the sidebar on the left */
 .main:has(> .page > .run-layout.has-inspector) {
-  padding-top: 0;
   padding-right: 0;
-}
-
-.run-layout.has-inspector > .run-main {
-  padding-top: 10px;
 }
 
 .run-main {
@@ -51,14 +47,14 @@
 }
 
 /* ---- the one-line header ---- */
+/* As tall as the drawer's tab strip beside it, so the two make one line under the top bar */
 .chat-head {
   display: flex;
   flex: none;
   align-items: center;
   gap: 8px;
   min-width: 0;
-  min-height: 44px;
-  padding-bottom: 6px;
+  min-height: var(--chat-bar-h);
   border-bottom: 1px solid var(--border);
 }
 
@@ -150,6 +146,9 @@
 }
 
 .run-scroll {
+  /* Its padding, undone by what sticks inside it (the permission prompts), as `.main` does */
+  --stick-top: -6px;
+  --stick-bottom: -12px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -379,16 +378,17 @@
 /* Laid out at its final width from the first frame, so the drawer slides open instead of reflowing */
 .chat-inspector.is-open > .chat-inspector-body {
   width: var(--insp-open-w);
-  padding: 6px 14px 16px;
+  padding: 0 14px 16px;
   animation: fade-rise var(--dur-base) var(--ease-out);
 }
 
+/* Its toggle sits in the header's line, centred in a row as tall as it */
 .insp-rail {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding-top: 10px;
+  padding-top: calc((var(--chat-bar-h) - 28px) / 2);
 }
 
 .insp-rail-sep {
@@ -407,6 +407,7 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
+  min-height: var(--chat-bar-h);
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
@@ -689,7 +690,7 @@
 /* Tool calls a run is holding until someone decides. */
 .permission-list {
   position: sticky;
-  bottom: 0;
+  bottom: var(--stick-bottom, 0px);
   z-index: 2;
   flex-shrink: 0;
   margin-top: 12px;

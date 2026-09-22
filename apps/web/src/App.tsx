@@ -260,6 +260,10 @@ function Shell() {
       <div className="content">
         {/* In the desktop app this bar is also the window's title bar (lib/desktop.ts, styles/shell.css) */}
         <header className="topbar">
+          {/* A phone has no sidebar, so the bar carries the mark that leads home */}
+          <NavLink to="/" className="brand topbar-brand" aria-label="Agentry">
+            <BrandMark size={24} />
+          </NavLink>
           <div className="crumbs">
             <span className="crumb-page">{current?.label ?? 'Agentry'}</span>
             {current?.to === '/' && project && (
