@@ -606,24 +606,29 @@ export class ChatManager extends EventEmitter {
     // Every chat is compared with what was last written of it and only what changed is written:
     // this runs on every turn of every chat, and rewriting all of them each time was most of its
     // cost. The table is trimmed only when a chat is new to it, the only way it can grow.
-    const changed: StoredChat[] = [];
-    const written: Array<[string, SavedChat]> = [];
-    let added = false;
+    const candidates: Array<{ chat: LiveChat; record: StoredChat['record']; recordJson: string; executionJson: Map<string, string>; known: SavedChat | undefined }> = [];
     for (const chat of this.chats.values()) {
       const record = chat.record();
       const known = this.saved.get(chat.id);
       const recordJson = JSON.stringify(record);
       const executionJson = new Map(chat.executions.map((e) => [e.id, JSON.stringify(e)]));
-      const executions = chat.executions.filter((e) => known?.executions.get(e.id) !== executionJson.get(e.id));
-      if (known && known.record === recordJson && executions.length === 0) continue;
-      added ||= !known;
-      changed.push({ record, executions });
-      written.push([chat.id, { record: recordJson, executions: executionJson }]);
+      const same = known !== undefined && known.record === recordJson && chat.executions.every((e) => known.executions.get(e.id) === executionJson.get(e.id));
+      if (!same) candidates.push({ chat, record, recordJson, executionJson, known });
     }
-    if (changed.length === 0) return;
+    if (candidates.length === 0) return;
     try {
+      // A chat trimmed from the table since it was written, by a trim of ours or of another process
+      // sharing the file, is written whole again: its executions went with it, and writing only
+      // the ones that changed would bring it back with part of its history
+      const stored = this.db.storedChats(candidates.filter((c) => c.known).map((c) => c.chat.id));
+      let added = false;
+      const changed: StoredChat[] = candidates.map(({ chat, record, executionJson, known }) => {
+        const kept = known && stored.has(chat.id) ? known : undefined;
+        added ||= !kept;
+        return { record, executions: chat.executions.filter((e) => kept?.executions.get(e.id) !== executionJson.get(e.id)) };
+      });
       this.db.saveChats(changed, added ? MAX_PERSISTED_CHATS : null);
-      for (const [id, saved] of written) this.saved.set(id, saved);
+      for (const { chat, recordJson, executionJson } of candidates) this.saved.set(chat.id, { record: recordJson, executions: executionJson });
     } catch {
       // persistence is best-effort: losing a save must never take the live chat down with it
     }

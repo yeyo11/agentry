@@ -176,6 +176,8 @@ test('a save of only what changed keeps the executions it leaves out, and trims 
   assert.deepEqual(db.loadChats().find((c) => c.record.id === 'a')?.executions.map((e) => e.id), ['a-1', 'a-2']);
   db.saveChats([chat('c', '2026-09-18T12:00:00Z')], null);
   assert.equal(db.loadChats().length, 3);
+  db.saveChats([chat('d', '2026-09-18T13:00:00Z')], 3);
+  assert.deepEqual([...db.storedChats(['a', 'b', 'c', 'd'])].sort(), ['b', 'c', 'd']);
   db.close();
 });
 

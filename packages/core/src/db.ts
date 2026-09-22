@@ -529,6 +529,14 @@ export class Db {
     this.db.prepare('DELETE FROM chats WHERE id = ?').run(id);
   }
 
+  /** Which of `ids` are stored now: a trim, ours or another process's, may have taken one since it was saved. */
+  storedChats(ids: readonly string[]): Set<string> {
+    const found = new Set<string>();
+    const has = this.db.prepare('SELECT 1 FROM chats WHERE id = ?');
+    for (const id of ids) if (has.get(id)) found.add(id);
+    return found;
+  }
+
   /** Newest chat first, each with its executions oldest first. */
   loadChats(): StoredChat[] {
     const byChat = new Map<string, Execution[]>();
