@@ -1,50 +1,14 @@
 import { useCallback, useMemo } from 'react';
+import { DETAIL_PARAM, decodeDetail, encodeDetail, type DetailRef } from '@agentry/shared';
 import { useSearchParams } from 'react-router-dom';
 
-/** What the side panel can show. Each carries the ids the routes need, so a link is self-contained. */
-export type DetailRef =
-  | { kind: 'task'; chatId: string; taskId: string }
-  | { kind: 'subagent'; chatId: string; agentId: string }
-  | { kind: 'workflow-agent'; chatId: string; workflowId: string; agentId: string };
+/*
+ * The side panel as a place in the address bar. The encoding itself moved to `@agentry/shared`, so
+ * that the notification mapping the server also runs can build the same links; what is left here is
+ * the hook that turns one into a navigation.
+ */
 
-/** The search param that holds the open panel, so it survives a reload and can be linked to. */
-export const DETAIL_PARAM = 'detail';
-
-const SEP = ':';
-
-/** `kind:part:part`, each part encoded: ids are plain today, but a colon in one must not shift the rest. */
-export function encodeDetail(ref: DetailRef): string {
-  const parts =
-    ref.kind === 'task'
-      ? [ref.chatId, ref.taskId]
-      : ref.kind === 'subagent'
-        ? [ref.chatId, ref.agentId]
-        : [ref.chatId, ref.workflowId, ref.agentId];
-  return [ref.kind, ...parts.map(encodeURIComponent)].join(SEP);
-}
-
-export function decodeDetail(value: string | null): DetailRef | null {
-  if (!value) return null;
-  const [kind, ...raw] = value.split(SEP);
-  const parts = raw.map((p) => {
-    try {
-      return decodeURIComponent(p);
-    } catch {
-      return '';
-    }
-  });
-  if (parts.some((p) => !p)) return null;
-  const [a, b, c] = parts;
-  if (kind === 'task' && parts.length === 2 && a && b) return { kind, chatId: a, taskId: b };
-  if (kind === 'subagent' && parts.length === 2 && a && b) return { kind, chatId: a, agentId: b };
-  if (kind === 'workflow-agent' && parts.length === 3 && a && b && c) return { kind, chatId: a, workflowId: b, agentId: c };
-  return null;
-}
-
-/** A link to `path` (the current page when omitted) with the panel open. */
-export function detailHref(ref: DetailRef, path = ''): string {
-  return `${path}?${DETAIL_PARAM}=${encodeURIComponent(encodeDetail(ref))}`;
-}
+export { DETAIL_PARAM, decodeDetail, detailHref, encodeDetail, type DetailRef } from '@agentry/shared';
 
 /**
  * The panel is part of the address (`?detail=…`), so opening one is a navigation: Back closes it
