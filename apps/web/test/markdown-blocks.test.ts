@@ -37,6 +37,23 @@ for (const [name, answer] of Object.entries(ANSWERS)) {
   });
 }
 
+test('a split kept across updates normalises only what grew, and still matches one made from scratch', () => {
+  const texts = [
+    '﻿intro\r\n\r\npara\r\n\r\n- a\r\n- b\r\n\r\nend\r\n',
+    'lines\r\r\nmixed\r\n\r\n```\r\ncode\r\n```\r\n\r\nafter\n',
+    'see [docs][d]\n\nmore\n\n[d]: https://example.com\n\nafter\n',
+  ];
+  for (const text of texts) {
+    let kept: BlockSplit | null = null;
+    for (const prefix of prefixes(text, 1)) {
+      kept = splitMarkdownBlocks(kept, prefix);
+      const fresh = splitMarkdownBlocks(null, prefix);
+      assert.equal(kept.text, fresh.text, JSON.stringify(prefix));
+      assert.deepEqual(kept.starts, fresh.starts, JSON.stringify(prefix));
+    }
+  }
+});
+
 test('answers really are cut, so the equivalence above is not vacuous', () => {
   const blocks = (text: string) => splitMarkdownBlocks(null, text).starts.length;
   assert.ok(blocks(ANSWERS.REVIEW) >= 8, `REVIEW: ${blocks(ANSWERS.REVIEW)}`);

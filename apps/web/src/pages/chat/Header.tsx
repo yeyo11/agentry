@@ -1,7 +1,7 @@
 import type { Chat } from '@agentry/shared';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, CirclePause, CircleSlash, Copy, Download, GitFork, Hand, Info, Search, Square, Trash2, WifiOff } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 // Direct imports: this page is in the shell bundle, and the barrel would pull the lazy form controls into it
@@ -82,7 +82,8 @@ function ChecklistProgress({ chat, onOpen }: { chat: Chat; onOpen: () => void })
 }
 
 export interface HeaderActions {
-  find: TranscriptFind;
+  /** Only what opens and closes the search: the rest of it changes as it is typed into */
+  find: Pick<TranscriptFind, 'open' | 'show' | 'close'>;
   sidechains: boolean;
   setSidechains: (on: boolean) => void;
   forking: boolean;
@@ -98,7 +99,7 @@ export interface HeaderActions {
  * One line: back, the title, the pill, and only the action that fits the moment; everything else a
  * chat can do is one press away in the `⋯` menu, and everything it is in the inspector.
  */
-export function ChatHeader({ chat, connected, actions }: { chat: Chat; connected: boolean; actions: HeaderActions }) {
+export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }: { chat: Chat; connected: boolean; actions: HeaderActions }) {
   const { t } = useTranslation(['chat', 'work', 'common', 'components']);
   const toast = useToast();
   const { control } = chat;
@@ -218,5 +219,4 @@ export function ChatHeader({ chat, connected, actions }: { chat: Chat; connected
       </div>
     </header>
   );
-}
-
+});

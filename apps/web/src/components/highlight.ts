@@ -167,8 +167,12 @@ type Shiki = typeof import('shiki/core');
 type Langs = typeof import('shiki/langs');
 type HighlighterCore = Awaited<ReturnType<Shiki['createHighlighterCore']>>;
 
-/** Per line, for the grammars shiki handles; see where it is passed. */
-const TOKENIZE_BUDGET_MS = 2000;
+/** Per line, for the first block in a language, which also compiles its grammar; see where it is passed. */
+const FIRST_TOKENIZE_BUDGET_MS = 2000;
+/** Per line once the grammar is compiled: a pathological line must not hold the page for seconds. */
+const TOKENIZE_BUDGET_MS = 300;
+/** Languages whose grammar has already been through one tokenization. */
+const warmed = new Set<string>();
 type Loader = Langs['bundledLanguages'][keyof Langs['bundledLanguages']];
 
 let shiki: Promise<{ h: HighlighterCore; langs: Langs }> | null = null;
@@ -209,8 +213,11 @@ async function highlightShiki(code: string, id: string): Promise<Highlighted | n
   // shiki gives up on a line after 500 ms by default and returns the rest of it uncoloured. The
   // first call in a language compiles its grammar within that budget, which a busy machine
   // overruns, so the first block on screen lost its colours. A wider budget keeps the guard
-  // against a pathological line without tripping over the grammar's own start-up.
-  const { tokens } = h.codeToTokens(code, { lang: id, themes: THEMES, defaultColor: false, tokenizeTimeLimit: TOKENIZE_BUDGET_MS });
+  // against a pathological line without tripping over the grammar's own start-up; once that is
+  // paid, the budget drops back, since highlighting runs on the main thread.
+  const tokenizeTimeLimit = warmed.has(id) ? TOKENIZE_BUDGET_MS : FIRST_TOKENIZE_BUDGET_MS;
+  const { tokens } = h.codeToTokens(code, { lang: id, themes: THEMES, defaultColor: false, tokenizeTimeLimit });
+  warmed.add(id);
   const base = { '--shiki-light': h.getTheme(THEMES.light).fg, '--shiki-dark': h.getTheme(THEMES.dark).fg };
   const runs = new Runs(base);
   tokens.forEach((line, i) => {

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, GitFork, Lock, MessageSquare, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Chat } from '@agentry/shared';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ActivityTicker } from '../components/ActivityTicker';
@@ -14,11 +15,13 @@ import { Empty, ErrorBox, Loading, PageHeader, usePageTitle } from '../component
 import { api, keys } from '../api';
 import { tickerActivity } from '../lib/chat-live';
 import { subagentFor, transcriptRows } from '../lib/chat-steps';
-import { useChatStream, useChatTranscript } from '../lib/chats';
+import type { ChatStreamStore } from '../lib/chat-stream';
+import { useChatStream, useChatTranscript, useStreamSnapshot } from '../lib/chats';
 import { useDetailPanel } from '../lib/detail';
 import { Composer, type ComposerKind } from './chat/Composer';
-import { ChatHeader } from './chat/Header';
+import { ChatHeader, type HeaderActions } from './chat/Header';
 import { Inspector, useInspector } from './chat/Inspector';
+import { useStickToBottom } from './chat/stick-to-bottom';
 
 /**
  * How much of the layout the on-screen keyboard covers. A phone's browser shrinks the visual
@@ -46,6 +49,29 @@ function useKeyboardInset() {
   }, []);
 }
 
+/**
+ * The end of the conversation that moves while Claude writes: the block being streamed and the
+ * ticker under it. The only part of the page that reads the stream's text, so it is the only part
+ * rendered again on every frame of it.
+ */
+const LiveTail = memo(function LiveTail({ stream, chat, continued }: { stream: ChatStreamStore; chat: Chat; continued: boolean }) {
+  const partial = useStreamSnapshot(stream, (snapshot) => snapshot.partial);
+  const block = partial?.block;
+  const since = partial?.since;
+  // The ticker only changes with the block, not with each character of it
+  const activity = useMemo(() => tickerActivity(chat, block && since !== undefined ? { block, since } : null), [chat, block, since]);
+  return (
+    <>
+      {partial && partial.text && <StreamingEntry block={partial.block} text={partial.text} continued={continued} />}
+      {activity && (
+        <div className="chat-now" data-find-ignore>
+          <ActivityTicker activity={activity} showElapsed={Boolean(activity.since)} />
+        </div>
+      )}
+    </>
+  );
+});
+
 /** One chat: its conversation, what it has cost, what it has run and delegated, and what can be done with it now. */
 export function ChatView() {
   const { t } = useTranslation(['chat', 'work', 'common']);
@@ -55,7 +81,6 @@ export function ChatView() {
   const detail = useDetailPanel();
   const [sidechains, setSidechains] = useState(false);
   const [forking, setForking] = useState(false);
-  const [follow, setFollow] = useState(true);
   const scroller = useRef<HTMLDivElement>(null);
   const inspector = useInspector();
   useKeyboardInset();
@@ -63,13 +88,24 @@ export function ChatView() {
   const transcript = useChatTranscript(id, sidechains);
   const { chat } = transcript;
   const stream = useChatStream(id, Boolean(chat?.execution));
+  const connected = useStreamSnapshot(stream, (snapshot) => snapshot.connected);
+  const writing = useStreamSnapshot(stream, (snapshot) => snapshot.partial?.block === 'text');
+  const { follow, setFollow, jumpToLatest } = useStickToBottom(scroller, Boolean(chat));
   usePageTitle(chat ? t('view.pageTitle', { title: chat.title }) : t('view.pageTitleFallback'));
 
   // Another chat starts at its end, with nothing half-typed for a copy of the last one
   useEffect(() => {
     setFollow(true);
     setForking(false);
-  }, [id]);
+  }, [id, setFollow]);
+
+  // A block that has been stored leaves the stream once the transcript shows it, in the same
+  // frame, so it neither blinks out nor shows twice; one that went quiet goes with it. By the
+  // entry's id, not its object: every read of the transcript hands back new objects for the same
+  // entries, and a pause in a block's text is not its end
+  const last = transcript.items.at(-1);
+  const lastKey = last ? last.uuid || `#${transcript.from + transcript.items.length}` : '';
+  useLayoutEffect(() => stream.settle(), [lastKey, stream]);
 
   const find = useTranscriptFind({
     scope: ['chat', id, sidechains],
@@ -80,38 +116,56 @@ export function ChatView() {
   // Jumping to a hit is the reader moving: the bottom must not pull them back
   useEffect(() => {
     if (find.target) setFollow(false);
-  }, [find.target]);
+  }, [find.target, setFollow]);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: keys.chatScope(id) });
     void queryClient.invalidateQueries({ queryKey: keys.chats });
   };
-  const stop = useMutation({ mutationFn: () => api.stopChat(id), onSuccess: invalidate });
-  const interrupt = useMutation({ mutationFn: () => api.interruptChat(id), onSuccess: invalidate });
+  const { mutate: stopChat, isPending: stopping, error: stopError } = useMutation({ mutationFn: () => api.stopChat(id), onSuccess: invalidate });
+  const { mutate: interruptChat, isPending: interrupting, error: interruptError } = useMutation({
+    mutationFn: () => api.interruptChat(id),
+    onSuccess: invalidate,
+  });
   const remove = useDeleteChat(() => navigate('/chats'));
+  // Read when pressed, not when the header's actions are built: both change on every render
+  const toDelete = useRef({ request: remove.requestDelete, chat });
+  useLayoutEffect(() => {
+    toDelete.current = { request: remove.requestDelete, chat };
+  });
 
   const rows = useMemo(() => transcriptRows(transcript.items), [transcript.items]);
   const subagentList = chat?.children.subagents;
+  const openDetail = detail.open;
   const subagents = useMemo<SubagentLink | undefined>(
     () =>
       subagentList && subagentList.length > 0
-        ? { find: (input) => subagentFor(input, subagentList)?.id ?? null, open: (agentId) => detail.open({ kind: 'subagent', chatId: id, agentId }) }
+        ? { find: (input) => subagentFor(input, subagentList)?.id ?? null, open: (agentId) => openDetail({ kind: 'subagent', chatId: id, agentId }) }
         : undefined,
-    [subagentList, detail, id],
+    [subagentList, openDetail, id],
   );
 
-  // Stay pinned to the bottom while content grows (stored messages and the streaming block alike)
-  const entryCount = transcript.items.length;
-  useEffect(() => {
-    const el = scroller.current;
-    if (follow && el) el.scrollTop = el.scrollHeight;
-  }, [entryCount, stream.partial, follow, chat?.state]);
-
-  const jumpToLatest = () => {
-    const el = scroller.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-    setFollow(true);
-  };
+  const { open: findOpen, show: findShow, close: findClose } = find;
+  const actions = useMemo<HeaderActions>(
+    () => ({
+      find: { open: findOpen, show: findShow, close: findClose },
+      sidechains,
+      setSidechains,
+      forking,
+      setForking,
+      stop: { run: () => stopChat(), pending: stopping },
+      interrupt: { run: () => interruptChat(), pending: interrupting },
+      remove: {
+        run: () => {
+          const { request, chat: current } = toDelete.current;
+          if (current) request(current);
+        },
+        pending: remove.isPending,
+      },
+      inspector,
+    }),
+    [findOpen, findShow, findClose, sidechains, forking, stopChat, stopping, interruptChat, interrupting, remove.isPending, inspector],
+  );
 
   if (transcript.query.isLoading) return <Loading label={t('view.loading')} />;
   if (!chat) {
@@ -130,29 +184,14 @@ export function ChatView() {
   const working = chat.state === 'working';
   const live = Boolean(chat.execution);
   const composer: ComposerKind | null = forking ? 'fork' : control.mode === 'interactive' ? 'send' : control.mode === 'resumable' ? 'resume' : null;
-  const activity = tickerActivity(chat, stream.partial);
   // While Claude writes the answer after its calls, the step above is done, not current
-  const stepCurrent = working && stream.partial?.block !== 'text';
+  const stepCurrent = working && !writing;
 
   return (
     <div className={`run-layout ${inspector.rail ? 'has-inspector' : ''}`.trim()}>
       <section className="run-main" aria-label={t('view.conversation')}>
-        <ChatHeader
-          chat={chat}
-          connected={stream.connected}
-          actions={{
-            find,
-            sidechains,
-            setSidechains,
-            forking,
-            setForking,
-            stop: { run: () => stop.mutate(), pending: stop.isPending },
-            interrupt: { run: () => interrupt.mutate(), pending: interrupt.isPending },
-            remove: { run: () => remove.requestDelete(chat), pending: remove.isPending },
-            inspector: { open: inspector.open, rail: inspector.rail, toggle: inspector.toggle, show: inspector.show },
-          }}
-        />
-        <ErrorBox error={stop.error ?? interrupt.error} />
+        <ChatHeader chat={chat} connected={connected} actions={actions} />
+        <ErrorBox error={stopError ?? interruptError} />
         {control.mode === 'readOnly' && (
           <div className="alert alert-warn chat-banner" role="status">
             <Lock {...ICON} className="alert-icon" />
@@ -184,10 +223,6 @@ export function ChatView() {
             tabIndex={0}
             data-scroll-root
             ref={scroller}
-            onScroll={(e) => {
-              const el = e.currentTarget;
-              setFollow(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
-            }}
           >
             {transcript.more && (
               <div className="transcript-earlier">
@@ -211,12 +246,7 @@ export function ChatView() {
             )}
             {/* Pinned under the transcript: a chat waiting on a decision is stuck until it gets one */}
             <PermissionPrompts chatId={id} live={live} />
-            {stream.partial && stream.partial.text && <StreamingEntry block={stream.partial.block} text={stream.partial.text} continued={endsWithAssistant(transcript.items)} />}
-            {activity && (
-              <div className="chat-now">
-                <ActivityTicker activity={activity} showElapsed={Boolean(activity.since)} />
-              </div>
-            )}
+            <LiveTail stream={stream} chat={chat} continued={endsWithAssistant(transcript.items)} />
           </div>
           <AnimatePresence>
             {!follow && (
@@ -244,15 +274,17 @@ export function ChatView() {
                 <X {...ICON_SM} />
               </button>
             </div>
-            <Composer chat={chat} kind="fork" onSent={() => setFollow(true)} />
+            <Composer key={chat.id} chat={chat} kind="fork" onSent={() => setFollow(true)} />
           </div>
         )}
         {composer && composer !== 'fork' && (
+          // Keyed by the chat: a draft and its files belong to the chat they were written in
           <Composer
+            key={chat.id}
             chat={chat}
             kind={composer}
             onSent={() => setFollow(true)}
-            interrupt={composer === 'send' ? { run: () => interrupt.mutate(), pending: interrupt.isPending } : undefined}
+            interrupt={composer === 'send' ? { run: () => interruptChat(), pending: interrupting } : undefined}
           />
         )}
       </section>

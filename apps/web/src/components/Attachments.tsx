@@ -1,6 +1,6 @@
 import type { Attachment } from '@agentry/shared';
 import { FileText, Image as ImageIcon, Loader2, Paperclip, TriangleAlert, X } from 'lucide-react';
-import { useCallback, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { api } from '../api';
@@ -116,11 +116,23 @@ interface Pending {
 export function useAttachments() {
   const [items, setItems] = useState<Pending[]>([]);
   const seq = useRef(0);
+  // The previews this composer made, so each is let go exactly once: on removal, on clearing, or
+  // when the composer goes away with files still in it. Not in the updaters: React may run those twice.
+  const previews = useRef(new Map<number, string>());
+
+  useEffect(() => {
+    const held = previews.current;
+    return () => {
+      for (const url of held.values()) URL.revokeObjectURL(url);
+      held.clear();
+    };
+  }, []);
 
   const add = useCallback((files: Iterable<File>) => {
     for (const file of files) {
       const key = ++seq.current;
       const preview = isViewableImage(file.type) ? URL.createObjectURL(file) : undefined;
+      if (preview) previews.current.set(key, preview);
       setItems((prev) => [...prev, { key, name: file.name || i18n.t('components:attachments.pasted'), size: file.size, status: 'uploading', preview }]);
       api
         .uploadFile(file)
@@ -130,18 +142,16 @@ export function useAttachments() {
   }, []);
 
   const remove = useCallback((key: number) => {
-    setItems((prev) => {
-      const gone = prev.find((p) => p.key === key);
-      if (gone?.preview) URL.revokeObjectURL(gone.preview);
-      return prev.filter((p) => p.key !== key);
-    });
+    const preview = previews.current.get(key);
+    if (preview) URL.revokeObjectURL(preview);
+    previews.current.delete(key);
+    setItems((prev) => prev.filter((p) => p.key !== key));
   }, []);
 
   const clear = useCallback(() => {
-    setItems((prev) => {
-      for (const p of prev) if (p.preview) URL.revokeObjectURL(p.preview);
-      return [];
-    });
+    for (const url of previews.current.values()) URL.revokeObjectURL(url);
+    previews.current.clear();
+    setItems([]);
   }, []);
 
   const ids = items.filter((p) => p.status === 'ready' && p.attachment).map((p) => (p.attachment as Attachment).id);

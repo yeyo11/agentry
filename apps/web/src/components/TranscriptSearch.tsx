@@ -281,7 +281,11 @@ export function useFindHighlight(root: RefObject<HTMLElement | null>, find: Tran
     };
     view.addEventListener('scroll', steer, { passive: true });
     schedule();
-    const observer = new MutationObserver(schedule);
+    // Text still being streamed and the ticker's clock change every frame and hold no rows to mark:
+    // repainting for them would scan every row on screen that often
+    const observer = new MutationObserver((records) => {
+      if (records.some((record) => !ignored(record.target))) schedule();
+    });
     observer.observe(el, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['data-focused'] });
     return () => {
       observer.disconnect();
@@ -293,6 +297,12 @@ export function useFindHighlight(root: RefObject<HTMLElement | null>, find: Tran
       registry?.delete(HIGHLIGHT_CURRENT);
     };
   }, [root, pattern, find.target]);
+}
+
+/** Inside what a transcript marks as not for the search to watch (`data-find-ignore`). */
+function ignored(node: Node): boolean {
+  const element = node instanceof Element ? node : node.parentElement;
+  return element?.closest('[data-find-ignore]') != null;
 }
 
 function Snippet({ hit }: { hit: TranscriptSearchHit }) {

@@ -32,7 +32,11 @@ export function VirtualList<T>({
   items: T[];
   itemKey: (item: T, index: number) => string;
   className?: string;
-  /** Follow the newest row, for a transcript that is still being written */
+  /**
+   * Whoever owns the scroller keeps it at the end (the list does not scroll there itself: one owner
+   * for the pin, or they fight). Said here so the top of a list that has not been scrolled yet
+   * does not read as the reader asking for what is above it.
+   */
   pinToBottom?: boolean;
   /** The window reached the first row held: whatever comes before it, if anything, is wanted now. */
   onReachTop?: () => void;
@@ -51,16 +55,45 @@ export function VirtualList<T>({
   // earlier messages all sit above it, and that distance changes as they come and go.
   const [margin, setMargin] = useState(0);
 
+  // Measured when something moves the list rather than on every render: the virtualizer renders
+  // on every scrolled frame, and reading layout there forced it once more per frame
   useLayoutEffect(() => {
     const el = host.current;
     if (!el) return;
     // Found from where we are rendered rather than by a global selector, the way ScrollJump does
     const found = el.closest<HTMLElement>('[data-scroll-root], .main');
-    const offset = found ? el.getBoundingClientRect().top - found.getBoundingClientRect().top + found.scrollTop : 0;
     setScroller(found);
-    setGap(Number.parseFloat(getComputedStyle(el).rowGap) || 0);
-    setMargin((held) => (Math.abs(held - offset) > 0.5 ? offset : held));
-  });
+    const measure = () => {
+      const offset = found ? el.getBoundingClientRect().top - found.getBoundingClientRect().top + found.scrollTop : 0;
+      setGap(Number.parseFloat(getComputedStyle(el).rowGap) || 0);
+      setMargin((held) => (Math.abs(held - offset) > 0.5 ? offset : held));
+    };
+    measure();
+    if (!found) return;
+    // What moves the list is what sits above it in the scroller: each box before it, on each level
+    // up to the scroller, and the list itself (its gap follows the layout)
+    const sizes = new ResizeObserver(measure);
+    const levels: Element[] = [];
+    const watch = () => {
+      sizes.disconnect();
+      sizes.observe(el);
+      for (let node: Element | null = el; node && node !== found; node = node.parentElement) {
+        for (let before = node.previousElementSibling; before; before = before.previousElementSibling) sizes.observe(before);
+      }
+    };
+    for (let node: Element | null = el.parentElement; node; node = node === found ? null : node.parentElement) levels.push(node);
+    // A box that comes or goes above the list (the button that loads earlier messages) moves it too
+    const children = new MutationObserver(() => {
+      watch();
+      measure();
+    });
+    for (const level of levels) children.observe(level, { childList: true });
+    watch();
+    return () => {
+      sizes.disconnect();
+      children.disconnect();
+    };
+  }, []);
 
   const rows = useVirtualizer({
     count: items.length,
@@ -74,7 +107,6 @@ export function VirtualList<T>({
     gap,
     scrollMargin: margin,
     anchorTo: 'end',
-    followOnAppend: pinToBottom,
   });
 
   // The default only compensates a row measured for the first time when it starts above the scroll
@@ -100,13 +132,6 @@ export function VirtualList<T>({
   // the list's own height, without it. Both paddings are the list's, so the margin comes off first.
   const before = first ? Math.max(0, first.start - margin) : 0;
   const after = last ? Math.max(0, total - (last.end - margin)) : 0;
-
-  // Opening a transcript lands on its newest message. Rows are estimated until they render, so the
-  // bottom keeps moving as they are measured: follow it while the total grows, which stops as soon
-  // as the rows on screen are measured, or as soon as the reader scrolls away and unsets this.
-  useEffect(() => {
-    if (pinToBottom && items.length > 0) rows.scrollToEnd();
-  }, [pinToBottom, items.length, total, rows]);
 
   // Pinned, the window only starts at the first row because nothing has been scrolled yet: a list
   // mounts at its top before it is taken to its end. Loading on that would fetch pages nobody

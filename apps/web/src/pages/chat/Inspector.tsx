@@ -1,7 +1,7 @@
 import type { Chat, TranscriptEntry } from '@agentry/shared';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, FileText, GitCompareArrows, PanelRightClose, PanelRightOpen, SlidersHorizontal, type LucideIcon } from 'lucide-react';
-import { useCallback, useState, useSyncExternalStore } from 'react';
+import { memo, useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Sheet } from '../../components/controls/Sheet';
 import { Tooltip } from '../../components/controls/Tooltip';
@@ -75,7 +75,9 @@ export function useInspector() {
     },
     [setOpen],
   );
-  return { wide, rail, open, setOpen, toggle: () => setOpen(!open), tab, setTab, show };
+  const toggle = useCallback(() => setOpen(!open), [setOpen, open]);
+  // One object while nothing in it changes, so the header and the inspector can skip a render
+  return useMemo(() => ({ wide, rail, open, setOpen, toggle, tab, setTab, show }), [wide, rail, open, setOpen, toggle, tab, show]);
 }
 
 export type InspectorState = ReturnType<typeof useInspector>;
@@ -223,7 +225,7 @@ function InspectorRail({ state }: { state: InspectorState }) {
   );
 }
 
-export function Inspector({ chat, entries, state }: { chat: Chat; entries: TranscriptEntry[]; state: InspectorState }) {
+export const Inspector = memo(function Inspector({ chat, entries, state }: { chat: Chat; entries: TranscriptEntry[]; state: InspectorState }) {
   const { t } = useTranslation('chat');
   if (state.wide) {
     return (
@@ -248,4 +250,4 @@ export function Inspector({ chat, entries, state }: { chat: Chat; entries: Trans
       </Sheet>
     </>
   );
-}
+});
