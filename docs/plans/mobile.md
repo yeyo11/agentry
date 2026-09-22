@@ -277,4 +277,82 @@ would fight the redesign's.
 
 ## Outcome
 
-Written by the `docs` task when the graph finishes.
+All five tasks shipped. Agentry installs to a home screen on Android and iPhone and, with the app
+closed, a chat that stops for a permission prompt reaches the phone over Web Push this server signs
+itself. Written from what the tasks built, not from what this plan proposed.
+
+### What shipped
+
+- **`push-model`** — `packages/shared/src/notifications.ts` holds the mapping (`NotificationKind`,
+  `KINDS`, `notificationsFor`, `waitingDrafts`, `settlesWaiting`) and `packages/shared/src/detail.ts`
+  the `?detail=` encoding its links are built with. The web's `notifications-model.ts` re-exports
+  them, so no import changed. Beyond the plan: the words could not simply move, since a server has no
+  i18next — the mapping takes a `NotificationText`, the web passes the active language's strings and
+  the shared package carries built-in English for the sender. A web test runs one event per sentence
+  through both and fails if they drift. `@agentry/shared` gained tests and joined `pnpm test`.
+- **`pwa-shell`** — `manifest.webmanifest` (standalone, root scope, `id: "/"`), icons rasterised from
+  `favicon.svg` by `pnpm --filter @agentry/web icons` and committed as PNGs (192, 512, a maskable 512
+  and a 180 px `apple-touch-icon`), the four Apple metas in `index.html`, and a hand-written
+  `public/sw.js` whose asset list and build id are stamped in by a Vite plugin at `closeBundle`, read
+  back from what the built `index.html` asks for before it can paint. What the worker answers is an
+  allowlist — the app's own first path segments and the shell's own files — so `/api`, `/docs` and
+  `/openapi.json` are left to the network with no `respondWith` at all. Install lives in a **Settings
+  → Install** tab (the redesign has no Appearance tab): the held `beforeinstallprompt` as a button,
+  the two taps named on iOS, and the origin named on an insecure one.
+- **`push-server`** — `push.json` (mode 600) made on first use, `push_subscriptions` rows keyed by
+  endpoint, a sender that `observe`s the event bus, reads each event through the shared
+  `notificationsFor`, filters by the kinds each install asked for, collapses on the draft's own key
+  and deletes a row on `404`/`410`; every failure is caught inside it, so a dead endpoint is a log
+  line. The five routes, their OpenAPI entries and the regenerated schemas. Beyond the plan:
+  `AGENTRY_PUSH_SUBJECT` sets the VAPID `sub` claim, stored with the keypair when it is made.
+- **`push-web`** — `push`, `notificationclick` and `pushsubscriptionchange` in the same worker. A
+  push with a visible window of ours shows nothing (the page is already showing the toast for that
+  event, which is also what Chrome's `userVisibleOnly` bargain allows); a click prefers an open page
+  and hands it the path over a `MessageChannel`, falling back to `navigate()` and then to a new
+  window. The subscription is the state — `pushManager.getSubscription()` is asked rather than a flag
+  stored — and `pushBlocker()` decides, with no browser in it, why push cannot work here: insecure
+  origin, iOS tab, unsupported, unconfigured, denied. **Settings → Notifications** holds the per-kind
+  preferences (one component, shared with the bell's popover), the push switch, every registered
+  install with this one marked, and **Test** and **Remove** on each.
+- **`docs`** — this section, the README (an *On a phone* section, the push routes checked against the
+  code, `AGENTRY_PUSH_SUBJECT`, `push.json` in the volumes table, the relay bullet under *Securing
+  it* and two entries in *Known limitations*), `docs/deploy.md` (*Notifications on a phone*),
+  `docs/desktop.md` (why the desktop app has no push) and the ROADMAP.
+
+### What did not ship, and why
+
+- **A native shell and the app stores**, **offline use** and **per-user push** — out of scope by this
+  plan, and now recorded in the ROADMAP's *Decided against, for now* with the reason.
+- **Push in the Linux desktop app.** It registers no service worker: its API listens on a port the
+  operating system picks anew every launch, so every start would leave one more registration under an
+  origin that never comes back. Push is for a browser or a phone pointed at a served wrapper.
+- **A credential on the worker's repair.** `pushsubscriptionchange` re-registers without one — a
+  worker cannot read the browser's stored token, and caching a copy to make a rare repair work is a
+  bad trade. On a guarded wrapper the server answers `401` and the next page load puts it right.
+- **A badge icon** — there is no monochrome brand mark, and a wrong badge is a grey blob.
+- **Translated words in the worker.** A push with no payload shows the fallback title and body the
+  page cached in its language; a browser that never subscribed from this build falls back to
+  "Agentry".
+- **Rotating the VAPID keypair.** Every subscription was taken out against that public key, so
+  replacing it would silently orphan all of them. It is made once; losing the data directory means
+  every install subscribes again.
+
+### Known limitations, as documented
+
+- **Push needs a secure origin.** On `http://<lan-ip>:8787` the browser gives the page no service
+  worker at all — no push, no cached shell — and the UI says so, naming the origin. On iPhone and
+  iPad, only an app on the Home Screen is ever pushed to.
+- **A subscription belongs to an install, not to a person.** Agentry has one credential for everyone
+  who holds it, so every device that turned push on is sent the same notifications, and anyone who
+  can reach Settings can test or remove another device's registration.
+
+### How it was checked
+
+`pnpm typecheck` and `pnpm test` on every task. The delivery path itself is not reachable from the
+browser harness — it would need a real push service signing a real delivery into the browser under
+test — so the worker is driven event by event as a unit against the file that ships
+(`apps/web/test/pwa.test.ts`), and the sender against an injected transport
+(`packages/core/test/push.test.ts`). `e2e/specs/pwa.spec.mjs` checks the manifest, the icons, the
+stamped worker and that `GET /api/events` still streams with it active; `e2e/specs/push.spec.mjs`
+does the subscription round-trip against an endpoint on `.invalid` that can never be delivered to.
+The suite runs once on the integrated branch, in the verification phase.

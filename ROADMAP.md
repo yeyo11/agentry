@@ -88,6 +88,19 @@
   or failed chats and orchestrations, conflicts, rate limits and rotations, a worker that looks stuck
   and the hint the supervisor proposes for it, and finished tasks, subagents and workflows; toasts,
   and opt-in browser notifications for a hidden tab.
+- **On a phone** — Agentry installs to a home screen on Android and iPhone as a progressive web app:
+  a manifest, icons generated from the brand mark, and a service worker that caches the app shell
+  (keyed by build, and an allowlist of what it answers, so `/api`, `/docs` and `/openapi.json` never
+  go through it and the event streams are untouched). An install button on Android and the desktop,
+  the two taps named on iOS. With the app closed, Web Push over VAPID the server signs itself — the
+  keypair a document in the data directory, the installs rows in SQLite, and what is worth sending
+  decided by the same `notificationsFor` the browser runs on the same event, filtered by the kinds
+  each install asked for, collapsed on the notification's own key, deleted on a `404`/`410`. Tapping
+  a waiting notification opens that prompt in the page that is already open, and a visible window
+  gets its toast and no push. Settings → Notifications registers this device, lists every registered
+  install and sends a test; Settings → Install adds the app. Where push cannot work — an insecure
+  origin, an iOS tab, a refused permission, a server with no key — the switch is replaced by the
+  sentence that says why, naming the origin.
 - **Execution detail** — side panels for a subagent, a background task and a workflow agent: prompt,
   status, duration, tokens, the full transcript, the result and the tasks a subagent launched, read from
   the files the CLI writes and updated live from the feed. Every task can show its output, followed while
@@ -129,6 +142,18 @@ What is still open was decided against rather than left undone. The plans say wh
   login flow (authorization code with PKCE, a callback route, refresh) is a product of its own, not
   a field on the security settings; in `oidc` mode clients bring a JWT, or an identity-aware proxy
   adds it.
+- **A native shell and the app stores** (Capacitor, or a WebView of our own). A WebView pointing at
+  a server URL is what Apple's review guideline 4.2 rejects, a Play personal account needs 12 testers
+  for 14 days before production, and both cost a signing pipeline we would then maintain for ever.
+  The PWA reaches both operating systems today for nothing. If push on an installed PWA turns out to
+  be unreliable in practice, that is the moment to revisit this — not before.
+- **Per-user push.** A subscription belongs to an install, not to a person, so every device that
+  turned it on is sent the same notifications. Agentry has one credential for everyone who holds it
+  and no per-user isolation anywhere else either; inventing an identity model for the notification
+  layer alone would be the wrong place to start. It waits for a real per-user model.
+- **Offline use.** The worker caches the app shell so a cold start paints at once, and never `/api`.
+  A wrapper you cannot reach is a wrapper with nothing to say, and a stale transcript is worse than
+  an honest "cannot reach the server".
 - **Packaging, taken separately** — a Helm Ingress template, the chart's version under
   release-please, and running the image build, the Caddy profile, the chart and the e2e harness's
   own test through a real cluster in CI. All of it is release plumbing rather than product, and it
