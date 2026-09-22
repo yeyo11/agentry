@@ -228,7 +228,10 @@ interface SessionActivity {
 
 /** The activity folded so far, with what a later line needs of an earlier one. */
 interface ActivityFold extends SessionActivity {
-  /** Inputs of the calls that can leave a task running: a backgrounded Bash command or a Monitor */
+  /**
+   * Inputs of the calls that can leave a task running, a backgrounded Bash command or a Monitor,
+   * until their result is read: a call has one, and the fold is kept for as long as its transcript
+   */
   launchInputs: Map<string, { tool: string; input: Record<string, unknown> }>;
 }
 
@@ -239,12 +242,16 @@ const ACTIVITY_FOLD: JsonlFold<ActivityFold> = {
     const at = typeof o.timestamp === 'string' ? o.timestamp : null;
     const message = o.message as { content?: unknown } | undefined;
     let resultFor: string | null = null;
+    const answered: string[] = [];
     for (const block of Array.isArray(message?.content) ? message.content : []) {
       const b = block as { type?: string; name?: string; id?: unknown; input?: unknown; tool_use_id?: unknown };
       if (b.type === 'tool_use' && (b.name === 'Bash' || b.name === 'Monitor') && typeof b.id === 'string') {
         activity.launchInputs.set(b.id, { tool: b.name, input: (b.input ?? {}) as Record<string, unknown> });
       }
-      if (b.type === 'tool_result' && typeof b.tool_use_id === 'string') resultFor = b.tool_use_id;
+      if (b.type === 'tool_result' && typeof b.tool_use_id === 'string') {
+        resultFor = b.tool_use_id;
+        answered.push(b.tool_use_id);
+      }
     }
     const result = o.toolUseResult as Record<string, unknown> | undefined;
     if (at && result && typeof result === 'object') {
@@ -277,6 +284,7 @@ const ACTIVITY_FOLD: JsonlFold<ActivityFold> = {
         });
       }
     }
+    for (const id of answered) activity.launchInputs.delete(id);
     const text = lineText(o);
     if (!at || !text.includes('<task-notification>')) return;
     const id = tag(text, 'task-id');
