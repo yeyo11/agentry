@@ -169,6 +169,9 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
       // hijacked replies bypass @fastify/cors
       ...(process.env.AGENTRY_CORS_ORIGIN && req.headers.origin ? { 'Access-Control-Allow-Origin': req.headers.origin } : {}),
     });
+    // Written at once: Node holds the headers until the first write, and a client that asks only for
+    // what is new has nothing replayed, so it would not see the stream open until the first heartbeat
+    reply.raw.write('retry: 3000\n\n');
     // Ephemeral `partial` events carry no SSE id, so Last-Event-ID always points at a stored event
     const write = (event: RunEvent) =>
       reply.raw.write(`${event.kind === 'partial' ? '' : `id: ${event.seq}\n`}data: ${JSON.stringify(event)}\n\n`);
