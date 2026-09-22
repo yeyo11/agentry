@@ -51,6 +51,7 @@ const OrchestrationDetail = lazy(() => import('./pages/OrchestrationDetail').the
 const Projects = lazy(() => import('./pages/Projects').then((m) => ({ default: m.Projects })));
 const RunWorkflowDialog = lazy(() => import('./components/RunWorkflowDialog').then((m) => ({ default: m.RunWorkflowDialog })));
 const Schedules = lazy(() => import('./pages/Schedules').then((m) => ({ default: m.Schedules })));
+const ScheduleEditor = lazy(() => import('./pages/ScheduleEditor').then((m) => ({ default: m.ScheduleEditor })));
 const Usage = lazy(() => import('./pages/Usage').then((m) => ({ default: m.Usage })));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
 
@@ -293,6 +294,8 @@ function Shell() {
               <Route path="/orchestration/:id" element={<OrchestrationDetail />} />
               <Route path="/accounts" element={<Accounts />} />
               <Route path="/schedules" element={<Schedules />} />
+              <Route path="/schedules/new" element={<ScheduleEditor />} />
+              <Route path="/schedules/:id/edit" element={<ScheduleEditor />} />
               <Route path="/usage" element={<Usage />} />
               <Route path="/connectors" element={<Connectors />} />
               <Route path="/settings" element={<Settings />} />

@@ -4,7 +4,6 @@
 // Whatever a run-now starts is removed afterwards, because the chats spec counts what the sandbox holds.
 
 const NAME = 'e2e nightly check';
-const OVERLAY_RULES = { region: { enabled: false }, 'aria-hidden-focus': { enabled: false } };
 
 async function noViolations(page, where, check, options = {}) {
   const found = await page.axe(options);
@@ -24,43 +23,44 @@ export default async ({ page, api, check }) => {
     check(/skipped, not replayed/i.test(notice), 'the page says a missed window is skipped, not replayed');
 
     // ---------- the cron builder says what it will do ----------
-    await page.click('main .page-actions button', 'New schedule');
-    await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the form' });
+    await page.click('main .page-actions a', 'New schedule');
+    await page.waitFor(`return location.pathname === '/schedules/new' && !!document.querySelector('main .schedule-form')`, { label: 'the form, on a page of its own' });
+    check(!(await page.eval(`return !!document.querySelector('.schedule-form')`)), 'a new schedule is a page, not a dialog');
     const preview = async () => page.eval(`return document.querySelector('[data-testid=cron-preview]')?.innerText ?? ''`);
     await page.waitFor(`return /At 09:00/.test(document.querySelector('[data-testid=cron-preview]')?.innerText ?? '')`, { label: 'the default timetable in words' });
 
-    await page.select('[role=dialog] .select-trigger', 'Every weekday');
+    await page.select('.schedule-form .select-trigger', 'Every weekday');
     await page.waitFor(`return /Monday to Friday/.test(document.querySelector('[data-testid=cron-preview]')?.innerText ?? '')`, { label: 'the weekday timetable in words' });
     check((await preview()).includes('At 09:00'), 'the preview keeps the time of day');
-    const cron = await page.eval(`return document.querySelector('[role=dialog] input.mono').value`);
+    const cron = await page.eval(`return document.querySelector('.schedule-form input.mono').value`);
     check(cron === '0 9 * * 1-5', `the builder wrote the expression (${cron})`);
-    check(await page.eval(`return document.querySelector('[role=dialog] input.mono').readOnly`), 'the built expression is read-only until Custom is chosen');
+    check(await page.eval(`return document.querySelector('.schedule-form input.mono').readOnly`), 'the built expression is read-only until Custom is chosen');
     const nextFires = await page.eval(`return document.querySelectorAll('[data-testid=cron-preview] li').length`);
     check(nextFires === 5, `the preview lists the next five fires (${nextFires})`);
 
     // A hand-written expression that is not valid is said to be wrong, and cannot be saved
-    await page.select('[role=dialog] .select-trigger', 'Custom expression');
-    await page.fill('[role=dialog] input.mono', '61 * * * *');
+    await page.select('.schedule-form .select-trigger', 'Custom expression');
+    await page.fill('.schedule-form input.mono', '61 * * * *');
     await page.waitFor(`return document.querySelector('[data-testid=cron-preview]')?.classList.contains('is-invalid')`, { label: 'the invalid expression flagged' });
     const wrong = (await preview()).trim();
     check(wrong.length > 0 && !/At \d/.test(wrong), `the invalid expression says what is wrong, not a timetable (${wrong})`);
-    await page.fill('[role=dialog] input[placeholder="Morning dependency check"]', NAME);
-    await page.fill('[role=dialog] textarea', 'Summarise what changed since yesterday');
-    check(await page.eval(`return [...document.querySelectorAll('[role=dialog] button')].find((b) => b.textContent.includes('Create schedule')).disabled`), 'an invalid expression cannot be saved');
-    await noViolations(page, 'the schedule form', check, { include: '[role=dialog]', rules: OVERLAY_RULES });
+    await page.fill('.schedule-form input[placeholder="Morning dependency check"]', NAME);
+    await page.fill('.schedule-form textarea', 'Summarise what changed since yesterday');
+    check(await page.eval(`return [...document.querySelectorAll('.schedule-form button')].find((b) => b.textContent.includes('Create schedule')).disabled`), 'an invalid expression cannot be saved');
+    await noViolations(page, 'the schedule form page', check);
 
     // The overlap policy says in a sentence what each choice does
     check(/even while the previous one/.test(await page.text('[data-testid=overlap-hint]')), 'the default policy starts every slot, and says so');
-    await page.click('[role=dialog] [role=radio]', 'Skip', 400);
+    await page.click('.schedule-form [role=radio]', 'Skip', 400);
     check(/recorded as overlapped/.test(await page.text('[data-testid=overlap-hint]')), 'skip says a slot is recorded as overlapped');
-    await page.click('[role=dialog] [role=radio]', 'Queue', 400);
+    await page.click('.schedule-form [role=radio]', 'Queue', 400);
     check(/At most one waits/.test(await page.text('[data-testid=overlap-hint]')), 'queue says only one slot waits');
-    await page.click('[role=dialog] [role=radio]', 'Skip', 400);
+    await page.click('.schedule-form [role=radio]', 'Skip', 400);
 
-    await page.fill('[role=dialog] input.mono', '0 9 * * 1-5');
+    await page.fill('.schedule-form input.mono', '0 9 * * 1-5');
     await page.waitFor(`return !document.querySelector('[data-testid=cron-preview]')?.classList.contains('is-invalid') && /Monday to Friday/.test(document.querySelector('[data-testid=cron-preview]')?.innerText ?? '')`, { label: 'the valid expression accepted' });
-    await page.click('[role=dialog] button', 'Create schedule', 800);
-    await page.waitFor(`return !document.querySelector('[role=dialog]') && document.querySelector('main').innerText.includes(${JSON.stringify(NAME)})`, { label: 'the schedule on the page' });
+    await page.click('.schedule-form button', 'Create schedule', 800);
+    await page.waitFor(`return location.pathname === '/schedules' && document.querySelector('main').innerText.includes(${JSON.stringify(NAME)})`, { label: 'back on the list, with the schedule' });
 
     const list = (await api.get('/schedules')).body;
     check(list.length === 1 && list[0].name === NAME, 'the schedule was stored');
@@ -75,6 +75,12 @@ export default async ({ page, api, check }) => {
     check(card.includes('At 09:00, on Monday to Friday'), 'the card says the timetable in words');
     check(/Next run/.test(card), 'the card says when it fires next');
     await page.shot('schedules-list');
+
+    // ---------- editing is the same page, filled in ----------
+    await page.click(`.schedule-card a[aria-label="Edit ${NAME}"]`);
+    await page.waitFor(`return location.pathname === '/schedules/${scheduleId}/edit' && document.querySelector('.schedule-form input[placeholder="Morning dependency check"]')?.value === ${JSON.stringify(NAME)}`, { label: 'the edit page with the schedule' });
+    await page.click('.schedule-form button', 'Cancel', 600);
+    await page.waitFor(`return location.pathname === '/schedules'`, { label: 'Cancel goes back to the list' });
 
     // ---------- on and off ----------
     await page.click('.schedule-card [role=switch]');

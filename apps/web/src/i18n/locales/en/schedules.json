@@ -68,6 +68,8 @@
   "form": {
     "newTitle": "New schedule",
     "editTitle": "Edit schedule",
+    "back": "Back to schedules",
+    "notFound": "This schedule no longer exists",
     "saving": "Saving…",
     "save": "Save",
     "create": "Create schedule",

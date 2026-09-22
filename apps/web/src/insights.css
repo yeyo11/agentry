@@ -201,3 +201,18 @@
   border-radius: 3px;
   background: var(--accent);
 }
+
+/* The schedule's own page: one readable column, its actions kept in reach at the foot while it scrolls */
+.schedule-editor {
+  max-width: 760px;
+}
+
+.schedule-form-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  justify-content: flex-end;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}

@@ -68,6 +68,8 @@
   "form": {
     "newTitle": "Nueva programación",
     "editTitle": "Edita la programación",
+    "back": "Volver a programaciones",
+    "notFound": "Esta programación ya no existe",
     "saving": "Guardando…",
     "save": "Guarda",
     "create": "Crea la programación",

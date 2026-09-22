@@ -13,17 +13,12 @@ import { ListToolbar, type ListToolbarTab } from '../components/ListToolbar';
 import { Empty, ErrorBox, PageHeader, Skeleton, StatusBadge, Tag } from '../components/ui';
 import { formatDateTime, formatDuration, timeAgo, toMs } from '../lib/format';
 import { matchesText, scheduleFields, scheduleView, type ScheduleView } from '../lib/lists';
-import { useProjectScope } from '../lib/project-scope';
-import { ScheduleForm } from './schedules/ScheduleForm';
 import '../insights.css';
 
 /** The recurring chats and orchestrations, with the timetable of each said in words and what each run produced. */
 export function Schedules() {
   const { t } = useTranslation(['schedules', 'common']);
-  const { project } = useProjectScope();
   const schedules = useSchedules();
-  // `undefined`: closed; `null`: a new one; a schedule: that one
-  const [editing, setEditing] = useState<Schedule | null | undefined>(undefined);
   const [search, setSearch] = useState('');
   const [view, setView] = useState<ScheduleView>('all');
   const all = schedules.data ?? [];
@@ -41,9 +36,9 @@ export function Schedules() {
         title={t('page.title')}
         subtitle={t('page.subtitle')}
         actions={
-          <button type="button" className="btn btn-primary" onClick={() => setEditing(null)}>
+          <Link to="/schedules/new" className="btn btn-primary">
             <Plus {...ICON_SM} /> {t('page.new')}
-          </button>
+          </Link>
         }
       />
       <div className="alert alert-note" role="note">
@@ -61,9 +56,9 @@ export function Schedules() {
           icon={CalendarClock}
           title={t('page.emptyTitle')}
           action={
-            <button type="button" className="btn btn-primary" onClick={() => setEditing(null)}>
+            <Link to="/schedules/new" className="btn btn-primary">
               <Plus {...ICON_SM} /> {t('page.new')}
-            </button>
+            </Link>
           }
         >
           {t('page.emptyBody')}
@@ -81,20 +76,17 @@ export function Schedules() {
           ) : (
             <ul className="lrows">
               {shown.map((schedule) => (
-                <ScheduleCard key={schedule.id} schedule={schedule} onEdit={() => setEditing(schedule)} />
+                <ScheduleCard key={schedule.id} schedule={schedule} />
               ))}
             </ul>
           )}
         </div>
       )}
-      {editing !== undefined && (
-        <ScheduleForm schedule={editing ?? undefined} defaultCwd={project?.exists ? project.path : undefined} onClose={() => setEditing(undefined)} />
-      )}
     </>
   );
 }
 
-function ScheduleCard({ schedule, onEdit }: { schedule: Schedule; onEdit: () => void }) {
+function ScheduleCard({ schedule }: { schedule: Schedule }) {
   const { t } = useTranslation(['schedules', 'common']);
   const toast = useToast();
   const confirm = useConfirm();
@@ -173,9 +165,9 @@ function ScheduleCard({ schedule, onEdit }: { schedule: Schedule; onEdit: () => 
             </button>
           </Tooltip>
           <Tooltip content={t('card.edit')}>
-            <button type="button" className="btn btn-small" onClick={onEdit} aria-label={t('card.editNamed', { name: schedule.name })}>
+            <Link to={`/schedules/${schedule.id}/edit`} className="btn btn-small" aria-label={t('card.editNamed', { name: schedule.name })}>
               <Pencil {...ICON_SM} />
-            </button>
+            </Link>
           </Tooltip>
           <Tooltip content={t('card.delete')}>
             <button
