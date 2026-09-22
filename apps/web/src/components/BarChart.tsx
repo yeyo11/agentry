@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState, type RefObject } from 'react';
+import { useId, useState } from 'react';
 import { labelStride, niceScale } from '../lib/usage-view';
+import { useWidth } from '../lib/use-width';
 
 export interface Bar {
   key: string;
@@ -11,21 +12,6 @@ export interface Bar {
 
 const HEIGHT = 220;
 const PAD = { top: 10, right: 8, bottom: 26, left: 56 };
-
-/** The width the chart can use. Measured, because text in an SVG that scales with a viewBox shrinks to nothing on a phone. */
-function useWidth(): [RefObject<HTMLDivElement | null>, number] {
-  const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(640);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    setWidth(Math.max(240, Math.floor(el.clientWidth)));
-    const observer = new ResizeObserver(([entry]) => entry && setWidth(Math.max(240, Math.floor(entry.contentRect.width))));
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-  return [ref, width];
-}
 
 /** A bar with a rounded top and a square foot, so it sits on the baseline. */
 function barPath(x: number, y: number, w: number, h: number, r: number): string {
@@ -59,7 +45,7 @@ export function BarChart({
   active: number | null;
   onActive: (index: number | null) => void;
 }) {
-  const [ref, width] = useWidth();
+  const [ref, width] = useWidth(240);
   const descriptionId = useId();
   const scale = niceScale(Math.max(0, ...bars.map((b) => b.value ?? 0)), 3, integer);
   const plotW = width - PAD.left - PAD.right;
