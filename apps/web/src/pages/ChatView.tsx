@@ -100,9 +100,12 @@ export function ChatView() {
   }, [id, setFollow]);
 
   // A block that has been stored leaves the stream once the transcript shows it, in the same
-  // frame, so it neither blinks out nor shows twice; one that went quiet goes with it
+  // frame, so it neither blinks out nor shows twice; one that went quiet goes with it. By the
+  // entry's id, not its object: every read of the transcript hands back new objects for the same
+  // entries, and a pause in a block's text is not its end
   const last = transcript.items.at(-1);
-  useLayoutEffect(() => stream.settle(), [last, stream]);
+  const lastKey = last ? last.uuid || `#${transcript.from + transcript.items.length}` : '';
+  useLayoutEffect(() => stream.settle(), [lastKey, stream]);
 
   const find = useTranscriptFind({
     scope: ['chat', id, sidechains],
