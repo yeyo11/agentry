@@ -1,3 +1,4 @@
+import { entryText } from '@agentry/shared';
 import type { ChatDetail, TranscriptEntry } from '@agentry/shared';
 
 // ---------- the transcript, kept current from the stream ----------
@@ -65,9 +66,13 @@ export function spliceTail(held: ChatDetail, fresh: ChatDetail, since = Number.P
   const meets = fresh.from < confirmedEnd ? held.entries[at]?.uuid === fresh.entries[0]?.uuid : confirmedEnd === held.from && at === 0;
   if (!meets) return null;
   const read = new Set(fresh.entries.map((entry) => entry.uuid));
+  // The wrapper names the user messages it writes itself, and the transcript names its copy
+  // otherwise: one sent while the read was on its way is matched by what it says instead
+  const said = new Set(fresh.entries.filter((entry) => entry.role === 'user').map(entryText));
   const late: TranscriptEntry[] = [];
   for (const entry of held.entries.slice(at)) {
-    if ((streamed.get(entry) ?? 0) > since && !read.has(entry.uuid)) late.push(entry);
+    const readBack = read.has(entry.uuid) || (entry.role === 'user' && said.has(entryText(entry)));
+    if ((streamed.get(entry) ?? 0) > since && !readBack) late.push(entry);
     // What is replaced is confirmed now, even where the read hands back the very same objects
     else streamed.delete(entry);
   }

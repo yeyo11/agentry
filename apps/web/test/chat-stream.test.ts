@@ -86,6 +86,15 @@ test('what the stream appended while the read was on its way is kept after it', 
   assert.deepEqual(uuids(spliceTail(later, page(1, ['b', 'c']), since)), ['a', 'b', 'c']);
 });
 
+test('a user message sent while the read was on its way is not kept twice under two names', () => {
+  const held = page(0, ['a']);
+  const since = streamMark();
+  const said = (uuid: string) => entry(uuid, { role: 'user', blocks: [{ type: 'text', text: 'hi' }] });
+  const later = appendStreamed(held, said('wrapper-copy')).page;
+  const fresh: ChatDetail = { chat, from: 0, total: 2, entries: [entry('a'), said('transcript-copy')] };
+  assert.deepEqual(uuids(spliceTail(later, fresh, since)), ['a', 'transcript-copy']);
+});
+
 test('a stored block stays on screen until the transcript shows it, and a quiet one does not stay forever', () => {
   const store = new ChatStreamStore('c1');
   let renders = 0;
