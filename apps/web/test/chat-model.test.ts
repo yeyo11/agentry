@@ -17,6 +17,7 @@ const {
   groupByDay,
   isWorker,
   lastEnded,
+  listRequest,
   matchesFilters,
   originsToFetch,
   rowTags,
@@ -128,6 +129,20 @@ test('search reads the title, the project and the orchestration', () => {
   assert.equal(matchesFilters(c, filters({ workers: true, search: 'agentry' })), true);
   assert.equal(matchesFilters(c, filters({ workers: true, search: 'write docs' })), true);
   assert.equal(matchesFilters(c, filters({ workers: true, search: 'nothing like it' })), false);
+});
+
+test('a search never matches across two fields, and reads a chat that changed afresh', () => {
+  const c = chat({ title: 'Fix login', cwd: '/work/app' });
+  // The title's end and the directory's start are not one phrase
+  assert.equal(matchesFilters(c, filters({ search: 'login /work' })), false);
+  assert.equal(matchesFilters(c, filters({ search: 'LOGIN' })), true);
+  // A new version of the row is a new object, and its text is read again
+  assert.equal(matchesFilters({ ...c, title: 'Dark mode' }, filters({ search: 'login' })), false);
+});
+
+test('the list asks the server to leave workers out unless they are wanted', () => {
+  assert.deepEqual(listRequest({ internal: false, workers: false }), { origin: ['agentry', 'external', 'orchestration'], workers: false });
+  assert.deepEqual(listRequest({ internal: true, workers: true }), { origin: ['agentry', 'external', 'orchestration', 'internal'] });
 });
 
 test('sorting by context puts the chats closest to compacting first, and those without a share last', () => {

@@ -231,6 +231,7 @@ export const api = {
         project: filter.project ?? undefined,
         loose: filter.project === null ? '1' : undefined,
         origin: filter.origin?.join(','),
+        workers: filter.workers === false ? '0' : undefined,
         state: filter.state,
         limit: num(filter.limit),
       })}`,
@@ -469,7 +470,8 @@ export const keys = {
   projectCandidates: ['projects', 'candidates'] as const,
   // Prefixes the event feed invalidates: every list and every open chat sits under them
   chats: ['chats'] as const,
-  chatList: (filter: ChatFilter) => ['chats', filter.project === undefined ? 'all' : (filter.project ?? 'loose'), filter.origin?.join(',') ?? '', filter.state ?? '', filter.limit ?? 0] as const,
+  chatList: (filter: ChatFilter) =>
+    ['chats', filter.project === undefined ? 'all' : (filter.project ?? 'loose'), filter.origin?.join(',') ?? '', filter.state ?? '', filter.limit ?? 0, filter.workers === false ? 'no-workers' : ''] as const,
   /** Prefix of a chat's page and of everything read for it */
   chatScope: (id: string) => ['chat', id] as const,
   chat: (id: string, sidechains: boolean) => ['chat', id, sidechains] as const,
@@ -541,6 +543,8 @@ export interface ChatFilter {
   project?: string | null;
   /** Defaults to the chats a person started or adopted; workers and housekeeping stay out unless asked for */
   origin?: ChatOrigin[];
+  /** `false` leaves the workers of orchestrations out while keeping their syntheses */
+  workers?: boolean;
   state?: ChatState;
   limit?: number;
   /** The query waits, e.g. until the project it depends on is known */
