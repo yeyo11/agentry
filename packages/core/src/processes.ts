@@ -49,6 +49,25 @@ export function streamJsonProcesses(): CliProcess[] {
   return found;
 }
 
+/** How long a read of the process table serves the lists: it is a file per process, and one request assembles many chats. */
+const PROCESSES_TTL_MS = 1_000;
+let recent: { at: number; value: CliProcess[] } | null = null;
+
+/**
+ * {@link streamJsonProcesses}, read at most once a second. For what is shown, not for deciding
+ * whether a process may be started: that reads the table fresh.
+ */
+export function recentStreamJsonProcesses(): CliProcess[] {
+  const now = Date.now();
+  if (!recent || now - recent.at > PROCESSES_TTL_MS) recent = { at: now, value: streamJsonProcesses() };
+  return recent.value;
+}
+
+/** Makes the next {@link recentStreamJsonProcesses} read the table: a process known to have come or gone. */
+export function forgetStreamJsonProcesses(): void {
+  recent = null;
+}
+
 // ---------- one command's process tree ----------
 
 /** A process as the kernel lists it: what is needed to walk a tree and to know a pid is still the same process. */

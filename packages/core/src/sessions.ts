@@ -1,7 +1,7 @@
 import { createReadStream, existsSync, type Stats } from 'node:fs';
 import { open, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
   entrySearchText,
@@ -17,13 +17,14 @@ import {
   type TranscriptSearchResult,
 } from '@agentry/shared';
 import { toChatTask } from './chat-branches.ts';
-import { AGENT_ID_RE, WORKFLOW_RUN_ID_RE, emptyAgentRead, readAgentFile } from './agents.ts';
+import { AGENT_FOLD, AGENT_ID_RE, WORKFLOW_RUN_ID_RE, agentRead, emptyAgentRead } from './agents.ts';
 import type { BackgroundTask, SubagentInfo, TranscriptPage, TranscriptSummary, WorkflowRun } from './cli-facts.ts';
+import { JsonlCache, type JsonlFold } from './jsonl-cache.ts';
 import type { CoreConfig } from './paths.ts';
 import { toolCallsOf, type ToolCall } from './tool-calls.ts';
 import { EntryIndex, fingerprint, parseLine, readLines, scanLines, type JsonLine } from './transcript-index.ts';
 import { UsageFold } from './usage.ts';
-import { readSessionWorkflows, readWorkflowAgent } from './workflows.ts';
+import { readSessionWorkflows, readWorkflowAgent, WorkflowMemo } from './workflows.ts';
 
 /** The slash command inside a synthetic user message, e.g. `<command-name>/resume</command-name>`. */
 const COMMAND_RE = /<command-name>\s*([^<]+)<\/command-name>/;
@@ -225,6 +226,106 @@ interface SessionActivity {
   stops: Map<string, AgentStop>;
 }
 
+/** The activity folded so far, with what a later line needs of an earlier one. */
+interface ActivityFold extends SessionActivity {
+  /**
+   * Inputs of the calls that can leave a task running, a backgrounded Bash command or a Monitor,
+   * until their result is read: a call has one, and the fold is kept for as long as its transcript
+   */
+  launchInputs: Map<string, { tool: string; input: Record<string, unknown> }>;
+}
+
+const ACTIVITY_FOLD: JsonlFold<ActivityFold> = {
+  init: () => ({ agents: new Map(), tasks: new Map(), stops: new Map(), launchInputs: new Map() }),
+  clone: (a) => ({ agents: new Map(a.agents), tasks: new Map(a.tasks), stops: new Map(a.stops), launchInputs: new Map(a.launchInputs) }),
+  add: (activity, o) => {
+    const at = typeof o.timestamp === 'string' ? o.timestamp : null;
+    const message = o.message as { content?: unknown } | undefined;
+    let resultFor: string | null = null;
+    const answered: string[] = [];
+    for (const block of Array.isArray(message?.content) ? message.content : []) {
+      const b = block as { type?: string; name?: string; id?: unknown; input?: unknown; tool_use_id?: unknown };
+      if (b.type === 'tool_use' && (b.name === 'Bash' || b.name === 'Monitor') && typeof b.id === 'string') {
+        activity.launchInputs.set(b.id, { tool: b.name, input: (b.input ?? {}) as Record<string, unknown> });
+      }
+      if (b.type === 'tool_result' && typeof b.tool_use_id === 'string') {
+        resultFor = b.tool_use_id;
+        answered.push(b.tool_use_id);
+      }
+    }
+    const result = o.toolUseResult as Record<string, unknown> | undefined;
+    if (at && result && typeof result === 'object') {
+      if (typeof result.agentId === 'string' && !activity.agents.has(result.agentId)) activity.agents.set(result.agentId, at);
+      // A task stopped on request never gets a notification: all it leaves is TaskStop's result.
+      // Without this it would read as running for as long as its session lived.
+      if (typeof result.task_id === 'string' && typeof result.message === 'string' && /stopped/i.test(result.message)) {
+        activity.stops.set(result.task_id, { at, status: 'stopped', summary: result.message });
+      }
+      const launch = resultFor ? activity.launchInputs.get(resultFor) : undefined;
+      // A Monitor's result names its task `taskId`, not `backgroundTaskId` like a Bash call's
+      const taskId =
+        typeof result.backgroundTaskId === 'string'
+          ? result.backgroundTaskId
+          : launch?.tool === 'Monitor' && typeof result.taskId === 'string'
+            ? result.taskId
+            : null;
+      if (taskId && !activity.tasks.has(taskId)) {
+        const input = launch?.input ?? {};
+        const timeoutMs = launch?.tool === 'Monitor' && typeof result.timeoutMs === 'number' ? result.timeoutMs : 0;
+        activity.tasks.set(taskId, {
+          at,
+          type: launch?.tool === 'Monitor' ? 'monitor' : 'local_bash',
+          toolUseId: resultFor,
+          command: typeof input.command === 'string' ? input.command : null,
+          description: typeof input.description === 'string' ? input.description : null,
+          backgroundedByUser: result.backgroundedByUser === true,
+          // A persistent monitor reports a timeout of 0: it runs until stopped or its session ends
+          expiresAt: timeoutMs > 0 && result.persistent !== true ? new Date(Date.parse(at) + timeoutMs).toISOString() : null,
+        });
+      }
+    }
+    for (const id of answered) activity.launchInputs.delete(id);
+    const text = lineText(o);
+    if (!at || !text.includes('<task-notification>')) return;
+    const id = tag(text, 'task-id');
+    // Later lines win: an agent can be resumed and stop again, notifying each time
+    if (id) activity.stops.set(id, { at, status: tag(text, 'status') ?? 'completed', summary: tag(text, 'summary') });
+  },
+};
+
+/**
+ * The entries of a transcript that call a tool or carry a result, which is all a checklist or a
+ * file list needs. Only lines that mention a tool at all are parsed.
+ */
+const TOOL_ENTRIES_FOLD: JsonlFold<TranscriptEntry[]> = {
+  init: () => [],
+  clone: (entries) => [...entries],
+  add: (entries, o) => {
+    const entry = normalizeMessage(o);
+    if (entry?.blocks.some((b) => b.type === 'tool_use' || b.type === 'tool_result')) entries.push(entry);
+  },
+  mentions: 'tool_use',
+};
+
+/** Transcripts whose tool calls are kept: each holds whole entries, and only a chat being looked at needs them. */
+const TOOL_ENTRIES_FILES = 8;
+/** Agent transcripts kept whole, for the panels following one */
+const AGENT_FILES = 32;
+/** Project directories listed at once, and transcripts opened at once, when every session is read */
+const LIST_DIRS_AT_ONCE = 16;
+const LIST_FILES_AT_ONCE = 32;
+
+/** `work` over every item, no more than `limit` at a time, results in order. */
+async function mapLimit<T, R>(items: readonly T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    for (let i = next++; i < items.length; i = next++) out[i] = await work(items[i] as T);
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
 async function* readJsonl(file: string): AsyncGenerator<Record<string, unknown>> {
   const rl = createInterface({ input: createReadStream(file, 'utf8'), crlfDelay: Infinity });
   for await (const line of rl) {
@@ -249,7 +350,15 @@ export class SessionStore {
   private readonly transcripts = new Map<string, Promise<TranscriptState | null>>();
   /** Subagent transcript → its working dir; written once at its start, so never re-read */
   private readonly cwdCache = new Map<string, string | null>();
-  private readonly activityCache = new Map<string, { mtimeMs: number; size: number; activity: SessionActivity }>();
+  private readonly activities = new JsonlCache(ACTIVITY_FOLD);
+  private readonly toolEntries = new JsonlCache(TOOL_ENTRIES_FOLD, TOOL_ENTRIES_FILES);
+  private readonly agentFiles = new JsonlCache(AGENT_FOLD, AGENT_FILES);
+  private readonly workflowMemo = new WorkflowMemo();
+  /**
+   * Session id → where its transcript was last seen. Every per-chat read starts by finding the
+   * file, and looking in every project directory for it is a stat per project each time.
+   */
+  private readonly files = new Map<string, { projectId: string; file: string }>();
 
   constructor(private readonly config: CoreConfig) {}
 
@@ -345,30 +454,55 @@ export class SessionStore {
 
   async listSessions(projectId?: string): Promise<TranscriptSummary[]> {
     const dirs = projectId ? [projectId] : await this.projectDirs();
-    const all: TranscriptSummary[] = [];
-    for (const dir of dirs) {
+    // Directories are listed, and transcripts opened, a bounded number at a time: one after the
+    // other made a cold start as slow as the sum of them, all at once can run out of descriptors
+    const listed = await mapLimit(dirs, LIST_DIRS_AT_ONCE, async (dir) => {
       const full = join(this.config.projectsDir, dir);
       const files = await readdir(full).catch(() => [] as string[]);
-      const summaries = await Promise.all(
-        files.filter((f) => f.endsWith('.jsonl')).map((f) => this.summarize(dir, join(full, f))),
-      );
-      for (const s of summaries) if (s) all.push(s);
-    }
+      return files.filter((f) => f.endsWith('.jsonl')).map((f) => ({ projectId: dir, file: join(full, f) }));
+    });
+    const found = listed.flat();
+    const summaries = await mapLimit(found, LIST_FILES_AT_ONCE, (at) => {
+      this.files.set(basename(at.file, '.jsonl'), at);
+      return this.summarize(at.projectId, at.file);
+    });
+    const all = summaries.filter((s): s is TranscriptSummary => s !== null);
     return all.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
   }
 
   private async findFile(sessionId: string): Promise<{ projectId: string; file: string } | null> {
     if (!/^[\w-]+$/.test(sessionId)) return null;
+    const known = this.files.get(sessionId);
+    if (known) {
+      if (await stat(known.file).then(() => true, () => false)) return known;
+      this.files.delete(sessionId);
+    }
     for (const dir of await this.projectDirs()) {
       const file = join(this.config.projectsDir, dir, `${sessionId}.jsonl`);
-      if (existsSync(file)) return { projectId: dir, file };
+      if (existsSync(file)) {
+        const at = { projectId: dir, file };
+        this.files.set(sessionId, at);
+        return at;
+      }
     }
     return null;
   }
 
-  /** Drops the cache after something outside this store changed the transcripts on disk. */
-  invalidate(): void {
-    this.transcripts.clear();
+  /**
+   * Drops what was read after something outside this store changed the transcripts on disk: of one
+   * project's directory when that is all that changed, or of all of them. A project's directory
+   * name is also the start of its worktrees', and those go with it: dropping too much only costs a
+   * read, keeping a deleted transcript would list it.
+   */
+  invalidate(projectId?: string): void {
+    const prefix = projectId === undefined ? null : join(this.config.projectsDir, projectId);
+    const drop = (file: string) => prefix === null || file.startsWith(prefix);
+    for (const file of [...this.transcripts.keys()]) if (drop(file)) this.transcripts.delete(file);
+    for (const [id, at] of [...this.files]) if (drop(at.file)) this.files.delete(id);
+    this.activities.forget(drop);
+    this.toolEntries.forget(drop);
+    this.agentFiles.forget(drop);
+    this.workflowMemo.forget(drop);
   }
 
   /** The cached summary of one session, without reading its transcript. */
@@ -378,67 +512,13 @@ export class SessionStore {
   }
 
   /**
-   * What a session launched in the background and when each piece stopped, from one pass over its
-   * transcript. Cached by mtime and size like the summaries: the lists that use it are polled every
-   * couple of seconds, and a transcript can run to megabytes.
+   * What a session launched in the background and when each piece stopped, folded over its
+   * transcript. The lists that use it are polled every couple of seconds and a transcript runs to
+   * megabytes, so a file that grew is only read for what was appended.
    */
   private async activity(file: string): Promise<SessionActivity> {
-    const info = await stat(file);
-    const cached = this.activityCache.get(file);
-    if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) return cached.activity;
-
-    const activity: SessionActivity = { agents: new Map(), tasks: new Map(), stops: new Map() };
-    // Inputs of the calls that can leave a task running: a backgrounded Bash command or a Monitor
-    const launchInputs = new Map<string, { tool: string; input: Record<string, unknown> }>();
-    for await (const o of readJsonl(file)) {
-      const at = typeof o.timestamp === 'string' ? o.timestamp : null;
-      const message = o.message as { content?: unknown } | undefined;
-      let resultFor: string | null = null;
-      for (const block of Array.isArray(message?.content) ? message.content : []) {
-        const b = block as { type?: string; name?: string; id?: unknown; input?: unknown; tool_use_id?: unknown };
-        if (b.type === 'tool_use' && (b.name === 'Bash' || b.name === 'Monitor') && typeof b.id === 'string') {
-          launchInputs.set(b.id, { tool: b.name, input: (b.input ?? {}) as Record<string, unknown> });
-        }
-        if (b.type === 'tool_result' && typeof b.tool_use_id === 'string') resultFor = b.tool_use_id;
-      }
-      const result = o.toolUseResult as Record<string, unknown> | undefined;
-      if (at && result && typeof result === 'object') {
-        if (typeof result.agentId === 'string' && !activity.agents.has(result.agentId)) activity.agents.set(result.agentId, at);
-        // A task stopped on request never gets a notification: all it leaves is TaskStop's result.
-        // Without this it would read as running for as long as its session lived.
-        if (typeof result.task_id === 'string' && typeof result.message === 'string' && /stopped/i.test(result.message)) {
-          activity.stops.set(result.task_id, { at, status: 'stopped', summary: result.message });
-        }
-        const launch = resultFor ? launchInputs.get(resultFor) : undefined;
-        // A Monitor's result names its task `taskId`, not `backgroundTaskId` like a Bash call's
-        const taskId =
-          typeof result.backgroundTaskId === 'string'
-            ? result.backgroundTaskId
-            : launch?.tool === 'Monitor' && typeof result.taskId === 'string'
-              ? result.taskId
-              : null;
-        if (taskId && !activity.tasks.has(taskId)) {
-          const input = launch?.input ?? {};
-          const timeoutMs = launch?.tool === 'Monitor' && typeof result.timeoutMs === 'number' ? result.timeoutMs : 0;
-          activity.tasks.set(taskId, {
-            at,
-            type: launch?.tool === 'Monitor' ? 'monitor' : 'local_bash',
-            toolUseId: resultFor,
-            command: typeof input.command === 'string' ? input.command : null,
-            description: typeof input.description === 'string' ? input.description : null,
-            backgroundedByUser: result.backgroundedByUser === true,
-            // A persistent monitor reports a timeout of 0: it runs until stopped or its session ends
-            expiresAt: timeoutMs > 0 && result.persistent !== true ? new Date(Date.parse(at) + timeoutMs).toISOString() : null,
-          });
-        }
-      }
-      const text = lineText(o);
-      if (!at || !text.includes('<task-notification>')) continue;
-      const id = tag(text, 'task-id');
-      // Later lines win: an agent can be resumed and stop again, notifying each time
-      if (id) activity.stops.set(id, { at, status: tag(text, 'status') ?? 'completed', summary: tag(text, 'summary') });
-    }
-    this.activityCache.set(file, { mtimeMs: info.mtimeMs, size: info.size, activity });
+    const activity = await this.activities.read(file);
+    if (!activity) throw new Error('session not found');
     return activity;
   }
 
@@ -503,7 +583,7 @@ export class SessionStore {
   /** Claude Code workflows a session ran, from the records and journals beside its transcript. */
   async workflows(sessionId: string, live = true): Promise<WorkflowRun[]> {
     const found = await this.findFile(sessionId);
-    return found ? readSessionWorkflows(found.file, sessionId, live) : [];
+    return found ? readSessionWorkflows(found.file, sessionId, live, this.workflowMemo) : [];
   }
 
   /**
@@ -645,7 +725,8 @@ export class SessionStore {
       meta = null;
     }
     if (!info && !meta) return null;
-    const read = info ? await readAgentFile(file) : emptyAgentRead();
+    const folded = info ? await this.agentFiles.read(file) : null;
+    const read = folded ? agentRead(folded) : emptyAgentRead();
     const lastActivityAt = info?.mtime.toISOString() ?? null;
 
     let status: AgentTranscript['status'];
@@ -706,6 +787,14 @@ export class SessionStore {
     await rm(found.file);
     await rm(found.file.slice(0, -'.jsonl'.length), { recursive: true, force: true });
     this.transcripts.delete(found.file);
+    this.files.delete(sessionId);
+    // Its folds and its sidecar's go too: nothing else would ever let go of them
+    const base = found.file.slice(0, -'.jsonl'.length);
+    const gone = (file: string) => file === found.file || file.startsWith(`${base}${sep}`);
+    this.activities.forget(gone);
+    this.toolEntries.forget(gone);
+    this.agentFiles.forget(gone);
+    this.workflowMemo.forget(gone);
   }
 
   /**
@@ -759,25 +848,13 @@ export class SessionStore {
    * Every call of the tools in `names` across a whole transcript, with its result, oldest first.
    * Null when there is no such session. A line is parsed only when it mentions a tool at all, and
    * whatever is not a call or a result is dropped at once, so a transcript of many megabytes is
-   * read for what a checklist or a file list needs and no more.
+   * read for what a checklist or a file list needs and no more; after that, only what it appended.
    */
   async toolCalls(sessionId: string, names: ReadonlySet<string>): Promise<ToolCall[] | null> {
     const found = await this.findFile(sessionId);
     if (!found) return null;
-    const entries: TranscriptEntry[] = [];
-    const rl = createInterface({ input: createReadStream(found.file, 'utf8'), crlfDelay: Infinity });
-    for await (const line of rl) {
-      if (!line.includes('tool_use')) continue;
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(line);
-      } catch {
-        continue; // a half-written line of a live session
-      }
-      const entry = parsed && typeof parsed === 'object' ? normalizeMessage(parsed as Record<string, unknown>) : null;
-      if (entry?.blocks.some((b) => b.type === 'tool_use' || b.type === 'tool_result')) entries.push(entry);
-    }
-    return toolCallsOf(entries, names);
+    const entries = await this.toolEntries.read(found.file);
+    return entries ? toolCallsOf(entries, names) : null;
   }
 
   /**

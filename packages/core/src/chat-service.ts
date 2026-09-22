@@ -47,14 +47,20 @@ import type { HealthService } from './health-service.ts';
 import { backgroundLogs, isLiveCliSession, listActiveCliSessions, stopBackgroundSession } from './cli.ts';
 import type { Orchestrator } from './orchestrator.ts';
 import type { CoreConfig } from './paths.ts';
-import { drivesSession, streamJsonProcesses, type CliProcess } from './processes.ts';
+import { drivesSession, forgetStreamJsonProcesses, recentStreamJsonProcesses, streamJsonProcesses, type CliProcess } from './processes.ts';
 import type { SessionStore } from './sessions.ts';
 import { emptyTokenUsage, localDay } from './usage.ts';
 import { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 import { usageBreakdown, usageSeries } from './usage-series.ts';
 
-/** How long `claude agents --json` is trusted between reads: it is an exec, and lists poll. */
-const CLI_TTL_MS = 1_500;
+/**
+ * How long `claude agents --json` is trusted between reads: it is an exec of about half a second,
+ * and lists poll. Past `CLI_FRESH_MS` the list is still served while a new read runs in the
+ * background; past `CLI_STALE_MS` a caller waits for the new one. Our own chats starting and ending
+ * drop it at once.
+ */
+const CLI_FRESH_MS = 1_500;
+const CLI_STALE_MS = 10_000;
 /** Ended chats whose delegated work is still listed; each costs a stat per poll. */
 const RECENT_ENDED_CHATS = 30;
 /**
@@ -117,6 +123,15 @@ interface Facts {
   orchestrations: Map<string, ChatOrchestration & { taskRunning: boolean }>;
 }
 
+/** Who holds a chat, and the origin and state that follow from it. */
+interface Standing {
+  own: boolean;
+  foreignProcess: boolean;
+  orchestration: (ChatOrchestration & { taskRunning: boolean }) | null;
+  origin: ChatOrigin;
+  state: ChatState;
+}
+
 /**
  * Assembles the chats the API serves from what is known of them: the transcript the CLI wrote, the
  * runtime of the ones Agentry drives, the CLI's own list of sessions and the orchestrations that
@@ -125,6 +140,9 @@ interface Facts {
  */
 export class ChatService {
   private cliCache: { at: number; value: CliSession[] } | null = null;
+  /** The read under way, shared by whoever asks meanwhile; `gen` tells one started before an invalidation */
+  private cliPending: { gen: number; promise: Promise<CliSession[]> } | null = null;
+  private cliGen = 0;
 
   constructor(private readonly deps: ChatServiceDeps) {}
 
@@ -132,7 +150,35 @@ export class ChatService {
 
   /** CLI sessions alive on the machine, each marked with whether it is really open for work. */
   async cliSessions(fresh = false): Promise<CliSession[]> {
-    if (fresh || !this.cliCache || Date.now() - this.cliCache.at > CLI_TTL_MS) {
+    const cached = this.cliCache;
+    const age = cached ? Date.now() - cached.at : Infinity;
+    if (!fresh && cached && age <= CLI_FRESH_MS) return cached.value;
+    if (!fresh && cached && age <= CLI_STALE_MS) {
+      void this.readCliSessions().catch(() => undefined);
+      return cached.value;
+    }
+    // A decision waits for a read begun after it was asked: one already under way may predate
+    // the change it hangs on, a terminal that just let go of the session, say
+    return this.readCliSessions(!fresh);
+  }
+
+  /**
+   * Forgets what was last read of who holds each session, the CLI's list and the process table, so
+   * the next caller reads them again: a chat of ours that ended would otherwise read as held by the
+   * process it no longer has.
+   */
+  forgetHolders(): void {
+    this.cliGen++;
+    this.cliCache = null;
+    forgetStreamJsonProcesses();
+  }
+
+  private readCliSessions(join = true): Promise<CliSession[]> {
+    const pending = this.cliPending;
+    if (join && pending && pending.gen === this.cliGen) return pending.promise;
+    const gen = this.cliGen;
+    const at = Date.now();
+    const promise: Promise<CliSession[]> = (async () => {
       const agents = await listActiveCliSessions(this.deps.config);
       const value = await Promise.all(
         agents.map(async (agent) => ({
@@ -140,9 +186,14 @@ export class ChatService {
           live: isLiveCliSession(agent, await this.deps.sessions.summary(agent.sessionId).catch(() => null)),
         })),
       );
-      this.cliCache = { at: Date.now(), value };
-    }
-    return this.cliCache.value;
+      // A read that finished late never replaces a newer one
+      if (gen === this.cliGen && (!this.cliCache || this.cliCache.at <= at)) this.cliCache = { at, value };
+      return value;
+    })().finally(() => {
+      if (this.cliPending?.promise === promise) this.cliPending = null;
+    });
+    this.cliPending = { gen, promise };
+    return promise;
   }
 
   /** The orchestration each of its chats works for, keyed by session id. */
@@ -159,19 +210,35 @@ export class ChatService {
 
   private async facts(fresh = false, all = true): Promise<Facts> {
     const [transcripts, cli] = await Promise.all([all ? this.deps.sessions.listSessions() : Promise.resolve([]), this.cliSessions(fresh)]);
-    return { transcripts: new Map(transcripts.map((t) => [t.id, t])), cli: new Map(cli.map((c) => [c.sessionId, c])), processes: streamJsonProcesses(), orchestrations: this.chatOrchestrations() };
+    return {
+      transcripts: new Map(transcripts.map((t) => [t.id, t])),
+      cli: new Map(cli.map((c) => [c.sessionId, c])),
+      // A decision reads the table as it is now; what is only shown can be a second old
+      processes: fresh ? streamJsonProcesses() : recentStreamJsonProcesses(),
+      orchestrations: this.chatOrchestrations(),
+    };
   }
 
-  /** One chat, from every source that knows it. Null when none does. */
-  private assemble(id: string, facts: Facts, runtime: ChatRuntime | null, summary: TranscriptSummary | null): ChatSummary | null {
-    if (!summary && !runtime) return null;
+  /** Who holds a chat and what that makes of it: what a list filters on, before the rest is assembled. */
+  private standing(id: string, facts: Facts, runtime: ChatRuntime | null): Standing {
     const own = runtime?.pid != null;
     const cli = facts.cli.get(id);
     const foreignCli = cli !== undefined && cli.live && cli.pid !== runtime?.pid;
     const foreignProcess = foreignCli || facts.processes.some((p) => p.pid !== runtime?.pid && drivesSession(p.argv, id));
-
     const orchestration = facts.orchestrations.get(id) ?? null;
     const origin: ChatOrigin = runtime?.origin ?? (orchestration ? 'orchestration' : 'external');
+    // A process of ours wins over the CLI's list, which only knows about the ones that are not ours
+    const state = chatState({
+      run: own && runtime ? { status: runtime.status, pendingPrompts: runtime.pendingPrompts } : null,
+      cli: !own && foreignCli && cli ? { status: cli.status, ...(cli.state ? { state: cli.state } : {}) } : null,
+    });
+    return { own, foreignProcess, orchestration, origin, state };
+  }
+
+  /** One chat, from every source that knows it. Null when none does. */
+  private assemble(id: string, facts: Facts, runtime: ChatRuntime | null, summary: TranscriptSummary | null, known?: Standing): ChatSummary | null {
+    if (!summary && !runtime) return null;
+    const { own, foreignProcess, orchestration, origin, state } = known ?? this.standing(id, facts, runtime);
     const holder: SessionHolder = sessionHolder({ ownProcess: own, foreignProcess });
     const control: ChatControl = chatControl({ holder, origin, taskRunning: orchestration?.taskRunning === true, deliverable: orchestration !== null && orchestration.taskId === null });
 
@@ -197,11 +264,7 @@ export class ChatService {
       origin,
       orchestration: orchestration ? { id: orchestration.id, name: orchestration.name, taskId: orchestration.taskId, taskName: orchestration.taskName } : null,
       derivedFrom: runtime?.derivedFrom ?? null,
-      // A process of ours wins over the CLI's list, which only knows about the ones that are not ours
-      state: chatState({
-        run: own && runtime ? { status: runtime.status, pendingPrompts: runtime.pendingPrompts } : null,
-        cli: !own && foreignCli && cli ? { status: cli.status, ...(cli.state ? { state: cli.state } : {}) } : null,
-      }),
+      state,
       control,
       execution: live,
       // Only a process of ours streams what it is doing; a chat a terminal holds says nothing
@@ -221,10 +284,15 @@ export class ChatService {
     const origins = filter.origins ?? DEFAULT_ORIGINS;
     const out: ChatSummary[] = [];
     for (const id of ids) {
-      const chat = this.assemble(id, facts, runtimes.get(id) ?? null, facts.transcripts.get(id) ?? null);
-      if (!chat || !origins.includes(chat.origin)) continue;
+      const runtime = runtimes.get(id) ?? null;
+      // What is filtered out is never assembled: a sidebar asking for the few working chats would
+      // otherwise pay for placing every chat on the machine
+      const standing = this.standing(id, facts, runtime);
+      if (!origins.includes(standing.origin)) continue;
+      if (filter.state && standing.state !== filter.state) continue;
+      const chat = this.assemble(id, facts, runtime, facts.transcripts.get(id) ?? null, standing);
+      if (!chat) continue;
       if (filter.project !== undefined && (chat.project?.id ?? null) !== filter.project) continue;
-      if (filter.state && chat.state !== filter.state) continue;
       out.push(chat);
     }
     out.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
@@ -284,10 +352,10 @@ export class ChatService {
 
   /** A chat as its own page shows it, branches and environment included. Null when there is none. */
   async get(id: string, opts: { fresh?: boolean } = {}): Promise<Chat | null> {
-    const summary = await this.summaryOf(id, opts.fresh);
+    const facts = await this.facts(opts.fresh, false);
+    const summary = await this.summaryWith(id, facts);
     if (!summary) return null;
     const runtime = this.deps.runtime.get(id);
-    const facts = await this.facts(opts.fresh, false);
     const heldByAnother = facts.cli.get(id)?.live === true && facts.cli.get(id)?.pid !== runtime?.pid;
     const children = toChildren(await this.branchFacts(id, runtime, runtime?.pid != null || heldByAnother), id);
     const env = this.deps.environmentOf(runtime?.cwd ?? summary.cwd);
@@ -304,7 +372,10 @@ export class ChatService {
 
   /** The list's view of one chat, read fresh when a decision hangs on it. */
   async summaryOf(id: string, fresh = false): Promise<ChatSummary | null> {
-    const facts = await this.facts(fresh, false);
+    return this.summaryWith(id, await this.facts(fresh, false));
+  }
+
+  private async summaryWith(id: string, facts: Facts): Promise<ChatSummary | null> {
     const transcript = await this.deps.sessions.summary(id).catch(() => null);
     if (transcript) facts.transcripts.set(id, transcript);
     return this.assemble(id, facts, this.deps.runtime.get(id), transcript);
@@ -478,7 +549,7 @@ export class ChatService {
       const cli = (await this.cliSessions(true)).find((c) => c.sessionId === id && c.live);
       if (!cli) throw new Error('nothing is running on this chat');
       await stopBackgroundSession(this.deps.config, id);
-      this.cliCache = null;
+      this.forgetHolders();
     }
     return this.require(id);
   }
@@ -580,10 +651,12 @@ export class ChatService {
   }
 
   private async entriesOf(ids: string[]) {
+    // Gathered once for every chat: each would otherwise read the CLI's list and the process table
+    const facts = await this.facts(false, false);
     const per = await Promise.all(
       ids.map(async (id) => {
         const runtime = this.deps.runtime.get(id);
-        const ref = await this.refOf(id);
+        const ref = await this.refOf(id, facts);
         if (!ref) throw new Error('chat not found');
         const children = toChildren(await this.branchFacts(id, runtime, await this.liveIn(id)), id);
         return { ref, children };
@@ -601,8 +674,8 @@ export class ChatService {
     };
   }
 
-  private async refOf(id: string): Promise<ChatRef | null> {
-    const chat = await this.summaryOf(id);
+  private async refOf(id: string, facts: Facts): Promise<ChatRef | null> {
+    const chat = await this.summaryWith(id, facts);
     return chat ? { id: chat.id, title: chat.title, project: chat.project, cwd: chat.cwd, worktree: chat.worktree } : null;
   }
 
@@ -624,17 +697,22 @@ export class ChatService {
     return [...ids];
   }
 
+  /** Everything every chat delegated, read in one pass for whoever needs more than one kind of it. */
+  async allActivity(): Promise<{ tasks: ChatBackgroundTaskEntry[]; subagents: ChatSubagentEntry[]; workflows: ChatWorkflowEntry[] }> {
+    return this.entriesOf(await this.activityChats());
+  }
+
   /** Background commands of every chat, running ones first: the inbox sees a hung one wherever it is. */
   async allBackgroundTasks(): Promise<ChatBackgroundTaskEntry[]> {
-    return (await this.entriesOf(await this.activityChats())).tasks;
+    return (await this.allActivity()).tasks;
   }
 
   async allSubagents(): Promise<ChatSubagentEntry[]> {
-    return (await this.entriesOf(await this.activityChats())).subagents;
+    return (await this.allActivity()).subagents;
   }
 
   async allWorkflows(): Promise<ChatWorkflowEntry[]> {
-    return (await this.entriesOf(await this.activityChats())).workflows;
+    return (await this.allActivity()).workflows;
   }
 
   // ---------- what a chat's branches wrote ----------

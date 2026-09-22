@@ -340,6 +340,22 @@ test('background commands are read from the transcript, including ones stopped o
   // The same command, with its session gone, cannot still be running
   const ended = Object.fromEntries((await store.backgroundTasks(sid, false)).map((t) => [t.id, t]));
   assert.equal(ended.watch?.status, 'stopped');
+
+  // Read on from where the last pass stopped: a launch whose call came before, and a stop
+  appendFileSync(
+    join(project, `${sid}.jsonl`),
+    [
+      '',
+      bash('lint', 'pnpm lint', 'Lint'),
+      line({ type: 'user', uuid: 'n2', timestamp: '2026-01-01T09:04:00Z', message: { role: 'user', content: '<task-notification><task-id>watch</task-id><status>failed</status></task-notification>' } }),
+      launched('lint', '2026-01-01T09:05:00Z'),
+    ].join('\n'),
+  );
+  const grown = Object.fromEntries((await store.backgroundTasks(sid, true)).map((t) => [t.id, t]));
+  assert.equal(grown.watch?.status, 'failed');
+  assert.equal(grown.lint?.command, 'pnpm lint');
+  assert.equal(grown.lint?.status, 'running');
+  assert.equal(grown.serve?.status, 'stopped');
 });
 
 test('monitors are read from the transcript, which names their task differently', async () => {
