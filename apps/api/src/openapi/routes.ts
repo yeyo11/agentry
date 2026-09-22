@@ -32,6 +32,11 @@ export const TAGS = [
   { name: 'Connectors', description: 'The claude.ai connectors (Docs, Gmail, Calendar) as the CLI reports them. Read-only: Agentry cannot authorise one.' },
   { name: 'Uploads', description: 'Files to attach to a message. Images and PDFs reach Claude as content blocks, any other file by its path.' },
   { name: 'Security', description: 'Who may call this API, whether it accepts changes, and the trail every change leaves.' },
+  {
+    name: 'Push',
+    description:
+      'Web Push over VAPID, signed and sent by this server: a chat that stops for a permission prompt reaches a phone whose app is closed. There is no third-party push account — the payload goes out to whatever endpoint the browser handed us. A subscription belongs to an install, not to a person, so every install that registered gets the same notifications.',
+  },
 ];
 
 interface RouteDoc {
@@ -303,6 +308,13 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /plugins/marketplaces': d('Plugins', 'Add a marketplace', { body: obj({ source: str('GitHub `owner/repo`, URL or path') }, ['source']), ok: ref('CliTextResult') }),
   'POST /plugins/marketplaces/update': d('Plugins', 'Update one or all marketplaces', { body: obj({ name: str('Omit to update all') }), ok: ref('CliTextResult') }),
   'DELETE /plugins/marketplaces/:name': d('Plugins', 'Remove a marketplace', { ok: ref('CliTextResult') }),
+
+  // ---- Push
+  'GET /push/key': d('Push', 'The VAPID public key to subscribe with', { description: 'The keypair is made on first use and kept as `push.json` in the data directory (mode 600). The private half never leaves the server. `configured: false` means it could not be made and nothing will be sent.', ok: ref('PushKeyInfo') }),
+  'GET /push/subscriptions': d('Push', 'Installs registered to be pushed to', { description: 'Endpoints are truncated: a full push endpoint URL is a capability to notify that install. Each row carries the `id` its registration returned, which is how a browser recognises itself in the list.', ok: list('PushSubscriptionSummary') }),
+  'POST /push/subscriptions': d('Push', 'Register or refresh a subscription', { description: "The browser's `PushSubscription` JSON plus the notification kinds this install wants (every kind when omitted) and a label for the list. An endpoint that is already registered is refreshed, keeping its `createdAt`.", body: ref('RegisterPushSubscriptionRequest'), ok: ref('PushSubscriptionSummary'), created: true }),
+  'DELETE /push/subscriptions': d('Push', 'Unregister a subscription', { description: 'By `endpoint` (what a browser turning the switch off knows) or by `id` (what the Settings list shows). `removed: false` when no such install was registered.', body: ref('RemovePushSubscriptionRequest'), ok: obj({ removed: { type: 'boolean' } }, ['removed']) }),
+  'POST /push/test': d('Push', 'Send one test notification', { description: 'Proves push works without waiting for a chat to stop. Aimed at one install by `endpoint` or `id`, or at every registered one when the body names none. An endpoint the push service reports as gone (404/410) is deleted and counted in `removed`.', body: ref('SendTestPushRequest'), ok: ref('PushSendResult') }),
 
   // ---- Security
   'GET /security/auth': d('Security', 'How the API is guarded', { description: 'The token is never returned: only whether one is set.', ok: ref('AuthConfig') }),
