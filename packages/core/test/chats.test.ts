@@ -480,6 +480,8 @@ test("the CLI's list of sessions is read once for everyone asking at the same ti
     core.chats.forgetHolders();
     await core.chats.cliSessions();
     assert.equal(reads(), 2, 'read again once invalidated');
+    await Promise.all([core.chats.cliSessions(), core.chats.cliSessions(true)]);
+    assert.equal(reads(), 3, 'a fresh caller reads again even when what was read is fresh');
   } finally {
     delete process.env.FAKE_CLAUDE_SPAWNS;
     core.shutdown();

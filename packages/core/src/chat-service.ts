@@ -157,7 +157,9 @@ export class ChatService {
       void this.readCliSessions().catch(() => undefined);
       return cached.value;
     }
-    return this.readCliSessions();
+    // A decision waits for a read begun after it was asked: one already under way may predate
+    // the change it hangs on, a terminal that just let go of the session, say
+    return this.readCliSessions(!fresh);
   }
 
   /**
@@ -171,9 +173,9 @@ export class ChatService {
     forgetStreamJsonProcesses();
   }
 
-  private readCliSessions(): Promise<CliSession[]> {
+  private readCliSessions(join = true): Promise<CliSession[]> {
     const pending = this.cliPending;
-    if (pending && pending.gen === this.cliGen) return pending.promise;
+    if (join && pending && pending.gen === this.cliGen) return pending.promise;
     const gen = this.cliGen;
     const at = Date.now();
     const promise: Promise<CliSession[]> = (async () => {
@@ -184,7 +186,8 @@ export class ChatService {
           live: isLiveCliSession(agent, await this.deps.sessions.summary(agent.sessionId).catch(() => null)),
         })),
       );
-      if (gen === this.cliGen) this.cliCache = { at, value };
+      // A read that finished late never replaces a newer one
+      if (gen === this.cliGen && (!this.cliCache || this.cliCache.at <= at)) this.cliCache = { at, value };
       return value;
     })().finally(() => {
       if (this.cliPending?.promise === promise) this.cliPending = null;
