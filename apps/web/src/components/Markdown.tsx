@@ -1,8 +1,10 @@
 // Markdown renderer for Claude's answers, split from the shell bundle: RichText loads it on first use.
 import { streamingMarkdownExtension } from '@tanstack/markdown/extensions/streaming';
+import { parseMarkdown } from '@tanstack/markdown/parser';
 import { Markdown as MarkdownView, type MarkdownComponentProps, type MarkdownReactOptions } from '@tanstack/markdown/react';
 import { isValidElement, memo, useRef, type ReactNode } from 'react';
 import i18n from '../i18n';
+import { Lru } from '../lib/lru';
 import { autolinkExtension } from '../lib/markdown-autolink';
 import { splitMarkdownBlocks, type BlockSplit } from '../lib/markdown-blocks';
 import { CodeBlock } from './CodeBlock';
@@ -114,9 +116,24 @@ function StreamingMarkdown({ text }: { text: string }) {
 }
 
 /**
+ * Finished answers, parsed. A windowed transcript mounts a row again every time it scrolls back
+ * into view, and a long answer is the costliest thing in it to parse.
+ */
+const parsed = new Lru<string, ReturnType<typeof parseMarkdown>>(200);
+
+function parsedOnce(text: string) {
+  let document = parsed.get(text);
+  if (!document) {
+    document = parseMarkdown(text, OPTIONS);
+    parsed.set(text, document);
+  }
+  return document;
+}
+
+/**
  * Rendered inside RichText's wrapper, which owns the styling. `streaming` is for an answer that is
  * still growing: only its last block is parsed again on every update, into the same markup.
  */
 export default function Markdown({ text, streaming = false }: { text: string; streaming?: boolean }) {
-  return streaming ? <StreamingMarkdown text={text} /> : <MarkdownView {...OPTIONS}>{text}</MarkdownView>;
+  return streaming ? <StreamingMarkdown text={text} /> : <MarkdownView {...OPTIONS}>{parsedOnce(text)}</MarkdownView>;
 }
