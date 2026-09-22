@@ -63,6 +63,11 @@ export function recentStreamJsonProcesses(): CliProcess[] {
   return recent.value;
 }
 
+/** Makes the next {@link recentStreamJsonProcesses} read the table: a process known to have come or gone. */
+export function forgetStreamJsonProcesses(): void {
+  recent = null;
+}
+
 // ---------- one command's process tree ----------
 
 /** A process as the kernel lists it: what is needed to walk a tree and to know a pid is still the same process. */

@@ -472,12 +472,12 @@ test("the CLI's list of sessions is read once for everyone asking at the same ti
   process.env.FAKE_CLAUDE_SPAWNS = log;
   const reads = () => readFileSync(log, 'utf8').split('\n').filter((l) => / agents --json$/.test(l)).length;
   try {
-    core.chats.invalidateCliSessions();
+    core.chats.forgetHolders();
     await Promise.all([core.chats.cliSessions(), core.chats.cliSessions(), core.chats.list(), core.chats.allActivity()]);
     assert.equal(reads(), 1, 'one exec shared by every caller');
     await core.chats.list();
     assert.equal(reads(), 1, 'served from what was read while it is fresh');
-    core.chats.invalidateCliSessions();
+    core.chats.forgetHolders();
     await core.chats.cliSessions();
     assert.equal(reads(), 2, 'read again once invalidated');
   } finally {

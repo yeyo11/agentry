@@ -47,7 +47,7 @@ import type { HealthService } from './health-service.ts';
 import { backgroundLogs, isLiveCliSession, listActiveCliSessions, stopBackgroundSession } from './cli.ts';
 import type { Orchestrator } from './orchestrator.ts';
 import type { CoreConfig } from './paths.ts';
-import { drivesSession, recentStreamJsonProcesses, streamJsonProcesses, type CliProcess } from './processes.ts';
+import { drivesSession, forgetStreamJsonProcesses, recentStreamJsonProcesses, streamJsonProcesses, type CliProcess } from './processes.ts';
 import type { SessionStore } from './sessions.ts';
 import { emptyTokenUsage, localDay } from './usage.ts';
 import { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
@@ -161,12 +161,14 @@ export class ChatService {
   }
 
   /**
-   * Forgets the CLI's list, so the next caller waits for a new one: a chat of ours that ended would
-   * otherwise read as held by the process it no longer has.
+   * Forgets what was last read of who holds each session, the CLI's list and the process table, so
+   * the next caller reads them again: a chat of ours that ended would otherwise read as held by the
+   * process it no longer has.
    */
-  invalidateCliSessions(): void {
+  forgetHolders(): void {
     this.cliGen++;
     this.cliCache = null;
+    forgetStreamJsonProcesses();
   }
 
   private readCliSessions(): Promise<CliSession[]> {
@@ -544,7 +546,7 @@ export class ChatService {
       const cli = (await this.cliSessions(true)).find((c) => c.sessionId === id && c.live);
       if (!cli) throw new Error('nothing is running on this chat');
       await stopBackgroundSession(this.deps.config, id);
-      this.invalidateCliSessions();
+      this.forgetHolders();
     }
     return this.require(id);
   }

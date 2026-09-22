@@ -262,7 +262,7 @@ export class Core {
     // what it says about that chat, and a stale one would read it as held by someone else
     this.events.observe((event) => {
       const started = event.type === 'run.updated' && event.status !== event.previousStatus && event.status === 'starting';
-      if (started || event.type === 'run.created' || event.type === 'run.ended' || event.type === 'run.removed') this.chats.invalidateCliSessions();
+      if (started || event.type === 'run.created' || event.type === 'run.ended' || event.type === 'run.removed') this.chats.forgetHolders();
     });
     this.changeWatcher = new ChangeWatcher(this.orchestrator, this.events);
     this.changeWatcher.start();
