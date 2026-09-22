@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.15.2](https://github.com/yeyo11/agentry/compare/v0.15.1...v0.15.2) (2026-09-22)
+
+
+### Bug fixes
+
+* **web:** sticky bars flush with the page's edges, chat header under the top bar, logo on phones ([#69](https://github.com/yeyo11/agentry/issues/69)) ([2868ed4](https://github.com/yeyo11/agentry/commit/2868ed437784f3febf02ccab2835338f3c0793df))
+
 ## [0.15.1](https://github.com/yeyo11/agentry/compare/v0.15.0...v0.15.1) (2026-09-22)
 
 
