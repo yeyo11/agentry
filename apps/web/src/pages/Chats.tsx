@@ -324,12 +324,14 @@ export function Chats() {
   const models = useMemo(() => listParam(modelsParam), [modelsParam]);
   // The project chosen in the top bar, as every page it scopes reads it. A `?project=` link is what
   // the scope reads first; `loose`, the chats under no project, is a link the top bar has no entry for.
-  const { projectId, ready } = useProjectScope();
+  const { projectId, settled } = useProjectScope();
   // Read for its failure only: without projects the scope never settles, and the list is read unscoped
   const projectsFailed = useProjects(false).isError;
   const linked = params.get('project');
+  // A chosen project is kept even while a refresh of the projects fails, so the list never widens
+  // to every project behind the person's back
   const project: string | null | undefined =
-    linked === 'loose' ? null : ready ? (projectId ?? undefined) : linked && linked !== ALL_PROJECTS ? linked : undefined;
+    linked === 'loose' ? null : (projectId ?? (!settled && linked && linked !== ALL_PROJECTS ? linked : undefined));
   // With one project chosen above, a project facet could only ever say that project
   const byProject = project === undefined;
 
@@ -342,7 +344,7 @@ export function Chats() {
     ...(project !== undefined ? { project } : {}),
     // A project remembered from last time is only known once the projects are: until then the list
     // would be read for every project, then again for that one
-    enabled: ready || linked !== null || projectsFailed,
+    enabled: settled || linked !== null || projectsFailed,
   });
 
   const patch = (changes: Record<string, string | null>) => {

@@ -86,7 +86,7 @@ export function App() {
 
 function Shell() {
   const navigate = useNavigate();
-  const { project } = useProjectScope();
+  const { project, settled } = useProjectScope();
   const { pathname } = useLocation();
   const { t } = useTranslation(['components', 'connectors', 'shell']);
   const overview = useOverview();
@@ -108,9 +108,11 @@ function Shell() {
   // The code alone is also fetched once the browser is idle; the list is not, being the heaviest read.
   const warmChats = useCallback(() => {
     void loadChats();
+    // Before the scope is known the page would not read this entry, but the one of its project
+    if (!settled) return;
     const filter = { ...listRequest({ internal: false, workers: false }), ...(project ? { project: project.id } : {}) };
     void queryClient.prefetchQuery({ ...chatListQuery(filter), staleTime: PREFETCH_FRESH_MS });
-  }, [queryClient, project]);
+  }, [queryClient, project, settled]);
   useEffect(() => {
     const load = () => void loadChats();
     if (typeof requestIdleCallback === 'function') {
