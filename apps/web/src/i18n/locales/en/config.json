@@ -28,7 +28,8 @@
       "files": "Files",
       "workflows": "Workflows",
       "tools": "Tool presets",
-      "security": "Security"
+      "security": "Security",
+      "install": "Install"
     }
   },
   "security": {
@@ -943,5 +944,14 @@
     "synthesisHint": "Final agent that reports on everything the tasks did.",
     "finalResult": "Final result",
     "continue": "Continue the conversation"
+  },
+  "install": {
+    "title": "Install on this device",
+    "intro": "Installed, Agentry gets its own icon, opens in its own window without the address bar, and paints its shell from what it already has instead of waiting for the server.",
+    "installed": "Agentry is already running as an installed app on this device.",
+    "action": "Install Agentry",
+    "ios": "On iPhone and iPad there is no install button a page may offer: open Agentry in Safari, tap Share and then Add to Home Screen.",
+    "manual": "This browser installs an app from its own menu, where the item is called Install or Add to Home Screen. Chrome and Edge offer it here as a button instead, on Android and on the desktop.",
+    "insecure": "This page is served from {{origin}}, which browsers do not treat as a secure origin. Adding Agentry to the home screen still works, but nothing that needs a service worker does: no immediate cold start, and no notifications while the app is closed. That needs https:// or localhost."
   }
 }

@@ -8,6 +8,16 @@
     <meta name="theme-color" content="#0a0a0c" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#faf9f7" media="(prefers-color-scheme: light)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- iOS reads none of the manifest: the standalone window, the status bar and the home-screen
+         label and icon are asked for here, one meta each. The status bar stays `default`, which
+         leaves it above the page and lets iOS colour it from the two theme-color metas below —
+         `black-translucent` would paint the app under it, and the shell has no inset to spare. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Agentry" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <title>Agentry</title>
     <script>
       // Stamp the saved theme before first paint (src/lib/theme.tsx owns it afterwards)

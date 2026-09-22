@@ -28,7 +28,8 @@
       "files": "Archivos",
       "workflows": "Workflows",
       "tools": "Presets de herramientas",
-      "security": "Seguridad"
+      "security": "Seguridad",
+      "install": "Instalar"
     }
   },
   "security": {
@@ -943,5 +944,14 @@
     "synthesisHint": "Agente final que informa de todo lo que han hecho las tareas.",
     "finalResult": "Resultado final",
     "continue": "Continúa la conversación"
+  },
+  "install": {
+    "title": "Instalar en este dispositivo",
+    "intro": "Instalada, Agentry tiene su propio icono, se abre en su propia ventana sin barra de direcciones y pinta su interfaz con lo que ya tiene en lugar de esperar al servidor.",
+    "installed": "Agentry ya se está ejecutando como aplicación instalada en este dispositivo.",
+    "action": "Instalar Agentry",
+    "ios": "En iPhone y iPad ninguna página puede ofrecer un botón de instalación: abre Agentry en Safari, toca Compartir y después Añadir a pantalla de inicio.",
+    "manual": "Este navegador instala la aplicación desde su propio menú, donde la opción se llama Instalar o Añadir a pantalla de inicio. Chrome y Edge la ofrecen aquí como botón, tanto en Android como en el escritorio.",
+    "insecure": "Esta página se sirve desde {{origin}}, que los navegadores no consideran un origen seguro. Añadir Agentry a la pantalla de inicio sigue funcionando, pero nada que dependa de un service worker: ni arranque inmediato ni notificaciones con la aplicación cerrada. Para eso hace falta https:// o localhost."
   }
 }
