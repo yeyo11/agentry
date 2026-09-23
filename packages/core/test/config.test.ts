@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { SettingsFiles } from '../src/config/files.ts';
+import { McpConfig } from '../src/config/mcp.ts';
 import { parseVariant, projectScope, userScope } from '../src/config/scope.ts';
 import { ConfigResources } from '../src/config/resources.ts';
 import { CredentialStore } from '../src/credentials.ts';
+import { loadConfig } from '../src/paths.ts';
 import { encodeProjectId, Workspace } from '../src/workspace.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -123,6 +126,34 @@ test('credential store injects, swaps and restores env', async () => {
       else process.env[k] = v;
     }
   }
+});
+
+test('two panels asking for MCP health at once share one connection check', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'agentry-mcp-'));
+  const log = join(root, 'invocations');
+  const bin = join(root, 'claude');
+  // Slow enough that the second caller arrives while the first check is still dialling
+  const script = ['#!/bin/sh', `echo "$@" >> '${log}'`, 'sleep 0.3', "echo 'docs: https://example.com - ✔ Connected'", ''];
+  writeFileSync(bin, script.join('\n'), { mode: 0o755 });
+  const config = loadConfig({
+    CLAUDE_BIN: bin,
+    CSWAP_BIN: '/nonexistent/cswap',
+    CLAUDE_CONFIG_DIR: join(root, 'claude'),
+    AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
+    AGENTRY_DATA_DIR: join(root, 'data'),
+  });
+  const mcp = new McpConfig(config);
+  const scope = userScope(config);
+  const runs = () => readFileSync(log, 'utf8').split('\n').filter((line) => line.startsWith('mcp list')).length;
+
+  const [first, second] = await Promise.all([mcp.health(scope), mcp.health(scope)]);
+  assert.deepEqual(first, [{ name: 'docs', status: 'connected', detail: 'Connected' }]);
+  assert.deepEqual(second, first);
+  assert.equal(runs(), 1);
+
+  // Sharing lasts only while one is running: the panel that reopens later checks again
+  await mcp.health(scope);
+  assert.equal(runs(), 2);
 });
 
 test('workspace projects', async () => {
