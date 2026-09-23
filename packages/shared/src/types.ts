@@ -1,5 +1,7 @@
 // Contract shared between core, API and UI.
 
+import type { NotificationKind, NotificationPriority } from './notifications.ts';
+
 // ---------- System ----------
 
 export interface CliInfo {
@@ -2130,6 +2132,96 @@ export interface SupervisorProposal {
   costUsd: number;
   at: string;
   status: SupervisorProposalStatus;
+}
+
+// ---------- Web Push ----------
+
+/**
+ * What a browser needs before it can subscribe. The private half of the keypair never leaves the
+ * server, so this is the whole of what a client may know about it.
+ */
+export interface PushKeyInfo {
+  /** False when the server could not make itself a keypair; no route will send while it is false */
+  configured: boolean;
+  /** URL-safe base64 VAPID public key, or null when there is none */
+  publicKey: string | null;
+}
+
+/** The two keys a browser's `PushSubscription` carries, used to encrypt the payload (RFC 8291). */
+export interface PushSubscriptionKeys {
+  p256dh: string;
+  auth: string;
+}
+
+/**
+ * `POST /push/subscriptions`: the browser's `PushSubscription` JSON plus what this install wants.
+ * Sent again whenever the browser rotates the subscription, and an endpoint that is already
+ * registered is refreshed rather than duplicated.
+ */
+export interface RegisterPushSubscriptionRequest {
+  endpoint: string;
+  keys: PushSubscriptionKeys;
+  /** Kinds worth waking this install for; every kind when omitted */
+  kinds?: NotificationKind[];
+  /** What the Settings list calls this install, e.g. "Pixel 8 · Chrome". Derived from the user agent */
+  label?: string;
+}
+
+/**
+ * One registered install. The endpoint is truncated: a full push endpoint URL is a capability to
+ * notify that install, and a list route is not the place to hand it out. `id` is derived from the
+ * endpoint, so the browser that registered recognises itself by the id its own registration returned.
+ */
+export interface PushSubscriptionSummary {
+  id: string;
+  /** Origin of the push service and an elided tail — enough to tell two installs apart */
+  endpoint: string;
+  label: string;
+  kinds: NotificationKind[];
+  createdAt: string;
+  /** Last time this install registered or refreshed */
+  lastSeenAt: string;
+}
+
+/** `DELETE /push/subscriptions`: the endpoint a browser is unsubscribing, or the id of a row in the list. */
+export interface RemovePushSubscriptionRequest {
+  endpoint?: string;
+  id?: string;
+}
+
+/** `POST /push/test`: one install by endpoint or id, or every registered install when both are omitted. */
+export interface SendTestPushRequest {
+  endpoint?: string;
+  id?: string;
+}
+
+/** What a send attempt did, so the UI can say more than "sent". */
+export interface PushSendResult {
+  /** Installs the push service accepted the notification for */
+  sent: number;
+  /** Installs whose endpoint was gone (404/410) and whose row was deleted */
+  removed: number;
+  /** Installs the push service refused for any other reason; the row is kept */
+  failed: number;
+}
+
+/**
+ * What travels in a push payload, and deliberately no more: it passes through a push service we do
+ * not run, so it holds only what a lock screen shows anyway — no prompt text, no tool arguments,
+ * no secrets. It is the small, non-private part of a `NotificationDraft`.
+ */
+export interface PushPayload {
+  kind: NotificationKind;
+  /** The dedupe key, shown as the notification `tag` so a chat replaces its own notification */
+  key: string;
+  title: string;
+  body: string;
+  /** Path to open, e.g. `/chats/<id>?prompt=<id>`; null when there is nothing but the app to open */
+  href: string | null;
+  at: string;
+  priority: NotificationPriority;
+  runId: string | null;
+  orchestrationId: string | null;
 }
 
 // ---- Live events (GET /api/events) ----

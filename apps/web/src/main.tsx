@@ -9,6 +9,7 @@ import { ToastProvider } from './components/Toast';
 import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
 import './i18n'; // picks the language and sets <html lang> before the first render
+import { registerServiceWorker } from './lib/pwa';
 import './lib/theme'; // applies the stored theme before the first paint
 import './lib/motion'; // stamps the motion level before anything has a chance to animate
 import './lib/desktop'; // marks the desktop app's window before the first paint, so the title bar never jumps
@@ -49,3 +50,7 @@ createRoot(root).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+
+// After the render call, and the worker itself waits for 'load': the app shell is cached for the
+// next cold start, never at the cost of this one
+registerServiceWorker();

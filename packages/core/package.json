@@ -1,6 +1,6 @@
 {
   "name": "@agentry/core",
-  "version": "0.15.2",
+  "version": "0.15.3",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,6 +11,10 @@
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "@agentry/shared": "workspace:*"
+    "@agentry/shared": "workspace:*",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/web-push": "^3.6.4"
   }
 }

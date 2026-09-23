@@ -18,11 +18,19 @@ server.
 | Claude Code CLI | Baked into the image | Yours, from your `PATH` |
 | Login | `CLAUDE_CODE_OAUTH_TOKEN` | Your existing `~/.claude` login |
 | Listens on | `0.0.0.0:8787` | `127.0.0.1`, random port |
+| Web Push | Over HTTPS, to any installed browser or phone | Not registered — see below |
 
 The image can afford `bypassPermissions` because the container is the boundary. The desktop app has
 no boundary: Claude reads and writes your real files and runs commands with your privileges. So it
 starts in `acceptEdits`, where file edits are applied and anything else that needs permission is
 sent to the panel for you to allow or deny. A run can still choose another mode from the UI.
+
+The desktop app registers **no service worker**, and so receives no Web Push: it already has the
+bundle locally, and its API listens on a port the operating system picks anew every launch, so each
+start would leave behind one more worker registration under an origin that never comes back. The
+window is there anyway; the bell and its toasts are what tell you inside the app.
+To be told on a phone, point it at a wrapper served over HTTPS — see
+[On a phone](../README.md#on-a-phone) and [deploy.md](deploy.md).
 
 Authentication is off by default (see [SECURITY.md](../SECURITY.md)). The desktop server only
 listens on the loopback interface, but any process on your machine can reach that port. Turn on a

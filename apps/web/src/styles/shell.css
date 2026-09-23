@@ -3,6 +3,11 @@
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   height: 100dvh;
+  /* Installed on a phone the window is the whole screen, `viewport-fit=cover` and all: without
+     this the sidebar footer sits under the home indicator and, in landscape, the topbar runs into
+     the notch. Every inset is 0 on a device that has none, so this costs nothing anywhere else. */
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   transition: grid-template-columns var(--dur-slow) var(--ease-out);
 }
 

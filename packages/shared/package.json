@@ -1,12 +1,13 @@
 {
   "name": "@agentry/shared",
-  "version": "0.15.2",
+  "version": "0.15.3",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p test/tsconfig.json",
+    "test": "tsx --test test/*.test.ts"
   }
 }

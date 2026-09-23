@@ -8872,6 +8872,230 @@
     "$ref": "#/components/schemas/SupervisorConfig",
     "description": "Replaces the whole document (`PUT /settings/supervisor`)."
   },
+  "PushKeyInfo": {
+    "type": "object",
+    "properties": {
+      "configured": {
+        "type": "boolean",
+        "description": "False when the server could not make itself a keypair; no route will send while it is false"
+      },
+      "publicKey": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "URL-safe base64 VAPID public key, or null when there is none"
+      }
+    },
+    "required": [
+      "configured",
+      "publicKey"
+    ],
+    "description": "What a browser needs before it can subscribe. The private half of the keypair never leaves the server, so this is the whole of what a client may know about it."
+  },
+  "RegisterPushSubscriptionRequest": {
+    "type": "object",
+    "properties": {
+      "endpoint": {
+        "type": "string"
+      },
+      "keys": {
+        "$ref": "#/components/schemas/PushSubscriptionKeys"
+      },
+      "kinds": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/NotificationKind"
+        },
+        "description": "Kinds worth waking this install for; every kind when omitted"
+      },
+      "label": {
+        "type": "string",
+        "description": "What the Settings list calls this install, e.g. \"Pixel 8 · Chrome\". Derived from the user agent"
+      }
+    },
+    "required": [
+      "endpoint",
+      "keys"
+    ],
+    "description": "`POST /push/subscriptions`: the browser's `PushSubscription` JSON plus what this install wants. Sent again whenever the browser rotates the subscription, and an endpoint that is already registered is refreshed rather than duplicated."
+  },
+  "PushSubscriptionKeys": {
+    "type": "object",
+    "properties": {
+      "p256dh": {
+        "type": "string"
+      },
+      "auth": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "p256dh",
+      "auth"
+    ],
+    "description": "The two keys a browser's `PushSubscription` carries, used to encrypt the payload (RFC 8291)."
+  },
+  "NotificationKind": {
+    "type": "string",
+    "enum": [
+      "waiting",
+      "run",
+      "orchestration",
+      "conflict",
+      "limit",
+      "activity",
+      "health"
+    ]
+  },
+  "PushSubscriptionSummary": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "endpoint": {
+        "type": "string",
+        "description": "Origin of the push service and an elided tail — enough to tell two installs apart"
+      },
+      "label": {
+        "type": "string"
+      },
+      "kinds": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/NotificationKind"
+        }
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "lastSeenAt": {
+        "type": "string",
+        "description": "Last time this install registered or refreshed"
+      }
+    },
+    "required": [
+      "id",
+      "endpoint",
+      "label",
+      "kinds",
+      "createdAt",
+      "lastSeenAt"
+    ],
+    "description": "One registered install. The endpoint is truncated: a full push endpoint URL is a capability to notify that install, and a list route is not the place to hand it out. `id` is derived from the endpoint, so the browser that registered recognises itself by the id its own registration returned."
+  },
+  "RemovePushSubscriptionRequest": {
+    "type": "object",
+    "properties": {
+      "endpoint": {
+        "type": "string"
+      },
+      "id": {
+        "type": "string"
+      }
+    },
+    "description": "`DELETE /push/subscriptions`: the endpoint a browser is unsubscribing, or the id of a row in the list."
+  },
+  "SendTestPushRequest": {
+    "type": "object",
+    "properties": {
+      "endpoint": {
+        "type": "string"
+      },
+      "id": {
+        "type": "string"
+      }
+    },
+    "description": "`POST /push/test`: one install by endpoint or id, or every registered install when both are omitted."
+  },
+  "PushSendResult": {
+    "type": "object",
+    "properties": {
+      "sent": {
+        "type": "number",
+        "description": "Installs the push service accepted the notification for"
+      },
+      "removed": {
+        "type": "number",
+        "description": "Installs whose endpoint was gone (404/410) and whose row was deleted"
+      },
+      "failed": {
+        "type": "number",
+        "description": "Installs the push service refused for any other reason; the row is kept"
+      }
+    },
+    "required": [
+      "sent",
+      "removed",
+      "failed"
+    ],
+    "description": "What a send attempt did, so the UI can say more than \"sent\"."
+  },
+  "PushPayload": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/NotificationKind"
+      },
+      "key": {
+        "type": "string",
+        "description": "The dedupe key, shown as the notification `tag` so a chat replaces its own notification"
+      },
+      "title": {
+        "type": "string"
+      },
+      "body": {
+        "type": "string"
+      },
+      "href": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Path to open, e.g. `/chats/<id>?prompt=<id>`; null when there is nothing but the app to open"
+      },
+      "at": {
+        "type": "string"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/NotificationPriority"
+      },
+      "runId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "kind",
+      "key",
+      "title",
+      "body",
+      "href",
+      "at",
+      "priority",
+      "runId",
+      "orchestrationId"
+    ],
+    "description": "What travels in a push payload, and deliberately no more: it passes through a push service we do not run, so it holds only what a lock screen shows anyway — no prompt text, no tool arguments, no secrets. It is the small, non-private part of a `NotificationDraft`."
+  },
+  "NotificationPriority": {
+    "type": "string",
+    "enum": [
+      "high",
+      "normal",
+      "low"
+    ],
+    "description": "`high` needs the person, `normal` is worth knowing, `low` stays in the center without a toast."
+  },
   "CliVersionInfo": {
     "type": "object",
     "properties": {

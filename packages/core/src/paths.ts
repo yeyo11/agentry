@@ -32,6 +32,8 @@ export interface CoreConfig {
   dataDir: string;
   defaultPermissionMode: PermissionMode;
   maxConcurrentRuns: number;
+  /** VAPID `sub` claim of every push the server signs; a `mailto:` or `https:` the push service can complain to */
+  pushSubject: string;
   /** Seeds the guard of an install that has no `auth.json` yet; see `security/auth.ts` */
   authEnv: AuthEnv;
   /**
@@ -71,6 +73,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     dataDir,
     defaultPermissionMode: (env.AGENTRY_DEFAULT_PERMISSION_MODE as PermissionMode | undefined) ?? 'acceptEdits',
     maxConcurrentRuns: Number(env.AGENTRY_MAX_CONCURRENT_RUNS ?? 8),
+    pushSubject: env.AGENTRY_PUSH_SUBJECT?.trim() || 'mailto:agentry@localhost',
     allowedHosts: (env.AGENTRY_ALLOWED_HOSTS ?? '')
       .split(',')
       .map((host) => host.trim().toLowerCase())

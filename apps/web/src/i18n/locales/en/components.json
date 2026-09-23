@@ -418,5 +418,22 @@
     "json": "JSON",
     "markdownHint": "Download every chat as a Markdown document to read or share",
     "jsonHint": "Download every chat with all its events as JSON"
+  },
+  "push": {
+    "label": "Also push to this device",
+    "hintOn": "This device is registered: what you chose below reaches it even with Agentry closed.",
+    "hintOff": "Sends what you choose below to this device even when Agentry is closed. The browser will ask for permission.",
+    "failed": "Could not change push notifications for this device",
+    "incomplete": "This browser gave back a subscription with no encryption keys, so nothing could be sent to it.",
+    "noWorker": "This browser has no service worker for Agentry yet, so there is nothing to deliver a notification to. Reload the page and try again.",
+    "fallbackTitle": "Agentry",
+    "fallbackBody": "Something is waiting for you.",
+    "blocked": {
+      "insecure": "This page comes from {{origin}}, which browsers do not treat as a secure origin, so there is no service worker here and no push either. Reach Agentry over https:// — or from localhost — and this switch comes back.",
+      "iosTab": "On iPhone and iPad a notification only reaches an app added to the Home Screen, never a tab: tap Share, then Add to Home Screen, and turn this on from the app that starts.",
+      "unsupported": "This browser cannot receive Web Push.",
+      "unconfigured": "This server has no signing key for push, so nothing it sent could be delivered. Its log says why.",
+      "denied": "Notifications are blocked for this site. Allow them in the browser's own settings, and this switch comes back."
+    }
   }
 }

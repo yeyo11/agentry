@@ -19,6 +19,7 @@ import { memoryRoutes } from './routes/memory.ts';
 import { orchestrationRoutes } from './routes/orchestrations.ts';
 import { pluginRoutes } from './routes/plugins.ts';
 import { projectRoutes } from './routes/projects.ts';
+import { pushRoutes } from './routes/push.ts';
 import { securityRoutes } from './routes/security.ts';
 import { scheduleRoutes } from './routes/schedules.ts';
 import { supervisorRoutes } from './routes/supervisor.ts';
@@ -115,6 +116,10 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
     void reply.status(status).send({ error: status >= 500 ? 'internal error' : err.message });
   });
 
+  // Core has no logger of its own, and a push that cannot be delivered is a log line rather than
+  // an exception thrown into the event path. This is where that line goes.
+  core.push.log = (line) => app.log.warn({ scope: 'push' }, line);
+
   // Before every route: the guard must also cover /docs and the OpenAPI document
   registerSecurity(app, core);
 
@@ -138,6 +143,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(uploadRoutes, { core });
       await api.register(scheduleRoutes, { core });
       await api.register(supervisorRoutes, { core });
+      await api.register(pushRoutes, { core });
     },
     { prefix: '/api' },
   );

@@ -88,6 +88,10 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
   in MCP `env` and `headers` never returned by the API, an audit log of every write you can narrow by
   path, method and status, and a way back in from the environment when the token is lost. See
   [Securing it](#securing-it).
+- **On your phone** — installable to a home screen on Android and iPhone as a progressive web app,
+  and able to tell you that a chat is waiting while it is closed, over Web Push this server signs
+  with its own VAPID key. No app store, no native shell, no third-party push account. The
+  push half needs HTTPS: see [On a phone](#on-a-phone).
 - **One container, one volume** — non-root, the CLI baked in and pinned with an update check,
   everything else on a data volume. Compose profiles, a TLS proxy and a Helm chart are in
   [docs/deploy.md](docs/deploy.md).
@@ -205,7 +209,7 @@ Volumes:
 | --- | --- | --- |
 | `agentry-config` / `claude-config` | `/home/node/.claude` | The whole account setup: `settings.json`, `.claude.json` (MCP servers), `CLAUDE.md`, agents, skills, commands and session transcripts |
 | `./workspace` | `/workspace` | Projects Claude works on (default `cwd` for runs) |
-| `agentry-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, the rotation log, account usage history, command durations, schedule runs, the supervisor's proposals and the audit log. Settings-shaped files: `accounts.json` (auto-rotation), `account-config.json` (config directories and rotation policies), `auth.json` (the auth mode and the hash of the token, mode 600), `credentials.json` (the runtime credential, mode 600), `tool-presets.json` (the presets and the default), `orchestration-templates.json`, `schedules.json`, `supervisor.json`, `editor.json` and `cli-version.json`. `uploads/` holds attachments and `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets) |
+| `agentry-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, the rotation log, account usage history, command durations, schedule runs, the supervisor's proposals, the installs registered for Web Push and the audit log. Settings-shaped files: `accounts.json` (auto-rotation), `account-config.json` (config directories and rotation policies), `auth.json` (the auth mode and the hash of the token, mode 600), `credentials.json` (the runtime credential, mode 600), `tool-presets.json` (the presets and the default), `orchestration-templates.json`, `schedules.json`, `supervisor.json`, `editor.json`, `cli-version.json` and `push.json` (the VAPID keypair, mode 600). `uploads/` holds attachments and `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets) |
 | `agentry-accounts` / `claude-swap` | `/home/node/.local/share/claude-swap` | Credentials of every registered account |
 
 The compose file keeps its original volume names so an existing setup keeps its data; `docker compose`
@@ -228,6 +232,38 @@ sandboxed and runs default to `acceptEdits` instead of `bypassPermissions`. The 
 its title bar, a tray icon lists what is working and what waits for you, and the taskbar shows the
 running orchestrations' progress. Requirements, data locations, CLI detection, the tray and building
 from source are in [docs/desktop.md](docs/desktop.md).
+
+## On a phone
+
+Agentry installs to a home screen as a progressive web app: the same bundle the API already serves,
+with its own icon and no address bar. No app store, no native shell, nothing extra to build.
+
+- **Android (Chrome, Edge)**: open Agentry and press **Install Agentry** in Settings → Install. The
+  browser's own menu offers the same thing, as *Install app*.
+- **iPhone and iPad (Safari)**: open Agentry, tap **Share**, then **Add to Home Screen**. iOS has no
+  install API, so no button on a page can do it for you — Settings → Install says those two taps.
+- **A desktop browser** installs it the same way, from the same tab.
+
+Once installed it starts standalone and paints its own shell from the service worker's cache instead
+of a white screen while the bundle downloads. Nothing about the client/server contract changes: the
+same relative `/api` calls, the same `Authorization` header, the same two event streams. The worker
+caches the shell only — it never answers a request under `/api`, `/docs` or `/openapi.json`, so
+`GET /api/events` streams exactly as it does in a tab.
+
+**Being told while the app is closed.** Settings → Notifications has an *Also push to this device*
+switch. The browser subscribes with a VAPID key this server made for itself, and from then on a chat
+that stops for a permission prompt puts a notification on the phone even with Agentry closed; tapping
+it opens that prompt, not just the chat. The per-kind preferences above the switch decide what is
+worth waking a device for, and the list below it shows every install registered, this one marked,
+each with **Test** and **Remove**. A window that is open and visible shows its usual toast and no
+push, so the same news never arrives twice.
+
+Push needs a **secure origin**: `https://…` or `localhost`. On `http://192.168.1.10:8787` — how most
+people run Agentry on a LAN — the browser has no service worker at all, so there is no push and no
+cached shell; the Settings page says so and names the origin rather than showing a switch that does
+nothing. [docs/deploy.md](docs/deploy.md) has the TLS proxy that fixes it. On iPhone and iPad, a push
+reaches an app on the Home Screen only, never a Safari tab: install first, then turn the switch on
+from the app that starts.
 
 ## Local development
 
@@ -300,6 +336,7 @@ transpiler.
 | `AGENTRY_DATA_DIR` | `./data` | Wrapper state |
 | `AGENTRY_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one |
 | `AGENTRY_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes |
+| `AGENTRY_PUSH_SUBJECT` | `mailto:agentry@localhost` | The VAPID `sub` claim of every Web Push this server signs: a `mailto:` or `https:` a push service can complain to. Set it before the first push is sent — the claim is stored with the keypair |
 | `AGENTRY_AUTH_MODE` | `none` | `none`, `token` or `oidc`. **Seeds** an install that has no `auth.json` yet; after that the setting saved from the UI wins. See [Securing it](#securing-it) |
 | `AGENTRY_AUTH_TOKEN` | – | The bearer token to seed with when the mode is `token`. Only its SHA-256 is stored |
 | `AGENTRY_AUTH_TOKEN_RESET` | – | `1` makes `AGENTRY_AUTH_TOKEN` replace the stored token on start, on an install that already has one. The change is audited with actor `env`, and a value already applied is not applied twice |
@@ -368,6 +405,13 @@ directory it wins over the environment).
   server's `env` and `headers` (and in settings' `env`) with a placeholder instead of the value. A
   write that sends the placeholder back keeps what is stored. The per-chat MCP config files Agentry
   writes for `--mcp-config` do hold real values, so they are mode 600 in a mode 700 directory.
+- **Push payloads travel through a relay.** A Web Push goes out to the push service of the browser's
+  maker (Mozilla, Apple, Google), encrypted per RFC 8291 so they cannot read it — but they do see
+  that an install of yours was notified, and when. What a payload holds is therefore only what a lock
+  screen shows anyway: the kind, the title and body, the chat or orchestration id, and the path to
+  open. No prompt text, no tool arguments, no secrets. The VAPID private key lives in `push.json`
+  (mode 600, in the mode 700 data directory) and no route returns it; `GET /push/subscriptions`
+  truncates every endpoint, because a full push endpoint URL is a capability to notify that install.
 - **Audit log.** Every mutating request is a row: when, who (a token id, an OIDC subject, or `local`
   when nothing guards the API), method, path, status and a one-line summary taken from the route's
   documentation. Bodies are never recorded, because they hold prompts and secrets. `GET /audit`, or
@@ -553,6 +597,18 @@ One Server-Sent Events stream for the whole app, so a client never has to poll.
 ```bash
 curl -N localhost:8787/api/events
 ```
+
+### Push
+
+Web Push over VAPID, signed and sent by this server: a chat that stops for a permission prompt reaches a phone whose app is closed. The keypair is made on first use and kept as `push.json` in the data directory (mode 600); the private half never leaves the server, and there is no third-party push account. What is worth a notification is decided by the same function the browser runs on the same event, so the in-page toast and the notification on a lock screen cannot disagree.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/push/key` | The VAPID public key to subscribe with, and whether push is configured at all |
+| GET | `/push/subscriptions` | The registered installs. Endpoints are truncated: a full push endpoint URL is a capability to notify that install |
+| POST | `/push/subscriptions` | Register or refresh one — body is the browser's `PushSubscription` JSON plus `kinds` (every kind when omitted) and a `label` for the list. An endpoint already registered is refreshed, keeping its `createdAt` |
+| DELETE | `/push/subscriptions` | Unregister by `endpoint` (what a browser turning the switch off knows) or by `id` (what the list shows) |
+| POST | `/push/test` | Send one test notification to an install by `endpoint` or `id`, or to every registered one. An endpoint the push service reports as gone (404/410) is deleted |
 
 ### Chats
 
@@ -888,7 +944,7 @@ The claude.ai connectors of the signed-in account, as the CLI reports them. Agen
 | Schedules | Recurring chats and orchestrations, with search and All/On/Off tabs: each schedule with its cron expression in words, when it fires next and when it last ran, on/off, **Run now**, edit, delete, and a run history behind it (when, result, what it started or the error; a slot the overlap policy skipped or queued is tagged as such). The cron builder offers every few minutes to monthly or a custom expression, previews the next five fires as you type, and says that a window missed while Agentry was down is skipped, not replayed. A schedule is created and edited on a page of its own (`/schedules/new`, `/schedules/:id/edit`). The form sets what happens when a slot arrives while the last run is still going, and can be filled from an orchestration that already ran |
 | Usage | Cost, tokens or chats over time, per day or week, for 7, 30 or 90 days, all time or a range picked from a calendar of Agentry's own (typed dates still work); by project and by model, with the selected project's chats offered as a download. An SVG chart with the same figures as a table, a text readout and a screen-reader description. A cost the CLI never reported reads "Not reported", never `$0.00` |
 | Connectors | The claude.ai connectors (Docs, Gmail, Calendar) the CLI can see, with their status and prepared prompts that start a chat, what to do to authorise one, and a sentence on what has no CLI surface (web artifacts, claude.ai memory) |
-| Settings | User scope only, as tabs: **Appearance** (theme, language and motion, the tab `/settings` opens on), Account (with the Claude Code version card: in use, pinned, newest published, check now), Instructions, Settings (guided editor + raw JSON), MCP servers (guided form, scopes, connection checks), Agents, Skills, Commands, Output styles, Rules, a file explorer for everything else (hook scripts, skill files, keybindings…), Memory (where each project's memory is), Plugins (installed plugins, marketplace search and install, marketplaces), **Tool presets** (named allowed and disallowed tool sets, which one a chat with no preset takes, and restoring the shipped ones), **Supervisor** (off by default: the model, what it may spend and whether it sends its hint on its own), **Security** (auth mode, token, OIDC, read-only, and an audit log narrowed by path, method and status) and **Editor** (link template for your editor, an optional `code --diff` command, container-to-host path rows; kept on the server, so every browser builds the same link — an older browser's copy is moved there once). Everything that belongs to one project lives on its page instead |
+| Settings | User scope only, as tabs: **Appearance** (theme, language and motion, the tab `/settings` opens on), Account (with the Claude Code version card: in use, pinned, newest published, check now), Instructions, Settings (guided editor + raw JSON), MCP servers (guided form, scopes, connection checks), Agents, Skills, Commands, Output styles, Rules, a file explorer for everything else (hook scripts, skill files, keybindings…), Memory (where each project's memory is), Plugins (installed plugins, marketplace search and install, marketplaces), **Tool presets** (named allowed and disallowed tool sets, which one a chat with no preset takes, and restoring the shipped ones), **Notifications** (what is worth telling you about, the switch that pushes it to this device with Agentry closed, and every install registered for push, with a test and a way to remove any), **Install** (adding Agentry to this device's home screen), **Supervisor** (off by default: the model, what it may spend and whether it sends its hint on its own), **Security** (auth mode, token, OIDC, read-only, and an audit log narrowed by path, method and status) and **Editor** (link template for your editor, an optional `code --diff` command, container-to-host path rows; kept on the server, so every browser builds the same link — an older browser's copy is moved there once). Everything that belongs to one project lives on its page instead |
 
 Across the app:
 
@@ -962,6 +1018,11 @@ Across the app:
   opens where it can be sent.
   The list, read state and preferences are kept per browser. A finished task or subagent links straight
   to its side panel, and a finished workflow to the agent that ended it.
+  **Web Push** carries the same news to a device whose Agentry is closed: Settings → Notifications
+  registers this install with the server, which decides what is worth sending with the same function
+  the browser runs on the same event. A visible window shows its toast and no push, so nothing
+  arrives twice. It needs a secure origin, and on iPhone an installed app — see
+  [On a phone](#on-a-phone).
 - **Execution detail**: a subagent, a background task or a workflow agent opens in a side panel — prompt,
   type, status, duration, tokens, the full transcript, the result and, for a subagent, the tasks it
   launched — from the chat that holds it, a workflow's agents and the inbox. An orchestration's
@@ -974,6 +1035,10 @@ Across the app:
   default; Cursor, Windsurf or JetBrains fit too). Where Agentry runs in a container, rows map its
   paths to the host's. The template, the diff command and those rows live on the server, so every
   browser builds the same link. A browser cannot run `code --diff`, so that button copies the command.
+- **Installable**: a web app manifest and a service worker make Agentry an app on a phone or a
+  desktop — its own icon, a standalone window and a shell that paints before the server answers. The
+  worker caches that shell and nothing else: `/api`, `/docs` and `/openapi.json` are left to the
+  network untouched, so both event streams behave exactly as they do in a tab.
 - **Editors**: CodeMirror (JSON, Markdown, YAML, JS/TS) with `Ctrl/⌘ S`, unsaved-change guards
   (tabs, sidebar navigation, reload), confirmation dialogs for destructive actions
   and toasts for every mutation.
@@ -1031,6 +1096,16 @@ interactive `claude` session (`/mcp`) or in claude.ai's connector settings: Agen
   is spent whether or not the answer is used, and lands on the graph when the worker is a task.
 - A project's export has no date range: it carries every chat of the project, and a chat's cost is
   its whole cost.
+- Web Push needs a secure origin. On `http://<lan-ip>:8787` the browser gives the page no service
+  worker at all, so there is no push and no cached shell; the app can still be added to a home
+  screen, and Settings names the origin instead of offering a switch that does nothing. On iPhone and
+  iPad a push only reaches an app on the Home Screen, never a Safari tab. The Linux desktop app
+  registers no worker either — its port changes every launch — so push is for a browser or a phone
+  pointed at a server.
+- A push subscription belongs to an install, not to a person. Agentry has one credential for everyone
+  who holds it, so every device that turned push on is sent the same notifications, whoever the chat
+  was started by, and anyone who can reach Settings can test or remove another device's registration.
+  Turning it on on a shared phone tells whoever is holding it that a chat is waiting.
 - A subscription token is meant for your own individual use; use an API key for anything
   shared or multi-user.
 - Switching accounts rewrites the shared credential file: runs already in flight keep the account
