@@ -306,6 +306,24 @@ test('an OIDC token is accepted only when its signature, audience and expiry all
   await assert.rejects(verifier.verify(unsigned, config), /not a signed JWT|unsupported algorithm/);
 });
 
+test('a configured client id rejects a token issued to another client', async (t) => {
+  const issuer = await startIssuer();
+  t.after(() => issuer.close());
+  const verifier = new OidcVerifier();
+  const now = Math.floor(Date.now() / 1000);
+  const claims = { iss: issuer.url, aud: 'agentry', sub: 'user@example.test', exp: now + 600 };
+  const configured: OidcConfig = { issuer: issuer.url, audience: 'agentry', clientId: 'agentry-ui' };
+
+  assert.equal(await verifier.verify(issuer.jwt({ ...claims, azp: 'agentry-ui' }), configured), 'user@example.test');
+  await assert.rejects(verifier.verify(issuer.jwt({ ...claims, azp: 'another-app' }), configured), /issued to another client/);
+  // Issuers that leave `azp` out are not locked out by a client id being set
+  assert.equal(await verifier.verify(issuer.jwt(claims), configured), 'user@example.test');
+
+  // With no client id configured, `azp` is not this verifier's business
+  const open: OidcConfig = { issuer: issuer.url, audience: 'agentry', clientId: '' };
+  assert.equal(await verifier.verify(issuer.jwt({ ...claims, azp: 'another-app' }), open), 'user@example.test');
+});
+
 test('the issuer is asked for its keys once, not on every request', async (t) => {
   const issuer = await startIssuer();
   t.after(() => issuer.close());
