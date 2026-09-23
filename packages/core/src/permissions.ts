@@ -54,9 +54,17 @@ export class PermissionBroker extends EventEmitter {
     return runId ? all.filter((r) => r.runId === runId) : all;
   }
 
-  answer(id: string, decision: PermissionDecision): PermissionRequest {
+  /**
+   * Answers one waiting request. Given a `runId`, only that run's own requests can be answered:
+   * an answer arrives addressed to a chat, and a request id alone would let any chat approve any
+   * other chat's tool call. A request belonging to somebody else reads as missing, since saying
+   * otherwise would confirm the id exists.
+   */
+  answer(id: string, decision: PermissionDecision, runId?: string): PermissionRequest {
     const entry = this.pending.get(id);
-    if (!entry) throw new Error('permission request not found; it may have timed out');
+    if (!entry || (runId !== undefined && entry.request.runId !== runId)) {
+      throw new Error('permission request not found; it may have timed out');
+    }
     entry.settle(decision);
     return entry.request;
   }

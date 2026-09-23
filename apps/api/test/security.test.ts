@@ -250,6 +250,22 @@ test('every write leaves an audit row, with who and what but never the body', as
   assert.match(refused.json().error, /a code such as 404 or a class such as 4xx/);
 });
 
+test('the audit page says itself what a page number must be, instead of letting SQLite say it', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+
+  for (const query of ['limit=soon', 'limit=1.5', 'limit=-1', 'from=yesterday', 'from=-1']) {
+    const refused = await app.inject(`/api/audit?${query}`);
+    assert.equal(refused.statusCode, 400, query);
+    // NaN used to reach node:sqlite as a binding and come back as `datatype mismatch`
+    assert.match(refused.json().error, /must be a non-negative integer/, query);
+  }
+  // An absent or empty parameter is not a mistake: it means the default page
+  assert.equal((await app.inject('/api/audit')).json().from, 0);
+  assert.equal((await app.inject('/api/audit?limit=&from=')).json().from, 0);
+  assert.equal((await app.inject('/api/audit?limit=1&from=0')).statusCode, 200);
+});
+
 test('a write refused for want of a credential is recorded as nobody', async (t) => {
   const { app } = await wrapper();
   t.after(() => app.close());
