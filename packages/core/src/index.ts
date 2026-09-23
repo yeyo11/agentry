@@ -267,7 +267,7 @@ export class Core {
     this.changeWatcher = new ChangeWatcher(this.orchestrator, this.events);
     this.changeWatcher.start();
     this.files = new SettingsFiles();
-    this.explorer = new ConfigExplorer();
+    this.explorer = new ConfigExplorer(config.configDir);
     this.plugins = new Plugins(config);
     this.memory = new MemoryStore(config);
     // The graphs a restart cut off go on in the chats it restores, so only once those are back

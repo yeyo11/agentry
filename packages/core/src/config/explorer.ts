@@ -10,10 +10,10 @@ const MAX_DEPTH = 6;
 const MAX_ENTRIES_PER_DIR = 300;
 
 /**
- * CLI runtime state, caches and secrets inside the user config dir. They are not configuration,
+ * CLI runtime state, caches and secrets inside the config dir. They are not configuration,
  * can be huge, and `.credentials.json` / `.claude.json` hold tokens.
  */
-const USER_HIDDEN = new Set([
+const CONFIG_DIR_HIDDEN = new Set([
   'projects', 'sessions', 'session-env', 'shell-snapshots', 'file-history', 'paste-cache', 'cache', 'telemetry',
   'statsig', 'backups', 'downloads', 'ide', 'tasks', 'todos', 'plans', 'logs', 'history.jsonl',
   '.credentials.json', '.claude.json', '.claude.json.lock',
@@ -21,18 +21,39 @@ const USER_HIDDEN = new Set([
 ]);
 const ALWAYS_HIDDEN = new Set(['.git', 'node_modules', '.DS_Store']);
 // Plugin payloads are managed by `claude plugin`; only the small json manifests are worth showing
-const USER_HIDDEN_NESTED = new Set(['plugins/cache', 'plugins/marketplaces', 'plugins/data', 'plugins/synced', 'skills/synced']);
+const CONFIG_DIR_HIDDEN_NESTED = new Set(['plugins/cache', 'plugins/marketplaces', 'plugins/data', 'plugins/synced', 'skills/synced']);
 
-function isHidden(scope: ConfigScope, relPath: string): boolean {
+function isHidden(atConfigDir: boolean, relPath: string): boolean {
   const parts = relPath.split('/');
   if (parts.some((p) => ALWAYS_HIDDEN.has(p))) return true;
-  if (scope.kind !== 'user') return false;
-  if (USER_HIDDEN.has(parts[0] ?? '')) return true;
-  return USER_HIDDEN_NESTED.has(parts.slice(0, 2).join('/'));
+  if (!atConfigDir) return false;
+  if (CONFIG_DIR_HIDDEN.has(parts[0] ?? '')) return true;
+  return CONFIG_DIR_HIDDEN_NESTED.has(parts.slice(0, 2).join('/'));
 }
+
+const realOrNull = (path: string): Promise<string | null> => realpath(path).catch(() => null);
 
 /** Generic editor for everything under a scope's Claude dir: hooks, skill files, rules, keybindings… */
 export class ConfigExplorer {
+  private readonly configDir: string;
+
+  constructor(configDir: string) {
+    this.configDir = resolve(configDir);
+  }
+
+  /**
+   * Whether a scope's root is the CLI's own configuration directory, by path and not by the kind of
+   * scope: importing $HOME as a project makes `$HOME/.claude` a project root, and that root holds
+   * the account credentials and every transcript. Symlinks are resolved so an alias of the same
+   * directory does not step around the deny list.
+   */
+  private async atConfigDir(claudeDir: string): Promise<boolean> {
+    const root = resolve(claudeDir);
+    if (root === this.configDir) return true;
+    const [real, realConfig] = await Promise.all([realOrNull(root), realOrNull(this.configDir)]);
+    return real !== null && real === realConfig;
+  }
+
   /** Resolves a user-supplied relative path, refusing anything that escapes the root (also via symlinks). */
   private async locate(scope: ConfigScope, relPath: string): Promise<string> {
     if (typeof relPath !== 'string' || !relPath.trim()) throw new Error('path is required');
@@ -41,7 +62,9 @@ export class ConfigExplorer {
     const target = resolve(root, relPath);
     const rel = relative(root, target);
     if (!rel || rel.startsWith('..') || rel.startsWith(sep)) throw new Error('path is outside the config root');
-    if (isHidden(scope, rel.split(sep).join('/'))) throw new Error('this path is not editable from the wrapper');
+    if (isHidden(await this.atConfigDir(root), rel.split(sep).join('/'))) {
+      throw new Error('this path is not editable from the wrapper');
+    }
 
     // The deepest existing ancestor must still be inside the root once symlinks are resolved
     let existing = target;
@@ -57,22 +80,22 @@ export class ConfigExplorer {
 
   async tree(scope: ConfigScope): Promise<ConfigFileNode[]> {
     if (!existsSync(scope.claudeDir)) return [];
-    return this.walk(scope, scope.claudeDir, '', 0);
+    return this.walk(await this.atConfigDir(scope.claudeDir), scope.claudeDir, '', 0);
   }
 
-  private async walk(scope: ConfigScope, dir: string, relDir: string, depth: number): Promise<ConfigFileNode[]> {
+  private async walk(atConfigDir: boolean, dir: string, relDir: string, depth: number): Promise<ConfigFileNode[]> {
     const entries = (await readdir(dir, { withFileTypes: true }).catch(() => [])).slice(0, MAX_ENTRIES_PER_DIR);
     const nodes: ConfigFileNode[] = [];
     for (const entry of entries) {
       const path = relDir ? `${relDir}/${entry.name}` : entry.name;
-      if (isHidden(scope, path) || entry.name.endsWith('.tmp')) continue;
+      if (isHidden(atConfigDir, path) || entry.name.endsWith('.tmp')) continue;
       const full = join(dir, entry.name);
       // stat() follows symlinks (skills are often symlinked); broken links are skipped
       const info = await stat(full).catch(() => null);
       if (!info) continue;
       if (info.isDirectory()) {
         // Do not descend through symlinks: locate() would refuse their content anyway
-        const children = depth < MAX_DEPTH && !entry.isSymbolicLink() ? await this.walk(scope, full, path, depth + 1) : [];
+        const children = depth < MAX_DEPTH && !entry.isSymbolicLink() ? await this.walk(atConfigDir, full, path, depth + 1) : [];
         nodes.push({ name: entry.name, path, type: 'dir', children });
       } else if (info.isFile()) {
         nodes.push({ name: entry.name, path, type: 'file', size: info.size, updatedAt: info.mtime.toISOString() });
