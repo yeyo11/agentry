@@ -418,5 +418,22 @@
     "json": "JSON",
     "markdownHint": "Descargar todos los chats como un documento Markdown para leer o compartir",
     "jsonHint": "Descargar todos los chats con todos sus eventos en JSON"
+  },
+  "push": {
+    "label": "Enviar también a este dispositivo",
+    "hintOn": "Este dispositivo está registrado: lo que elijas abajo le llega aunque Agentry esté cerrado.",
+    "hintOff": "Envía lo que elijas abajo a este dispositivo aunque Agentry esté cerrado. El navegador pedirá permiso.",
+    "failed": "No se pudieron cambiar las notificaciones push de este dispositivo",
+    "incomplete": "Este navegador devolvió una suscripción sin claves de cifrado, así que no se le podría enviar nada.",
+    "noWorker": "Este navegador todavía no tiene un service worker de Agentry, así que no hay dónde entregar una notificación. Recarga la página y vuelve a intentarlo.",
+    "fallbackTitle": "Agentry",
+    "fallbackBody": "Algo te está esperando.",
+    "blocked": {
+      "insecure": "Esta página viene de {{origin}}, que los navegadores no consideran un origen seguro, así que aquí no hay service worker ni notificaciones push. Abre Agentry por https:// —o desde localhost— y este interruptor vuelve.",
+      "iosTab": "En iPhone y iPad una notificación solo llega a una app añadida a la pantalla de inicio, nunca a una pestaña: toca Compartir, luego Añadir a pantalla de inicio, y activa esto desde la app que se abra.",
+      "unsupported": "Este navegador no puede recibir notificaciones push web.",
+      "unconfigured": "Este servidor no tiene clave de firma para push, así que no se podría entregar nada de lo que enviara. Su registro dice por qué.",
+      "denied": "Las notificaciones están bloqueadas para este sitio. Permítelas en los ajustes del navegador y este interruptor vuelve."
+    }
   }
 }

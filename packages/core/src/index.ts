@@ -43,6 +43,7 @@ import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sou
 import { EventBus } from './events.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
+import { PushService } from './push.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
 import { EditorSettingsStore } from './editor-settings.ts';
 import { McpConfig } from './config/mcp.ts';
@@ -89,13 +90,14 @@ export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
-export { Db } from './db.ts';
+export { Db, type PushSubscriptionRecord } from './db.ts';
 export { AuthStore } from './security/auth.ts';
 export { OidcVerifier, type FetchLike } from './security/oidc.ts';
 export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
 export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
 export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
+export { idOfEndpoint, parseRegistration, payloadOf, PushService, truncateEndpoint, type PushTransport } from './push.ts';
 export {
   DEFAULT_SUPERVISOR,
   parseSupervisorConfig,
@@ -136,6 +138,8 @@ export class Core {
   /** The optional model that drafts a hint when a worker's health turns bad; off unless `supervisor.json` says so */
   readonly supervisor: Supervisor;
   readonly schedules: Scheduler;
+  /** Web Push: the VAPID keypair, the installs registered to be woken, and the sender behind them */
+  readonly push: PushService;
   readonly files: SettingsFiles;
   readonly explorer: ConfigExplorer;
   readonly plugins: Plugins;
@@ -203,6 +207,8 @@ export class Core {
         outcome,
       });
     });
+    // Hangs off the bus as an observer, so it hears every event without counting as a client
+    this.push = new PushService({ config, db: this.db, events: this.events });
     this.sessions = new SessionStore(config);
     this.orchestrator = new Orchestrator(config, this.runtime, this.db);
     this.orchestrator.bus = this.events;
@@ -745,6 +751,7 @@ export class Core {
     this.sessionsWatcher.close();
     this.changeWatcher.close();
     this.permissions.close();
+    this.push.close();
     this.accounts.shutdown();
     this.runtime.stopAll();
     this.db.close();
