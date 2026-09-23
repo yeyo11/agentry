@@ -20,7 +20,16 @@ ENV HOME=/home/node \
 # (the System page says when a newer one exists), or override it with
 # --build-arg CLAUDE_CODE_VERSION=<version>. `latest` and `stable` still work and count as unpinned.
 ARG CLAUDE_CODE_VERSION=2.1.278
-RUN curl -fsSL https://claude.ai/install.sh | bash -s -- ${CLAUDE_CODE_VERSION} \
+# One URL always serves the newest installer, so the script is pinned by content instead of by
+# version: a build that would otherwise pipe an unreviewed script into a shell stops at the
+# checksum. To rotate, run `curl -fsSL https://claude.ai/install.sh | sha256sum`, read the diff
+# against the script this digest covers, and land the new digest in a commit that says what moved.
+# Override with --build-arg CLAUDE_CODE_INSTALLER_SHA256=<digest> to build ahead of that commit.
+ARG CLAUDE_CODE_INSTALLER_SHA256=3a68d3406cf674e17bed1733a4dcf37805e2e47d87417700007d7e1aa766a944
+RUN curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh \
+ && echo "${CLAUDE_CODE_INSTALLER_SHA256}  /tmp/claude-install.sh" | sha256sum -c - \
+ && bash /tmp/claude-install.sh ${CLAUDE_CODE_VERSION} \
+ && rm /tmp/claude-install.sh \
  && claude --version
 # Read by the update check, which compares it with the newest published version
 ENV AGENTRY_CLAUDE_CODE_PINNED=${CLAUDE_CODE_VERSION}
@@ -28,7 +37,17 @@ ENV AGENTRY_CLAUDE_CODE_PINNED=${CLAUDE_CODE_VERSION}
 # claude-swap owns the account credentials when several accounts are registered (multi-account
 # rotation). Its own data dir is a volume, so the accounts survive a rebuild.
 ARG CLAUDE_SWAP_VERSION=
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+# astral.sh serves a separate installer per uv release, so this URL is immutable and its digest
+# only moves when UV_VERSION does: bump the two together, taking the new digest from
+# `curl -fsSL https://astral.sh/uv/<version>/install.sh | sha256sum`. Unpinned, the image would
+# take whatever uv shipped that morning, and an unverified script would install it.
+ARG UV_VERSION=0.12.18
+ARG UV_INSTALLER_SHA256=e62a5ea089de9c6a9b1f767166c9f33194e18d350e9f375c6355fac3ba0fb42b
+RUN curl -fsSL -o /tmp/uv-install.sh https://astral.sh/uv/${UV_VERSION}/install.sh \
+ && echo "${UV_INSTALLER_SHA256}  /tmp/uv-install.sh" | sha256sum -c - \
+ && sh /tmp/uv-install.sh \
+ && rm /tmp/uv-install.sh \
+ && uv --version \
  && uv tool install claude-swap${CLAUDE_SWAP_VERSION:+==${CLAUDE_SWAP_VERSION}} \
  && cswap --version
 
