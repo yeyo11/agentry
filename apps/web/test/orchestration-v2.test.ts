@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Orchestration, OrchestrationTaskState, VerificationState } from '@agentry/shared';
+import * as shared from '@agentry/shared';
 import {
   canRelaunch,
   canRerun,
@@ -56,6 +57,17 @@ const orch = (tasks: OrchestrationTaskState[], extra: Partial<Orchestration> = {
   costUsd: 0,
   engine: 'graph',
   ...extra,
+});
+
+test('the spec of a graph and the rules for starting one over come from the server\'s own code', () => {
+  // Re-exports, not copies: a second definition here is what let a schedule drop a field the server kept
+  assert.equal(specOfOrchestration, shared.specOfOrchestration);
+  assert.equal(specOfTask, shared.specOfTask);
+  assert.equal(cleanTask, shared.cleanTask);
+  assert.equal(limitsOf, shared.limitsOf);
+  assert.equal(canRerun, shared.canRerun);
+  assert.equal(canRelaunch, shared.canRelaunch);
+  assert.equal(rerunBlockedByPullRequest, shared.rerunBlockedByPullRequest);
 });
 
 test('limits carry only what is set: an empty field is the default, not a limit of zero', () => {
