@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,8 +7,9 @@ import { request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
+import { ChatConflictError, Core, loadConfig } from '@agentry/core';
 import { buildApp } from '../src/app.ts';
+import { allowedOrigin } from '../src/origins.ts';
 
 // Isolated dirs and a missing CLI binary: these tests cover routing, scoping, validation and
 // error mapping without ever spawning Claude or touching the real ~/.claude.
@@ -469,4 +471,115 @@ test("a chat's stream opens at once, even for a client that asks only for what i
   assert.equal(opened.status, 200);
   // The heartbeat is 15 s away: headers held until then read as a dropped stream in the page
   assert.ok(opened.ms < 2000, `the stream opened after ${opened.ms} ms`);
+});
+
+test('an unexpected failure is a bare 500 in the log, a deliberate refusal keeps its text', async () => {
+  const probe = await buildApp(core, { logLevel: 'silent', webDist: join(tmpdir(), 'agentry-no-ui') });
+  const logged: string[] = [];
+  probe.log.error = ((payload: { url?: string }) => void logged.push(payload.url ?? '')) as unknown as typeof probe.log.error;
+  // Outside /api, so the guard leaves them alone: what is under test is the error handler
+  probe.get('/broken', () => {
+    throw Object.assign(new Error("ENOENT: no such file or directory, open '/home/someone/.claude/settings.json'"), { code: 'ENOENT' });
+  });
+  probe.get('/mistaken', () => {
+    throw new TypeError('cannot read properties of undefined');
+  });
+  probe.get('/refused', () => {
+    throw new Error('prompt is required');
+  });
+  probe.get('/absent', () => {
+    throw new Error('chat not found');
+  });
+  probe.get('/busy', () => {
+    throw new ChatConflictError('this chat is running; fork it instead', 'fork');
+  });
+
+  for (const url of ['/broken', '/mistaken']) {
+    const res = await probe.inject(url);
+    assert.equal(res.statusCode, 500, url);
+    assert.deepEqual(res.json(), { error: 'internal error' }, url);
+  }
+  // Nothing of the host's layout reaches the caller, and both failures are ours to read
+  assert.deepEqual(logged, ['/broken', '/mistaken']);
+
+  const refused = await probe.inject('/refused');
+  assert.equal(refused.statusCode, 400);
+  assert.equal(refused.json().error, 'prompt is required');
+  assert.equal((await probe.inject('/absent')).statusCode, 404);
+  const busy = await probe.inject('/busy');
+  assert.equal(busy.statusCode, 409);
+  assert.match(busy.json().error, /fork it instead/);
+  // A refusal is the caller's business, not a line in the log
+  assert.deepEqual(logged, ['/broken', '/mistaken']);
+  await probe.close();
+});
+
+test('the UI bundle is served unframeable, unsniffable and under a policy that names its inline script', async () => {
+  const dist = mkdtempSync(join(tmpdir(), 'agentry-dist-'));
+  const inline = "\n      document.documentElement.dataset.theme = 'dark';\n    ";
+  writeFileSync(
+    join(dist, 'index.html'),
+    `<!doctype html><html><head><script>${inline}</script><script type="module" src="/assets/app.js"></script></head><body></body></html>`,
+  );
+  const probe = await buildApp(core, { logLevel: 'silent', webDist: dist });
+
+  const res = await probe.inject('/');
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['x-frame-options'], 'DENY');
+  assert.equal(res.headers['x-content-type-options'], 'nosniff');
+  assert.equal(res.headers['referrer-policy'], 'no-referrer');
+  const policy = res.headers['content-security-policy'] as string;
+  const hash = createHash('sha256').update(inline, 'utf8').digest('base64');
+  assert.ok(policy.includes(`script-src 'self' 'sha256-${hash}'`), policy);
+  // The bundled script is fetched by URL, so its tag must not have earned a hash of its own
+  assert.equal(policy.match(/sha256-/g)?.length, 1);
+  for (const directive of ["default-src 'self'", "frame-ancestors 'none'", "object-src 'none'", "base-uri 'self'", "connect-src 'self'"]) {
+    assert.ok(policy.includes(directive), `${directive} missing from ${policy}`);
+  }
+  // Vite's build hands out no nonce and the UI styles from React: inline styles stay allowed
+  assert.ok(policy.includes("style-src 'self' 'unsafe-inline'"), policy);
+
+  // The SPA fallback answers with index.html, and must carry the same policy
+  const deepLink = await probe.inject('/chats/whatever');
+  assert.equal(deepLink.statusCode, 200);
+  assert.equal(deepLink.headers['content-security-policy'], policy);
+  await probe.close();
+});
+
+test('who may read this API from a browser is decided in one place', async () => {
+  const previous = process.env.AGENTRY_CORS_ORIGIN;
+  try {
+    delete process.env.AGENTRY_CORS_ORIGIN;
+    assert.equal(allowedOrigin('https://panel.example.com'), null);
+
+    process.env.AGENTRY_CORS_ORIGIN = 'https://panel.example.com, https://other.example.com';
+    assert.equal(allowedOrigin('https://panel.example.com'), 'https://panel.example.com');
+    assert.equal(allowedOrigin('https://other.example.com'), 'https://other.example.com');
+    assert.equal(allowedOrigin('https://evil.example.com'), null);
+    // A prefix or a suffix of an allowed origin is another origin
+    assert.equal(allowedOrigin('https://panel.example.com.evil.test'), null);
+    assert.equal(allowedOrigin('panel.example.com'), null);
+    assert.equal(allowedOrigin(undefined), null);
+
+    process.env.AGENTRY_CORS_ORIGIN = '*';
+    assert.equal(allowedOrigin('https://anything.example.com'), 'https://anything.example.com');
+    // Nothing to echo, nothing to allow
+    assert.equal(allowedOrigin(undefined), null);
+    assert.equal(allowedOrigin(''), null);
+
+    process.env.AGENTRY_CORS_ORIGIN = '   ';
+    assert.equal(allowedOrigin('https://panel.example.com'), null);
+
+    // The plugin answers from the same decision, and only for the origin it was told about
+    process.env.AGENTRY_CORS_ORIGIN = 'https://panel.example.com';
+    const probe = await buildApp(core, { logLevel: 'silent', webDist: join(tmpdir(), 'agentry-no-ui') });
+    const allowed = await probe.inject({ url: '/api/health', headers: { origin: 'https://panel.example.com' } });
+    assert.equal(allowed.headers['access-control-allow-origin'], 'https://panel.example.com');
+    const refused = await probe.inject({ url: '/api/health', headers: { origin: 'https://evil.example.com' } });
+    assert.equal(refused.headers['access-control-allow-origin'], undefined);
+    await probe.close();
+  } finally {
+    if (previous === undefined) delete process.env.AGENTRY_CORS_ORIGIN;
+    else process.env.AGENTRY_CORS_ORIGIN = previous;
+  }
 });
