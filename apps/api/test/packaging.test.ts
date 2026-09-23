@@ -8,8 +8,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import Fastify from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
 import { buildApp } from '../src/app.ts';
+import { listenOn } from '../src/server.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const apiRoot = resolve(here, '..');
@@ -157,4 +159,27 @@ test('the compiled API serves and stops on its own, with no source tree, node_mo
     server.kill('SIGKILL');
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('a port that is taken does not stop the server: it binds one the system picks', async (t) => {
+  // The desktop shell remembers a port between launches, so the one it asks for may be gone
+  const held = Fastify({ logger: false });
+  await held.listen({ port: 0, host: '127.0.0.1' });
+  const taken = (held.server.address() as AddressInfo).port;
+  t.after(() => held.close());
+
+  const app = Fastify({ logger: false });
+  t.after(() => app.close());
+  await listenOn(app, taken, '127.0.0.1');
+  const bound = (app.server.address() as AddressInfo).port;
+
+  assert.notEqual(bound, taken);
+  assert.ok(bound > 0);
+});
+
+test('a listen that failed for any other reason is not retried away', async (t) => {
+  const app = Fastify({ logger: false });
+  t.after(() => app.close());
+  // An address this machine does not have: retrying on port 0 would hide a real misconfiguration
+  await assert.rejects(listenOn(app, 8787, '203.0.113.1'), (err: NodeJS.ErrnoException) => err.code !== 'EADDRINUSE');
 });

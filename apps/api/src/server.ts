@@ -1,4 +1,5 @@
 import type { AddressInfo } from 'node:net';
+import type { FastifyInstance } from 'fastify';
 import { Core } from '@agentry/core';
 import { buildApp } from './app.ts';
 
@@ -15,6 +16,25 @@ export interface RunningServer {
   port: number;
   /** Stops the runs and closes the HTTP server */
   close(): Promise<void>;
+}
+
+/**
+ * Listens on `port`, and on whatever the operating system hands out when that one is taken.
+ *
+ * A port asked for by number is a preference and not a promise — the desktop shell remembers the
+ * one it used last so the URL stays put between launches, and something else on the machine may
+ * hold it today. Refusing to start over that would trade a moving address for no address at all,
+ * which is the worse of the two. Port 0 already means "whatever is free", so it has nothing to
+ * fall back to, and an error that is not a taken port is a real failure either way.
+ */
+export async function listenOn(app: FastifyInstance, port: number, host: string): Promise<void> {
+  try {
+    await app.listen({ port, host });
+  } catch (err) {
+    if (port === 0 || (err as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw err;
+    app.log.warn(`port ${String(port)} is taken; listening on one the operating system picks instead`);
+    await app.listen({ port: 0, host });
+  }
 }
 
 /** Creates the core, builds the app and listens. Shared by the CLI entrypoint and the desktop bundle. */
@@ -37,7 +57,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   else app.log.info(`Claude Code ${system.cli.version} ready (auth: ${system.auth.tokenSource}, plan: ${system.auth.subscriptionType ?? 'n/a'})`);
 
   try {
-    await app.listen({ port: opts.port ?? 8787, host });
+    await listenOn(app, opts.port ?? 8787, host);
   } catch (err) {
     core.shutdown();
     await app.close();
