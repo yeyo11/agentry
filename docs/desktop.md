@@ -4,9 +4,14 @@ The desktop app is Agentry in a window: the same UI and REST API as the Docker i
 an AppImage and a `.deb` for Linux x86_64. No container, no port to remember.
 
 It is a small Electron shell. On start it launches the bundled API as a child process on
-`127.0.0.1` with a free port, waits for it to come up and loads the UI. The API runs on the Node
-that ships inside Electron, so **you do not need Node installed**. Quitting the window stops the
-server.
+`127.0.0.1`, waits for it to come up and loads the UI. The API runs on the Node that ships inside
+Electron, so **you do not need Node installed**. Quitting the window stops the server.
+
+The port is chosen once and then kept: the first start takes a free one and writes it to
+`server-port.json` in the app's data directory, and every start after that asks for the same one, so
+a bookmark or a tunnel pointed at the app still works tomorrow. It is a preference and not a
+promise — if something else holds that port, the server takes a free one instead of refusing to
+start, and that becomes the port it remembers. `PORT` in the environment overrides the lot.
 
 ## How it differs from Docker
 
@@ -17,7 +22,7 @@ server.
 | Default permission mode | `bypassPermissions` | `acceptEdits` |
 | Claude Code CLI | Baked into the image | Yours, from your `PATH` |
 | Login | `CLAUDE_CODE_OAUTH_TOKEN` | Your existing `~/.claude` login |
-| Listens on | `0.0.0.0:8787` | `127.0.0.1`, random port |
+| Listens on | `0.0.0.0:8787` | `127.0.0.1`, the port it used last |
 | Web Push | Over HTTPS, to any installed browser or phone | Not registered — see below |
 
 The image can afford `bypassPermissions` because the container is the boundary. The desktop app has
@@ -26,9 +31,11 @@ starts in `acceptEdits`, where file edits are applied and anything else that nee
 sent to the panel for you to allow or deny. A run can still choose another mode from the UI.
 
 The desktop app registers **no service worker**, and so receives no Web Push: it already has the
-bundle locally, and its API listens on a port the operating system picks anew every launch, so each
-start would leave behind one more worker registration under an origin that never comes back. The
-window is there anyway; the bell and its toasts are what tell you inside the app.
+bundle locally, and the window is there anyway — the bell and its toasts are what tell you inside
+the app. Until the port was kept there was a second reason, that every launch would strand another
+registration under an origin that never came back; that one no longer holds, so if push in the
+window ever looks worth having, it is now a question of whether it earns its keep and not of
+whether it can work.
 To be told on a phone, point it at a wrapper served over HTTPS — see
 [On a phone](../README.md#on-a-phone) and [deploy.md](deploy.md).
 

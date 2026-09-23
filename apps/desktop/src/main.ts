@@ -9,6 +9,7 @@ import { LogFile } from './log.ts';
 import { buildMenu } from './menu.ts';
 import { ACTION_SCHEME, errorUrl, splashUrl } from './pages.ts';
 import { missingResources, resolveResources } from './resources.ts';
+import { rememberedPort, rememberPort } from './server-port.ts';
 import { ServerProcess } from './server-process.ts';
 import { resolveUserPath } from './shell-path.ts';
 import { SPLASH_TITLE_BAR, parseTitleBarTheme, titleBarOptions, type TitleBarTheme } from './title-bar.ts';
@@ -84,7 +85,9 @@ async function startServer(): Promise<void> {
         env: {
           ...process.env,
           PATH,
-          PORT: '0',
+          // The port this install used last, so its address survives a restart; PORT still wins,
+          // and 0 on a first start lets the operating system choose one to remember
+          PORT: process.env.PORT || String(rememberedPort(userData) ?? 0),
           HOST: '127.0.0.1',
           AGENTRY_WEB_DIST: res.webDist,
           AGENTRY_DATA_DIR: dataDir,
@@ -98,6 +101,8 @@ async function startServer(): Promise<void> {
     );
     const url = await server.start();
     serverOrigin = new URL(url).origin;
+    // What it bound, not what it was asked for: a taken port makes the server pick another
+    rememberPort(userData, Number(new URL(url).port));
     desktopLog.line(`server ready at ${url}`);
     startMonitor(serverOrigin);
     await load(url);
