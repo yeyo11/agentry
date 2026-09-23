@@ -3,9 +3,14 @@ import type { Core } from '@agentry/core';
 import type { SetCredentialsRequest } from '@agentry/shared';
 
 export const systemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
-  app.get('/health', async () => {
-    const system = await core.system();
-    return { ok: system.cli.installed && system.auth.loggedIn, cli: system.cli.installed, loggedIn: system.auth.loggedIn };
+  // The only route reachable with no credential: it reports the last state observed and never goes
+  // and measures, or a burst against it becomes a burst of `claude` processes. The authenticated
+  // routes, which do measure, are what keeps that reading fresh.
+  app.get('/health', () => {
+    const system = core.systemKnown();
+    const cli = system?.cli.installed ?? false;
+    const loggedIn = system?.auth.loggedIn ?? false;
+    return { ok: cli && loggedIn, cli, loggedIn };
   });
 
   app.get<{ Querystring: { refresh?: string } }>('/system', (req) => core.system(req.query.refresh === '1'));
