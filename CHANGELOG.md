@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.16.0](https://github.com/yeyo11/agentry/compare/v0.15.3...v0.16.0) (2026-09-23)
+
+
+### Features
+
+* install Agentry on a phone, and push to it with the app closed ([#76](https://github.com/yeyo11/agentry/issues/76)) ([7ef73d9](https://github.com/yeyo11/agentry/commit/7ef73d9aa118b259556c4bbe1bba5880d074e891))
+
 ## [0.15.3](https://github.com/yeyo11/agentry/compare/v0.15.2...v0.15.3) (2026-09-22)
 
 

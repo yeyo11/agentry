@@ -1,6 +1,6 @@
 {
   "name": "@agentry/desktop",
-  "version": "0.15.3",
+  "version": "0.16.0",
   "private": true,
   "description": "Electron desktop shell for Agentry",
   "homepage": "https://github.com/yeyo11/agentry",
