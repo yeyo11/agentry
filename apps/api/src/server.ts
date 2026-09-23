@@ -19,7 +19,7 @@ export interface RunningServer {
 
 /** Creates the core, builds the app and listens. Shared by the CLI entrypoint and the desktop bundle. */
 export async function startServer(opts: StartServerOptions = {}): Promise<RunningServer> {
-  const host = opts.host ?? '0.0.0.0';
+  const host = opts.host ?? '127.0.0.1';
   const core = new Core();
   const app = await buildApp(core, { webDist: opts.webDist });
   for (const stray of core.runtime.strays()) {
@@ -42,6 +42,14 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
     core.shutdown();
     await app.close();
     throw err;
+  }
+
+  // Someone who opens the port is told what they just published: this API runs arbitrary commands
+  if ((host === '0.0.0.0' || host === '::') && core.security.mode === 'none') {
+    app.log.warn(
+      `bound to ${host}: this API runs commands on the machine it is on, and nothing is asking for a credential. ` +
+        'Whoever reaches the port owns the machine. Set a token (AGENTRY_AUTH_TOKEN, or the security panel), or bind HOST=127.0.0.1.',
+    );
   }
 
   const { port } = app.server.address() as AddressInfo;
