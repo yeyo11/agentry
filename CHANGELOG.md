@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.16.2](https://github.com/yeyo11/agentry/compare/v0.16.1...v0.16.2) (2026-09-23)
+
+
+### Bug fixes
+
+* **api:** an allowed host may be a `*.domain` pattern ([#80](https://github.com/yeyo11/agentry/issues/80)) ([3e5d21c](https://github.com/yeyo11/agentry/commit/3e5d21c1ea96939c15081a20f6bfeb4056fed307))
+
 ## [0.16.1](https://github.com/yeyo11/agentry/compare/v0.16.0...v0.16.1) (2026-09-23)
 
 
