@@ -18,7 +18,9 @@ import type {
 import { writeAtomic } from './config/files.ts';
 import { assertZone, describeCron, nextFire, nextFires, parseCron, serverZone } from './cron.ts';
 import type { EventBus } from './events.ts';
+import { validateModel, validatePermissionMode, validateSpecSettings, validateTasks } from './orchestrator.ts';
 import type { CoreConfig } from './paths.ts';
+import { normalizeVerification } from './verification.ts';
 
 /** How often the scheduler looks at the clock. Only the slot it finds due matters, not this. */
 const TICK_MS = 15_000;
@@ -211,15 +213,25 @@ function checked(cron: string, timezone: string | undefined): void {
   if (timezone) assertZone(timezone);
 }
 
+/**
+ * A schedule fires unattended, hours or days after it was written: everything the launcher would
+ * refuse is refused here instead, while the person who wrote it is still there to correct it. What
+ * gets through otherwise is a 201 and, at three in the morning, a failed run row and nothing else.
+ */
 function checkedTarget(target: unknown): ScheduleTarget {
   if (!target || typeof target !== 'object') throw new Error('target is required');
   const t = target as Partial<ScheduleTarget>;
   if (t.kind === 'chat') {
     if (!t.chat || typeof t.chat.prompt !== 'string' || !t.chat.prompt.trim()) throw new Error('a chat target needs a prompt');
+    validateModel(t.chat.model);
+    validatePermissionMode(t.chat.permissionMode);
     return { kind: 'chat', chat: t.chat };
   }
   if (t.kind === 'orchestration') {
-    if (!t.spec || !Array.isArray(t.spec.tasks) || t.spec.tasks.length === 0) throw new Error('an orchestration target needs at least one task');
+    if (!t.spec || typeof t.spec !== 'object') throw new Error('an orchestration target needs a spec');
+    validateTasks(t.spec.tasks);
+    validateSpecSettings(t.spec);
+    normalizeVerification(t.spec.verification);
     return { kind: 'orchestration', spec: t.spec };
   }
   throw new Error('target.kind must be "chat" or "orchestration"');
