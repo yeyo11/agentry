@@ -83,8 +83,8 @@ test('rotating the token stops the previous one', async () => {
   const store = new AuthStore(tempConfig(), {});
   const first = (await store.setToken()).token;
   await store.update({ mode: 'token' });
-  const second = (await store.setToken({ token: 'a-token-of-my-own-16+' })).token;
-  assert.equal(second, 'a-token-of-my-own-16+');
+  const second = (await store.setToken({ token: 'a-token-of-my-own-24-chars' })).token;
+  assert.equal(second, 'a-token-of-my-own-24-chars');
   assert.equal(await store.actorFor(first), null);
   assert.ok(await store.actorFor(second));
 });
@@ -93,7 +93,7 @@ test('a mode that would lock everyone out is refused', async () => {
   const store = new AuthStore(tempConfig(), {});
   await assert.rejects(store.update({ mode: 'token' }), /set a token before/);
   await assert.rejects(store.update({ mode: 'oidc' }), /configure the issuer/);
-  await assert.rejects(store.setToken({ token: 'short' }), /at least 16 characters/);
+  await assert.rejects(store.setToken({ token: 'short' }), /at least 24 characters/);
 
   await store.setToken();
   await store.update({ mode: 'token' });
@@ -177,6 +177,13 @@ test('AGENTRY_AUTH_TOKEN_RESET without a token fails loudly instead of doing not
   const config = tempConfig();
   await new AuthStore(config, {}).setToken();
   assert.throws(() => new AuthStore(config, { AGENTRY_AUTH_TOKEN_RESET: '1' }), /needs AGENTRY_AUTH_TOKEN/);
+});
+
+test('a token of your own is refused until it is long enough to be worth guarding', async () => {
+  const store = new AuthStore(tempConfig(), {});
+  // 23 characters is the last refusal and 24 the first acceptance, so the boundary cannot drift
+  await assert.rejects(store.setToken({ token: 'a'.repeat(23) }), /at least 24 characters/);
+  assert.equal((await store.setToken({ token: 'a'.repeat(24) })).token, 'a'.repeat(24));
 });
 
 // ---------- what the umask would otherwise decide ----------
