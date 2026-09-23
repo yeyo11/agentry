@@ -1,8 +1,11 @@
 image:
   repository: ghcr.io/yeyo11/agentry
-  # A release (`0.13.1`) so that an upgrade is a decision; `latest` follows every release and `edge`
-  # every push to main. The Claude Code version is baked into the image, not chosen here.
-  tag: latest
+  # A release so that an upgrade is a decision; `latest` follows every release and `edge` every push
+  # to main. The Claude Code version is baked into the image, not chosen here.
+  # Change both together or neither: a moving tag (`latest`, `edge`) needs pullPolicy: Always, or a
+  # node that already holds the image serves yesterday's build - and a security fix - forever, while
+  # a node scheduled fresh pulls a different one under the same name.
+  tag: "0.15.2"
   pullPolicy: IfNotPresent
 
 # The port the API listens on inside the pod and the one the Service exposes
@@ -19,8 +22,11 @@ resources:
     cpu: 250m
     memory: 512Mi
   limits:
-    # Every chat is a `claude` process inside this pod: size the memory for the number you run at
-    # once (AGENTRY_MAX_CONCURRENT_RUNS, 8 by default), not for the API
+    # Every chat is a `claude` process inside this pod, and each one runs shell commands of its own:
+    # size both for the number you run at once (AGENTRY_MAX_CONCURRENT_RUNS, 8 by default), not for
+    # the API. The CPU limit is there so a pod full of busy agents throttles instead of taking the
+    # node from everything else scheduled beside it - raise it before raising the concurrency.
+    cpu: "4"
     memory: 4Gi
 
 # One volume, mounted in four places by subPath: the wrapper state (/data), the account setup
@@ -80,6 +86,16 @@ podSecurityContext:
   runAsGroup: 1000
   fsGroup: 1000
   runAsNonRoot: true
+
+# The container asks for nothing the wrapper needs: it binds one port above 1024 and starts
+# processes as itself. Deliberately no readOnlyRootFilesystem - the agents write to /workspace and
+# the CLI to /tmp, so a read-only root would break the first chat rather than harden anything.
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
 
 nodeSelector: {}
 tolerations: []
