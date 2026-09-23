@@ -11,11 +11,15 @@ export async function readJson(file: string): Promise<Record<string, unknown>> {
   return text.trim() ? (JSON.parse(text) as Record<string, unknown>) : {};
 }
 
-/** Write through a temp file so the CLI never reads a half-written config. */
-export async function writeAtomic(file: string, content: string): Promise<void> {
+/**
+ * Write through a temp file so the CLI never reads a half-written config. `mode` is given to the
+ * temp file at creation rather than applied afterwards: a document that holds a secret must never
+ * exist, not even for an instant, at whatever the umask allows.
+ */
+export async function writeAtomic(file: string, content: string, mode?: number): Promise<void> {
   await mkdir(dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
-  await writeFile(tmp, content, 'utf8');
+  await writeFile(tmp, content, mode === undefined ? 'utf8' : { encoding: 'utf8', mode });
   await rename(tmp, file);
 }
 

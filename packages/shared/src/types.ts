@@ -148,7 +148,13 @@ export interface TranscriptSearchResult {
 
 // ---------- Runs (`claude -p` processes managed by the wrapper) ----------
 
-export type PermissionMode = 'acceptEdits' | 'auto' | 'bypassPermissions' | 'manual' | 'dontAsk' | 'plan';
+/** Every mode the CLI's `--permission-mode` takes: one list, so the API and the orchestrator cannot drift apart. */
+export const PERMISSION_MODES = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'] as const;
+
+export type PermissionMode = (typeof PERMISSION_MODES)[number];
+
+/** What `--model` takes: an alias or a full id, `[1m]` variants included; nothing a shell or a flag could misread. */
+export const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:[\]-]{0,99}$/;
 
 export type RunStatus = 'starting' | 'busy' | 'idle' | 'completed' | 'failed' | 'stopped';
 

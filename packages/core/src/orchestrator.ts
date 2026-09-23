@@ -13,6 +13,7 @@ import type {
   OrchestrationTaskSpec,
   OrchestrationTaskState,
   OrchestrationTemplate,
+  PermissionMode,
   PlanDraftSummary,
   PlanRequest,
   RelaunchOrchestrationRequest,
@@ -25,6 +26,7 @@ import type {
   VerifyOrchestrationRequest,
   WorkflowDefinition,
 } from '@agentry/shared';
+import { MODEL_RE, PERMISSION_MODES, specOfOrchestration } from '@agentry/shared';
 import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
 import { OrchestrationEventTracker } from './event-sources.ts';
@@ -251,6 +253,28 @@ export function validateTasks(tasks: OrchestrationTaskSpec[]): void {
 }
 
 /**
+ * `model` and `permissionMode` are never read here: they are handed to `claude` as flags. A value
+ * the CLI does not know would first show itself as a worker dying in the middle of a graph, so the
+ * spec is held to the same list the chat routes hold a chat to.
+ */
+export function validateModel(model: string | null | undefined, what = 'model'): void {
+  if (model === undefined || model === null) return;
+  if (typeof model !== 'string' || !MODEL_RE.test(model)) throw new Error(`${what} must be a model alias or id, such as haiku`);
+}
+
+export function validatePermissionMode(mode: PermissionMode | undefined): void {
+  if (mode === undefined) return;
+  if (!PERMISSION_MODES.includes(mode)) throw new Error(`permissionMode must be one of ${PERMISSION_MODES.join(', ')}`);
+}
+
+/** The settings of a whole spec, the per-task models included: every one of them becomes a flag. */
+export function validateSpecSettings(spec: Pick<OrchestrationSpec, 'model' | 'permissionMode' | 'tasks'>): void {
+  validateModel(spec.model);
+  validatePermissionMode(spec.permissionMode);
+  for (const task of spec.tasks ?? []) validateModel(task.model, `task '${task.id}' model`);
+}
+
+/**
  * Orchestration mode: a DAG of tasks, each executed by its own `claude -p` worker.
  * Independent tasks run in parallel (up to `concurrency`); a task receives the results of
  * its dependencies as context; an optional final worker synthesizes everything.
@@ -471,6 +495,7 @@ export class Orchestrator {
 
   create(spec: OrchestrationSpec, origin: { relaunchedFrom?: string; templateId?: string } = {}): Orchestration {
     validateTasks(spec.tasks);
+    validateSpecSettings(spec);
     const root = resolve(spec.cwd ?? this.config.workspaceDir);
     // Fail here rather than per task: half a graph isolated and half of it not is worse than
     // refusing outright.
@@ -498,7 +523,7 @@ export class Orchestrator {
       name: spec.name?.trim() || 'orchestration',
       objective: spec.objective?.trim() || null,
       status: 'running',
-      cwd: resolve(spec.cwd ?? this.config.workspaceDir),
+      cwd: root,
       model: spec.model ?? null,
       permissionMode: spec.permissionMode ?? this.config.defaultPermissionMode,
       concurrency: Math.min(Math.max(spec.concurrency ?? 3, 1), this.config.maxConcurrentRuns),
@@ -588,6 +613,8 @@ export class Orchestrator {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
     if (orch.status === 'running') return orch;
+    // Before anything of the graph is touched, so a mode the CLI would refuse leaves it as it was
+    validatePermissionMode(changes.permissionMode);
     if (orch.status === 'waiting') throw new Error('the orchestration is waiting for a decision on its tasks: retry or skip them instead');
     if (this.verifying.has(orch.id)) throw new Error('the checks are running on the integration branch: stop the orchestration first');
     const unfinished = orch.tasks.filter((t) => t.status !== 'completed');
@@ -637,38 +664,12 @@ export class Orchestrator {
 
   /**
    * The spec that would launch this graph as it is: what a relaunch starts from and what a template
-   * saves. Read back from the orchestration, so it carries the settings the graph actually ran with,
-   * including corrections made when it was resumed.
+   * saves. The UI fills a schedule from the same function, over the orchestration it reads back.
    */
   specOf(id: string): OrchestrationSpec {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
-    return {
-      name: orch.name,
-      ...(orch.objective ? { objective: orch.objective } : {}),
-      engine: orch.engine ?? 'graph',
-      ...(orch.engineReason ? { engineReason: orch.engineReason } : {}),
-      cwd: orch.cwd,
-      ...(orch.model ? { model: orch.model } : {}),
-      permissionMode: orch.permissionMode,
-      concurrency: orch.concurrency,
-      synthesize: orch.synthesize,
-      worktree: orch.worktree,
-      maxAttempts: orch.maxAttempts,
-      allowedTools: [...(orch.allowedTools ?? [])],
-      permissionPrompts: orch.permissionPrompts,
-      ...(orch.limits ? { limits: orch.limits } : {}),
-      ...(orch.verificationSpec ? { verification: orch.verificationSpec } : {}),
-      tasks: orch.tasks.map<OrchestrationTaskSpec>((t) => ({
-        id: t.id,
-        name: t.name,
-        prompt: t.prompt,
-        ...(t.dependsOn?.length ? { dependsOn: [...t.dependsOn] } : {}),
-        ...(t.cwd ? { cwd: t.cwd } : {}),
-        ...(t.model ? { model: t.model } : {}),
-        ...(t.limits ? { limits: t.limits } : {}),
-      })),
-    };
+    return specOfOrchestration(orch);
   }
 
   /**

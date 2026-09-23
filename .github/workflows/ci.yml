@@ -42,6 +42,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # A new high-severity advisory against a dependency fails the next pull request, including one
+      # that did not cause it. That is the trade: the daily run on main puts a ceiling of a day on
+      # how long the tree can carry one, instead of it waiting for somebody to run an audit by hand.
+      - name: No high-severity advisories in the dependency tree
+        run: pnpm audit --audit-level=high
+
       - name: OpenAPI schemas are up to date with the shared types
         run: |
           pnpm --filter @agentry/api openapi:schemas
@@ -51,11 +57,18 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
-      # The e2e suite needs the CLI binary (plugins, MCP) but no login: it runs on empty temp dirs
+      # The e2e suite needs the CLI binary (plugins, MCP) but no login: it runs on empty temp dirs.
+      # The installer is checked against the digest the Dockerfile pins rather than a second copy of
+      # it, so rotating the pin is one edit and the two can never disagree about which script is
+      # trusted. The `docker` job builds the same pinned step, so this adds no new way to fail.
       - name: Install Claude Code
         if: env.GENERATED_RELEASE_PR != 'true'
         run: |
-          curl -fsSL https://claude.ai/install.sh | bash
+          sha=$(sed -n 's/^ARG CLAUDE_CODE_INSTALLER_SHA256=//p' docker/Dockerfile)
+          test -n "$sha"
+          curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh
+          echo "$sha  /tmp/claude-install.sh" | sha256sum -c -
+          bash /tmp/claude-install.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: End-to-end (headless Chrome)

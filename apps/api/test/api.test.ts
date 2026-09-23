@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
+import { ChatConflictError, Core, loadConfig } from '@agentry/core';
+import type { PermissionRequest } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
+import { allowedOrigin } from '../src/origins.ts';
 
 // Isolated dirs and a missing CLI binary: these tests cover routing, scoping, validation and
 // error mapping without ever spawning Claude or touching the real ~/.claude.
@@ -386,6 +389,20 @@ async function openFeed(headers: Record<string, string> = {}) {
 
 const ping = (title: string) => core.events.emit({ type: 'sessions.changed', title });
 
+/** Opens a stream over a real socket and answers with the headers it was greeted with. */
+async function streamHeaders(path: string, headers: Record<string, string>) {
+  if (!app.server.listening) await app.listen({ port: 0, host: '127.0.0.1' });
+  const { port } = app.server.address() as AddressInfo;
+  return new Promise<Record<string, string | string[] | undefined>>((resolve, reject) => {
+    const req = request({ host: '127.0.0.1', port, path, headers }, (res) => {
+      resolve(res.headers);
+      req.destroy();
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 test('the event feed streams what happens, replays what a reconnecting client missed, and cleans up', async () => {
   await app.listen({ port: 0, host: '127.0.0.1' });
   const idle = core.events.subscribers;
@@ -469,4 +486,209 @@ test("a chat's stream opens at once, even for a client that asks only for what i
   assert.equal(opened.status, 200);
   // The heartbeat is 15 s away: headers held until then read as a dropped stream in the page
   assert.ok(opened.ms < 2000, `the stream opened after ${opened.ms} ms`);
+});
+
+test('a stream is read across origins only by an allowed one, whatever Origin it sends', async () => {
+  const created = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hello' }) });
+  assert.equal(created.statusCode, 201, created.body);
+  const paths = ['/api/events', `/api/chats/${created.json().id as string}/stream`];
+  const previous = process.env.AGENTRY_CORS_ORIGIN;
+  try {
+    process.env.AGENTRY_CORS_ORIGIN = 'https://panel.example.com';
+    for (const path of paths) {
+      const allowed = await streamHeaders(path, { origin: 'https://panel.example.com' });
+      assert.equal(allowed['access-control-allow-origin'], 'https://panel.example.com', path);
+      assert.equal(allowed.vary, 'Origin', path);
+      // Hijacked or not, the allowlist decides; these streams carry prompts, paths and output
+      const refused = await streamHeaders(path, { origin: 'https://evil.example.com' });
+      assert.equal(refused['access-control-allow-origin'], undefined, path);
+      assert.equal(refused.vary, undefined, path);
+      assert.match(String(refused['content-type']), /text\/event-stream/, path);
+    }
+
+    delete process.env.AGENTRY_CORS_ORIGIN;
+    for (const path of paths) {
+      const nobody = await streamHeaders(path, { origin: 'https://panel.example.com' });
+      assert.equal(nobody['access-control-allow-origin'], undefined, path);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.AGENTRY_CORS_ORIGIN;
+    else process.env.AGENTRY_CORS_ORIGIN = previous;
+  }
+});
+
+test('a pending permission request is answered only through the chat it belongs to', async () => {
+  const created = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hello' }) });
+  assert.equal(created.statusCode, 201, created.body);
+  const chatId: string = created.json().id;
+  const asked: PermissionRequest = {
+    id: 'perm-scoping',
+    runId: chatId,
+    toolName: 'Bash',
+    toolUseId: 'toolu_perm-scoping',
+    input: { command: 'rm -rf /' },
+    requestedAt: new Date().toISOString(),
+  };
+  const decision = core.permissions.ask(asked);
+
+  const elsewhere = await app.inject({ method: 'POST', url: `/api/chats/ghost/permissions/${asked.id}`, ...json({ behavior: 'allow' }) });
+  assert.equal(elsewhere.statusCode, 404);
+  // The chat that was wrong and the request that never existed answer the same way
+  assert.deepEqual(elsewhere.json(), (await app.inject({ method: 'POST', url: '/api/chats/ghost/permissions/nope', ...json({ behavior: 'allow' }) })).json());
+  assert.deepEqual(core.permissions.list(chatId).map((r) => r.id), [asked.id], 'the request is still waiting');
+
+  const own = await app.inject({ method: 'POST', url: `/api/chats/${chatId}/permissions/${asked.id}`, ...json({ behavior: 'deny', message: 'no' }) });
+  assert.equal(own.statusCode, 200);
+  const settled = await decision;
+  assert.equal(settled?.behavior, 'deny');
+  assert.equal(settled?.message, 'no');
+});
+
+test('an unexpected failure is a bare 500 in the log, a deliberate refusal keeps its text', async () => {
+  const probe = await buildApp(core, { logLevel: 'silent', webDist: join(tmpdir(), 'agentry-no-ui') });
+  const logged: string[] = [];
+  probe.log.error = ((payload: { url?: string }) => void logged.push(payload.url ?? '')) as unknown as typeof probe.log.error;
+  // Outside /api, so the guard leaves them alone: what is under test is the error handler
+  probe.get('/broken', () => {
+    throw Object.assign(new Error("ENOENT: no such file or directory, open '/home/someone/.claude/settings.json'"), { code: 'ENOENT' });
+  });
+  probe.get('/mistaken', () => {
+    throw new TypeError('cannot read properties of undefined');
+  });
+  probe.get('/refused', () => {
+    throw new Error('prompt is required');
+  });
+  probe.get('/absent', () => {
+    throw new Error('chat not found');
+  });
+  probe.get('/busy', () => {
+    throw new ChatConflictError('this chat is running; fork it instead', 'fork');
+  });
+
+  for (const url of ['/broken', '/mistaken']) {
+    const res = await probe.inject(url);
+    assert.equal(res.statusCode, 500, url);
+    assert.deepEqual(res.json(), { error: 'internal error' }, url);
+  }
+  // Nothing of the host's layout reaches the caller, and both failures are ours to read
+  assert.deepEqual(logged, ['/broken', '/mistaken']);
+
+  const refused = await probe.inject('/refused');
+  assert.equal(refused.statusCode, 400);
+  assert.equal(refused.json().error, 'prompt is required');
+  assert.equal((await probe.inject('/absent')).statusCode, 404);
+  const busy = await probe.inject('/busy');
+  assert.equal(busy.statusCode, 409);
+  assert.match(busy.json().error, /fork it instead/);
+  // A refusal is the caller's business, not a line in the log
+  assert.deepEqual(logged, ['/broken', '/mistaken']);
+  await probe.close();
+});
+
+test('the UI bundle is served unframeable, unsniffable and under a policy that names its inline script', async () => {
+  const dist = mkdtempSync(join(tmpdir(), 'agentry-dist-'));
+  const inline = "\n      document.documentElement.dataset.theme = 'dark';\n    ";
+  writeFileSync(
+    join(dist, 'index.html'),
+    `<!doctype html><html><head><script>${inline}</script><script type="module" src="/assets/app.js"></script></head><body></body></html>`,
+  );
+  const probe = await buildApp(core, { logLevel: 'silent', webDist: dist });
+
+  const res = await probe.inject('/');
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['x-frame-options'], 'DENY');
+  assert.equal(res.headers['x-content-type-options'], 'nosniff');
+  assert.equal(res.headers['referrer-policy'], 'no-referrer');
+  const policy = res.headers['content-security-policy'] as string;
+  const hash = createHash('sha256').update(inline, 'utf8').digest('base64');
+  assert.ok(policy.includes(`script-src 'self' 'sha256-${hash}'`), policy);
+  // The bundled script is fetched by URL, so its tag must not have earned a hash of its own
+  assert.equal(policy.match(/sha256-/g)?.length, 1);
+  for (const directive of ["default-src 'self'", "frame-ancestors 'none'", "object-src 'none'", "base-uri 'self'", "connect-src 'self'"]) {
+    assert.ok(policy.includes(directive), `${directive} missing from ${policy}`);
+  }
+  // Vite's build hands out no nonce and the UI styles from React: inline styles stay allowed
+  assert.ok(policy.includes("style-src 'self' 'unsafe-inline'"), policy);
+
+  // The SPA fallback answers with index.html, and must carry the same policy
+  const deepLink = await probe.inject('/chats/whatever');
+  assert.equal(deepLink.statusCode, 200);
+  assert.equal(deepLink.headers['content-security-policy'], policy);
+  await probe.close();
+});
+
+test('who may read this API from a browser is decided in one place', async () => {
+  const previous = process.env.AGENTRY_CORS_ORIGIN;
+  try {
+    delete process.env.AGENTRY_CORS_ORIGIN;
+    assert.equal(allowedOrigin('https://panel.example.com'), null);
+
+    process.env.AGENTRY_CORS_ORIGIN = 'https://panel.example.com, https://other.example.com';
+    assert.equal(allowedOrigin('https://panel.example.com'), 'https://panel.example.com');
+    assert.equal(allowedOrigin('https://other.example.com'), 'https://other.example.com');
+    assert.equal(allowedOrigin('https://evil.example.com'), null);
+    // A prefix or a suffix of an allowed origin is another origin
+    assert.equal(allowedOrigin('https://panel.example.com.evil.test'), null);
+    assert.equal(allowedOrigin('panel.example.com'), null);
+    assert.equal(allowedOrigin(undefined), null);
+
+    process.env.AGENTRY_CORS_ORIGIN = '*';
+    assert.equal(allowedOrigin('https://anything.example.com'), 'https://anything.example.com');
+    // Nothing to echo, nothing to allow
+    assert.equal(allowedOrigin(undefined), null);
+    assert.equal(allowedOrigin(''), null);
+
+    process.env.AGENTRY_CORS_ORIGIN = '   ';
+    assert.equal(allowedOrigin('https://panel.example.com'), null);
+
+    // The plugin answers from the same decision, and only for the origin it was told about
+    process.env.AGENTRY_CORS_ORIGIN = 'https://panel.example.com';
+    const probe = await buildApp(core, { logLevel: 'silent', webDist: join(tmpdir(), 'agentry-no-ui') });
+    const allowed = await probe.inject({ url: '/api/health', headers: { origin: 'https://panel.example.com' } });
+    assert.equal(allowed.headers['access-control-allow-origin'], 'https://panel.example.com');
+    const refused = await probe.inject({ url: '/api/health', headers: { origin: 'https://evil.example.com' } });
+    assert.equal(refused.headers['access-control-allow-origin'], undefined);
+    await probe.close();
+  } finally {
+    if (previous === undefined) delete process.env.AGENTRY_CORS_ORIGIN;
+    else process.env.AGENTRY_CORS_ORIGIN = previous;
+  }
+});
+
+test('a burst of readers costs one detection, and the open health route spawns nothing at all', async () => {
+  // A `claude` that records every invocation: what is counted is how often it runs, not what it says
+  const root = mkdtempSync(join(tmpdir(), 'agentry-probe-'));
+  const log = join(root, 'invocations');
+  const bin = join(root, 'claude');
+  const script = ['#!/bin/sh', `echo "$@" >> '${log}'`, 'case "$1" in', "  --version) echo '9.9.9 (Claude Code)';;", '  auth) echo \'{"loggedIn":true}\';;', 'esac', ''];
+  writeFileSync(bin, script.join('\n'), { mode: 0o755 });
+  const ran = (args: string) => (existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter((line) => line.startsWith(args)).length : 0);
+
+  const probe = new Core(
+    loadConfig({
+      CLAUDE_BIN: bin,
+      CSWAP_BIN: '/nonexistent/cswap',
+      CLAUDE_CONFIG_DIR: join(root, 'claude-config'),
+      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
+      AGENTRY_DATA_DIR: join(root, 'data'),
+    }),
+  );
+  let probeApp: FastifyInstance | null = null;
+  try {
+    // Nothing has been read yet: two hundred callers arriving at once still detect once between them
+    const seen = await Promise.all(Array.from({ length: 200 }, () => probe.system()));
+    assert.equal(ran('--version'), 1);
+    assert.equal(ran('auth status'), 1);
+    assert.deepEqual([...new Set(seen.map((info) => info.cli.version))], ['9.9.9']);
+    assert.equal(seen.every((info) => info.auth.loggedIn), true);
+
+    probeApp = await buildApp(probe, { logLevel: 'silent', webDist: join(root, 'no-ui') });
+    const server = probeApp;
+    const probes = await Promise.all(Array.from({ length: 200 }, () => server.inject('/api/health')));
+    assert.deepEqual([...new Set(probes.map((res) => res.body))], [JSON.stringify({ ok: true, cli: true, loggedIn: true })]);
+    assert.equal(ran('--version'), 1); // the probe reports the last reading, it never takes one
+  } finally {
+    probe.shutdown();
+    if (probeApp) await probeApp.close();
+  }
 });

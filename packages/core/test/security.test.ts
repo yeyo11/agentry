@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import test from 'node:test';
 import { REDACTED, type OidcConfig } from '@agentry/shared';
+import { writeAtomic } from '../src/config/files.ts';
+import { CredentialStore } from '../src/credentials.ts';
 import { Db } from '../src/db.ts';
 import { AuthStore } from '../src/security/auth.ts';
 import { OidcVerifier } from '../src/security/oidc.ts';
@@ -81,8 +83,8 @@ test('rotating the token stops the previous one', async () => {
   const store = new AuthStore(tempConfig(), {});
   const first = (await store.setToken()).token;
   await store.update({ mode: 'token' });
-  const second = (await store.setToken({ token: 'a-token-of-my-own-16+' })).token;
-  assert.equal(second, 'a-token-of-my-own-16+');
+  const second = (await store.setToken({ token: 'a-token-of-my-own-24-chars' })).token;
+  assert.equal(second, 'a-token-of-my-own-24-chars');
   assert.equal(await store.actorFor(first), null);
   assert.ok(await store.actorFor(second));
 });
@@ -91,7 +93,7 @@ test('a mode that would lock everyone out is refused', async () => {
   const store = new AuthStore(tempConfig(), {});
   await assert.rejects(store.update({ mode: 'token' }), /set a token before/);
   await assert.rejects(store.update({ mode: 'oidc' }), /configure the issuer/);
-  await assert.rejects(store.setToken({ token: 'short' }), /at least 16 characters/);
+  await assert.rejects(store.setToken({ token: 'short' }), /at least 24 characters/);
 
   await store.setToken();
   await store.update({ mode: 'token' });
@@ -177,6 +179,62 @@ test('AGENTRY_AUTH_TOKEN_RESET without a token fails loudly instead of doing not
   assert.throws(() => new AuthStore(config, { AGENTRY_AUTH_TOKEN_RESET: '1' }), /needs AGENTRY_AUTH_TOKEN/);
 });
 
+test('a token of your own is refused until it is long enough to be worth guarding', async () => {
+  const store = new AuthStore(tempConfig(), {});
+  // 23 characters is the last refusal and 24 the first acceptance, so the boundary cannot drift
+  await assert.rejects(store.setToken({ token: 'a'.repeat(23) }), /at least 24 characters/);
+  assert.equal((await store.setToken({ token: 'a'.repeat(24) })).token, 'a'.repeat(24));
+});
+
+// ---------- what the umask would otherwise decide ----------
+
+const modeOf = (file: string): number => statSync(file).mode & 0o777;
+
+test('writeAtomic gives the file its mode as it is created, not after the rename', async () => {
+  const dir = tempConfig().dataDir;
+  const secret = join(dir, 'secret.json');
+  await writeAtomic(secret, '{}', 0o600);
+  assert.equal(modeOf(secret), 0o600);
+
+  // Rewriting through a fresh temp file keeps it, and a caller with no secret is left alone
+  await writeAtomic(secret, '{"again":true}', 0o600);
+  assert.equal(modeOf(secret), 0o600);
+  // A caller with nothing to hide keeps whatever the umask says, exactly as an ordinary write
+  const plain = join(dir, 'plain.json');
+  await writeAtomic(plain, '{}');
+  const reference = join(dir, 'reference.json');
+  writeFileSync(reference, '{}');
+  assert.equal(modeOf(plain), modeOf(reference));
+});
+
+test('the guard document is unreadable to anyone else from the moment it exists', async () => {
+  const config = tempConfig();
+  const file = join(config.dataDir, 'auth.json');
+  // The environment writes it from the constructor, which cannot await
+  new AuthStore(config, { AGENTRY_AUTH_TOKEN: 'from-the-environment-42' });
+  assert.equal(modeOf(file), 0o600);
+
+  const store = new AuthStore(config, {});
+  await store.setToken();
+  assert.equal(modeOf(file), 0o600);
+});
+
+test('the account credential is unreadable to anyone else from the moment it exists', async () => {
+  const config = tempConfig();
+  const bootEnv = { CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY };
+  try {
+    const store = new CredentialStore(config);
+    await store.set({ oauthToken: 'sk-ant-oat-not-a-real-token' });
+    assert.equal(modeOf(join(config.dataDir, 'credentials.json')), 0o600);
+    store.clear();
+  } finally {
+    for (const [key, value] of Object.entries(bootEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
 // ---------- OIDC ----------
 
 interface Issuer {
@@ -246,6 +304,24 @@ test('an OIDC token is accepted only when its signature, audience and expiry all
   // `none` is not an algorithm anyone accepts
   const unsigned = `${Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url')}.${Buffer.from(JSON.stringify(good)).toString('base64url')}.`;
   await assert.rejects(verifier.verify(unsigned, config), /not a signed JWT|unsupported algorithm/);
+});
+
+test('a configured client id rejects a token issued to another client', async (t) => {
+  const issuer = await startIssuer();
+  t.after(() => issuer.close());
+  const verifier = new OidcVerifier();
+  const now = Math.floor(Date.now() / 1000);
+  const claims = { iss: issuer.url, aud: 'agentry', sub: 'user@example.test', exp: now + 600 };
+  const configured: OidcConfig = { issuer: issuer.url, audience: 'agentry', clientId: 'agentry-ui' };
+
+  assert.equal(await verifier.verify(issuer.jwt({ ...claims, azp: 'agentry-ui' }), configured), 'user@example.test');
+  await assert.rejects(verifier.verify(issuer.jwt({ ...claims, azp: 'another-app' }), configured), /issued to another client/);
+  // Issuers that leave `azp` out are not locked out by a client id being set
+  assert.equal(await verifier.verify(issuer.jwt(claims), configured), 'user@example.test');
+
+  // With no client id configured, `azp` is not this verifier's business
+  const open: OidcConfig = { issuer: issuer.url, audience: 'agentry', clientId: '' };
+  assert.equal(await verifier.verify(issuer.jwt({ ...claims, azp: 'another-app' }), open), 'user@example.test');
 });
 
 test('the issuer is asked for its keys once, not on every request', async (t) => {

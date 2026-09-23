@@ -18,14 +18,14 @@ import type {
   RunWorkflowRequest,
   UsageBucket,
 } from '@agentry/shared';
+import { openStream } from '../sse.ts';
 
-const HEARTBEAT_MS = 15_000;
 const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'];
 const ORIGINS: readonly ChatOrigin[] = ['agentry', 'external', 'orchestration', 'internal'];
 const STATES: readonly ChatState[] = ['working', 'waiting', 'idle'];
 
-/** An optional non-negative integer query parameter. */
-function count(value: string | undefined, name: string): number | undefined {
+/** An optional non-negative integer query parameter. Shared, so no route invents its own paging. */
+export function count(value: string | undefined, name: string): number | undefined {
   if (value === undefined || value === '') return undefined;
   const n = Number(value);
   if (!Number.isInteger(n) || n < 0) throw new Error(`${name} must be a non-negative integer`);
@@ -162,30 +162,13 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     if (!chats.streams(req.params.id)) throw new Error('chat not found');
     const lastEventId = Number(req.headers['last-event-id'] ?? req.query.since ?? 0) || 0;
 
-    reply.hijack();
-    reply.raw.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
-      // hijacked replies bypass @fastify/cors
-      ...(process.env.AGENTRY_CORS_ORIGIN && req.headers.origin ? { 'Access-Control-Allow-Origin': req.headers.origin } : {}),
-    });
-    // Written at once: Node holds the headers until the first write, and a client that asks only for
-    // what is new has nothing replayed, so it would not see the stream open until the first heartbeat
-    reply.raw.write('retry: 3000\n\n');
+    const stream = openStream(req, reply);
     // Ephemeral `partial` events carry no SSE id, so Last-Event-ID always points at a stored event
-    const write = (event: RunEvent) =>
-      reply.raw.write(`${event.kind === 'partial' ? '' : `id: ${event.seq}\n`}data: ${JSON.stringify(event)}\n\n`);
+    const write = (event: RunEvent) => stream.send(event, event.kind === 'partial' ? {} : { id: event.seq });
 
     // Subscribe before replaying so nothing is lost in between; the client dedupes by seq.
-    const unsubscribe = chats.subscribe(req.params.id, write);
+    stream.onClose(chats.subscribe(req.params.id, write));
     for (const event of chats.events(req.params.id, lastEventId)) write(event);
-    const heartbeat = setInterval(() => reply.raw.write(': ping\n\n'), HEARTBEAT_MS);
-    req.raw.on('close', () => {
-      clearInterval(heartbeat);
-      unsubscribe();
-    });
   });
 
   // What the CLI is holding until someone decides: tool calls, questions, plans. The chat's event
@@ -196,7 +179,8 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     const { behavior, message, updatedInput, updatedPermissions } = req.body ?? ({} as PermissionDecision);
     if (behavior !== 'allow' && behavior !== 'deny') throw new Error("behavior must be 'allow' or 'deny'");
     if (updatedPermissions !== undefined && !Array.isArray(updatedPermissions)) throw new Error('updatedPermissions must be an array');
-    return core.permissions.answer(req.params.requestId, { behavior, message, updatedInput, updatedPermissions });
+    // Scoped to the chat in the path: the id alone would let any chat answer any pending request
+    return core.permissions.answer(req.params.requestId, { behavior, message, updatedInput, updatedPermissions }, req.params.id);
   });
 
   // Branches of a chat: what it delegated, read from its stream while it runs and from the files

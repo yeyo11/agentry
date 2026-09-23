@@ -162,7 +162,9 @@ export class Core {
   private readonly startedAt = Date.now();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
-  private systemCache: { at: number; value: Omit<SystemInfo, 'uptimeSec'> } | null = null;
+  private systemCache: { at: number; gen: number; value: Omit<SystemInfo, 'uptimeSec'> } | null = null;
+  private systemPending: { gen: number; promise: Promise<Omit<SystemInfo, 'uptimeSec'>> } | null = null;
+  private systemGen = 0;
 
   constructor(config: CoreConfig = loadConfig()) {
     this.config = config;
@@ -273,7 +275,7 @@ export class Core {
     this.changeWatcher = new ChangeWatcher(this.orchestrator, this.events);
     this.changeWatcher.start();
     this.files = new SettingsFiles();
-    this.explorer = new ConfigExplorer();
+    this.explorer = new ConfigExplorer(config.configDir);
     this.plugins = new Plugins(config);
     this.memory = new MemoryStore(config);
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
@@ -319,7 +321,7 @@ export class Core {
     this.runtime.accounts = this.accounts;
     this.accounts.projectOf = (cwd) => this.attach(cwd)?.project.id ?? null;
     this.accounts.on('switched', (result: SwitchResult) => {
-      this.systemCache = null; // the active account (and its email) changed
+      this.forgetSystem(); // the active account (and its email) changed
       this.events.emit({
         type: 'account.switched',
         title: `Switched account${result.to ? ` to ${result.to}` : ''}`,
@@ -343,7 +345,7 @@ export class Core {
     const managed = this.accounts.managed;
     if (managed === this.credentials.isSuspended) return;
     this.credentials.suspend(managed);
-    this.systemCache = null;
+    this.forgetSystem();
   }
 
   /**
@@ -360,7 +362,7 @@ export class Core {
         this.runtime.notice(run.id, `Rate limit reached and no account with quota left${result.reason ? ` (${result.reason})` : ''}.`);
         return;
       }
-      this.systemCache = null;
+      this.forgetSystem();
       const target = result.to ?? 'another account';
       // An orchestration worker already handed its result to the orchestrator: rotating helps the
       // tasks that come after it, but replaying this turn would fight whoever is awaiting it.
@@ -389,8 +391,49 @@ export class Core {
     });
   }
 
+  /**
+   * What the CLI and the account are, as the last read left them. Reading spawns two `claude`
+   * processes, so callers that ask at once share one read and a value only aged out by the clock is
+   * served while its replacement is on its way: a burst costs one detection, not one per caller.
+   * Only `force` and a change of account wait, because answering with the account that just went
+   * would be wrong rather than merely old.
+   */
   async system(force = false): Promise<SystemInfo> {
-    if (force || !this.systemCache || Date.now() - this.systemCache.at > SYSTEM_TTL_MS) {
+    const cached = this.systemCache;
+    if (!force && cached && cached.gen === this.systemGen) {
+      if (Date.now() - cached.at > SYSTEM_TTL_MS) void this.readSystem().catch(() => undefined);
+      return this.withUptime(cached.value);
+    }
+    return this.withUptime(await this.readSystem(!force));
+  }
+
+  /**
+   * What the last read saw, whatever its age, without starting one. `GET /api/health` is reachable
+   * with no credential: were it to measure, a burst against it would become a burst of processes.
+   */
+  systemKnown(): SystemInfo | null {
+    return this.systemCache ? this.withUptime(this.systemCache.value) : null;
+  }
+
+  /**
+   * What the CLI and the account report changed, so the next caller measures rather than trust the
+   * last reading. The reading itself is kept: it is what the liveness probe answers from, and a
+   * probe that started failing on every account switch would have the container restarted under it.
+   */
+  private forgetSystem(): void {
+    this.systemGen++;
+  }
+
+  private withUptime(value: Omit<SystemInfo, 'uptimeSec'>): SystemInfo {
+    return { ...value, uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+  }
+
+  private readSystem(join = true): Promise<Omit<SystemInfo, 'uptimeSec'>> {
+    const pending = this.systemPending;
+    if (join && pending && pending.gen === this.systemGen) return pending.promise;
+    const gen = this.systemGen;
+    const at = Date.now();
+    const promise: Promise<Omit<SystemInfo, 'uptimeSec'>> = (async () => {
       const cli = await detectCli(this.config);
       const auth = cli.installed
         ? await getAuthStatus(this.config)
@@ -400,19 +443,22 @@ export class Core {
       } else if (this.credentials.active && auth.tokenSource.startsWith('env-')) {
         auth.tokenSource = auth.tokenSource === 'env-oauth-token' ? 'wrapper-oauth-token' : 'wrapper-api-key';
       }
-      this.systemCache = {
-        at: Date.now(),
-        value: {
-          cli,
-          auth,
-          configDir: this.config.configDir,
-          workspaceDir: this.config.workspaceDir,
-          defaultPermissionMode: this.config.defaultPermissionMode,
-          version: AGENTRY_VERSION,
-        },
+      const value = {
+        cli,
+        auth,
+        configDir: this.config.configDir,
+        workspaceDir: this.config.workspaceDir,
+        defaultPermissionMode: this.config.defaultPermissionMode,
+        version: AGENTRY_VERSION,
       };
-    }
-    return { ...this.systemCache.value, uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+      // A read that finished late never replaces a newer one
+      if (gen === this.systemGen && (!this.systemCache || this.systemCache.at <= at)) this.systemCache = { at, gen, value };
+      return value;
+    })().finally(() => {
+      if (this.systemPending?.promise === promise) this.systemPending = null;
+    });
+    this.systemPending = { gen, promise };
+    return promise;
   }
 
   private attach(dir: string) {

@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  undici: ^7.29.0
+
 importers:
 
   .:
@@ -47,9 +50,6 @@ importers:
       fastify:
         specifier: ^5.12.5
         version: 5.12.5
-      tsx:
-        specifier: ^4.23.13
-        version: 4.23.13
     devDependencies:
       esbuild:
         specifier: ^0.25.12
@@ -57,6 +57,9 @@ importers:
       ts-json-schema-generator:
         specifier: ^2.9.0
         version: 2.9.0
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
 
   apps/desktop:
     devDependencies:
@@ -2972,12 +2975,8 @@ packages:
   undici-types@8.9.0:
     resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
 
-  undici@6.28.1:
-    resolution: {integrity: sha512-zWpdTVD54H48CIybL0rWQ3ukpb9d23wM7eH5RtfdmeP70cWHNjtfo7P4vZX+5CoDcO53J4Pu5uXp7lNfjc6DRA==}
-    engines: {node: '>=18.17'}
-
-  undici@7.24.4:
-    resolution: {integrity: sha512-BM/JzwwaRXxrLdElV2Uo6cTLEjhSb3WXboncJamZ15NgUURmvlXvxa6xkwIOILIjPNo9i8ku136ZvWV0Uly8+w==}
+  undici@7.29.1:
+    resolution: {integrity: sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==}
     engines: {node: '>=20.18.1'}
 
   unist-util-is@6.0.1:
@@ -3308,7 +3307,7 @@ snapshots:
       semver: 7.8.5
       sumchecker: 3.0.1
     optionalDependencies:
-      undici: 7.24.4
+      undici: 7.29.1
     transitivePeerDependencies:
       - supports-color
 
@@ -4182,7 +4181,7 @@ snapshots:
     dependencies:
       '@scalar/helpers': 0.12.0
       pathe: 2.0.3
-      undici: 7.24.4
+      undici: 7.29.1
       yaml: 2.9.1
 
   '@scalar/json-schema-validator@0.1.2':
@@ -5508,7 +5507,7 @@ snapshots:
       semver: 7.8.5
       tar: 7.5.22
       tinyglobby: 0.2.17
-      undici: 6.28.1
+      undici: 7.29.1
       which: 6.0.1
 
   node-int64@0.4.0: {}
@@ -6015,9 +6014,7 @@ snapshots:
 
   undici-types@8.9.0: {}
 
-  undici@6.28.1: {}
-
-  undici@7.24.4: {}
+  undici@7.29.1: {}
 
   unist-util-is@6.0.1:
     dependencies:

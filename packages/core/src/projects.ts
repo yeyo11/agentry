@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
+import { realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import type { ProjectCandidate } from '@agentry/shared';
@@ -97,6 +98,9 @@ export function isTemporaryPath(path: string): boolean {
   return path === tmp || path.startsWith(`${tmp}/`) || path.startsWith('/tmp/') || path.startsWith('/var/tmp/');
 }
 
+/** A path as the filesystem sees it, falling back to the literal path when it does not exist. */
+const realOrSelf = (path: string): Promise<string> => realpath(path).catch(() => path);
+
 function isDirectory(path: string): boolean {
   try {
     return statSync(path).isDirectory();
@@ -112,10 +116,12 @@ function isDirectory(path: string): boolean {
  */
 export class ProjectStore {
   private readonly file: string;
+  private readonly configDir: string;
   private records: ProjectRecord[];
 
   constructor(config: CoreConfig) {
     this.file = join(config.dataDir, 'projects.json');
+    this.configDir = resolve(config.configDir);
     mkdirSync(dirname(this.file), { recursive: true });
     this.records = this.read();
   }
@@ -149,7 +155,9 @@ export class ProjectStore {
 
   /**
    * Imports a directory. A git worktree is refused: it belongs to its repository, and importing it
-   * would make the same work appear twice.
+   * would make the same work appear twice. A directory that is, or holds, the Claude configuration
+   * directory is refused too: its project root would be the real `~/.claude`, whose credentials and
+   * transcripts the config explorer hides for exactly that reason.
    */
   async add(input: { path: string; name?: string }, worktreeOf: (dir: string) => WorktreeFacts | null): Promise<ProjectRecord> {
     if (typeof input.path !== 'string' || !input.path.trim()) throw new Error('path is required');
@@ -158,6 +166,10 @@ export class ProjectStore {
     if (this.records.some((p) => p.path === path)) throw new Error(`${path} is already a project`);
     const worktree = worktreeOf(path);
     if (worktree?.path === path) throw new Error(`${path} is a git worktree of ${worktree.parentPath}; import that instead`);
+    const [real, realConfigDir] = await Promise.all([realOrSelf(path), realOrSelf(this.configDir)]);
+    if (inside(real, realConfigDir)) {
+      throw new Error(`${path} is or contains the Claude configuration directory ${this.configDir}; importing it would expose the account credentials`);
+    }
     const record = { id: randomUUID(), name: this.cleanName(input.name) ?? (basename(path) || path), path };
     this.records = [...this.records, record];
     await this.save();

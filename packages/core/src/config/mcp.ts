@@ -49,6 +49,9 @@ export function parseMcpHealth(output: string): McpServerHealth[] {
  *   project -> <project>/.mcp.json
  */
 export class McpConfig {
+  /** The connection check under way per scope, so concurrent callers share it. */
+  private readonly healthPending = new Map<string, Promise<McpServerHealth[]>>();
+
   constructor(private readonly config: CoreConfig) {}
 
   private async read(scope: ConfigScope, mcpScope: McpScope): Promise<ServerMap> {
@@ -105,9 +108,23 @@ export class McpConfig {
     if (res.code !== 0) throw new Error((res.stderr || res.stdout).trim() || 'claude mcp remove failed');
   }
 
-  /** Real connection checks (`claude mcp list`): slow, call on demand only. */
-  async health(scope: ConfigScope): Promise<McpServerHealth[]> {
-    const res = await execCli(this.config, ['mcp', 'list'], { cwd: this.cwd(scope), timeoutMs: HEALTH_TIMEOUT_MS });
-    return parseMcpHealth(res.stdout);
+  /**
+   * Real connection checks (`claude mcp list`): slow, call on demand only. Every server is dialled
+   * for up to a minute and a half, so whoever asks while a check of the same scope is running waits
+   * for that one — two panels opened at once are one check, not two.
+   */
+  health(scope: ConfigScope): Promise<McpServerHealth[]> {
+    const cwd = this.cwd(scope);
+    const key = cwd ?? '';
+    const running = this.healthPending.get(key);
+    if (running) return running;
+    const promise: Promise<McpServerHealth[]> = (async () => {
+      const res = await execCli(this.config, ['mcp', 'list'], { cwd, timeoutMs: HEALTH_TIMEOUT_MS });
+      return parseMcpHealth(res.stdout);
+    })().finally(() => {
+      if (this.healthPending.get(key) === promise) this.healthPending.delete(key);
+    });
+    this.healthPending.set(key, promise);
+    return promise;
   }
 }

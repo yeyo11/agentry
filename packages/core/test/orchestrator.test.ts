@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
+import type { Orchestration, OrchestrationSpec, OrchestrationTaskState, PermissionMode } from '@agentry/shared';
 import { Db } from '../src/db.ts';
-import { Orchestrator, validateTasks } from '../src/orchestrator.ts';
+import { Orchestrator, validateSpecSettings, validateTasks } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { tempConfig } from './helpers.ts';
@@ -29,6 +29,20 @@ test('rejects invalid task lists', () => {
 
 test('detects cycles', () => {
   assert.throws(() => validateTasks([task('a', ['c']), task('b', ['a']), task('c', ['b']), task('ok')]), /cycle between: a, b, c/);
+});
+
+test('accepts the models and permission modes the CLI takes', () => {
+  assert.doesNotThrow(() => validateSpecSettings({ tasks: [task('a')] }));
+  assert.doesNotThrow(() => validateSpecSettings({ model: 'haiku', permissionMode: 'bypassPermissions', tasks: [task('a')] }));
+  assert.doesNotThrow(() => validateSpecSettings({ model: 'claude-opus-5[1m]', tasks: [{ ...task('a'), model: 'sonnet' }] }));
+});
+
+test('rejects a model or a permission mode the CLI would only fail on, per graph and per task', () => {
+  const tasks = [task('a')];
+  assert.throws(() => validateSpecSettings({ permissionMode: 'yolo' as PermissionMode, tasks }), /permissionMode must be one of/);
+  assert.throws(() => validateSpecSettings({ model: '--dangerously', tasks }), /model must be a model alias or id/);
+  assert.throws(() => validateSpecSettings({ model: 5 as unknown as string, tasks }), /model must be a model alias or id/);
+  assert.throws(() => validateSpecSettings({ tasks: [{ ...task('a'), model: 'a model' }] }), /task 'a' model must be a model alias or id/);
 });
 
 // ---------- resuming and deleting ----------
@@ -108,6 +122,33 @@ test('resuming with worktrees refuses a directory that is not a git repository',
   assert.throws(() => orchestrator.resume('graph-1', { worktree: true }), /need a git repository/);
   // Refused before anything changed
   assert.equal(orchestrator.get('graph-1')?.status, 'stopped');
+  db.close();
+});
+
+test('a graph is not created with settings that would kill its workers one by one', () => {
+  const config = offlineConfig();
+  const db = new Db(config);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+  const spec: OrchestrationSpec = { name: 'graph', cwd: tmpdir(), tasks: [task('a')] };
+
+  assert.throws(() => orchestrator.create({ ...spec, permissionMode: 'yolo' as PermissionMode }), /permissionMode must be one of/);
+  assert.throws(() => orchestrator.create({ ...spec, model: 'not a model' }), /model must be a model alias or id/);
+  assert.equal(orchestrator.list().length, 0);
+  db.close();
+});
+
+test('resuming with a permission mode the CLI would refuse leaves the graph as it was', () => {
+  const config = offlineConfig();
+  const db = new Db(config);
+  // A repository, so nothing but the mode could refuse the resume
+  db.saveOrchestrations([stoppedGraph(repoWithCommit())]);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+
+  assert.throws(() => orchestrator.resume('graph-1', { worktree: true, permissionMode: 'yolo' as PermissionMode }), /permissionMode must be one of/);
+  const orch = orchestrator.get('graph-1');
+  assert.equal(orch?.status, 'stopped');
+  assert.equal(orch?.worktree, false);
+  assert.equal(orch?.permissionMode, 'acceptEdits');
   db.close();
 });
 
@@ -1034,5 +1075,70 @@ test('templates are saved, edited, launched on a new objective and deleted, and 
   assert.throws(() => orchestrator.launchTemplate(draft.id), /not found/);
   // The orchestration launched from it does not depend on it
   assert.equal(orchestrator.get(launched.id)?.templateId, template.id);
+  db.close();
+});
+
+test('the spec a graph is read back as carries every setting it ran with, and a relaunch starts from that same spec', () => {
+  const config = offlineConfig();
+  const repo = repoWithCommit();
+  const db = new Db(config);
+  const taskState = (spec: Partial<OrchestrationTaskState> & { id: string; name: string; prompt: string }): OrchestrationTaskState => ({
+    dependsOn: [],
+    status: 'stopped',
+    attempts: 1,
+    runId: null,
+    sessionId: null,
+    result: null,
+    error: null,
+    startedAt: null,
+    endedAt: null,
+    costUsd: 0,
+    ...spec,
+  });
+  db.saveOrchestrations([
+    stoppedGraph(repo, {
+      objective: 'ship it',
+      model: 'sonnet',
+      engine: 'graph',
+      engineReason: 'three independent branches',
+      concurrency: 2,
+      synthesize: true,
+      maxAttempts: 3,
+      allowedTools: ['Bash', 'Edit'],
+      permissionPrompts: 'host',
+      limits: { maxMinutes: 40, maxCostUsd: 9 },
+      tasks: [
+        taskState({ id: 'api', name: 'API', prompt: 'do api', cwd: join(repo, 'api'), model: 'haiku', limits: { maxMinutes: 5 }, status: 'completed', runId: 'r1', sessionId: 's1', result: 'api done', costUsd: 0.5 }),
+        taskState({ id: 'shell', name: 'shell', prompt: 'do shell', dependsOn: ['api'], error: 'died' }),
+      ],
+    }),
+  ]);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+
+  // The whole spec, field by field: one left out here is one a relaunch or a schedule would drop
+  assert.deepEqual(orchestrator.specOf('graph-1'), {
+    name: 'desktop',
+    objective: 'ship it',
+    engine: 'graph',
+    engineReason: 'three independent branches',
+    cwd: repo,
+    model: 'sonnet',
+    permissionMode: 'acceptEdits',
+    concurrency: 2,
+    synthesize: true,
+    worktree: false,
+    maxAttempts: 3,
+    allowedTools: ['Bash', 'Edit'],
+    permissionPrompts: 'host',
+    limits: { maxMinutes: 40, maxCostUsd: 9 },
+    tasks: [
+      { id: 'api', name: 'API', prompt: 'do api', cwd: join(repo, 'api'), model: 'haiku', limits: { maxMinutes: 5 } },
+      { id: 'shell', name: 'shell', prompt: 'do shell', dependsOn: ['api'] },
+    ],
+  });
+
+  // What a relaunch starts is the graph it came from, down to the last setting
+  const again = orchestrator.relaunch('graph-1');
+  assert.deepEqual(orchestrator.specOf(again.id), orchestrator.specOf('graph-1'));
   db.close();
 });

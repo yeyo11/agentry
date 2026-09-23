@@ -23,6 +23,12 @@
     "desktop:dev": "pnpm --filter @agentry/desktop dev",
     "desktop:dist": "pnpm --filter @agentry/desktop dist:linux"
   },
+  "pnpm": {
+    "//": "undici arrives with the Scalar docs viewer and every 7.x below 7.29.0 carries the twelve advisories pnpm audit reports, four of them high. Nothing here calls undici on purpose (the OIDC verifier goes through globalThis.fetch), but it ships in the image. Caret and not >=: undici 8 is a major the Scalar packages were not written against. CI runs pnpm audit --audit-level=high, so the next one fails a pull request instead of waiting for an audit.",
+    "overrides": {
+      "undici": "^7.29.0"
+    }
+  },
   "devDependencies": {
     "@types/node": "^26.6.1",
     "axe-core": "^4.13.0",
