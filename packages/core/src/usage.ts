@@ -1,4 +1,4 @@
-import { normalizeMessage, type ChatModelTokens, type TokenUsage, type TranscriptEntry } from '@agentry/shared';
+import { isModelName, normalizeMessage, type ChatModelTokens, type TokenUsage, type TranscriptEntry } from '@agentry/shared';
 
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
@@ -82,8 +82,7 @@ export class UsageFold {
     usage.total = usage.input + usage.output + usage.cacheRead + usage.cacheCreation;
     this.byMessage.set(typeof message?.id === 'string' ? message.id : entry.uuid, {
       usage,
-      // The CLI stamps the messages it makes up itself (a synthetic error, say) with a placeholder
-      model: entry.model && !entry.model.startsWith('<') ? entry.model : null,
+      model: isModelName(entry.model) ? entry.model : null,
       sidechain: entry.isSidechain,
       at: entry.timestamp,
     });

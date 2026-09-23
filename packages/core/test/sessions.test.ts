@@ -440,3 +440,22 @@ test('a task output is read from the CLI temp dir and never from a path found in
     rmSync(join(tmpdir(), `claude-${String(process.getuid?.() ?? 0)}`, projectId), { recursive: true, force: true });
   }
 });
+
+test('a placeholder the CLI stamps on its own messages never becomes the chat model', async () => {
+  const config = tempConfig();
+  const dir = join(config.projectsDir, '-work-limit');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, 'cccc-3333.jsonl'),
+    [
+      line({ type: 'user', uuid: '1', timestamp: '2026-01-01T10:00:00Z', cwd: '/work/limit', message: { role: 'user', content: 'go' } }),
+      line({ type: 'assistant', uuid: '2', timestamp: '2026-01-01T10:00:05Z', message: { role: 'assistant', model: 'claude-opus-5', content: [{ type: 'text', text: 'working' }] } }),
+      // What the CLI writes when it makes a message up itself — a session that hit its limit
+      line({ type: 'assistant', uuid: '3', timestamp: '2026-01-01T10:00:09Z', message: { role: 'assistant', model: '<synthetic>', content: [{ type: 'text', text: "You've hit your session limit" }] } }),
+    ].join('\n'),
+  );
+
+  // Taken as the model, it would come back as `--model <synthetic>` and the chat would never resume
+  const summary = await new SessionStore(config).summary('cccc-3333');
+  assert.equal(summary?.model, 'claude-opus-5');
+});

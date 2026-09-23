@@ -96,3 +96,16 @@ export function entryText(entry: TranscriptEntry): string {
     .map((b) => b.text)
     .join('\n');
 }
+
+/**
+ * Whether the CLI reported a real model name.
+ *
+ * It stamps the messages it makes up itself — an error it synthesised when a session hit its
+ * limit, say — with a placeholder in angle brackets where a model would go. Read back as the
+ * model of the chat those messages landed in, the placeholder returns as `--model <synthetic>`
+ * on the next resume, which the CLI refuses: one bad minute becomes a chat that never starts
+ * again. Everything that takes a model from a transcript asks this first.
+ */
+export function isModelName(model: string | null | undefined): model is string {
+  return typeof model === 'string' && model !== '' && !model.startsWith('<');
+}

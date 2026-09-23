@@ -57,6 +57,11 @@ const env = {
   LOG_LEVEL: 'error',
   AGENTRY_WORKSPACE_DIR: join(sandbox, 'workspace'),
   AGENTRY_DATA_DIR: join(sandbox, 'data'),
+  // The build this run is about, and not whatever the environment already pointed at. Inherited
+  // from a shell that had it set — a desktop install exports it for its own packaged bundle — the
+  // server serves that instead, and the suite reports on a build nobody asked it to look at. The
+  // check above proves this directory exists; it is also the one every spec means.
+  AGENTRY_WEB_DIST: join(root, 'apps/web/dist'),
   // Live specs need the real login; everything else runs against an empty config dir
   ...(live ? {} : { CLAUDE_CONFIG_DIR: join(sandbox, 'claude'), CSWAP_BIN: join(sandbox, 'no-cswap') }),
 };

@@ -635,6 +635,16 @@ export class Orchestrator {
     if (changes.permissionPrompts !== undefined) orch.permissionPrompts = changes.permissionPrompts === 'host' ? 'host' : 'none';
     if (changes.allowedTools !== undefined) orch.allowedTools = changes.allowedTools.map(String).filter(Boolean);
     if (changes.permissionMode !== undefined) orch.permissionMode = changes.permissionMode;
+    // A ceiling is a guess made before the work started, and the graph is stopped when this runs:
+    // correcting one here is what keeps a graph that ran out of budget from having to be relaunched
+    // from nothing. A task's own limit wins over the graph's, so lifting the graph's while those
+    // stand would free nothing — `null` therefore clears both, and an object leaves the deliberate
+    // per-task choices where they are.
+    if (changes.limits !== undefined) {
+      orch.limits = normalizeLimits(changes.limits, 'limits') ?? null;
+      if (changes.limits === null) for (const task of orch.tasks) delete task.limits;
+    }
+    if (changes.maxAttempts !== undefined) orch.maxAttempts = attemptsOf(changes.maxAttempts);
     for (const task of unfinished) {
       task.status = 'pending';
       task.result = null;
@@ -1802,8 +1812,13 @@ ${quoted}
     task.status = 'pending';
     task.result = null;
     task.endedAt = null;
-    // The person decided it is worth another go, and that is a new allowance of time and money
+    // The person decided it is worth another go, and that is a new allowance of time and money.
+    // Both markers, not just the clock: `continueChat` reads what is left of the budget before it
+    // stamps a new start, so a task that died of its cost limit would refuse every retry for ever
+    // on the spending of the attempt that killed it. The time is left for the launch to stamp, so
+    // a task waiting its turn behind `concurrency` does not spend its minutes in the queue.
     task.clockStartedAt = null;
+    task.clockCostUsd = task.costUsd;
     return this.reopen(orch);
   }
 

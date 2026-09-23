@@ -1366,6 +1366,14 @@ export interface ResumeOrchestrationRequest {
   permissionPrompts?: 'host' | 'none';
   allowedTools?: string[];
   permissionMode?: PermissionMode;
+  /**
+   * What a task may spend from here on. An object replaces the graph's default and leaves the
+   * limits individual tasks were given; `null` lifts every ceiling, those included, because a
+   * graph stopped by a budget is not freed by raising one half of it.
+   */
+  limits?: TaskLimits | null;
+  /** Attempts a failed task gets from here on, the first included */
+  maxAttempts?: number;
 }
 
 export interface PlanRequest {

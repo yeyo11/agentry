@@ -1,4 +1,4 @@
-import { CONTEXT_FULL, CONTEXT_WARN, type ChatOrigin, type ChatState, type ChatSummary, type Execution } from '@agentry/shared';
+import { CONTEXT_FULL, CONTEXT_WARN, isModelName, type ChatOrigin, type ChatState, type ChatSummary, type Execution } from '@agentry/shared';
 import i18n from '../i18n';
 import { formatCost } from './format';
 
@@ -190,8 +190,7 @@ export function facetOptions(chats: readonly ChatSummary[], facet: 'project' | '
   const found = new Map<string, FacetOption>();
   for (const chat of chats) {
     const value = facet === 'project' ? projectKey(chat) : chat.model;
-    // `<synthetic>` is what the CLI writes on messages it made up itself, not a model anyone chose
-    if (value === null || (facet === 'model' && value.startsWith('<'))) continue;
+    if (value === null || (facet === 'model' && !isModelName(value))) continue;
     const label = facet === 'project' ? (chat.project?.name ?? looseLabel) : value;
     const held = found.get(value);
     if (held) held.count++;
