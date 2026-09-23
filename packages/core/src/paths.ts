@@ -37,11 +37,33 @@ export interface CoreConfig {
   /** Seeds the guard of an install that has no `auth.json` yet; see `security/auth.ts` */
   authEnv: AuthEnv;
   /**
-   * Host names this wrapper answers to besides loopback, from `AGENTRY_ALLOWED_HOSTS`. Read here
-   * for the same reason as `authEnv`: the guard takes its allowlist from a value, so a test can
-   * build a wrapper that answers to a name of its own.
+   * Host names this wrapper answers to besides loopback, from `AGENTRY_ALLOWED_HOSTS`, each either
+   * a name or a `*.domain` pattern standing for its subdomains. Read here for the same reason as
+   * `authEnv`: the guard takes its allowlist from a value, so a test can build a wrapper that
+   * answers to a name of its own.
    */
   allowedHosts: readonly string[];
+}
+
+/**
+ * `AGENTRY_ALLOWED_HOSTS` as the names and `*.domain` patterns the guard matches against.
+ *
+ * A pattern has to name at least two labels below the wildcard. `*.com` is not an allowlist, it is
+ * the absence of one, and a wrapper that looks guarded and is not is worse than one that refuses to
+ * start: the mistake is a typo at deploy time, which is exactly when someone is still watching.
+ */
+function parseAllowedHosts(value: string | undefined): string[] {
+  const hosts = (value ?? '')
+    .split(',')
+    .map((host) => host.trim().toLowerCase())
+    .filter((host) => host !== '');
+  for (const host of hosts) {
+    const wildcard = host.startsWith('*.');
+    if (host.includes('*') && (!wildcard || host.slice(2).includes('*') || host.split('.').length < 3)) {
+      throw new Error(`AGENTRY_ALLOWED_HOSTS: '${host}' is neither a host name nor a pattern such as '*.example.com'`);
+    }
+  }
+  return hosts;
 }
 
 /** pnpm runs scripts from the package dir; default state dirs belong at the monorepo root instead. */
@@ -74,10 +96,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     defaultPermissionMode: (env.AGENTRY_DEFAULT_PERMISSION_MODE as PermissionMode | undefined) ?? 'acceptEdits',
     maxConcurrentRuns: Number(env.AGENTRY_MAX_CONCURRENT_RUNS ?? 8),
     pushSubject: env.AGENTRY_PUSH_SUBJECT?.trim() || 'mailto:agentry@localhost',
-    allowedHosts: (env.AGENTRY_ALLOWED_HOSTS ?? '')
-      .split(',')
-      .map((host) => host.trim().toLowerCase())
-      .filter((host) => host !== ''),
+    allowedHosts: parseAllowedHosts(env.AGENTRY_ALLOWED_HOSTS),
     authEnv: Object.fromEntries(AUTH_ENV_KEYS.flatMap((key) => (env[key] === undefined ? [] : [[key, env[key]]]))) as AuthEnv,
   };
 }
