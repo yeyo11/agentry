@@ -10,6 +10,7 @@ import { Db } from '../src/db.ts';
 import { Orchestrator, validateSpecSettings, validateTasks } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
+import { effectiveLimits, remainingUsd } from '../src/task-limits.ts';
 import { tempConfig } from './helpers.ts';
 
 const task = (id: string, dependsOn: string[] = []) => ({ id, name: id, prompt: 'do it', dependsOn });
@@ -1140,5 +1141,50 @@ test('the spec a graph is read back as carries every setting it ran with, and a 
   // What a relaunch starts is the graph it came from, down to the last setting
   const again = orchestrator.relaunch('graph-1');
   assert.deepEqual(orchestrator.specOf(again.id), orchestrator.specOf('graph-1'));
+  db.close();
+});
+
+test('a task the CLI stopped at its cost limit can still be retried', async () => {
+  const { db, repo, orchestrator, taskOf } = retryGraph();
+  const started = orchestrator.create(
+    graphOf(repo, [{ id: 'flaky', prompt: 'FAKE-FAIL-ONCE the tests do not pass' }], { maxAttempts: 1, limits: { maxCostUsd: 3 } }),
+  );
+  await settle(orchestrator, started.id);
+  const failed = taskOf(started.id, 'flaky') as OrchestrationTaskState;
+  assert.equal(failed.status, 'failed');
+  // What the CLI charged before it ended the turn at the ceiling: the fake one bills nothing
+  failed.costUsd = 3.07;
+
+  // The budget of the attempt that died used to be charged against the retry, which then refused
+  // to start — for ever, since nothing about a failed task ever lowers what it already spent
+  orchestrator.retryTask(started.id, 'flaky');
+  const orch = await until(() => orchestrator.get(started.id) as Orchestration, (o) => o.status === 'completed', 'the graph to complete');
+
+  const again = taskOf(orch.id, 'flaky') as OrchestrationTaskState;
+  assert.equal(again.attempts, 2, 'the retry ran rather than being refused');
+  assert.doesNotMatch(again.error ?? '', /cost limit/);
+  assert.ok((remainingUsd(effectiveLimits(orch.limits, again.limits), again) ?? 0) > 0);
+  db.close();
+});
+
+test('resuming corrects a budget that stopped the graph, and `null` lifts the tasks own ceilings too', () => {
+  const config = offlineConfig();
+  const db = new Db(config);
+  const graph = stoppedGraph(repoWithCommit(), { limits: { maxCostUsd: 3, maxMinutes: 40 } });
+  (graph.tasks.find((t) => t.id === 'shell') as OrchestrationTaskState).limits = { maxCostUsd: 1 };
+  db.saveOrchestrations([graph]);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+
+  // An object replaces the graph's default and leaves a deliberate per-task choice standing
+  const raised = orchestrator.resume('graph-1', { limits: { maxCostUsd: 20 } });
+  assert.deepEqual(raised.limits, { maxCostUsd: 20 });
+  assert.deepEqual(raised.tasks.find((t) => t.id === 'shell')?.limits, { maxCostUsd: 1 });
+
+  orchestrator.stop('graph-1');
+  // `null` lifts every ceiling: raising one half while the other stands would free nothing
+  const lifted = orchestrator.resume('graph-1', { limits: null, maxAttempts: 5 });
+  assert.equal(lifted.limits, null);
+  assert.equal(lifted.tasks.find((t) => t.id === 'shell')?.limits, undefined);
+  assert.equal(lifted.maxAttempts, 5);
   db.close();
 });

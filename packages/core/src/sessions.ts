@@ -6,6 +6,7 @@ import { createInterface } from 'node:readline';
 import {
   entrySearchText,
   entryText,
+  isModelName,
   normalizeMessage,
   searchPattern,
   TranscriptSearch,
@@ -71,7 +72,7 @@ function foldLine(fold: SummaryFold, o: JsonLine, entry: TranscriptEntry | null)
   if (entry) fold.spent.add(o, entry);
   if (!entry || entry.isSidechain) return;
   summary.messageCount++;
-  if (entry.model) summary.model = entry.model;
+  if (isModelName(entry.model)) summary.model = entry.model;
   if (!summary.firstPrompt && entry.role === 'user') {
     const text = entryText(entry).trim();
     // Skip synthetic messages (<command-name>, <system-reminder>, …)

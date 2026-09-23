@@ -3091,6 +3091,21 @@
       },
       "permissionMode": {
         "$ref": "#/components/schemas/PermissionMode"
+      },
+      "limits": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TaskLimits"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What a task may spend from here on. An object replaces the graph's default and leaves the limits individual tasks were given; `null` lifts every ceiling, those included, because a graph stopped by a budget is not freed by raising one half of it."
+      },
+      "maxAttempts": {
+        "type": "number",
+        "description": "Attempts a failed task gets from here on, the first included"
       }
     },
     "description": "Settings that can be corrected when resuming, so a graph started with the wrong ones is fixed and picked up instead of rebuilt. Only what shapes the workers still to run; completed work is kept."
