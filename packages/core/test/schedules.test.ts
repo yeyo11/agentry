@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import type { AgentryEvent, NewChatRequest, OrchestrationSpec, ScheduleChangedEvent, ScheduleFiredEvent, ScheduleTarget } from '@agentry/shared';
+import type { AgentryEvent, NewChatRequest, OrchestrationSpec, PermissionMode, ScheduleChangedEvent, ScheduleFiredEvent, ScheduleTarget } from '@agentry/shared';
 import { EventBus } from '../src/events.ts';
 import { previewCron, Scheduler, type ScheduleLauncher } from '../src/schedules.ts';
 import { tempConfig } from './helpers.ts';
@@ -236,6 +236,23 @@ test('nothing is saved that could never run', async () => {
   await assert.rejects(scheduler.create({ ...daily, target: { kind: 'chat', chat: { prompt: ' ' } } }), /needs a prompt/);
   await assert.rejects(scheduler.create({ ...daily, target: { kind: 'orchestration', spec: { name: 'empty', tasks: [] } } }), /at least one task/);
   await assert.rejects(scheduler.update('nope', { enabled: true }), /schedule not found/);
+  assert.equal(scheduler.list().length, 0);
+  scheduler.close();
+});
+
+test('a target that could only fail once the slot fires is refused while someone is still there to fix it', async () => {
+  const { scheduler } = rig();
+  const step = (id: string, dependsOn: string[] = []) => ({ id, name: id, prompt: 'check', dependsOn });
+  const graph = (over: Partial<OrchestrationSpec>): ScheduleTarget => ({ kind: 'orchestration', spec: { name: 'nightly', tasks: [step('a')], ...over } });
+
+  await assert.rejects(scheduler.create({ ...daily, target: graph({ tasks: [step('a', ['ghost'])] }) }), /unknown task 'ghost'/);
+  await assert.rejects(scheduler.create({ ...daily, target: graph({ tasks: [step('a', ['b']), step('b', ['a'])] }) }), /cycle between: a, b/);
+  await assert.rejects(scheduler.create({ ...daily, target: graph({ permissionMode: 'yolo' as PermissionMode }) }), /permissionMode must be one of/);
+  await assert.rejects(scheduler.create({ ...daily, target: graph({ verification: { commands: [], fixer: false, maxAttempts: 1 } }) }), /at least one command/);
+  await assert.rejects(
+    scheduler.create({ ...daily, target: { kind: 'chat', chat: { prompt: 'summarise', permissionMode: 'yolo' as PermissionMode } } }),
+    /permissionMode must be one of/,
+  );
   assert.equal(scheduler.list().length, 0);
   scheduler.close();
 });

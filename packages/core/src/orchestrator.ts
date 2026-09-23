@@ -13,6 +13,7 @@ import type {
   OrchestrationTaskSpec,
   OrchestrationTaskState,
   OrchestrationTemplate,
+  PermissionMode,
   PlanDraftSummary,
   PlanRequest,
   RelaunchOrchestrationRequest,
@@ -25,6 +26,7 @@ import type {
   VerifyOrchestrationRequest,
   WorkflowDefinition,
 } from '@agentry/shared';
+import { MODEL_RE, PERMISSION_MODES } from '@agentry/shared';
 import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
 import { OrchestrationEventTracker } from './event-sources.ts';
@@ -251,6 +253,28 @@ export function validateTasks(tasks: OrchestrationTaskSpec[]): void {
 }
 
 /**
+ * `model` and `permissionMode` are never read here: they are handed to `claude` as flags. A value
+ * the CLI does not know would first show itself as a worker dying in the middle of a graph, so the
+ * spec is held to the same list the chat routes hold a chat to.
+ */
+export function validateModel(model: string | null | undefined, what = 'model'): void {
+  if (model === undefined || model === null) return;
+  if (typeof model !== 'string' || !MODEL_RE.test(model)) throw new Error(`${what} must be a model alias or id, such as haiku`);
+}
+
+export function validatePermissionMode(mode: PermissionMode | undefined): void {
+  if (mode === undefined) return;
+  if (!PERMISSION_MODES.includes(mode)) throw new Error(`permissionMode must be one of ${PERMISSION_MODES.join(', ')}`);
+}
+
+/** The settings of a whole spec, the per-task models included: every one of them becomes a flag. */
+export function validateSpecSettings(spec: Pick<OrchestrationSpec, 'model' | 'permissionMode' | 'tasks'>): void {
+  validateModel(spec.model);
+  validatePermissionMode(spec.permissionMode);
+  for (const task of spec.tasks ?? []) validateModel(task.model, `task '${task.id}' model`);
+}
+
+/**
  * Orchestration mode: a DAG of tasks, each executed by its own `claude -p` worker.
  * Independent tasks run in parallel (up to `concurrency`); a task receives the results of
  * its dependencies as context; an optional final worker synthesizes everything.
@@ -471,6 +495,7 @@ export class Orchestrator {
 
   create(spec: OrchestrationSpec, origin: { relaunchedFrom?: string; templateId?: string } = {}): Orchestration {
     validateTasks(spec.tasks);
+    validateSpecSettings(spec);
     const root = resolve(spec.cwd ?? this.config.workspaceDir);
     // Fail here rather than per task: half a graph isolated and half of it not is worse than
     // refusing outright.
@@ -588,6 +613,8 @@ export class Orchestrator {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
     if (orch.status === 'running') return orch;
+    // Before anything of the graph is touched, so a mode the CLI would refuse leaves it as it was
+    validatePermissionMode(changes.permissionMode);
     if (orch.status === 'waiting') throw new Error('the orchestration is waiting for a decision on its tasks: retry or skip them instead');
     if (this.verifying.has(orch.id)) throw new Error('the checks are running on the integration branch: stop the orchestration first');
     const unfinished = orch.tasks.filter((t) => t.status !== 'completed');
