@@ -281,8 +281,10 @@ deploy/           Caddyfile for the `tls` compose profile, and the Helm chart
 docs/             Deployment and desktop guides, and the plans
 ```
 
-Packages export TypeScript sources directly and the API runs through `tsx`, so there is no
-build step except for the UI.
+Packages export TypeScript sources directly and the API runs through `tsx`, so development needs
+no build step except for the UI. The image is built: it ships one compiled JavaScript file
+(`/app/api.mjs`) and the built UI (`/app/web`), with no source tree, no `node_modules` and no
+transpiler.
 
 ## Environment variables
 
@@ -290,7 +292,7 @@ build step except for the UI.
 | --- | --- | --- |
 | `CLAUDE_CODE_OAUTH_TOKEN` | – | Subscription token from `claude setup-token` |
 | `ANTHROPIC_API_KEY` | – | Alternative: API key billing |
-| `PORT` / `HOST` | `8787` / `0.0.0.0` | API listen address |
+| `PORT` / `HOST` | `8787` / `127.0.0.1` (`0.0.0.0` in the image) | API listen address. Loopback by default because the API runs commands on the machine and starts with no credential; the image opens it because Compose publishes the container on `127.0.0.1` anyway. Binding every interface while the mode is `none` logs a warning |
 | `CLAUDE_BIN` | `claude` | CLI binary to use |
 | `CSWAP_BIN` | `cswap` | claude-swap binary. With accounts registered it owns the credential, and the token above is ignored |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude config dir (`/home/node/.claude` in the image) |
@@ -302,21 +304,24 @@ build step except for the UI.
 | `AGENTRY_AUTH_TOKEN` | – | The bearer token to seed with when the mode is `token`. Only its SHA-256 is stored |
 | `AGENTRY_AUTH_TOKEN_RESET` | – | `1` makes `AGENTRY_AUTH_TOKEN` replace the stored token on start, on an install that already has one. The change is audited with actor `env`, and a value already applied is not applied twice |
 | `AGENTRY_READ_ONLY` | `false` | Seeds read-only mode |
-| `AGENTRY_OIDC_ISSUER` / `_AUDIENCE` / `_CLIENT_ID` | – | Seed the OIDC settings: the issuer whose JWKS validates a JWT, the `aud` it must carry and the client id |
+| `AGENTRY_OIDC_ISSUER` / `_AUDIENCE` / `_CLIENT_ID` | – | Seed the OIDC settings: the issuer whose JWKS validates a JWT, the `aud` it must carry and the client id. A configured client id refuses a token whose `azp` names another client, and accepts one that carries no `azp` at all |
 | `AGENTRY_CLI_UPDATE_CHECK` | on | `off` stops the daily check for a newer Claude Code (the button in Settings keeps working) |
 | `AGENTRY_CLI_REGISTRY_URL` | the npm registry | Where that check reads the package metadata: a mirror, for an air-gapped install |
 | `AGENTRY_PID_FILE` | `/tmp/agentry.pid` in the image | Where the server writes its pid, so the image's healthcheck can end a wedged server |
 | `AGENTRY_HEALTH_RESTART_AFTER` | `3` | Consecutive failed health probes (30 s apart) after which the container restarts itself |
-| `AGENTRY_CORS_ORIGIN` | – (CORS off) | Comma-separated origins (or `*`) for external browser clients. The bundled UI never needs it: in dev it uses the Vite `/api` proxy, in production it is same-origin |
+| `AGENTRY_ALLOWED_HOSTS` | – (loopback only) | Comma-separated host names this wrapper answers to besides loopback. A `Host` that is not one of them is refused `421` before the credential is read. Ports and letter case are ignored; `GET /api/health` is exempt. Behind a proxy, name the public host here or everything answers `421` |
+| `AGENTRY_CORS_ORIGIN` | – (CORS off) | Comma-separated origins (or `*`, which echoes the caller) for external browser clients. The event streams obey this list too. The bundled UI never needs it: in dev it uses the Vite `/api` proxy, in production it is same-origin |
 | `VITE_API_TARGET` | `http://localhost:8787` | Where the Vite dev server proxies `/api` |
 | `AGENTRY_IDLE_TIMEOUT_MS` | `600000` | Idle runs are closed after this (they resume transparently) |
-| `AGENTRY_WEB_DIST` | `apps/web/dist` | Built UI the API serves (the desktop app points it at its bundled copy) |
+| `AGENTRY_WEB_DIST` | `apps/web/dist` (`/app/web` in the image) | Built UI the API serves (the desktop app points it at its bundled copy) |
 | `LOG_LEVEL` | `info` | Fastify/pino log level (`trace` … `fatal`, or `silent`) |
 
 ## Securing it
 
-Agentry starts with authentication **off**, so a local install keeps working untouched. Turn it on
-before the port is reachable by anyone you do not trust, and put a TLS-terminating proxy in front.
+Agentry starts with authentication **off**, so a local install keeps working untouched. It also
+starts bound to `127.0.0.1` and answering only to loopback host names, so "off" is not the same as
+"open". Turn the guard on before the port is reachable by anyone you do not trust, and put a
+TLS-terminating proxy in front.
 
 **Modes.** Set from Settings → Security, or seeded from the environment on a fresh install
 (`AGENTRY_AUTH_MODE`, `AGENTRY_AUTH_TOKEN`, `AGENTRY_OIDC_*`; once an `auth.json` exists in the data
@@ -326,8 +331,18 @@ directory it wins over the environment).
 | --- | --- |
 | `none` | Nothing. The default |
 | `token` | `Authorization: Bearer <token>`. Only the SHA-256 of the token is stored; the token exists once, in the answer that created it, and can be rotated or removed but never read back |
-| `oidc` | A JWT that the issuer's JWKS validates, with the `aud` you configured and an unexpired `exp` |
+| `oidc` | A JWT that the issuer's JWKS validates, with the `aud` you configured and an unexpired `exp`. With a client id configured, a token whose `azp` names another client is refused |
 
+- **Which hosts it answers to.** A request whose `Host` is neither loopback nor named in
+  `AGENTRY_ALLOWED_HOSTS` is refused `421`, and that happens **before** the credential is looked at,
+  so it holds in `mode: none` as well. It is what stops a page on another domain from pointing that
+  domain at `127.0.0.1` and driving your install from your own browser. Put a proxy in front and you
+  must name the public host there; `GET /api/health` is exempt, so probes are unaffected.
+- **Guessing is slowed down.** After ten failed authentications an address is answered `429` with a
+  `Retry-After` that doubles from a second to a minute, and is forgotten after fifteen quiet minutes.
+  A token you supply yourself must be at least 24 characters; one Agentry generates is 32 random
+  bytes. The wait counts the peer's address, so behind a reverse proxy every client shares one
+  count — see [SECURITY.md](SECURITY.md).
 - **What stays open.** `GET /api/health`, so a probe needs no credential, and the built UI bundle,
   which is what gives a `401` a sign-in screen instead of a blank page. `/docs` and `/openapi.json`
   are guarded like everything else.
@@ -346,8 +361,9 @@ directory it wins over the environment).
   With access to the data volume, deleting `<data dir>/auth.json` still works, but it resets the
   whole guard to whatever the environment seeds.
 - **Read-only mode.** Every mutating request answers `405`, except answering a permission prompt (a
-  person watching a chat can still unblock it) and the switch itself. It is for showing the panel to
-  someone.
+  person watching a chat can still unblock it) and the switch itself. The prompt has to belong to the
+  chat in the path: a request id from another chat answers `404`, exactly as one that never existed
+  does. It is for showing the panel to someone.
 - **Secrets are not sent back.** `GET /config/mcp` and `GET /config/settings` return the names in a
   server's `env` and `headers` (and in settings' `env`) with a placeholder instead of the value. A
   write that sends the placeholder back keeps what is stored. The per-chat MCP config files Agentry
@@ -356,9 +372,16 @@ directory it wins over the environment).
   when nothing guards the API), method, path, status and a one-line summary taken from the route's
   documentation. Bodies are never recorded, because they hold prompts and secrets. `GET /audit`, or
   Settings → Security.
+- **The bundle is served locked down.** The UI (and the SPA fallback) carries `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and a Content-Security-Policy that
+  names the SHA-256 of its one inline script instead of allowing inline script at all. `style-src`
+  keeps `'unsafe-inline'`: Vite's build hands out no nonce. The `tls` profile's Caddy sets the three
+  simple headers on everything it proxies that did not already send them, `/docs` included, and
+  deliberately sets no policy of its own.
 
 **TLS.** Agentry does not terminate TLS itself: a proxy does it better, renews certificates and is
-already what you run elsewhere. The proxy must pass `Host` and set `X-Forwarded-For`,
+already what you run elsewhere. The proxy must pass `Host` **unchanged**, and the name it passes has
+to be in `AGENTRY_ALLOWED_HOSTS` or every request answers `421`; it must set `X-Forwarded-For`,
 `X-Forwarded-Proto` and `X-Forwarded-Host`; must not buffer `/api/events` and the chat streams
 (`flush_interval -1` in Caddy, `proxy_buffering off` in nginx); and must not cut idle connections
 faster than the 15 s heartbeat those streams send. `docker compose --profile tls up -d` runs Caddy
@@ -376,8 +399,10 @@ what is and is not protected.
   `--profile tls` adds the Caddy proxy on `:80` and `:443` (`AGENTRY_DOMAIN` picks the name).
 - **Kubernetes**: the Helm chart in `deploy/helm/agentry` is a Deployment (one replica, `Recreate`),
   a Service and one PersistentVolumeClaim that outlives `helm uninstall`. Its values cover the image
-  tag, the port, resources, `auth.mode` (`none`, `token`, `oidc`) and `auth.readOnly`. There is no
-  Ingress template; bring your own.
+  tag (pinned to a release rather than `latest`), the port, resources, the pod and container
+  security contexts, `auth.mode` (`none`, `token`, `oidc`) and `auth.readOnly`. There is no Ingress
+  template; bring your own — and if it gives the pod a host name, put that name in
+  `AGENTRY_ALLOWED_HOSTS` through the chart's `env`.
 - **A pinned Claude Code**: the image installs a fixed version and Settings → Account says when a
   newer one is published, with how to move. The check reads the npm registry on demand and once a
   day.
@@ -395,15 +420,19 @@ docs live in [`apps/api/src/openapi/routes.ts`](apps/api/src/openapi/routes.ts),
 when a route is added without documentation. The reference is self-hosted: Scalar's cloud
 features and telemetry are disabled.
 
-All routes are under `/api` and speak JSON. Errors are `{ "error": "…" }` with a 4xx status.
+All routes are under `/api` and speak JSON. A refusal is `{ "error": "…" }` with a 4xx status and a
+message meant to be read. Anything that fails for a reason nobody planned for is
+`500 { "error": "internal error" }` — the detail goes to the server log with the URL, never to the
+caller. Two refusals come from the guard rather than from a route: `421` when the `Host` is one this
+wrapper does not answer to, and `429` with `Retry-After` after repeated failed authentications.
 Types live in [`packages/shared/src/types.ts`](packages/shared/src/types.ts).
 
 ### System
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/health` | `{ ok, cli, loggedIn }` |
-| GET | `/system?refresh=1` | CLI detection, auth status, paths |
+| GET | `/health` | `{ ok, cli, loggedIn }` — the CLI and login state as the last authenticated read left it. It spawns nothing, so it is a liveness probe and not a login check |
+| GET | `/system?refresh=1` | CLI detection, auth status, paths. Cached for 30 s, and a value just past that is served while the refresh runs; `?refresh=1` always takes a fresh reading. Callers arriving together share one detection |
 | GET | `/system/cli-version` | Claude Code in use, the version the image pins and the newest published, as the last check left it (never reads the registry) |
 | POST | `/system/cli-version/check` | Check the npm registry for a newer Claude Code now (also done once a day) |
 | GET | `/overview` | Everything the dashboard needs in one call |
@@ -438,7 +467,7 @@ next start, audited with actor `env` (see [Securing it](#securing-it)).
 | PUT | `/security/auth` | `{ mode?, oidc?, readOnly? }`. A mode that would lock everyone out is refused; stays reachable in read-only mode, because it is the switch |
 | POST | `/security/token` | Set or rotate the bearer token — `{ token? }`, generated when omitted. Returned once |
 | DELETE | `/security/token` | Remove it; refused while the mode is `token` |
-| GET | `/audit?limit=&from=&path=&method=&status=` | Mutating requests, newest first: when, actor (token id, OIDC subject, `local`, or `env` for a token reset from the environment), method, path, status and a one-line summary from the route. `path` matches anywhere and literally, `method` exactly, `status` a code (`404`) or a class (`4xx`). Bodies are never recorded |
+| GET | `/audit?limit=&from=&path=&method=&status=` | Mutating requests, newest first: when, actor (token id, OIDC subject, `local`, or `env` for a token reset from the environment), method, path, status and a one-line summary from the route. `path` matches anywhere and literally, `method` exactly, `status` a code (`404`) or a class (`4xx`). `limit` and `from` must be non-negative integers, or the answer is a `400` saying so. Bodies are never recorded |
 
 ### Accounts (multi-account)
 
@@ -581,7 +610,7 @@ dismiss.
 | DELETE | `/chats/:id` | Delete the transcript, its sidecar files and Agentry's record (`409` while something is running on it) |
 | GET | `/chats/:id/logs` | A background session's recent terminal output (`claude logs`) |
 | GET | `/chats/:id/permissions` | What the chat is waiting on: tool calls, questions (`AskUserQuestion`) and plans (`ExitPlanMode`). Only for chats started with `permissionPrompts: "host"` |
-| POST | `/chats/:id/permissions/:requestId` | `{ behavior: "allow" \| "deny", message?, updatedInput?, updatedPermissions? }` — answer one. A question is answered by allowing it with `updatedInput.answers` (question → chosen labels); `updatedPermissions` takes the request's `suggestions` to remember them. Unanswered requests are denied after ten minutes |
+| POST | `/chats/:id/permissions/:requestId` | `{ behavior: "allow" \| "deny", message?, updatedInput?, updatedPermissions? }` — answer one. A question is answered by allowing it with `updatedInput.answers` (question → chosen labels); `updatedPermissions` takes the request's `suggestions` to remember them. The request must belong to this chat: one from another chat answers `404` with the same body as an id that never existed. Unanswered requests are denied after ten minutes |
 | GET | `/chats/:id/subagents` | Subagents of the chat: branches of it, whose messages live in its transcript |
 | GET | `/chats/:id/subagents/:agentId` | One subagent: prompt, outcome, token usage and full transcript (`?after=` to append) |
 | GET | `/chats/:id/tasks` | Commands the chat sent to the background, with `ownerId` for those a subagent launched |
@@ -970,6 +999,10 @@ interactive `claude` session (`/mcp`) or in claude.ai's connector settings: Agen
 - Authentication is off by default, and there is one credential for everyone who holds it: no
   per-user isolation, no per-user permissions. Agentry does not terminate TLS (see
   [Securing it](#securing-it)) and does not sign anyone in with OIDC: it only validates a JWT.
+- `GET /api/health` reports the CLI and login state observed by the last authenticated read, and
+  measures nothing itself. In a container with a probe and no client traffic it keeps reporting what
+  it saw at boot, which is what a liveness probe wants and is not a way to notice a token expiring.
+  `GET /api/system` is what takes a reading.
 - Run metadata is persisted and conversations are rebuilt from the session transcripts after a
   restart, and so are background tasks and subagents, which are read back from the files the CLI
   writes. What exists only in a run's live stream is lost: its stderr, and the rate-limit notice.

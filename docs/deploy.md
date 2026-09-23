@@ -18,12 +18,51 @@ container does not spend a rate-limited issuance.
 
 Agentry does not terminate TLS itself, and the proxy only encrypts: **turn on authentication before
 you use the `tls` profile** (`AGENTRY_AUTH_MODE=token` and `AGENTRY_AUTH_TOKEN` in `.env`, or
-`oidc`). The proxy must:
+`oidc`). Set `AGENTRY_ALLOWED_HOSTS` in the same `.env` at the same time — see below.
 
-- pass `Host` and set `X-Forwarded-For`, `X-Forwarded-Proto` and `X-Forwarded-Host` (Caddy does);
+The proxy must:
+
+- pass `Host` through unchanged, and set `X-Forwarded-For`, `X-Forwarded-Proto` and
+  `X-Forwarded-Host` (Caddy does all of it);
 - not buffer `/api/events` and the chat streams, which are long-lived event streams
   (`flush_interval -1` in Caddy, `proxy_buffering off` in nginx);
 - not cut idle connections faster than the 15 s heartbeat the streams send.
+
+### The host allowlist, and why a proxy has to be told about it
+
+Agentry refuses a request whose `Host` is neither loopback nor named in `AGENTRY_ALLOWED_HOSTS`,
+with `421 Misdirected Request`, before it even looks at the credential. That is what stops a page on
+someone else's domain from rebinding that domain to `127.0.0.1` and driving a local install from the
+browser of whoever visited it; same-origin policy does not, because to the browser the name has not
+changed.
+
+A reverse proxy is exactly the case where this bites. Behind one, the `Host` that arrives is no
+longer `localhost`:
+
+- **Passing `Host` through** (Caddy's default, nginx's `proxy_set_header Host $host`) means Agentry
+  sees your public name — so put that name in `AGENTRY_ALLOWED_HOSTS`. With the `tls` profile it is
+  whatever `AGENTRY_DOMAIN` is set to, and `.env` reaches the container through `env_file`:
+
+  ```dotenv
+  AGENTRY_DOMAIN=agentry.example.com
+  AGENTRY_ALLOWED_HOSTS=agentry.example.com
+  ```
+
+  More than one name (an internal one alongside the public one) is a comma-separated list. Ports and
+  letter case are ignored, so `agentry.example.com:8443` and `Agentry.Example.com` both match.
+- **Rewriting `Host` to the upstream** (nginx's `proxy_set_header Host $proxy_host`, some ingress
+  controllers by default) makes Agentry see the service name or the pod address. Either pass the
+  original name instead, or add whatever the proxy sends to `AGENTRY_ALLOWED_HOSTS`. In the Helm
+  chart that goes in `env`.
+
+Get it wrong and **every page and every call answers `421`** with `this wrapper does not answer to
+that host`, which looks like a broken deployment rather than a setting. `GET /api/health` is exempt,
+so the container healthcheck and the chart's probes keep passing while everything else is refused —
+a healthy container serving 421 is this, nearly every time.
+
+One thing the allowlist does not do: it only stops a browser, which cannot choose the header it
+sends. Anything scripted sets its own `Host` and walks past it. It closes DNS rebinding; it is not
+access control, and it is no substitute for turning the guard on.
 
 ## Kubernetes (Helm)
 
@@ -32,7 +71,7 @@ kubectl create secret generic agentry-claude --from-literal=CLAUDE_CODE_OAUTH_TO
 kubectl create secret generic agentry-token --from-literal=token="$(openssl rand -hex 32)"
 
 helm install agentry ./deploy/helm/agentry \
-  --set image.tag=0.13.1 \
+  --set image.tag=0.15.2 \
   --set claude.existingSecret=agentry-claude \
   --set auth.mode=token --set auth.token.existingSecret=agentry-token
 ```
@@ -40,8 +79,10 @@ helm install agentry ./deploy/helm/agentry \
 The chart is a Deployment (one replica, `Recreate`), a Service, and one PersistentVolumeClaim that
 holds everything worth keeping through subPaths: `/data`, `~/.claude`, the claude-swap credentials
 and `/workspace`. The claim carries `helm.sh/resource-policy: keep`, so `helm uninstall` leaves the
-account setup and the transcripts alone. Values worth knowing: `image.tag`, `port`, `resources`,
-`persistence.*`, `auth.mode` (`none`, `token`, `oidc`), `auth.readOnly`. `helm lint` and
+account setup and the transcripts alone. Values worth knowing: `image.tag` (a release, not `latest`, so
+`IfNotPresent` means something), `port`, `resources`, `securityContext` and
+`containerSecurityContext`, `env` (where `AGENTRY_ALLOWED_HOSTS` goes when an Ingress gives the pod
+a host name), `persistence.*`, `auth.mode` (`none`, `token`, `oidc`), `auth.readOnly`. `helm lint` and
 `helm template` are clean for every auth mode; rendering fails on purpose when `token` or `oidc` is
 chosen without what it needs.
 
@@ -50,6 +91,23 @@ starts. Do not scale it.
 
 The `auth.*` values seed a volume that has no `auth.json` yet. After that the settings saved in the UI
 win, so changing the value and upgrading does not change a running install.
+
+## What the image contains
+
+The image is built in two stages. The stage that runs holds one compiled JavaScript file
+(`/app/api.mjs`, started by `CMD`), the built UI (`/app/web`, which is why the image sets
+`AGENTRY_WEB_DIST=/app/web`), the Claude Code CLI and the tools a chat needs. There is no source
+tree, no `node_modules` and no transpiler: `docker build -f docker/Dockerfile .` is unchanged for
+you, the image is smaller and it starts faster. pnpm is still installed, for the projects Claude
+works on under `/workspace`, not to start anything.
+
+Both installers the build downloads — Claude Code's and uv's — are fetched to a file, checked
+against a SHA-256 and only then run, so a compromised install script fails the build instead of
+running as root. The digests are build args (`CLAUDE_CODE_INSTALLER_SHA256`, `UV_VERSION`,
+`UV_INSTALLER_SHA256`), overridable with `--build-arg`; `docker/Dockerfile` carries the command that
+recomputes them next to each one. Claude Code's installer URL always serves the newest script, so
+rotating that digest is a commit of its own that records what moved; uv's URL is per version, so its
+digest and `UV_VERSION` move together.
 
 ## Pinned Claude Code
 
@@ -67,8 +125,12 @@ restart cannot change the version.
 
 ## Health and restarts
 
-`GET /api/health` is open even with authentication on, and answers `200` while Claude is logged out:
-a restart would not fix a missing credential, so it is a liveness probe, not a login check.
+`GET /api/health` is open even with authentication on — the host allowlist lets it through too — and
+answers `200` while Claude is logged out: a restart would not fix a missing credential, so it is a
+liveness probe, not a login check. It reports the CLI and login state as the last authenticated read
+left it and spawns nothing of its own, so a probe costs nothing however often it runs, and in a
+container nobody is using it keeps reporting what was seen at boot. `GET /api/system` is what takes
+a fresh reading.
 
 - **Docker Compose.** Docker only *marks* a container unhealthy; a restart policy reacts to an exit,
   never to `unhealthy`. The image's healthcheck (`docker/healthcheck.sh`) therefore ends the server
@@ -86,6 +148,9 @@ a restart would not fix a missing credential, so it is a liveness probe, not a l
 | --- | --- |
 | `SIGTERM`, `SIGINT` | Clean shutdown: stops the update timer, stops every chat process (the transcripts are on disk, so the chats can be resumed), closes the SQLite store, closes the HTTP server **including open event streams**, exits `0`. |
 | `SIGKILL` | Nothing runs. Chats in flight are restored on the next start as cut off by the restart, and the store is left to SQLite's own crash recovery. |
+
+`docker stop` exits `0`: the process being signalled is the server itself, not a package manager
+reporting a killed child, so a script that checks the status of a stop no longer has to allow `143`.
 
 Both orchestrators allow 30 s between `SIGTERM` and `SIGKILL` (`stop_grace_period` in Compose,
 `terminationGracePeriodSeconds` in the chart). Run the image with `--init` (Compose does) so the

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { request } from 'node:http';
@@ -652,5 +652,43 @@ test('who may read this API from a browser is decided in one place', async () =>
   } finally {
     if (previous === undefined) delete process.env.AGENTRY_CORS_ORIGIN;
     else process.env.AGENTRY_CORS_ORIGIN = previous;
+  }
+});
+
+test('a burst of readers costs one detection, and the open health route spawns nothing at all', async () => {
+  // A `claude` that records every invocation: what is counted is how often it runs, not what it says
+  const root = mkdtempSync(join(tmpdir(), 'agentry-probe-'));
+  const log = join(root, 'invocations');
+  const bin = join(root, 'claude');
+  const script = ['#!/bin/sh', `echo "$@" >> '${log}'`, 'case "$1" in', "  --version) echo '9.9.9 (Claude Code)';;", '  auth) echo \'{"loggedIn":true}\';;', 'esac', ''];
+  writeFileSync(bin, script.join('\n'), { mode: 0o755 });
+  const ran = (args: string) => (existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter((line) => line.startsWith(args)).length : 0);
+
+  const probe = new Core(
+    loadConfig({
+      CLAUDE_BIN: bin,
+      CSWAP_BIN: '/nonexistent/cswap',
+      CLAUDE_CONFIG_DIR: join(root, 'claude-config'),
+      AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
+      AGENTRY_DATA_DIR: join(root, 'data'),
+    }),
+  );
+  let probeApp: FastifyInstance | null = null;
+  try {
+    // Nothing has been read yet: two hundred callers arriving at once still detect once between them
+    const seen = await Promise.all(Array.from({ length: 200 }, () => probe.system()));
+    assert.equal(ran('--version'), 1);
+    assert.equal(ran('auth status'), 1);
+    assert.deepEqual([...new Set(seen.map((info) => info.cli.version))], ['9.9.9']);
+    assert.equal(seen.every((info) => info.auth.loggedIn), true);
+
+    probeApp = await buildApp(probe, { logLevel: 'silent', webDist: join(root, 'no-ui') });
+    const server = probeApp;
+    const probes = await Promise.all(Array.from({ length: 200 }, () => server.inject('/api/health')));
+    assert.deepEqual([...new Set(probes.map((res) => res.body))], [JSON.stringify({ ok: true, cli: true, loggedIn: true })]);
+    assert.equal(ran('--version'), 1); // the probe reports the last reading, it never takes one
+  } finally {
+    probe.shutdown();
+    if (probeApp) await probeApp.close();
   }
 });
