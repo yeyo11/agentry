@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.16.1](https://github.com/yeyo11/agentry/compare/v0.16.0...v0.16.1) (2026-09-23)
+
+
+### Bug fixes
+
+* bind to loopback, refuse an unknown Host, and stop handing out the credentials ([#77](https://github.com/yeyo11/agentry/issues/77)) ([17e76d1](https://github.com/yeyo11/agentry/commit/17e76d132f8e90eaeb3af8924185c946d238b3e5))
+
 ## [0.16.0](https://github.com/yeyo11/agentry/compare/v0.15.3...v0.16.0) (2026-09-23)
 
 
