@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import type { AuthConfig, AuthMode, AuthTokenResult, OidcConfig, SetAuthTokenRequest, UpdateAuthConfigRequest } from '@agentry/shared';
@@ -102,15 +102,17 @@ export class AuthStore {
   }
 
   private async persist(): Promise<void> {
-    await writeAtomic(this.file, `${JSON.stringify(this.stored, null, 2)}\n`);
-    chmodSync(this.file, 0o600);
+    await writeAtomic(this.file, `${JSON.stringify(this.stored, null, 2)}\n`, 0o600);
   }
 
   /** The constructor cannot await, and a guard the environment asked for must be on disk before the first request. */
   private persistSync(): void {
     mkdirSync(dirname(this.file), { recursive: true });
-    writeFileSync(this.file, `${JSON.stringify(this.stored, null, 2)}\n`, { mode: 0o600 });
-    chmodSync(this.file, 0o600);
+    // Same rename as `writeAtomic`: writing in place would leave an existing document at whatever
+    // mode it already had, because `mode` only applies to a file being created.
+    const tmp = `${this.file}.${String(process.pid)}.tmp`;
+    writeFileSync(tmp, `${JSON.stringify(this.stored, null, 2)}\n`, { mode: 0o600 });
+    renameSync(tmp, this.file);
   }
 
   /** The public shape: mode, whether a token exists, the OIDC fields — never the token. */
@@ -163,7 +165,7 @@ export class AuthStore {
   async setToken(request: SetAuthTokenRequest = {}): Promise<AuthTokenResult> {
     const given = typeof request.token === 'string' ? request.token.trim() : '';
     if (request.token !== undefined && typeof request.token !== 'string') throw new Error('token must be a string');
-    if (given && given.length < 16) throw new Error('a token of your own must be at least 16 characters');
+    if (given && given.length < 24) throw new Error('a token of your own must be at least 24 characters, so that guessing it stays out of reach of an attacker who can try many');
     const token = given || randomBytes(32).toString('base64url');
     const createdAt = new Date().toISOString();
     this.stored = {

@@ -5,9 +5,10 @@ import type { OidcConfig } from '@agentry/shared';
  * JWT validation against the issuer's JWKS, with no dependency: Node can build a public key from a
  * JWK and verify with it, which is the whole of what checking a signed token needs.
  *
- * Only the signature, the issuer, the audience and the lifetime are checked. Agentry never starts
- * an authorisation code flow and never talks to the token endpoint: whoever puts the panel behind
- * an identity provider brings the token, from a proxy or from their own client.
+ * Only the signature, the issuer, the audience, the authorised party and the lifetime are checked.
+ * Agentry never starts an authorisation code flow and never talks to the token endpoint: whoever
+ * puts the panel behind an identity provider brings the token, from a proxy or from their own
+ * client.
  */
 
 /** JOSE algorithms Node can verify from a JWK, and how each one is passed to `crypto.verify`. */
@@ -46,6 +47,8 @@ interface JwtClaims {
   iss?: string;
   sub?: string;
   aud?: string | string[];
+  /** The party the token was issued to; present when it is not simply the audience */
+  azp?: string;
   exp?: number;
   nbf?: number;
 }
@@ -142,6 +145,13 @@ export class OidcVerifier {
     if (!claims.iss || !sameIssuer(claims.iss, config.issuer)) throw new Error('the token was issued by someone else');
     const audience = Array.isArray(claims.aud) ? claims.aud : claims.aud ? [claims.aud] : [];
     if (!audience.includes(config.audience)) throw new Error('the token is for another audience');
+    // OpenID Connect Core 1.0 §3.1.3.7: `azp` names the client the token was issued to, and is
+    // there only when it differs from the audience. A configured client id must therefore reject a
+    // token that names another one, and accept a token that names none — anything else would turn
+    // the setting into a lockout for the issuers that omit it.
+    if (config.clientId && typeof claims.azp === 'string' && claims.azp !== config.clientId) {
+      throw new Error('the token was issued to another client');
+    }
     const now = Math.floor(Date.now() / 1000);
     if (typeof claims.exp !== 'number') throw new Error('the token has no expiry');
     if (claims.exp + SKEW_SECONDS < now) throw new Error('the token has expired');
