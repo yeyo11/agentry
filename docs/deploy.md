@@ -51,6 +51,13 @@ longer `localhost`:
 
   More than one name (an internal one alongside the public one) is a comma-separated list. Ports and
   letter case are ignored, so `agentry.example.com:8443` and `Agentry.Example.com` both match.
+- **A host that is not fixed** — a tunnel that mints a new one on every start, a preview environment
+  per branch — is what the `*.domain` form is for: `AGENTRY_ALLOWED_HOSTS=*.tunnel.example` answers
+  to every subdomain of `tunnel.example` without naming each one. It never covers the domain itself,
+  so add that separately if it is served too, and the leading dot is part of the comparison, so
+  `*.tunnel.example` does not answer to `eviltunnel.example`. Name a domain you control or that a
+  provider controls; a wildcard over a public suffix (`*.com`) guards nothing and is refused at
+  startup rather than accepted.
 - **Rewriting `Host` to the upstream** (nginx's `proxy_set_header Host $proxy_host`, some ingress
   controllers by default) makes Agentry see the service name or the pod address. Either pass the
   original name instead, or add whatever the proxy sends to `AGENTRY_ALLOWED_HOSTS`. In the Helm

@@ -53,6 +53,27 @@ function hostNameOf(authority: string): string {
 }
 
 /**
+ * The allowlist, read once into the two shapes it is matched by: the names answered outright, and
+ * the suffixes a `*.` pattern stands for.
+ *
+ * A pattern exists for a deployment whose name is not fixed — a tunnel that mints a new host on
+ * every start, a preview environment per branch — where naming each one would mean editing the
+ * configuration as often as the host changes. It covers the subdomains of a domain and never the
+ * domain itself, so an apex that is also served is listed on its own. The leading dot is kept in
+ * the suffix, and that is the whole of what stops `*.example.com` from also answering to
+ * `evil-example.com`.
+ */
+function allowlist(patterns: readonly string[]): { names: ReadonlySet<string>; suffixes: readonly string[] } {
+  const names = new Set<string>();
+  const suffixes: string[] = [];
+  for (const pattern of patterns) {
+    if (pattern.startsWith('*.')) suffixes.push(pattern.slice(1));
+    else names.add(pattern);
+  }
+  return { names, suffixes };
+}
+
+/**
  * Whether this wrapper answers to the authority the client dialled.
  *
  * A browser sends the name it was pointed at, so a page served from a name with a one-second TTL
@@ -64,10 +85,10 @@ function hostNameOf(authority: string): string {
  * A request with no `Host` at all passes: HTTP/1.1 requires one and every browser sends one, so it
  * cannot be the rebinding case, and refusing it would only cost an HTTP/1.0 probe.
  */
-function hostAllowed(authority: string | undefined, allowed: ReadonlySet<string>): boolean {
+function hostAllowed(authority: string | undefined, allowed: ReturnType<typeof allowlist>): boolean {
   if (authority === undefined) return true;
   const name = hostNameOf(authority);
-  return LOOPBACK.test(name) || allowed.has(name);
+  return LOOPBACK.test(name) || allowed.names.has(name) || allowed.suffixes.some((suffix) => name.endsWith(suffix));
 }
 
 /** Failed authentications a client address gets for free before it is asked to wait. */
@@ -188,7 +209,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
 
   // Read once and not per request: the allowlist is deployment configuration. It comes from the
   // core's config rather than from `process.env`, so a test can build a wrapper with its own.
-  const allowedHosts = new Set(core.config.allowedHosts);
+  const allowedHosts = allowlist(core.config.allowedHosts);
   const backoff = new FailureBackoff();
 
   app.addHook('onRequest', async (req, reply) => {

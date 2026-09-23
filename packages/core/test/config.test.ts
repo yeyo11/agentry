@@ -128,6 +128,18 @@ test('credential store injects, swaps and restores env', async () => {
   }
 });
 
+test('an allowed-hosts pattern that guards nothing stops the wrapper instead of opening it', () => {
+  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-hosts', 'claude'), AGENTRY_DATA_DIR: join(tmpdir(), 'agentry-hosts', 'data'), AGENTRY_WORKSPACE_DIR: join(tmpdir(), 'agentry-hosts', 'workspace') };
+
+  assert.deepEqual(loadConfig({ ...base, AGENTRY_ALLOWED_HOSTS: ' *.Example.com , agentry.internal ' }).allowedHosts, ['*.example.com', 'agentry.internal']);
+  assert.deepEqual(loadConfig({ ...base }).allowedHosts, []);
+
+  // A wildcard over a public suffix, or anywhere but the front, is a typo worth failing on
+  for (const value of ['*.com', '*', '*.', 'a.*.example.com', 'ex*mple.com']) {
+    assert.throws(() => loadConfig({ ...base, AGENTRY_ALLOWED_HOSTS: value }), /AGENTRY_ALLOWED_HOSTS/, value);
+  }
+});
+
 test('two panels asking for MCP health at once share one connection check', async () => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-mcp-'));
   const log = join(root, 'invocations');

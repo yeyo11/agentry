@@ -14,6 +14,8 @@ What is and is not protected:
   looked at — so it holds under `mode: none`, where there is no credential to refuse by. Loopback
   always passes (`localhost`, `::1`, any `127.x.x.x`); `AGENTRY_ALLOWED_HOSTS` is the comma-separated
   list of whatever else a deployment answers to, compared without the port and case-insensitively.
+  An entry may be a `*.domain` pattern, which stands for that domain's subdomains and not for the
+  domain itself — what a tunnel or a per-branch environment needs, since its host is new every time.
   This is what stands between the API and a page on someone else's domain that rebinds its own name
   to `127.0.0.1` and then drives Agentry from the browser of whoever visited it. `GET /api/health`
   stays open regardless, so a probe is unaffected, and a request carrying no `Host` at all passes:

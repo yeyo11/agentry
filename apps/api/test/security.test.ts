@@ -361,6 +361,21 @@ test('AGENTRY_ALLOWED_HOSTS names the hosts a deployment answers to, port and ca
   assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'other.example.com' } })).statusCode, 421);
 });
 
+test('a pattern answers to the subdomains of a domain, and to nothing that merely looks like one', async (t) => {
+  // What a tunnel needs: its host changes on every start, and only the domain under it is fixed
+  const { app } = await wrapper({ AGENTRY_ALLOWED_HOSTS: '*.tunnel.example, agentry.internal' });
+  t.after(() => app.close());
+
+  for (const host of ['a.tunnel.example', 'a-1234.region.tunnel.example', 'A.Tunnel.Example:8787']) {
+    assert.equal((await app.inject({ url: '/api/overview', headers: { host } })).statusCode, 200, host);
+  }
+  // A name alongside the pattern still answers, and the apex is a host of its own
+  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'agentry.internal' } })).statusCode, 200);
+  for (const host of ['tunnel.example', 'eviltunnel.example', 'tunnel.example.evil.test']) {
+    assert.equal((await app.inject({ url: '/api/overview', headers: { host } })).statusCode, 421, host);
+  }
+});
+
 test('the host is checked before the credential, so an open install is guarded too', async (t) => {
   const { app } = await wrapper();
   t.after(() => app.close());
