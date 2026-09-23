@@ -18,11 +18,11 @@
     "@fastify/static": "^10.1.4",
     "@fastify/swagger": "^9.8.1",
     "@scalar/fastify-api-reference": "^1.69.0",
-    "fastify": "^5.12.5",
-    "tsx": "^4.23.13"
+    "fastify": "^5.12.5"
   },
   "devDependencies": {
     "esbuild": "^0.25.12",
-    "ts-json-schema-generator": "^2.9.0"
+    "ts-json-schema-generator": "^2.9.0",
+    "tsx": "^4.23.13"
   }
 }
