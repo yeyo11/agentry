@@ -50,9 +50,6 @@ importers:
       fastify:
         specifier: ^5.12.5
         version: 5.12.5
-      tsx:
-        specifier: ^4.23.13
-        version: 4.23.13
     devDependencies:
       esbuild:
         specifier: ^0.25.12
@@ -60,6 +57,9 @@ importers:
       ts-json-schema-generator:
         specifier: ^2.9.0
         version: 2.9.0
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
 
   apps/desktop:
     devDependencies:
