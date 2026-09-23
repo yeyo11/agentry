@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { writeAtomic } from './config/files.ts';
 import type { CoreConfig } from './paths.ts';
@@ -81,8 +81,7 @@ export class CredentialStore {
     if (!oauthToken && !apiKey) throw new Error('provide oauthToken or apiKey');
     if (oauthToken && apiKey) throw new Error('provide only one of oauthToken or apiKey');
     this.stored = oauthToken ? { oauthToken } : { apiKey };
-    await writeAtomic(this.file, JSON.stringify(this.stored));
-    chmodSync(this.file, 0o600);
+    await writeAtomic(this.file, JSON.stringify(this.stored), 0o600);
     this.apply();
   }
 
