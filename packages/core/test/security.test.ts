@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import test from 'node:test';
 import { REDACTED, type OidcConfig } from '@agentry/shared';
+import { writeAtomic } from '../src/config/files.ts';
+import { CredentialStore } from '../src/credentials.ts';
 import { Db } from '../src/db.ts';
 import { AuthStore } from '../src/security/auth.ts';
 import { OidcVerifier } from '../src/security/oidc.ts';
@@ -175,6 +177,55 @@ test('AGENTRY_AUTH_TOKEN_RESET without a token fails loudly instead of doing not
   const config = tempConfig();
   await new AuthStore(config, {}).setToken();
   assert.throws(() => new AuthStore(config, { AGENTRY_AUTH_TOKEN_RESET: '1' }), /needs AGENTRY_AUTH_TOKEN/);
+});
+
+// ---------- what the umask would otherwise decide ----------
+
+const modeOf = (file: string): number => statSync(file).mode & 0o777;
+
+test('writeAtomic gives the file its mode as it is created, not after the rename', async () => {
+  const dir = tempConfig().dataDir;
+  const secret = join(dir, 'secret.json');
+  await writeAtomic(secret, '{}', 0o600);
+  assert.equal(modeOf(secret), 0o600);
+
+  // Rewriting through a fresh temp file keeps it, and a caller with no secret is left alone
+  await writeAtomic(secret, '{"again":true}', 0o600);
+  assert.equal(modeOf(secret), 0o600);
+  // A caller with nothing to hide keeps whatever the umask says, exactly as an ordinary write
+  const plain = join(dir, 'plain.json');
+  await writeAtomic(plain, '{}');
+  const reference = join(dir, 'reference.json');
+  writeFileSync(reference, '{}');
+  assert.equal(modeOf(plain), modeOf(reference));
+});
+
+test('the guard document is unreadable to anyone else from the moment it exists', async () => {
+  const config = tempConfig();
+  const file = join(config.dataDir, 'auth.json');
+  // The environment writes it from the constructor, which cannot await
+  new AuthStore(config, { AGENTRY_AUTH_TOKEN: 'from-the-environment-42' });
+  assert.equal(modeOf(file), 0o600);
+
+  const store = new AuthStore(config, {});
+  await store.setToken();
+  assert.equal(modeOf(file), 0o600);
+});
+
+test('the account credential is unreadable to anyone else from the moment it exists', async () => {
+  const config = tempConfig();
+  const bootEnv = { CLAUDE_CODE_OAUTH_TOKEN: process.env.CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY };
+  try {
+    const store = new CredentialStore(config);
+    await store.set({ oauthToken: 'sk-ant-oat-not-a-real-token' });
+    assert.equal(modeOf(join(config.dataDir, 'credentials.json')), 0o600);
+    store.clear();
+  } finally {
+    for (const [key, value] of Object.entries(bootEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });
 
 // ---------- OIDC ----------
