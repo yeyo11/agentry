@@ -26,7 +26,7 @@ import type {
   VerifyOrchestrationRequest,
   WorkflowDefinition,
 } from '@agentry/shared';
-import { MODEL_RE, PERMISSION_MODES } from '@agentry/shared';
+import { MODEL_RE, PERMISSION_MODES, specOfOrchestration } from '@agentry/shared';
 import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
 import { OrchestrationEventTracker } from './event-sources.ts';
@@ -523,7 +523,7 @@ export class Orchestrator {
       name: spec.name?.trim() || 'orchestration',
       objective: spec.objective?.trim() || null,
       status: 'running',
-      cwd: resolve(spec.cwd ?? this.config.workspaceDir),
+      cwd: root,
       model: spec.model ?? null,
       permissionMode: spec.permissionMode ?? this.config.defaultPermissionMode,
       concurrency: Math.min(Math.max(spec.concurrency ?? 3, 1), this.config.maxConcurrentRuns),
@@ -664,38 +664,12 @@ export class Orchestrator {
 
   /**
    * The spec that would launch this graph as it is: what a relaunch starts from and what a template
-   * saves. Read back from the orchestration, so it carries the settings the graph actually ran with,
-   * including corrections made when it was resumed.
+   * saves. The UI fills a schedule from the same function, over the orchestration it reads back.
    */
   specOf(id: string): OrchestrationSpec {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
-    return {
-      name: orch.name,
-      ...(orch.objective ? { objective: orch.objective } : {}),
-      engine: orch.engine ?? 'graph',
-      ...(orch.engineReason ? { engineReason: orch.engineReason } : {}),
-      cwd: orch.cwd,
-      ...(orch.model ? { model: orch.model } : {}),
-      permissionMode: orch.permissionMode,
-      concurrency: orch.concurrency,
-      synthesize: orch.synthesize,
-      worktree: orch.worktree,
-      maxAttempts: orch.maxAttempts,
-      allowedTools: [...(orch.allowedTools ?? [])],
-      permissionPrompts: orch.permissionPrompts,
-      ...(orch.limits ? { limits: orch.limits } : {}),
-      ...(orch.verificationSpec ? { verification: orch.verificationSpec } : {}),
-      tasks: orch.tasks.map<OrchestrationTaskSpec>((t) => ({
-        id: t.id,
-        name: t.name,
-        prompt: t.prompt,
-        ...(t.dependsOn?.length ? { dependsOn: [...t.dependsOn] } : {}),
-        ...(t.cwd ? { cwd: t.cwd } : {}),
-        ...(t.model ? { model: t.model } : {}),
-        ...(t.limits ? { limits: t.limits } : {}),
-      })),
-    };
+    return specOfOrchestration(orch);
   }
 
   /**

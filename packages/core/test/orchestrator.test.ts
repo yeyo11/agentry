@@ -1077,3 +1077,68 @@ test('templates are saved, edited, launched on a new objective and deleted, and 
   assert.equal(orchestrator.get(launched.id)?.templateId, template.id);
   db.close();
 });
+
+test('the spec a graph is read back as carries every setting it ran with, and a relaunch starts from that same spec', () => {
+  const config = offlineConfig();
+  const repo = repoWithCommit();
+  const db = new Db(config);
+  const taskState = (spec: Partial<OrchestrationTaskState> & { id: string; name: string; prompt: string }): OrchestrationTaskState => ({
+    dependsOn: [],
+    status: 'stopped',
+    attempts: 1,
+    runId: null,
+    sessionId: null,
+    result: null,
+    error: null,
+    startedAt: null,
+    endedAt: null,
+    costUsd: 0,
+    ...spec,
+  });
+  db.saveOrchestrations([
+    stoppedGraph(repo, {
+      objective: 'ship it',
+      model: 'sonnet',
+      engine: 'graph',
+      engineReason: 'three independent branches',
+      concurrency: 2,
+      synthesize: true,
+      maxAttempts: 3,
+      allowedTools: ['Bash', 'Edit'],
+      permissionPrompts: 'host',
+      limits: { maxMinutes: 40, maxCostUsd: 9 },
+      tasks: [
+        taskState({ id: 'api', name: 'API', prompt: 'do api', cwd: join(repo, 'api'), model: 'haiku', limits: { maxMinutes: 5 }, status: 'completed', runId: 'r1', sessionId: 's1', result: 'api done', costUsd: 0.5 }),
+        taskState({ id: 'shell', name: 'shell', prompt: 'do shell', dependsOn: ['api'], error: 'died' }),
+      ],
+    }),
+  ]);
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+
+  // The whole spec, field by field: one left out here is one a relaunch or a schedule would drop
+  assert.deepEqual(orchestrator.specOf('graph-1'), {
+    name: 'desktop',
+    objective: 'ship it',
+    engine: 'graph',
+    engineReason: 'three independent branches',
+    cwd: repo,
+    model: 'sonnet',
+    permissionMode: 'acceptEdits',
+    concurrency: 2,
+    synthesize: true,
+    worktree: false,
+    maxAttempts: 3,
+    allowedTools: ['Bash', 'Edit'],
+    permissionPrompts: 'host',
+    limits: { maxMinutes: 40, maxCostUsd: 9 },
+    tasks: [
+      { id: 'api', name: 'API', prompt: 'do api', cwd: join(repo, 'api'), model: 'haiku', limits: { maxMinutes: 5 } },
+      { id: 'shell', name: 'shell', prompt: 'do shell', dependsOn: ['api'] },
+    ],
+  });
+
+  // What a relaunch starts is the graph it came from, down to the last setting
+  const again = orchestrator.relaunch('graph-1');
+  assert.deepEqual(orchestrator.specOf(again.id), orchestrator.specOf('graph-1'));
+  db.close();
+});
