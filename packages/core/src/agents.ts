@@ -1,6 +1,5 @@
-import { createReadStream } from 'node:fs';
-import { createInterface } from 'node:readline';
 import { entryText, normalizeMessage, type TokenUsage, type TranscriptEntry } from '@agentry/shared';
+import type { JsonlFold } from './jsonl-cache.ts';
 import { emptyTokenUsage, UsageFold } from './usage.ts';
 
 // A subagent's conversation is kept beside its session's transcript, one file per agent:
@@ -48,40 +47,42 @@ export function emptyAgentRead(): AgentFileRead {
   };
 }
 
+/** An agent's transcript folded so far: the read, with the usage still being summed. */
+export interface AgentFold {
+  read: AgentFileRead;
+  spent: UsageFold;
+}
+
 /**
- * One agent's transcript in one pass: the normalised conversation plus what is summed or picked
- * out of it. Lines still being written by a live agent are skipped, not fatal.
+ * One agent's transcript, a line at a time: the normalised conversation plus what is summed or
+ * picked out of it. Kept per file by a {@link JsonlCache}, so a panel following a live agent reads
+ * what it appended and not the whole file again.
  */
-export async function readAgentFile(file: string): Promise<AgentFileRead> {
-  const read = emptyAgentRead();
-  const fold = new UsageFold();
-  const rl = createInterface({ input: createReadStream(file, 'utf8'), crlfDelay: Infinity });
-  for await (const line of rl) {
-    if (!line) continue;
-    let o: Record<string, unknown>;
-    try {
-      o = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      continue;
-    }
+export const AGENT_FOLD: JsonlFold<AgentFold> = {
+  init: () => ({ read: emptyAgentRead(), spent: new UsageFold() }),
+  clone: ({ read, spent }) => ({ read: { ...read, entries: [...read.entries] }, spent: spent.clone() }),
+  add: ({ read, spent }, o) => {
     if (typeof o.timestamp === 'string') {
       read.firstAt ??= o.timestamp;
       read.lastAt = o.timestamp;
     }
     if (!read.cwd && typeof o.cwd === 'string' && o.cwd) read.cwd = o.cwd;
     const entry = normalizeMessage(o);
-    if (!entry) continue;
+    if (!entry) return;
     read.entries.push(entry);
     if (entry.role === 'user') {
       if (read.prompt === null) read.prompt = entryText(entry) || null;
-      continue;
+      return;
     }
     if (entry.model) read.model = entry.model;
     read.toolCalls += entry.blocks.filter((b) => b.type === 'tool_use').length;
     const text = entryText(entry).trim();
     if (text) read.result = text;
-    fold.add(o, entry);
-  }
-  read.usage = fold.total();
-  return read;
+    spent.add(o, entry);
+  },
+};
+
+/** What a fold of an agent's transcript reads as, its usage totalled. */
+export function agentRead(fold: AgentFold): AgentFileRead {
+  return { ...fold.read, usage: fold.spent.total() };
 }

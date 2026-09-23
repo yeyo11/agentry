@@ -60,16 +60,22 @@ function ConnectorCard({
   const { t } = useTranslation('connectors');
   const Icon = KIND_ICON[connector.kind];
   const actions = connector.actions ?? [];
+  const rail = connector.status === 'connected' ? 'is-ok' : connector.status === 'needs-auth' ? 'is-warn' : 'is-muted';
   return (
-    <Card
-      title={
-        <span className="title-icon">
-          <Icon {...ICON_SM} /> <span className="break">{connector.name}</span>
-        </span>
-      }
-      actions={<ConnectorStatus status={connector.status} />}
-    >
-      {connector.detail && <p className="muted small break">{t('cliSays', { detail: connector.detail })}</p>}
+    <li className={`lrow connector-row ${rail}`}>
+      <div className="lrow-head">
+        <div className="lrow-main">
+          <h2 className="lrow-title">
+            <Icon {...ICON_SM} /> <span className="break">{connector.name}</span>
+            <ConnectorStatus status={connector.status} />
+          </h2>
+          {connector.detail && (
+            <span className="lrow-sub">
+              <span className="mono">{t('cliSays', { detail: connector.detail })}</span>
+            </span>
+          )}
+        </div>
+      </div>
       {actions.length > 0 && (
         <div className="stack-tight">
           <div className="strong small">{t('ask.title')}</div>
@@ -92,7 +98,7 @@ function ConnectorCard({
       )}
       {connector.status === 'needs-auth' && <Authorisation guide={guide} />}
       {connector.status === 'connected' && actions.length === 0 && <p className="muted small">{t('ask.none')}</p>}
-    </Card>
+    </li>
   );
 }
 
@@ -147,11 +153,11 @@ export function Connectors() {
               {t('noneHint')}
             </Empty>
           ) : (
-            <div className="grid-2">
+            <ul className="lrows">
               {data.connectors.map((connector) => (
                 <ConnectorCard key={connector.id} connector={connector} guide={data.authorisation} pending={pending} onAsk={(c, action) => ask.mutate({ connector: c, action })} />
               ))}
-            </div>
+            </ul>
           )}
           {data.notListed.length > 0 && !data.error && (
             <p className="muted small">{t('notListed', { kinds: data.notListed.map((kind) => t(`kinds.${kind}`)).join(', ') })}</p>

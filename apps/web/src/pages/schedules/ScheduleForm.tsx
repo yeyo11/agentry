@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useOrchestrations } from '../../api';
 import { Combobox, NumberInput, Select, Switch } from '../../components/controls';
-import { Dialog } from '../../components/Dialog';
 import { ICON_SM } from '../../components/icons';
 import { useToast } from '../../components/Toast';
 import { ErrorBox, Field, MODEL_OPTIONS, PERMISSION_MODES, Segmented } from '../../components/ui';
@@ -37,7 +36,7 @@ function useDebounced<T>(value: T, delayMs: number): T {
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 const OVERLAPS: readonly ScheduleOverlap[] = ['parallel', 'skip', 'queue'];
 
-/** Create or edit a schedule: what to start, and when, with the timetable said back in words before it is saved. */
+/** Create or edit a schedule: what to start, and when, with the timetable said back in words before it is saved. `onClose` leaves the page, saved or not. */
 export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Schedule; defaultCwd?: string; onClose: () => void }) {
   const { t } = useTranslation(['schedules', 'common']);
   const toast = useToast();
@@ -139,233 +138,225 @@ export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Sch
   const ready = name.trim() !== '' && valid && targetReady;
 
   return (
-    <Dialog
-      title={schedule ? t('form.editTitle') : t('form.newTitle')}
-      onClose={onClose}
-      width={680}
-      footer={
-        <>
-          <button type="button" className="btn" onClick={onClose}>
-            {t('common:actions.cancel')}
-          </button>
-          <button type="submit" form="schedule-form" className="btn btn-primary" disabled={!ready || save.isPending}>
-            {save.isPending ? t('form.saving') : schedule ? t('form.save') : t('form.create')}
-          </button>
-        </>
-      }
+    <form
+      id="schedule-form"
+      className="form schedule-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (ready) save.mutate();
+      }}
     >
-      <form
-        id="schedule-form"
-        className="form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (ready) save.mutate();
-        }}
-      >
-        <Field label={t('form.name')}>
-          <input data-autofocus value={name} onChange={(e) => setName(e.target.value)} placeholder={t('form.namePlaceholder')} />
+      <Field label={t('form.name')}>
+        <input data-autofocus value={name} onChange={(e) => setName(e.target.value)} placeholder={t('form.namePlaceholder')} />
+      </Field>
+
+      <fieldset className="fieldset">
+        <legend className="field-label">{t('form.when')}</legend>
+        <div className="form-grid">
+          <Field label={t('form.repeat')}>
+            <Select<CronMode>
+              aria-label={t('form.repeat')}
+              value={parts.mode}
+              onChange={setMode}
+              options={CRON_MODES.map((mode) => ({ value: mode, label: t(`form.modes.${mode}`) }))}
+            />
+          </Field>
+          {parts.mode === 'minutes' && (
+            <Field label={t('form.everyMinutes')}>
+              <NumberInput aria-label={t('form.everyMinutes')} value={parts.every} onChange={(v) => set({ every: v ?? 1 })} min={1} max={59} />
+            </Field>
+          )}
+          {parts.mode === 'weekly' && (
+            <Field label={t('form.weekday')}>
+              <Select
+                aria-label={t('form.weekday')}
+                value={String(parts.weekday)}
+                onChange={(v) => set({ weekday: Number(v) })}
+                options={WEEKDAYS.map((day) => ({ value: String(day), label: t(`form.weekdays.${day}`) }))}
+              />
+            </Field>
+          )}
+          {parts.mode === 'monthly' && (
+            <Field label={t('form.dayOfMonth')} hint={t('form.dayOfMonthHint')}>
+              <NumberInput aria-label={t('form.dayOfMonth')} value={parts.day} onChange={(v) => set({ day: v ?? 1 })} min={1} max={31} />
+            </Field>
+          )}
+        </div>
+        {(parts.mode === 'daily' || parts.mode === 'weekdays' || parts.mode === 'weekly' || parts.mode === 'monthly') && (
+          <div className="form-grid">
+            <Field label={t('form.hour')}>
+              <NumberInput aria-label={t('form.hour')} value={parts.hour} onChange={(v) => set({ hour: v ?? 0 })} min={0} max={23} />
+            </Field>
+            <Field label={t('form.minute')}>
+              <NumberInput aria-label={t('form.minute')} value={parts.minute} onChange={(v) => set({ minute: v ?? 0 })} min={0} max={59} />
+            </Field>
+          </div>
+        )}
+        {parts.mode === 'hourly' && (
+          <Field label={t('form.minutePastHour')}>
+            <NumberInput aria-label={t('form.minutePastHour')} value={parts.minute} onChange={(v) => set({ minute: v ?? 0 })} min={0} max={59} />
+          </Field>
+        )}
+        <Field label={t('form.cron')} hint={parts.mode === 'custom' ? t('form.cronHint') : t('form.cronBuilt')}>
+          <input
+            className="mono"
+            value={parts.mode === 'custom' ? parts.text : cron}
+            readOnly={parts.mode !== 'custom'}
+            onChange={(e) => set({ text: e.target.value })}
+            spellCheck={false}
+            placeholder="0 9 * * 1-5"
+          />
+        </Field>
+        <Field label={t('form.timezone')} hint={t('form.timezoneHint')}>
+          <Combobox aria-label={t('form.timezone')} value={timezone} onChange={setTimezone} options={zones} placeholder={t('form.serverZone')} />
         </Field>
 
-        <fieldset className="fieldset">
-          <legend className="field-label">{t('form.when')}</legend>
-          <div className="form-grid">
-            <Field label={t('form.repeat')}>
-              <Select<CronMode>
-                aria-label={t('form.repeat')}
-                value={parts.mode}
-                onChange={setMode}
-                options={CRON_MODES.map((mode) => ({ value: mode, label: t(`form.modes.${mode}`) }))}
-              />
-            </Field>
-            {parts.mode === 'minutes' && (
-              <Field label={t('form.everyMinutes')}>
-                <NumberInput aria-label={t('form.everyMinutes')} value={parts.every} onChange={(v) => set({ every: v ?? 1 })} min={1} max={59} />
-              </Field>
-            )}
-            {parts.mode === 'weekly' && (
-              <Field label={t('form.weekday')}>
-                <Select
-                  aria-label={t('form.weekday')}
-                  value={String(parts.weekday)}
-                  onChange={(v) => set({ weekday: Number(v) })}
-                  options={WEEKDAYS.map((day) => ({ value: String(day), label: t(`form.weekdays.${day}`) }))}
-                />
-              </Field>
-            )}
-            {parts.mode === 'monthly' && (
-              <Field label={t('form.dayOfMonth')} hint={t('form.dayOfMonthHint')}>
-                <NumberInput aria-label={t('form.dayOfMonth')} value={parts.day} onChange={(v) => set({ day: v ?? 1 })} min={1} max={31} />
-              </Field>
+        {/* The whole point of the builder: say what the timetable will do before it is saved */}
+        <div className={`cron-preview ${preview.data?.valid === false ? 'is-invalid' : ''}`} role="status" aria-live="polite" data-testid="cron-preview">
+          <CalendarClock {...ICON_SM} aria-hidden />
+          <div>
+            {preview.data?.valid === false ? (
+              <strong>{preview.data.error ?? t('form.invalidCron')}</strong>
+            ) : preview.data ? (
+              <>
+                <strong>{preview.data.description}</strong>
+                <div className="muted small">{t('form.zoneNote', { zone: preview.data.timezone })}</div>
+                {preview.data.next.length > 0 && (
+                  <ul className="cron-next small">
+                    {preview.data.next.map((at) => (
+                      <li key={at}>{formatDateTime(at)}</li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : (
+              <span className="muted">{t('form.previewLoading')}</span>
             )}
           </div>
-          {(parts.mode === 'daily' || parts.mode === 'weekdays' || parts.mode === 'weekly' || parts.mode === 'monthly') && (
-            <div className="form-grid">
-              <Field label={t('form.hour')}>
-                <NumberInput aria-label={t('form.hour')} value={parts.hour} onChange={(v) => set({ hour: v ?? 0 })} min={0} max={23} />
-              </Field>
-              <Field label={t('form.minute')}>
-                <NumberInput aria-label={t('form.minute')} value={parts.minute} onChange={(v) => set({ minute: v ?? 0 })} min={0} max={59} />
-              </Field>
-            </div>
-          )}
-          {parts.mode === 'hourly' && (
-            <Field label={t('form.minutePastHour')}>
-              <NumberInput aria-label={t('form.minutePastHour')} value={parts.minute} onChange={(v) => set({ minute: v ?? 0 })} min={0} max={59} />
-            </Field>
-          )}
-          <Field label={t('form.cron')} hint={parts.mode === 'custom' ? t('form.cronHint') : t('form.cronBuilt')}>
-            <input
-              className="mono"
-              value={parts.mode === 'custom' ? parts.text : cron}
-              readOnly={parts.mode !== 'custom'}
-              onChange={(e) => set({ text: e.target.value })}
-              spellCheck={false}
-              placeholder="0 9 * * 1-5"
-            />
-          </Field>
-          <Field label={t('form.timezone')} hint={t('form.timezoneHint')}>
-            <Combobox aria-label={t('form.timezone')} value={timezone} onChange={setTimezone} options={zones} placeholder={t('form.serverZone')} />
-          </Field>
-
-          {/* The whole point of the builder: say what the timetable will do before it is saved */}
-          <div className={`cron-preview ${preview.data?.valid === false ? 'is-invalid' : ''}`} role="status" aria-live="polite" data-testid="cron-preview">
-            <CalendarClock {...ICON_SM} aria-hidden />
-            <div>
-              {preview.data?.valid === false ? (
-                <strong>{preview.data.error ?? t('form.invalidCron')}</strong>
-              ) : preview.data ? (
-                <>
-                  <strong>{preview.data.description}</strong>
-                  <div className="muted small">{t('form.zoneNote', { zone: preview.data.timezone })}</div>
-                  {preview.data.next.length > 0 && (
-                    <ul className="cron-next small">
-                      {preview.data.next.map((at) => (
-                        <li key={at}>{formatDateTime(at)}</li>
-                      ))}
-                    </ul>
-                  )}
-                </>
-              ) : (
-                <span className="muted">{t('form.previewLoading')}</span>
-              )}
-            </div>
-          </div>
-          <p className="muted small">{t('form.missedNote')}</p>
-          {/* Not a <Field>: a label around several buttons would press the first one when clicked */}
-          <div className="field">
-            <span className="field-label">{t('form.overlap')}</span>
-            <Segmented<ScheduleOverlap>
-              label={t('form.overlap')}
-              value={overlap}
-              onChange={setOverlap}
-              options={OVERLAPS.map((value) => ({ value, label: t(`form.overlaps.${value}.label`) }))}
-            />
-            <span className="field-hint" data-testid="overlap-hint">
-              {t(`form.overlaps.${overlap}.hint`)}
-            </span>
-          </div>
-        </fieldset>
-
-        <fieldset className="fieldset">
-          <legend className="field-label">{t('form.what')}</legend>
-          <Segmented<ScheduleTarget['kind']>
-            label={t('form.what')}
-            value={kind}
-            onChange={setKind}
-            options={[
-              { value: 'chat', label: t('form.kinds.chat') },
-              { value: 'orchestration', label: t('form.kinds.orchestration') },
-            ]}
+        </div>
+        <p className="muted small">{t('form.missedNote')}</p>
+        {/* Not a <Field>: a label around several buttons would press the first one when clicked */}
+        <div className="field">
+          <span className="field-label">{t('form.overlap')}</span>
+          <Segmented<ScheduleOverlap>
+            label={t('form.overlap')}
+            value={overlap}
+            onChange={setOverlap}
+            options={OVERLAPS.map((value) => ({ value, label: t(`form.overlaps.${value}.label`) }))}
           />
-          {kind === 'chat' ? (
-            <Field label={t('form.prompt')}>
-              <textarea rows={5} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={t('form.promptPlaceholder')} />
-            </Field>
-          ) : (
-            <>
-              <Field label={t('form.fromOrchestration')} hint={t('form.fromOrchestrationHint')}>
-                <Select
-                  aria-label={t('form.fromOrchestration')}
-                  value={source}
-                  disabled={fill.isPending}
-                  onChange={(id) => {
-                    setSource(id);
-                    if (id) fill.mutate(id);
-                  }}
-                  options={[
-                    { value: '', label: pastGraphs.data?.length ? t('form.fromOrchestrationPick') : t('form.fromOrchestrationNone') },
-                    ...(pastGraphs.data ?? []).map((orch) => ({
-                      value: orch.id,
-                      label: orch.name,
-                      hint: t('form.fromOrchestrationOption', { count: orch.tasks.length, ago: timeAgo(orch.createdAt) }),
-                    })),
-                  ]}
-                />
-              </Field>
-              <ErrorBox error={fill.error} title={t('form.fromOrchestrationFailed')} />
-              <Field label={t('form.objective')} hint={t('form.optional')}>
-                <textarea rows={2} value={objective} onChange={(e) => setObjective(e.target.value)} />
-              </Field>
-              <div className="stack">
-                <span className="field-label">{t('form.tasks')}</span>
-                {tasks.map((task, index) => (
-                  <div key={task.id} className="task-draft">
-                    <div className="task-draft-head">
-                      <input aria-label={t('form.taskName', { n: index + 1 })} value={task.name} onChange={(e) => setTask(index, { name: e.target.value })} placeholder={t('form.taskNamePlaceholder')} />
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        aria-label={t('form.removeTask', { n: index + 1 })}
-                        disabled={tasks.length === 1}
-                        onClick={() => setTasks((current) => current.filter((_, i) => i !== index))}
-                      >
-                        <Trash2 {...ICON_SM} />
-                      </button>
-                    </div>
-                    <textarea aria-label={t('form.taskPrompt', { n: index + 1 })} rows={3} value={task.prompt} onChange={(e) => setTask(index, { prompt: e.target.value })} placeholder={t('form.taskPromptPlaceholder')} />
-                  </div>
-                ))}
-                <div>
-                  <button
-                    type="button"
-                    className="btn btn-small"
-                    onClick={() => setTasks((current) => [...current, { id: nextTaskId(current), name: '', prompt: '' }])}
-                  >
-                    <Plus {...ICON_SM} /> {t('form.addTask')}
-                  </button>
-                </div>
-                <span className="field-hint">{t('form.tasksHint')}</span>
-              </div>
-              <Switch checked={worktree} onChange={setWorktree}>
-                {t('form.worktree')}
-              </Switch>
-            </>
-          )}
-          <div className="form-grid">
-            <Field label={t('form.cwd')}>
-              <input value={cwd} onChange={(e) => setCwd(e.target.value)} placeholder="/path/to/project" spellCheck={false} />
-            </Field>
-            <Field label={t('form.model')}>
-              <Combobox aria-label={t('form.model')} value={model} onChange={setModel} options={MODEL_OPTIONS} placeholder={t('form.modelPlaceholder')} />
-            </Field>
-            <Field label={t('form.permissionMode')} hint={t('form.permissionModeHint')}>
-              <Select<PermissionMode>
-                aria-label={t('form.permissionMode')}
-                value={permissionMode}
-                onChange={setPermissionMode}
-                options={PERMISSION_MODES.map((mode) => ({ value: mode, label: mode }))}
+          <span className="field-hint" data-testid="overlap-hint">
+            {t(`form.overlaps.${overlap}.hint`)}
+          </span>
+        </div>
+      </fieldset>
+
+      <fieldset className="fieldset">
+        <legend className="field-label">{t('form.what')}</legend>
+        <Segmented<ScheduleTarget['kind']>
+          label={t('form.what')}
+          value={kind}
+          onChange={setKind}
+          options={[
+            { value: 'chat', label: t('form.kinds.chat') },
+            { value: 'orchestration', label: t('form.kinds.orchestration') },
+          ]}
+        />
+        {kind === 'chat' ? (
+          <Field label={t('form.prompt')}>
+            <textarea rows={5} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={t('form.promptPlaceholder')} />
+          </Field>
+        ) : (
+          <>
+            <Field label={t('form.fromOrchestration')} hint={t('form.fromOrchestrationHint')}>
+              <Select
+                aria-label={t('form.fromOrchestration')}
+                value={source}
+                disabled={fill.isPending}
+                onChange={(id) => {
+                  setSource(id);
+                  if (id) fill.mutate(id);
+                }}
+                options={[
+                  { value: '', label: pastGraphs.data?.length ? t('form.fromOrchestrationPick') : t('form.fromOrchestrationNone') },
+                  ...(pastGraphs.data ?? []).map((orch) => ({
+                    value: orch.id,
+                    label: orch.name,
+                    hint: t('form.fromOrchestrationOption', { count: orch.tasks.length, ago: timeAgo(orch.createdAt) }),
+                  })),
+                ]}
               />
             </Field>
-          </div>
-          {permissionMode === 'manual' && (
-            <p className="muted small" role="note">
-              {t('form.manualWarning')}
-            </p>
-          )}
-        </fieldset>
-        <ErrorBox error={save.error} title={t('form.saveFailed')} />
-      </form>
-    </Dialog>
+            <ErrorBox error={fill.error} title={t('form.fromOrchestrationFailed')} />
+            <Field label={t('form.objective')} hint={t('form.optional')}>
+              <textarea rows={2} value={objective} onChange={(e) => setObjective(e.target.value)} />
+            </Field>
+            <div className="stack">
+              <span className="field-label">{t('form.tasks')}</span>
+              {tasks.map((task, index) => (
+                <div key={task.id} className="task-draft">
+                  <div className="task-draft-head">
+                    <input aria-label={t('form.taskName', { n: index + 1 })} value={task.name} onChange={(e) => setTask(index, { name: e.target.value })} placeholder={t('form.taskNamePlaceholder')} />
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label={t('form.removeTask', { n: index + 1 })}
+                      disabled={tasks.length === 1}
+                      onClick={() => setTasks((current) => current.filter((_, i) => i !== index))}
+                    >
+                      <Trash2 {...ICON_SM} />
+                    </button>
+                  </div>
+                  <textarea aria-label={t('form.taskPrompt', { n: index + 1 })} rows={3} value={task.prompt} onChange={(e) => setTask(index, { prompt: e.target.value })} placeholder={t('form.taskPromptPlaceholder')} />
+                </div>
+              ))}
+              <div>
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  onClick={() => setTasks((current) => [...current, { id: nextTaskId(current), name: '', prompt: '' }])}
+                >
+                  <Plus {...ICON_SM} /> {t('form.addTask')}
+                </button>
+              </div>
+              <span className="field-hint">{t('form.tasksHint')}</span>
+            </div>
+            <Switch checked={worktree} onChange={setWorktree}>
+              {t('form.worktree')}
+            </Switch>
+          </>
+        )}
+        <div className="form-grid">
+          <Field label={t('form.cwd')}>
+            <input value={cwd} onChange={(e) => setCwd(e.target.value)} placeholder="/path/to/project" spellCheck={false} />
+          </Field>
+          <Field label={t('form.model')}>
+            <Combobox aria-label={t('form.model')} value={model} onChange={setModel} options={MODEL_OPTIONS} placeholder={t('form.modelPlaceholder')} />
+          </Field>
+          <Field label={t('form.permissionMode')} hint={t('form.permissionModeHint')}>
+            <Select<PermissionMode>
+              aria-label={t('form.permissionMode')}
+              value={permissionMode}
+              onChange={setPermissionMode}
+              options={PERMISSION_MODES.map((mode) => ({ value: mode, label: mode }))}
+            />
+          </Field>
+        </div>
+        {permissionMode === 'manual' && (
+          <p className="muted small" role="note">
+            {t('form.manualWarning')}
+          </p>
+        )}
+      </fieldset>
+      <ErrorBox error={save.error} title={t('form.saveFailed')} />
+      <div className="form-actions schedule-form-actions">
+        <button type="button" className="btn" onClick={onClose}>
+          {t('common:actions.cancel')}
+        </button>
+        <button type="submit" className="btn btn-primary" disabled={!ready || save.isPending}>
+          {save.isPending ? t('form.saving') : schedule ? t('form.save') : t('form.create')}
+        </button>
+      </div>
+    </form>
   );
 }
 

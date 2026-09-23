@@ -11,9 +11,11 @@ import enObserve from './locales/en/observe.json';
 import enOrchestration from './locales/en/orchestration.json';
 import enOrchestrationDetail from './locales/en/orchestrationDetail.json';
 import enOrchestrationV2 from './locales/en/orchestrationV2.json';
+import enPrimitives from './locales/en/primitives.json';
 import enProjects from './locales/en/projects.json';
 import enSchedules from './locales/en/schedules.json';
 import enServer from './locales/en/server.json';
+import enShell from './locales/en/shell.json';
 import enUsage from './locales/en/usage.json';
 import enWork from './locales/en/work.json';
 import esAccountsConfig from './locales/es/accountsConfig.json';
@@ -28,9 +30,11 @@ import esObserve from './locales/es/observe.json';
 import esOrchestration from './locales/es/orchestration.json';
 import esOrchestrationDetail from './locales/es/orchestrationDetail.json';
 import esOrchestrationV2 from './locales/es/orchestrationV2.json';
+import esPrimitives from './locales/es/primitives.json';
 import esProjects from './locales/es/projects.json';
 import esSchedules from './locales/es/schedules.json';
 import esServer from './locales/es/server.json';
+import esShell from './locales/es/shell.json';
 import esUsage from './locales/es/usage.json';
 import esWork from './locales/es/work.json';
 
@@ -39,6 +43,7 @@ export const defaultNS = 'common';
 export const en = {
   common: enCommon,
   components: enComponents,
+  primitives: enPrimitives,
   config: enConfig,
   work: enWork,
   chat: enChat,
@@ -54,6 +59,7 @@ export const en = {
   accountsConfig: enAccountsConfig,
   connectors: enConnectors,
   server: enServer,
+  shell: enShell,
 };
 
 export type Namespace = keyof typeof en;
@@ -64,6 +70,7 @@ type Shape<T> = { [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
 export const es = {
   common: esCommon,
   components: esComponents,
+  primitives: esPrimitives,
   config: esConfig,
   work: esWork,
   chat: esChat,
@@ -79,6 +86,7 @@ export const es = {
   accountsConfig: esAccountsConfig,
   connectors: esConnectors,
   server: esServer,
+  shell: esShell,
 } satisfies Shape<typeof en>;
 
 // `satisfies` only catches keys Spanish lacks; a key only Spanish has is caught here instead, so a

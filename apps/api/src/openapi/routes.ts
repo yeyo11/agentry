@@ -107,7 +107,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   // ---- Events
   'GET /events': d('Events', 'Live feed of everything that changes (Server-Sent Events)', {
     description:
-      'One stream for the whole app. Every message has an SSE `id`, an `event:` line naming its `type` and `data: <AgentryEvent JSON>`: run created/updated/ended/removed, prompts waiting for a person (`run.waiting`, `permission.*`), rate limits and account rotation, background tasks, subagents and workflows starting and ending, orchestration, task and merge-conflict changes, schedules created, edited, switched, rescheduled or deleted (`schedule.changed`) and every run row a schedule writes (`schedule.fired`), and `sessions.changed` when the CLI writes under its projects directory. Events describe what changed and carry the ids to refetch it; `run.updated` and `workflow.progress` are coalesced to about one per 250 ms. The stream opens with `stream.hello` (no id) carrying the server `bootId`. Reconnect with `Last-Event-ID` (or `since`) to receive what was missed from a bounded in-memory buffer; when that id has fallen out of it, or belongs to a previous server process, `stream.resync` is sent instead and the client must refetch everything it shows. A `: ping` comment is sent every 15 s.',
+      'One stream for the whole app. Every message has an SSE `id`, an `event:` line naming its `type` and `data: <AgentryEvent JSON>`: run created/updated/ended/removed, prompts waiting for a person (`run.waiting`, `permission.*`), rate limits and account rotation, background tasks, subagents and workflows starting and ending, orchestration, task and merge-conflict changes, what each chat is doing right now (`chat.activity`), schedules created, edited, switched, rescheduled or deleted (`schedule.changed`) and every run row a schedule writes (`schedule.fired`), and `sessions.changed` when the CLI writes under its projects directory. Events describe what changed and carry the ids to refetch it; `run.updated` and `workflow.progress` are coalesced to about one per 250 ms, and `chat.activity` to at most one per chat per second. The stream opens with `stream.hello` (no id) carrying the server `bootId`. Reconnect with `Last-Event-ID` (or `since`) to receive what was missed from a bounded in-memory buffer; when that id has fallen out of it, or belongs to a previous server process, `stream.resync` is sent instead and the client must refetch everything it shows. A `: ping` comment is sent every 15 s.',
     querystring: obj({ since: str('Last event id already received; the `Last-Event-ID` header wins') }),
     ok: ref('AgentryEvent'),
     produces: 'text/event-stream',
@@ -121,6 +121,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
       project: str('Only chats of this project'),
       loose: str('`1` for chats under no project'),
       origin: str('Comma-separated origins to include: `agentry`, `external`, `orchestration`, `internal` (default `agentry,external`)'),
+      workers: str('`0` leaves out the workers of orchestrations and keeps their syntheses, which share the `orchestration` origin', { enum: ['0', '1'] }),
       state: str('Only chats in this state', { enum: ['working', 'waiting', 'idle'] }),
       limit: str('Max chats to return'),
     }),

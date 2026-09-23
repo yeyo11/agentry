@@ -36,7 +36,7 @@ export default async ({ page, api, check }) => {
   // Project scope lives on the project page, not in Settings
   const project = (await api.post('/projects', { name: 'e2e-project' })).body;
   await api.put(`/config/instructions?project=${encodeURIComponent(project.id)}`, { content: '# E2E project rules\n' });
-  await page.goto(`/?project=${encodeURIComponent(project.id)}&tab=settings`, 1800);
+  await page.goto(`/?project=${encodeURIComponent(project.id)}&view=settings`, 1800);
   check((await page.text('[role=tabpanel]')).includes('E2E project rules'), 'project-scope instructions shown');
   check(!(await page.text('[role=tablist]')).includes('Account'), 'Account tab is user-scope only');
 };

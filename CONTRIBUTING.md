@@ -58,13 +58,19 @@ Every route must carry a summary and a tag — there is a test that enforces it.
   (events, history, records that accumulate) belongs in the SQLite store in `packages/core/src/db.ts`.
   Rows, not blobs — two processes share one data dir.
 - **UI controls come from `apps/web/src/components/controls`** (Select, Combobox, Checkbox,
-  Switch, Slider, NumberInput, Tooltip, Collapsible), not from native `<select>`, `<datalist>`,
+  Switch, Slider, NumberInput, Tooltip, Collapsible, Menu, Sheet), not from native `<select>`, `<datalist>`,
   checkbox/range/number inputs, `<details>` or `title=` on interactive elements: the native ones
   render with the operating system's look and ignore the theme. Plain text inputs and textareas
   stay native. Use a Switch for a setting that turns something on or off and a Checkbox for filters
   and multi-choice lists. In e2e specs, `page.select(trigger, optionText)` drives a Select.
   Pages import from the `controls` barrel; modules loaded on first paint (App, Dialog…)
   import the file they need, or the barrel pulls the lazy form controls into the initial bundle.
+- **Styles live one file per area** under `apps/web/src/styles/` (tokens, base, shell, primitives,
+  lists, transcript, chat, orchestration, dashboard…), imported in cascade order by `styles.css`. A
+  rule goes in the file that defines its selector, with its responsive and reduced-motion variants
+  next to it. `--live` (cyan) means "an agent is doing this right now" and the brand orange means
+  "you can press this"; never swap them. Decorative motion follows the motion level
+  (`apps/web/src/lib/motion.ts`): at `subtle` nothing loops, at `off` nothing moves.
 - **Accessibility is checked, not asserted.** `e2e/specs/a11y.spec.mjs` runs axe-core over every
   page in both themes and at phone width, over the overlays that open above them, and walks the
   keyboard; a violation fails the build. Status is never colour alone (words and an icon: reuse

@@ -164,21 +164,74 @@ async function fromJournal(dir: string, id: string, scriptsDir: string, sessionI
   };
 }
 
+/**
+ * The runs read from their files, kept while those files stay as they were: the lists that show
+ * them are polled every couple of seconds, and a record carries the whole script and its result.
+ */
+export class WorkflowMemo {
+  /** Runs kept at most, least recently read going first: each holds its script, and a long uptime sees many */
+  private static readonly MAX_RUNS = 256;
+  private readonly runs = new Map<string, { mtimeMs: number; size: number; live: boolean; run: WorkflowRun | null }>();
+
+  /**
+   * The run `read` makes of `file`, read again only when the file changed or so did `live`. A run
+   * `settled` refuses is read again next time too: it depends on more than the file.
+   */
+  async get(file: string, live: boolean, read: () => Promise<WorkflowRun | null>, settled: (run: WorkflowRun | null) => boolean = () => true): Promise<WorkflowRun | null> {
+    const info = await stat(file).catch(() => null);
+    const known = this.runs.get(file);
+    if (info && known && known.mtimeMs === info.mtimeMs && known.size === info.size && known.live === live) {
+      this.runs.delete(file);
+      this.runs.set(file, known);
+      return known.run;
+    }
+    const run = await read();
+    this.runs.delete(file);
+    if (info && settled(run)) this.runs.set(file, { mtimeMs: info.mtimeMs, size: info.size, live, run });
+    for (const oldest of this.runs.keys()) {
+      if (this.runs.size <= WorkflowMemo.MAX_RUNS) break;
+      this.runs.delete(oldest);
+    }
+    return run;
+  }
+
+  forget(drop: (file: string) => boolean): void {
+    for (const file of [...this.runs.keys()]) if (drop(file)) this.runs.delete(file);
+  }
+}
+
 /** Every workflow a session ran, from the files beside its transcript (`<session>.jsonl`). */
-export async function readSessionWorkflows(transcript: string, sessionId: string, live: boolean): Promise<WorkflowRun[]> {
+export async function readSessionWorkflows(transcript: string, sessionId: string, live: boolean, memo?: WorkflowMemo): Promise<WorkflowRun[]> {
   const base = transcript.slice(0, -'.jsonl'.length);
   const recordsDir = join(base, 'workflows');
   const runsDir = join(base, 'subagents', 'workflows');
+  const cached = (file: string, read: () => Promise<WorkflowRun | null>, settled?: (run: WorkflowRun | null) => boolean) =>
+    memo ? memo.get(file, live, read, settled) : read();
   const out = new Map<string, WorkflowRun>();
   for (const name of await readdir(recordsDir).catch(() => [] as string[])) {
     if (!name.endsWith('.json')) continue;
-    const record = await readJson(join(recordsDir, name));
-    const run = record ? fromRecord(record, sessionId) : null;
+    const file = join(recordsDir, name);
+    // One not parsed yet may be half-written: only a record that read is kept
+    const run = await cached(
+      file,
+      async () => {
+        const record = await readJson(file);
+        return record ? fromRecord(record, sessionId) : null;
+      },
+      (r) => r !== null,
+    );
     if (run) out.set(run.id, run);
   }
   for (const id of await readdir(runsDir).catch(() => [] as string[])) {
     if (!id.startsWith('wf_') || out.has(id)) continue;
-    out.set(id, await fromJournal(join(runsDir, id), id, join(recordsDir, 'scripts'), sessionId, live));
+    // A run without a record changes as its journal grows; its script is written once, at its
+    // start, so a run read before the script was there is read again
+    const run = await cached(
+      join(runsDir, id, 'journal.jsonl'),
+      () => fromJournal(join(runsDir, id), id, join(recordsDir, 'scripts'), sessionId, live),
+      (r) => r?.script != null,
+    );
+    if (run) out.set(id, run);
   }
   return [...out.values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }

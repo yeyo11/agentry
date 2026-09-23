@@ -3,7 +3,7 @@
 // It boots an ISOLATED wrapper the way e2e/run.mjs does (temporary config, workspace and data
 // directories; the built UI), with the fake `claude` of e2e/fake-cli first on PATH and a stub
 // claude-swap holding three accounts, fills it with invented projects, chats, a graph and schedules,
-// and drives one headless Chrome through e2e/driver.mjs at 1280×800. Nothing of the real ~/.claude,
+// and drives one headless Chrome through e2e/driver.mjs at 1280×800 (and 390×844 for the phone still). Nothing of the real ~/.claude,
 // no login and no model: every name, prompt and figure in frame is made up here.
 //
 //   pnpm media                  the tour and every still, into docs/media
@@ -32,6 +32,8 @@ const PORT = Number(process.env.MEDIA_PORT ?? 8797);
 const baseUrl = `http://127.0.0.1:${PORT}`;
 const WIDTH = 1280;
 const HEIGHT = 800;
+/** A phone: the chat as it is used on one, composer at the bottom */
+const PHONE = { width: 390, height: 844 };
 /** What the README can carry at the top without a slow first paint */
 const TOUR_MAX_BYTES = 1.5 * 1024 * 1024;
 const RUN_LIMIT_MS = Number(process.env.MEDIA_TIMEOUT ?? 600_000);
@@ -513,14 +515,17 @@ async function glide(selector, record, { text = '', steps = 8, offset = 16 } = {
 
 // ---------- the scenes ----------
 
-async function homeScene(projectId, record) {
+async function homeScene(projectId, { record = false, stillName }) {
   await page.goto(`/?project=${encodeURIComponent(projectId)}`, 1500);
   await visible('main h1', 'harbor-api');
-  await visible('main', 'Pick up again');
+  // The dashboard: what needs a person and what works right now at the top, the rest of the project below
+  await visible('main .widget', 'Pick up again');
+  await visible('main .widget .ticker');
   await settle();
+  if (stillName) await still(stillName);
   if (!record) return;
   await hold(2400);
-  await glide('main .card', true, { text: 'Pick up again', steps: 5 });
+  await glide('main .widget-slot', true, { text: 'Pick up again', steps: 5 });
   await hold(1600);
 }
 
@@ -541,22 +546,40 @@ async function paletteScene(record) {
   await page.waitFor(`return location.pathname.startsWith('/chats/') && !document.querySelector('.palette')`, { label: 'the palette to open the chat' });
 }
 
+/** The working chat: its steps folded, the ticker saying what runs now, the inspector beside it. */
 async function chatScene(chatId, { record, navigate, stillName }) {
   if (navigate) await page.goto(`/chats/${chatId}`, 1500);
   await visible('main', 'in watch mode');
-  await visible('aside.run-side', 'rate-limit.js');
+  await visible('main .ticker', 'node --test --watch');
+  await visible('aside.chat-inspector');
   await settle();
-  if (record) await hold(1800);
-  await glide('aside.run-side > *', record, { text: 'Health', steps: 5, offset: 0 });
+  if (record) await hold(2400);
+  // What it changed, from the inspector's Changes tab
+  await page.click('aside.chat-inspector [role=tab]', 'Changes', 600);
+  await visible('aside.chat-inspector', 'rate-limit.js');
   await settle();
   if (stillName) await still(stillName);
   if (!record) return;
   await hold(2200);
-  // The diff of one file, from the Changes card
-  await page.click('aside.run-side button', 'src/middleware/rate-limit.js', 900);
+  // The diff of one file
+  await page.click('aside.chat-inspector button', 'src/middleware/rate-limit.js', 900);
   await hold(2600);
   await page.key('Escape');
   await sleep(400);
+  // Back to the Summary tab, so the stills taken after the tour start from the inspector's default
+  await page.click('aside.chat-inspector [role=tab]', 'Summary', 300);
+}
+
+/** The same chat on a phone: one-line header, the transcript, the pill composer and its status line. */
+async function phoneChatScene(chatId, { stillName }) {
+  await page.viewport(PHONE.width, PHONE.height);
+  await page.goto(`/chats/${chatId}`, 1500);
+  await visible('main', 'in watch mode');
+  await visible('main .ticker', 'node --test --watch');
+  await visible('.composer-status');
+  await settle();
+  await still(stillName);
+  await page.viewport(WIDTH, HEIGHT);
 }
 
 async function graphScene(harbor, { record, stillName }) {
@@ -567,18 +590,23 @@ async function graphScene(harbor, { record, stillName }) {
     return tasks.find((t) => t.id === 'schema')?.status === 'completed' && tasks.filter((t) => t.status === 'running').length === 2;
   }, 'two workers of the graph running at once', 60_000);
   await page.goto(`/orchestration/${graphId}`, 1500);
+  // The stepper follows the stage that runs: its two tasks, each with what it is doing
+  await visible('main .stepper');
   await visible('main', 'Cursor pagination');
+  await visible('main .ticker');
   await settle();
   if (stillName) await still(stillName);
   if (!record) return;
   await hold(2600);
   // Then the rest of it, merged and checked, which is not worth recording as it happens
   await until(async () => (await api.get(`/orchestrations/${graphId}`)).verification?.status === 'passed', 'the checks on the merged branch to pass', 120_000);
-  await visible('main', 'Verification');
+  await visible('main .stepper', 'Verification');
   await sleep(1500);
   await settle();
   await hold(1400);
-  await glide('main .card', true, { text: 'Verification', steps: 5 });
+  // The checks' step, picked from the stepper
+  await page.click('main .stepper button', 'Verification', 900);
+  await settle();
   await hold(2600);
 }
 
@@ -640,11 +668,14 @@ async function main() {
   const record = want('tour');
   const stills = want('stills');
   if (record) {
-    await homeScene(projects['harbor-api'], true);
+    await homeScene(projects['harbor-api'], { record });
     await paletteScene(true);
   }
   await chatScene(chat.id, { record, navigate: !record, stillName: stills && 'chat.png' });
+  if (stills) await phoneChatScene(chat.id, { stillName: 'chat-mobile.png' });
   await graphScene(harbor, { record, stillName: stills && 'orchestration.png' });
+  // The dashboard's still once the graph has run, so its Orchestrations widget has one to follow
+  if (stills) await homeScene(projects['harbor-api'], { stillName: 'home.png' });
   await accountsScene({ record, stillName: stills && 'accounts.png' });
   if (stills) await schedulesScene({ stillName: 'schedules.png' });
   if (record) writeTour();

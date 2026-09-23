@@ -19,7 +19,7 @@ export default async ({ page, api, check }) => {
   // An empty list is never a silent one
   const failed = text.includes('The CLI could not list its connectors');
   const none = text.includes('No claude.ai connectors listed');
-  const cards = await page.eval(`return document.querySelectorAll('main .grid-2 .card').length`);
+  const cards = await page.eval(`return document.querySelectorAll('main .lrows .connector-row').length`);
   check(failed || none || cards > 0, 'the page shows connectors, says there are none, or says the CLI failed');
   if (none) {
     check(text.includes('How to authorise a connector'), 'with nothing connected the page says how to authorise one');
@@ -28,7 +28,7 @@ export default async ({ page, api, check }) => {
     check(links.length >= 1 && links.every((rel) => rel.includes('noreferrer')), 'the instructions link out safely');
   }
   // A connector that is not authorised offers its instructions and no prepared prompt
-  const offering = await page.eval(`return [...document.querySelectorAll('main .grid-2 .card')].filter((c) => c.innerText.includes('Needs authorisation') && c.querySelector('.task-actions')).length`);
+  const offering = await page.eval(`return [...document.querySelectorAll('main .lrows .connector-row')].filter((c) => c.innerText.includes('Needs authorisation') && c.querySelector('.task-actions')).length`);
   check(offering === 0, 'a connector that needs authorisation offers no prepared prompt');
 
   // Asking the CLI again is a button, and the page survives it

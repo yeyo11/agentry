@@ -110,6 +110,20 @@
 - **UI** — command palette (⌘K), light/dark/system themes, English and Spanish (the strings the
   server writes included, by code), CodeMirror editors, unsaved-change guards, toasts and
   confirmation dialogs, themed form controls (Radix, plus a date picker of our own), responsive layout.
+- **The UI redesign** — a sober, terminal-flavoured UI that shows what agents are doing right now
+  ([docs/plans/ui-redesign.md](docs/plans/ui-redesign.md)). Core keeps one line per live chat — the
+  tool it calls and on what, or writing, thinking, waiting for you — from the stream-json events, and
+  sends it on the feed as `chat.activity`, throttled to one per chat per second. On top of it: a
+  one-row top bar with a live chip and **New chat ▾**, a Live section in the sidebar, a bottom tab bar
+  and a More sheet on a phone, and Settings → Appearance (theme, language, and a motion level
+  `full`/`subtle`/`off` that reduced motion forces off). A chat page with a one-line header, a pill
+  composer with a status line, an inspector in four tabs instead of nine cards, tool calls folded into
+  steps and an activity ticker. Lists with one toolbar (tabs with counts, search, sort, filters as
+  chips), two-line rows, day groups, `j`/`k`/`x` and bulk export and delete. An orchestration followed
+  as steps with its progress pinned, and its board kept as the graph view. Home as a dashboard of
+  widgets built on a registry, with the layout as data, so editing it later is additive. In the
+  desktop app, the top bar as the title bar, a tray with what is live, and taskbar progress and a
+  waiting badge.
 - **Tests** — unit (core), API integration (Fastify inject) and an in-repo browser suite (`e2e/`,
   headless Chrome over CDP against an isolated wrapper). The actions that need a live CLI process —
   cancelling a hung command, sending a hint, interrupting — are covered against a fake `claude` that
@@ -129,10 +143,19 @@
 
 ## Next
 
-What is still open was decided against rather than left undone. The plans say why:
+### Planned
+
+- **Dashboard: editable layout persisted per project; Documents and Flows widgets.** Home already
+  renders any layout that passes validation, from a registry of widget types, so adding, removing,
+  reordering and resizing widgets, keeping a layout per project, and new widget types are additive.
+  Left out of the redesign on purpose: see
+  [docs/plans/ui-redesign.md](docs/plans/ui-redesign.md#not-in-this-orchestration).
+
+The rest of what is still open was decided against rather than left undone. The plans say why:
 [docs/plans/post-roadmap.md](docs/plans/post-roadmap.md),
-[docs/plans/roadmap-completion.md](docs/plans/roadmap-completion.md) and
-[docs/plans/agent-observability.md](docs/plans/agent-observability.md).
+[docs/plans/roadmap-completion.md](docs/plans/roadmap-completion.md),
+[docs/plans/agent-observability.md](docs/plans/agent-observability.md) and
+[docs/plans/ui-redesign.md](docs/plans/ui-redesign.md#outcome).
 
 ### Decided against, for now
 

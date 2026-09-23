@@ -27,8 +27,6 @@
     "messages": "{{n}} msgs",
     "cost": "coste {{cost}}",
     "count": "{{shown}} de {{total}} chats",
-    "working": "{{n}} trabajando",
-    "waiting": "{{n}} esperando tu respuesta",
     "resetFilters": "Restablece los filtros",
     "newChat": "Nuevo chat",
     "searchPlaceholder": "Busca por título, primer prompt, proyecto, id…",
@@ -49,7 +47,60 @@
     "empty": "Aún no hay chats",
     "emptyFilteredBody": "Prueba a restablecer los filtros.",
     "emptyBody": "Los chats que inicies aquí, y los que Claude Code haya ejecutado en un proyecto importado, aparecen en esta lista.",
-    "showMore": "Mostrar más ({{n}} restantes)"
+    "showMore": "Mostrar más ({{n}} restantes)",
+    "filtersTitle": "Filtrar chats",
+    "projectLabel": "Proyecto",
+    "modelLabel": "Modelo",
+    "includeLabel": "Mostrar también",
+    "chipOrigin": "Origen: {{values}}",
+    "chipProject": "Proyecto: {{values}}",
+    "chipModel": "Modelo: {{values}}",
+    "selectChat": "Seleccionar {{title}}",
+    "worktree": "worktree",
+    "tag": {
+      "interactive": "Interactivo",
+      "readOnly": "Solo lectura"
+    },
+    "outcome": {
+      "failed": "Falló",
+      "stopped": "Detenido",
+      "interrupted": "Interrumpido"
+    },
+    "day": {
+      "today": "Hoy",
+      "yesterday": "Ayer",
+      "week": "Esta semana",
+      "earlier": "Antes"
+    },
+    "keysHint": "j / k para moverte · Intro para abrir · x para seleccionar · / para buscar"
+  },
+  "bulk": {
+    "region": "Chats seleccionados",
+    "selected_one": "{{count}} seleccionado",
+    "selected_other": "{{count}} seleccionados",
+    "exportMarkdown": "Exportar Markdown",
+    "delete": "Eliminar",
+    "deleting": "Eliminando…",
+    "clear": "Quitar la selección",
+    "deleteTitle_one": "¿Eliminar {{count}} chat?",
+    "deleteTitle_other": "¿Eliminar {{count}} chats?",
+    "deleteBody_one": "Su transcripción se elimina con él. No se puede deshacer.",
+    "deleteBody_other": "Sus transcripciones se eliminan con ellos. No se puede deshacer.",
+    "deleteConfirm_one": "Eliminar {{count}} chat",
+    "deleteConfirm_other": "Eliminar {{count}} chats",
+    "skipIntro_one": "Este se queda como está:",
+    "skipIntro_other": "Estos {{count}} se quedan como están:",
+    "why": {
+      "live": "algo se está ejecutando en él",
+      "held": "otro proceso lo tiene abierto"
+    },
+    "nothingTitle": "Ninguno de estos chats se puede eliminar ahora",
+    "ok": "De acuerdo",
+    "deleted_one": "{{count}} chat eliminado",
+    "deleted_other": "{{count}} chats eliminados",
+    "skippedNote_one": "No se ha tocado: {{titles}}",
+    "skippedNote_other": "No se han tocado ({{count}}): {{titles}}",
+    "failed": "No se pudo eliminar {{title}}"
   },
   "new": {
     "title": "Nuevo chat",

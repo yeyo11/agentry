@@ -140,15 +140,42 @@ export class ApiRequestError extends Error {
  */
 const REQUEST_TIMEOUT_MS = 120_000;
 
-async function request<T>(path: string, init: { method?: string; body?: unknown; timeoutMs?: number } = {}): Promise<T> {
+/**
+ * What react-query hands a query function. A reader takes it as its last argument, so a refetch the
+ * cache no longer wants (a filter changed, the page was left) cancels its request instead of letting
+ * the response download for nobody. `queryFn: api.overview` passes it as it is.
+ */
+export interface ReadOptions {
+  signal?: AbortSignal;
+}
+
+/**
+ * Aborts when either does, with that one's reason, so a timeout still reads as one. `AbortSignal.any`
+ * is recent (Safari 17.4, Firefox 124): without it every read would throw before being sent.
+ */
+function either(a: AbortSignal, b: AbortSignal): AbortSignal {
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([a, b]);
+  const controller = new AbortController();
+  for (const signal of [a, b]) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true, signal: controller.signal });
+  }
+  return controller.signal;
+}
+
+async function request<T>(path: string, init: { method?: string; body?: unknown; timeoutMs?: number; signal?: AbortSignal } = {}): Promise<T> {
   const hasBody = init.body !== undefined;
+  const timeout = AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
       method: init.method ?? 'GET',
       headers: { ...(hasBody ? { 'content-type': 'application/json' } : {}), ...authHeaders() },
       body: hasBody ? JSON.stringify(init.body) : undefined,
-      signal: AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS),
+      signal: init.signal ? either(init.signal, timeout) : timeout,
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'TimeoutError') {
@@ -204,36 +231,39 @@ const scoped = (scope: Scope, variant?: ConfigFileVariant) =>
   qs({ project: scope.projectId, variant: scope.projectId ? variant : undefined });
 
 export const api = {
-  overview: () => request<Overview>('/overview'),
-  system: () => request<SystemInfo>('/system'),
-  auth: () => request<AuthStatus>('/auth'),
+  overview: (o: ReadOptions = {}) => request<Overview>('/overview', o),
+  system: (o: ReadOptions = {}) => request<SystemInfo>('/system', o),
+  auth: (o: ReadOptions = {}) => request<AuthStatus>('/auth', o),
   setCredentials: (credentials: SetCredentialsRequest) =>
     request<AuthStatus>('/auth/credentials', { method: 'PUT', body: credentials }),
   clearCredentials: () => request<AuthStatus>('/auth/credentials', { method: 'DELETE' }),
-  cliVersion: () => request<CliVersionInfo>('/system/cli-version'),
+  cliVersion: (o: ReadOptions = {}) => request<CliVersionInfo>('/system/cli-version', o),
   checkCliVersion: () => request<CliVersionInfo>('/system/cli-version/check', { method: 'POST' }),
   verifyAuth: () => request<AuthVerification>('/auth/verify', { method: 'POST' }),
-  projects: () => request<Project[]>('/projects'),
-  projectCandidates: () => request<ProjectCandidate[]>('/projects/candidates'),
+  projects: (o: ReadOptions = {}) => request<Project[]>('/projects', o),
+  projectCandidates: (o: ReadOptions = {}) => request<ProjectCandidate[]>('/projects/candidates', o),
   importProject: (req: ImportProjectRequest) => request<Project>('/projects/import', { method: 'POST', body: req }),
   createProject: (req: CreateProjectRequest) => request<Project>('/projects', { method: 'POST', body: req }),
   renameProject: (id: string, name: string) => request<Project>(`/projects/${enc(id)}`, { method: 'PATCH', body: { name } }),
   removeProject: (id: string) => request<{ ok: true }>(`/projects/${enc(id)}`, { method: 'DELETE' }),
   purgeProject: (id: string) => request<{ detail: string }>(`/projects/${enc(id)}/state`, { method: 'DELETE' }),
-  chats: (filter: ChatFilter = {}) =>
+  chats: (filter: ChatFilter = {}, o?: ReadOptions) =>
     request<ChatSummary[]>(
       `/chats${qs({
         // `null` is the chats under no project, which the route asks for with `loose`
         project: filter.project ?? undefined,
         loose: filter.project === null ? '1' : undefined,
         origin: filter.origin?.join(','),
+        workers: filter.workers === false ? '0' : undefined,
         state: filter.state,
         limit: num(filter.limit),
       })}`,
+      o,
     ),
-  chat: (id: string, sidechains: boolean, page: { limit?: number; before?: number } = {}) =>
+  chat: (id: string, sidechains: boolean, page: { limit?: number; before?: number } = {}, o?: ReadOptions) =>
     request<ChatDetail>(
       `/chats/${enc(id)}${qs({ sidechains: sidechains ? '1' : undefined, limit: num(page.limit), before: num(page.before) })}`,
+      o,
     ),
   searchChat: (id: string, sidechains: boolean, q: string) =>
     request<TranscriptSearchResult>(`/chats/${enc(id)}/search${qs({ q, sidechains: sidechains ? '1' : undefined })}`),
@@ -250,9 +280,10 @@ export const api = {
   chatTasks: (id: string) => request<ChatBackgroundTask[]>(`/chats/${enc(id)}/tasks`),
   answerPermission: (id: string, requestId: string, decision: PermissionDecision) =>
     request<PermissionRequest>(`/chats/${enc(id)}/permissions/${enc(requestId)}`, { method: 'POST', body: decision }),
-  usage: (range: { from?: string; to?: string } = {}) => request<UsageReport>(`/usage${qs(range)}`),
-  usageSeries: (range: UsageRange, bucket: UsageBucket) => request<UsageSeries>(`/usage/series${qs({ from: range.from, to: range.to, bucket })}`),
-  usageBreakdown: (range: UsageRange) => request<UsageBreakdown>(`/usage/breakdown${qs({ from: range.from, to: range.to })}`),
+  usage: (range: { from?: string; to?: string } = {}, o?: ReadOptions) => request<UsageReport>(`/usage${qs(range)}`, o),
+  usageSeries: (range: UsageRange, bucket: UsageBucket, o?: ReadOptions) =>
+    request<UsageSeries>(`/usage/series${qs({ from: range.from, to: range.to, bucket })}`, o),
+  usageBreakdown: (range: UsageRange, o?: ReadOptions) => request<UsageBreakdown>(`/usage/breakdown${qs({ from: range.from, to: range.to })}`, o),
   /**
    * A link, not a fetch: the route answers with `Content-Disposition: attachment`, so the browser
    * saves it. A link carries no `Authorization` header, so a guarded wrapper takes the credential
@@ -260,7 +291,7 @@ export const api = {
    */
   chatExportUrl: (id: string, format: ExportFormat) => withToken(`${BASE}/chats/${enc(id)}/export?format=${format}`),
   projectExportUrl: (id: string, format: ExportFormat) => withToken(`${BASE}/projects/${enc(id)}/export?format=${format}`),
-  schedules: () => request<Schedule[]>('/schedules'),
+  schedules: (o: ReadOptions = {}) => request<Schedule[]>('/schedules', o),
   schedulePreview: (cron: string, timezone: string | undefined, count = 5) =>
     request<SchedulePreview>(`/schedules/preview${qs({ cron, timezone, count: String(count) })}`),
   createSchedule: (req: CreateScheduleRequest) => request<Schedule>('/schedules', { method: 'POST', body: req }),
@@ -268,34 +299,34 @@ export const api = {
   deleteSchedule: (id: string) => request<{ ok: true }>(`/schedules/${enc(id)}`, { method: 'DELETE' }),
   setScheduleEnabled: (id: string, enabled: boolean) => request<Schedule>(`/schedules/${enc(id)}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' }),
   runScheduleNow: (id: string) => request<ScheduleRun>(`/schedules/${enc(id)}/run`, { method: 'POST' }),
-  scheduleRuns: (id: string, limit = 50) => request<ScheduleRun[]>(`/schedules/${enc(id)}/runs${qs({ limit: String(limit) })}`),
+  scheduleRuns: (id: string, limit = 50, o?: ReadOptions) => request<ScheduleRun[]>(`/schedules/${enc(id)}/runs${qs({ limit: String(limit) })}`, o),
   environments: (cwd: string) => request<EffectiveEnvironment[]>(`/environments${qs({ cwd })}`),
-  memoryProjects: () => request<MemoryProjectSummary[]>('/memory'),
+  memoryProjects: (o: ReadOptions = {}) => request<MemoryProjectSummary[]>('/memory', o),
   memoryFiles: (projectId: string) => request<MemoryFile[]>(`/memory/${enc(projectId)}`),
   putMemoryFile: (projectId: string, name: string, content: string) =>
     request<MemoryFile>(`/memory/${enc(projectId)}/${enc(name)}`, { method: 'PUT', body: { content } }),
   deleteMemoryFile: (projectId: string, name: string) =>
     request<{ ok: true }>(`/memory/${enc(projectId)}/${enc(name)}`, { method: 'DELETE' }),
-  tasks: () => request<ChatBackgroundTaskEntry[]>('/tasks'),
+  tasks: (o: ReadOptions = {}) => request<ChatBackgroundTaskEntry[]>('/tasks', o),
   taskOutput: (chatId: string, taskId: string, offset?: number) =>
     request<BackgroundTaskOutput>(`/chats/${enc(chatId)}/tasks/${enc(taskId)}/output${qs({ offset: num(offset) })}`),
   subagent: (chatId: string, agentId: string, after?: number) =>
     request<AgentTranscript>(`/chats/${enc(chatId)}/subagents/${enc(agentId)}${qs({ after: num(after) })}`),
   workflowAgent: (chatId: string, workflowId: string, agentId: string, after?: number) =>
     request<AgentTranscript>(`/chats/${enc(chatId)}/workflows/${enc(workflowId)}/agents/${enc(agentId)}${qs({ after: num(after) })}`),
-  subagents: () => request<ChatSubagentEntry[]>('/subagents'),
-  workflows: () => request<ChatWorkflowEntry[]>('/workflows'),
+  subagents: (o: ReadOptions = {}) => request<ChatSubagentEntry[]>('/subagents', o),
+  workflows: (o: ReadOptions = {}) => request<ChatWorkflowEntry[]>('/workflows', o),
   savedWorkflows: (cwd?: string) => request<WorkflowDefinition[]>(`/workflows/saved${qs({ cwd })}`),
   /** Starts a chat that runs a saved workflow */
   runWorkflow: (req: RunWorkflowRequest) => request<ChatSummary>('/workflows/saved/run', { method: 'POST', body: req }),
-  orchestrations: () => request<Orchestration[]>('/orchestrations'),
-  orchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}`),
+  orchestrations: (o: ReadOptions = {}) => request<Orchestration[]>('/orchestrations', o),
+  orchestration: (id: string, o?: ReadOptions) => request<Orchestration>(`/orchestrations/${enc(id)}`, o),
   createOrchestration: (spec: OrchestrationSpec) =>
     request<Orchestration>('/orchestrations', { method: 'POST', body: spec }),
   planOrchestration: (req: PlanRequest) =>
     request<OrchestrationSpec>('/orchestrations/plan', { method: 'POST', body: req, timeoutMs: 10 * 60_000 }),
   startPlan: (req: PlanRequest) => request<ChatSummary>('/orchestrations/plan/start', { method: 'POST', body: req }),
-  planDrafts: () => request<PlanDraftSummary[]>('/orchestrations/plans'),
+  planDrafts: (o: ReadOptions = {}) => request<PlanDraftSummary[]>('/orchestrations/plans', o),
   planDraft: (runId: string) => request<OrchestrationSpec>(`/orchestrations/plans/${enc(runId)}`),
   stopOrchestration: (id: string) => request<Orchestration>(`/orchestrations/${enc(id)}/stop`, { method: 'POST' }),
   resumeOrchestration: (id: string, changes: ResumeOrchestrationRequest = {}) =>
@@ -310,7 +341,7 @@ export const api = {
     request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/rerun`, { method: 'POST' }),
   relaunchOrchestration: (id: string, req: RelaunchOrchestrationRequest) =>
     request<Orchestration>(`/orchestrations/${enc(id)}/relaunch`, { method: 'POST', body: req }),
-  orchestrationTemplates: () => request<OrchestrationTemplate[]>('/orchestrations/templates'),
+  orchestrationTemplates: (o: ReadOptions = {}) => request<OrchestrationTemplate[]>('/orchestrations/templates', o),
   saveOrchestrationTemplate: (req: SaveOrchestrationTemplateRequest) =>
     request<OrchestrationTemplate>('/orchestrations/templates', { method: 'POST', body: req }),
   updateOrchestrationTemplate: (templateId: string, req: UpdateOrchestrationTemplateRequest) =>
@@ -378,16 +409,16 @@ export const api = {
     request<{ ok: true }>(`/config/mcp/${enc(name)}${qs({ project: scope.projectId, scope: mcpScope })}`, {
       method: 'DELETE',
     }),
-  toolPresets: () => request<ToolPresetsOverview>('/config/tool-presets'),
+  toolPresets: (o: ReadOptions = {}) => request<ToolPresetsOverview>('/config/tool-presets', o),
   setDefaultToolPreset: (defaultPresetId: string | null) =>
     request<ToolPresetsConfig>('/config/tool-presets/default', { method: 'PUT', body: { defaultPresetId } }),
   restoreToolPresets: () => request<ToolPresetsOverview>('/config/tool-presets/restore', { method: 'POST' }),
   putToolPreset: (id: string, preset: Pick<ToolPreset, 'name' | 'description' | 'allowedTools' | 'disallowedTools'>) =>
     request<ToolPreset>(`/config/tool-presets/${enc(id)}`, { method: 'PUT', body: preset }),
   deleteToolPreset: (id: string) => request<{ ok: true }>(`/config/tool-presets/${enc(id)}`, { method: 'DELETE' }),
-  supervisorConfig: () => request<SupervisorConfig>('/settings/supervisor'),
+  supervisorConfig: (o: ReadOptions = {}) => request<SupervisorConfig>('/settings/supervisor', o),
   putSupervisorConfig: (config: UpdateSupervisorConfigRequest) => request<SupervisorConfig>('/settings/supervisor', { method: 'PUT', body: config }),
-  editorSettings: () => request<EditorSettingsDoc>('/settings/editor'),
+  editorSettings: (o: ReadOptions = {}) => request<EditorSettingsDoc>('/settings/editor', o),
   putEditorSettings: (settings: UpdateEditorSettingsRequest) => request<EditorSettingsDoc>('/settings/editor', { method: 'PUT', body: settings }),
   resources: (scope: Scope, kind: ResourceKind) =>
     request<ConfigResource[]>(`/config/resources/${kind}${scoped(scope)}`),
@@ -400,7 +431,7 @@ export const api = {
     }),
   deleteResource: (scope: Scope, kind: ResourceKind, name: string) =>
     request<{ ok: true }>(`/config/resources/${kind}/${enc(name)}${scoped(scope)}`, { method: 'DELETE' }),
-  fileRoots: () => request<ConfigFileRoot[]>('/config/files/roots'),
+  fileRoots: (o: ReadOptions = {}) => request<ConfigFileRoot[]>('/config/files/roots', o),
   fileTree: (root: string) => request<ConfigFileNode[]>(`/config/files/tree${qs({ root })}`),
   fileContent: (root: string, path: string) =>
     request<ConfigFileContent>(`/config/files/content${qs({ root, path })}`),
@@ -408,18 +439,18 @@ export const api = {
     request<ConfigFileContent>('/config/files/content', { method: 'PUT', body: req }),
   deleteFile: (root: string, path: string) =>
     request<{ ok: true }>(`/config/files/content${qs({ root, path })}`, { method: 'DELETE' }),
-  accounts: (refresh = false) => request<AccountsOverview>(`/accounts${qs({ refresh: refresh ? '1' : '' })}`),
+  accounts: (refresh = false, o?: ReadOptions) => request<AccountsOverview>(`/accounts${qs({ refresh: refresh ? '1' : '' })}`, o),
   switchAccount: (body: SwitchAccountRequest) => request<SwitchResult>('/accounts/switch', { method: 'POST', body }),
   addAccount: (body: AddAccountTokenRequest) => request<AccountsOverview>('/accounts/token', { method: 'POST', body }),
   removeAccount: (number: number) => request<{ ok: true }>(`/accounts/${number}`, { method: 'DELETE' }),
-  accountEvents: (limit = 500) => request<AutoSwitchEvent[]>(`/accounts/events${qs({ limit: String(limit) })}`),
+  accountEvents: (limit = 500, o?: ReadOptions) => request<AutoSwitchEvent[]>(`/accounts/events${qs({ limit: String(limit) })}`, o),
   setAccountEnabled: (number: number, enabled: boolean) =>
     request<{ ok: true }>(`/accounts/${number}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' }),
   setAccountAlias: (number: number, alias: string | null) =>
     request<{ ok: true }>(`/accounts/${number}/alias`, { method: 'PUT', body: { alias } }),
   setAutoSwitch: (body: Partial<AutoSwitchSettings>) =>
     request<AutoSwitchSettings>('/accounts/autoswitch', { method: 'PUT', body }),
-  securityAuth: () => request<AuthConfig>('/security/auth'),
+  securityAuth: (o: ReadOptions = {}) => request<AuthConfig>('/security/auth', o),
   updateSecurityAuth: (body: UpdateAuthConfigRequest) => request<AuthConfig>('/security/auth', { method: 'PUT', body }),
   /** The only answer that ever carries the token; it cannot be read back afterwards. */
   setSecurityToken: (body: SetAuthTokenRequest = {}) => request<AuthTokenResult>('/security/token', { method: 'POST', body }),
@@ -428,7 +459,7 @@ export const api = {
     request<AuditPage>(`/audit${qs({ limit: num(page.limit), from: num(page.from), path: page.path, method: page.method, status: page.status })}`),
   setAccountConfig: (number: number, body: UpdateAccountConfigRequest) =>
     request<AccountConfig>(`/accounts/${number}/config`, { method: 'PUT', body }),
-  accountPolicies: () => request<RotationPolicy[]>('/accounts/policies'),
+  accountPolicies: (o: ReadOptions = {}) => request<RotationPolicy[]>('/accounts/policies', o),
   createAccountPolicy: (body: RotationPolicyRequest) => request<RotationPolicy>('/accounts/policies', { method: 'POST', body }),
   updateAccountPolicy: (id: string, body: RotationPolicyRequest) =>
     request<RotationPolicy>(`/accounts/policies/${enc(id)}`, { method: 'PUT', body }),
@@ -439,7 +470,7 @@ export const api = {
     ),
   /** `refresh` asks the CLI again instead of reading the 60 seconds it keeps the answer for */
   connectors: (refresh = false) => request<ConnectorsOverview>(`/connectors${qs({ refresh: refresh ? 'true' : '' })}`, { timeoutMs: 100_000 }),
-  plugins: () => request<PluginsOverview>('/plugins'),
+  plugins: (o: ReadOptions = {}) => request<PluginsOverview>('/plugins', o),
   availablePlugins: (q: string) => request<AvailablePlugin[]>(`/plugins/available${qs({ q })}`),
   pluginAction: (action: 'install' | 'uninstall' | 'enable' | 'disable', req: PluginActionRequest) =>
     request<CliTextResult>(`/plugins/${action}`, { method: 'POST', body: req }),
@@ -469,7 +500,8 @@ export const keys = {
   projectCandidates: ['projects', 'candidates'] as const,
   // Prefixes the event feed invalidates: every list and every open chat sits under them
   chats: ['chats'] as const,
-  chatList: (filter: ChatFilter) => ['chats', filter.project === undefined ? 'all' : (filter.project ?? 'loose'), filter.origin?.join(',') ?? '', filter.state ?? '', filter.limit ?? 0] as const,
+  chatList: (filter: ChatFilter) =>
+    ['chats', filter.project === undefined ? 'all' : (filter.project ?? 'loose'), filter.origin?.join(',') ?? '', filter.state ?? '', filter.limit ?? 0, filter.workers === false ? 'no-workers' : ''] as const,
   /** Prefix of a chat's page and of everything read for it */
   chatScope: (id: string) => ['chat', id] as const,
   chat: (id: string, sidechains: boolean) => ['chat', id, sidechains] as const,
@@ -542,20 +574,30 @@ export interface ChatFilter {
   project?: string | null;
   /** Defaults to the chats a person started or adopted; workers and housekeeping stay out unless asked for */
   origin?: ChatOrigin[];
+  /** `false` leaves the workers of orchestrations out while keeping their syntheses */
+  workers?: boolean;
   state?: ChatState;
   limit?: number;
   /** The query waits, e.g. until the project it depends on is known */
   enabled?: boolean;
 }
 
+/** How the list is read everywhere, so a prefetch fills the very entry the page will ask for. */
+export const chatListQuery = (filter: Omit<ChatFilter, 'enabled'>) => ({
+  queryKey: keys.chatList(filter),
+  queryFn: ({ signal }: { signal: AbortSignal }) => api.chats(filter, { signal }),
+});
+
 export const useChats = (filter: ChatFilter = {}) => {
   const { enabled = true, ...rest } = filter;
-  return useQuery({ queryKey: keys.chatList(rest), queryFn: () => api.chats(rest), refetchInterval: useFallbackInterval(), enabled });
+  // A filter that changes the request keeps the rows on screen until the new ones arrive, instead
+  // of blanking the page to a skeleton
+  return useQuery({ ...chatListQuery(rest), refetchInterval: useFallbackInterval(), enabled, placeholderData: keepPreviousData });
 };
 
 /** What the chats spent over a range of days (`YYYY-MM-DD`, inclusive), or ever. */
 export const useUsage = (range: { from?: string; to?: string } = {}) =>
-  useQuery({ queryKey: keys.usage(range), queryFn: () => api.usage(range), refetchInterval: useFallbackInterval() });
+  useQuery({ queryKey: keys.usage(range), queryFn: ({ signal }) => api.usage(range, { signal }), refetchInterval: useFallbackInterval() });
 
 export interface UsageRange {
   from?: string;
@@ -564,26 +606,26 @@ export interface UsageRange {
 
 // The previous range stays on screen while the next one loads, so picking a range does not blank the page
 export const useUsageSeries = (range: UsageRange, bucket: UsageBucket) =>
-  useQuery({ queryKey: keys.usageSeries(range, bucket), queryFn: () => api.usageSeries(range, bucket), refetchInterval: useFallbackInterval(), placeholderData: keepPreviousData });
+  useQuery({ queryKey: keys.usageSeries(range, bucket), queryFn: ({ signal }) => api.usageSeries(range, bucket, { signal }), refetchInterval: useFallbackInterval(), placeholderData: keepPreviousData });
 
 export const useUsageBreakdown = (range: UsageRange) =>
-  useQuery({ queryKey: keys.usageBreakdown(range), queryFn: () => api.usageBreakdown(range), refetchInterval: useFallbackInterval(), placeholderData: keepPreviousData });
+  useQuery({ queryKey: keys.usageBreakdown(range), queryFn: ({ signal }) => api.usageBreakdown(range, { signal }), refetchInterval: useFallbackInterval(), placeholderData: keepPreviousData });
 
 // `schedule.changed` and `schedule.fired` keep both fresh (lib/events.ts), `nextRunAt` included
 export const useSchedules = () => useQuery({ queryKey: keys.schedules, queryFn: api.schedules, refetchInterval: useFallbackInterval() });
 
 export const useScheduleRuns = (id: string, enabled: boolean) => {
   const fallback = useFallbackInterval();
-  return useQuery({ queryKey: keys.scheduleRuns(id), queryFn: () => api.scheduleRuns(id), enabled, refetchInterval: enabled ? fallback : false });
+  return useQuery({ queryKey: keys.scheduleRuns(id), queryFn: ({ signal }) => api.scheduleRuns(id, undefined, { signal }), enabled, refetchInterval: enabled ? fallback : false });
 };
 
 /** Usage refreshes on claude-swap's own cadence; polling faster would only re-read its cache. */
 export const useAccounts = () =>
-  useQuery({ queryKey: keys.accounts, queryFn: () => api.accounts(), refetchInterval: 10_000 });
+  useQuery({ queryKey: keys.accounts, queryFn: ({ signal }) => api.accounts(false, { signal }), refetchInterval: 10_000 });
 
 /** The rotation history kept beyond the window `GET /accounts` carries; only fetched when asked for. */
 export const useAccountEvents = (enabled: boolean) =>
-  useQuery({ queryKey: keys.accountEvents, queryFn: () => api.accountEvents(), refetchInterval: 10_000, enabled });
+  useQuery({ queryKey: keys.accountEvents, queryFn: ({ signal }) => api.accountEvents(undefined, { signal }), refetchInterval: 10_000, enabled });
 
 
 
@@ -595,7 +637,7 @@ export const useOrchestration = (id: string) => {
   const fallback = useFallbackInterval();
   return useQuery({
     queryKey: keys.orchestration(id),
-    queryFn: () => api.orchestration(id),
+    queryFn: ({ signal }) => api.orchestration(id, { signal }),
     refetchInterval: (query) => {
       const data = query.state.data;
       // Integrating again happens after the graph finished, and is worth following too

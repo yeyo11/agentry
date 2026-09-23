@@ -1,0 +1,181 @@
+/* Motion: the keyframes and what every motion level turns off. */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  80%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+}
+
+@keyframes bounce-dot {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@keyframes caret-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+@keyframes toast-drain {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes flow {
+  to {
+    background-position: 24px 0;
+  }
+}
+
+/*
+ * Motion level. `lib/motion.ts` stamps `data-motion` on <html>:
+ *   full    everything, including the loops that say something is alive
+ *   subtle  transitions only: nothing repeats, nothing decorative moves
+ *   off     no animation and no transition at all
+ * `prefers-reduced-motion: reduce` forces `off` there, and the media query below repeats the same
+ * rules so the system setting is obeyed even before any script has run.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .status-dot-ping,
+  .nav-count-ping,
+  .caret {
+    animation: none !important;
+  }
+  .status-dot-ping,
+  .nav-count-ping {
+    display: none;
+  }
+}
+
+:root[data-motion='off'] *,
+:root[data-motion='off'] *::before,
+:root[data-motion='off'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+:root[data-motion='off'] .status-dot-ping,
+:root[data-motion='off'] .nav-count-ping,
+:root[data-motion='off'] .caret {
+  animation: none !important;
+}
+
+/* A loop is what draws the eye; at `subtle` it runs its single pass and stops. */
+:root[data-motion='subtle'] *,
+:root[data-motion='subtle'] *::before,
+:root[data-motion='subtle'] *::after {
+  animation-iteration-count: 1 !important;
+}
+
+/* What is left of a ping, a pulse or a shimmer after one pass is noise: it does not run at all. */
+:root[data-motion='subtle'] .status-dot-ping,
+:root[data-motion='subtle'] .nav-count-ping,
+:root[data-motion='subtle'] .live-energy::before,
+:root[data-motion='subtle'] .skeleton,
+:root[data-motion='subtle'] .caret {
+  animation: none !important;
+}
+
+:root[data-motion='off'] .status-dot-ping,
+:root[data-motion='off'] .nav-count-ping,
+:root[data-motion='subtle'] .status-dot-ping,
+:root[data-motion='subtle'] .nav-count-ping {
+  display: none;
+}
+
+/* Nobody is looking: a background tab does not get to run a single frame. */
+:root[data-hidden='true'] *,
+:root[data-hidden='true'] *::before,
+:root[data-hidden='true'] *::after {
+  animation-play-state: paused !important;
+}
+
+/* ---- What the redesign's live surfaces move with ---- */
+
+/*
+ * The turning angle of `.live-energy`. A custom property can only be interpolated once it has been
+ * registered with a type, so without @property the border simply stands still, which is a fine
+ * thing for it to do.
+ */
+@property --energy-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes energy-turn {
+  to {
+    --energy-angle: 360deg;
+  }
+}
+
+/* The rail of a live block breathes rather than blinks: nothing on a page should blink. */
+@keyframes rail-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}

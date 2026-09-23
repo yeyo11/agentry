@@ -49,6 +49,25 @@ export function streamJsonProcesses(): CliProcess[] {
   return found;
 }
 
+/** How long a read of the process table serves the lists: it is a file per process, and one request assembles many chats. */
+const PROCESSES_TTL_MS = 1_000;
+let recent: { at: number; value: CliProcess[] } | null = null;
+
+/**
+ * {@link streamJsonProcesses}, read at most once a second. For what is shown, not for deciding
+ * whether a process may be started: that reads the table fresh.
+ */
+export function recentStreamJsonProcesses(): CliProcess[] {
+  const now = Date.now();
+  if (!recent || now - recent.at > PROCESSES_TTL_MS) recent = { at: now, value: streamJsonProcesses() };
+  return recent.value;
+}
+
+/** Makes the next {@link recentStreamJsonProcesses} read the table: a process known to have come or gone. */
+export function forgetStreamJsonProcesses(): void {
+  recent = null;
+}
+
 // ---------- one command's process tree ----------
 
 /** A process as the kernel lists it: what is needed to walk a tree and to know a pid is still the same process. */
@@ -177,8 +196,10 @@ export function commandRoots(
  * Signals a process tree: the descendants first, so nothing is left to be adopted by init and
  * escape, then the root. What survives the grace period gets SIGKILL, but only if it is still the
  * same process (same pid, same start time): a pid the system has reused since is somebody else's.
- * Returns how many processes were signalled, at once: the escalation runs on its own timer, so the
- * request that asked for the cancel does not wait for it.
+ * Returns how many processes of the tree were ended, at once: the escalation runs on its own timer,
+ * so the request that asked for the cancel does not wait for it. One that is gone by the time its
+ * turn comes counts: a shell waiting on the child just signalled exits and is reaped by its parent
+ * in between, and it ended with the tree all the same.
  */
 export function terminateTree(root: ProcessEntry, table: readonly ProcessEntry[], graceMs = 2000): number {
   const victims = [...descendantsOf(table, root.pid), root];
@@ -187,15 +208,22 @@ export function terminateTree(root: ProcessEntry, table: readonly ProcessEntry[]
       process.kill(entry.pid, name);
       return true;
     } catch {
-      return false; // gone already
+      return false; // gone already, or not ours to signal
     }
   };
-  const signalled = victims.filter((victim) => signal(victim, 'SIGTERM')).length;
+  const ended = victims.filter((victim) => {
+    try {
+      process.kill(victim.pid, 'SIGTERM');
+      return true;
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === 'ESRCH';
+    }
+  }).length;
   setTimeout(() => {
     const now = processTable();
     for (const victim of victims) {
       if (now.some((p) => p.pid === victim.pid && p.started === victim.started)) signal(victim, 'SIGKILL');
     }
   }, graceMs).unref();
-  return signalled;
+  return ended;
 }

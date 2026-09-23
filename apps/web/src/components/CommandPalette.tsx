@@ -9,10 +9,13 @@ import {
   CornerDownLeft,
   FolderGit2,
   FolderPlus,
+  Gauge,
   GitBranch,
   House,
   KeyRound,
+  Languages,
   Library,
+  LoaderCircle,
   MessageSquare,
   MessagesSquare,
   Monitor,
@@ -27,6 +30,7 @@ import {
   Sun,
   Users,
   Waypoints,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
@@ -34,7 +38,10 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
+import { LANGUAGES, setLanguage } from '../i18n';
+import { setMotionPreference, type MotionLevel } from '../lib/motion';
 import { useProjectScope } from '../lib/project-scope';
+import { liveSummary } from '../lib/shell-live';
 import { setThemePreference } from '../lib/theme';
 import { statusText } from './ui';
 import '../palette.css';
@@ -42,11 +49,15 @@ import '../palette.css';
 const OPEN_EVENT = 'cw:open-command-palette';
 /** The workflow dialog lives in the shell, beside "New chat": the palette only asks for it. */
 export const RUN_WORKFLOW_EVENT = 'agentry:run-workflow';
+/** Opens the Orchestrations page with its "New orchestration" form already open. */
+export const NEW_ORCHESTRATION_PATH = '/orchestration?new=1';
 const RECENT_KEY = 'agentry-palette-recent';
 const MAX_RECENT = 5;
 const MAX_RESULTS = 40;
 
-type Group = 'actions' | 'theme' | 'goTo' | 'settings' | 'workingChats' | 'projects' | 'recentChats' | 'recent';
+type Group = 'live' | 'actions' | 'theme' | 'language' | 'motion' | 'goTo' | 'settings' | 'projects' | 'recentChats' | 'recent';
+
+const MOTION_LEVELS: MotionLevel[] = ['full', 'subtle', 'off'];
 
 interface Command {
   id: string;
@@ -102,7 +113,7 @@ export function CommandPaletteTrigger() {
 
 export function CommandPalette() {
   const navigate = useNavigate();
-  const { t } = useTranslation(['components', 'connectors']);
+  const { t } = useTranslation(['components', 'connectors', 'shell']);
   const { project: selected } = useProjectScope();
   const reduced = useReducedMotion();
   const [open, setOpen] = useState(false);
@@ -115,7 +126,9 @@ export function CommandPalette() {
 
   // Data is only fetched while the palette is open; the pages keep their own polling.
   const projects = useQuery({ queryKey: keys.projects, queryFn: api.projects, enabled: open });
-  const working = useQuery({ queryKey: keys.chatList({ state: 'working' }), queryFn: () => api.chats({ state: 'working' }), enabled: open });
+  const working = useQuery({ queryKey: keys.chatList({ state: 'working' }), queryFn: ({ signal }) => api.chats({ state: 'working' }, { signal }), enabled: open });
+  const waiting = useQuery({ queryKey: keys.chatList({ state: 'waiting' }), queryFn: ({ signal }) => api.chats({ state: 'waiting' }, { signal }), enabled: open });
+  const orchestrations = useQuery({ queryKey: keys.orchestrations, queryFn: api.orchestrations, enabled: open });
   const overview = useQuery({ queryKey: keys.overview, queryFn: api.overview, enabled: open });
 
   const close = useCallback(() => {
@@ -158,13 +171,15 @@ export function CommandPalette() {
     const list: Command[] = [
       { id: 'act:new-chat', group: 'actions', title: t('palette.newChat'), hint: selected?.exists ? t('palette.newChatIn', { name: selected.name }) : t('palette.newChatHint'), keywords: 'run prompt start', icon: Play, run: go(newChat) },
       { id: 'act:run-workflow', group: 'actions', title: t('palette.runWorkflow'), hint: t('palette.runWorkflowHint'), keywords: 'workflow script', icon: Waypoints, run: () => window.dispatchEvent(new Event(RUN_WORKFLOW_EVENT)) },
-      { id: 'act:new-orchestration', group: 'actions', title: t('palette.newOrchestration'), hint: t('palette.newOrchestrationHint'), keywords: 'agents dag plan', icon: Network, run: go('/orchestration') },
+      { id: 'act:new-orchestration', group: 'actions', title: t('palette.newOrchestration'), hint: t('palette.newOrchestrationHint'), keywords: 'agents dag plan', icon: Network, run: go(NEW_ORCHESTRATION_PATH) },
       { id: 'act:new-project', group: 'actions', title: t('palette.newProject'), hint: t('palette.newProjectHint'), keywords: 'import git clone folder directory', icon: FolderPlus, run: go('/projects') },
       { id: 'act:credential', group: 'actions', title: t('palette.credential'), hint: t('palette.credentialHint'), keywords: 'login auth token key', icon: KeyRound, run: go('/settings?tab=account') },
       { id: 'act:api-docs', group: 'actions', title: t('palette.apiReference'), hint: t('palette.apiReferenceHint'), keywords: 'swagger openapi rest docs scalar', icon: BookOpen, run: () => window.open('/docs', '_blank', 'noopener') },
       { id: 'theme:light', group: 'theme', title: t('theme.light'), icon: Sun, run: () => setThemePreference('light') },
       { id: 'theme:dark', group: 'theme', title: t('theme.dark'), icon: Moon, run: () => setThemePreference('dark') },
       { id: 'theme:system', group: 'theme', title: t('theme.system'), icon: Monitor, run: () => setThemePreference('system') },
+      ...LANGUAGES.map(({ code, name }): Command => ({ id: `language:${code}`, group: 'language', title: t('palette.language', { name }), keywords: 'idioma language english español', icon: Languages, run: () => setLanguage(code) })),
+      ...MOTION_LEVELS.map((level): Command => ({ id: `motion:${level}`, group: 'motion', title: t('palette.motion', { level: t(`shell:appearance.motionOptions.${level}`) }), hint: t(`shell:appearance.motionDescriptions.${level}`), keywords: 'motion animation reduce spinner appearance', icon: Gauge, run: () => setMotionPreference(level) })),
       { id: 'nav:/', group: 'goTo', title: t('nav.home'), keywords: 'inbox activity waiting overview status usage', icon: House, run: go('/') },
       { id: 'nav:/chats', group: 'goTo', title: t('nav.chats'), keywords: 'sessions history transcripts conversations', icon: MessagesSquare, run: go('/chats') },
       { id: 'nav:/orchestration', group: 'goTo', title: t('nav.orchestrations'), keywords: 'multi agent graph', icon: Network, run: go('/orchestration') },
@@ -176,6 +191,7 @@ export function CommandPalette() {
       { id: 'nav:/settings', group: 'goTo', title: t('nav.settings'), keywords: 'config preferences', icon: Settings2, run: go('/settings') },
     ];
     const tabs: Array<[string, string, string, LucideIcon]> = [
+      ['appearance', t('shell:appearance.tab'), 'theme language motion dark light', SlidersHorizontal],
       ['instructions', t('palette.settingsTabs.instructions'), 'CLAUDE.md', SlidersHorizontal],
       ['settings', t('palette.settingsTabs.settings'), 'settings.json permissions hooks env model', SlidersHorizontal],
       ['mcp', t('palette.settingsTabs.mcp'), 'connectors tools', SlidersHorizontal],
@@ -192,9 +208,18 @@ export function CommandPalette() {
     for (const [tab, title, extra, icon] of tabs) {
       list.push({ id: `settings:${tab}`, group: 'settings', title, hint: t('palette.userScope'), keywords: `settings config ${extra}`, icon, run: go(`/settings?tab=${tab}`) });
     }
-    for (const chat of (working.data ?? []).slice(0, 8)) {
-      list.push({ id: `chat:${chat.id}`, group: 'workingChats', title: chat.title, hint: `${chat.project?.name ?? t('palette.noProject')} · ${chat.cwd}`, keywords: 'chat live running', icon: Activity, run: go(`/chats/${encodeURIComponent(chat.id)}`) });
-    }
+    // What is live goes first: it is what a person most often jumps to
+    const live = liveSummary({ chats: [...(working.data ?? []), ...(waiting.data ?? [])], orchestrations: orchestrations.data ?? [] });
+    list.unshift(
+      ...live.items.slice(0, 10).map((item): Command => {
+        const hint =
+          item.kind === 'orchestration'
+            ? `${t('shell:live.groups.orchestrations')} · ${t('shell:live.progress', { done: item.done, total: item.total })}`
+            : `${item.state === 'waiting' ? t('shell:live.stateWaiting') : t('shell:live.stateWorking')} · ${item.project ?? t('palette.noProject')}`;
+        const icon = item.kind === 'orchestration' ? Workflow : item.state === 'waiting' ? Activity : LoaderCircle;
+        return { id: `live:${item.kind}:${item.id}`, group: 'live', title: item.title, hint, keywords: 'live running working waiting', icon, run: go(item.href) };
+      }),
+    );
     for (const project of (projects.data ?? []).slice(0, 30)) {
       const id = encodeURIComponent(project.id);
       const hint = project.path;
@@ -215,7 +240,7 @@ export function CommandPalette() {
       list.push({ id: `recent:${chat.id}`, group: 'recentChats', title: chat.title, hint: chat.cwd, keywords: 'chat transcript', icon: MessageSquare, run: go(`/chats/${encodeURIComponent(chat.id)}`) });
     }
     return list;
-  }, [navigate, t, selected, projects.data, working.data, overview.data]);
+  }, [navigate, t, selected, projects.data, working.data, waiting.data, orchestrations.data, overview.data]);
 
   const results = useMemo(() => {
     const q = query.trim();
@@ -223,7 +248,8 @@ export function CommandPalette() {
       // Idle state: recently used first, then the static entries; per-project noise stays out
       const byId = new Map(commands.map((c) => [c.id, c]));
       const recents = recent.flatMap((id) => (byId.has(id) ? [{ ...(byId.get(id) as Command), group: 'recent' as const }] : []));
-      const rest = commands.filter((c) => c.group !== 'projects' && c.group !== 'settings' && !recent.includes(c.id));
+      const idle = new Set<Group>(['projects', 'settings', 'language', 'motion']);
+      const rest = commands.filter((c) => !idle.has(c.group) && !recent.includes(c.id));
       return [...recents, ...rest].slice(0, MAX_RESULTS);
     }
     return commands

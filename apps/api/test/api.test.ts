@@ -251,6 +251,8 @@ test('chats are listed with filters that say when they are wrong, and the run, s
   assert.equal((await app.inject('/api/chats?state=asleep')).statusCode, 400);
   assert.match((await app.inject('/api/chats?origin=robot')).json().error, /origin must be one of/);
   assert.equal((await app.inject('/api/chats?origin=agentry,external,orchestration,internal&loose=1&limit=5')).statusCode, 200);
+  assert.equal((await app.inject('/api/chats?origin=orchestration&workers=0')).statusCode, 200);
+  assert.match((await app.inject('/api/chats?workers=no')).json().error, /workers must be 0 or 1/);
   for (const url of ['/api/runs', '/api/runs/ghost', '/api/sessions', '/api/sessions/ghost', '/api/active', '/api/projects/x/sessions']) {
     assert.equal((await app.inject(url)).statusCode, 404, url);
   }
@@ -447,4 +449,24 @@ test('connectors: an unreachable CLI is an error, with the guidance and the limi
   assert.ok(overview.error);
   assert.ok(overview.authorisation.steps.length > 0);
   assert.deepEqual(overview.unavailable.map((l: { id: string }) => l.id), ['web-artifacts', 'claude-ai-memory']);
+});
+
+test("a chat's stream opens at once, even for a client that asks only for what is new", async () => {
+  const created = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hello' }) });
+  assert.equal(created.statusCode, 201, created.body);
+  const id: string = created.json().id;
+  if (!app.server.listening) await app.listen({ port: 0, host: '127.0.0.1' });
+  const { port } = app.server.address() as AddressInfo;
+  const started = Date.now();
+  const opened = await new Promise<{ status: number; ms: number }>((resolve, reject) => {
+    const req = request({ host: '127.0.0.1', port, path: `/api/chats/${id}/stream?since=${Number.MAX_SAFE_INTEGER}` }, (res) => {
+      resolve({ status: res.statusCode ?? 0, ms: Date.now() - started });
+      req.destroy();
+    });
+    req.on('error', reject);
+    req.end();
+  });
+  assert.equal(opened.status, 200);
+  // The heartbeat is 15 s away: headers held until then read as a dropped stream in the page
+  assert.ok(opened.ms < 2000, `the stream opened after ${opened.ms} ms`);
 });

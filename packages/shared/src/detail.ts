@@ -5,6 +5,7 @@
 
 /** What the side panel can show. Each carries the ids the routes need, so a link is self-contained. */
 export type DetailRef =
+  | { kind: 'chat'; chatId: string }
   | { kind: 'task'; chatId: string; taskId: string }
   | { kind: 'subagent'; chatId: string; agentId: string }
   | { kind: 'workflow-agent'; chatId: string; workflowId: string; agentId: string };
@@ -17,11 +18,13 @@ const SEP = ':';
 /** `kind:part:part`, each part encoded: ids are plain today, but a colon in one must not shift the rest. */
 export function encodeDetail(ref: DetailRef): string {
   const parts =
-    ref.kind === 'task'
-      ? [ref.chatId, ref.taskId]
-      : ref.kind === 'subagent'
-        ? [ref.chatId, ref.agentId]
-        : [ref.chatId, ref.workflowId, ref.agentId];
+    ref.kind === 'chat'
+      ? [ref.chatId]
+      : ref.kind === 'task'
+        ? [ref.chatId, ref.taskId]
+        : ref.kind === 'subagent'
+          ? [ref.chatId, ref.agentId]
+          : [ref.chatId, ref.workflowId, ref.agentId];
   return [ref.kind, ...parts.map(encodeURIComponent)].join(SEP);
 }
 
@@ -37,6 +40,7 @@ export function decodeDetail(value: string | null): DetailRef | null {
   });
   if (parts.some((p) => !p)) return null;
   const [a, b, c] = parts;
+  if (kind === 'chat' && parts.length === 1 && a) return { kind, chatId: a };
   if (kind === 'task' && parts.length === 2 && a && b) return { kind, chatId: a, taskId: b };
   if (kind === 'subagent' && parts.length === 2 && a && b) return { kind, chatId: a, agentId: b };
   if (kind === 'workflow-agent' && parts.length === 3 && a && b && c) return { kind, chatId: a, workflowId: b, agentId: c };

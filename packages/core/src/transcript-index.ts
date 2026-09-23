@@ -30,14 +30,17 @@ export function parseLine(buffer: Buffer, start = 0, end = buffer.length): JsonL
 /**
  * Walks the complete lines in bytes [from, to) of a file, handing each parsed one to `visit` with
  * the byte range it came from. A line counts as complete once its newline is written; what follows
- * the last newline is returned as `tail`, since a live session may still be writing it.
+ * the last newline is returned as `tail`, since a live session may still be writing it. With
+ * `mentions`, a line that does not contain it is skipped unparsed: parsing is most of the cost.
  */
 export async function scanLines(
   handle: FileHandle,
   from: number,
   to: number,
   visit: (line: JsonLine, start: number, end: number) => void,
+  mentions?: string,
 ): Promise<{ end: number; tail: Buffer }> {
+  const wanted = (buffer: Buffer, start: number, end: number) => mentions === undefined || buffer.subarray(start, end).includes(mentions);
   // A line longer than a chunk is kept in pieces and joined once, so a huge line is copied once
   let pieces: Buffer[] = [];
   let pendingStart = from;
@@ -51,11 +54,11 @@ export async function scanLines(
     for (let nl = chunk.indexOf(NEWLINE); nl !== -1; nl = chunk.indexOf(NEWLINE, lineStart)) {
       if (pieces.length > 0) {
         const joined = Buffer.concat([...pieces, chunk.subarray(0, nl)]);
-        const line = parseLine(joined);
+        const line = wanted(joined, 0, joined.length) ? parseLine(joined) : null;
         if (line) visit(line, pendingStart, pos + nl);
         pieces = [];
       } else {
-        const line = parseLine(chunk, lineStart, nl);
+        const line = wanted(chunk, lineStart, nl) ? parseLine(chunk, lineStart, nl) : null;
         if (line) visit(line, pos + lineStart, pos + nl);
       }
       lineStart = nl + 1;

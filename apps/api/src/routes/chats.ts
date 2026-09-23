@@ -60,12 +60,14 @@ function rangeOf(query: { from?: string; to?: string }): { from?: string; to?: s
 export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   const { chats } = core;
 
-  app.get<{ Querystring: { project?: string; loose?: string; origin?: string; state?: string; limit?: string } }>('/chats', (req) => {
-    const { project, loose, origin, state, limit } = req.query;
+  app.get<{ Querystring: { project?: string; loose?: string; origin?: string; workers?: string; state?: string; limit?: string } }>('/chats', (req) => {
+    const { project, loose, origin, workers, state, limit } = req.query;
+    if (workers !== undefined && workers !== '0' && workers !== '1') throw new Error('workers must be 0 or 1');
     const [wanted] = listOf(state, STATES, 'state') ?? [];
     return chats.list({
       origins: listOf(origin, ORIGINS, 'origin') ?? DEFAULT_ORIGINS,
       ...(loose === '1' ? { project: null } : project ? { project } : {}),
+      ...(workers === '0' ? { workers: false } : {}),
       ...(wanted ? { state: wanted } : {}),
       ...(count(limit, 'limit') ? { limit: count(limit, 'limit') as number } : {}),
     });
@@ -169,6 +171,9 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
       // hijacked replies bypass @fastify/cors
       ...(process.env.AGENTRY_CORS_ORIGIN && req.headers.origin ? { 'Access-Control-Allow-Origin': req.headers.origin } : {}),
     });
+    // Written at once: Node holds the headers until the first write, and a client that asks only for
+    // what is new has nothing replayed, so it would not see the stream open until the first heartbeat
+    reply.raw.write('retry: 3000\n\n');
     // Ephemeral `partial` events carry no SSE id, so Last-Event-ID always points at a stored event
     const write = (event: RunEvent) =>
       reply.raw.write(`${event.kind === 'partial' ? '' : `id: ${event.seq}\n`}data: ${JSON.stringify(event)}\n\n`);

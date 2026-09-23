@@ -92,6 +92,37 @@ your application menu or with `agentry`.
 The window opens on a splash screen while the server starts. If it cannot start, the window shows
 the reason with a **Restart** button and a link to the logs.
 
+## The window, the tray and the taskbar
+
+**Title bar.** The window has no separate title bar: Agentry's own top bar is the title bar, and
+dragging any empty part of it moves the window. The window controls sit on the right, drawn by the
+system over a 54 px strip that matches the top bar, and follow the light or dark theme as you
+change it (or as the system does, when the theme follows it). On macOS the traffic lights sit at the
+top left instead, and the sidebar and top bar leave room for them. The splash and error pages can be
+dragged too.
+
+**Tray.** A tray icon says what is live. Its tooltip reads like "Agentry — 2 working · 1 waiting ·
+1 orchestration"; Linux trays never show a tooltip, so the same line is also the first entry of its
+menu. The menu has **Open Agentry**, **New chat**, up to eight live items — chats waiting for you
+first, then working chats, then running orchestrations with their tasks done out of the total, and
+"N more…" past that — and **Quit Agentry**. Picking an item opens it in the window without reloading
+the page. Closing the window still quits the app: the tray shows what is live, it does not keep
+Agentry running in the background.
+
+**Progress and badge.** The taskbar or dock shows the combined progress of the running
+orchestrations (tasks done over tasks, across all of them; indeterminate for one that has no tasks
+yet), cleared when none runs. The badge counts the chats waiting for a person. Both appear where the
+platform supports them: on Linux, docks that implement the Unity launcher API; the badge also on
+macOS, not on Windows.
+
+**Where the tray's data comes from.** Only the local server the app started: `/api/overview`, the
+working and waiting chat lists and `/api/orchestrations` (these only while the overview says
+something runs), re-read when the `/api/events` feed announces a change, at most every 1.5 s, and
+every 30 s while the feed is down. If `AGENTRY_AUTH_TOKEN` is set in the app's environment, the tray
+sends it as a bearer token. A token set only from Settings → Security is not known to the tray, so
+its requests are refused: it then shows nothing live and the failures go to `desktop.log`. The tray
+and the window menus are in English only.
+
 ## Where things live
 
 | What | Path |
@@ -150,6 +181,20 @@ pnpm desktop:dist    # AppImage and .deb
 DevTools in the View menu. It keeps its data in `~/.config/Agentry-dev`, apart from an installed
 app. It does not watch for changes: rerun it after editing the UI or the API. For UI work,
 `pnpm dev` and the browser are faster.
+
+`pnpm --filter @agentry/desktop test` runs the shell's unit tests (the tray menu and tooltip, the
+progress fraction, the event-stream reader, the title-bar options), and the root `pnpm test`
+includes them.
+
+The web UI knows it is in the app through `window.agentryDesktop`, which the preload exposes with
+`platform`, `version`, `setTitleBarTheme({ color, symbolColor })` and `onNavigate(listener)`. When it
+exists, `<html>` carries `is-desktop` and `desktop-<platform>`: `.is-desktop .topbar` and
+`.is-desktop .sidebar-head` are the drag region (`app-region: drag`, with links, buttons, inputs and
+menus opted out), the top bar keeps clear of the window controls with `env(titlebar-area-x)` and
+`env(titlebar-area-width)`, and `desktop-darwin` leaves room for the traffic lights. The main process
+accepts `setTitleBarTheme` only from the local server's page and only as hex colours; the web sends
+the theme's `--bg` and `--text` whenever the theme changes. The title-bar overlay is 54 px tall
+because the top bar is (`--topbar-h`): change one and change the other.
 
 `desktop:dist` writes `Agentry-<version>-x86_64.AppImage` and `Agentry-<version>-amd64.deb` to
 `apps/desktop/release/`. The first run downloads Electron and the packaging tools from GitHub, so it

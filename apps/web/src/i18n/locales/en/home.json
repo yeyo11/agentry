@@ -1,6 +1,5 @@
 {
   "tabs": {
-    "activity": "Activity",
     "settings": "Settings",
     "memory": "Memory",
     "resources": "Resources",
@@ -64,14 +63,9 @@
     "nothingHint": "Chats you start, and what your orchestrations do, show up here.",
     "rightNow": "Right now",
     "working": "{{n}} working",
-    "orchestrations_one": "{{n}} orchestration",
-    "orchestrations_other": "{{n}} orchestrations",
-    "progress": "{{done}}/{{total}} tasks",
     "context": "{{percent}}% context",
-    "contextInUse": "Context in use",
     "costUnavailable": "cost not available",
     "noProject": "no project",
-    "today": "Today",
     "nothingSpent": "Nothing spent yet today.",
     "spent": "{{cost}} spent",
     "chatsWithoutCost_one": "{{n}} chat started from a terminal report no cost",
@@ -84,7 +78,86 @@
     "usageLimits": "Usage limits",
     "limit": "{{name}} limit",
     "resets": "resets {{when}}",
-    "pickUp": "Pick up again",
     "allChats": "All chats"
+  },
+  "dashboard": {
+    "label": "Dashboard of {{name}}",
+    "labelAll": "Dashboard of every project",
+    "back": "Dashboard",
+    "projectSettings": "Settings of {{name}}",
+    "widgetFailed": "The {{title}} widget could not be shown"
+  },
+  "widgets": {
+    "now": {
+      "title": "Now",
+      "needYou_one": "{{n}} needs you",
+      "needYou_other": "{{n}} need you",
+      "noActivity": "Working"
+    },
+    "orchestrations": {
+      "title": "Orchestrations",
+      "tasks": "tasks",
+      "stages": "Stages of {{name}}",
+      "stage": "Stage {{n}} · {{done}}/{{total}}",
+      "started": "started {{when}}",
+      "ended": "ended {{when}}",
+      "running": "{{n}} running",
+      "all": "All orchestrations",
+      "none": "No orchestration has run here yet."
+    },
+    "limits": {
+      "title": "Limits",
+      "none": "No usage limits reported yet."
+    },
+    "pickUp": {
+      "title": "Pick up again",
+      "none": "No chat to pick up."
+    },
+    "today": {
+      "title": "Today",
+      "usage": "Usage"
+    },
+    "schedules": {
+      "title": "Upcoming schedules",
+      "all": "All schedules",
+      "none": "Nothing scheduled."
+    },
+    "projects": {
+      "title": "Projects",
+      "all": "All projects",
+      "waiting": "{{n}} waiting",
+      "never": "no activity"
+    },
+    "quickStart": {
+      "title": "Quick start",
+      "prompt": "Prompt for a new chat in {{name}}",
+      "placeholder": "Ask Claude something in {{name}}…",
+      "defaultModel": "default model",
+      "defaultMode": "default mode",
+      "noPreset": "no preset",
+      "mcpDefault": "MCP: CLI default",
+      "mcpChosen_one": "MCP: {{count}} server",
+      "mcpChosen_other": "MCP: {{count}} servers",
+      "allOptions": "All options"
+    },
+    "memory": {
+      "title": "Memory",
+      "edit": "Edit instructions",
+      "excerpt": "The project's CLAUDE.md",
+      "noInstructions": "This project has no CLAUDE.md yet.",
+      "files": "Memory files"
+    },
+    "worktrees": {
+      "title": "Worktrees",
+      "all": "All worktrees",
+      "none": "No worktrees.",
+      "more": "and {{n}} more"
+    },
+    "resources": {
+      "title": "Resources"
+    },
+    "export": {
+      "title": "Export"
+    }
   }
 }

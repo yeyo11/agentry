@@ -11,6 +11,8 @@ import '@fontsource-variable/jetbrains-mono';
 import './i18n'; // picks the language and sets <html lang> before the first render
 import { registerServiceWorker } from './lib/pwa';
 import './lib/theme'; // applies the stored theme before the first paint
+import './lib/motion'; // stamps the motion level before anything has a chance to animate
+import './lib/desktop'; // marks the desktop app's window before the first paint, so the title bar never jumps
 import './styles.css';
 import './controls.css';
 import './observe.css';
