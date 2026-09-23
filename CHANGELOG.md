@@ -3,6 +3,14 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.16.3](https://github.com/yeyo11/agentry/compare/v0.16.2...v0.16.3) (2026-09-23)
+
+
+### Bug fixes
+
+* **desktop:** keep the port the app listened on, instead of a new one each launch ([#82](https://github.com/yeyo11/agentry/issues/82)) ([0bd7cea](https://github.com/yeyo11/agentry/commit/0bd7cea035564a1edc21df4123176328ece009c5))
+* the recovery paths, which the happy path had been hiding ([#83](https://github.com/yeyo11/agentry/issues/83)) ([cc939f7](https://github.com/yeyo11/agentry/commit/cc939f75141a2212ad6b5cdf5bb2e7dfe010fe1b))
+
 ## [0.16.2](https://github.com/yeyo11/agentry/compare/v0.16.1...v0.16.2) (2026-09-23)
 
 
