@@ -138,6 +138,17 @@ test('a git worktree cannot be imported: it belongs to its repository', async ()
   assert.deepEqual(store.list(), []);
 });
 
+test('a directory that is or holds the Claude config dir cannot be imported', async () => {
+  const config = tempConfig();
+  const store = new ProjectStore(config);
+  mkdirSync(config.configDir, { recursive: true });
+  const holder = dirname(config.configDir);
+
+  await assert.rejects(store.add({ path: holder }, noWorktrees), /Claude configuration directory/);
+  await assert.rejects(store.add({ path: config.configDir }, noWorktrees), /Claude configuration directory/);
+  assert.deepEqual(store.list(), []);
+});
+
 function repo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'agentry-repo-'));
   const git = (...a: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.name=a', '-c', 'user.email=a@b', ...a], { stdio: 'pipe' });
