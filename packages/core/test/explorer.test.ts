@@ -1,16 +1,17 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { ConfigExplorer } from '../src/config/explorer.ts';
 import { parseMcpHealth } from '../src/config/mcp.ts';
 import { projectScope, userScope } from '../src/config/scope.ts';
+import { loadConfig } from '../src/paths.ts';
 import { tempConfig } from './helpers.ts';
 
 test('explorer writes, reads, lists and deletes inside the root', async () => {
   const config = tempConfig();
-  const explorer = new ConfigExplorer();
+  const explorer = new ConfigExplorer(config.configDir);
   const user = userScope(config);
 
   const script = await explorer.write(user, 'user', 'hooks/guard.sh', '#!/bin/bash\nexit 0\n', true);
@@ -31,7 +32,7 @@ test('explorer writes, reads, lists and deletes inside the root', async () => {
 
 test('explorer refuses traversal, symlink escapes, secrets and binaries', async () => {
   const config = tempConfig();
-  const explorer = new ConfigExplorer();
+  const explorer = new ConfigExplorer(config.configDir);
   const user = userScope(config);
   mkdirSync(config.configDir, { recursive: true });
   writeFileSync(join(config.configDir, '.credentials.json'), '{"token":"secret"}');
@@ -53,6 +54,30 @@ test('explorer refuses traversal, symlink escapes, secrets and binaries', async 
   // The user-only deny list does not hide a project's own files
   const project = projectScope(join(config.workspaceDir, 'app'));
   assert.equal((await explorer.write(project, 'app', 'plans/notes.md', 'ok')).path, 'plans/notes.md');
+});
+
+test('a project scope on the config dir hides the credentials as the user scope does', async () => {
+  // A home-shaped layout, because the bypass is importing $HOME: there `<project>/.claude` *is* the config dir
+  const home = mkdtempSync(join(tmpdir(), 'agentry-home-'));
+  const config = loadConfig({
+    CLAUDE_CONFIG_DIR: join(home, '.claude'),
+    AGENTRY_WORKSPACE_DIR: join(home, 'workspace'),
+    AGENTRY_DATA_DIR: join(home, 'data'),
+  });
+  const explorer = new ConfigExplorer(config.configDir);
+  mkdirSync(join(config.configDir, 'projects'), { recursive: true });
+  writeFileSync(join(config.configDir, '.credentials.json'), '{"token":"secret"}');
+  writeFileSync(join(config.configDir, 'projects', 'chat.jsonl'), '{}\n');
+  symlinkSync(home, join(home, 'alias'));
+
+  // Importing $HOME as a project would point the project root at the real config dir
+  for (const root of [home, join(home, 'alias')]) {
+    const scope = projectScope(root);
+    await assert.rejects(explorer.read(scope, 'home', '.credentials.json'), /not editable/);
+    await assert.rejects(explorer.read(scope, 'home', 'projects/chat.jsonl'), /not editable/);
+    const names = (await explorer.tree(scope)).map((n) => n.name);
+    assert.ok(!names.includes('.credentials.json') && !names.includes('projects'));
+  }
 });
 
 test('parses `claude mcp list` health lines', () => {
