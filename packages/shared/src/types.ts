@@ -2211,6 +2211,12 @@ export interface PushSendResult {
   removed: number;
   /** Installs the push service refused for any other reason; the row is kept */
   failed: number;
+  /**
+   * What the push service said about the first install it refused, when it said anything: the
+   * status and body of the refusal, so a person reading "it failed" can tell a misconfigured VAPID
+   * subject from a phone that is simply offline.
+   */
+  reason?: string;
 }
 
 /**

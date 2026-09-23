@@ -40,6 +40,9 @@ const TTL_SECONDS = 3600;
 /** A payload is capped by the push services at ~4 KB; this leaves room for the encryption overhead. */
 const MAX_PAYLOAD_BYTES = 3500;
 
+/** Enough of what a push service answered to act on, and not enough to fill a log with HTML. */
+const MAX_REASON = 200;
+
 /** Keys of the dedupe window we still remember; past this the oldest half goes. */
 const MAX_RECENT_KEYS = 2000;
 
@@ -49,13 +52,19 @@ const MAX_ENDPOINT = 1000;
 interface PushDoc {
   publicKey: string;
   privateKey: string;
-  /** The VAPID `sub` claim in force when the keypair was made */
+  /** The VAPID `sub` claim last configured; the keypair is fixed for ever, this is not */
   subject: string;
   createdAt: string;
 }
 
 /** What a send attempt did to one install, which is all the caller needs to count. */
 type Delivery = 'sent' | 'removed' | 'failed';
+
+/** That, and why — the reason is what turns "push failed" into something a person can act on. */
+interface Outcome {
+  delivery: Delivery;
+  reason: string | null;
+}
 
 export interface PushSendOptions {
   vapidDetails: { subject: string; publicKey: string; privateKey: string };
@@ -276,7 +285,7 @@ export class PushService {
    * against this public key, and replacing it would silently orphan all of them.
    */
   private ensureKeys(): Promise<PushDoc | null> {
-    if (this.doc) return Promise.resolve(this.doc);
+    if (this.doc) return Promise.resolve(this.withSubject(this.doc));
     this.making ??= this.makeKeys().finally(() => {
       this.making = null;
     });
@@ -287,14 +296,36 @@ export class PushService {
     try {
       const keys = webpush.generateVAPIDKeys();
       const doc: PushDoc = { ...keys, subject: this.config.pushSubject, createdAt: new Date().toISOString() };
-      await writeAtomic(this.file, `${JSON.stringify(doc, null, 2)}\n`);
-      chmodSync(this.file, 0o600);
+      await this.store(doc);
       this.doc = doc;
       return doc;
     } catch (error) {
       this.log(`could not create the VAPID keypair: ${messageOf(error)}`);
       return null;
     }
+  }
+
+  private async store(doc: PushDoc): Promise<void> {
+    await writeAtomic(this.file, `${JSON.stringify(doc, null, 2)}\n`);
+    chmodSync(this.file, 0o600);
+  }
+
+  /**
+   * The configured `sub` claim, over the one the file was written with. The keypair itself can never
+   * change — every subscription was taken out against it — but the claim is only an address a push
+   * service can complain to, and an install whose stored one is refused (Apple answers `403
+   * BadJwtToken` to a `sub` that names no real domain) has to be able to fix it by setting
+   * `AGENTRY_PUSH_SUBJECT` and restarting, rather than by throwing its keypair and every registered
+   * phone away.
+   */
+  private withSubject(doc: PushDoc): PushDoc {
+    if (doc.subject === this.config.pushSubject) return doc;
+    const next: PushDoc = { ...doc, subject: this.config.pushSubject };
+    this.doc = next;
+    // The send that asked for this already has what it needs; the file is caught up for the next
+    // boot, and a write that fails is retried by the next send rather than failing the push.
+    void this.store(next).catch((error: unknown) => this.log(`could not store the new push subject: ${messageOf(error)}`));
+    return next;
   }
 
   /** Every event on the bus, read through the same function the browser reads it through. */
@@ -336,6 +367,7 @@ export class PushService {
     const doc = await this.ensureKeys();
     if (!doc) {
       result.failed = targets.length;
+      result.reason = 'the server has no VAPID keypair';
       return result;
     }
     const body = JSON.stringify(payload);
@@ -343,36 +375,53 @@ export class PushService {
       // Nothing we put in a payload is this long, so this is a bug rather than a delivery problem
       this.log(`push payload for ${payload.key} is ${String(Buffer.byteLength(body))} bytes and was not sent`);
       result.failed = targets.length;
+      result.reason = 'the notification is too long for a push service to carry';
       return result;
     }
     const outcomes = await Promise.all(targets.map((record) => this.deliverOne(record, body, payload, doc)));
-    for (const outcome of outcomes) result[outcome]++;
+    for (const outcome of outcomes) {
+      result[outcome.delivery]++;
+      // The first one that has something to say: a list of identical 403s helps nobody
+      if (outcome.reason !== null && result.reason === undefined) result.reason = outcome.reason;
+    }
     return result;
   }
 
-  private async deliverOne(record: PushSubscriptionRecord, body: string, payload: PushPayload, doc: PushDoc): Promise<Delivery> {
+  private async deliverOne(record: PushSubscriptionRecord, body: string, payload: PushPayload, doc: PushDoc): Promise<Outcome> {
     try {
       await this.transport({ endpoint: record.endpoint, keys: { p256dh: record.p256dh, auth: record.auth } }, body, {
         vapidDetails: { subject: doc.subject, publicKey: doc.publicKey, privateKey: doc.privateKey },
         TTL: TTL_SECONDS,
         urgency: payload.priority === 'high' ? 'high' : payload.priority === 'low' ? 'low' : 'normal',
       });
-      return 'sent';
+      return { delivery: 'sent', reason: null };
     } catch (error) {
       // A push endpoint answers 404 or 410 when it is gone for good. Anything kept after that is a
       // dead row the sender would retry for every event from now on.
       if (error instanceof webpush.WebPushError && (error.statusCode === 404 || error.statusCode === 410)) {
         this.db.deletePushSubscription({ endpoint: record.endpoint });
         this.log(`push subscription ${record.id} is gone (${String(error.statusCode)}); removed`);
-        return 'removed';
+        return { delivery: 'removed', reason: null };
       }
-      this.log(`push to ${record.id} failed: ${messageOf(error)}`);
-      return 'failed';
+      const reason = reasonFor(error);
+      this.log(`push to ${record.id} failed: ${reason}`);
+      return { delivery: 'failed', reason };
     }
   }
 }
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
+/**
+ * What the push service actually said. `web-push` throws "Received unexpected response code" for
+ * every refusal alike, and the status and body it hides are the whole diagnosis: a `403
+ * {"reason":"BadJwtToken"}` from Apple is a misconfigured `sub` claim, not a phone that has gone.
+ */
+function reasonFor(error: unknown): string {
+  if (!(error instanceof webpush.WebPushError)) return messageOf(error);
+  const body = error.body.trim().slice(0, MAX_REASON);
+  return body ? `${String(error.statusCode)} ${body}` : String(error.statusCode);
+}
 
 /** A stored document is only worth reading when it holds both halves of a keypair. */
 function readDoc(raw: unknown): PushDoc | null {
@@ -383,7 +432,8 @@ function readDoc(raw: unknown): PushDoc | null {
   return {
     publicKey,
     privateKey,
-    subject: typeof doc.subject === 'string' && doc.subject ? doc.subject : 'mailto:agentry@localhost',
+    // Empty rather than a default: `withSubject` puts the configured claim on it before any send
+    subject: typeof doc.subject === 'string' ? doc.subject : '',
     createdAt: typeof doc.createdAt === 'string' ? doc.createdAt : new Date().toISOString(),
   };
 }
