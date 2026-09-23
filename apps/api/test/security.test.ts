@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
 import { REDACTED } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
+import { FailureBackoff } from '../src/security.ts';
 
 // Each test gets its own wrapper: the auth mode is process-wide state, and a test that closes the
 // port must not be able to close it for the next one.
@@ -303,4 +304,148 @@ test('AGENTRY_AUTH_TOKEN_RESET lets someone who lost the token back in, once, an
   assert.equal((await third.app.inject({ url: '/api/overview', ...bearer(reset.AGENTRY_AUTH_TOKEN) })).statusCode, 401);
   const after = (await third.app.inject({ url: '/api/audit?path=/api/security/token', ...bearer(rotated.token) })).json();
   assert.equal(after.entries.filter((entry: { actor: string }) => entry.actor === 'env').length, 1, 'no second reset row');
+});
+
+test('a host nobody configured is refused, which is what stops DNS rebinding', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+
+  // Loopback is the install itself, under every spelling a browser or a dual-stack socket produces
+  for (const host of ['localhost', 'localhost:8787', '127.0.0.1:8787', '127.1.2.3', '[::1]:8787', '::ffff:127.0.0.1']) {
+    assert.equal((await app.inject({ url: '/api/overview', headers: { host } })).statusCode, 200, host);
+  }
+
+  // The attack itself: a page on a name whose second lookup answers 127.0.0.1
+  const rebound = await app.inject({ url: '/api/overview', headers: { host: 'rebind.evil.test' } });
+  assert.equal(rebound.statusCode, 421);
+  assert.match(rebound.json().error, /AGENTRY_ALLOWED_HOSTS/);
+
+  // Every guarded path, not just the API: /docs and the reference serve the same install
+  assert.equal((await app.inject({ url: '/openapi.json', headers: { host: 'rebind.evil.test' } })).statusCode, 421);
+  const written = await app.inject({
+    method: 'POST',
+    url: '/api/projects',
+    payload: JSON.stringify({ name: 'x' }),
+    headers: { host: 'rebind.evil.test', 'content-type': 'application/json' },
+  });
+  assert.equal(written.statusCode, 421);
+  // A probe stays open whatever it dialled: it says nothing about the install
+  assert.equal((await app.inject({ url: '/api/health', headers: { host: 'rebind.evil.test' } })).statusCode, 200);
+});
+
+test('AGENTRY_ALLOWED_HOSTS names the hosts a deployment answers to, port and case aside', async (t) => {
+  const { app } = await wrapper({ AGENTRY_ALLOWED_HOSTS: 'agentry.example.com, agentry.internal' });
+  t.after(() => app.close());
+
+  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'agentry.example.com' } })).statusCode, 200);
+  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'AGENTRY.Example.COM:8787' } })).statusCode, 200);
+  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'agentry.internal:443' } })).statusCode, 200);
+  // A name that merely contains one of them is a different name
+  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'agentry.example.com.evil.test' } })).statusCode, 421);
+  assert.equal((await app.inject({ url: '/api/overview', headers: { host: 'other.example.com' } })).statusCode, 421);
+});
+
+test('the host is checked before the credential, so an open install is guarded too', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+  const token = await withToken(app);
+
+  // Even holding the credential that opens everything: the authority is refused first
+  const refused = await app.inject({ url: '/api/overview', headers: { host: 'rebind.evil.test', authorization: `Bearer ${token}` } });
+  assert.equal(refused.statusCode, 421);
+  assert.equal(refused.headers['www-authenticate'], undefined);
+});
+
+test('a client that keeps guessing the token is asked to wait, and the wait grows', () => {
+  let now = 0;
+  const backoff = new FailureBackoff(() => now);
+
+  // The first failures are free: a mistyped token must not lock someone out of their own wrapper
+  for (let i = 0; i < 9; i += 1) {
+    backoff.fail('10.0.0.1');
+    assert.equal(backoff.retryAfter('10.0.0.1'), 0, `failure ${i + 1}`);
+  }
+
+  backoff.fail('10.0.0.1');
+  assert.equal(backoff.retryAfter('10.0.0.1'), 1);
+  // Waiting it out and failing again costs twice as long
+  now += 1_000;
+  assert.equal(backoff.retryAfter('10.0.0.1'), 0);
+  backoff.fail('10.0.0.1');
+  assert.equal(backoff.retryAfter('10.0.0.1'), 2);
+  now += 2_000;
+  backoff.fail('10.0.0.1');
+  assert.equal(backoff.retryAfter('10.0.0.1'), 4);
+
+  // Capped: a wait that doubled for ever would be a permanent ban on an address
+  for (let i = 0; i < 20; i += 1) {
+    now += 60_000;
+    backoff.fail('10.0.0.1');
+  }
+  assert.equal(backoff.retryAfter('10.0.0.1'), 60);
+
+  // Another address is another client: one attacker does not close the wrapper for everybody
+  assert.equal(backoff.retryAfter('10.0.0.2'), 0);
+  // And a credential that works clears what came before it
+  backoff.succeed('10.0.0.1');
+  assert.equal(backoff.retryAfter('10.0.0.1'), 0);
+});
+
+test('a quiet client is forgotten, and the addresses remembered cannot grow without end', () => {
+  let now = 0;
+  const backoff = new FailureBackoff(() => now);
+
+  for (let i = 0; i < 12; i += 1) backoff.fail('10.0.0.1');
+  assert.ok(backoff.retryAfter('10.0.0.1') > 0);
+
+  // Quiet for the forgetting period: the count starts over instead of resuming where it stopped
+  now += 15 * 60_000;
+  assert.equal(backoff.retryAfter('10.0.0.1'), 0);
+  backoff.fail('10.0.0.1');
+  assert.equal(backoff.retryAfter('10.0.0.1'), 0, 'the old count did not come back');
+
+  // A botnet with a fresh address per attempt feeds the map; it stays bounded
+  for (let i = 0; i < 5_000; i += 1) {
+    now += 1;
+    backoff.fail(`10.1.${Math.floor(i / 256)}.${i % 256}`);
+  }
+  assert.ok(backoff.size > 0 && backoff.size <= 1024, `bounded, got ${backoff.size}`);
+  // And the flood does not buy the attacker a clean slate: an address still failing is still counted
+  for (let i = 0; i < 10; i += 1) backoff.fail('10.9.9.9');
+  assert.ok(backoff.retryAfter('10.9.9.9') > 0);
+});
+
+test('the guard answers 429 once an address has failed too often, with a Retry-After', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+  const token = await withToken(app);
+
+  for (let i = 0; i < 10; i += 1) {
+    assert.equal((await app.inject({ url: '/api/overview', ...bearer('not-the-token') })).statusCode, 401, `attempt ${i + 1}`);
+  }
+
+  const throttled = await app.inject({ url: '/api/overview', ...bearer('not-the-token') });
+  assert.equal(throttled.statusCode, 429);
+  assert.equal(throttled.headers['retry-after'], '1');
+  assert.equal(throttled.json().mode, 'token');
+  // The real token waits with the rest: the wait is on the address, which is all the guard knows
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer(token) })).statusCode, 429);
+  // Nothing open is affected, so a container healthcheck survives an attack on its own port
+  assert.equal((await app.inject('/api/health')).statusCode, 200);
+});
+
+test('a credential that works clears the failures behind it', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+  const token = await withToken(app);
+
+  for (let i = 0; i < 9; i += 1) {
+    assert.equal((await app.inject({ url: '/api/overview', ...bearer('not-the-token') })).statusCode, 401);
+  }
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer(token) })).statusCode, 200);
+
+  // Nine more would have passed the threshold had the successful one not wiped the slate
+  for (let i = 0; i < 9; i += 1) {
+    assert.equal((await app.inject({ url: '/api/overview', ...bearer('not-the-token') })).statusCode, 401, `after the success, attempt ${i + 1}`);
+  }
 });
