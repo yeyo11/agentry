@@ -65,7 +65,8 @@ function DevicesCard() {
     onSuccess: (result) => {
       if (result.sent > 0) toast.success(t('notifications.devices.testSent'));
       else if (result.removed > 0) toast.error(t('notifications.devices.testGone'));
-      else toast.error(t('notifications.devices.testFailed'));
+      // What the push service answered, when it answered: without it every refusal reads the same
+      else toast.error(t('notifications.devices.testFailed'), result.reason);
       refresh();
     },
     onError: (err) => toast.error(t('notifications.devices.testFailed'), err),

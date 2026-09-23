@@ -304,7 +304,7 @@ itself. Written from what the tasks built, not from what this plan proposed.
   `notificationsFor`, filters by the kinds each install asked for, collapses on the draft's own key
   and deletes a row on `404`/`410`; every failure is caught inside it, so a dead endpoint is a log
   line. The five routes, their OpenAPI entries and the regenerated schemas. Beyond the plan:
-  `AGENTRY_PUSH_SUBJECT` sets the VAPID `sub` claim, stored with the keypair when it is made.
+  `AGENTRY_PUSH_SUBJECT` sets the VAPID `sub` claim, stored beside the keypair and re-read on start.
 - **`push-web`** — `push`, `notificationclick` and `pushsubscriptionchange` in the same worker. A
   push with a visible window of ours shows nothing (the page is already showing the toast for that
   event, which is also what Chrome's `userVisibleOnly` bargain allows); a click prefers an open page

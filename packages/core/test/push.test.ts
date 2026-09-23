@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -18,15 +18,17 @@ const keys = { p256dh: 'BExampleP256dhKeyForTests', auth: 'exampleAuthSecret' };
 interface Sent {
   endpoint: string;
   payload: PushPayload;
+  /** The VAPID `sub` this push was signed with: the claim a push service accepts or refuses */
+  subject: string;
 }
 
 /** A push service that records what it was handed, and fails the endpoints the test names. */
 function fakeTransport(fail: Map<string, Error> = new Map()): { transport: PushTransport; sent: Sent[] } {
   const sent: Sent[] = [];
-  const transport: PushTransport = async (subscription, payload) => {
+  const transport: PushTransport = async (subscription, payload, options) => {
     const error = fail.get(subscription.endpoint);
     if (error) throw error;
-    sent.push({ endpoint: subscription.endpoint, payload: JSON.parse(payload) as PushPayload });
+    sent.push({ endpoint: subscription.endpoint, payload: JSON.parse(payload) as PushPayload, subject: options.vapidDetails.subject });
     return undefined;
   };
   return { transport, sent };
@@ -85,7 +87,7 @@ test('the VAPID keypair is made on first use and only its public half is ever ha
   const doc = JSON.parse(readFileSync(file, 'utf8')) as { publicKey: string; privateKey: string; subject: string };
   assert.equal(doc.publicKey, first.publicKey);
   assert.ok(doc.privateKey);
-  assert.equal(doc.subject, 'mailto:agentry@localhost');
+  assert.equal(doc.subject, 'https://github.com/yeyo11/agentry');
 
   // Every subscription is taken out against one public key: a second call must not replace it
   assert.deepEqual(await push.keyInfo(), first);
@@ -210,6 +212,40 @@ test('a failing endpoint is a log line, never an exception in the event path', a
   assert.equal(sent.length, 1, 'the other install was still notified');
   assert.equal(push.list().length, 2, 'a transport failure is not proof the endpoint is gone');
   assert.match(logged.join('\n'), /failed: socket hang up/);
+});
+
+test('the configured subject replaces the one stored beside the keypair, keypair untouched', async () => {
+  const { transport, sent } = fakeTransport();
+  const { config, db, events, push } = harness(transport);
+  const file = join(config.dataDir, 'push.json');
+  const made = await push.keyInfo();
+
+  // What an install made before the default named a real domain looks like on disk. Apple refuses
+  // this claim outright (403 BadJwtToken), so it has to be replaceable without a new keypair.
+  const stale = { ...(JSON.parse(readFileSync(file, 'utf8')) as object), subject: 'mailto:agentry@localhost' };
+  writeFileSync(file, JSON.stringify(stale));
+
+  const reopened = new PushService({ config, db, events, transport });
+  reopened.register({ endpoint: ENDPOINT, keys, label: 'iPhone' });
+  await reopened.test({ endpoint: ENDPOINT });
+
+  assert.equal(sent.at(-1)?.subject, 'https://github.com/yeyo11/agentry', 'the claim in force, not the one the file was written with');
+  await settle();
+  const stored = JSON.parse(readFileSync(file, 'utf8')) as { publicKey: string; subject: string };
+  assert.equal(stored.subject, 'https://github.com/yeyo11/agentry', 'and the file is caught up for the next boot');
+  assert.equal(stored.publicKey, made.publicKey, 'every registered install was taken out against this key: it cannot change');
+  reopened.close();
+});
+
+test('a push a service refuses comes back with what it said, and keeps the row', async () => {
+  const refused = new Map([[ENDPOINT, new webpush.WebPushError('Received unexpected response code', 403, {}, '{"reason":"BadJwtToken"}', ENDPOINT)]]);
+  const { transport } = fakeTransport(refused);
+  const { push, logged } = harness(transport);
+  push.register({ endpoint: ENDPOINT, keys, label: 'iPhone' });
+
+  assert.deepEqual(await push.test({ endpoint: ENDPOINT }), { sent: 0, removed: 0, failed: 1, reason: '403 {"reason":"BadJwtToken"}' });
+  assert.equal(push.list().length, 1, 'a claim the service refused is this server\'s to fix, not a phone that has gone');
+  assert.match(logged.join('\n'), /failed: 403 \{"reason":"BadJwtToken"\}/, 'the status and body, or nobody can tell this from a dead network');
 });
 
 test('the test notification names its target, counts what happened and prunes what is gone', async () => {

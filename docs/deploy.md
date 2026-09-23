@@ -137,9 +137,11 @@ Firebase project, no key of anyone else's.
   made once and never rotated, because every subscription was taken out against that public key:
   keep the data volume and push survives a restart, a rebuild and a new image. Lose it and every
   registered install goes quiet until it subscribes again.
-- **Set `AGENTRY_PUSH_SUBJECT`** to a `mailto:` or `https:` a push service can complain to, before
-  the first push goes out — the claim is stored with the keypair when it is made. The default is
-  `mailto:agentry@localhost`, which the push services accept but nobody can reach.
+- **Set `AGENTRY_PUSH_SUBJECT`** to a `mailto:` or `https:` a push service can complain to. It has
+  to name a real domain: Firefox and FCM take anything, but Apple refuses the whole JWT with `403
+  BadJwtToken` for a `sub` like `mailto:agentry@localhost`, and every iPhone goes quiet with no
+  clue why. The claim is stored beside the keypair, and changing it takes effect on the next start
+  — the keypair itself never changes, so no install has to subscribe again.
 - **Outbound only.** The server POSTs each notification to whatever endpoint the browser handed it —
   `*.push.services.mozilla.com`, `web.push.apple.com`, `fcm.googleapis.com`. A wrapper behind NAT
   needs nothing opened; an egress-filtered one needs those hosts allowed, and without them a push is
