@@ -35,6 +35,24 @@ test('a request waits until someone answers it', async () => {
   assert.throws(() => broker.answer('a', { behavior: 'allow' }), /not found/);
 });
 
+test('a request can only be answered in the name of the run it belongs to', async () => {
+  const broker = new PermissionBroker();
+  const decision = broker.ask(request('a', 'mine'));
+
+  // Another chat holding the id is not entitled to approve this one's `rm -rf /`, and is told
+  // no more than it would be told about an id that never existed
+  assert.throws(() => broker.answer('a', { behavior: 'allow' }, 'yours'), /not found/);
+  assert.throws(() => broker.answer('ghost', { behavior: 'allow' }, 'yours'), /not found/);
+  assert.deepEqual(
+    broker.list('mine').map((r) => r.id),
+    ['a'],
+    'a refused answer leaves the request waiting',
+  );
+
+  broker.answer('a', { behavior: 'allow' }, 'mine');
+  assert.deepEqual(await decision, { behavior: 'allow' });
+});
+
 test('a run that ends takes its unanswered prompts with it', async () => {
   const broker = new PermissionBroker();
   const doomed = broker.ask(request('a', 'doomed'));

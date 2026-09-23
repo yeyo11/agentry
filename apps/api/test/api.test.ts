@@ -8,6 +8,7 @@ import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { ChatConflictError, Core, loadConfig } from '@agentry/core';
+import type { PermissionRequest } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
 import { allowedOrigin } from '../src/origins.ts';
 
@@ -388,6 +389,20 @@ async function openFeed(headers: Record<string, string> = {}) {
 
 const ping = (title: string) => core.events.emit({ type: 'sessions.changed', title });
 
+/** Opens a stream over a real socket and answers with the headers it was greeted with. */
+async function streamHeaders(path: string, headers: Record<string, string>) {
+  if (!app.server.listening) await app.listen({ port: 0, host: '127.0.0.1' });
+  const { port } = app.server.address() as AddressInfo;
+  return new Promise<Record<string, string | string[] | undefined>>((resolve, reject) => {
+    const req = request({ host: '127.0.0.1', port, path, headers }, (res) => {
+      resolve(res.headers);
+      req.destroy();
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 test('the event feed streams what happens, replays what a reconnecting client missed, and cleans up', async () => {
   await app.listen({ port: 0, host: '127.0.0.1' });
   const idle = core.events.subscribers;
@@ -471,6 +486,62 @@ test("a chat's stream opens at once, even for a client that asks only for what i
   assert.equal(opened.status, 200);
   // The heartbeat is 15 s away: headers held until then read as a dropped stream in the page
   assert.ok(opened.ms < 2000, `the stream opened after ${opened.ms} ms`);
+});
+
+test('a stream is read across origins only by an allowed one, whatever Origin it sends', async () => {
+  const created = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hello' }) });
+  assert.equal(created.statusCode, 201, created.body);
+  const paths = ['/api/events', `/api/chats/${created.json().id as string}/stream`];
+  const previous = process.env.AGENTRY_CORS_ORIGIN;
+  try {
+    process.env.AGENTRY_CORS_ORIGIN = 'https://panel.example.com';
+    for (const path of paths) {
+      const allowed = await streamHeaders(path, { origin: 'https://panel.example.com' });
+      assert.equal(allowed['access-control-allow-origin'], 'https://panel.example.com', path);
+      assert.equal(allowed.vary, 'Origin', path);
+      // Hijacked or not, the allowlist decides; these streams carry prompts, paths and output
+      const refused = await streamHeaders(path, { origin: 'https://evil.example.com' });
+      assert.equal(refused['access-control-allow-origin'], undefined, path);
+      assert.equal(refused.vary, undefined, path);
+      assert.match(String(refused['content-type']), /text\/event-stream/, path);
+    }
+
+    delete process.env.AGENTRY_CORS_ORIGIN;
+    for (const path of paths) {
+      const nobody = await streamHeaders(path, { origin: 'https://panel.example.com' });
+      assert.equal(nobody['access-control-allow-origin'], undefined, path);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.AGENTRY_CORS_ORIGIN;
+    else process.env.AGENTRY_CORS_ORIGIN = previous;
+  }
+});
+
+test('a pending permission request is answered only through the chat it belongs to', async () => {
+  const created = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hello' }) });
+  assert.equal(created.statusCode, 201, created.body);
+  const chatId: string = created.json().id;
+  const asked: PermissionRequest = {
+    id: 'perm-scoping',
+    runId: chatId,
+    toolName: 'Bash',
+    toolUseId: 'toolu_perm-scoping',
+    input: { command: 'rm -rf /' },
+    requestedAt: new Date().toISOString(),
+  };
+  const decision = core.permissions.ask(asked);
+
+  const elsewhere = await app.inject({ method: 'POST', url: `/api/chats/ghost/permissions/${asked.id}`, ...json({ behavior: 'allow' }) });
+  assert.equal(elsewhere.statusCode, 404);
+  // The chat that was wrong and the request that never existed answer the same way
+  assert.deepEqual(elsewhere.json(), (await app.inject({ method: 'POST', url: '/api/chats/ghost/permissions/nope', ...json({ behavior: 'allow' }) })).json());
+  assert.deepEqual(core.permissions.list(chatId).map((r) => r.id), [asked.id], 'the request is still waiting');
+
+  const own = await app.inject({ method: 'POST', url: `/api/chats/${chatId}/permissions/${asked.id}`, ...json({ behavior: 'deny', message: 'no' }) });
+  assert.equal(own.statusCode, 200);
+  const settled = await decision;
+  assert.equal(settled?.behavior, 'deny');
+  assert.equal(settled?.message, 'no');
 });
 
 test('an unexpected failure is a bare 500 in the log, a deliberate refusal keeps its text', async () => {
