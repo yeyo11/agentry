@@ -3,6 +3,15 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.15.3](https://github.com/yeyo11/agentry/compare/v0.15.2...v0.15.3) (2026-09-22)
+
+
+### Performance
+
+* **core:** chats list and chat detail stop re-reading the machine on every request ([#72](https://github.com/yeyo11/agentry/issues/72)) ([73aca06](https://github.com/yeyo11/agentry/commit/73aca06b17ad4ad51631fbfe30c03950a87d4d53))
+* **web:** the chat view streams without re-rendering or re-reading the page ([#73](https://github.com/yeyo11/agentry/issues/73)) ([567c045](https://github.com/yeyo11/agentry/commit/567c0452955b9e1c970dd6851f385cfec3d07694))
+* **web:** the chats list stops rereading itself on every event ([#74](https://github.com/yeyo11/agentry/issues/74)) ([7ea9407](https://github.com/yeyo11/agentry/commit/7ea9407f52f73606d39799a11d3449d8982b7be4))
+
 ## [0.15.2](https://github.com/yeyo11/agentry/compare/v0.15.1...v0.15.2) (2026-09-22)
 
 
