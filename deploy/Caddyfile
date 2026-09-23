@@ -2,6 +2,17 @@
 {$AGENTRY_DOMAIN:localhost} {
 	encode zstd gzip
 
+	# The API sends the UI bundle its own, stricter headers (see apps/api/src/app.ts); `?` sets
+	# these only where it sent none, so everything that leaves this proxy — the API's answers and
+	# /docs included — is at least unsniffable, unframeable and quiet about where the caller came
+	# from. No Content-Security-Policy here: a second one would intersect with the bundle's and
+	# would have to cover /docs, whose reference UI is not ours to write a policy for.
+	header {
+		?X-Content-Type-Options nosniff
+		?X-Frame-Options DENY
+		?Referrer-Policy no-referrer
+	}
+
 	reverse_proxy agentry:8787 {
 		# The event stream (/api/events) and the chat streams are long-lived responses: without this
 		# Caddy buffers them and the UI sees nothing until the connection closes
