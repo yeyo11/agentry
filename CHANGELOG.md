@@ -3,6 +3,18 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.17.0](https://github.com/yeyo11/agentry/compare/v0.16.3...v0.17.0) (2026-09-24)
+
+
+### Features
+
+* **web:** the chat on a phone, and the models the CLI really offers ([e4d6064](https://github.com/yeyo11/agentry/commit/e4d6064943e799307daa03e34290dc2408110867))
+
+
+### Bug fixes
+
+* **push:** a VAPID subject Apple accepts, and the reason when it does not ([#85](https://github.com/yeyo11/agentry/issues/85)) ([3981af3](https://github.com/yeyo11/agentry/commit/3981af36f833255a1fed4aa6f1b08538a6e3432b))
+
 ## [0.16.3](https://github.com/yeyo11/agentry/compare/v0.16.2...v0.16.3) (2026-09-23)
 
 
