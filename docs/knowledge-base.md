@@ -36,6 +36,24 @@ The rule is stated in [CLAUDE.md](../CLAUDE.md) and [CONTRIBUTING.md](../CONTRIB
 because those two travel with the repository: an orchestration worker starts in its own worktree,
 with none of the memory of the session that planned the work, and CLAUDE.md is what reaches it.
 
+## Search before answering
+
+The other half of the rule, and the one that gets skipped. **Any question about this project is
+answered by searching the knowledge base first** — what the project does, how a piece of it works,
+where it stands, why something was decided, where something lives. `kb_search_documents` is the
+first tool call of the turn, then `code_hybrid_search` when the answer is in the source rather than
+in the prose. `git log` and opening the likely file come after, to verify what the search returned.
+
+The failure mode is not forgetting the tools exist; it is deciding, question by question, that this
+particular one is factual enough to answer straight from the repository. It never is: the
+repository says what the code is, and the documents say what it means and why. So the trigger is not
+a judgment about the question. Search unless the user named the exact file, unless you are after a
+literal string or a known identifier — grep's job — or unless the turn is pure editing with nothing
+asked. A search that returns nothing costs one call and rules out a whole folder.
+
+A search that comes back empty on a question this folder should have covered is itself the finding:
+the document is missing, and writing it is the rule above.
+
 ## Write through the tools, not around them
 
 A new document enters through `kb_add_document`, never through the REST upsert or by dropping a file

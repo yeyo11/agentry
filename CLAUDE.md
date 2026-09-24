@@ -44,7 +44,22 @@ drift): `pnpm --filter @agentry/api openapi:schemas`. Every new route needs a su
 ## Knowledge
 
 Write every feature and every decision as a document under `docs/` (plans in `docs/plans/`), in the
-pull request that builds it. Where pando is available, `docs/` is also a searchable knowledge base
-and the source is indexed by symbol: reach for `kb_search_documents` and `code_hybrid_search` for
-questions of meaning, and check the index is `completed` before trusting it.
-[docs/knowledge-base.md](docs/knowledge-base.md) has the format, the tools and the re-sync.
+pull request that builds it. [docs/knowledge-base.md](docs/knowledge-base.md) has the format, the
+tools and the re-sync.
+
+`docs/` is also a searchable knowledge base, and the source is indexed by symbol.
+
+**Search it first.** When you are asked anything about this project — what it does, how it works,
+where it stands, why something was decided, where something lives — the **first tool call of the
+turn is `kb_search_documents`**, followed by `code_hybrid_search` when the answer is in the source
+rather than in the docs. Not after a `git log`, not after opening the file that looks like the
+answer: first. Reading files and running git is how you *verify* what the search returned, or what
+you fall back to when it returned nothing.
+
+Do not decide whether the question is "conceptual" enough to deserve a search — that judgment is
+what gets skipped. Search unless one of these holds: the user named the exact file, you are looking
+for a literal string or a known identifier (that is grep's job), or the turn is pure editing with no
+question in it. A search that returns nothing costs one call.
+
+`code_*` results are only as fresh as the last pass, so check the project's `indexing_status` is
+`completed` and look at `last_indexed_at` before trusting them against recent commits.

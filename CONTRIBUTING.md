@@ -51,6 +51,10 @@ A feature or a decision that is worth remembering is worth a document: write it 
 [docs/status.md](docs/status.md), and how the documents are indexed for semantic search is
 [docs/knowledge-base.md](docs/knowledge-base.md).
 
+Read them the same way: any question about this project starts with a `kb_search_documents` over
+`docs/`, before `git log` and before opening the file that looks like the answer. Documents nobody
+searches are documents nobody wrote.
+
 ## House style
 
 - **TypeScript, strict, no `any`.** `noUncheckedIndexedAccess` is on; respect it rather than
