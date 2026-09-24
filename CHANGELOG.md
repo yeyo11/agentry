@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.17.1](https://github.com/yeyo11/agentry/compare/v0.17.0...v0.17.1) (2026-09-24)
+
+
+### Bug fixes
+
+* **web:** the pages of a chat read back survive leaving it ([#87](https://github.com/yeyo11/agentry/issues/87)) ([695bccb](https://github.com/yeyo11/agentry/commit/695bccbf2408f555f36a62e3c7b0b6ea5819e867))
+
 ## [0.17.0](https://github.com/yeyo11/agentry/compare/v0.16.3...v0.17.0) (2026-09-24)
 
 
