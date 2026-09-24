@@ -42,6 +42,7 @@ import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
 import { EventBus } from './events.ts';
 import { Locator } from './locations.ts';
+import { modelOptions } from './models.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService } from './push.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
@@ -162,8 +163,8 @@ export class Core {
   private readonly startedAt = Date.now();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
-  private systemCache: { at: number; gen: number; value: Omit<SystemInfo, 'uptimeSec'> } | null = null;
-  private systemPending: { gen: number; promise: Promise<Omit<SystemInfo, 'uptimeSec'>> } | null = null;
+  private systemCache: { at: number; gen: number; value: Omit<SystemInfo, 'uptimeSec' | 'models'> } | null = null;
+  private systemPending: { gen: number; promise: Promise<Omit<SystemInfo, 'uptimeSec' | 'models'>> } | null = null;
   private systemGen = 0;
 
   constructor(config: CoreConfig = loadConfig()) {
@@ -424,16 +425,18 @@ export class Core {
     this.systemGen++;
   }
 
-  private withUptime(value: Omit<SystemInfo, 'uptimeSec'>): SystemInfo {
-    return { ...value, uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+  private withUptime(value: Omit<SystemInfo, 'uptimeSec' | 'models'>): SystemInfo {
+    // Read here rather than with the rest: the rest costs two `claude` processes and is kept for
+    // half a minute, while this is a file the CLI writes, cached by its own mtime
+    return { ...value, models: modelOptions(this.config.globalConfigFile), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
   }
 
-  private readSystem(join = true): Promise<Omit<SystemInfo, 'uptimeSec'>> {
+  private readSystem(join = true): Promise<Omit<SystemInfo, 'uptimeSec' | 'models'>> {
     const pending = this.systemPending;
     if (join && pending && pending.gen === this.systemGen) return pending.promise;
     const gen = this.systemGen;
     const at = Date.now();
-    const promise: Promise<Omit<SystemInfo, 'uptimeSec'>> = (async () => {
+    const promise: Promise<Omit<SystemInfo, 'uptimeSec' | 'models'>> = (async () => {
       const cli = await detectCli(this.config);
       const auth = cli.installed
         ? await getAuthStatus(this.config)

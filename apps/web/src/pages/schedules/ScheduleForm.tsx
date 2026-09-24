@@ -7,7 +7,7 @@ import { api, keys, useOrchestrations } from '../../api';
 import { Combobox, NumberInput, Select, Switch } from '../../components/controls';
 import { ICON_SM } from '../../components/icons';
 import { useToast } from '../../components/Toast';
-import { ErrorBox, Field, MODEL_OPTIONS, PERMISSION_MODES, Segmented } from '../../components/ui';
+import { ErrorBox, Field, ModelCombobox, PERMISSION_MODES, Segmented } from '../../components/ui';
 import { buildCron, CRON_MODES, parseCron, timeZones, type CronMode, type CronParts } from '../../lib/cron-builder';
 import { formatDateTime, timeAgo } from '../../lib/format';
 import { specOfOrchestration } from '../../lib/orchestration-v2';
@@ -330,7 +330,7 @@ export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Sch
             <input value={cwd} onChange={(e) => setCwd(e.target.value)} placeholder="/path/to/project" spellCheck={false} />
           </Field>
           <Field label={t('form.model')}>
-            <Combobox aria-label={t('form.model')} value={model} onChange={setModel} options={MODEL_OPTIONS} placeholder={t('form.modelPlaceholder')} />
+            <ModelCombobox aria-label={t('form.model')} value={model} onChange={setModel} placeholder={t('form.modelPlaceholder')} />
           </Field>
           <Field label={t('form.permissionMode')} hint={t('form.permissionModeHint')}>
             <Select<PermissionMode>

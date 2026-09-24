@@ -3,9 +3,9 @@ import { useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { KeyValueEditor, recordToRows, rowsToRecord, StringListEditor, type KeyValueRow } from '../../components/editors';
-import { Collapsible, Combobox, NumberInput, Select, Tooltip } from '../../components/controls';
+import { Collapsible, NumberInput, Select, Tooltip } from '../../components/controls';
 import { ICON_SM } from '../../components/icons';
-import { Field, MODEL_OPTIONS, Tag } from '../../components/ui';
+import { Field, ModelCombobox, Tag } from '../../components/ui';
 import {
   getIn,
   GUIDED_KEYS,
@@ -251,7 +251,7 @@ export function SettingsGuided({
       <Section title={t('settingsGuided.general')} defaultOpen summary={text(settings.model) || undefined}>
         <div className="form-grid">
           <Field label={t('settingsGuided.model')} hint={t('settingsGuided.modelHint')}>
-            <Combobox value={text(settings.model)} placeholder={t('settingsGuided.defaultPlaceholder')} options={MODEL_OPTIONS} onChange={(v) => set(['model'], v)} />
+            <ModelCombobox value={text(settings.model)} placeholder={t('settingsGuided.defaultPlaceholder')} onChange={(v) => set(['model'], v)} />
           </Field>
           <Field label={t('settingsGuided.outputStyle')} hint={t('settingsGuided.outputStyleHint')}>
             <input value={text(settings.outputStyle)} placeholder={t('settingsGuided.defaultPlaceholder')} onChange={(e) => set(['outputStyle'], e.target.value)} />

@@ -3,8 +3,8 @@ import { Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { limitsOf } from '../lib/orchestration-v2';
-import { Combobox, NumberInput } from './controls';
-import { Field, MODEL_OPTIONS } from './ui';
+import { NumberInput } from './controls';
+import { Field, ModelCombobox } from './ui';
 
 /**
  * One task of a graph, editable: the launch form, the relaunch panel and a template all edit the
@@ -33,12 +33,11 @@ export function TaskEditor({
           <input value={task.name} placeholder={t('config:orchestration.shortLabel')} onChange={(e) => onChange({ name: e.target.value })} />
         </Field>
         <Field label={t('config:orchestration.modelOptional')}>
-          <Combobox
+          <ModelCombobox
             aria-label={t('taskEditor.model')}
             value={task.model ?? ''}
             placeholder={t('config:orchestration.inherit')}
             onChange={(model) => onChange({ model: model || undefined })}
-            options={MODEL_OPTIONS}
           />
         </Field>
       </div>

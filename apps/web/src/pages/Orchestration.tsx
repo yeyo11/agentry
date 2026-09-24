@@ -14,7 +14,7 @@ import { SaveTemplateDialog, TemplatesList } from '../components/OrchestrationTe
 import { ProgressBar } from '../components/ProgressBar';
 import { Spinner } from '../components/Spinner';
 import { removeTaskAt, renameTask, TaskEditor, validateGraph } from '../components/TaskEditor';
-import { Card, Empty, ErrorBox, Field, Loading, MODEL_OPTIONS, PageHeader, PERMISSION_MODES, Segmented, TabPanel, Tabs, Tag, useTabGroup } from '../components/ui';
+import { Card, Empty, ErrorBox, Field, Loading, ModelCombobox, PageHeader, PERMISSION_MODES, Segmented, TabPanel, Tabs, Tag, useTabGroup } from '../components/ui';
 import { useFallbackInterval } from '../lib/feed';
 import { formatCost, timeAgo, truncate } from '../lib/format';
 import { NARROW, useMediaQuery } from '../lib/media';
@@ -221,7 +221,7 @@ function CreateForm({ onDone, template }: { onDone: () => void; template?: Orche
             />
           </Field>
           <Field label={t('taskEditor.model')}>
-            <Combobox aria-label={t('taskEditor.model')} placeholder={t('defaultPlaceholder')} value={model} onChange={setModel} options={MODEL_OPTIONS} />
+            <ModelCombobox aria-label={t('taskEditor.model')} placeholder={t('defaultPlaceholder')} value={model} onChange={setModel} />
           </Field>
           {mode === 'auto' && (
             <Field label={t('config:orchestration.maxTasks')}>

@@ -6,9 +6,9 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useOverview } from '../../../api';
 import { ChatToolsPicker, type ToolChoices } from '../../../components/ChatToolsPicker';
-import { Collapsible, Combobox, Select } from '../../../components/controls';
+import { Collapsible, Select } from '../../../components/controls';
 import { ICON_SM } from '../../../components/icons';
-import { ErrorBox, Field, MODEL_OPTIONS, PERMISSION_MODES } from '../../../components/ui';
+import { ErrorBox, Field, ModelCombobox, PERMISSION_MODES } from '../../../components/ui';
 import type { WidgetProps } from '../registry';
 import { WidgetCard } from '../WidgetCard';
 
@@ -92,7 +92,7 @@ export default function QuickStartWidget({ project, title, id }: WidgetProps) {
         <Collapsible className="quick-start-options" triggerClassName="status-line" title={<span className="mono small ellipsis">{status}</span>}>
           <div className="form-grid">
             <Field label={t('chats:new.model')}>
-              <Combobox aria-label={t('chats:new.model')} placeholder={t('chats:new.modelPlaceholder')} value={model} onChange={setModel} options={MODEL_OPTIONS} />
+              <ModelCombobox aria-label={t('chats:new.model')} placeholder={t('chats:new.modelPlaceholder')} value={model} onChange={setModel} />
             </Field>
             <Field label={t('chats:new.permissionMode')}>
               <Select<PermissionMode | ''>

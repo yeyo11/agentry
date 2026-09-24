@@ -124,14 +124,16 @@ export default async ({ page, api, check }) => {
     await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: 'the sheet closes' });
     await page.viewport(1440, 900);
 
-    // ---- New chat: the prompt first, everything else folded until asked for ----
+    // ---- New chat: the chat's own shape, settings behind the line under the box ----
     await page.goto('/chats/new', 1200);
-    await page.waitFor(`return !!document.querySelector('.new-chat-prompt textarea')`, { label: 'the new chat prompt' });
-    check((await page.eval(`return document.querySelector('main textarea') === document.querySelector('.new-chat-prompt textarea')`)), 'the prompt is the first field');
-    check(!(await page.eval(`return !!document.querySelector('input[aria-label="Model"]')`)), 'the options are folded by default');
-    check((await page.text('.new-chat-advanced')).includes('default model'), 'the folded options say what they come to');
-    await page.click('.new-chat-advanced .collapsible-trigger');
-    await page.waitFor(`return !!document.querySelector('input[aria-label="Model"]')`, { label: 'the advanced options open' });
+    await page.waitFor(`return !!document.querySelector('.run-layout .composer textarea')`, { label: 'the new chat box' });
+    check(await page.eval(`return document.querySelector('main textarea') === document.querySelector('.composer textarea')`), 'the box is the first field');
+    check(await page.eval(`return !!document.querySelector('.new-welcome-example')`), 'the page says what it is for before anything is typed');
+    check(!(await page.eval(`return !!document.querySelector('input[aria-label="Model"]')`)), 'the settings are out of the way until asked for');
+    check((await page.text('.composer-status')).includes('default model'), 'the line under the box says where the chat will run');
+    await page.click('.composer-status', undefined, 400);
+    await page.waitFor(`return !!document.querySelector('input[aria-label="Model"]')`, { label: 'the settings open' });
+    await page.key('Escape');
   } finally {
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem(${JSON.stringify(INSPECTOR_KEY)}); return true`).catch(() => {});

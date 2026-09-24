@@ -127,7 +127,23 @@
     "startError": "No se pudo iniciar el chat",
     "starting": "Iniciando…",
     "uploading": "Subiendo…",
-    "start": "Inicia el chat"
+    "start": "Inicia el chat",
+    "welcome": {
+      "title": "Empieza algo",
+      "lead": "Pide un cambio, una revisión, una investigación. Claude Code lo ejecuta en el directorio de abajo y responde aquí.",
+      "tips": {
+        "files": "Suelta o pega archivos para adjuntarlos",
+        "send": "Ctrl/⌘ + Enter arranca el chat",
+        "options": "La línea bajo el cuadro dice dónde se ejecuta: púlsala para cambiar lo que sea"
+      },
+      "examples": {
+        "title": "Por ejemplo",
+        "one": "Lee este proyecto y cuéntame cómo está organizado",
+        "two": "Busca dónde se manejan los reintentos y explícame la política",
+        "three": "Añade un test para el caso en que falta el archivo"
+      }
+    },
+    "options": "Dónde se ejecutará el chat: {{status}}"
   },
   "runWorkflow": {
     "titleRun": "Ejecutar {{name}}",

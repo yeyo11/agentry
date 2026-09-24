@@ -255,6 +255,20 @@ textarea:focus {
   box-shadow: 0 0 0 3px var(--ring);
 }
 
+/*
+ * A finger's keyboard: iOS zooms the page into any field it focuses whose text is under 16px, and
+ * the zoom leaves the layout wider than the screen with its bottom — the composer — behind the
+ * keyboard. 16px is what it takes for the browser to leave the page alone. (`select` too: the same
+ * rule applies to its trigger.)
+ */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 input.is-invalid {
   border-color: var(--bad);
 }
@@ -413,10 +427,19 @@ input.is-invalid {
 
 .segmented {
   display: inline-flex;
+  /* Wider than the column it sits in, it pushed the page a pixel sideways — enough for a phone to
+     let the whole page be dragged. Its segments give way instead, and it scrolls within itself */
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
   padding: 3px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg-sunken);
+}
+
+.segmented::-webkit-scrollbar {
+  display: none;
 }
 
 .segment {

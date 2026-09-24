@@ -6,9 +6,8 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { Dialog } from './Dialog';
-import { Combobox } from './controls';
 import { ICON_SM } from './icons';
-import { Empty, ErrorBox, Field, Loading, MODEL_OPTIONS, Tag } from './ui';
+import { Empty, ErrorBox, Field, Loading, ModelCombobox, Tag } from './ui';
 
 /** Arguments for one saved workflow, and the chat that runs it. */
 function RunForm({ workflow, cwd, onCancel }: { workflow: WorkflowDefinition; cwd: string | undefined; onCancel: () => void }) {
@@ -38,7 +37,7 @@ function RunForm({ workflow, cwd, onCancel }: { workflow: WorkflowDefinition; cw
         <textarea rows={2} value={args} onChange={(e) => setArgs(e.target.value)} placeholder="{ &quot;target&quot;: &quot;src/&quot; }" data-autofocus />
       </Field>
       <Field label={t('runWorkflow.model')} hint={t('runWorkflow.modelHint')}>
-        <Combobox aria-label={t('runWorkflow.model')} placeholder={t('runWorkflow.modelPlaceholder')} value={model} onChange={setModel} options={MODEL_OPTIONS} />
+        <ModelCombobox aria-label={t('runWorkflow.model')} placeholder={t('runWorkflow.modelPlaceholder')} value={model} onChange={setModel} />
       </Field>
       <ErrorBox error={run.error} title={t('runWorkflow.startError')} />
       <div className="form-actions">

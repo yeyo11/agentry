@@ -6,11 +6,29 @@
   gap: 14px;
 }
 
-/* Above a windowed transcript: what is still unread further back */
+/*
+ * Above a windowed transcript: what is still unread further back. Its height never changes — the
+ * lines that say a page is coming take exactly the room the button they replace took — or the whole
+ * conversation below would move by the difference, which is the one thing loading must not do.
+ */
 .transcript-earlier {
   display: flex;
+  flex-direction: column;
   justify-content: center;
+  align-items: center;
+  min-height: 41px;
   padding: 4px 0 10px;
+}
+
+/* The page on its way, as wide as the messages it will become and as tall as the button was */
+.transcript-earlier .skeleton-stack {
+  width: 100%;
+  gap: 5px;
+  padding: 0 0 0 38px;
+}
+
+.transcript-earlier .skeleton {
+  height: 5px;
 }
 
 .msg {
@@ -103,11 +121,29 @@
   opacity: 1;
 }
 
-/* A row without a head keeps its time in the corner */
+/*
+ * A row without a head keeps its time in the corner, and the row keeps a gutter for it: fading in
+ * over the first line of the message is how it used to land on top of the words.
+ */
 .msg-body > .msg-time {
   position: absolute;
   top: 2px;
   right: 0;
+}
+
+.msg-body:has(> .msg-time) {
+  padding-right: 46px;
+}
+
+/* A finger has no hover, so the corner time would never show anyway, and the phone keeps the width */
+@media (pointer: coarse) {
+  .msg-body > .msg-time {
+    display: none;
+  }
+
+  .msg-body:has(> .msg-time) {
+    padding-right: 0;
+  }
 }
 
 .msg-model {
@@ -788,4 +824,138 @@
   outline: 2px solid var(--warn);
   outline-offset: 4px;
   border-radius: var(--radius-sm);
+}
+
+/*
+ * What the system said, not the person: a background task that finished, a note the harness left,
+ * the output of a command. They arrive as messages full of tags (lib/chat-notice.ts reads them).
+ * They are not alerts and must not read as one — three of them in a row used to be three bordered
+ * boxes shouting in the warning colour. A line in the machine's voice: a hairline, an icon, what it
+ * says, and the rest behind a fold. Only a failure and an interrupted turn take a colour.
+ */
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+  padding: 3px 0;
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+  font: 11.5px var(--mono);
+}
+
+.notice-icon {
+  flex: none;
+  align-self: center;
+  color: var(--text-faint);
+}
+
+.notice-label {
+  flex: none;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.notice-status {
+  flex: none;
+  color: var(--ok);
+}
+
+.notice-status.is-bad {
+  color: var(--bad);
+}
+
+/*
+ * What it says. It shares the line while there is room for it and takes the next one when there is
+ * not, and never more than two: a summary of a couple of sentences used to wrap into a column ten
+ * lines tall, which is more of the conversation than any notice is worth. The whole of it is in the
+ * fold, and in the row's title.
+ */
+.notice-detail {
+  flex: 1 1 16ch;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.notice.is-bad,
+.notice.is-bad .notice-icon,
+.notice.is-bad .notice-label {
+  color: var(--bad);
+}
+
+.notice.is-interrupt,
+.notice.is-interrupt .notice-icon,
+.notice.is-interrupt .notice-label {
+  color: var(--warn);
+}
+
+/* With something behind it, the line is the fold's trigger and keeps the same shape */
+.fold.notice-fold {
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: none;
+}
+
+.fold.notice-fold > .collapsible-trigger {
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding: 3px 0;
+  font: 11.5px var(--mono);
+  color: var(--text-faint);
+}
+
+.fold.notice-fold > .collapsible-trigger:hover {
+  background: none;
+  color: var(--text-muted);
+}
+
+.notice-body {
+  padding: 2px 0 8px 22px;
+  color: var(--text-faint);
+  font: 11px/1.6 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* A message that is nothing but notices has no bubble and no name over it */
+.msg-notice .msg-body {
+  gap: 6px;
+}
+
+/* On a phone a code block that scrolls sideways swallows the swipe meant for the conversation */
+@media (max-width: 900px) {
+  .run-scroll pre.code,
+  .run-scroll .code-block.has-header > .code {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
+
+/*
+ * What has just arrived, and only that. A windowed transcript mounts a row again every time it
+ * scrolls back into view, so the row cannot say it is new by being mounted: the page marks the ones
+ * the stream said a moment ago (`justStreamed`, lib/chat-stream.ts). Opacity and transform only —
+ * a row that changed height on its way in would be re-measured mid-animation by the list around it.
+ */
+.msg.is-fresh {
+  animation: fade-rise var(--dur-base) var(--ease-out);
+}
+
+/*
+ * An answer arrives a block at a time (lib/markdown-blocks.ts cuts it, and each finished block
+ * keeps its element): the one that has just started fades in, so the text appears rather than
+ * lands. The block still growing keeps the same element, so this plays once per block, not per
+ * frame of it.
+ */
+.streaming-text > *:last-child {
+  animation: fade-in 140ms var(--ease-out);
 }

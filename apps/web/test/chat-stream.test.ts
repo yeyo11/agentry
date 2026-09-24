@@ -95,6 +95,17 @@ test('a message the CLI has not written yet is not taken back by a read that jus
   assert.deepEqual(uuids(spliceTail(held, page(0, ['a']), Number.POSITIVE_INFINITY, at + 60_000)), ['a']);
 });
 
+test('a message a person sent stays on the page until the chat writes it down, however long the turn takes', () => {
+  const at = 2_000_000;
+  const sent = entry('sent', { role: 'user', blocks: [{ type: 'text', text: 'and one more thing' }] });
+  const held = appendStreamed(page(0, ['a']), sent, at).page;
+  // The CLI reads its stdin when the turn ends: minutes of reads land without the message in them
+  assert.deepEqual(uuids(spliceTail(held, page(0, ['a']), Number.POSITIVE_INFINITY, at + 120_000)), ['a', 'sent']);
+  // Once the turn takes it, the transcript's own copy replaces the wrapper's
+  const written: ChatDetail = { chat, from: 0, total: 2, entries: [entry('a'), entry('written', { role: 'user', blocks: [{ type: 'text', text: 'and one more thing' }] })] };
+  assert.deepEqual(uuids(spliceTail(held, written, Number.POSITIVE_INFINITY, at + 120_000)), ['a', 'written']);
+});
+
 test('a user message sent while the read was on its way is not kept twice under two names', () => {
   const held = page(0, ['a']);
   const since = streamMark();

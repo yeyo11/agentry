@@ -11,6 +11,17 @@ body,
   height: 100%;
 }
 
+/*
+ * The window never scrolls sideways. Nothing is laid out wider than it, but a single stray child —
+ * a long unbroken path, a table that grew — would otherwise let the whole page be dragged off to
+ * the side, which on a phone is a gesture nobody meant to make. `clip` rather than `hidden`: it
+ * makes no scroll container, so `position: sticky` inside keeps working.
+ */
+html,
+body {
+  overflow-x: clip;
+}
+
 body {
   margin: 0;
   background: var(--bg);

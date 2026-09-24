@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- `interactive-widget=resizes-content`: the on-screen keyboard shrinks the layout viewport
+         instead of only the visual one, so `100dvh` is what is still visible and the browser has no
+         reason to scroll the page out from under the top bar to reveal the field being typed in.
+         Browsers that ignore it (iOS) are handled from `visualViewport` in src/lib/viewport.ts. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="color-scheme" content="dark light" />
     <meta name="description" content="Control panel for Claude Code: runs, sessions, orchestration and configuration." />
     <meta name="theme-color" content="#0a0a0c" media="(prefers-color-scheme: dark)" />

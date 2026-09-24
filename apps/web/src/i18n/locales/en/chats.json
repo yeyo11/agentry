@@ -127,7 +127,23 @@
     "startError": "Could not start the chat",
     "starting": "Starting…",
     "uploading": "Uploading…",
-    "start": "Start chat"
+    "start": "Start chat",
+    "welcome": {
+      "title": "Start something",
+      "lead": "Ask for a change, a review, an investigation. Claude Code runs it in the directory below and writes back here.",
+      "tips": {
+        "files": "Drop or paste files to attach them",
+        "send": "Ctrl/⌘ + Enter starts the chat",
+        "options": "The line under the box says where it runs — press it to change any of it"
+      },
+      "examples": {
+        "title": "For instance",
+        "one": "Read this project and tell me how it is laid out",
+        "two": "Find where the retries are handled and explain the policy",
+        "three": "Add a test for the case where the file is missing"
+      }
+    },
+    "options": "Where the chat will run: {{status}}"
   },
   "runWorkflow": {
     "titleRun": "Run {{name}}",

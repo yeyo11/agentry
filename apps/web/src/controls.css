@@ -64,8 +64,10 @@
   max-width: 260px;
 }
 
+/* Above a sheet (1160): the suggestions of a field inside one are opened from it, and under it
+   they were simply invisible */
 .menu {
-  z-index: 1100;
+  z-index: 1170;
   min-width: var(--radix-select-trigger-width, var(--radix-popover-trigger-width, 180px));
   max-width: min(420px, calc(100vw - 16px));
   max-height: min(340px, var(--radix-select-content-available-height, var(--radix-popover-content-available-height, 340px)));
@@ -683,4 +685,48 @@
   from {
     transform: translateX(100%);
   }
+}
+
+/* ---------- Combobox: a field that says it has suggestions ---------- */
+.combobox {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+
+.combobox > input {
+  padding-right: 30px;
+}
+
+.combobox-toggle {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  border: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color var(--dur-fast);
+}
+
+.combobox-toggle:hover {
+  color: var(--text);
+}
+
+.combobox:focus-within .combobox-toggle {
+  color: var(--text-muted);
+}
+
+.combobox-toggle svg {
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.combobox-toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
 }

@@ -17,7 +17,7 @@ export default async ({ page, api, check }) => {
 
   // Combobox: arrows walk the suggestions, Enter picks, typing filters, Escape closes
   await page.goto('/chats/new', 1200);
-  await page.click('.new-chat-advanced .collapsible-trigger', undefined, 300);
+  await page.click('.composer-status', undefined, 400);
   await page.focus('input[aria-label="Model"]');
   await page.key('ArrowDown');
   await page.waitFor(openListbox, { label: 'model suggestions open' });

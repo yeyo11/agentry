@@ -1,7 +1,9 @@
 import type { ContentBlock, TranscriptEntry } from '@agentry/shared';
-import { Brain, CircleAlert, Check, PanelRightOpen, User } from 'lucide-react';
+import { Brain, CircleAlert, CircleStop, Check, Info, PanelRightOpen, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
 import { lazy, memo, Suspense, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
+import { justStreamed } from '../lib/chat-stream';
 import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, transcriptRows, type StepCall, type StepPart, type TranscriptRow } from '../lib/chat-steps';
 import { formatDuration, formatClock, formatDateTime, truncate } from '../lib/format';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
@@ -117,13 +119,79 @@ function RowTime({ at }: { at: string | null }) {
   );
 }
 
-export const EntryView = memo(function EntryView({ entry, continued = false }: { entry: TranscriptEntry; continued?: boolean }) {
+const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info, command: Terminal, output: Terminal, interrupt: CircleStop };
+
+/**
+ * Something the system said, not the person: a strip in the machine's own voice — mono, in the
+ * accent colour, with its payload behind a fold — so a reader never mistakes it for a message.
+ */
+function NoticeRow({ notice }: { notice: Notice }) {
   const { t } = useTranslation('components');
+  const Icon = NOTICE_ICONS[notice.kind];
+  const failed = Boolean(notice.status) && notice.status !== 'completed';
+  const line = (
+    <>
+      <Icon {...ICON_SM} className="notice-icon" />
+      <span className="notice-label">{t(`transcript.notice.${notice.kind}`)}</span>
+      {notice.status && <span className={`notice-status ${failed ? 'is-bad' : 'is-ok'}`}>{notice.status}</span>}
+      {/* Two lines at most: what the system says is worth a glance, not a screen of the conversation */}
+      <span className="notice-detail" title={notice.detail}>
+        {notice.detail}
+      </span>
+    </>
+  );
+  const tone = `notice is-${notice.kind} ${failed ? 'is-bad' : ''}`.trim();
+  if (!notice.body) return <div className={tone}>{line}</div>;
+  return (
+    <Collapsible className={`fold notice-fold ${tone}`} title={line}>
+      {/* Behind the fold the whole of it, the line included: the line above may have been cut */}
+      <div className="notice-body">{`${notice.detail}\n${notice.body}`}</div>
+    </Collapsible>
+  );
+}
+
+/**
+ * What a `user` entry really holds: the prose a person typed, and the notices the harness wrote
+ * into it. Only user entries carry them, and a message that is nothing but notices has no prose.
+ */
+function readEntry(entry: TranscriptEntry): { blocks: ContentBlock[]; notices: Notice[] } {
+  if (entry.role !== 'user') return { blocks: entry.blocks, notices: [] };
+  const notices: Notice[] = [];
+  const blocks: ContentBlock[] = [];
+  for (const block of entry.blocks) {
+    if (block.type !== 'text') {
+      blocks.push(block);
+      continue;
+    }
+    const read = readNotices(block.text);
+    notices.push(...read.notices);
+    if (read.prose) blocks.push({ type: 'text', text: read.prose });
+  }
+  return { blocks, notices };
+}
+
+export const EntryView = memo(function EntryView({ entry, continued = false, fresh = false }: { entry: TranscriptEntry; continued?: boolean; /** Said a moment ago: the row rises into place once */ fresh?: boolean }) {
+  const { t } = useTranslation('components');
+  const { blocks, notices } = useMemo(() => readEntry(entry), [entry]);
   const onlyToolResults = entry.role === 'user' && entry.blocks.every((b) => b.type === 'tool_result');
   const role = onlyToolResults ? 'tool' : entry.role;
   const head = !onlyToolResults && !continued;
+  // Nothing but notices: they stand on their own, without an avatar and without a name on them
+  if (notices.length > 0 && blocks.length === 0) {
+    return (
+      <div className="msg msg-notice">
+        <span className="avatar-gap" aria-hidden />
+        <div className="msg-body">
+          {notices.map((notice, i) => (
+            <NoticeRow key={i} notice={notice} />
+          ))}
+          <RowTime at={entry.timestamp} />
+        </div>
+      </div>
+    );
+  }
   return (
-    <article className={`msg msg-${role} ${entry.isSidechain ? 'msg-sidechain' : ''} ${continued ? 'is-continued' : ''}`}>
+    <article className={`msg msg-${role} ${entry.isSidechain ? 'msg-sidechain' : ''} ${continued ? 'is-continued' : ''} ${fresh ? 'is-fresh' : ''}`.trimEnd()}>
       {head ? <Avatar role={entry.role} /> : <span className="avatar-gap" aria-hidden />}
       <div className="msg-body">
         {head ? (
@@ -136,8 +204,11 @@ export const EntryView = memo(function EntryView({ entry, continued = false }: {
         ) : (
           <RowTime at={entry.timestamp} />
         )}
-        {withoutListedMedia(entry.blocks).map((block, i) => (
+        {withoutListedMedia(blocks).map((block, i) => (
           <Block key={i} block={block} role={entry.role} />
+        ))}
+        {notices.map((notice, i) => (
+          <NoticeRow key={`notice-${i}`} notice={notice} />
         ))}
       </div>
     </article>
@@ -210,7 +281,7 @@ function PartView({ part, settled, subagents }: { part: StepPart; settled: boole
  * on right now is open and carries the live rail; once it is done it folds away, unless the reader
  * opened or closed it themselves.
  */
-const StepView = memo(function StepView({ row, current, subagents }: { row: Extract<TranscriptRow, { kind: 'step' }>; current: boolean; subagents?: SubagentLink }) {
+const StepView = memo(function StepView({ row, current, subagents, fresh = false }: { row: Extract<TranscriptRow, { kind: 'step' }>; current: boolean; subagents?: SubagentLink; fresh?: boolean }) {
   const { t } = useTranslation('components');
   const [chosen, setChosen] = useState<boolean | null>(null);
   const open = chosen ?? current;
@@ -219,7 +290,7 @@ const StepView = memo(function StepView({ row, current, subagents }: { row: Extr
   const duration = stepDuration(row);
   const tools = stepTools(row.parts);
   return (
-    <article className={`msg msg-step ${row.isSidechain ? 'msg-sidechain' : ''} ${current ? 'is-current' : ''}`}>
+    <article className={`msg msg-step ${row.isSidechain ? 'msg-sidechain' : ''} ${current ? 'is-current' : ''} ${fresh ? 'is-fresh' : ''}`.trimEnd()}>
       <span className="avatar-gap" aria-hidden />
       <div className="msg-body">
         <Collapsible
@@ -284,6 +355,27 @@ export function endsWithAssistant(entries: readonly TranscriptEntry[]): boolean 
   return Boolean(last && !last.isSidechain && (last.role === 'assistant' || last.blocks.every((b) => b.type === 'tool_result')));
 }
 
+/**
+ * How tall a row will be, before it has ever been drawn. A step is one folded line; a message is
+ * its text at the width it will wrap to, plus what each block of another kind takes. Rough on
+ * purpose and never exact — it only has to be closer than "every row is 140px", which is what the
+ * list reserved before and had to take back, in front of the reader, the moment a row was measured.
+ */
+function estimateRow(row: TranscriptRow, width: number): number {
+  if (row.kind === 'step') return 40;
+  const perLine = Math.max(20, Math.floor((width - 44) / 7.2));
+  let lines = 0;
+  let extra = 0;
+  for (const block of row.entry.blocks) {
+    if (block.type === 'text' || block.type === 'thinking') lines += Math.ceil(block.text.length / perLine) + (block.text.match(/\n/g)?.length ?? 0) / 2;
+    else if (block.type === 'tool_result') extra += 44;
+    else if (block.type === 'tool_use') extra += 44;
+    else extra += 190; // an image or a document, shown as a thumbnail or a chip
+  }
+  const head = row.continued ? 0 : 24;
+  return Math.min(1400, head + extra + Math.ceil(lines) * 21 + 12);
+}
+
 export function Transcript({
   rows,
   entries,
@@ -308,12 +400,13 @@ export function Transcript({
   const focused = useMemo(() => (target ? { item: target } : null), [target, focus]);
   const last = own.at(-1);
   return (
-    <VirtualList className="transcript" items={own} itemKey={(row) => row.key} pinToBottom={pinToBottom} onReachTop={onReachTop} focus={focused}>
+    <VirtualList className="transcript" items={own} itemKey={(row) => row.key} pinToBottom={pinToBottom} onReachTop={onReachTop} focus={focused} estimate={estimateRow}>
       {(row) =>
         row.kind === 'entry' ? (
-          <EntryView entry={row.entry} continued={row.continued} />
+          // Only what a person sent: an answer of Claude's was already on screen as it was written
+          <EntryView entry={row.entry} continued={row.continued} fresh={row.entry.role === 'user' && justStreamed(row.entry)} />
         ) : (
-          <StepView row={row} current={working && row === last} subagents={subagents} />
+          <StepView row={row} current={working && row === last} subagents={subagents} fresh={justStreamed(row.entries[row.entries.length - 1] ?? row.entries[0]!)} />
         )
       }
     </VirtualList>

@@ -62,7 +62,11 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'GET /system': d('System', 'CLI installation, auth status and paths', { querystring: obj({ refresh: str('`1` bypasses the 30s cache') }), ok: ref('SystemInfo') }),
   'GET /system/cli-version': d('System', 'Claude Code version in use and the newest published', { description: 'What the last check learned; it never reads the registry itself. `checkedAt` says how old the answer is.', ok: ref('CliVersionInfo') }),
   'POST /system/cli-version/check': d('System', 'Check for a newer Claude Code now', { description: 'Reads the npm registry metadata of `@anthropic-ai/claude-code`. The server also does it once a day unless `AGENTRY_CLI_UPDATE_CHECK=off`. A failure keeps the previous answer and reports `error`.', ok: ref('CliVersionInfo') }),
-  'GET /overview': d('System', 'Everything the dashboard needs in one call', { ok: ref('Overview') }),
+  'GET /overview': d('System', 'Everything the dashboard needs in one call', {
+    description:
+      'The CLI and its auth, the rate limit, the accounts, what is running and the newest chats. `system.models` is what `--model` may be given: the aliases the CLI always takes, and after them whatever the logged-in account may run, read from the options the CLI caches in its own state file — so a subscription that adds a model adds it here, and one the CLI cannot run yet comes back `disabled` with the reason.',
+    ok: ref('Overview'),
+  }),
 
   // ---- Account
   'GET /auth': d('Account', 'Fresh auth status', { ok: ref('AuthStatus') }),

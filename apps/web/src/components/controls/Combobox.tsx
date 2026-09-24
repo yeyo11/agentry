@@ -1,5 +1,5 @@
 import * as RadixPopover from '@radix-ui/react-popover';
-import { Check } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '../icons';
@@ -52,7 +52,9 @@ export function Combobox({
 
   return (
     <RadixPopover.Root open={shown} onOpenChange={(next) => !next && setOpen(false)}>
-      <RadixPopover.Anchor asChild>
+      {/* A field with suggestions still takes anything typed into it, but it has to look like it
+          has them: bare, it read as a plain text box and nobody pressed it */}
+      <RadixPopover.Anchor className="combobox">
         <input
           ref={inputRef}
           role="combobox"
@@ -87,6 +89,21 @@ export function Combobox({
             }
           }}
         />
+        <button
+          type="button"
+          className="combobox-toggle"
+          aria-label={t('combobox.suggestions')}
+          aria-expanded={shown}
+          tabIndex={-1}
+          // The input keeps focus: the list is its own, and picking from it types into it
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            setOpen(!shown);
+            inputRef.current?.focus();
+          }}
+        >
+          <ChevronDown {...ICON_SM} aria-hidden />
+        </button>
       </RadixPopover.Anchor>
       <RadixPopover.Portal>
         <RadixPopover.Content

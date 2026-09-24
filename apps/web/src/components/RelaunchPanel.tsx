@@ -6,10 +6,10 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { cleanTask, specOfTask } from '../lib/orchestration-v2';
-import { Combobox, NumberInput } from './controls';
+import { NumberInput } from './controls';
 import { ICON_SM } from './icons';
 import { removeTaskAt, renameTask, TaskEditor, validateGraph } from './TaskEditor';
-import { Card, ErrorBox, Field, MODEL_OPTIONS } from './ui';
+import { Card, ErrorBox, Field, ModelCombobox } from './ui';
 
 /**
  * Corrects a finished graph and runs it again as a new orchestration. The original stays as it was:
@@ -62,7 +62,7 @@ export function RelaunchPanel({ orch, onCancel }: { orch: Orchestration; onCance
             <input value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
           <Field label={t('orchestration:taskEditor.model')}>
-            <Combobox aria-label={t('orchestration:taskEditor.model')} placeholder={t('orchestration:defaultPlaceholder')} value={model} onChange={setModel} options={MODEL_OPTIONS} />
+            <ModelCombobox aria-label={t('orchestration:taskEditor.model')} placeholder={t('orchestration:defaultPlaceholder')} value={model} onChange={setModel} />
           </Field>
           <Field label={t('config:orchestration.concurrency')} hint={t('config:orchestration.concurrencyHint')}>
             <NumberInput min={1} max={8} value={concurrency} onChange={(v) => setConcurrency(v || 1)} />

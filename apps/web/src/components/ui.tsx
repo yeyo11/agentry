@@ -14,10 +14,13 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useState, type ComponentProps, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { MODEL_ALIASES } from '@agentry/shared';
 import i18n from '../i18n';
+import { useOverview } from '../api';
 import { errorMessage } from '../lib/format';
+import { Combobox, type ComboboxOption } from './controls/Combobox';
 import { Tooltip } from './controls/Tooltip';
 import { ICON, ICON_SM } from './icons';
 import { AnimatePresence, motion, SlidingIndicator, useIndicatorId } from './motion';
@@ -411,6 +414,28 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
 }
 
 export const PERMISSION_MODES = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'] as const;
-export const MODEL_SUGGESTIONS = ['fable', 'opus', 'sonnet', 'haiku'] as const;
-/** Suggestions for a model <Combobox> */
-export const MODEL_OPTIONS = MODEL_SUGGESTIONS.map((value) => ({ value }));
+
+/** Until the wrapper has heard from the CLI: the aliases it always takes. */
+export const MODEL_OPTIONS: ComboboxOption[] = MODEL_ALIASES.map((value) => ({ value }));
+
+/**
+ * The models to offer: what the CLI says this account may run (`SystemInfo.models`, read from the
+ * CLI's own state file), with its names and the line it shows under each. The ones it names but
+ * cannot run are left out — a suggestion nobody can pick is a trap — and the aliases stand alone
+ * until the overview has been read.
+ */
+export function useModelOptions(): ComboboxOption[] {
+  const models = useOverview().data?.system.models;
+  return useMemo(
+    () =>
+      models && models.length > 0
+        ? models.filter((model) => !model.disabled).map((model) => ({ value: model.value, label: model.label ?? model.value, hint: model.description }))
+        : MODEL_OPTIONS,
+    [models],
+  );
+}
+
+/** A model <Combobox>, filled from what the CLI offers; everything else is the Combobox's own. */
+export function ModelCombobox(props: Omit<ComponentProps<typeof Combobox>, 'options'>) {
+  return <Combobox {...props} options={useModelOptions()} />;
+}

@@ -32,6 +32,12 @@
   }
 }
 
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
 @keyframes fade-rise {
   from {
     opacity: 0;

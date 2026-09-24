@@ -4,10 +4,10 @@ import { Save } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { Combobox, NumberInput, Switch } from '../../components/controls';
+import { NumberInput, Switch } from '../../components/controls';
 import { ICON_SM } from '../../components/icons';
 import { useToast } from '../../components/Toast';
-import { Card, ErrorBox, Field, MODEL_OPTIONS, Skeleton } from '../../components/ui';
+import { Card, ErrorBox, Field, ModelCombobox, Skeleton } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 
 /** The server refuses a ceiling outside (0, 5]: a supervisor reads a few lines and writes two. */
@@ -68,7 +68,7 @@ function SupervisorForm({ saved }: { saved: SupervisorConfig }) {
       </Switch>
       <div className="form-grid">
         <Field label={t('supervisor.model')} hint={t('supervisor.modelHint')}>
-          <Combobox aria-label={t('supervisor.model')} value={form.model} onChange={(value) => patch({ model: value })} options={MODEL_OPTIONS} />
+          <ModelCombobox aria-label={t('supervisor.model')} value={form.model} onChange={(value) => patch({ model: value })} />
         </Field>
         <Field label={t('supervisor.maxCost')} hint={t('supervisor.maxCostHint')}>
           <NumberInput

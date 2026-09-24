@@ -1,11 +1,11 @@
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
-/** Row height assumed for a row that has never been on screen, until a real one is measured. */
+/** Row height assumed for a row that has never been on screen and whose caller offers no guess. */
 const FIRST_GUESS = 140;
 
-/** Rows kept mounted beyond each edge of the viewport. */
-const OVERSCAN = 6;
+/** Rows kept mounted beyond each edge of the viewport, so they are measured before they are read. */
+const OVERSCAN = 8;
 
 /** How long a focused row is held in view while the rows around it are measured. */
 const SETTLE_MS = 1500;
@@ -27,6 +27,7 @@ export function VirtualList<T>({
   pinToBottom = false,
   onReachTop,
   focus,
+  estimate,
   children,
 }: {
   items: T[];
@@ -45,6 +46,14 @@ export function VirtualList<T>({
    * again, even to the same row: pressing Enter on the only hit brings it back.
    */
   focus?: { item: T } | null;
+  /**
+   * How tall a row is likely to be, before it has ever been rendered, given the width it will have.
+   * What is reserved for a row that has not been measured is what the view has to be corrected by
+   * once it is, and a guess that is out by hundreds of pixels is what makes reading back through a
+   * long conversation lurch. Must be a pure function of the item: it is asked again as the list
+   * re-places rows, and an answer that moves would move them under the reader.
+   */
+  estimate?: (item: T, width: number) => number;
   children: (item: T, index: number) => ReactNode;
 }) {
   const host = useRef<HTMLDivElement>(null);
@@ -54,6 +63,8 @@ export function VirtualList<T>({
   // The list rarely starts at the top of its scroller: cards, a header and the button that loads
   // earlier messages all sit above it, and that distance changes as they come and go.
   const [margin, setMargin] = useState(0);
+  // The width a row will be laid out at, which is what its height depends on
+  const [width, setWidth] = useState(0);
 
   // Measured when something moves the list rather than on every render: the virtualizer renders
   // on every scrolled frame, and reading layout there forced it once more per frame
@@ -67,6 +78,7 @@ export function VirtualList<T>({
       const offset = found ? el.getBoundingClientRect().top - found.getBoundingClientRect().top + found.scrollTop : 0;
       setGap(Number.parseFloat(getComputedStyle(el).rowGap) || 0);
       setMargin((held) => (Math.abs(held - offset) > 0.5 ? offset : held));
+      setWidth((held) => (Math.abs(held - el.clientWidth) > 8 ? el.clientWidth : held));
     };
     measure();
     if (!found) return;
@@ -95,10 +107,20 @@ export function VirtualList<T>({
     };
   }, []);
 
+  // Stable, as the virtualizer asks: it is read for every row it places, on every frame it renders
+  const estimateSize = useCallback(
+    (index: number) => {
+      const item = items[index];
+      if (item === undefined || !estimate || width === 0) return FIRST_GUESS;
+      return Math.max(24, Math.round(estimate(item, width)));
+    },
+    [items, estimate, width],
+  );
+
   const rows = useVirtualizer({
     count: items.length,
     getScrollElement: () => scroller,
-    estimateSize: () => FIRST_GUESS,
+    estimateSize,
     getItemKey: (index) => {
       const item = items[index];
       return item === undefined ? index : itemKey(item, index);
@@ -123,6 +145,20 @@ export function VirtualList<T>({
       return instance.getVirtualItems().some((v) => v.index > item.index && v.start < bottom && v.end > offset && measured(v.key));
     };
   }, [rows]);
+
+  // Rows are as tall as their width lets them be: a rotation makes every measurement and every
+  // estimate of the old width wrong, and `measure()` is how the virtualizer is told so
+  const firstWidth = useRef(0);
+  useEffect(() => {
+    if (!width) return;
+    if (!firstWidth.current) {
+      firstWidth.current = width;
+      return;
+    }
+    if (firstWidth.current === width) return;
+    firstWidth.current = width;
+    rows.measure();
+  }, [width, rows]);
 
   const visible = rows.getVirtualItems();
   const first = visible[0];

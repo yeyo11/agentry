@@ -2,7 +2,7 @@ import type { Chat, PermissionMode } from '@agentry/shared';
 import * as RadixPopover from '@radix-ui/react-popover';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowUp, ChevronDown, GitFork, Play, Square } from 'lucide-react';
-import { lazy, Suspense, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { ToolChoices } from '../../components/ChatToolsPicker';
@@ -51,7 +51,7 @@ function useStatusWords(chat: Chat, kind: ComposerKind, choices: StartChoices): 
 }
 
 /** A popover by the line on a wide screen, a sheet from the bottom on a phone. */
-function OptionsPanel({ trigger, title, open, onOpenChange, children }: { trigger: ReactNode; title: string; open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode }) {
+export function OptionsPanel({ trigger, title, open, onOpenChange, children }: { trigger: ReactNode; title: string; open: boolean; onOpenChange: (open: boolean) => void; children: ReactNode }) {
   const narrow = useMediaQuery(NARROW);
   if (narrow) {
     return (
@@ -123,12 +123,16 @@ export function Composer({
   kind,
   onSent,
   interrupt,
+  restore,
 }: {
   chat: Chat;
   kind: ComposerKind;
-  onSent: () => void;
+  /** The message left for the chat: the page holds it until the transcript shows it */
+  onSent: (sent: { text: string; files: number }) => void;
   /** While the chat works, an empty box's button stops the turn instead of sending */
   interrupt?: { run: () => void; pending: boolean };
+  /** Words handed back to the box: a message the chat never read (see `chat/queued.ts`) */
+  restore?: { text: string; at: number } | null;
 }) {
   const { t } = useTranslation(['chat', 'work']);
   const queryClient = useQueryClient();
@@ -147,15 +151,25 @@ export function Composer({
       const request = { prompt: message, ...attachments, permissionPrompts: 'host' as const, ...choices };
       return kind === 'resume' ? api.resumeChat(chat.id, request) : api.forkChat(chat.id, request);
     },
-    onSuccess: (result) => {
+    onSuccess: (result, message) => {
       setText('');
+      const sentFiles = files.ids.length;
       files.clear();
-      onSent();
+      onSent({ text: message, files: sentFiles });
       void queryClient.invalidateQueries({ queryKey: keys.chats });
       void queryClient.invalidateQueries({ queryKey: keys.chatScope(chat.id) });
       if (kind === 'fork') navigate(`/chats/${result.id}`);
     },
   });
+
+  // A message that was never delivered comes back here, after whatever is half-typed
+  const restoredAt = useRef(0);
+  useEffect(() => {
+    if (!restore || restore.at === restoredAt.current) return;
+    restoredAt.current = restore.at;
+    setText((held) => (held.trim() ? `${held.replace(/\s+$/, '')}\n\n${restore.text}` : restore.text));
+    box.current?.focus();
+  }, [restore]);
 
   // Auto-growing composer
   useLayoutEffect(() => {
@@ -168,7 +182,11 @@ export function Composer({
   const send = () => {
     const message = text.trim();
     // A file on its own is a message too; one still uploading is not sent without it
-    if ((message || files.ids.length) && !files.uploading && !submit.isPending) submit.mutate(message);
+    if (!(message || files.ids.length) || files.uploading || submit.isPending) return;
+    // On a phone the keyboard covers half the screen, and what happens next is worth watching: the
+    // box lets go once the message is away, and a tap on it brings the keyboard back
+    if (window.matchMedia('(pointer: coarse)').matches) box.current?.blur();
+    submit.mutate(message);
   };
   const label = {
     send: { idle: t('work:runView.send'), pending: t('work:runView.sending') },

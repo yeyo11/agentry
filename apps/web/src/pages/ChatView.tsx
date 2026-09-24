@@ -1,17 +1,18 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, GitFork, Lock, MessageSquare, X } from 'lucide-react';
+import { ArrowDown, GitFork, Hourglass, Lock, MessageSquare, TriangleAlert, Undo2, X } from 'lucide-react';
 import type { Chat } from '@agentry/shared';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ActivityTicker } from '../components/ActivityTicker';
+import { Tooltip } from '../components/controls/Tooltip';
 import { useDeleteChat } from '../components/ChatDelete';
 import { PermissionPrompts } from '../components/PermissionPrompts';
 import { ICON, ICON_SM } from '../components/icons';
 import { AnimatePresence, motion } from '../components/motion';
 import { endsWithAssistant, StreamingEntry, Transcript, type SubagentLink } from '../components/Transcript';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind } from '../components/TranscriptSearch';
-import { Empty, ErrorBox, Loading, PageHeader, usePageTitle } from '../components/ui';
+import { Empty, ErrorBox, Loading, PageHeader, Skeleton, usePageTitle } from '../components/ui';
 import { api, keys } from '../api';
 import { tickerActivity } from '../lib/chat-live';
 import { subagentFor, transcriptRows } from '../lib/chat-steps';
@@ -21,33 +22,8 @@ import { useDetailPanel } from '../lib/detail';
 import { Composer, type ComposerKind } from './chat/Composer';
 import { ChatHeader, type HeaderActions } from './chat/Header';
 import { Inspector, useInspector } from './chat/Inspector';
+import { useQueuedMessages } from './chat/queued';
 import { useStickToBottom } from './chat/stick-to-bottom';
-
-/**
- * How much of the layout the on-screen keyboard covers. A phone's browser shrinks the visual
- * viewport and not the layout one when the keyboard opens, so without this the composer, pinned to
- * the bottom of the page, would sit under the keyboard it opened.
- */
-function useKeyboardInset() {
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    // On the root rather than on the page: the page is not mounted yet while the chat loads
-    const root = document.documentElement;
-    if (!viewport) return;
-    const update = () => {
-      const covered = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
-      root.style.setProperty('--keyboard-inset', `${Math.round(covered)}px`);
-    };
-    update();
-    viewport.addEventListener('resize', update);
-    viewport.addEventListener('scroll', update);
-    return () => {
-      viewport.removeEventListener('resize', update);
-      viewport.removeEventListener('scroll', update);
-      root.style.removeProperty('--keyboard-inset');
-    };
-  }, []);
-}
 
 /**
  * The end of the conversation that moves while Claude writes: the block being streamed and the
@@ -83,7 +59,6 @@ export function ChatView() {
   const [forking, setForking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const inspector = useInspector();
-  useKeyboardInset();
 
   const transcript = useChatTranscript(id, sidechains);
   const { chat } = transcript;
@@ -91,6 +66,11 @@ export function ChatView() {
   const connected = useStreamSnapshot(stream, (snapshot) => snapshot.connected);
   const writing = useStreamSnapshot(stream, (snapshot) => snapshot.partial?.block === 'text');
   const { follow, setFollow, jumpToLatest } = useStickToBottom(scroller, Boolean(chat));
+  const { queued, add: queueMessage, drop: dropQueued, pending: isPending } = useQueuedMessages(chat, transcript.items);
+  // Words handed back to the composer: a message the chat ended without ever reading
+  const [restore, setRestore] = useState<{ text: string; at: number } | null>(null);
+  // A message still waiting for the turn is a card over the box, so it is not also a row here
+  const items = useMemo(() => (queued.length === 0 ? transcript.items : transcript.items.filter((entry) => !isPending(entry))), [transcript.items, queued.length, isPending]);
   usePageTitle(chat ? t('view.pageTitle', { title: chat.title }) : t('view.pageTitleFallback'));
 
   // Another chat starts at its end, with nothing half-typed for a copy of the last one
@@ -134,7 +114,7 @@ export function ChatView() {
     toDelete.current = { request: remove.requestDelete, chat };
   });
 
-  const rows = useMemo(() => transcriptRows(transcript.items), [transcript.items]);
+  const rows = useMemo(() => transcriptRows(items), [items]);
   const subagentList = chat?.children.subagents;
   const openDetail = detail.open;
   const subagents = useMemo<SubagentLink | undefined>(
@@ -226,16 +206,22 @@ export function ChatView() {
           >
             {transcript.more && (
               <div className="transcript-earlier">
-                <button type="button" className="btn btn-small" onClick={transcript.loadEarlier} disabled={transcript.loadingMore}>
-                  {transcript.loadingMore ? t('common:loading') : t('work:sessionView.loadEarlier', { n: transcript.from })}
-                </button>
+                {/* While the page before this one is on its way, lines where it will land: the list
+                    reserves the room for it either way, and blank room reads as a page that broke */}
+                {transcript.loadingMore ? (
+                  <Skeleton rows={3} height={5} />
+                ) : (
+                  <button type="button" className="btn btn-small" onClick={transcript.loadEarlier}>
+                    {t('work:sessionView.loadEarlier', { n: transcript.from })}
+                  </button>
+                )}
               </div>
             )}
-            {transcript.items.length === 0 ? (
+            {items.length === 0 ? (
               !working && <Empty icon={MessageSquare} title={t('view.nothingWritten')} />
             ) : (
               <Transcript
-                entries={transcript.items}
+                entries={items}
                 rows={rows}
                 pinToBottom={follow}
                 onReachTop={transcript.loadEarlier}
@@ -246,7 +232,7 @@ export function ChatView() {
             )}
             {/* Pinned under the transcript: a chat waiting on a decision is stuck until it gets one */}
             <PermissionPrompts chatId={id} live={live} />
-            <LiveTail stream={stream} chat={chat} continued={endsWithAssistant(transcript.items)} />
+            <LiveTail stream={stream} chat={chat} continued={endsWithAssistant(items)} />
           </div>
           <AnimatePresence>
             {!follow && (
@@ -277,13 +263,55 @@ export function ChatView() {
             <Composer key={chat.id} chat={chat} kind="fork" onSent={() => setFollow(true)} />
           </div>
         )}
+        {queued.length > 0 && (
+          <div className={`chat-queued ${queued.every((message) => message.undelivered) ? 'is-lost' : ''}`.trimEnd()} role="status" aria-label={t('view.queued.title')}>
+            <ul className="chat-queued-list">
+              {queued.map((message) => (
+                <li key={message.id} className="chat-queued-item">
+                  {message.undelivered ? <TriangleAlert {...ICON_SM} aria-hidden /> : <Hourglass {...ICON_SM} aria-hidden />}
+                  <span className="chat-queued-text">{message.text || t('view.queued.files', { count: message.files })}</span>
+                  {message.undelivered && message.text && (
+                    <Tooltip content={t('view.queued.restore')}>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={t('view.queued.restore')}
+                        onClick={() => {
+                          setRestore({ text: message.text, at: Date.now() });
+                          dropQueued(message.id);
+                        }}
+                      >
+                        <Undo2 {...ICON_SM} />
+                      </button>
+                    </Tooltip>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className="chat-queued-foot">
+              <span className="small muted">{queued.some((message) => message.undelivered) ? t('view.queued.undelivered') : t('view.queued.hint', { count: queued.length })}</span>
+              {!queued.some((message) => message.undelivered) && (
+                <Tooltip content={t('view.queued.sendNowHint')}>
+                  <button type="button" className="btn btn-small" onClick={() => interruptChat()} disabled={interrupting}>
+                    {interrupting ? t('view.queued.sending') : t('view.queued.sendNow')}
+                  </button>
+                </Tooltip>
+              )}
+            </div>
+          </div>
+        )}
         {composer && composer !== 'fork' && (
           // Keyed by the chat: a draft and its files belong to the chat they were written in
           <Composer
             key={chat.id}
             chat={chat}
             kind={composer}
-            onSent={() => setFollow(true)}
+            restore={restore}
+            onSent={(sent) => {
+              setFollow(true);
+              // Only a live chat queues: a resume or a fork starts a process that reads it at once
+              if (composer === 'send' && working) queueMessage(sent.text, sent.files, transcript.items.at(-1)?.uuid ?? '');
+            }}
             interrupt={composer === 'send' ? { run: () => interruptChat(), pending: interrupting } : undefined}
           />
         )}

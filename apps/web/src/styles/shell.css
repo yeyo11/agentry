@@ -2,7 +2,10 @@
 .shell {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
-  height: 100dvh;
+  /* What the on-screen keyboard covers (lib/viewport.ts), for the browsers that keep the layout
+     viewport at its full height while it is up: the whole app stays above the keyboard, so every
+     page keeps its own bottom (the composer, the tab bar, a form's buttons) reachable. */
+  height: calc(100dvh - var(--keyboard-inset, 0px));
   /* Installed on a phone the window is the whole screen, `viewport-fit=cover` and all: without
      this the sidebar footer sits under the home indicator and, in landscape, the topbar runs into
      the notch. Every inset is 0 on a device that has none, so this costs nothing anywhere else. */
@@ -393,12 +396,16 @@
   padding: 12px 0;
 }
 
+/* The height of its grid row, not of the window: the shell's safe-area padding comes off the window
+   first, and a column of a full `100dvh` inside it hung that much below the screen — on a phone
+   with a home indicator the composer and the tab bar ended up under the edge of the display. */
 .content {
   position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  height: 100dvh;
+  height: 100%;
+  min-height: 0;
   isolation: isolate;
 }
 
@@ -510,7 +517,10 @@
   --stick-bottom: calc(-1 * var(--main-pad-bottom));
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  /* Down only: a child a pixel too wide would otherwise let the whole page be dragged sideways,
+     which on a phone eats the gesture meant for the list. What is really wider than the column
+     (a table, a board) scrolls inside its own box. */
+  overflow: hidden auto;
   padding: var(--main-pad-top) var(--main-pad-x) calc(var(--main-pad-bottom) + var(--main-covered-bottom));
   scroll-padding-bottom: calc(80px + var(--main-covered-bottom));
 }
@@ -827,6 +837,33 @@
 
 .is-desktop .topbar {
   padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 12px);
+}
+
+/*
+ * The window controls are painted over the page, and a panel that reaches the top of the window put
+ * its own close button right under them: pressing the drawer's corner closed the window instead.
+ * Anything that opens against the right edge starts below the title bar, so its corner is its own.
+ */
+.is-desktop .sheet-right {
+  top: env(titlebar-area-height, 0px);
+}
+
+/* A dialog tall enough to reach the top of the window has the same corner to lose */
+.is-desktop .overlay {
+  padding-top: max(16px, env(titlebar-area-height, 0px));
+}
+
+.is-desktop .overlay .dialog {
+  max-height: 100%;
+}
+
+.is-desktop .overlay-drawer {
+  padding-top: env(titlebar-area-height, 0px);
+}
+
+.is-desktop .overlay-drawer .dialog-drawer {
+  height: calc(100dvh - env(titlebar-area-height, 0px));
+  max-height: 100%;
 }
 
 /* macOS keeps its traffic lights top-left, over the sidebar's head (or the bar when it is hidden) */

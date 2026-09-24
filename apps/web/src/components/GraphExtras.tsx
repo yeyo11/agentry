@@ -1,8 +1,8 @@
 import type { TaskLimits } from '@agentry/shared';
 import { useTranslation } from 'react-i18next';
 import { limitsOf, type InstallMode, type VerificationDraft } from '../lib/orchestration-v2';
-import { Combobox, NumberInput, Select, Switch } from './controls';
-import { Field, MODEL_OPTIONS } from './ui';
+import { NumberInput, Select, Switch } from './controls';
+import { Field, ModelCombobox } from './ui';
 
 const INSTALL_MODES: readonly InstallMode[] = ['detected', 'command', 'none'];
 
@@ -93,12 +93,11 @@ export function VerificationFields({ value, onChange }: { value: VerificationDra
                 <NumberInput min={1} max={5} value={value.maxAttempts} onChange={(v) => onChange({ ...value, maxAttempts: v || 1 })} />
               </Field>
               <Field label={t('verification.model')}>
-                <Combobox
+                <ModelCombobox
                   aria-label={t('verification.model')}
                   placeholder={t('verification.modelDefault')}
                   value={value.model}
                   onChange={(model) => onChange({ ...value, model })}
-                  options={MODEL_OPTIONS}
                 />
               </Field>
               <Field label={t('verification.maxCost')} hint={t('verification.maxCostHint')}>

@@ -9,7 +9,6 @@ import { Menu, type MenuEntry } from '../../components/controls/Menu';
 import { Tooltip } from '../../components/controls/Tooltip';
 import { HealthBadge } from '../../components/observe/Health';
 import { ProgressBar } from '../../components/ProgressBar';
-import { SplitButton } from '../../components/SplitButton';
 import { Spinner } from '../../components/Spinner';
 import { useToast } from '../../components/Toast';
 import type { TranscriptFind } from '../../components/TranscriptSearch';
@@ -113,14 +112,29 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
   const stoppable = control.mode === 'interactive';
 
   const entries: MenuEntry[] = [
-    ...(compact
+    ...(compact || (stoppable && live)
       ? [
           {
             id: 'here',
             items: [
-              { id: 'find', label: t('components:find.button'), icon: Search, checked: find.open, onSelect: () => (find.open ? find.close() : find.show()) },
+              ...(compact ? [{ id: 'find', label: t('components:find.button'), icon: Search, checked: find.open, onSelect: () => (find.open ? find.close() : find.show()) }] : []),
+              // Ending the turn is what the composer's button does; here it is by its name
               ...(stoppable && working
                 ? [{ id: 'interrupt', label: t('work:runView.interrupt'), icon: CircleSlash, disabled: actions.interrupt.pending, onSelect: actions.interrupt.run }]
+                : []),
+              // Stopping kills the process the chat runs in, and anything sent into it goes with it
+              ...(stoppable && live
+                ? [
+                    {
+                      id: 'stop',
+                      label: t('common:actions.stop'),
+                      icon: Square,
+                      destructive: true as const,
+                      disabled: actions.stop.pending,
+                      disabledReason: undefined,
+                      onSelect: actions.stop.run,
+                    },
+                  ]
                 : []),
             ],
           },
@@ -185,29 +199,16 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
             </button>
           </Tooltip>
         )}
-        {stoppable &&
-          (compact ? (
-            <Tooltip content={t('common:actions.stop')}>
-              <button type="button" className="btn btn-small btn-danger chat-stop is-icon" aria-label={t('common:actions.stop')} disabled={actions.stop.pending} onClick={actions.stop.run}>
-                <Square {...ICON_SM} />
-              </button>
-            </Tooltip>
-          ) : working ? (
-            <SplitButton
-              className="chat-stop"
-              variant="danger"
-              icon={Square}
-              label={t('common:actions.stop')}
-              onClick={actions.stop.run}
-              disabled={actions.stop.pending}
-              entries={[{ id: 'interrupt', label: t('work:runView.interrupt'), icon: CircleSlash, disabled: actions.interrupt.pending, onSelect: actions.interrupt.run }]}
-            />
-          ) : (
+        {/* A chat that is not working any more, and has a process nobody is waiting on: the one case
+            the menu's Stop is not enough for, since nothing else on the page says it is still up */}
+        {stoppable && live && !working && (
+          <Tooltip content={t('view.stopHint')}>
             <button type="button" className="btn btn-small btn-danger chat-stop" disabled={actions.stop.pending} onClick={actions.stop.run}>
               <Square {...ICON_SM} />
-              {t('common:actions.stop')}
+              {!compact && t('common:actions.stop')}
             </button>
-          ))}
+          </Tooltip>
+        )}
         {!inspector.rail && (
           <Tooltip content={inspector.open ? t('view.hideDetails') : t('view.showDetails')}>
             <button type="button" className="icon-btn" aria-label={t('view.details')} aria-pressed={inspector.open} onClick={inspector.toggle}>

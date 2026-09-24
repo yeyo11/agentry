@@ -60,9 +60,30 @@ export interface SystemInfo {
   configDir: string;
   workspaceDir: string;
   defaultPermissionMode: PermissionMode;
+  /** What `--model` may be given, as the CLI offers it to the account in use */
+  models: ModelOption[];
   /** Agentry's own version */
   version: string;
   uptimeSec: number;
+}
+
+/**
+ * The aliases the CLI always takes, each the latest model of its line (`claude --help`). What an
+ * account may run beyond them depends on its subscription, and the CLI says so itself: see
+ * `ModelOption`.
+ */
+export const MODEL_ALIASES = ['fable', 'opus', 'sonnet', 'haiku'] as const;
+
+/** One choice for `--model`. */
+export interface ModelOption {
+  /** What the flag takes: an alias (`opus`) or a model's full name (`claude-fable-5-1[1m]`) */
+  value: string;
+  /** What the CLI calls it, where it says so */
+  label?: string;
+  /** The line the CLI shows under it */
+  description?: string;
+  /** The CLI names it but cannot run it (it is too old for it, say); `description` says why */
+  disabled?: boolean;
 }
 
 export interface RateLimitWindow {

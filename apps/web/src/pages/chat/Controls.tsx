@@ -3,8 +3,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatToolsPicker } from '../../components/ChatToolsPicker';
-import { Combobox, Select } from '../../components/controls';
-import { ErrorBox, MODEL_OPTIONS, PERMISSION_MODES, Tag } from '../../components/ui';
+import { Select } from '../../components/controls';
+import { ErrorBox, ModelCombobox, PERMISSION_MODES, Tag } from '../../components/ui';
 import { api, keys } from '../../api';
 import type { StartChoices } from './Composer';
 
@@ -46,7 +46,7 @@ export function LiveSettings({ chat }: { chat: Chat }) {
             if (model.trim()) update.mutate({ model: model.trim() });
           }}
         >
-          <Combobox aria-label={t('work:shared.model')} placeholder={current?.model ?? chat.model ?? t('work:shared.default')} value={model} onChange={setModel} options={MODEL_OPTIONS} />
+          <ModelCombobox aria-label={t('work:shared.model')} placeholder={current?.model ?? chat.model ?? t('work:shared.default')} value={model} onChange={setModel} />
           {model.trim() && (
             <button type="submit" className="btn btn-small" disabled={update.isPending}>
               {t('components:runSettings.set')}
@@ -101,12 +101,11 @@ export function StartOptions({ chat, value, onChange, forking }: { chat: Chat; v
       </label>
       <label>
         {t('work:shared.model')}
-        <Combobox
+        <ModelCombobox
           aria-label={t('controls.modelNew')}
           placeholder={last?.model ?? chat.model ?? t('work:shared.default')}
           value={value.model ?? ''}
           onChange={(model) => onChange({ ...value, model: model.trim() ? model : undefined })}
-          options={MODEL_OPTIONS}
         />
       </label>
       <ChatToolsPicker value={value} onChange={(tools) => onChange({ ...value, ...tools })} scope={{ projectId: chat.project?.id }} current={chat.tools ?? null} forking={forking} />

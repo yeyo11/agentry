@@ -30,7 +30,20 @@
     "copyFailed": "No se pudo copiar el id",
     "moreActions": "Más acciones del chat",
     "showDetails": "Mostrar detalles",
-    "hideDetails": "Ocultar detalles"
+    "hideDetails": "Ocultar detalles",
+    "queued": {
+      "title": "Esperando a que acabe el turno",
+      "files_one": "{{count}} archivo",
+      "files_other": "{{count}} archivos",
+      "hint_one": "1 mensaje espera al turno en curso",
+      "hint_other": "{{count}} mensajes esperan al turno en curso",
+      "sendNow": "Enviar ahora",
+      "sending": "Acabando el turno…",
+      "sendNowHint": "Acaba el turno en el que está Claude, para que lea lo que espera",
+      "undelivered": "No se entregó: el turno acabó antes de que el chat lo leyera",
+      "restore": "Devolverlo al cuadro"
+    },
+    "stopHint": "Mata el proceso en el que corre el chat. Lo enviado y aún no leído se pierde con él"
   },
   "composer": {
     "message": "Mensaje",

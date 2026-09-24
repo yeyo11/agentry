@@ -572,3 +572,10 @@ button.master-item-on:hover {
     grid-column: 1 / -1;
   }
 }
+
+/* Like every other field (styles/primitives.css): under 16px iOS zooms the page into the editor */
+@media (pointer: coarse) {
+  .code-editor .cm-editor {
+    font-size: 16px;
+  }
+}

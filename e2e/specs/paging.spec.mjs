@@ -37,9 +37,14 @@ function entry(i) {
   }
 }
 
-/** The marker of the first row whose top is inside the viewport, and where that top sits. */
+/**
+ * The marker of the first row whose top is inside the viewport, and where that top sits. A step
+ * folds its tool calls away, and with them the marker they carry: the first row that says which
+ * one it is is the one this can follow.
+ */
 const READING = `const main=document.querySelector('.run-scroll');const top=main.getBoundingClientRect().top;
-  const row=[...document.querySelectorAll('.transcript > [data-index]')].find(r=>r.getBoundingClientRect().top>=top);
+  const rows=[...document.querySelectorAll('.transcript > [data-index]')].filter(r=>r.getBoundingClientRect().top>=top);
+  const row=rows.find(r=>/\\bm(\\d{4})\\b/.test(r.innerText));
   const m=row?.innerText.match(/\\bm(\\d{4})\\b/);
   return m?{mark:m[0],offset:row.getBoundingClientRect().top-top}:null;`;
 const offsetOf = (m) =>

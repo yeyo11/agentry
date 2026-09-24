@@ -152,7 +152,8 @@ export function liveSummary({
  * orchestration's summary) take the whole height on a phone, so the tab bar steps aside there.
  */
 export function hidesTabBar(pathname: string): boolean {
-  const chat = /^\/chats\/([^/]+)\/?$/.exec(pathname);
-  if (chat) return chat[1] !== 'new';
+  // A new chat is the same page as the chat it becomes — a box at the bottom of the window — and
+  // the bar would sit over it; its header carries the way back instead
+  if (/^\/chats\/[^/]+\/?$/.test(pathname)) return true;
   return /^\/orchestration\/[^/]+\/?$/.test(pathname);
 }

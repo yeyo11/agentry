@@ -19,8 +19,31 @@ let appended = 0;
  */
 const WRITE_GRACE_MS = 2000;
 
+/**
+ * The same, for a message a person sent. The CLI writes it into the transcript when it takes the
+ * turn, which — for a message sent into a turn already running — is however long that turn lasts.
+ * Two seconds later a read would take it off the page, so what was just sent appeared and vanished
+ * until the turn ended. It stays until a read shows it (or the page is left).
+ */
+const SENT_GRACE_MS = 10 * 60_000;
+
 /** Where the stream's appends are now: a read started here cannot hold what is appended after. */
 export const streamMark = (): number => appended;
+
+/** Whether this entry is on the page because the stream said it, and no read has confirmed it yet. */
+export const isStreamed = (entry: TranscriptEntry): boolean => streamed.has(entry);
+
+/** How long an entry counts as having just arrived: what an entrance animation is allowed to play for. */
+const FRESH_MS = 1200;
+
+/**
+ * Whether the stream put this entry on the page a moment ago. A windowed transcript mounts a row
+ * again every time it scrolls back into view, so "new" cannot be "mounted": it is this.
+ */
+export const justStreamed = (entry: TranscriptEntry, now = Date.now()): boolean => {
+  const mark = streamed.get(entry);
+  return mark !== undefined && now - mark.at < FRESH_MS;
+};
 
 /** How many entries at the end of `page` came from the stream and have not been read back yet. */
 export function unconfirmedTail(page: ChatDetail): number {
@@ -81,7 +104,8 @@ export function spliceTail(held: ChatDetail, fresh: ChatDetail, since = Number.P
   for (const entry of held.entries.slice(at)) {
     const readBack = read.has(entry.uuid) || (entry.role === 'user' && said.has(entryText(entry)));
     const mark = streamed.get(entry);
-    if (mark && (mark.mark > since || now - mark.at < WRITE_GRACE_MS) && !readBack) late.push(entry);
+    const grace = entry.role === 'user' ? SENT_GRACE_MS : WRITE_GRACE_MS;
+    if (mark && (mark.mark > since || now - mark.at < grace) && !readBack) late.push(entry);
     // What is replaced is confirmed now, even where the read hands back the very same objects
     else streamed.delete(entry);
   }

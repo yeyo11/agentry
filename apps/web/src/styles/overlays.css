@@ -184,3 +184,114 @@
     width: calc(100vw - 24px);
   }
 }
+
+/*
+ * The media viewer: a file of a message, looked at without leaving it. Full window, because that is
+ * what an image is for, and everything it offers sits in one bar so the picture keeps the room.
+ */
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--bg) 88%, black);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  animation: fade-in var(--dur-base) var(--ease-out);
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.viewer-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px 8px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.viewer-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.viewer-size,
+.viewer-count {
+  flex: none;
+  color: var(--text-faint);
+  font: 11.5px var(--mono);
+}
+
+.viewer-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.viewer-stage:focus-visible {
+  outline: none;
+}
+
+/* Fitted to the window, never blown up past its own pixels */
+.viewer-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius);
+}
+
+.viewer-pdf {
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+
+.viewer-plain {
+  color: var(--text-muted);
+}
+
+.viewer-step {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--bg-glass);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.viewer-step.is-back {
+  left: 10px;
+}
+
+.viewer-step.is-next {
+  right: 10px;
+}
+
+.viewer-step:hover {
+  border-color: var(--accent);
+}
+
+/* A thumbnail is a button now, and must not look like one */
+button.attachment-thumb,
+button.attachment-chip {
+  font: inherit;
+  cursor: pointer;
+}

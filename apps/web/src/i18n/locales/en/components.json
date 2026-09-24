@@ -185,7 +185,14 @@
     "callFailed": "failed",
     "callRunning": "running",
     "callWaiting": "Waiting for the result…",
-    "openSubagent": "Open the subagent's transcript"
+    "openSubagent": "Open the subagent's transcript",
+    "notice": {
+      "task": "Background task",
+      "reminder": "System note",
+      "command": "Command",
+      "output": "Command output",
+      "interrupt": "Interrupted"
+    }
   },
   "detail": {
     "status": "Status",
@@ -435,5 +442,14 @@
       "unconfigured": "This server has no signing key for push, so nothing it sent could be delivered. Its log says why.",
       "denied": "Notifications are blocked for this site. Allow them in the browser's own settings, and this switch comes back."
     }
+  },
+  "viewer": {
+    "close": "Close",
+    "download": "Download",
+    "openTab": "Open in a new tab",
+    "previous": "Previous file",
+    "next": "Next file",
+    "count": "{{n}} of {{total}}",
+    "noPreview": "This file can only be downloaded"
   }
 }

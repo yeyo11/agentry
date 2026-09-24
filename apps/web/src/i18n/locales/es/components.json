@@ -185,7 +185,14 @@
     "callFailed": "falló",
     "callRunning": "en marcha",
     "callWaiting": "Esperando el resultado…",
-    "openSubagent": "Abrir el transcript del subagente"
+    "openSubagent": "Abrir el transcript del subagente",
+    "notice": {
+      "task": "Tarea en segundo plano",
+      "reminder": "Nota del sistema",
+      "command": "Comando",
+      "output": "Salida del comando",
+      "interrupt": "Interrumpido"
+    }
   },
   "detail": {
     "status": "Estado",
@@ -435,5 +442,14 @@
       "unconfigured": "Este servidor no tiene clave de firma para push, así que no se podría entregar nada de lo que enviara. Su registro dice por qué.",
       "denied": "Las notificaciones están bloqueadas para este sitio. Permítelas en los ajustes del navegador y este interruptor vuelve."
     }
+  },
+  "viewer": {
+    "close": "Cerrar",
+    "download": "Descargar",
+    "openTab": "Abrir en otra pestaña",
+    "previous": "Archivo anterior",
+    "next": "Archivo siguiente",
+    "count": "{{n}} de {{total}}",
+    "noPreview": "Este archivo sólo puede descargarse"
   }
 }

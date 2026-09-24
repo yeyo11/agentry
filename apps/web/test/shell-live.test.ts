@@ -101,8 +101,9 @@ test('chat ids in links are encoded', () => {
 });
 
 test('the tab bar steps aside on a chat and on an orchestration, not on their lists or on New chat', () => {
-  for (const path of ['/chats/abc', '/chats/abc/', '/orchestration/o1']) assert.equal(hidesTabBar(path), true, path);
-  for (const path of ['/', '/chats', '/chats/new', '/orchestration', '/settings', '/projects']) assert.equal(hidesTabBar(path), false, path);
+  // A new chat is that page too: the box sits at the bottom of the window, where the bar would be
+  for (const path of ['/chats/abc', '/chats/abc/', '/chats/new', '/orchestration/o1']) assert.equal(hidesTabBar(path), true, path);
+  for (const path of ['/', '/chats', '/orchestration', '/settings', '/projects']) assert.equal(hidesTabBar(path), false, path);
 });
 
 test('the desktop app marks the page with its platform; a browser marks nothing', () => {

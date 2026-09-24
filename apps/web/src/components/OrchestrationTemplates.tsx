@@ -10,7 +10,7 @@ import { Combobox, Tooltip } from './controls';
 import { Dialog, useConfirm } from './Dialog';
 import { ICON_SM } from './icons';
 import { useToast } from './Toast';
-import { Empty, ErrorBox, Field, Loading, MODEL_OPTIONS } from './ui';
+import { Empty, ErrorBox, Field, Loading, ModelCombobox } from './ui';
 
 /**
  * Saves a graph as a template. Given a spec (the launch form's, or a plan's) it takes the graph as
@@ -154,12 +154,11 @@ function LaunchTemplateDialog({ template, onClose }: { template: OrchestrationTe
             <input value={name} placeholder={template.spec.name} onChange={(e) => setName(e.target.value)} />
           </Field>
           <Field label={t('templates.model')}>
-            <Combobox
+            <ModelCombobox
               aria-label={t('templates.model')}
               placeholder={template.spec.model ?? t('templates.modelDefault')}
               value={model}
               onChange={setModel}
-              options={MODEL_OPTIONS}
             />
           </Field>
         </div>

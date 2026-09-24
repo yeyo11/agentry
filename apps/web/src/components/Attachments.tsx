@@ -1,12 +1,13 @@
 import type { Attachment } from '@agentry/shared';
 import { FileText, Image as ImageIcon, Loader2, Paperclip, TriangleAlert, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { api } from '../api';
 import { withToken } from '../lib/auth';
 import { errorMessage, formatBytes } from '../lib/format';
 import { ICON_SM } from './icons';
+import { isViewable, MediaViewer, type MediaItem } from './MediaViewer';
 
 // ---------- in the transcript ----------
 
@@ -45,7 +46,7 @@ export function splitAttached(text: string): { text: string; files: AttachedFile
 const contentUrl = (id: string) => withToken(`/api/uploads/${encodeURIComponent(id)}/content`);
 const isViewableImage = (type: string) => ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(type);
 
-function FileChip({ name, mediaType, sizeBytes, href, children }: { name: string; mediaType: string; sizeBytes?: number; href?: string | null; children?: ReactNode }) {
+function FileChip({ name, mediaType, sizeBytes, href, onOpen, children }: { name: string; mediaType: string; sizeBytes?: number; href?: string | null; onOpen?: () => void; children?: ReactNode }) {
   const Icon = mediaType.startsWith('image/') ? ImageIcon : FileText;
   const body = (
     <>
@@ -55,6 +56,14 @@ function FileChip({ name, mediaType, sizeBytes, href, children }: { name: string
       {children}
     </>
   );
+  // A file the page can show opens over it; anything else is still the browser's to open
+  if (onOpen) {
+    return (
+      <button type="button" className="attachment-chip" title={name} onClick={onOpen}>
+        {body}
+      </button>
+    );
+  }
   return href ? (
     <a className="attachment-chip" href={href} target="_blank" rel="noreferrer" title={name}>
       {body}
@@ -66,20 +75,38 @@ function FileChip({ name, mediaType, sizeBytes, href, children }: { name: string
   );
 }
 
-/** Files attached to a message: thumbnails for images, a chip for anything else. */
+/**
+ * Files attached to a message: thumbnails for images, a chip for anything else. What the page can
+ * show opens in the viewer, at the file pressed, with the message's other files beside it.
+ */
 export function AttachedFiles({ files }: { files: AttachedFile[] }) {
+  const [open, setOpen] = useState<number | null>(null);
+  // The ones the viewer can show, and where each sits in it
+  const shown = useMemo<MediaItem[]>(
+    () => files.flatMap((f) => (f.uploadId && isViewable(f.mediaType) ? [{ name: f.name, mediaType: f.mediaType, sizeBytes: f.sizeBytes, url: contentUrl(f.uploadId) }] : [])),
+    [files],
+  );
+  const at = (file: AttachedFile) => (file.uploadId ? shown.findIndex((item) => item.url === contentUrl(file.uploadId as string)) : -1);
   if (files.length === 0) return null;
   return (
     <div className="attachments">
       {files.map((f, i) =>
         f.uploadId && isViewableImage(f.mediaType) ? (
-          <a key={i} className="attachment-thumb" href={contentUrl(f.uploadId)} target="_blank" rel="noreferrer" title={f.name}>
+          <button key={i} type="button" className="attachment-thumb" title={f.name} onClick={() => setOpen(at(f))}>
             <img src={contentUrl(f.uploadId)} alt={f.name} loading="lazy" />
-          </a>
+          </button>
         ) : (
-          <FileChip key={i} name={f.name} mediaType={f.mediaType} sizeBytes={f.sizeBytes} href={f.uploadId ? contentUrl(f.uploadId) : null} />
+          <FileChip
+            key={i}
+            name={f.name}
+            mediaType={f.mediaType}
+            sizeBytes={f.sizeBytes}
+            href={f.uploadId ? contentUrl(f.uploadId) : null}
+            onOpen={f.uploadId && isViewable(f.mediaType) ? () => setOpen(at(f)) : undefined}
+          />
         ),
       )}
+      {open !== null && open >= 0 && <MediaViewer items={shown} index={open} onIndex={setOpen} onClose={() => setOpen(null)} />}
     </div>
   );
 }

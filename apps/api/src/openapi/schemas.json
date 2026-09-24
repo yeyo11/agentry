@@ -31,6 +31,13 @@
       "defaultPermissionMode": {
         "$ref": "#/components/schemas/PermissionMode"
       },
+      "models": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ModelOption"
+        },
+        "description": "What `--model` may be given, as the CLI offers it to the account in use"
+      },
       "version": {
         "type": "string",
         "description": "Agentry's own version"
@@ -45,6 +52,7 @@
       "configDir",
       "workspaceDir",
       "defaultPermissionMode",
+      "models",
       "version",
       "uptimeSec"
     ]
@@ -133,6 +141,31 @@
       "dontAsk",
       "plan"
     ]
+  },
+  "ModelOption": {
+    "type": "object",
+    "properties": {
+      "value": {
+        "type": "string",
+        "description": "What the flag takes: an alias (`opus`) or a model's full name (`claude-fable-5-1[1m]`)"
+      },
+      "label": {
+        "type": "string",
+        "description": "What the CLI calls it, where it says so"
+      },
+      "description": {
+        "type": "string",
+        "description": "The line the CLI shows under it"
+      },
+      "disabled": {
+        "type": "boolean",
+        "description": "The CLI names it but cannot run it (it is too old for it, say); `description` says why"
+      }
+    },
+    "required": [
+      "value"
+    ],
+    "description": "One choice for `--model`."
   },
   "Overview": {
     "type": "object",
