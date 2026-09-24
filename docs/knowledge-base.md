@@ -54,6 +54,13 @@ asked. A search that returns nothing costs one call and rules out a whole folder
 A search that comes back empty on a question this folder should have covered is itself the finding:
 the document is missing, and writing it is the rule above.
 
+Prose alone did not hold — the first version of this rule was read and skipped — so a
+`UserPromptSubmit` hook in [`.claude/settings.json`](../.claude/settings.json) states it again on
+every prompt, where no judgment stands between reading it and acting. It is checked in rather than
+left in `settings.local.json` so an orchestration worker in a fresh worktree gets it too, for the
+same reason the rule is in CLAUDE.md. `/hooks` lists it; a session started before it existed needs
+that menu opened once, or a restart, to load it.
+
 ## Write through the tools, not around them
 
 A new document enters through `kb_add_document`, never through the REST upsert or by dropping a file
