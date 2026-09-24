@@ -1,3 +1,11 @@
+---
+created_at: 2026-09-21T07:35:14Z
+updated_at: 2026-09-21T07:35:14Z
+tags:
+    - plan
+    - roadmap
+    - verification-pending
+---
 # Plan: finish the roadmap
 
 Status: **built; final verification pending**. Run as one orchestration on top of `main` at
@@ -422,3 +430,7 @@ carries `agentId`; `sessionId` is on every subagent; `apps/web/test/detail.test.
 `pnpm typecheck`, `pnpm test`, `pnpm build` green on the integration branch, `pnpm e2e` green once
 at the end, the OpenAPI schemas regenerated and committed, and every task's result saying plainly
 what it delivered, what it left out, and how it verified it.
+
+## Related
+
+[[plans/post-roadmap.md]] · [[plans/agent-observability.md]] · [[status.md]]

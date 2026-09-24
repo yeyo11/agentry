@@ -40,3 +40,11 @@ drift): `pnpm --filter @agentry/api openapi:schemas`. Every new route needs a su
 - Commits follow Conventional Commits: release-please builds `CHANGELOG.md` from them, so never
   edit the changelog by hand. Pull requests are squash-merged.
 - Locally the wrapper uses the real `~/.claude`; set `CLAUDE_CONFIG_DIR` to experiment safely.
+
+## Knowledge
+
+Write every feature and every decision as a document under `docs/` (plans in `docs/plans/`), in the
+pull request that builds it. Where pando is available, `docs/` is also a searchable knowledge base
+and the source is indexed by symbol: reach for `kb_search_documents` and `code_hybrid_search` for
+questions of meaning, and check the index is `completed` before trusting it.
+[docs/knowledge-base.md](docs/knowledge-base.md) has the format, the tools and the re-sync.

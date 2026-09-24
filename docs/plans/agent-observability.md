@@ -1,3 +1,12 @@
+---
+created_at: 2026-09-19T13:43:52Z
+updated_at: 2026-09-21T19:36:16Z
+tags:
+    - plan
+    - observability
+    - orchestration
+    - landed
+---
 # Plan: see what every agent is really doing, and step in on time
 
 Status: **landed, in full**. Written on 2026-09-19 after the first large orchestration Agentry ran
@@ -283,3 +292,7 @@ supervisor in the orchestration after it ([post-roadmap.md](post-roadmap.md)).
 3. The verification phase and the split of checks between workers and it (section 5).
 4. Editor links (section 2).
 5. Per-task limits and the optional supervisor.
+
+## Related
+
+[[plans/agents-redesign.md]] · [[plans/roadmap-completion.md]] · [[status.md]]

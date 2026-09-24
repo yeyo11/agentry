@@ -1,3 +1,11 @@
+---
+created_at: 2026-09-21T19:36:16Z
+updated_at: 2026-09-21T19:36:16Z
+tags:
+    - plan
+    - roadmap
+    - verification-pending
+---
 # Plan: what the roadmap left open
 
 Status: **built; final verification pending**. Written on 2026-09-21 on top of `main` at `3aca743`
@@ -517,3 +525,7 @@ lines added over 143 files, with the OpenAPI schemas regenerated alongside.
   generated until its transcript is on disk, after which its first prompt becomes the title. It is on
   the roadmap's short **Noticed and not fixed** list, because it belongs to how a chat is named
   rather than to any task here.
+
+## Related
+
+[[plans/roadmap-completion.md]] · [[plans/agents-redesign.md]] · [[status.md]]

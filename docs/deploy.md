@@ -1,3 +1,13 @@
+---
+created_at: 2026-09-21T07:35:14Z
+updated_at: 2026-09-23T23:12:12Z
+tags:
+    - deploy
+    - docker
+    - kubernetes
+    - tls
+    - operations
+---
 # Deploying Agentry
 
 Three ways to run the image, from one machine to a cluster, what a phone needs from it, and what
@@ -200,3 +210,7 @@ reporting a killed child, so a script that checks the status of a stop no longer
 Both orchestrators allow 30 s between `SIGTERM` and `SIGKILL` (`stop_grace_period` in Compose,
 `terminationGracePeriodSeconds` in the chart). Run the image with `--init` (Compose does) so the
 `claude` processes are reaped.
+
+## Related
+
+[[desktop.md]] · [[status.md]] · [[plans/mobile.md]]

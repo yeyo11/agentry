@@ -1115,7 +1115,8 @@ interactive `claude` session (`/mcp`) or in claude.ai's connector settings: Agen
 
 Bug reports, ideas and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the
 setup, the checks CI runs and the one architectural rule worth knowing before you write code:
-Agentry reaches Claude Code only through its CLI.
+Agentry reaches Claude Code only through its CLI. [docs/status.md](docs/status.md) is where the
+project stands today: what is built, what is still open, and where each plan ended.
 
 Vulnerabilities go through [private advisories](SECURITY.md), not public issues.
 
