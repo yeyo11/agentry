@@ -1,41 +1,11 @@
 // Long transcripts: paged by the API and windowed in the UI. A synthetic 2000-entry session is
 // seeded into the isolated config dir; every entry carries a marker (m0000…m1999) in its visible
 // text, so the spec can tell which row of the whole transcript is on screen.
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mark, seedTranscript } from './transcript-seed.mjs';
 
 const TOTAL = 2000;
 const SESSION = 'e2e-paging-0000-0000-000000000000';
 const PROJECT = '-work-paging';
-const line = (o) => JSON.stringify(o);
-const mark = (i) => `m${String(i).padStart(4, '0')}`;
-const at = (i) => new Date(Date.UTC(2026, 0, 1, 9, 0, i)).toISOString();
-
-/** Cycles through the shapes a real conversation has: prompts, markdown with code, tool calls and their results. */
-function entry(i) {
-  const base = { uuid: `paging-${mark(i)}`, timestamp: at(i), cwd: '/work/paging', version: '2.1.0', sessionId: SESSION };
-  const assistant = (content) => ({ ...base, type: 'assistant', message: { role: 'assistant', model: 'claude-sonnet-5', content } });
-  const user = (content) => ({ ...base, type: 'user', message: { role: 'user', content } });
-  switch (i % 4) {
-    case 0:
-      return user(`${mark(i)} Please look at the parser again, the second pass drops trailing commas.`);
-    case 1:
-      return assistant([
-        {
-          type: 'text',
-          text:
-            `${mark(i)} The **second pass** is where it goes wrong:\n\n` +
-            '```ts\nexport function parse(src: string): Node[] {\n  const out: Node[] = [];\n  for (const tok of lex(src)) {\n    if (tok.kind === "comma") continue;\n    out.push(toNode(tok));\n  }\n  return out;\n}\n```\n\n' +
-            '- it skips the comma\n- and never records the gap',
-        },
-        { type: 'tool_use', id: `tool-${i}`, name: 'Bash', input: { command: `pnpm test parser ${mark(i)}` } },
-      ]);
-    case 2:
-      return user([{ type: 'tool_result', tool_use_id: `tool-${i - 1}`, content: `${mark(i)} ✓ parser (12 tests)\nall passed` }]);
-    default:
-      return assistant([{ type: 'text', text: `${mark(i)} Fixed: trailing commas now survive the second pass.` }]);
-  }
-}
 
 /**
  * The marker of the first row whose top is inside the viewport, and where that top sits. A step
@@ -57,16 +27,14 @@ const nodes = `return document.getElementsByTagName('*').length`;
 const settle = (page) => page.eval(`await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(r,120))));return true`);
 
 export default async ({ page, api, check, dirs }) => {
-  const dir = join(dirs.configDir, 'projects', PROJECT);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${SESSION}.jsonl`), Array.from({ length: TOTAL }, (_, i) => line(entry(i))).join('\n'));
+  seedTranscript(dirs.configDir, PROJECT, SESSION, TOTAL);
 
   try {
     // ---- API: pages carry their place in the whole transcript and join without gaps ----
     const newest = (await api.get(`/chats/${SESSION}`)).body;
     check(newest.total === TOTAL, `total is ${TOTAL} (got ${newest.total})`);
     check(newest.entries.length === 200 && newest.from === TOTAL - 200, `the default page is the newest 200 (from ${newest.from}, ${newest.entries.length})`);
-    check(newest.entries.at(-1).uuid === `paging-${mark(TOTAL - 1)}`, 'the newest page ends on the last entry');
+    check(newest.entries.at(-1).uuid === `${SESSION}-${mark(TOTAL - 1)}`, 'the newest page ends on the last entry');
 
     const limited = (await api.get(`/chats/${SESSION}?limit=50`)).body;
     check(limited.entries.length === 50 && limited.from === TOTAL - 50, 'limit sizes the newest page');
@@ -84,7 +52,7 @@ export default async ({ page, api, check, dirs }) => {
       check(page_.from + page_.entries.length === before, `the page before ${before} ends right at it (from ${page_.from}, ${page_.entries.length})`);
       uuids.unshift(...page_.entries.map((e) => e.uuid));
     }
-    check(uuids.length === TOTAL && uuids.every((u, i) => u === `paging-${mark(i)}`), 'the pages join into the whole transcript, in order');
+    check(uuids.length === TOTAL && uuids.every((u, i) => u === `${SESSION}-${mark(i)}`), 'the pages join into the whole transcript, in order');
     check((await api.get(`/chats/${SESSION}?before=0`)).body.entries.length === 0, 'nothing comes before the first entry');
 
     // ---- UI: lands on the newest message with a small DOM ----
@@ -134,6 +102,21 @@ export default async ({ page, api, check, dirs }) => {
     const topAfter = await page.eval(offsetOf(top.mark));
     check(topAfter !== null && Math.abs(topAfter - top.offset) <= 4, `${top.mark} stays put when the top loads more (${top.offset.toFixed(1)} → ${topAfter?.toFixed(1)})`);
 
+    // ---- A page that does not come says so where it would have gone, and can be asked for again ----
+    await page.eval(
+      `const f=window.fetch;window.__fetch=f;window.__fail=true;` +
+        `window.fetch=async(...a)=>{const u=String(a[0] instanceof Request?a[0].url:a[0]);` +
+        `if(window.__fail&&u.includes('before='))return new Response(JSON.stringify({error:'the disk is gone'}),{status:500,headers:{'content-type':'application/json'}});` +
+        `return f(...a)};return true`,
+    );
+    await page.waitFor(`const b=(()=>{${earlierButton}})();if(!b)return false;b.click();return true`, { label: 'Load earlier, refused' });
+    await page.waitFor(`return document.querySelector('.transcript-earlier [role=alert]')?.textContent.includes('the disk is gone')`, { label: 'the refusal shows above the transcript' });
+    check((await page.eval(aboveCount)) === TOTAL - 600, 'what was held stays held through a refusal');
+    await page.eval(`window.__fail=false;return true`);
+    await page.waitFor(`const b=(()=>{${earlierButton}})();if(!b)return false;b.click();return true`, { label: 'Load earlier, again' });
+    await page.waitFor(`return (()=>{${aboveCount}})()===${TOTAL - 800}&&!document.querySelector('.transcript-earlier [role=alert]')`, { label: 'the next ask brings the page and takes the refusal down' });
+    await page.eval(`window.fetch=window.__fetch;return true`);
+
     // ---- Keep going up: the first message eventually shows, and the DOM stays small ----
     await page.waitFor(
       `const main=document.querySelector('.run-scroll');main.scrollTop=0;return document.querySelector('.transcript').innerText.includes('${mark(0)}')`,
@@ -142,6 +125,20 @@ export default async ({ page, api, check, dirs }) => {
     check(!(await page.eval(`return !!(()=>{${earlierButton}})()`)), 'nothing is left to load above the first message');
     const fullNodes = await page.eval(nodes);
     check(fullNodes < 3000, `the DOM stays small with the whole transcript held (${fullNodes} nodes)`);
+
+    // ---- Leaving and coming back keeps what was read back; only the end is read again ----
+    const left = await page.eval('return performance.now()');
+    await page.waitFor(`const a=document.querySelector('a[href="/chats"]');if(!a)return false;a.click();return true`, { label: 'the chats list' });
+    await page.waitFor(`return !document.querySelector('.transcript')`, { label: 'the chat left' });
+    await page.eval('history.back();return true');
+    await page.waitFor(`return document.querySelector('.transcript')?.innerText.includes('${mark(TOTAL - 1)}')`, { label: 'the chat again' });
+    await settle(page);
+    check(!(await page.eval(`return !!(()=>{${earlierButton}})()`)), 'everything read back is still held after coming back');
+    const reads = await page.eval(
+      `return performance.getEntriesByType('resource').filter(e=>e.startTime>${left}&&e.name.split('?')[0].endsWith('/chats/${SESSION}')).map(e=>e.name.split('?')[1]||'')`,
+    );
+    check(reads.length === 1 && reads[0].includes('limit=50'), `coming back reads the end alone (${reads.join(', ') || 'nothing'})`);
+    check((await page.eval(nodes)) < 3000, 'and the DOM is still small');
 
     // ---- Typing into the message box stays responsive with the whole transcript held ----
     // Nothing holds the seeded chat, so it is resumable and the box is there from the start

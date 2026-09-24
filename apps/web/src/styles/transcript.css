@@ -21,6 +21,12 @@
 }
 
 /* The page on its way, as wide as the messages it will become and as tall as the button was */
+/* A refused page is said where the page would have gone, across the column like the page would be */
+.transcript-earlier .alert {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
 .transcript-earlier .skeleton-stack {
   width: 100%;
   gap: 5px;

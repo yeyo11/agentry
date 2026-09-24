@@ -1,9 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { hashKey, skipToken, useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { TRANSCRIPT_PAGE_MAX } from '@agentry/shared';
 import type { AgentTranscript, Chat, ChatDetail, RunEvent, TranscriptEntry } from '@agentry/shared';
 import { api, BASE, enc, keys } from '../api';
 import { withToken } from './auth';
+import { evictRuns, joinRun, joinToPage, trimRun, type Run } from './chat-pages';
 import { appendStreamed, ChatStreamStore, spliceTail, streamMark, type StreamingPartial, type StreamSnapshot } from './chat-stream';
 import { useFallbackInterval } from './feed';
 
@@ -26,6 +27,8 @@ export interface Paged<T> {
   /** Something is still above what is held */
   more: boolean;
   loadingMore: boolean;
+  /** Why the last page asked for did not come; cleared by the next ask */
+  loadError: unknown;
   loadEarlier: () => void;
   /** Reads back until `index` is held, however many pages that takes */
   reach: (index: number) => Promise<void>;
@@ -38,99 +41,97 @@ const stretch = (from: number, index: number) => Math.min(TRANSCRIPT_PAGE_MAX, M
 const NO_ITEMS: never[] = [];
 
 /**
+ * The most entries kept from the pages read back once the chat is left. While it is open, what
+ * the reader asked for stays: rows taken away above a reader following the end left the view
+ * short of it. About 1 KB of JSON and 4 KB of heap each, so this is a few megabytes, and the DOM
+ * is windowed whatever the count: the cap is for memory alone.
+ */
+const MAX_HELD = 4000;
+
+/** The most kept between every chat's run: the one on the page in full, and one more long one behind it. */
+const MAX_HELD_ALL = 2 * MAX_HELD;
+
+/** How long the pages read back outlive the chat being left, so coming back does not read them again. */
+const EARLIER_GC_MS = 10 * 60_000;
+
+/**
  * Holds a contiguous run of a transcript, `[from, total)`, from the newest page back. The query
- * fetches the newest page and keeps it current; pages read further back are kept here and spliced
- * on, so following a live conversation never re-reads what is already held.
+ * fetches the newest page and keeps it current; pages read further back are kept in the cache
+ * under `slot` and joined on, so following a live conversation never re-reads what is already
+ * held, and neither does coming back to the chat.
  */
 function usePages<T>(
   page: { items: T[]; from: number; total: number } | undefined,
   fetchBefore: (before: number, limit?: number) => Promise<{ items: T[]; from: number; total: number }>,
-  reset: string,
+  slot: QueryKey,
 ): Paged<T> {
-  // Pages read further back, with the transcript they belong to: another transcript shows none of
-  // them from its very first render, rather than for the one render before an effect clears them
-  const [held, setHeld] = useState<{ owner: string; items: T[]; from: number }>({ owner: reset, items: [], from: -1 });
-  const [loadingFor, setLoadingFor] = useState<string | null>(null);
-  const busy = useRef(false);
-  // A page that lands after the reader switched transcripts belongs to the previous one
-  const generation = useRef(0);
-
-  useEffect(() => {
-    generation.current++;
-    busy.current = false;
-  }, [reset]);
-
-  const own = held.owner === reset;
-  const earlierItems = own ? held.items : NO_ITEMS;
-  const earlierFrom = own ? held.from : -1;
+  const client = useQueryClient();
+  // Never fetched by itself: the reads below put the pages here. Disabled outright, or the
+  // invalidations that reach every key under the chat's would try to run the token as a fetch.
+  // Pages are joined by identity, so comparing thousands of entries deeply on each is waste.
+  const { data: held } = useQuery<Run<T>>({ queryKey: slot, queryFn: skipToken, enabled: false, gcTime: EARLIER_GC_MS, structuralSharing: false });
+  const owner = hashKey(slot);
   const tail = page?.items ?? NO_ITEMS;
   const tailFrom = page?.from ?? 0;
-  // The newest page slid past what is held (the conversation grew faster than it was read): the
-  // pages no longer meet, and the honest thing is to show the newest run rather than a false one.
-  const joined = earlierFrom >= 0 && earlierFrom + earlierItems.length >= tailFrom;
-  // The same array until something is added: the rows are worked out from it
-  const items = useMemo(
-    () => (joined ? [...earlierItems.slice(0, tailFrom - earlierFrom), ...tail] : tail),
-    [joined, earlierItems, earlierFrom, tailFrom, tail],
-  );
-  const from = joined ? earlierFrom : tailFrom;
+  // The same array until something is added: the rows are worked out from it. When the newest
+  // page slid past what is held (the conversation grew faster than it was read) the pages no
+  // longer meet, and the honest thing is to show the newest run rather than a false one.
+  const joined = useMemo(() => joinToPage(page ? held : undefined, { items: tail, from: tailFrom }), [page, held, tail, tailFrom]);
+  const { items, from } = joined;
   const total = page?.total ?? 0;
   const fromNow = useRef(from);
   useEffect(() => {
     fromNow.current = from;
   }, [from]);
 
-  /** Reads the page before `before` and splices it on; resolves to where what is held now starts. */
-  const readBefore = useCallback(
-    async (before: number, limit?: number): Promise<number> => {
-      const started = generation.current;
-      const older = await fetchBefore(before, limit);
-      if (started !== generation.current || older.items.length === 0) return before;
-      setHeld((current) => {
-        const kept = current.owner === reset && current.from >= 0 ? current : null;
-        return kept && kept.from <= older.from ? kept : { owner: reset, items: [...older.items, ...(kept ? kept.items : [])], from: older.from };
-      });
-      return older.from;
+  /**
+   * One page, read and joined onto the run it was asked for: `slot` travels with the ask, so a
+   * page that lands after the reader switched chats still goes to the chat it belongs to.
+   */
+  const read = useMutation({
+    mutationFn: ({ before, limit }: { before: number; limit?: number; slot: QueryKey }) => fetchBefore(before, limit),
+    onSuccess: (older, ask) => {
+      if (older.items.length === 0) return;
+      client.setQueryData<Run<T>>(ask.slot, (run) => joinRun(run, older));
+      evictRuns(client, ask.slot, MAX_HELD_ALL);
     },
-    [fetchBefore, reset],
-  );
+  });
+  const { mutate, mutateAsync, reset, isPending, error, variables } = read;
+  // What the mutation says is about the last ask, which may have been another chat's
+  const mine = variables !== undefined && hashKey(variables.slot) === owner;
+  useEffect(() => reset(), [owner, reset]);
+  // Mirrored, not a dependency: the list asks for the page above whenever `loadEarlier` changes,
+  // and one that changed with the ask's outcome would ask again the moment a read was refused
+  const busy = useRef(false);
+  busy.current = isPending && mine;
 
   const loadEarlier = useCallback(() => {
     if (busy.current || from <= 0) return;
-    busy.current = true;
-    setLoadingFor(reset);
-    void readBefore(from)
-      .catch(() => {
-        // the page stays as it is; the reader can ask again
-      })
-      .finally(() => {
-        busy.current = false;
-        setLoadingFor((owner) => (owner === reset ? null : owner));
-      });
-  }, [readBefore, from, reset]);
+    mutate({ before: from, slot });
+  }, [mutate, from, slot]);
 
   const reach = useCallback(
     async (index: number) => {
-      // A page the reader asked for is already on its way: wait for it rather than read it twice
-      while (busy.current) await new Promise((resolve) => setTimeout(resolve, 50));
-      busy.current = true;
-      setLoadingFor(reset);
-      try {
-        let at = fromNow.current;
-        while (at > index) {
-          const next = await readBefore(at, stretch(at, index));
-          if (next >= at) break;
-          at = next;
-        }
-      } finally {
-        busy.current = false;
-        setLoadingFor((owner) => (owner === reset ? null : owner));
+      let at = fromNow.current;
+      while (at > index) {
+        const older = await mutateAsync({ before: at, limit: stretch(at, index), slot });
+        if (older.items.length === 0 || older.from >= at) break;
+        at = older.from;
       }
     },
-    [readBefore, reset],
+    [mutateAsync, slot],
   );
 
-  return { items, from, total, more: from > 0, loadingMore: loadingFor === reset, loadEarlier, reach };
+  // On the way out, with nothing of it on screen, is when the run can be cut without moving anything
+  useEffect(
+    () => () => {
+      const run = client.getQueryData<Run<T>>(slot);
+      if (run && run.items.length > MAX_HELD) client.setQueryData<Run<T>>(slot, trimRun(run, MAX_HELD));
+    },
+    [client, slot],
+  );
+
+  return { items, from, total, more: from > 0, loadingMore: isPending && mine, loadError: mine ? error : null, loadEarlier, reach };
 }
 
 /** How often a live chat is read again for the signals only time can fire. */
@@ -177,7 +178,8 @@ export function useChatTranscript(id: string, sidechains: boolean) {
   );
   const page = query.data ? { items: query.data.entries, from: query.data.from, total: query.data.total } : undefined;
   const chat: Chat | undefined = query.data?.chat;
-  return { query, chat, ...usePages(page, fetchBefore, `${id}:${sidechains}`) };
+  const slot = useMemo(() => keys.chatEarlier(id, sidechains), [id, sidechains]);
+  return { query, chat, ...usePages(page, fetchBefore, slot) };
 }
 
 // ---------- the live stream of a chat ----------
