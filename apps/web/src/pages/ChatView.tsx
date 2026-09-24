@@ -206,6 +206,7 @@ export function ChatView() {
           >
             {transcript.more && (
               <div className="transcript-earlier">
+                <ErrorBox error={transcript.loadError} />
                 {/* While the page before this one is on its way, lines where it will land: the list
                     reserves the room for it either way, and blank room reads as a page that broke */}
                 {transcript.loadingMore ? (

@@ -100,9 +100,14 @@ export function useStickToBottom(ref: RefObject<HTMLElement | null>, mounted: bo
         // windowed list is measuring rows this runs on every one of them
         if (Math.abs(el.scrollTop - end) > 1) {
           // A glide on its way to the end is cancelled by writing scrollTop; it is sent to the new
-          // end instead, so content arriving mid-flight does not turn one movement into two
-          if (gliding.current) el.scrollTo({ top: end, behavior: 'smooth' });
-          else el.scrollTop = end;
+          // end instead, so content arriving mid-flight does not turn one movement into two. Unless
+          // the end ran away from it by more than a glide covers (a chat came back with thousands
+          // of rows held): it would creep over estimated rows until its time ran out, then jump
+          if (gliding.current && end - el.scrollTop <= el.clientHeight * GLIDE_LIMIT_SCREENS) el.scrollTo({ top: end, behavior: 'smooth' });
+          else {
+            gliding.current = false;
+            el.scrollTop = end;
+          }
         }
       }
       lastTop = el.scrollTop;

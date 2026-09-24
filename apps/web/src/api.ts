@@ -117,6 +117,7 @@ import type {
 } from '@agentry/shared';
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
+import { RUN_TAG } from './lib/chat-pages';
 import { useFallbackInterval } from './lib/feed';
 
 export const BASE = '/api';
@@ -505,6 +506,8 @@ export const keys = {
   /** Prefix of a chat's page and of everything read for it */
   chatScope: (id: string) => ['chat', id] as const,
   chat: (id: string, sidechains: boolean) => ['chat', id, sidechains] as const,
+  /** The pages of a chat read back from its newest one, kept across visits */
+  chatEarlier: (id: string, sidechains: boolean) => ['chat', id, sidechains, RUN_TAG] as const,
   usage: (range: { from?: string; to?: string }) => ['usage', range.from ?? '', range.to ?? ''] as const,
   usageSeries: (range: UsageRange, bucket: UsageBucket) => ['usage', 'series', range.from ?? '', range.to ?? '', bucket] as const,
   usageBreakdown: (range: UsageRange) => ['usage', 'breakdown', range.from ?? '', range.to ?? ''] as const,
