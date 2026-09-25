@@ -31,6 +31,8 @@ const VISIBLE_PROPS = new Set(['body', 'cancelLabel', 'confirmLabel', 'descripti
  * a person reads, it belongs in `src/i18n/locales/`.
  */
 const ALLOWED: ReadonlyArray<{ text: string; why: string }> = [
+  { text: 'command not found: claude', why: "the shell's own error, drawn in the cli-missing illustration's terminal" },
+  { text: '19 min', why: 'a sample reset time in the quota illustration, written the same in every language' },
   { text: 'Agentry', why: 'the product name, the same in every language' },
   { text: 'Claude', why: "the assistant's name, as Claude Code writes it in a transcript" },
   { text: 'Esc', why: 'the key as it is engraved on the keyboard' },

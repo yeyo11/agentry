@@ -1,0 +1,156 @@
+/* ==========================================================================
+   Illustrations (design system §4, agentry-ds.css §14).
+
+   SVG presentation attributes don't resolve var(), so every colour is set here, by class. The
+   classes are short and generic (.c1, .txt …), so every rule is scoped under `.il` and none of
+   them reaches the rest of the app. `--il-grad` and `--il-dots` are set on each <svg> by
+   Illustration.tsx: they point at that instance's own useId() defs.
+   ========================================================================== */
+
+.il {
+  --il-tone: var(--accent);
+  display: block;
+  flex-shrink: 0;
+  width: 240px;
+  height: 160px;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.il-sm {
+  width: 160px;
+  height: 107px;
+}
+
+.il-lg {
+  width: 300px;
+  height: 200px;
+}
+
+.il-warn {
+  --il-tone: var(--warn);
+}
+
+.il-bad {
+  --il-tone: var(--bad);
+}
+
+.il-live {
+  --il-tone: var(--live);
+}
+
+/* Surfaces */
+.il .s0 { fill: var(--bg-1); }
+.il .s1 { fill: var(--bg-2); }
+.il .s2 { fill: var(--bg-3); }
+.il .s3 { fill: var(--bg-4); }
+
+/* Cards: a surface with a hairline */
+.il .c0 { fill: var(--bg-1); stroke: var(--line-3); stroke-width: 1.5; }
+.il .c1 { fill: var(--bg-2); stroke: var(--line-3); stroke-width: 1.5; }
+.il .c2 { fill: var(--bg-3); stroke: var(--line-3); stroke-width: 1.5; }
+.il .cg { fill: var(--bg-2); stroke: var(--il-grad); stroke-width: 1.75; }
+
+/* Strokes */
+.il .ln { fill: none; stroke: var(--line-3); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.il .ln-soft { fill: none; stroke: var(--line-2); stroke-width: 1.5; stroke-linecap: round; }
+.il .ln-ink { fill: none; stroke: var(--fg-3); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.il .ln-grad { fill: none; stroke: var(--il-grad); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.il .ln-tone { fill: none; stroke: var(--il-tone); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+/* White drawn on the gradient, like text on a primary button */
+.il .ln-white { fill: none; stroke: var(--accent-text); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.il .ln-ok { fill: none; stroke: var(--ok); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.il .trk { fill: none; stroke: var(--bg-4); stroke-linecap: round; }
+.il .w3 { stroke-width: 3; }
+.il .w4 { stroke-width: 4; }
+.il .w8 { stroke-width: 8; }
+.il .w12 { stroke-width: 12; }
+.il .dash { stroke-dasharray: 2 6; }
+.il .dash-lg { stroke-dasharray: 5 5; }
+
+/* Fills */
+.il .f-grad { fill: var(--il-grad); }
+.il .f-tone { fill: var(--il-tone); }
+.il .f-tone-soft { fill: color-mix(in srgb, var(--il-tone) 16%, transparent); }
+.il .f-accent { fill: var(--accent); }
+.il .f-ink { fill: var(--fg-3); }
+.il .f-fg { fill: var(--fg); }
+.il .f-live { fill: var(--live); }
+.il .f-ok { fill: var(--ok); }
+.il .f-white { fill: var(--accent-text); }
+.il .f-dots { fill: var(--il-dots); }
+.il .dot-fill { fill: var(--line-2); }
+.il .halo { fill: var(--il-grad); opacity: 0.22; filter: blur(14px); }
+
+/* The brand gradient's two stops */
+.il .stop-a { stop-color: var(--accent); }
+.il .stop-b { stop-color: var(--accent-rose); }
+
+/*
+ * The dotted backdrop fades out from the centre. The mask reads alpha rather than luminance, so it
+ * needs no white or black of its own: the one mask ink, opaque in the middle and clear at the edge.
+ */
+.il mask { mask-type: alpha; }
+.il .stop-in { stop-color: var(--mask-ink); }
+.il .stop-out { stop-color: var(--mask-ink); stop-opacity: 0; }
+
+/* Text */
+.il .txt { font-family: var(--mono); font-size: 9px; fill: var(--fg-2); }
+.il .txt-tone { font-family: var(--mono); font-size: 9px; fill: var(--il-tone); }
+.il .txt-big { font-family: var(--mono); font-size: 13px; font-weight: 600; fill: var(--fg-3); }
+.il .glyph { font-family: var(--mono); font-size: 17px; font-weight: 600; fill: var(--il-grad); }
+.il .glyph-white { font-family: var(--mono); font-size: 15px; font-weight: 600; fill: var(--accent-text); }
+
+/* Motion: slow loops, only on what is "alive" in the scene */
+.il .a-float { animation: il-float var(--il-float-cycle) ease-in-out infinite; }
+.il .a-float-2 { animation: il-float var(--il-float-2-cycle) ease-in-out var(--il-float-2-delay) infinite; }
+/* The app's caret-blink hides at its end, so it takes the transcript caret's timing to blink half the cycle */
+.il .a-blink { animation: caret-blink var(--caret-cycle) steps(2, start) infinite; }
+.il .a-dash { stroke-dasharray: 4 6; animation: il-dash var(--il-dash-cycle) linear infinite; }
+.il .a-pulse { transform-box: fill-box; transform-origin: center; animation: il-pulse var(--il-pulse-cycle) ease-in-out infinite; }
+/* The orbits turn around the scene's centre, not their own box */
+.il .a-orbit { transform-origin: 120px 80px; animation: spin var(--il-orbit-cycle) linear infinite; }
+.il .a-orbit-rev { transform-origin: 120px 80px; animation: spin var(--il-orbit-rev-cycle) linear infinite reverse; }
+
+@keyframes il-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes il-dash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+@keyframes il-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+/*
+ * An illustration is never live work, so it does not even get the single pass `subtle` allows a
+ * loop: it stands still. motion.css already pauses it in a hidden tab.
+ */
+:root[data-motion='subtle'] .il *,
+:root[data-motion='off'] .il * {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .il * {
+    animation: none !important;
+  }
+}
