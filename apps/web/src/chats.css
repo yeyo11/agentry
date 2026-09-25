@@ -21,7 +21,7 @@
   display: inline-block;
   width: 64px;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--bg-hover);
   border: 1px solid var(--border);
   overflow: hidden;

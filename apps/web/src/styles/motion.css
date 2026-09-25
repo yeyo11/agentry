@@ -95,9 +95,9 @@
   *,
   *::before,
   *::after {
-    animation-duration: 0.001ms !important;
+    animation-duration: var(--dur-instant) !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
+    transition-duration: var(--dur-instant) !important;
     scroll-behavior: auto !important;
   }
   .status-dot-ping,
@@ -114,9 +114,9 @@
 :root[data-motion='off'] *,
 :root[data-motion='off'] *::before,
 :root[data-motion='off'] *::after {
-  animation-duration: 0.001ms !important;
+  animation-duration: var(--dur-instant) !important;
   animation-iteration-count: 1 !important;
-  transition-duration: 0.001ms !important;
+  transition-duration: var(--dur-instant) !important;
   scroll-behavior: auto !important;
 }
 
@@ -138,8 +138,25 @@
 :root[data-motion='subtle'] .nav-count-ping,
 :root[data-motion='subtle'] .live-energy::before,
 :root[data-motion='subtle'] .skeleton,
+:root[data-motion='subtle'] .shimmer,
+:root[data-motion='subtle'] .spinner-dots > i,
+:root[data-motion='subtle'] .thinking-dots span,
 :root[data-motion='subtle'] .caret {
   animation: none !important;
+}
+
+/* A shimmer stood still is half-painted text: it goes back to plain muted text */
+:root[data-motion='subtle'] .shimmer,
+:root[data-motion='off'] .shimmer {
+  background: none;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    background: none;
+    color: var(--text-muted);
+  }
 }
 
 :root[data-motion='off'] .status-dot-ping,

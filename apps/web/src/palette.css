@@ -1,4 +1,4 @@
-/* Command palette and the round icon buttons of the top bar (the bell). Built on the shared tokens; newer tokens carry fallbacks. */
+/* Command palette and the round icon buttons of the top bar (the bell). Built on the shared tokens. */
 
 .theme-toggle {
   display: inline-grid;
@@ -7,14 +7,14 @@
   height: 32px;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm, 8px);
+  border-radius: var(--radius-sm);
   background: var(--bg-elev);
   color: var(--text-muted);
   cursor: pointer;
   transition:
-    color var(--dur-fast, 120ms) ease,
-    border-color var(--dur-fast, 120ms) ease,
-    background var(--dur-fast, 120ms) ease;
+    color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    background var(--dur-fast) ease;
 }
 .theme-toggle:hover {
   color: var(--text);
@@ -31,20 +31,20 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 32px;
+  height: 34px;
   min-width: 190px;
   padding: 0 8px 0 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
   background: var(--bg-elev);
   color: var(--text-muted);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
   transition:
-    color var(--dur-fast, 120ms) ease,
-    border-color var(--dur-fast, 120ms) ease,
-    background var(--dur-fast, 120ms) ease;
+    color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    background var(--dur-fast) ease;
 }
 .palette-trigger:hover {
   color: var(--text);
@@ -60,12 +60,12 @@
   display: inline-block;
   min-width: 20px;
   padding: 1px 5px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-bottom-width: 2px;
-  border-radius: 5px;
-  background: var(--bg-sunken);
+  border-radius: var(--radius-xs);
+  background: var(--bg-elev);
   color: var(--text-muted);
-  font: 500 10.5px/1.5 var(--sans);
+  font: 500 11px/1.4 var(--mono);
   text-align: center;
   white-space: nowrap;
 }
@@ -90,9 +90,9 @@
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xl, 16px);
+  border-radius: var(--radius-xl);
   background: var(--bg-elev);
-  box-shadow: var(--shadow-lg, 0 24px 70px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3));
+  box-shadow: var(--shadow-pop);
 }
 
 .palette-input-row {
@@ -136,10 +136,11 @@
 }
 .palette-group {
   padding: 10px 10px 4px;
-  color: var(--text-faint, var(--text-muted));
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .palette-empty {
@@ -159,7 +160,7 @@
   gap: 10px;
   min-height: 40px;
   padding: 6px 10px;
-  border-radius: var(--radius-sm, 8px);
+  border-radius: var(--radius-sm);
   color: var(--text);
   cursor: pointer;
   isolation: isolate;
@@ -170,7 +171,7 @@
   z-index: -1;
   border-radius: inherit;
   background: var(--bg-hover);
-  box-shadow: inset 0 0 0 1px var(--border);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 .palette-option-icon {
   display: grid;
@@ -179,10 +180,10 @@
   width: 28px;
   height: 28px;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: var(--bg-sunken);
   color: var(--text-muted);
-  transition: color var(--dur-fast, 120ms) ease;
+  transition: color var(--dur-fast) ease;
 }
 .palette-option-on .palette-option-icon {
   color: var(--accent);
@@ -210,7 +211,7 @@
 }
 .palette-option-group {
   flex: none;
-  color: var(--text-faint, var(--text-muted));
+  color: var(--text-faint);
   font-size: 11.5px;
 }
 .palette-option-enter {

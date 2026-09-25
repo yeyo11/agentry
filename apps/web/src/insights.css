@@ -191,14 +191,14 @@
 .slice-track {
   grid-column: 1 / -1;
   height: 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--bg-hover);
   overflow: hidden;
 }
 .slice-fill {
   display: block;
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--accent);
 }
 

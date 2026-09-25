@@ -113,6 +113,18 @@ export function ThinkingDots({ label }: { label?: string }) {
   );
 }
 
+export type UsageTone = 'neutral' | 'warn' | 'bad';
+
+/**
+ * The colour of a bar or ring for context, limits or quota (design system §2): neutral below 60 %,
+ * warn from 60 %, bad from 75 % or when exhausted. `percent` is 0..100.
+ */
+export function usageTone(percent: number, exhausted = false): UsageTone {
+  if (exhausted || percent >= 75) return 'bad';
+  if (percent >= 60) return 'warn';
+  return 'neutral';
+}
+
 /** Animated SVG ring: usage gauges and stage progress. `value` is 0..1. */
 export function ProgressRing({
   value,
@@ -124,7 +136,8 @@ export function ProgressRing({
   value: number;
   size?: number;
   stroke?: number;
-  tone?: 'accent' | 'ok' | 'warn' | 'bad';
+  /** `accent` is the brand sweep for a figure that is not a limit; limits take `usageTone` */
+  tone?: 'accent' | 'neutral' | 'ok' | 'warn' | 'bad';
   children?: ReactNode;
 }) {
   const reduced = useReducedMotion();
@@ -140,8 +153,9 @@ export function ProgressRing({
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="var(--ring-from)" />
-            <stop offset="100%" stopColor="var(--ring-to)" />
+            {/* In style, not as attributes: SVG presentation attributes do not resolve var() */}
+            <stop offset="0%" style={{ stopColor: 'var(--ring-from)' }} />
+            <stop offset="100%" style={{ stopColor: 'var(--ring-to)' }} />
           </linearGradient>
         </defs>
         <circle className="ring-track" cx={size / 2} cy={size / 2} r={radius} strokeWidth={stroke} fill="none" />

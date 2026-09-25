@@ -484,7 +484,7 @@ a.list-row:hover {
 /* The strip says it goes on: its far edge fades instead of cutting a tab in half */
 @media (max-width: 560px) {
   .chats-toolbar .segmented {
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, var(--mask-ink) calc(100% - 28px), transparent);
   }
 }
 

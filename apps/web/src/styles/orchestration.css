@@ -96,7 +96,7 @@
   color: var(--live);
   background: repeating-linear-gradient(90deg, var(--live) 0 6px, transparent 6px 12px);
   background-size: 24px 100%;
-  animation: flow 0.7s linear infinite;
+  animation: flow var(--flow-cycle) linear infinite;
 }
 
 .board-task {
@@ -228,7 +228,7 @@
 .wf-progress {
   height: 4px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--bg-sunken);
 }
 
@@ -331,7 +331,7 @@
   line-height: 1.5;
   white-space: pre-wrap;
   background: var(--surface-2, var(--bg));
-  border-radius: calc(var(--radius) - 3px);
+  border-radius: var(--radius-sm);
 }
 
 /*
@@ -585,7 +585,7 @@
 
 .board-task.status-running .board-task-fill::after {
   transform: scaleX(0.35);
-  animation: orch-fill-sweep 1.6s var(--ease-in-out) infinite;
+  animation: orch-fill-sweep var(--sweep-cycle) var(--ease-in-out) infinite;
 }
 
 @keyframes orch-fill-sweep {

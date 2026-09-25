@@ -58,7 +58,7 @@
 
 .brand-mark {
   flex: none;
-  border-radius: 8px;
+  border-radius: var(--radius);
   box-shadow: 0 4px 14px -2px var(--ring);
   transition: transform var(--dur-slow) var(--ease-spring);
 }
@@ -489,7 +489,7 @@
   height: 32px;
   padding: 0 10px;
   border: 1px solid var(--live);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--live-soft);
   color: var(--text);
   font: 500 12px var(--mono);
@@ -773,7 +773,7 @@
 
   .tabbar-new-icon {
     padding: 3px 12px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background: var(--gradient-accent);
     color: var(--accent-text);
   }
