@@ -4,15 +4,16 @@ import { useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { AnimatedNumber } from '../../components/AnimatedNumber';
-import { BranchStatus, ContextMeter, ControlBadge, LastOutcome, OriginBadge, OutcomeBadge, StateBadge } from '../../components/ChatBadges';
+import { BranchStatus, ControlBadge, LastOutcome, OriginBadge, OutcomeBadge, StateBadge } from '../../components/ChatBadges';
 import { Collapsible } from '../../components/controls/Collapsible';
 import { HealthBadge, HealthPanel, isStepIn } from '../../components/observe/Health';
 import { EnvironmentBody } from '../../components/EnvironmentPanel';
 import { ICON_SM } from '../../components/icons';
+import { ProgressRing } from '../../components/motion';
 import { CopyButton } from '../../components/ui';
 import { WorkflowCard } from '../../components/WorkflowCard';
 import { api } from '../../api';
-import { formatTokens } from '../../lib/chat-model';
+import { contextLevel, contextShare, formatPercent, formatTokens } from '../../lib/chat-model';
 import { useDetailPanel } from '../../lib/detail';
 import { durationBetween, formatCost, formatDateTime, formatNumber, timeAgo } from '../../lib/format';
 import { healthReason, signalReason } from '../../lib/server-strings';
@@ -49,27 +50,33 @@ export function UsageCard({ chat }: { chat: Chat }) {
   // A placeholder message carries no model and no tokens: nothing to show for it
   const rows = cost.tokens.filter((entry) => entry.total > 0);
   return (
-    <Section title={t('side.usage.title')}>
-      <div className="stack-tight">
-        <div>
-          <div className="small muted">{t('badges.context.inUse')}</div>
-          <ContextMeter chat={chat} wide />
-          {context && (
-            <div className="small muted">
+    <>
+      <Section title={t('badges.context.inUse')} className="insp-context">
+        <div className="insp-context-body">
+          <ContextGauge chat={chat} />
+          {context ? (
+            <div className="small">
               <AnimatedNumber className="mono" value={context.used} format={formatNumber} />{' '}
               {context.window !== null
                 ? t('side.usage.tokensOfWindow', { window: formatNumber(context.window) })
                 : t('side.usage.tokensWindowUnknown')}
             </div>
+          ) : (
+            <div className="small muted">{t('badges.context.none')}</div>
           )}
         </div>
-        <dl className="kv kv-narrow">
-          <dt>{t('work:runView.cost')}</dt>
-          <dd className="mono">
-            {cost.usd === null ? money(null) : <AnimatedNumber value={cost.usd} format={formatCost} />}
-            {cost.usd === null && <div className="small muted">{t('side.usage.costNotReported')}</div>}
-          </dd>
-        </dl>
+      </Section>
+      <Section
+        title={t('work:runView.cost')}
+        actions={
+          cost.usd === null ? (
+            <span className="small muted">{money(null)}</span>
+          ) : (
+            <AnimatedNumber className="insp-cost grad-text" value={cost.usd} format={formatCost} />
+          )
+        }
+      >
+        {cost.usd === null && <div className="small muted">{t('side.usage.costNotReported')}</div>}
         {rows.length > 0 && (
           <table className="chat-tokens">
             <caption className="sr-only">{t('side.usage.tokensCaption')}</caption>
@@ -106,8 +113,37 @@ export function UsageCard({ chat }: { chat: Chat }) {
           </table>
         )}
         <div className="small muted">{t('side.usage.subagentsNote')}</div>
-      </div>
-    </Section>
+      </Section>
+    </>
+  );
+}
+
+/**
+ * The context window as a ring with the share in it: the brand's sweep while there is room, and
+ * the warning colours as it fills, with the words for them in its accessible value.
+ */
+function ContextGauge({ chat }: { chat: Chat }) {
+  const { t } = useTranslation('chat');
+  const share = contextShare(chat);
+  if (share === null || !chat.context) return null;
+  const level = contextLevel(share);
+  const clamped = Math.min(1, Math.max(0, share));
+  const detail = t('badges.context.detail', { used: formatNumber(chat.context.used), window: chat.context.window === null ? '?' : formatNumber(chat.context.window) });
+  const note = level === 'full' ? t('badges.context.aboutToCompact') : level === 'warn' ? t('badges.context.fillingUp') : '';
+  return (
+    <span
+      className="insp-context-ring"
+      role="meter"
+      aria-label={t('badges.context.inUse')}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(clamped * 100)}
+      aria-valuetext={note ? `${detail}, ${note}` : detail}
+    >
+      <ProgressRing value={clamped} size={60} stroke={5} tone={level === 'full' ? 'bad' : level === 'warn' ? 'warn' : 'accent'}>
+        {formatPercent(share)}
+      </ProgressRing>
+    </span>
   );
 }
 
@@ -294,9 +330,11 @@ export function FactsCard({ chat }: { chat: Chat }) {
         <LastOutcome chat={chat} />
         <OriginBadge origin={chat.origin} label={origin} />
       </div>
-      <dl className="kv kv-narrow">
+      <dl className="insp-facts">
         <dt>{t('work:runView.permissions')}</dt>
-        <dd className="mono">{live?.permissionMode ?? chat.executions.at(-1)?.permissionMode ?? t('work:shared.default')}</dd>
+        <dd>
+          <span className="badge insp-mode">{live?.permissionMode ?? chat.executions.at(-1)?.permissionMode ?? t('work:shared.default')}</span>
+        </dd>
         <dt>{t('work:shared.model')}</dt>
         <dd className="mono">{live?.model ?? chat.model ?? t('work:shared.default')}</dd>
         <dt>{t('work:shared.project')}</dt>
@@ -310,8 +348,8 @@ export function FactsCard({ chat }: { chat: Chat }) {
           </>
         )}
         <dt>{t('work:runView.session')}</dt>
-        <dd className="mono break insp-id">
-          {chat.id} <CopyButton text={chat.id} label={t('view.copyId')} />
+        <dd className="mono insp-id">
+          <span className="ellipsis">{chat.id}</span> <CopyButton text={chat.id} label={t('view.copyId')} />
         </dd>
         <dt>{t('side.facts.messages')}</dt>
         <dd>{t('view.messages', { count: chat.messageCount })}</dd>

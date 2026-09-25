@@ -93,18 +93,27 @@
 .chat-tokens {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
-.chat-tokens th {
+/* The column names in the voice of section labels, the figures in mono */
+.chat-tokens thead th {
   text-align: right;
-  font-weight: 500;
-  color: var(--text-muted);
-  padding: 2px 0 2px 8px;
+  font: 500 10.5px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 0 0 6px 8px;
 }
 .chat-tokens td {
   text-align: right;
-  padding: 2px 0 2px 8px;
+  font: 12px var(--mono);
+  padding: 4px 0 4px 8px;
+}
+.chat-tokens tbody th,
+.chat-tokens tfoot th {
+  text-align: left;
+  padding: 4px 0;
 }
 .chat-tokens th:first-child,
 .chat-tokens td:first-child {

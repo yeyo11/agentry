@@ -55,7 +55,8 @@
     "fork": "Crear un fork",
     "forking": "Creando fork…",
     "couldNotResume": "No se ha podido reanudar",
-    "couldNotFork": "No se ha podido crear el fork"
+    "couldNotFork": "No se ha podido crear el fork",
+    "keys": "↵ enviar · ⇧↵ salto"
   },
   "controls": {
     "permissionModeNew": "Modo de permisos de la nueva ejecución",
@@ -245,6 +246,24 @@
   "newChat": {
     "advanced": "Opciones avanzadas",
     "defaultModel": "modelo predeterminado",
-    "defaultMode": "modo predeterminado ({{mode}})"
+    "defaultMode": "modo predeterminado ({{mode}})",
+    "hero": "¿Qué <grad>construimos</grad> hoy?",
+    "heroShort": "¿Qué <grad>construimos</grad>?",
+    "lead": "Claude Code lo ejecuta en tu proyecto y responde aquí.",
+    "kind": "Tipo",
+    "kindChat": "Chat",
+    "kindOrchestration": "Orquestación",
+    "placeholder": "Describe la tarea: un cambio, una revisión, una investigación…",
+    "start": "Empezar",
+    "keys": "Ctrl ↵",
+    "where": "se ejecuta en {{dir}} · arrastra o pega archivos para adjuntarlos",
+    "examples": "Para empezar",
+    "close": "Cerrar"
+  },
+  "launch": {
+    "phase": "etapa {{n}} de {{total}}",
+    "agents": "{{done}}/{{total}} agentes",
+    "open": "Abrir",
+    "openHint": "Abrir {{name}} en los detalles"
   }
 }

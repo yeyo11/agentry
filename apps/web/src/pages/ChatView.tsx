@@ -10,10 +10,10 @@ import { useDeleteChat } from '../components/ChatDelete';
 import { PermissionPrompts } from '../components/PermissionPrompts';
 import { ICON, ICON_SM } from '../components/icons';
 import { AnimatePresence, motion } from '../components/motion';
-import { endsWithAssistant, StreamingEntry, Transcript, type SubagentLink } from '../components/Transcript';
+import { endsWithAssistant, StreamingEntry, Transcript, type SubagentLink, type WorkflowLaunches } from '../components/Transcript';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind } from '../components/TranscriptSearch';
 import { Empty, ErrorBox, Loading, PageHeader, Skeleton, usePageTitle } from '../components/ui';
-import { api, keys } from '../api';
+import { api, ApiRequestError, keys } from '../api';
 import { tickerActivity } from '../lib/chat-live';
 import { subagentFor, transcriptRows } from '../lib/chat-steps';
 import type { ChatStreamStore } from '../lib/chat-stream';
@@ -125,6 +125,14 @@ export function ChatView() {
     [subagentList, openDetail, id],
   );
 
+  // A workflow the chat started is a card in the conversation; its whole card is in the inspector
+  const workflowList = chat?.children.workflows;
+  const showInspector = inspector.show;
+  const workflows = useMemo<WorkflowLaunches | undefined>(
+    () => (workflowList && workflowList.length > 0 ? { list: workflowList, open: () => showInspector('environment') } : undefined),
+    [workflowList, showInspector],
+  );
+
   const { open: findOpen, show: findShow, close: findClose } = find;
   const actions = useMemo<HeaderActions>(
     () => ({
@@ -152,8 +160,9 @@ export function ChatView() {
     return (
       <>
         <PageHeader title={t('view.pageTitleFallback')} />
-        <ErrorBox error={transcript.query.error} />
-        <Empty icon={MessageSquare} title={t('view.notFound')}>
+        {/* A chat that is not there is what the illustration says; any other failure is said too */}
+        {!(transcript.query.error instanceof ApiRequestError && transcript.query.error.status === 404) && <ErrorBox error={transcript.query.error} />}
+        <Empty illustration="not-found" title={t('view.notFound')}>
           <Trans t={t} i18nKey="view.notFoundHint" components={{ anchor: <Link to="/chats" /> }} />
         </Empty>
       </>
@@ -229,6 +238,7 @@ export function ChatView() {
                 focus={focus}
                 working={stepCurrent}
                 subagents={subagents}
+                workflows={workflows}
               />
             )}
             {/* Pinned under the transcript: a chat waiting on a decision is stuck until it gets one */}
