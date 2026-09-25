@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { desktopClasses } from '../src/lib/desktop.ts';
-import { chatActivity, fabFor, hidesTabBar, liveSummary, orchestrationProgress, pickUsageWindows, swapUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
+import { chatActivity, fabFor, hidesTabBar, liveSummary, moreNotes, orchestrationProgress, pageHoldsScope, pickUsageWindows, swapUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
 
 // The shell is where a person sees at a glance what is alive. What it lists has to be in the order
 // that needs them most, never twice, and a shape it does not expect must not break a row.
@@ -140,4 +140,31 @@ test('the desktop app marks the page with its platform; a browser marks nothing'
   assert.deepEqual(desktopClasses({ platform: 'Darwin' }), ['is-desktop', 'desktop-darwin']);
   // A platform that is not a plain word still marks the desktop, but never becomes a class name
   assert.deepEqual(desktopClasses({ platform: 'linux x" onload' }), ['is-desktop']);
+});
+
+test('the More sheet says a problem before a count, and nothing it does not know yet', () => {
+  assert.deepEqual(moreNotes({}), {});
+  assert.deepEqual(
+    moreNotes({ projects: 3, accounts: { total: 4, exhausted: 2 }, schedules: 0, todayCost: 1145.86, connectors: { total: 3, pending: 1 } }),
+    {
+      '/projects': { kind: 'count', value: 3 },
+      '/accounts': { kind: 'exhausted', value: 2 },
+      '/schedules': { kind: 'count', value: 0 },
+      '/usage': { kind: 'cost', value: 1145.86 },
+      '/connectors': { kind: 'pending', value: 1 },
+    },
+  );
+  // No account spent and none waiting for authorisation: the plain count, not a zero badge
+  const calm = moreNotes({ accounts: { total: 4, exhausted: 0 }, connectors: { total: 3, pending: 0 } });
+  assert.deepEqual(calm['/accounts'], { kind: 'count', value: 4 });
+  assert.deepEqual(calm['/connectors'], { kind: 'count', value: 3 });
+  // Before the account list is read, the overview's total; a day with no cost is said, not left blank
+  assert.deepEqual(moreNotes({ accounts: { total: 2 } })['/accounts'], { kind: 'count', value: 2 });
+  assert.deepEqual(moreNotes({ todayCost: null })['/usage'], { kind: 'cost', value: null });
+});
+
+test('only the chat list holds the project scope in its own header', () => {
+  assert.equal(pageHoldsScope('/chats'), true);
+  assert.equal(pageHoldsScope('/chats/'), true);
+  for (const path of ['/', '/chats/new', '/chats/abc', '/orchestration', '/projects']) assert.equal(pageHoldsScope(path), false, path);
 });

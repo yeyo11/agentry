@@ -586,6 +586,31 @@
   white-space: nowrap;
 }
 
+/* The phone's Chats header: the scope as the reference's `.chip`, beside the title. Only a phone
+   renders it, so it keeps a 44 px target */
+.project-scope-chip {
+  flex: none;
+  max-width: 55vw;
+}
+
+.project-scope-chip .select-trigger.project-selector {
+  width: auto;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 12px 0 14px;
+  gap: 6px;
+  border-color: var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elev);
+  color: var(--text-muted);
+  font: 500 14px var(--sans);
+}
+
+.project-scope-chip .select-trigger.project-selector:hover:not(:disabled) {
+  border-color: var(--line-3);
+  color: var(--text);
+}
+
 .topbar-actions {
   margin-left: auto;
   display: flex;
@@ -1271,6 +1296,18 @@ a.statusbar-item:focus-visible {
 .more-cell-chevron {
   flex: none;
   color: var(--fg-3);
+}
+
+/* A section's figure: quiet mono, as the reference's `mono t-xs fg-3`; a problem is a badge instead */
+.more-cell-note {
+  flex: none;
+  color: var(--fg-3);
+  font: 12px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.more-cell > .badge {
+  flex: none;
 }
 
 .more-group {

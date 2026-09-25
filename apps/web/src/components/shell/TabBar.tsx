@@ -5,6 +5,10 @@ import { NavLink } from 'react-router-dom';
 import type { MenuItem } from '../controls/Menu';
 import { Sheet } from '../controls/Sheet';
 import { ICON, ICON_SM } from '../icons';
+import { Tag } from '../ui';
+import { formatCost, formatNumber } from '../../lib/format';
+import type { MoreNote } from '../../lib/shell-live';
+import { useMoreNotes } from './more-notes';
 
 export interface NavItem {
   to: string;
@@ -47,6 +51,48 @@ function Badge({ count }: { count: NavItem['count'] }) {
         {count.value} {count.what}
       </span>
     </span>
+  );
+}
+
+/** A section's figure: a count or a cost in mono, a problem as a badge with its word and icon */
+function CellNote({ note }: { note: MoreNote | undefined }) {
+  const { t } = useTranslation('shell');
+  if (!note) return null;
+  switch (note.kind) {
+    case 'exhausted':
+      return <Tag tone="bad">{t('tabbar.exhausted', { count: note.value })}</Tag>;
+    case 'pending':
+      return <Tag tone="warn">{t('tabbar.pending', { count: note.value })}</Tag>;
+    case 'cost':
+      return <span className="more-cell-note">{note.value === null ? t('statusbar.todayNone') : t('statusbar.today', { cost: formatCost(note.value) })}</span>;
+    case 'count':
+      return <span className="more-cell-note">{formatNumber(note.value)}</span>;
+  }
+}
+
+/**
+ * The sheet's sections, a component of their own so that their figures are read only while the
+ * sheet is open: its content is not mounted while it is closed.
+ */
+function MoreSections({ items, pathname, label }: { items: NavItem[]; pathname: string; label: string }) {
+  const notes = useMoreNotes();
+  return (
+    <nav className="more-nav" aria-label={label}>
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <NavLink key={item.to} to={navTarget(item)} className={`more-cell ${isActive(item, pathname) ? 'is-active' : ''}`}>
+            <span className="more-cell-icon">
+              <Icon {...ICON} />
+            </span>
+            <span className="more-cell-label">{item.label}</span>
+            <CellNote note={notes[item.to]} />
+            <NavDot label={item.dot} />
+            <ChevronRight {...ICON_SM} className="more-cell-chevron" aria-hidden />
+          </NavLink>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -108,21 +154,7 @@ export function TabBar({
         {/* Every link in here leads away, and one may be to the page already open */}
         <div className="more-body" onClick={(event) => (event.target as HTMLElement).closest('a') && setOpen(false)}>
           {account}
-          <nav className="more-nav" aria-label={t('tabbar.sections')}>
-            {more.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink key={item.to} to={navTarget(item)} className={`more-cell ${isActive(item, pathname) ? 'is-active' : ''}`}>
-                  <span className="more-cell-icon">
-                    <Icon {...ICON} />
-                  </span>
-                  <span className="more-cell-label">{item.label}</span>
-                  <NavDot label={item.dot} />
-                  <ChevronRight {...ICON_SM} className="more-cell-chevron" aria-hidden />
-                </NavLink>
-              );
-            })}
-          </nav>
+          <MoreSections items={more} pathname={pathname} label={t('tabbar.sections')} />
           {start.length > 0 && (
             <div className="more-group" role="group" aria-labelledby="more-start-head">
               <span id="more-start-head" className="more-group-head">
