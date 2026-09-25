@@ -1,7 +1,7 @@
 {
   "nav": "Connectors",
   "title": "Connectors",
-  "subtitle": "As the CLI reported them {{when}}",
+  "subtitle": "checked {{when}}",
   "subtitleLoading": "Asking the CLI…",
   "intro": "The claude.ai connectors of the signed-in account, as Claude Code lists them. Agentry only reads this list: it cannot authorise, change or call a connector itself.",
   "refresh": "Ask the CLI again",
@@ -10,6 +10,7 @@
   "none": "No claude.ai connectors listed",
   "noneHint": "The CLI lists none for this account. Connect Docs, Gmail or Calendar in claude.ai's connector settings and ask again.",
   "notListed": "Not listed by the CLI: {{kinds}}.",
+  "notListedSame": "They are authorised the same way.",
   "kinds": {
     "docs": "Docs",
     "gmail": "Gmail",
@@ -21,9 +22,14 @@
     "needsAuth": "Needs authorisation"
   },
   "cliSays": "The CLI says: {{detail}}",
+  "blocked": {
+    "title_one": "{{name}} needs authorisation",
+    "title_other": "Every connector needs authorisation",
+    "body": "Run claude in a terminal, type /mcp and sign in, or turn it on in claude.ai's connector settings. Then ask the CLI again."
+  },
   "ask": {
-    "title": "Ask Claude",
-    "named": "{{action}} ({{connector}})",
+    "try": "Try: “{{action}}”",
+    "named": "Try: “{{action}}” ({{connector}})",
     "starting": "Starting…",
     "hint": "Opens a new chat with the prompt already written. The prompt only asks Claude to read, and any permission the connector's tools need is asked for in that chat.",
     "none": "No prepared prompts for this connector."

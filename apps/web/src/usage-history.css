@@ -1,7 +1,7 @@
 /* The usage-history chart of the Accounts page: SVG drawn from readings, on the shared tokens. */
 
 .usage-chart {
-  margin: 12px 0 0;
+  margin: 4px 0 0;
 }
 
 /* Drawn at the width it is given (see `useWidth`), so its text stays at the page's size */
@@ -9,15 +9,76 @@
   display: block;
 }
 
+/* Grid and axes recede; the lines are what the chart is for */
+.usage-chart-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.usage-chart-axis {
+  fill: var(--fg-3);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The auto-switch threshold: a reference, not a warning, so it stays neutral */
+.usage-chart-threshold {
+  stroke: var(--fg-3);
+  stroke-width: 1;
+}
+
+/*
+ * One colour a line, none of them a status colour (green, amber and red mean ok, warn and bad on
+ * this page). The dash and the label at the end of each line tell them apart without colour.
+ */
+.usage-series-0 {
+  --series: var(--accent);
+}
+.usage-series-1 {
+  --series: var(--info);
+}
+.usage-series-2 {
+  --series: var(--accent-rose);
+}
+.usage-series-3 {
+  --series: var(--accent-2);
+}
+.usage-series-4 {
+  --series: var(--fg-2);
+}
+.usage-series-5 {
+  --series: var(--fg-3);
+}
+
+.usage-series-line {
+  fill: none;
+  stroke: var(--series);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.usage-series-dot {
+  fill: var(--series);
+}
+
+.usage-series-label {
+  fill: var(--series);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .usage-legend {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 16px;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .usage-legend-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  color: var(--fg-2);
 }

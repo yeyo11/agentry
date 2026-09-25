@@ -14,8 +14,11 @@ import { pathOf, summarise, xOf, yOf, type AccountSeries, type Frame } from '../
 const HEIGHT = 240;
 const FRAME_PAD = { left: 40, right: 44, top: 12, bottom: 26 };
 
-/** Theme tokens that hold their contrast in both themes; a line has one each, and a dash of its own. */
-const COLORS = ['var(--accent)', 'var(--info)', 'var(--ok)', 'var(--idle)', 'var(--warn)', 'var(--bad)'] as const;
+/**
+ * A line has a colour (`.usage-series-N` in usage-history.css, from tokens that hold their contrast
+ * in both themes and mean no status) and a dash of its own.
+ */
+const SERIES = 6;
 const DASHES = ['', '7 4', '2 4', '10 4 2 4', '4 2', '1 3'] as const;
 
 export function UsageChart({
@@ -49,39 +52,38 @@ export function UsageChart({
         <desc id={`${id}-desc`}>{description}</desc>
         {[0, 25, 50, 75, 100].map((pct) => (
           <g key={pct} aria-hidden>
-            <line x1={FRAME_PAD.left} x2={width - FRAME_PAD.right} y1={yOf(frame, pct)} y2={yOf(frame, pct)} stroke="var(--border)" strokeWidth={1} />
-            <text x={FRAME_PAD.left - 6} y={yOf(frame, pct) + 4} textAnchor="end" fontSize={11} fill="var(--text-muted)">
+            <line className="usage-chart-grid" x1={FRAME_PAD.left} x2={width - FRAME_PAD.right} y1={yOf(frame, pct)} y2={yOf(frame, pct)} />
+            <text className="usage-chart-axis" x={FRAME_PAD.left - 6} y={yOf(frame, pct) + 4} textAnchor="end">
               {pct}%
             </text>
           </g>
         ))}
         {threshold !== undefined && (
           <g aria-hidden>
-            <line x1={FRAME_PAD.left} x2={width - FRAME_PAD.right} y1={yOf(frame, threshold)} y2={yOf(frame, threshold)} stroke="var(--text-muted)" strokeWidth={1} strokeDasharray="1 4" />
+            <line className="usage-chart-threshold" x1={FRAME_PAD.left} x2={width - FRAME_PAD.right} y1={yOf(frame, threshold)} y2={yOf(frame, threshold)} strokeDasharray="1 4" />
             {/* Inside the plot, above the line: the right margin is too narrow for the words */}
-            <text x={width - FRAME_PAD.right} y={yOf(frame, threshold) - 4} textAnchor="end" fontSize={11} fill="var(--text-muted)">
+            <text className="usage-chart-axis" x={width - FRAME_PAD.right} y={yOf(frame, threshold) - 4} textAnchor="end">
               {t('history.threshold', { pct: threshold })}
             </text>
           </g>
         )}
         <g aria-hidden>
-          <text x={FRAME_PAD.left} y={HEIGHT - 6} fontSize={11} fill="var(--text-muted)">
+          <text className="usage-chart-axis" x={FRAME_PAD.left} y={HEIGHT - 6}>
             {formatDateTime(from)}
           </text>
-          <text x={width - FRAME_PAD.right} y={HEIGHT - 6} textAnchor="end" fontSize={11} fill="var(--text-muted)">
+          <text className="usage-chart-axis" x={width - FRAME_PAD.right} y={HEIGHT - 6} textAnchor="end">
             {formatDateTime(to)}
           </text>
         </g>
         {series.map((s, i) => {
           const last = s.readings.at(-1);
-          const color = COLORS[i % COLORS.length] ?? COLORS[0];
           return (
-            <g key={s.account} aria-hidden>
-              <path d={pathOf(s, frame)} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeDasharray={DASHES[i % DASHES.length] || undefined} />
+            <g key={s.account} className={`usage-series usage-series-${i % SERIES}`} aria-hidden>
+              <path className="usage-series-line" d={pathOf(s, frame)} strokeDasharray={DASHES[i % DASHES.length] || undefined} />
               {last && last.t >= from && (
                 <>
-                  <circle cx={xOf(frame, last.t)} cy={yOf(frame, last.pct)} r={3.5} fill={color} />
-                  <text x={xOf(frame, last.t) + 6} y={yOf(frame, last.pct) + (i % 2 === 0 ? -6 : 12)} fontSize={11} fontWeight={600} fill={color}>
+                  <circle className="usage-series-dot" cx={xOf(frame, last.t)} cy={yOf(frame, last.pct)} r={3.5} />
+                  <text className="usage-series-label" x={xOf(frame, last.t) + 6} y={yOf(frame, last.pct) + (i % 2 === 0 ? -6 : 12)}>
                     #{s.account}
                   </text>
                 </>
@@ -92,9 +94,9 @@ export function UsageChart({
       </svg>
       <figcaption className="usage-legend">
         {series.map((s, i) => (
-          <span key={s.account} className="usage-legend-item">
+          <span key={s.account} className={`usage-legend-item usage-series usage-series-${i % SERIES}`}>
             <svg width={28} height={10} aria-hidden>
-              <line x1={1} x2={27} y1={5} y2={5} stroke={COLORS[i % COLORS.length]} strokeWidth={2} strokeDasharray={DASHES[i % DASHES.length] || undefined} />
+              <line className="usage-series-line" x1={1} x2={27} y1={5} y2={5} strokeDasharray={DASHES[i % DASHES.length] || undefined} />
             </svg>
             <span className="small">
               #{s.account} · {labelOf(s.account)}

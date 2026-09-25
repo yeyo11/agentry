@@ -28,7 +28,7 @@ export default async ({ page, api, check }) => {
     check(links.length >= 1 && links.every((rel) => rel.includes('noreferrer')), 'the instructions link out safely');
   }
   // A connector that is not authorised offers its instructions and no prepared prompt
-  const offering = await page.eval(`return [...document.querySelectorAll('main .lrows .connector-row')].filter((c) => c.innerText.includes('Needs authorisation') && c.querySelector('.task-actions')).length`);
+  const offering = await page.eval(`return [...document.querySelectorAll('main .lrows .connector-row')].filter((c) => /needs authorisation/i.test(c.innerText) && c.querySelector('.task-actions')).length`);
   check(offering === 0, 'a connector that needs authorisation offers no prepared prompt');
 
   // Asking the CLI again is a button, and the page survives it
