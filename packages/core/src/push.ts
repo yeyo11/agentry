@@ -332,7 +332,7 @@ export class PushService {
     this.doc = next;
     // The send that asked for this already has what it needs; the file is caught up for the next
     // boot, and a write that fails is retried by the next send rather than failing the push.
-    void this.store(next).catch((error: unknown) => this.log(`could not store the new push subject: ${messageOf(error)}`));
+    this.track(this.store(next).catch((error: unknown) => this.log(`could not store the new push subject: ${messageOf(error)}`)));
     return next;
   }
 
@@ -350,8 +350,21 @@ export class PushService {
       if (!targets.length) continue;
       // The bus calls this synchronously: the sending is deliberately not awaited, and every
       // failure inside it is already a log line rather than a rejection.
-      void this.deliver(targets, payloadOf(draft));
+      this.track(this.deliver(targets, payloadOf(draft)));
     }
+  }
+
+  // Work nothing awaits (sends the bus started, a subject written back), kept so `idle` can wait on it
+  private readonly pending = new Set<Promise<unknown>>();
+
+  private track(work: Promise<unknown>): void {
+    this.pending.add(work);
+    void work.finally(() => this.pending.delete(work));
+  }
+
+  /** Resolves once every send and write nothing awaited is over: what a test waits on instead of a clock. */
+  async idle(): Promise<void> {
+    while (this.pending.size) await Promise.allSettled([...this.pending]);
   }
 
   /**
