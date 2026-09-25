@@ -680,7 +680,8 @@ the orchestration's verification phase on the merged branch.
 **Follow-up pass.** A second pass on the merged branch closed what the tasks had left:
 
 - Every place that shows a chat (sidebar Live, Home, the chat page, the palette, notifications)
-  titles it by its first prompt through `displayTitle()`; `ChatRef` gained an optional
+  titles it by its first prompt through `displayTitle()` (in `@agentry/shared`, so the server's
+  event and notification titles use it too); `ChatRef` gained an optional
   `firstPrompt` for that (additive, no route changes).
 - One segmented bar: `ProgressBar variant="segments"` replaces `.segbar`, `.live-segbar` and
   `.chat-launch-bar`. Unused meter styles and account strings are gone.
@@ -702,8 +703,6 @@ the orchestration's verification phase on the merged branch.
 **Left for later**
 
 - The `quota` illustration has no state to show on yet.
-- Waiting notifications built by the server (`packages/shared/src/notifications.ts`) still use the
-  chat's stored title rather than its first prompt.
 
 ## Related
 
