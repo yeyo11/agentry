@@ -11,7 +11,8 @@ export const LANGUAGES: ReadonlyArray<{ code: Language; name: string }> = [
 
 const STORAGE_KEY = 'agentry-language';
 
-const primary = (tag: string) => tag.toLowerCase().split('-')[0];
+// POSIX tags (`es_ES.UTF-8`) separate the region with an underscore
+const primary = (tag: string) => tag.toLowerCase().split(/[-_.@]/)[0];
 
 /**
  * The first browser language Agentry has decides, so ['de', 'es', 'en'] reads Spanish and
@@ -62,5 +63,25 @@ export function storeLanguage(next: Language): void {
  * one (en-GB keeps day-first dates, es-MX its own), otherwise a sensible default for it.
  */
 export function intlLocale(language: Language = current, browser: readonly string[] = browserLanguages()): string {
-  return browser.find((tag) => primary(tag) === language) ?? (language === 'es' ? 'es-ES' : 'en-US');
+  for (const tag of browser) {
+    if (primary(tag) !== language) continue;
+    const valid = canonical(tag);
+    if (valid) return valid;
+  }
+  return language === 'es' ? 'es-ES' : 'en-US';
+}
+
+/**
+ * A browser tag Intl accepts, or null. Some Linux browsers report the POSIX locale as is
+ * (`en-US@posix`, `es_ES.UTF-8`), and Intl throws a RangeError on it, which took down every widget
+ * that formats a date or a number.
+ */
+function canonical(tag: string): string | null {
+  const bcp47 = tag.split(/[.@]/)[0]?.replace(/_/g, '-') ?? '';
+  if (!bcp47) return null;
+  try {
+    return Intl.getCanonicalLocales(bcp47)[0] ?? null;
+  } catch {
+    return null;
+  }
 }
