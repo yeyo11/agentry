@@ -394,6 +394,10 @@ Rules:
   `grad-border`), next to a busiest-day tile.
 - **Schedules** offers three templates on its empty state. They open the editor preset through a
   new `?cron=` parameter.
+- **Sign-in**: the field's label is the mono uppercase section label, as on `DesktopAcceso`. The app
+  asks the guard once (`GET /api/security/auth`) before it draws anything, so a guarded wrapper
+  opens on the sign-in screen instead of flashing the shell's skeleton first; past 1.5 s without
+  an answer the shell draws anyway.
 - **Chat**: the inspector drawer is 344 px wide, not the reference's 320, so the English tab
   labels ("Environment" the longest) fit beside the collapse button without being cut.
 - **Orchestration detail**: the summary is no longer sticky, because its figures moved into the KPI

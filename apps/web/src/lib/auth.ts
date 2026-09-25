@@ -73,7 +73,52 @@ const subscribe = (onChange: () => void) => {
 };
 
 export function useAuthChallenge(): AuthMode | null {
-  return useSyncExternalStore(subscribe, () => challenge);
+  const read = () => challenge;
+  return useSyncExternalStore(subscribe, read, read);
+}
+
+// ---------- the first answer ----------
+
+/** Guarded, and the cheapest read the API has: a small settings document, no CLI involved. */
+const PROBE_PATH = '/api/security/auth';
+/** A wrapper this slow to answer gets its shell anyway, and the first 401 still brings the sign-in. */
+const PROBE_WAIT_MS = 1500;
+
+// Settled unless a probe is running, so a page that never probes (a test) renders as it did
+let settled = true;
+
+function settle(): void {
+  if (settled) return;
+  settled = true;
+  emit();
+}
+
+/**
+ * Asks once, before the shell mounts, whether this browser's credential is accepted. Without it a
+ * guarded wrapper first draws the whole shell as skeletons, and only swaps in the sign-in screen
+ * when the first of its requests comes back 401: on a phone that flash is most of a second.
+ */
+export async function probeAuth(fetcher: typeof fetch = fetch, waitMs = PROBE_WAIT_MS): Promise<void> {
+  settled = false;
+  const timer = setTimeout(settle, waitMs);
+  try {
+    const res = await fetcher(PROBE_PATH, { headers: authHeaders() });
+    if (res.status === 401) {
+      const body = (await res.json().catch(() => null)) as { mode?: AuthMode } | null;
+      setChallenge(body?.mode ?? 'token');
+    }
+  } catch {
+    // Unreachable is not refused: the shell has its own way of saying the API is down
+  } finally {
+    clearTimeout(timer);
+    settle();
+  }
+}
+
+/** False while the first probe is out: the app draws nothing rather than a shell it may take back. */
+export function useAuthSettled(): boolean {
+  const read = () => settled;
+  return useSyncExternalStore(subscribe, read, read);
 }
 
 /**

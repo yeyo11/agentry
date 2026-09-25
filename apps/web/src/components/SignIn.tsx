@@ -45,7 +45,7 @@ export function SignIn({ mode }: { mode: AuthMode }) {
           <p className="muted">{mode === 'oidc' ? t('signIn.oidcBody') : t('signIn.tokenBody')}</p>
         </div>
         <label className="field">
-          <span className="field-label">{t('signIn.label')}</span>
+          <span className="section-label">{t('signIn.label')}</span>
           <span className="signin-input">
             <KeyRound {...ICON} className="signin-input-icon" />
             <input

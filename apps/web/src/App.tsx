@@ -36,7 +36,7 @@ import { SignIn } from './components/SignIn';
 import { SplitButton } from './components/SplitButton';
 import { Empty, Skeleton } from './components/ui';
 import { useUsageNow } from './lib/usage-now';
-import { useAuthChallenge } from './lib/auth';
+import { useAuthChallenge, useAuthSettled } from './lib/auth';
 import { listRequest } from './lib/chat-model';
 import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
@@ -82,7 +82,9 @@ export function App() {
   // A guarded wrapper reached without a credential answers 401 to everything, so the shell is not
   // mounted at all: one screen that asks, instead of every page failing on its own
   const challenge = useAuthChallenge();
+  const settled = useAuthSettled();
   if (challenge) return <SignIn mode={challenge} />;
+  if (!settled) return null;
   // The project selector scopes pages far from the top bar, so it lives above all of them
   return (
     <ProjectScopeProvider>
