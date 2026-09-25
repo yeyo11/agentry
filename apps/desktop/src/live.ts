@@ -123,15 +123,16 @@ function itemLabel(item: LiveItem): string {
   return `${clip(item.title || 'Untitled chat')} — ${item.state === 'waiting' ? 'waiting for you' : 'working'}`;
 }
 
-export type TrayAction = { kind: 'show' } | { kind: 'open'; path: string } | { kind: 'quit' };
+export type TrayAction = { kind: 'show' } | { kind: 'open'; path: string } | { kind: 'update' } | { kind: 'quit' };
 
 export type TrayEntry = { type: 'separator' } | { type: 'item'; label: string; action: TrayAction | null };
 
 /**
  * The tray menu as data. The status line comes first as a disabled item: on Linux the tray is an
  * AppIndicator, which never shows the tooltip, so the menu is the only place it can be read.
+ * `updateReady` is the version of a downloaded update, offered just above Quit.
  */
-export function trayMenu(snapshot: LiveSnapshot): TrayEntry[] {
+export function trayMenu(snapshot: LiveSnapshot, updateReady?: string): TrayEntry[] {
   const entries: TrayEntry[] = [
     { type: 'item', label: liveWords(snapshot) ?? 'Nothing running', action: null },
     { type: 'separator' },
@@ -146,7 +147,9 @@ export function trayMenu(snapshot: LiveSnapshot): TrayEntry[] {
     const hidden = snapshot.items.length - TRAY_ITEMS;
     if (hidden > 0) entries.push({ type: 'item', label: `${hidden} more…`, action: { kind: 'open', path: '/chats' } });
   }
-  entries.push({ type: 'separator' }, { type: 'item', label: 'Quit Agentry', action: { kind: 'quit' } });
+  entries.push({ type: 'separator' });
+  if (updateReady) entries.push({ type: 'item', label: `Restart to update to ${updateReady}`, action: { kind: 'update' } });
+  entries.push({ type: 'item', label: 'Quit Agentry', action: { kind: 'quit' } });
   return entries;
 }
 
