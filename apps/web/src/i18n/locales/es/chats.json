@@ -27,7 +27,7 @@
     "messages": "{{n}} msgs",
     "cost": "coste {{cost}}",
     "count": "{{shown}} de {{total}} chats",
-    "resetFilters": "Restablecer los filtros",
+    "resetFilters": "Restablecer filtros",
     "newChat": "Nuevo chat",
     "searchPlaceholder": "Busca por título, primer prompt, proyecto, id…",
     "searchLabel": "Buscar chats",
@@ -45,7 +45,7 @@
     "internalHint": "Chats de mantenimiento del propio Agentry (el planificador, la comprobación de la autenticación)",
     "emptyFiltered": "Ningún chat coincide",
     "empty": "Aún no hay chats",
-    "emptyFilteredBody": "Prueba a restablecer los filtros.",
+    "emptyFilteredBody": "Nada de esta lista coincide con la búsqueda ni con los filtros aplicados.",
     "emptyBody": "Los chats que inicies aquí, y los que Claude Code haya ejecutado en un proyecto importado, aparecen en esta lista.",
     "showMore": "Mostrar más ({{n}} restantes)",
     "filtersTitle": "Filtrar chats",
@@ -72,7 +72,20 @@
       "week": "Esta semana",
       "earlier": "Antes"
     },
-    "keysHint": "j / k para moverte · Intro para abrir · x para seleccionar · / para buscar"
+    "keysHint": "j / k para moverte · Intro para abrir · x para seleccionar · / para buscar",
+    "summary_one": "{{count}} trabajando · {{waiting}} esperan tu respuesta",
+    "summary_other": "{{count}} trabajando · {{waiting}} esperan tu respuesta",
+    "noCost": "sin coste",
+    "contextShort": "contexto",
+    "importProject": "Importar un proyecto",
+    "columns": {
+      "chat": "Chat",
+      "project": "Proyecto",
+      "origin": "Origen",
+      "context": "Contexto",
+      "cost": "Coste",
+      "activity": "Actividad"
+    }
   },
   "bulk": {
     "region": "Chats seleccionados",
@@ -100,7 +113,8 @@
     "deleted_other": "{{count}} chats eliminados",
     "skippedNote_one": "No se ha tocado: {{titles}}",
     "skippedNote_other": "No se han tocado ({{count}}): {{titles}}",
-    "failed": "No se pudo eliminar {{title}}"
+    "failed": "No se pudo eliminar {{title}}",
+    "cancel": "Cancelar"
   },
   "new": {
     "title": "Nuevo chat",

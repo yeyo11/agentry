@@ -15,6 +15,8 @@ export interface ListToolbarTab<T extends string> {
   count?: number;
   /** What the tab means, when its label alone does not say it */
   title?: string;
+  /** A tab of things running now wears the live dot beside its label */
+  live?: boolean;
 }
 
 export interface ListFilterChip {
@@ -29,6 +31,9 @@ export interface ListFilterChip {
  * button that says how many are on, a sort, and the filters in force as chips you can take off.
  * What the filters are is the caller's business — it passes the facet sections as children — and so
  * is where the state lives, usually the URL.
+ *
+ * On a narrow screen it is two rows: the search with one button that opens the filters and the sort
+ * in a sheet, and under them the tabs as a strip of chips that scrolls sideways.
  */
 export function ListToolbar<T extends string>({
   search,
@@ -40,7 +45,8 @@ export function ListToolbar<T extends string>({
   actions,
   className = '',
 }: {
-  search?: { value: string; onChange: (value: string) => void; placeholder?: string; label?: string };
+  /** `shortcut` is the key that focuses the field, shown inside it where there is a keyboard */
+  search?: { value: string; onChange: (value: string) => void; placeholder?: string; label?: string; shortcut?: string };
   tabs?: { value: T; options: ReadonlyArray<ListToolbarTab<T>>; onChange: (id: T) => void; label: string };
   /** `count` is what the button shows; `children` are the facet sections, in the popover or sheet */
   filters?: { count: number; children: ReactNode; title?: string };
@@ -70,26 +76,41 @@ export function ListToolbar<T extends string>({
     </button>
   );
 
+  const sortSelect = sort && (
+    <Select
+      value={sort.value}
+      onChange={sort.onChange}
+      options={sort.options.map((option) => ({ value: option.value, label: option.label }))}
+      aria-label={sort.label ?? t('toolbar.sort')}
+      className="list-toolbar-sort"
+    />
+  );
+  // On a phone the sort joins the filters in the sheet, so the search keeps the row to itself
+  const sortInSheet = narrow && Boolean(filters);
+
+  const tabStrip = tabs && (
+    <Segmented
+      value={tabs.value}
+      label={tabs.label}
+      onChange={tabs.onChange}
+      options={tabs.options.map((tab) => ({
+        value: tab.id,
+        ...(tab.title ? { title: tab.title } : {}),
+        label: (
+          <>
+            {tab.live && <span className="dot dot-live list-toolbar-tab-dot" aria-hidden />}
+            {tab.label}
+            {tab.count !== undefined && <span className="segment-count">{tab.count}</span>}
+          </>
+        ),
+      }))}
+    />
+  );
+
   return (
-    <div className={`list-toolbar ${className}`.trim()}>
+    <div className={`list-toolbar ${narrow ? 'is-narrow' : ''} ${className}`.replace(/\s+/g, ' ').trim()}>
       <div className="list-toolbar-row">
-        {tabs && (
-          <Segmented
-            value={tabs.value}
-            label={tabs.label}
-            onChange={tabs.onChange}
-            options={tabs.options.map((tab) => ({
-              value: tab.id,
-              ...(tab.title ? { title: tab.title } : {}),
-              label: (
-                <>
-                  {tab.label}
-                  {tab.count !== undefined && <span className="segment-count">{tab.count}</span>}
-                </>
-              ),
-            }))}
-          />
-        )}
+        {!narrow && tabStrip}
         {search && (
           <label className="list-toolbar-search">
             <Search {...ICON_SM} aria-hidden />
@@ -100,6 +121,11 @@ export function ListToolbar<T extends string>({
               aria-label={search.label ?? t('toolbar.searchLabel')}
               onChange={(event) => search.onChange(event.target.value)}
             />
+            {search.shortcut && (
+              <kbd className="list-toolbar-kbd" aria-hidden>
+                {search.shortcut}
+              </kbd>
+            )}
           </label>
         )}
         {filters &&
@@ -107,6 +133,12 @@ export function ListToolbar<T extends string>({
             <>
               {filterButton(() => setOpen(true))}
               <Sheet open={open} onOpenChange={setOpen} title={filters.title ?? t('toolbar.filters')}>
+                {sortInSheet && (
+                  <div className="list-toolbar-sheet-sort">
+                    <span className="facet-legend">{sort?.label ?? t('toolbar.sort')}</span>
+                    {sortSelect}
+                  </div>
+                )}
                 {filters.children}
               </Sheet>
             </>
@@ -120,17 +152,10 @@ export function ListToolbar<T extends string>({
               </RadixPopover.Portal>
             </RadixPopover.Root>
           ))}
-        {sort && (
-          <Select
-            value={sort.value}
-            onChange={sort.onChange}
-            options={sort.options.map((option) => ({ value: option.value, label: option.label }))}
-            aria-label={sort.label ?? t('toolbar.sort')}
-            className="list-toolbar-sort"
-          />
-        )}
+        {!sortInSheet && sortSelect}
         {actions && <div className="list-toolbar-actions">{actions}</div>}
       </div>
+      {narrow && tabStrip && <div className="list-toolbar-strip">{tabStrip}</div>}
       {chips.length > 0 && (
         <div className="list-toolbar-chips" aria-label={t('toolbar.activeFilters')} role="group">
           {chips.map((chip) => (

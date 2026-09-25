@@ -56,8 +56,10 @@ export default async ({ page, api, check }) => {
   check((await page.text('main')).includes('3 of 3 chats'), 'the count says how many chats there are');
 
   // State and origin are words, not just a dot and an icon; resumable is what nearly every chat is,
-  // so a row only names its control mode when it is another one
-  check(rows.includes('Idle') && rows.includes('Terminal'), 'a row says its state and its origin');
+  // so a row only names its control mode when it is another one. The origin badge is set in
+  // capitals by CSS, so its word is read from the DOM
+  const origin = await page.eval(`return document.querySelector('.crow .crow-origin .badge')?.textContent ?? ''`);
+  check(rows.includes('Idle') && origin === 'Terminal', 'a row says its state and its origin');
   check(!rows.includes('Resumable'), 'a resumable chat carries no control tag');
   // The seeded chats are months old: sorted by activity they fall under one day heading. The heading
   // is set in capitals by CSS, so it is read from the DOM rather than as rendered
