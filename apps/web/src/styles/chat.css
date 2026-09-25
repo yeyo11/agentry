@@ -521,7 +521,8 @@
 
 /* ---- the inspector: a drawer docked on the right, folded into a rail of its tabs ---- */
 .chat-inspector {
-  --insp-open-w: 320px;
+  /* Wide enough for "Summary Activity Changes Environment" beside the collapse button, in Geist at 13px */
+  --insp-open-w: 344px;
   --insp-rail-w: 44px;
   display: flex;
   flex-direction: column;
@@ -579,11 +580,10 @@
   flex: 1;
   align-self: stretch;
   align-items: flex-end;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
-/* Four tabs share the drawer's width instead of scrolling past its edge */
 /* Underlined tabs, left to right; four of them fit the drawer's width */
 .insp-top .tab {
   flex: none;

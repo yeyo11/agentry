@@ -394,6 +394,8 @@ Rules:
   `grad-border`), next to a busiest-day tile.
 - **Schedules** offers three templates on its empty state. They open the editor preset through a
   new `?cron=` parameter.
+- **Chat**: the inspector drawer is 344 px wide, not the reference's 320, so the English tab
+  labels ("Environment" the longest) fit beside the collapse button without being cut.
 - **Orchestration detail**: the summary is no longer sticky, because its figures moved into the KPI
   tiles.
 - Primary actions: when a list is empty, its empty state holds the one gradient button, and the

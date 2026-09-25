@@ -76,6 +76,8 @@ export default async ({ page, api, check }) => {
     // ---- the inspector: a drawer with four tabs, open by default on a wide screen, and remembered closed ----
     const tabs = await page.eval(`return [...document.querySelectorAll('.chat-inspector [role=tab]')].map((t)=>t.textContent.trim()).join('|')`);
     check(tabs === 'Summary|Activity|Changes|Environment', `the inspector has its four tabs (${tabs})`);
+    const clipped = await page.eval(`const s=document.querySelector('.chat-inspector [role=tablist]');return s.scrollWidth-s.clientWidth`);
+    check(clipped <= 0, `every tab label fits the drawer (${clipped}px over)`);
     check((await page.text('.chat-inspector')).includes(SESSION), 'the id lives in the inspector');
     check(!(await page.eval(`return !!document.querySelector('.chat-head button[aria-label="Chat details"]')`)), 'with a drawer beside it the header needs no details button');
     await page.click('.chat-inspector button[aria-label="Hide details"]');
