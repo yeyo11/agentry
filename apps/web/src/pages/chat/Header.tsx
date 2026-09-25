@@ -80,6 +80,14 @@ function ChecklistProgress({ chat, onOpen }: { chat: Chat; onOpen: () => void })
   );
 }
 
+/** Project · short id · model: enough to tell two chats with the same first prompt apart. */
+function headingFacts(chat: Chat): string[] {
+  const dir = chat.cwd.split(/[\\/]/).filter(Boolean).at(-1);
+  const project = chat.project?.name ?? dir;
+  const model = chat.execution?.model ?? chat.executions.at(-1)?.model ?? chat.model;
+  return [project, chat.id.slice(0, 6), model].filter((fact): fact is string => Boolean(fact));
+}
+
 export interface HeaderActions {
   /** Only what opens and closes the search: the rest of it changes as it is typed into */
   find: Pick<TranscriptFind, 'open' | 'show' | 'close'>;
@@ -187,7 +195,11 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
           <ChevronLeft {...ICON} />
         </Link>
       </Tooltip>
-      <h1 className="chat-title ellipsis">{chat.title}</h1>
+      <div className="chat-heading">
+        <h1 className="chat-title ellipsis">{chat.title}</h1>
+        {/* Where it runs, which chat it is and on what, in the mono of ids: the title is the prompt */}
+        <span className="chat-sub ellipsis">{headingFacts(chat).join(' · ')}</span>
+      </div>
       <StatePill chat={chat} connected={connected} />
       {chat.health.level !== 'ok' && <HealthBadge health={chat.health} />}
       <ChecklistProgress chat={chat} onOpen={() => inspector.show('activity')} />
