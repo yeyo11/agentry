@@ -155,7 +155,10 @@ export default async ({ page, api, check, dirs }) => {
     // A cost nobody reported reads as such, never as $0.00
     check(/Not reported/.test(cards), 'a terminal chat, which reports tokens only, shows its cost as not reported');
 
-    await page.click('main [role=radio]', 'Tokens', 500);
+    // The KPI tiles pick the metric: toggle buttons, the chosen one pressed
+    await page.click('main button.usage-tile[aria-pressed]', 'Tokens', 500);
+    const pressed = await page.eval(`return [...document.querySelectorAll('main button.usage-tile[aria-pressed=true]')].map((b) => b.querySelector('.usage-tile-label')?.textContent ?? '')`);
+    check(pressed.length === 1 && pressed[0] === 'Tokens', `one metric tile is pressed, the tokens one (${pressed.join(', ')})`);
     const sonnet = breakdown.byModel.find((m) => m.key === 'claude-sonnet-5');
     const shown = sonnet.tokens.toLocaleString('en-US');
     check((await page.text('main .usage-slices')).includes(shown), `the breakdown follows the metric chosen (${shown} tokens for the model)`);
