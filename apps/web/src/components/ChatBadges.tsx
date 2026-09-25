@@ -5,6 +5,7 @@ import { contextLevel, contextShare, formatPercent, formatTokens, lastEnded } fr
 import { formatNumber } from '../lib/format';
 import '../chats.css';
 import { Tooltip } from './controls/Tooltip';
+import { usageTone } from './motion';
 import { statusText } from './ui';
 
 /*
@@ -156,4 +157,41 @@ export function LastOutcome({ chat }: { chat: Pick<ChatSummary, 'executions' | '
   const ended = lastEnded(chat);
   if (!ended?.outcome || ended.outcome === 'completed') return null;
   return <OutcomeBadge outcome={ended.outcome} />;
+}
+
+/**
+ * The context in use as a list cell: a thin bar and the share in mono. It is a usage bar, so it
+ * stays neutral below 60 % and turns warn, then bad, from 60 % and 75 % (design system §1). With
+ * no known window it says the tokens, and with no context at all a dash.
+ */
+export function ContextBar({ chat, className = '' }: { chat: Pick<ChatSummary, 'context'>; className?: string }) {
+  const { t } = useTranslation('chat');
+  const { context } = chat;
+  if (!context) {
+    return (
+      <span className={`ctx-cell is-none ${className}`.trim()}>
+        <span aria-hidden>—</span>
+        <span className="sr-only">{t('badges.context.none')}</span>
+      </span>
+    );
+  }
+  const share = contextShare(chat);
+  if (share === null) {
+    return (
+      <span className={`ctx-cell is-tokens ${className}`.trim()} title={t('badges.context.unknownWindow')}>
+        {t('badges.context.tokens', { n: formatTokens(context.used) })}
+      </span>
+    );
+  }
+  const percent = Math.min(100, Math.round(share * 100));
+  const tone = usageTone(percent);
+  const detail = t('badges.context.detail', { used: formatNumber(context.used), window: context.window === null ? '?' : formatNumber(context.window) });
+  return (
+    <span className={`ctx-cell is-${tone} ${className}`.trim()} title={detail}>
+      <span className="meter-track meter-thin" role="meter" aria-label={t('badges.context.inUse')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={detail}>
+        <span className={tone === 'neutral' ? 'meter-fill' : `meter-fill is-${tone}`} style={{ width: `${percent}%` }} />
+      </span>
+      <span className="ctx-cell-value">{formatPercent(share)}</span>
+    </span>
+  );
 }
