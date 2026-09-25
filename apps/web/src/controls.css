@@ -686,6 +686,16 @@
   padding: 12px 14px;
   border-top: 1px solid var(--border);
 }
+/* The actions a phone's `⋯` opens: a column of buttons a thumb can hit */
+.sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sheet-actions .btn {
+  min-height: 44px;
+  justify-content: flex-start;
+}
 @keyframes sheet-up {
   from {
     transform: translateY(100%);

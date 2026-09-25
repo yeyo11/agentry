@@ -5,6 +5,7 @@ export { Combobox, type ComboboxOption } from './Combobox';
 export { DatePicker } from './DatePicker';
 export { hasOpenLayer } from './layer';
 export { Menu, type MenuEntry, type MenuGroup, type MenuItem } from './Menu';
+export { MoreActions } from './MoreActions';
 export { NumberInput } from './NumberInput';
 export { Select, type SelectOption } from './Select';
 export { Sheet } from './Sheet';
