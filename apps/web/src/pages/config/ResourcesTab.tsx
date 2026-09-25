@@ -111,7 +111,8 @@ export function ResourcesTab({ scope, kind }: { scope: Scope; kind: ResourceKind
     <Card
       title={t(`config.tabs.${kind}`)}
       actions={
-        <button className="btn btn-small btn-primary" onClick={() => void guard().then((ok) => ok && setNaming(''))}>
+        // One primary per zone: while the list is empty, its empty state holds it
+        <button className={`btn btn-small ${resources.length > 0 ? 'btn-primary' : ''}`} onClick={() => void guard().then((ok) => ok && setNaming(''))}>
           <Plus size={14} strokeWidth={2} aria-hidden />
           {k('new')}
         </button>

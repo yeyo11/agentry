@@ -79,6 +79,8 @@ const env = {
   CLAUDE_CONFIG_DIR: dirs.config,
   AGENTRY_WORKSPACE_DIR: dirs.workspace,
   AGENTRY_DATA_DIR: dirs.data,
+  // The UI just built: a terminal of the desktop app inherits the installed app's own
+  AGENTRY_WEB_DIST: join(root, 'apps/web/dist'),
   CSWAP_BIN: cswap,
   AGENTRY_HEALTH_INTERVAL_MS: '1000',
   AGENTRY_FAKE_CLI_HEARTBEAT_MS: '1000',

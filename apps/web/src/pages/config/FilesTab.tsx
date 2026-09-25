@@ -490,7 +490,8 @@ export function FilesTab({ scope }: { scope: Scope }) {
             <Empty
               title={t('files.select')}
               action={
-                <button className="btn btn-primary" onClick={() => setCreating(true)}>
+                // The toolbar's New file is the primary; this is the same action, closer to hand
+                <button className="btn" onClick={() => setCreating(true)}>
                   {t('files.newFile')}
                 </button>
               }

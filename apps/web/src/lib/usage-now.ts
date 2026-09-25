@@ -1,5 +1,5 @@
 import { useOverview, useUsage } from '../api';
-import { pickUsageWindows } from './shell-live';
+import { pickUsageWindows, swapUsageWindows } from './shell-live';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -18,7 +18,9 @@ export function useUsageNow() {
   const today = usageToday();
   const usage = useUsage({ from: today, to: today });
   const windows = overview.data?.rateLimit?.windows ?? {};
-  const { fiveHour, sevenDay } = pickUsageWindows(windows);
+  const swap = swapUsageWindows(overview.data?.accounts?.active?.usage);
+  // Same precedence as Home's limits tile: claude-swap's reading of the active account, then the CLI's
+  const { fiveHour, sevenDay } = swap.fiveHour || swap.sevenDay ? swap : pickUsageWindows(windows);
   const total = usage.data?.total;
   return {
     overview,

@@ -75,6 +75,14 @@
   --scrim: rgba(4, 4, 6, 0.62);
   /* A mask's opaque channel, not a colour anyone sees */
   --mask-ink: #000;
+  /* Miniatures of each theme in Settings → Appearance: they show that theme whichever one is on,
+     so they are the same in both blocks */
+  --swatch-light-bg: #fafaf9;
+  --swatch-light-line: #d9d5cd;
+  --swatch-light-grad: linear-gradient(90deg, #b35a36, #9c3f77);
+  --swatch-dark-bg: #09090b;
+  --swatch-dark-line: #26262c;
+  --swatch-dark-grad: linear-gradient(90deg, #ec8a66, #e0668f);
 
   /* Shape */
   --radius-xs: 4px;
@@ -262,8 +270,11 @@
  * declared, so these are declared on the element that carries the input (`--hue`), not on :root.
  */
 .monogram {
-  /* Every hue has to carry the initials at 4.5:1, which only light fills with near-black text do */
-  --monogram-fill: linear-gradient(135deg, hsl(var(--hue) 68% 76%), hsl(calc(var(--hue) + 42) 66% 70%));
-  --monogram-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 12px -4px hsl(var(--hue) 70% 50% / 0.5);
-  --monogram-ink: hsl(var(--hue) 40% 8%);
+  /* A soft tint and letters in the name's hue, like the other initials badges: a solid fill per
+     project would put a coloured surface on every card, and the gradient belongs to the active one.
+     Mixing the hue with the theme's text colour lightens it on dark and darkens it on light, which
+     keeps the initials at 4.5:1 on the tint in both themes without a rule per theme */
+  --monogram-fill: hsl(var(--hue) 70% 55% / 0.14);
+  --monogram-shadow: none;
+  --monogram-ink: color-mix(in oklab, hsl(var(--hue) 70% 55%), var(--text) 50%);
 }

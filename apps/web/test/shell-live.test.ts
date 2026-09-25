@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { desktopClasses } from '../src/lib/desktop.ts';
-import { chatActivity, fabFor, hidesTabBar, liveSummary, orchestrationProgress, pickUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
+import { chatActivity, fabFor, hidesTabBar, liveSummary, orchestrationProgress, pickUsageWindows, swapUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
 
 // The shell is where a person sees at a glance what is alive. What it lists has to be in the order
 // that needs them most, never twice, and a shape it does not expect must not break a row.
@@ -125,6 +125,13 @@ test('the status bar reads the account-wide 5 h and 7 d windows, never a per-mod
   assert.deepEqual(pickUsageWindows(undefined), { fiveHour: null, sevenDay: null });
   assert.equal(pickUsageWindows({ five_hour: { utilization: 1.3, resetsAt: 0 } }).fiveHour?.percent, 100);
   assert.equal(pickUsageWindows({ five_hour: { utilization: 0.2, resetsAt: 0 } }).sevenDay, null);
+});
+
+test("claude-swap's reading of the active account becomes the same bars, in whole percent", () => {
+  const read = swapUsageWindows({ fiveHour: { pct: 82.4, resetsAt: '1970-01-01T00:00:10.000Z', countdown: null }, sevenDay: null });
+  assert.deepEqual(read.fiveHour, { name: 'five_hour', percent: 82, resetsAt: 10 });
+  assert.equal(read.sevenDay, null);
+  assert.deepEqual(swapUsageWindows(undefined), { fiveHour: null, sevenDay: null });
 });
 
 test('the desktop app marks the page with its platform; a browser marks nothing', () => {
