@@ -31,6 +31,28 @@ export interface CliVersionInfo {
 }
 
 /**
+ * How this Agentry was installed, from `AGENTRY_DISTRIBUTION`: what decides which way to update it
+ * a client offers. `source` is a checkout run with pnpm, and whatever the variable does not name.
+ */
+export type AgentryDistribution = 'docker' | 'appimage' | 'deb' | 'source';
+
+export interface AgentryReleaseInfo {
+  /** The version this server runs */
+  current: string;
+  /** Newest published release, without the tag's `v`; null when the check has never succeeded */
+  latest: string | null;
+  publishedAt: string | null;
+  /** The release's page on GitHub, with its notes */
+  url: string | null;
+  checkedAt: string | null;
+  /** `latest` is newer than `current`; false while `latest` is unknown */
+  updateAvailable: boolean;
+  distribution: AgentryDistribution;
+  /** Why the last check failed (GitHub unreachable, unexpected answer); the previous `latest` is kept */
+  error?: string;
+}
+
+/**
  * `wrapper-*`: configured through the API; `env-*`: passed through the container environment;
  * `cswap`: claude-swap owns the credential file and the wrapper injects nothing.
  */
@@ -2551,6 +2573,15 @@ export interface SessionsChangedEvent extends AgentryEventBase {
   type: 'sessions.changed';
 }
 
+/**
+ * A release check found a newer Agentry than the last one it announced. Sent once per version, and
+ * never a notification: a release is not worth waking a phone for.
+ */
+export interface SystemReleaseEvent extends AgentryEventBase {
+  type: 'system.release';
+  release: AgentryReleaseInfo;
+}
+
 /** `rescheduled`: nothing was edited, but `nextRunAt` was computed again (after a fire, or on boot). */
 export type ScheduleChangeAction = 'created' | 'updated' | 'deleted' | 'enabled' | 'disabled' | 'rescheduled';
 
@@ -2611,6 +2642,7 @@ export type AgentryEvent =
   | ChatActivityEvent
   | HealthChangedEvent
   | SessionsChangedEvent
+  | SystemReleaseEvent
   | ScheduleChangedEvent
   | ScheduleFiredEvent
   | SupervisorProposedEvent;
@@ -2625,6 +2657,8 @@ export interface StreamHelloEvent {
   /** Changes on every server start; ids restart from 1 with it, so a new one means a full resync */
   bootId: string;
   serverTime: string;
+  /** The Agentry version the server runs; a page built for another one is out of date */
+  version: string;
 }
 
 /**

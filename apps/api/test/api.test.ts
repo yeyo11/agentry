@@ -409,6 +409,7 @@ test('the event feed streams what happens, replays what a reconnecting client mi
 
   const first = await openFeed();
   await first.until(/event: stream\.hello\ndata: .*"bootId":"/);
+  assert.match(first.text(), new RegExp(`"version":"${core.version.replaceAll('.', '\\.')}"`), 'hello says which Agentry the server runs');
   assert.match(first.contentType(), /text\/event-stream/);
   assert.equal(core.events.subscribers, idle + 1);
 

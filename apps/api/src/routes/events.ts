@@ -20,6 +20,7 @@ export const eventRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { cor
       lastEventId: core.events.lastEventId,
       bootId: core.events.bootId,
       serverTime: new Date().toISOString(),
+      version: core.version,
     };
     stream.send(hello, { event: hello.type });
     // A first connection has nothing to catch up on; a reconnection asks to continue from an id

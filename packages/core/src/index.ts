@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type {
   AccountsOverview,
   AuthVerification,
+  AgentryReleaseInfo,
   CliVersionInfo,
   ChatProject,
   ChatSummary,
@@ -32,6 +33,7 @@ import { Connectors } from './connectors.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
 import { CliVersionWatch } from './cli-version.ts';
+import { ReleaseWatch } from './release-watch.ts';
 import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
 import { ChangeWatcher } from './change-watcher.ts';
@@ -72,7 +74,8 @@ export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
 export { ChatConflictError, DEFAULT_ORIGINS, type ChatFilter, type Placement } from './chat-service.ts';
-export { compareVersions } from './cli-version.ts';
+export { compareVersions } from './version-check.ts';
+export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
 export { DEFAULT_AUTO_SWITCH } from './accounts.ts';
 export {
   chatControl,
@@ -157,6 +160,8 @@ export class Core {
   readonly uploads: UploadStore;
   readonly accounts: AccountManager;
   readonly cliVersion: CliVersionWatch;
+  /** Whether a newer Agentry has been released: `release.json`, checked once a day */
+  readonly release: ReleaseWatch;
   readonly workspace: Workspace;
   readonly locator = new Locator();
   private readonly projectStore: ProjectStore;
@@ -187,6 +192,7 @@ export class Core {
     }
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
+    this.release = new ReleaseWatch(config, { current: AGENTRY_VERSION, events: this.events });
     this.projectStore = new ProjectStore(config);
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db);
@@ -603,6 +609,22 @@ export class Core {
     return this.cliVersionInfo();
   }
 
+  /** This Agentry against the newest release, as the last check left it: no network here. */
+  releaseInfo(): AgentryReleaseInfo {
+    return this.release.info();
+  }
+
+  /** Asks GitHub now, for the Check for updates button. */
+  async checkRelease(): Promise<AgentryReleaseInfo> {
+    await this.release.check();
+    return this.release.info();
+  }
+
+  /** The version this server runs, as every client should expect it */
+  get version(): string {
+    return AGENTRY_VERSION;
+  }
+
   async setCredentials(credentials: StoredCredentials): Promise<SystemInfo> {
     await this.credentials.set(credentials);
     return this.system(true);
@@ -794,6 +816,7 @@ export class Core {
 
   shutdown(): void {
     this.cliVersion.stop();
+    this.release.stop();
     this.healthMonitor.stop();
     this.orchestrator.close();
     this.schedules.close();
