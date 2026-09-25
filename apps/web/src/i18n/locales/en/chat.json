@@ -24,6 +24,10 @@
     "forkIntro": "A new chat with this one's whole history. This chat stays as it is, and the copy records where it came from.",
     "details": "Chat details",
     "synthesis": "synthesis",
+    "partOf": {
+      "label": "Part of orchestration",
+      "stage": "stage {{n}} of {{total}}"
+    },
     "cancelFork": "Cancel the fork",
     "copyId": "Copy chat id",
     "copiedId": "Chat id copied",

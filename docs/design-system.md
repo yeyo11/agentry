@@ -363,6 +363,12 @@ Rules:
   agent, or Home's done-first order), `size="sm"` is the 4 px bar, `maxCells` lowers the point
   where it draws by share (12 in the sidebar), and `decorative` hides it from a screen reader where
   its numbers are already written beside it.
+- A chat that is a task of an orchestration opens with a context row, `.chat-part-of` (`.part-of`
+  in `agentry-ds.css`): "Part of orchestration *name* · stage N of M", with the graph's
+  `ProgressBar variant="segments"` at its end. The row is neutral: it is context, not the live
+  surface, so it takes no gradient and no energy; the segments carry the only live colour. The
+  name is the link and its box covers the row, so the whole line is the touch target. The
+  synthesis chat reads "· synthesis" instead of a stage.
 - Badges are mono uppercase through CSS, so specs that read a badge's word match it
   case-insensitively or read it from the DOM.
 

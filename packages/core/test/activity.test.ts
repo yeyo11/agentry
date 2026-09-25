@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { Db } from '../src/db.ts';
 import { ChatManager } from '../src/chats.ts';
-import { listWorkflowDefinitions, readSessionWorkflows, scriptMeta } from '../src/workflows.ts';
+import { listWorkflowDefinitions, mergeLiveWorkflows, readSessionWorkflows, scriptMeta } from '../src/workflows.ts';
 import { tempConfig } from './helpers.ts';
 
 // A real workflow run, recorded from CLI 2.1.278: two agents in parallel in one phase. The agent
@@ -144,6 +144,99 @@ test('a workflow without a record is read from its journal: running while its se
   );
   const [ended] = await readSessionWorkflows(transcript, 'session-1', false);
   assert.equal(ended?.status, 'stopped');
+});
+
+/** The recorded workflow as a live process streams it, up to the first `stopAt` event, and the runtime it leaves. */
+async function streamedWorkflow(stopAt: string | null) {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const runs = new ChatManager(config, db);
+  const lines = readFileSync(join(SESSION_FIXTURE, 'stream.jsonl'), 'utf8').split('\n').filter(Boolean);
+  const cut = stopAt === null ? lines.length : lines.findIndex((l) => (JSON.parse(l) as { subtype?: string }).subtype === stopAt);
+  const events = join(config.dataDir, 'turn.jsonl');
+  writeFileSync(events, lines.slice(0, cut).join('\n'));
+  const run = runs.start({ prompt: `REPLAY ${events}` });
+  // keepAlive: the process outlives the turn, as a live chat's does
+  const runtime = await until(() => {
+    const now = runs.get(run.id);
+    return now?.status === 'idle' && now.pid !== null && now;
+  }, 'the turn');
+  return {
+    runtime,
+    close: () => {
+      runs.stopAll();
+      db.close();
+    },
+  };
+}
+
+test('a live chat lists the workflows an earlier process ran, which its stream never saw', async () => {
+  // Resumed after a restart, or taken over from a terminal: the stream starts empty
+  const { transcript } = sessionOnDisk();
+  const onDisk = await readSessionWorkflows(transcript, 'session-1', false);
+  const [run, ...rest] = mergeLiveWorkflows([], onDisk, new Date().toISOString());
+  assert.equal(rest.length, 0);
+  assert.equal(run?.id, 'wf_5c79d6c0-b39');
+  assert.equal(run?.status, 'completed');
+});
+
+test("a running workflow both report is listed once, under the files' id with the stream's progress", async () => {
+  const { runtime, close } = await streamedWorkflow('task_updated');
+  try {
+    const [streamed] = runtime.workflows;
+    assert.equal(streamed?.id, 'wxt94utn7');
+    assert.equal(streamed?.status, 'running');
+    const { transcript, dir } = sessionOnDisk();
+    rmSync(join(dir, 'workflows', 'wf_5c79d6c0-b39.json'));
+    const onDisk = await readSessionWorkflows(transcript, 'session-1', false);
+
+    const [run, ...rest] = mergeLiveWorkflows(runtime.workflows, onDisk, runtime.processStartedAt ?? null);
+    assert.equal(rest.length, 0);
+    // The id an agent's transcript is filed under, so the card can open it
+    assert.equal(run?.id, 'wf_5c79d6c0-b39');
+    assert.equal(run?.taskId, 'wxt94utn7');
+    assert.equal(run?.status, 'running');
+    assert.equal(run?.endedAt, null);
+    assert.deepEqual(run?.phases, ['Say']);
+    assert.deepEqual(
+      run?.agents.map((a) => [a.label, a.state]),
+      [
+        ['one', 'done'],
+        ['two', 'done'],
+      ],
+    );
+  } finally {
+    close();
+  }
+});
+
+test('once its record is written, a streamed workflow is the record', async () => {
+  const { runtime, close } = await streamedWorkflow(null);
+  try {
+    const { transcript } = sessionOnDisk();
+    const onDisk = await readSessionWorkflows(transcript, 'session-1', false);
+    const [run, ...rest] = mergeLiveWorkflows(runtime.workflows, onDisk, runtime.processStartedAt ?? null);
+    assert.equal(rest.length, 0);
+    assert.equal(run?.id, 'wf_5c79d6c0-b39');
+    assert.equal(run?.status, 'completed');
+    assert.deepEqual(run?.result, { results: ['red', 'blue'] });
+  } finally {
+    close();
+  }
+});
+
+test('a workflow without a record that the stream does not report is running only if it began with this process', async () => {
+  const { transcript, dir } = sessionOnDisk();
+  rmSync(join(dir, 'workflows', 'wf_5c79d6c0-b39.json'));
+  const onDisk = await readSessionWorkflows(transcript, 'session-1', false);
+  // Begun before the process: it went down with an earlier one
+  const [earlier] = mergeLiveWorkflows([], onDisk, new Date(Date.now() + 60_000).toISOString());
+  assert.equal(earlier?.status, 'stopped');
+  assert.ok(earlier?.endedAt);
+  // Begun since: its first event is still on the way
+  const [since] = mergeLiveWorkflows([], onDisk, new Date(0).toISOString());
+  assert.equal(since?.status, 'running');
+  assert.equal(since?.endedAt, null);
 });
 
 test('saved workflows come from the project and the user, the project winning a clash', async () => {

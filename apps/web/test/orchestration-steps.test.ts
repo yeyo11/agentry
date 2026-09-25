@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ChatWorkflow, ChatWorkflowAgent, Orchestration, OrchestrationTaskState, VerificationState } from '@agentry/shared';
-import { followedStep, layerTasks, liveTask, orchestrationProgress, orchestrationSteps, stageState, workflowPhaseSteps } from '../src/lib/orchestration-steps.ts';
+import { followedStep, layerTasks, liveTask, orchestrationProgress, orchestrationSteps, stageState, taskStage, workflowPhaseSteps } from '../src/lib/orchestration-steps.ts';
 
 const task = (id: string, extra: Partial<OrchestrationTaskState> = {}): OrchestrationTaskState => ({
   id,
@@ -66,6 +66,15 @@ test('the stages are the levels of the dependency graph, in order', () => {
     layers.map((l) => l.map((t) => t.id)),
     [['api', 'docs'], ['web'], ['e2e']],
   );
+});
+
+test("a task's stage is the level it sits at, out of every level of the graph", () => {
+  const tasks = [task('api'), task('web', { dependsOn: ['api'] }), task('docs'), task('e2e', { dependsOn: ['web', 'docs'] })];
+  assert.deepEqual(taskStage(tasks, 'docs'), { at: 1, of: 3 });
+  assert.deepEqual(taskStage(tasks, 'web'), { at: 2, of: 3 });
+  assert.deepEqual(taskStage(tasks, 'e2e'), { at: 3, of: 3 });
+  // The chat of a task the graph no longer has (edited on a relaunch) has no stage to show
+  assert.equal(taskStage(tasks, 'gone'), null);
 });
 
 test('a dependency cycle does not hang the layering', () => {

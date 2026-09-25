@@ -48,11 +48,14 @@ test('the CLI is found under a wrapper by what it drives, not by its name', () =
 });
 
 test('two commands running at once each get their own process, in the order they were called', async () => {
+  // Each command is called before its process starts, as the CLI's are. Read after `spawn` returned,
+  // the time could be well past the fork: on a loaded machine the call blocks until the exec, and
+  // that took over 80 ms under the parallel suite, more than the tolerance
+  const t1 = Date.now();
   const first = shellWithChild();
-  const t1 = Date.now() - 20;
   await new Promise((r) => setTimeout(r, 120));
+  const t2 = Date.now();
   const second = shellWithChild();
-  const t2 = Date.now() - 20;
   try {
     assert.ok(first.pid && second.pid);
     await until(() => processTable().some((p) => p.pid === second.pid));

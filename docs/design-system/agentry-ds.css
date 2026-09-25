@@ -218,6 +218,12 @@
 .toast::after { content: ''; position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--grad); transform-origin: left; animation: toast-drain 5s linear infinite; }
 .callout { display: flex; gap: 12px; padding: 14px; border-radius: var(--r-lg); background: var(--bg-1); border: 1px solid var(--line); font-size: 13px; color: var(--fg-2); }
 .callout-warn { background: var(--warn-soft); border-color: transparent; }
+/* Fila de contexto: el chat de una tarea enlaza con su orquestación ("Parte de la orquestación X · etapa 2 de 3") y su barra segmentada. Toda la fila es el enlace. */
+.part-of { position: relative; display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 8px 12px; border-radius: var(--r); background: var(--bg-2); border: 1px solid var(--line); font-size: 13px; color: var(--fg-2); transition: background var(--dur-fast); }
+.part-of:hover { background: var(--bg-3); }
+.part-of a { color: var(--fg); font-weight: 600; }
+.part-of a::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.part-of .segbar { flex: 0 1 160px; min-width: 64px; }
 
 /* ---------- 10. Datos ---------- */
 .kpi { padding: 16px; display: flex; flex-direction: column; gap: 6px; }

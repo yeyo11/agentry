@@ -23,6 +23,7 @@ import { useDetailPanel } from '../lib/detail';
 import { Composer, type ComposerKind } from './chat/Composer';
 import { ChatHeader, type HeaderActions } from './chat/Header';
 import { Inspector, useInspector } from './chat/Inspector';
+import { PartOf } from './chat/PartOf';
 import { useQueuedMessages } from './chat/queued';
 import { useStickToBottom } from './chat/stick-to-bottom';
 
@@ -202,6 +203,7 @@ export function ChatView() {
             )}
           </div>
         )}
+        {chat.orchestration && <PartOf link={chat.orchestration} />}
         <FindBar find={find} />
 
         <div className="run-stage">
