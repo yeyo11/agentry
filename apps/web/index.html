@@ -24,11 +24,14 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <title>Agentry</title>
     <script>
-      // Stamp the saved theme before first paint (src/lib/theme.tsx owns it afterwards)
+      // Stamp the theme before first paint (src/lib/theme.tsx owns it afterwards). Nothing stored
+      // means dark, which is also what the bare :root tokens paint if this never runs.
+      var theme = 'dark';
       try {
-        var theme = localStorage.getItem('agentry-theme');
-        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+        var stored = localStorage.getItem('agentry-theme');
+        if (stored === 'light' || stored === 'dark' || stored === 'system') theme = stored;
       } catch (e) {}
+      document.documentElement.dataset.theme = theme;
     </script>
   </head>
   <body>
