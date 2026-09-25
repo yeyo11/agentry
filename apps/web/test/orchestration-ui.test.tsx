@@ -26,6 +26,25 @@ test('a graph too big for a cell per task falls back to a bar by share', () => {
   assert.match(html, /class="progress"/);
 });
 
+test('cells given in order are drawn as given, and their counts name the bar', () => {
+  const html = renderToStaticMarkup(<ProgressBar variant="segments" cells={['running', 'done', 'failed']} />);
+  assert.deepEqual(cells(html), ['running', 'done', 'failed']);
+  assert.match(html, /aria-valuenow="1"/);
+  assert.match(html, /aria-valuemax="3"/);
+});
+
+test('a bar whose numbers are written beside it is hidden from a screen reader, and sm is the thin one', () => {
+  const html = renderToStaticMarkup(<ProgressBar variant="segments" size="sm" decorative counts={{ done: 1, pending: 1 }} className="live-row-bar" />);
+  assert.doesNotMatch(html, /role="progressbar"/);
+  assert.match(html, /^<span class="progress-segbar is-sm live-row-bar" aria-hidden="true">/);
+});
+
+test('a narrow place draws by share sooner', () => {
+  const html = renderToStaticMarkup(<ProgressBar variant="segments" size="sm" maxCells={12} counts={{ done: 10, pending: 10 }} />);
+  assert.equal(cells(html).length, 0);
+  assert.match(html, /class="progress is-sm"/);
+});
+
 test('the pipeline fills each bar by how far its step got and says its state in words', () => {
   const html = renderToStaticMarkup(
     <Stepper

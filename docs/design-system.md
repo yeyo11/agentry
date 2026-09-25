@@ -357,9 +357,12 @@ Rules:
   Past 32 tasks a cell would be thinner than the gap, so it falls back to drawing by share.
 - `Stepper` has a `pipeline` form: a row of bars with the state in words under each label, which
   turns into chips when the box is narrow.
-- Four segmented bars look alike and are separate classes: `.segbar` (Home), `.live-segbar`
-  (sidebar), `.chat-launch-bar` (a workflow started from a chat) and `.progress-segbar`
-  (`ProgressBar`). Merging them is left for later.
+- There is one segmented bar, `ProgressBar variant="segments"` (`.progress-segbar`, in
+  `primitives.css`), and Home, the sidebar's Live rows, a workflow started from a chat and the
+  orchestration screens all draw it. `cells` passes the cells in an order of their own (one per
+  agent, or Home's done-first order), `size="sm"` is the 4 px bar, `maxCells` lowers the point
+  where it draws by share (12 in the sidebar), and `decorative` hides it from a screen reader where
+  its numbers are already written beside it.
 - Badges are mono uppercase through CSS, so specs that read a badge's word match it
   case-insensitively or read it from the DOM.
 

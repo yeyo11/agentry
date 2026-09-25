@@ -6,8 +6,10 @@ import { readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
 import { justStreamed } from '../lib/chat-stream';
 import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, transcriptRows, type StepCall, type StepPart, type TranscriptRow } from '../lib/chat-steps';
 import { formatDuration, formatClock, formatDateTime, truncate } from '../lib/format';
+import type { ProgressStatus } from '../lib/progress';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
 import { CodeBlock } from './CodeBlock';
+import { ProgressBar } from './ProgressBar';
 import { Collapsible } from './controls/Collapsible';
 import { Tooltip } from './controls/Tooltip';
 import { BrandMark, ICON_SM, toolIcon } from './icons';
@@ -367,7 +369,7 @@ function launchesOf(row: Extract<TranscriptRow, { kind: 'step' }>, list: readonl
 }
 
 const WORKFLOW_TOOL = 'Workflow';
-const LAUNCH_SEGMENT: Record<ChatWorkflowAgent['status'], string> = { completed: 'is-ok', running: 'is-live', failed: 'is-bad' };
+const LAUNCH_SEGMENT: Record<ChatWorkflowAgent['status'], ProgressStatus> = { completed: 'done', running: 'running', failed: 'failed' };
 
 /**
  * A workflow the chat started, as the card the conversation points at: its name, how far it has
@@ -406,11 +408,7 @@ function LaunchCard({ workflow, onOpen }: { workflow: ChatWorkflow; onOpen?: () 
         )}
       </div>
       {workflow.agents.length > 0 && (
-        <span className="chat-launch-bar" aria-hidden>
-          {workflow.agents.map((agent) => (
-            <i key={agent.index} className={LAUNCH_SEGMENT[agent.status]} />
-          ))}
-        </span>
+        <ProgressBar variant="segments" size="sm" decorative cells={workflow.agents.map((agent) => LAUNCH_SEGMENT[agent.status])} />
       )}
     </div>
   );

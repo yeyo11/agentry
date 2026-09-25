@@ -1107,28 +1107,3 @@
 .chat-launch-open {
   flex: none;
 }
-
-/* One segment per agent: done, on it now, or failed */
-.chat-launch-bar {
-  display: flex;
-  gap: 4px;
-  height: 4px;
-}
-
-.chat-launch-bar > i {
-  flex: 1;
-  border-radius: var(--radius-pill);
-  background: var(--bg-4);
-}
-
-.chat-launch-bar > i.is-ok {
-  background: var(--ok);
-}
-
-.chat-launch-bar > i.is-live {
-  background: var(--live);
-}
-
-.chat-launch-bar > i.is-bad {
-  background: var(--bad);
-}

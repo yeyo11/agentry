@@ -22,6 +22,7 @@ import { api, keys, useChats, useOrchestrations, useOverview, useProjects, useSc
 import { ActivityTicker } from '../../../components/ActivityTicker';
 import { ICON_SM } from '../../../components/icons';
 import { ProgressRing, StatusDot, usageTone } from '../../../components/motion';
+import { ProgressBar } from '../../../components/ProgressBar';
 import { Empty, Skeleton, StatusBadge } from '../../../components/ui';
 import { displayTitle } from '../../../lib/chat-model';
 import { detailHref } from '../../../lib/detail';
@@ -29,7 +30,6 @@ import { formatCost, formatDuration, formatNumber, timeAgo, timeUntil, truncate 
 import { formatElapsed } from '../../../lib/live';
 import { useClockTick } from '../../../lib/motion';
 import { inProject } from '../../../lib/project-scope';
-import type { ProgressStatus } from '../../../lib/progress';
 import { configCount } from '../layout';
 import {
   initials,
@@ -97,17 +97,13 @@ interface AttentionRow {
 function TaskSegments({ orchestration: o }: { orchestration: Orchestration }) {
   const { t } = useTranslation('home');
   const counts = taskCounts(o.tasks);
-  const segments = taskSegments(o.tasks);
   return (
-    <span
-      className="segbar"
-      role="img"
-      aria-label={t('widgets.orchestrations.progress', { done: counts.done ?? 0, total: o.tasks.length, running: counts.running ?? 0 })}
-    >
-      {segments.map((status: ProgressStatus, index) => (
-        <i key={index} className={`is-${status}`} />
-      ))}
-    </span>
+    <ProgressBar
+      variant="segments"
+      counts={counts}
+      cells={taskSegments(o.tasks)}
+      label={t('widgets.orchestrations.progress', { done: counts.done ?? 0, total: o.tasks.length, running: counts.running ?? 0 })}
+    />
   );
 }
 

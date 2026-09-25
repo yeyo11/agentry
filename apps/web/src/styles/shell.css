@@ -344,44 +344,10 @@
   color: var(--warn);
 }
 
-/* One segment per task: done in ok, failed in bad, running as a partial live fill, pending empty */
-.live-segbar {
-  display: flex;
-  gap: 3px;
-  height: 4px;
+/* The bar lines up with the title, past the spinner in front of it */
+.live-row .live-row-bar {
+  width: auto;
   margin-left: calc(1ch + 7px);
-}
-
-.live-segbar > i {
-  position: relative;
-  flex: 1 1 0;
-  overflow: hidden;
-  border-radius: var(--radius-pill);
-  background: var(--bg-4);
-}
-
-.live-segbar > .is-done {
-  background: var(--ok);
-}
-
-.live-segbar > .is-failed {
-  background: var(--bad);
-}
-
-.live-segbar > .is-running {
-  background: var(--live-soft);
-}
-
-.live-segbar > .is-running::after {
-  content: '';
-  position: absolute;
-  inset: 0 50% 0 0;
-  border-radius: inherit;
-  background: var(--live);
-}
-
-.live-segbar > .is-skipped {
-  background: var(--line-2);
 }
 
 /* Waiting is a person's turn, not work in progress: a still dot in the warning colour, never a spinner */

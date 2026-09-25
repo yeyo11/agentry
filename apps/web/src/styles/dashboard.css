@@ -536,37 +536,6 @@
   flex: none;
 }
 
-/* One segment per task: done in ok, running in live, what is left on the track */
-.segbar {
-  display: flex;
-  gap: 4px;
-  height: 6px;
-  min-width: 0;
-}
-
-.segbar > i {
-  flex: 1;
-  min-width: 4px;
-  border-radius: var(--radius-pill);
-  background: var(--bg-4);
-}
-
-.segbar > .is-done {
-  background: var(--ok);
-}
-
-.segbar > .is-failed {
-  background: var(--bad);
-}
-
-.segbar > .is-skipped {
-  background: var(--line-3);
-}
-
-.segbar > .is-running {
-  background: linear-gradient(90deg, var(--live) 55%, var(--live-soft) 55%);
-}
-
 .orch-item-counts {
   display: flex;
   flex-wrap: wrap;

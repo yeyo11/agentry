@@ -795,6 +795,59 @@ input.is-invalid {
   opacity: 0.5;
 }
 
+/* The one segmented bar: Home's orchestrations, the sidebar's Live rows, a workflow started from a
+   chat and the orchestration screens all draw it. A cell per item: ok, bad, live (partly filled),
+   and empty for pending. */
+.progress-segbar {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  height: 6px;
+}
+
+.progress-segbar.is-sm,
+.progress.is-sm {
+  height: 4px;
+}
+
+.progress-segbar-cell {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 2px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--bg-4);
+  transition: background var(--dur-slow) var(--ease-out);
+}
+
+.progress-segbar-cell.is-done {
+  background: var(--ok);
+}
+
+.progress-segbar-cell.is-failed {
+  background: var(--bad);
+}
+
+.progress-segbar-cell.is-skipped {
+  background: var(--text-faint);
+  opacity: 0.5;
+}
+
+.progress-segbar-cell.is-running {
+  background: var(--live-soft);
+}
+
+.progress-segbar-cell.is-running::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 45%;
+  border-radius: inherit;
+  background: var(--live);
+  box-shadow: 0 0 10px var(--live);
+}
+
 .progress-blocks {
   display: inline-flex;
   font-family: var(--mono);
