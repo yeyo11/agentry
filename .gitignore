@@ -9,3 +9,4 @@ e2e-shots
 # Created by `claude --worktree`; the shareable parts of .claude/ stay tracked
 .claude/worktrees/
 .claude/settings.local.json
+.pando

@@ -1,3 +1,13 @@
+---
+created_at: 2026-09-20T13:53:19Z
+updated_at: 2026-09-21T19:36:16Z
+tags:
+    - plan
+    - chats
+    - projects
+    - model
+    - landed
+---
 # Plan: chats, projects and Agentry's own model
 
 Status: **landed** in `feat!: chats, projects and Agentry's own model` (#60), the orchestration this
@@ -357,3 +367,7 @@ Three things belong in the brief each worker gets:
   marks the release; the image and the desktop app follow.
 - **The observability plan is written in terms of runs and tasks.** This lands first, and that
   document is rewritten to speak of chats, or two plans contradict each other.
+
+## Related
+
+[[plans/agent-observability.md]] · [[plans/post-roadmap.md]] · [[status.md]]

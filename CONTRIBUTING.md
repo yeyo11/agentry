@@ -46,6 +46,15 @@ pnpm --filter @agentry/api openapi:schemas
 
 Every route must carry a summary and a tag — there is a test that enforces it.
 
+A feature or a decision that is worth remembering is worth a document: write it under `docs/`
+(plans in `docs/plans/`) in the same pull request that builds it. Where the project stands today is
+[docs/status.md](docs/status.md), and how the documents are indexed for semantic search is
+[docs/knowledge-base.md](docs/knowledge-base.md).
+
+Read them the same way: any question about this project starts with a `kb_search_documents` over
+`docs/`, before `git log` and before opening the file that looks like the answer. Documents nobody
+searches are documents nobody wrote.
+
 ## House style
 
 - **TypeScript, strict, no `any`.** `noUncheckedIndexedAccess` is on; respect it rather than

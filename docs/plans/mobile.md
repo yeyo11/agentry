@@ -1,3 +1,13 @@
+---
+created_at: 2026-09-23T18:28:14Z
+updated_at: 2026-09-23T23:12:12Z
+tags:
+    - plan
+    - mobile
+    - pwa
+    - push
+    - shipped
+---
 # Plan: Agentry on a phone
 
 Make Agentry installable on Android and iPhone, and able to tell you that a chat is waiting for
@@ -356,3 +366,7 @@ test — so the worker is driven event by event as a unit against the file that 
 stamped worker and that `GET /api/events` still streams with it active; `e2e/specs/push.spec.mjs`
 does the subscription round-trip against an endpoint on `.invalid` that can never be delivered to.
 The suite runs once on the integrated branch, in the verification phase.
+
+## Related
+
+[[plans/ui-redesign.md]] · [[deploy.md]] · [[status.md]]

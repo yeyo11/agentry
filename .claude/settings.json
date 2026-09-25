@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"Project rule (CLAUDE.md > Knowledge): if this prompt asks anything about this project - what it does, how it works, where it stands, why something was decided, where something lives - call mcp__pando__kb_search_documents FIRST, before git, grep or reading files, then mcp__pando__code_hybrid_search when the answer is in the source. Exceptions: the user named an exact file, you need a literal string or known identifier (use grep), or the turn is pure editing with no question in it.\"},\"suppressOutput\":true}'"
+          }
+        ]
+      }
+    ]
+  }
+}

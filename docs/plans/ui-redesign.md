@@ -1,3 +1,12 @@
+---
+created_at: 2026-09-22T07:21:27Z
+updated_at: 2026-09-22T07:21:27Z
+tags:
+    - plan
+    - ui
+    - redesign
+    - done
+---
 # Plan: the UI redesign
 
 Status: **done** — every task delivered; see [Outcome](#outcome). Written on 2026-09-21 on top of
@@ -721,3 +730,7 @@ level. This Outcome.
 - The project's git branch in the dashboard header, which needs a field on `Project`.
 - The editable, persisted dashboard and the Documents and Flows widgets, as planned (see
   [ROADMAP.md](../../ROADMAP.md#next)).
+
+## Related
+
+[[plans/mobile.md]] · [[desktop.md]] · [[status.md]]

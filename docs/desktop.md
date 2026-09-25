@@ -1,3 +1,13 @@
+---
+created_at: 2026-09-19T07:37:05Z
+updated_at: 2026-09-23T20:41:01Z
+tags:
+    - desktop
+    - electron
+    - linux
+    - packaging
+    - operations
+---
 # Desktop app (Linux)
 
 The desktop app is Agentry in a window: the same UI and REST API as the Docker image, packaged as
@@ -219,3 +229,7 @@ only keeps the packages as a run artifact.
 You can also run the **Desktop** workflow by hand from the Actions tab. With no tag it only builds
 and keeps the packages as the `agentry-linux` run artifact, which is a way to try a change before a
 release.
+
+## Related
+
+[[deploy.md]] · [[status.md]] · [[plans/ui-redesign.md]]
