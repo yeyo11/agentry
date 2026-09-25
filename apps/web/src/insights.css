@@ -1,65 +1,1067 @@
-/* Schedules and Usage. Every colour is a theme token, so both themes read without a second set. */
+/* The workspace pages: Projects, Accounts, Connectors, Schedules and Usage. Every colour is a theme
+   token, so both themes read without a second set. */
 
-.alert-note {
-  background: var(--bg-elev);
+/* ==== Projects (Night Shift) ==== */
+
+/* One card a project: three across on a desktop, two in between, one on a phone */
+.project-grid {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
 }
-.alert-note .alert-icon {
-  color: var(--text-muted);
+.project-card {
+  gap: 16px;
+}
+.project-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.project-card .monogram {
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+/* The selected project wears the brand; the others keep their name's hue */
+.project-card.is-active .monogram {
+  --monogram-fill: var(--grad);
+  --monogram-ink: var(--accent-text);
+  --monogram-shadow: var(--shadow-primary);
+}
+.project-card-id {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.project-card-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.project-card-path {
+  display: block;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.project-card .rename-form input {
+  min-width: 0;
 }
 
-/* Schedules */
-.schedules {
+.project-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+/* The figure reads first, its label under it */
+.project-stat {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
+.project-stat-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 33px;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.project-stat-value.is-quiet {
+  color: var(--fg-2);
+}
+.project-stat-value.is-live {
+  font-size: 15px;
+  color: var(--live);
+}
+
+.project-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+}
+.project-card-new {
+  flex: 1;
+}
+/* Abrir is the quiet way in: a ghost button next to the card's main action */
+.project-card-open {
+  border-color: transparent;
+  background: transparent;
+  color: var(--fg-2);
+}
+.project-card-open:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: transparent;
+  color: var(--fg);
+}
+
+/* The purge's warning line, under its label in the menu and in the sheet */
+.project-menu-purge {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.project-menu-hint {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--fg-3);
+  white-space: normal;
+}
+.project-sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.project-sheet-actions .btn {
+  justify-content: flex-start;
+  min-height: 44px;
+}
+.project-sheet-purge {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding-block: 8px;
+}
+.project-sheet-purge-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* More directories with chats: a dashed nudge, not another card competing with the projects */
+.project-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 14px;
+  padding: 16px 18px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius-xl);
+}
+.project-callout-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.project-callout-icon {
+  flex: none;
+  color: var(--fg-3);
+}
+.project-callout-text {
+  flex: 1;
+  min-width: 0;
+}
+.project-callout-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.project-callout-body {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+.project-candidates,
+.project-form {
+  margin-top: 14px;
+}
+
+@media (max-width: 1100px) {
+  .project-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* A phone: one column, the stats as one mono line, and the actions big enough for a finger */
+@media (max-width: 900px) {
+  .project-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .project-card {
+    padding: 14px;
+    gap: 12px;
+  }
+  .project-card-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+  }
+  .project-stat {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: 5px;
+  }
+  .project-stat .section-label {
+    font-size: 12px;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--fg-2);
+  }
+  .project-stat-activity .section-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .project-stat-value,
+  .project-stat-value.is-live {
+    min-height: 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--fg-2);
+  }
+  .project-stat-value.is-live {
+    color: var(--live);
+  }
+  .project-stat-value.is-quiet {
+    color: var(--fg-3);
+  }
+  .project-card-actions .btn,
+  .project-card-more,
+  .project-callout .btn {
+    min-height: 44px;
+  }
+  .project-card-more {
+    min-width: 44px;
+  }
+  .project-callout {
+    padding: 12px 14px;
+  }
+  .project-callout-icon,
+  .project-callout-body {
+    display: none;
+  }
+}
+
+/* ==== end Projects ==== */
+
+/* ==== Accounts (Night Shift) ==== */
+
+/* The accounts as cards: the one in use first (a gradient hairline), the exhausted ones last */
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-card {
+  padding: 20px;
+  gap: 18px;
+  min-width: 0;
+}
+
+.account-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.account-avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-4);
+  color: var(--fg-2);
+  font-weight: 600;
+}
+
+/* The brand goes on the active account's avatar; white is the only text that reads on it */
+.account-card.is-active .account-avatar {
+  background: var(--grad);
+  color: #fff;
+}
+
+.account-card.is-exhausted .account-avatar {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.account-id {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.account-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+.account-email {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.account-sub {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.account-org {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-org + .mono::before {
+  content: '· ';
+}
+
+.account-figure {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.account-figure-value {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.account-meters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.account-meter-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.account-meter-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-meter-reset {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.account-meter-pct {
+  min-width: 40px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/*
+ * The foot: the config directory on the left, the actions on the right. The disclosure's root steps
+ * aside (display: contents) so its trigger sits on the row and its form opens full width under it.
+ */
+.account-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 12px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.account-foot > .account-config {
+  display: contents;
+}
+
+.account-config-trigger {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.account-foot > .account-config > .collapsible-content {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+}
+
+.account-config-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+/* One line in a narrow card: the label gives way before the own/shared state does */
+.account-config-title > span:first-of-type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.account-config-title > span {
+  white-space: nowrap;
+}
+
+.account-config-state.is-own {
+  color: var(--fg-2);
+}
+
+.account-config-form {
+  padding-top: 6px;
+}
+
+.account-actions {
+  grid-column: 2;
+  grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-more {
+  border: 1px solid var(--line-2);
+  background: var(--bg-3);
+}
+
+.account-sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.account-sheet-actions .btn {
+  min-height: 44px;
+  justify-content: flex-start;
+}
+
+/* Automatic rotation: one card, its settings in a row of four, its save at the foot */
+.rotation-card {
+  padding: 0;
+  gap: 0;
+}
+
+.rotation-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.rotation-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.rotation-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 200px;
+}
+
+.rotation-title h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.rotation-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  padding: 18px;
+}
+
+.rotation-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rotation-field .field-hint {
+  font-size: 12px;
+  color: var(--fg-2);
+}
+
+.rotation-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 0 18px 18px;
+}
+
+.rotation-foot > .check {
+  flex: 1;
+  min-width: 0;
+}
+
+.rotation-actions {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.rotation-log .list-row .mono {
+  font-size: 12px;
+}
+
+@media (max-width: 1100px) {
+  .rotation-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* A phone: one column, a finger's targets, the refresh as an icon */
+@media (max-width: 720px) {
+  .account-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .account-card {
+    padding: 16px;
+    gap: 14px;
+  }
+  .account-figure-value {
+    font-size: 26px;
+  }
+  .account-foot .btn,
+  .account-more,
+  .account-config-trigger,
+  .rotation-actions .btn {
+    min-height: 44px;
+  }
+  .account-more {
+    width: 44px;
+  }
+  .account-foot .btn-primary {
+    flex: 1;
+  }
+  .account-foot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .account-config-trigger {
+    grid-row: 2;
+  }
+  .account-foot > .account-config > .collapsible-content {
+    grid-row: 3;
+  }
+  .account-actions {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+  }
+  .rotation-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .accounts-action-text {
+    display: none;
+  }
+  .accounts-page .page-actions .btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* ==== end Accounts ==== */
+
+/* ==== Connectors (Night Shift) ==== */
+.connectors-checked {
+  align-self: center;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The list beside what is out of reach: two columns on a desktop, one stack on a phone */
+.connectors-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  align-items: start;
+}
+.connectors-main,
+.connectors-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.connectors-lead {
+  padding: 0;
+}
+
+/* Each connector is a card of its own, not a hairline row */
+.connectors .connectors-list {
+  gap: 12px;
+  border-top: 0;
+}
+.connector-row {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-card);
+}
+/* Needs authorisation: warm from the top, so the card reads as the one asking for a person */
+.connector-row.is-warn {
+  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+  background: linear-gradient(180deg, var(--warn-soft), transparent 60%), var(--bg-2);
+}
+.connector-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.connector-mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.connector-row.is-warn .connector-mark {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.connector-row.is-muted .connector-mark {
+  background: var(--bg-3);
+  color: var(--fg-2);
+}
+.connector-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.connector-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.connector-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ok);
+}
+.connector-state .status-dot {
+  width: 6px;
+  height: 6px;
+}
+.connector-actions {
+  flex: none;
+  justify-content: flex-end;
+}
+/* The steps sit under the name, not under the icon */
+.connector-body {
+  margin: 0 0 0 58px;
+}
+
+.connector-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.connector-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.connector-steps .count {
+  margin-top: 1px;
+}
+.connector-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.connector-guide {
+  gap: 12px;
+}
+
+.connectors-callout {
+  color: var(--fg-2);
+}
+.connectors-callout .alert-icon {
+  color: var(--fg-3);
+}
+
+.connectors-side-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.connectors-side > p {
+  margin: 0;
+  line-height: 1.5;
+}
+.connectors-limits {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.connectors-limit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--bg-1);
+}
+
+@media (max-width: 900px) {
+  .connectors-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .connector-row {
+    padding: 14px;
+    gap: 12px;
+  }
+  .connector-head {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .connector-mark {
+    width: 40px;
+    height: 40px;
+  }
+  /* The prompt button takes the card's full width under the name */
+  .connector-actions {
+    flex-basis: 100%;
+    justify-content: stretch;
+  }
+  .connector-actions .btn {
+    flex: 1;
+    min-height: 44px;
+  }
+  .connector-body {
+    margin-left: 0;
+  }
+}
+
+/* ==== end Connectors ==== */
+
+/* ==== Schedules (Night Shift) ==== */
+.schedules-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.schedules {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* The empty page: the illustration and headline over three templates, all in one haloed card */
+.schedules-empty {
+  align-items: center;
+  gap: 8px;
+  padding: 24px 40px 40px;
+}
+.card.glow-top.schedules-empty {
+  background-size: 100% 300px, auto;
+}
+.schedules-empty .state-illustrated strong {
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+.schedule-templates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 880px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.schedule-template {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  height: 100%;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--bg-1);
+  color: var(--fg);
+  text-align: left;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+.schedule-template:hover {
+  text-decoration: none;
+  border-color: var(--line-3);
+  background: var(--bg-3);
+}
+.schedule-template-title {
+  font-weight: 600;
+}
+.schedule-template-body {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-2);
+}
+
+/* The two rules, side by side as callouts */
+.schedules-rules {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.schedules-rule {
+  background: var(--bg-1);
+  color: var(--fg-2);
+  animation: none;
+}
+.schedules-rule .alert-icon {
+  color: var(--fg-3);
+}
+.schedules-rule-title {
+  margin-bottom: 3px;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+/* The list: one card per schedule */
+.schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.schedule-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-card);
+}
+.schedule-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+}
+.schedule-mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.schedule-card.is-off .schedule-mark {
+  background: var(--bg-3);
+  color: var(--fg-3);
+}
+.schedule-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.schedule-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.schedule-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  color: var(--fg-2);
+}
+.schedule-card.is-on .schedule-state {
+  color: var(--ok);
+}
+.schedule-words {
+  color: var(--fg);
 }
 .schedule-when {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: 4px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
+}
+.schedule-when code {
+  padding: 0 5px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-3);
+  color: var(--fg-2);
+}
+.schedule-actions {
+  gap: 8px;
+}
+
+/* The editor: each fieldset is a card with a mono section label */
+.schedule-editor {
+  max-width: 760px;
 }
 .fieldset {
   display: flex;
   flex-direction: column;
   gap: 14px;
   margin: 0;
-  padding: 12px 14px 14px;
+  padding: 18px;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-card);
 }
+/* Floated, a legend stops sitting on the border and becomes the card's first row */
 .fieldset > legend {
-  padding: 0 6px;
+  float: left;
+  width: 100%;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.fieldset > legend + * {
+  clear: both;
 }
 .cron-preview {
   display: flex;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-sunken);
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-1);
 }
 .cron-preview > svg {
   flex: none;
   margin-top: 2px;
-  color: var(--text-muted);
+  color: var(--accent);
+}
+.cron-preview strong {
+  font-size: 15px;
+  font-weight: 600;
 }
 /* An invalid expression is said in words too; the border is only a second cue */
 .cron-preview.is-invalid {
   border-color: color-mix(in srgb, var(--bad) 45%, transparent);
   background: var(--bad-soft);
 }
+.cron-preview.is-invalid > svg {
+  color: var(--bad);
+}
 .cron-next {
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   padding-left: 18px;
-  color: var(--text-muted);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-2);
 }
 .task-draft {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-1);
 }
 .task-draft-head {
   display: flex;
@@ -71,38 +1073,138 @@
   min-width: 0;
 }
 
-/* Usage */
+/* The schedule's own page keeps its actions in reach at the foot while it scrolls */
+.schedule-form-actions {
+  position: sticky;
+  bottom: var(--stick-bottom, 0px);
+  z-index: 2;
+  justify-content: flex-end;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+@media (max-width: 900px) {
+  .schedules-empty {
+    padding: 8px 16px 20px;
+  }
+  .schedules-empty .state-illustrated strong {
+    font-size: 20px;
+  }
+  .schedule-templates,
+  .schedules-rules {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .schedule-template {
+    min-height: 44px;
+    padding: 14px;
+  }
+  .schedule-card {
+    padding: 14px;
+  }
+  .schedule-card-head {
+    flex-wrap: wrap;
+  }
+  /* The actions drop under the text instead of squeezing it */
+  .schedule-actions {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (pointer: coarse) {
+  .schedule-actions .btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ==== end Schedules ==== */
+
+/* ==== Usage (Night Shift) ==== */
+
 .usage-date {
   width: 160px;
 }
+
+/* KPI tiles: the three metrics are the picker for the chart and the breakdowns, the fourth is the peak */
 .usage-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 14px;
-  margin: 14px 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
 }
 .usage-tile {
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--bg-elev);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-card);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+}
+.usage-tile-metric {
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.usage-tile-metric:hover {
+  border-color: var(--line-3);
+}
+/* The chosen metric is what the screen is about: the gradient hairline and the halo inside it */
+.usage-tile-metric.is-on,
+.usage-tile-metric.is-on:hover {
+  border-color: transparent;
+  background:
+    var(--glow-top) no-repeat padding-box,
+    linear-gradient(var(--bg-2), var(--bg-2)) padding-box,
+    var(--grad-border) border-box;
+}
+.usage-tile-peak {
+  background: var(--bg-1);
+  box-shadow: none;
 }
 .usage-tile-label {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--fg-3);
 }
 .usage-tile-value {
-  margin-top: 4px;
-  font-size: 22px;
-  font-weight: 650;
+  overflow: hidden;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.usage-tile-sub {
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-3);
 }
 .usage-slices {
   margin-top: 16px;
 }
+
 .usage-table .num,
 .usage-table th.num {
   text-align: right;
@@ -116,64 +1218,116 @@
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
-  color: var(--text);
+  color: var(--fg);
   background: none;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
 .usage-table tbody tr:last-child th {
   border-bottom: 0;
 }
 
-/* The chart: one series, one hue, so the only colour choice is the accent. Grid and axes recede. */
+/* The chart: one series in the brand gradient, the peak at full strength with a glow; grid and axes recede */
 .chart {
+  position: relative;
   width: 100%;
   min-width: 0;
 }
 .chart svg {
   display: block;
   overflow: visible;
+  border-radius: var(--radius-sm);
+}
+.chart svg:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.chart-stop-top {
+  stop-color: var(--accent);
+}
+.chart-stop-foot {
+  stop-color: var(--accent-rose);
 }
 .chart-grid {
-  stroke: var(--border);
+  stroke: var(--line);
   stroke-width: 1;
 }
 .chart-base {
-  stroke: var(--border-strong);
+  stroke: var(--line-2);
   stroke-width: 1;
 }
 .chart-axis {
-  fill: var(--text-muted);
+  fill: var(--fg-3);
+  font-family: var(--mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 .chart-bar {
-  fill: var(--accent);
-  opacity: 0.85;
-  transition: opacity var(--dur-fast);
+  opacity: 0.55;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.chart-bar.is-peak {
+  opacity: 1;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent-rose) 55%, transparent));
 }
 .chart-bar.is-active {
   opacity: 1;
 }
+.chart-stub {
+  fill: var(--bg-4);
+}
+.chart-stub.is-active {
+  fill: var(--line-3);
+}
 .chart-hit {
   fill: transparent;
 }
-.chart-readout {
+/* The figures of the bar under the pointer or the keyboard, over the bar itself */
+.chart-tip {
+  position: absolute;
+  z-index: 2;
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 14px;
-  min-height: 22px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  background: var(--fg);
+  color: var(--bg);
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+.chart-tip.is-start {
+  transform: translate(-16px, -100%);
+}
+.chart-tip.is-end {
+  transform: translate(calc(-100% + 16px), -100%);
+}
+.chart-tip-period {
+  font-family: var(--mono);
+  font-size: 11px;
+  opacity: 0.75;
+}
+.chart-tip-value {
   font-size: 13px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+.chart-tip-rest {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
 
-/* Horizontal bars: the name and the figure are text, the bar only repeats them */
+/* Horizontal bars: the name and the figure are text, the gradient bar only repeats them */
 .slice-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -181,38 +1335,58 @@
 .slice {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 12px;
+  gap: 6px 12px;
   font-size: 13px;
 }
 .slice-value {
   font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
+  color: var(--fg);
 }
 .slice-track {
   grid-column: 1 / -1;
   height: 6px;
   border-radius: var(--radius-xs);
-  background: var(--bg-hover);
+  background: var(--bg-4);
   overflow: hidden;
 }
 .slice-fill {
   display: block;
   height: 100%;
+  min-width: 4px;
   border-radius: var(--radius-xs);
-  background: var(--accent);
+  background: var(--grad);
+}
+/* No figure for this metric: said in words, and no bar that would read as zero */
+.slice.is-empty {
+  color: var(--fg-3);
+}
+.slice.is-empty .slice-value {
+  color: var(--fg-3);
+}
+.slice.is-empty .slice-track {
+  display: none;
 }
 
-/* The schedule's own page: one readable column, its actions kept in reach at the foot while it scrolls */
-.schedule-editor {
-  max-width: 760px;
+@media (max-width: 1100px) {
+  .usage-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .usage-tiles {
+    gap: 10px;
+    margin: 12px 0;
+  }
+  .usage-tile {
+    padding: 12px 14px;
+  }
+  .usage-tile-value {
+    font-size: 22px;
+  }
+  .usage-date {
+    width: auto;
+    flex: 1 1 140px;
+  }
 }
 
-.schedule-form-actions {
-  position: sticky;
-  bottom: var(--stick-bottom, 0px);
-  z-index: 2;
-  justify-content: flex-end;
-  padding: 12px 0;
-  border-top: 1px solid var(--border);
-  background: var(--bg);
-}
+/* ==== end Usage ==== */

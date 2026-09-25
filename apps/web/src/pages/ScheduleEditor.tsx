@@ -1,6 +1,6 @@
-import { CalendarClock, ChevronLeft } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useSchedules } from '../api';
 import { ICON_SM } from '../components/icons';
 import { Empty, ErrorBox, PageHeader, Skeleton } from '../components/ui';
@@ -15,10 +15,13 @@ import '../insights.css';
 export function ScheduleEditor() {
   const { t } = useTranslation('schedules');
   const { id } = useParams();
+  const [params] = useSearchParams();
   const navigate = useNavigate();
   const { project } = useProjectScope();
   const schedules = useSchedules();
   const schedule = id ? schedules.data?.find((s) => s.id === id) : undefined;
+  // The empty page's templates open the editor with a timetable already chosen; only a new one reads it
+  const presetCron = id ? undefined : (params.get('cron') ?? undefined);
   const back = () => navigate('/schedules');
 
   const header = (
@@ -46,7 +49,19 @@ export function ScheduleEditor() {
       <>
         {header}
         <ErrorBox error={schedules.error} />
-        <Empty icon={CalendarClock} title={t('form.notFound')} />
+        <div className="card">
+          <Empty
+            illustration="not-found"
+            title={t('form.notFound')}
+            action={
+              <Link to="/schedules" className="btn">
+                {t('form.back')}
+              </Link>
+            }
+          >
+            {t('form.notFoundBody')}
+          </Empty>
+        </div>
       </>
     );
   }
@@ -55,7 +70,13 @@ export function ScheduleEditor() {
       {header}
       <div className="schedule-editor">
         {/* Keyed by the schedule, so opening another one starts from its own fields */}
-        <ScheduleForm key={schedule?.id ?? 'new'} schedule={schedule} defaultCwd={project?.exists ? project.path : undefined} onClose={back} />
+        <ScheduleForm
+          key={schedule?.id ?? `new:${presetCron ?? ''}`}
+          schedule={schedule}
+          initialCron={presetCron}
+          defaultCwd={project?.exists ? project.path : undefined}
+          onClose={back}
+        />
       </div>
     </>
   );

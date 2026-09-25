@@ -1,6 +1,6 @@
 import type { CreateScheduleRequest, OrchestrationSpec, OrchestrationTaskSpec, PermissionMode, Schedule, ScheduleOverlap, ScheduleTarget } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, Plus, Trash2 } from 'lucide-react';
+import { CalendarClock, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useOrchestrations } from '../../api';
@@ -36,8 +36,11 @@ function useDebounced<T>(value: T, delayMs: number): T {
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 const OVERLAPS: readonly ScheduleOverlap[] = ['parallel', 'skip', 'queue'];
 
-/** Create or edit a schedule: what to start, and when, with the timetable said back in words before it is saved. `onClose` leaves the page, saved or not. */
-export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Schedule; defaultCwd?: string; onClose: () => void }) {
+/**
+ * Create or edit a schedule: what to start, and when, with the timetable said back in words before it is saved. `onClose` leaves the page, saved or not.
+ * `initialCron` is a new schedule's starting timetable (a template's); one the builder cannot say opens as a custom expression.
+ */
+export function ScheduleForm({ schedule, initialCron, defaultCwd, onClose }: { schedule?: Schedule; initialCron?: string; defaultCwd?: string; onClose: () => void }) {
   const { t } = useTranslation(['schedules', 'common']);
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -49,7 +52,7 @@ export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Sch
 
   const [name, setName] = useState(schedule?.name ?? '');
   const [kind, setKind] = useState<ScheduleTarget['kind']>(target?.kind ?? 'chat');
-  const [parts, setParts] = useState<CronParts>(() => (schedule ? parseCron(schedule.cron) : parseCron('0 9 * * *')));
+  const [parts, setParts] = useState<CronParts>(() => parseCron(schedule?.cron ?? (initialCron?.trim() || '0 9 * * *')));
   const [timezone, setTimezone] = useState(schedule?.timezone ?? '');
   const [prompt, setPrompt] = useState(chat?.prompt ?? '');
   const [cwd, setCwd] = useState(chat?.cwd ?? orchestration?.cwd ?? defaultCwd ?? '');
@@ -342,9 +345,10 @@ export function ScheduleForm({ schedule, defaultCwd, onClose }: { schedule?: Sch
           </Field>
         </div>
         {permissionMode === 'manual' && (
-          <p className="muted small" role="note">
-            {t('form.manualWarning')}
-          </p>
+          <div className="alert alert-warn" role="note">
+            <TriangleAlert size={16} strokeWidth={1.75} aria-hidden className="alert-icon" />
+            <div className="alert-body">{t('form.manualWarning')}</div>
+          </div>
         )}
       </fieldset>
       <ErrorBox error={save.error} title={t('form.saveFailed')} />

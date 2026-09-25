@@ -8,11 +8,13 @@
       "name": "Nombre",
       "chats": "Más chats"
     },
-    "noneMatch": "Ningún proyecto coincide"
+    "noneMatch": "Ningún proyecto coincide",
+    "noneMatchHint": "Prueba con otro nombre o ruta, o borra la búsqueda."
   },
   "page": {
-    "subtitle": "{{n}} importados · un proyecto es un directorio que importas a mano; sus worktrees le pertenecen",
-    "importDirectory": "Importar un directorio",
+    "subtitle_one": "{{n}} directorio importado. Sus worktrees le pertenecen.",
+    "subtitle_other": "{{n}} directorios importados. Sus worktrees les pertenecen.",
+    "importDirectory": "Importar directorio",
     "emptyHint": "Importa un directorio para convertirlo en proyecto, o crea uno en el espacio de trabajo."
   },
   "importForm": {
@@ -36,7 +38,11 @@
     "importNamed": "Importar {{name}}",
     "firstTitle": "Empieza por los directorios en los que ya trabajas",
     "firstBody": "Claude Code se ha ejecutado sobre todo en estos directorios. Importa los que sean proyectos: sus chats se unen a ellos y el resto se queda al margen. Puedes importar cualquier otro directorio a mano.",
-    "others": "Otros directorios con chats ({{n}})"
+    "moreTitle_one": "{{n}} directorio más tiene chats",
+    "moreTitle_other": "{{n}} directorios más tienen chats",
+    "moreBody": "Impórtalos para agruparlos, verlos en Uso y lanzar chats desde aquí.",
+    "review": "Revisar",
+    "hide": "Ocultar"
   },
   "card": {
     "renameFailed": "No se ha podido renombrar el proyecto",
@@ -54,14 +60,17 @@
     "purgeBody_other": "Esto elimina sus transcripciones, tareas en segundo plano, historial de archivos y su entrada en la configuración de Claude Code (<code>claude project purge</code>), así que sus {{n}} chats se pierden para siempre. Tus archivos no se tocan. El proyecto sigue importado. <strong>Esto no se puede deshacer.</strong>",
     "purgeConfirm": "Purgar para siempre",
     "nameLabel": "Nombre del proyecto",
-    "chats_one": "{{n}} chat",
-    "chats_other": "{{n}} chats",
     "openNamed": "Abrir {{name}}",
     "rename": "Renombrar",
-    "renameNamed": "Renombrar {{name}}",
-    "removeNamed": "Quitar {{name}}",
-    "purge": "Purgar el estado de Claude Code",
-    "purgeNamed": "Purgar el estado de Claude Code de {{name}}"
+    "purge": "Purgar estado de Claude Code",
+    "purgeHint": "Pide confirmación antes de borrar",
+    "remove": "Quitar de Agentry",
+    "actionsNamed": "Acciones de {{name}}",
+    "stats": {
+      "chats": "chats",
+      "worktrees": "worktrees",
+      "activity": "actividad"
+    }
   },
   "worktrees": {
     "title": "Worktrees",

@@ -18,7 +18,14 @@
   "tiles": {
     "cost": "Coste",
     "tokens": "Tokens",
-    "chats": "Chats"
+    "chats": "Chats",
+    "costSub": "{{from}} – {{to}}",
+    "tokensSub": "{{n}} por chat",
+    "chatsSub": "en el periodo",
+    "peakDay": "Día con más uso",
+    "peakWeek": "Semana con más uso",
+    "peakSub": "{{period}} · {{share}} del periodo",
+    "noPeak": "Ninguno todavía"
   },
   "metrics": {
     "cost": "Coste",
@@ -32,7 +39,7 @@
   "notReported": "Sin datos",
   "weekOf": "Semana del {{day}}",
   "over": {
-    "title": "A lo largo del tiempo",
+    "per": "{{metric}} por {{bucket}}",
     "metric": "Qué mostrar",
     "bucket": "Agrupar por",
     "emptyTitle": "Nada en este rango",
@@ -49,8 +56,7 @@
   "readout": {
     "tokens": "{{n}} tokens",
     "chats_one": "{{count}} chat",
-    "chats_other": "{{count}} chats",
-    "hint": "Pasa el ratón por el gráfico para ver las cifras de un periodo, o abre la tabla de debajo"
+    "chats_other": "{{count}} chats"
   },
   "table": {
     "show": "Mostrar las cifras como tabla",
