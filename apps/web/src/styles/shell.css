@@ -407,6 +407,11 @@
   height: 100%;
   min-height: 0;
   isolation: isolate;
+  /* `.main` scrolls but is not positioned, so an absolutely positioned descendant of it (every
+     `.sr-only`) takes this column as its containing block and escapes the scroller: laid out where
+     it would sit in a long page, it made the whole document scroll, top bar and all. `clip` rather
+     than `hidden`, so not even a focus or a scrollIntoView can scroll the column itself. */
+  overflow: clip;
 }
 
 .topbar {
@@ -665,7 +670,10 @@
 
   .shell-has-tabbar .main {
     --main-pad-bottom: 24px;
-    --main-covered-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+    /* The bar covers its own height plus the home indicator's inset, but the shell's padding has
+       already taken that inset off the bottom of the column: counting it again left that much
+       empty scroll under every page on a phone with a home indicator. */
+    --main-covered-bottom: var(--tabbar-h);
     scroll-padding-bottom: calc(var(--main-covered-bottom) + var(--main-pad-bottom));
   }
 
