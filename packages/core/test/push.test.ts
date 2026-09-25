@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { setTimeout as delay } from 'node:timers/promises';
 import webpush from 'web-push';
 import type { AgentryEvent, PushPayload } from '@agentry/shared';
 import { Db } from '../src/db.ts';
@@ -72,7 +71,6 @@ const endedEvent: AgentryEventInput = {
 };
 
 /** The sender is deliberately not awaited by the bus, so a test has to let its microtasks run. */
-const settle = () => delay(50);
 
 test('the VAPID keypair is made on first use and only its public half is ever handed out', async () => {
   const { config, push } = harness();
@@ -132,12 +130,12 @@ test('an install is woken only for what its level lets interrupt, and keeps the 
 
   // A chat that finished well is news for the bell, not for a phone at the default level
   events.emit(endedEvent);
-  await settle();
+  await push.idle();
   assert.equal(sent.length, 0);
 
   events.emit({ ...endedEvent, runId: 'chat-3', runName: 'chat-3', sessionId: 'chat-3', status: 'failed', error: 'boom' });
   events.emit(waitingEvent);
-  await settle();
+  await push.idle();
   assert.deepEqual(
     sent.map((s) => [s.endpoint, s.payload.kind]),
     [
@@ -156,7 +154,7 @@ test('an event reaches only the installs that asked for its kind, with the key i
   push.register({ endpoint: OTHER, keys, kinds: ['run'], level: 'all', label: 'laptop' });
 
   events.emit(waitingEvent);
-  await settle();
+  await push.idle();
   assert.equal(sent.length, 1);
   assert.equal(sent[0]?.endpoint, ENDPOINT, 'only the install that asked for `waiting`');
   const payload = sent[0]?.payload;
@@ -167,7 +165,7 @@ test('an event reaches only the installs that asked for its kind, with the key i
   assert.equal('permissionId' in (payload ?? {}), false, 'a payload travels through a relay: only what a lock screen shows');
 
   events.emit(endedEvent);
-  await settle();
+  await push.idle();
   assert.deepEqual(
     sent.map((s) => s.endpoint),
     [ENDPOINT, OTHER],
@@ -184,7 +182,7 @@ test('the same news inside its dedupe window is pushed once', async () => {
   events.emit(waitingEvent);
   events.emit(endedEvent);
   events.emit(endedEvent);
-  await settle();
+  await push.idle();
   assert.deepEqual(
     sent.map((s) => s.payload.key),
     ['wait:chat-1:req-1', 'run-done:chat-2:3'],
@@ -195,12 +193,12 @@ test('nothing is sent, and no key is spent, while no install is registered', asy
   const { transport, sent } = fakeTransport();
   const { push, events } = harness(transport);
   events.emit(waitingEvent);
-  await settle();
+  await push.idle();
   assert.equal(sent.length, 0);
 
   push.register({ endpoint: ENDPOINT, keys, label: 'phone' });
   events.emit(waitingEvent);
-  await settle();
+  await push.idle();
   assert.equal(sent.length, 1, 'the first event a subscriber could have heard is still news');
 });
 
@@ -212,7 +210,7 @@ test('an endpoint the push service says is gone is deleted on the spot', async (
   push.register({ endpoint: OTHER, keys, label: 'old phone' });
 
   events.emit(waitingEvent);
-  await settle();
+  await push.idle();
   assert.deepEqual(
     push.list().map((s) => s.label),
     ['phone'],
@@ -232,7 +230,7 @@ test('a failing endpoint is a log line, never an exception in the event path', a
   const heard: AgentryEvent[] = [];
   events.subscribe((event) => heard.push(event));
   assert.doesNotThrow(() => events.emit(waitingEvent));
-  await settle();
+  await push.idle();
 
   assert.equal(heard.length, 1, 'the feed carried on');
   assert.equal(sent.length, 1, 'the other install was still notified');
@@ -256,7 +254,7 @@ test('the configured subject replaces the one stored beside the keypair, keypair
   await reopened.test({ endpoint: ENDPOINT });
 
   assert.equal(sent.at(-1)?.subject, 'https://github.com/yeyo11/agentry', 'the claim in force, not the one the file was written with');
-  await settle();
+  await reopened.idle();
   const stored = JSON.parse(readFileSync(file, 'utf8')) as { publicKey: string; subject: string };
   assert.equal(stored.subject, 'https://github.com/yeyo11/agentry', 'and the file is caught up for the next boot');
   assert.equal(stored.publicKey, made.publicKey, 'every registered install was taken out against this key: it cannot change');
@@ -312,6 +310,6 @@ test('a closed service stops hearing the bus', async () => {
   push.register({ endpoint: ENDPOINT, keys, label: 'phone' });
   push.close();
   events.emit(waitingEvent);
-  await settle();
+  await push.idle();
   assert.equal(sent.length, 0);
 });
