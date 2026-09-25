@@ -1,7 +1,7 @@
 import type { Chat, PermissionMode } from '@agentry/shared';
 import * as RadixPopover from '@radix-ui/react-popover';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowUp, ChevronDown, GitFork, Play, Square } from 'lucide-react';
+import { ArrowUp, GitFork, Play, Square } from 'lucide-react';
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -76,9 +76,10 @@ export function OptionsPanel({ trigger, title, open, onOpenChange, children }: {
 }
 
 /**
- * The mono line under the message box, `opus · bypassPermissions · no preset · MCP: CLI default ⌄`,
- * which opens what used to be four labelled fields under it: the permission mode and model of the
- * live process, or everything a resume or a fork may start with.
+ * The chips under the message box, `opus · bypassPermissions · no preset · MCP: CLI default`, as one
+ * button that opens what used to be four labelled fields under it: the permission mode and model of
+ * the live process, or everything a resume or a fork may start with. The permission mode is the
+ * chip in the accent: it decides what the chat may do without asking.
  */
 function StatusLine({ chat, kind, choices, onChoices }: { chat: Chat; kind: ComposerKind; choices: StartChoices; onChoices: (next: StartChoices) => void }) {
   const { t } = useTranslation('chat');
@@ -95,14 +96,7 @@ function StatusLine({ chat, kind, choices, onChoices }: { chat: Chat; kind: Comp
       aria-expanded={open}
       onClick={narrow ? () => setOpen(true) : undefined}
     >
-      <span className="composer-status-words">
-        {words.map((word, i) => (
-          <span key={i} className="composer-status-word">
-            {word}
-          </span>
-        ))}
-      </span>
-      <ChevronDown size={12} strokeWidth={2} aria-hidden />
+      <StatusChips words={words} accent={1} />
     </button>
   );
   return (
@@ -111,6 +105,29 @@ function StatusLine({ chat, kind, choices, onChoices }: { chat: Chat; kind: Comp
         {kind === 'send' ? <LiveOptions chat={chat} /> : <StartOptions chat={chat} value={choices} onChange={onChoices} forking={kind === 'fork'} />}
       </Suspense>
     </OptionsPanel>
+  );
+}
+
+/** The status line's words as chips; `accent` is the index of the permission mode's. */
+export function StatusChips({ words, accent, icon }: { words: string[]; accent: number; icon?: ReactNode }) {
+  return (
+    <span className="composer-status-words">
+      {words.map((word, i) => (
+        <span key={i} className={`composer-status-word ${i === accent ? 'is-accent' : ''}`.trim()}>
+          {i === 0 && icon}
+          <span className="composer-status-text">{word}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Which keys send and which break the line, for a box with a keyboard under it; a phone hides it. */
+export function KeysHint({ children }: { children: ReactNode }) {
+  return (
+    <span className="composer-keys" aria-hidden>
+      {children}
+    </span>
   );
 }
 
@@ -142,6 +159,7 @@ export function Composer({
   const files = useAttachments();
   const box = useRef<HTMLTextAreaElement>(null);
   const working = chat.state === 'working';
+  const narrow = useMediaQuery(NARROW);
 
   const submit = useMutation({
     mutationFn: (message: string) => {
@@ -203,7 +221,10 @@ export function Composer({
           : t('work:runView.placeholderFollowUp');
   const Icon = kind === 'fork' ? GitFork : kind === 'resume' ? Play : ArrowUp;
   const empty = !text.trim() && files.ids.length === 0;
-  const stopping = Boolean(interrupt) && kind === 'send' && working && empty;
+  // While the chat works its turn can be ended from here; a message written meanwhile is queued
+  const stoppable = Boolean(interrupt) && kind === 'send' && working;
+  // A phone has room for one round button: on an empty box it is the one that stops
+  const sendable = !(narrow && stoppable && empty);
   const sendName = submit.isPending ? label.pending : files.uploading ? t('work:shared.uploading') : label.idle;
 
   return (
@@ -235,13 +256,15 @@ export function Composer({
               }
             }}
           />
-          {stopping && interrupt ? (
+          {stoppable && interrupt && (
             <Tooltip content={t('view.interruptHint')}>
-              <button type="button" className="composer-send is-interrupt" aria-label={t('work:runView.interrupt')} disabled={interrupt.pending} onClick={interrupt.run}>
-                <Square size={14} strokeWidth={2.5} aria-hidden />
+              <button type="button" className="btn btn-danger composer-stop" aria-label={t('work:runView.interrupt')} disabled={interrupt.pending} onClick={interrupt.run}>
+                <Square size={12} strokeWidth={2.5} fill="currentColor" aria-hidden />
+                <span className="composer-stop-word">{t('work:runView.interrupt')}</span>
               </button>
             </Tooltip>
-          ) : (
+          )}
+          {sendable && (
             <Tooltip content={sendName}>
               <button type="submit" className="composer-send" aria-label={sendName} disabled={empty || files.uploading || submit.isPending}>
                 <Icon {...ICON_SM} />
@@ -250,7 +273,10 @@ export function Composer({
           )}
         </form>
       </div>
-      <StatusLine chat={chat} kind={kind} choices={choices} onChoices={setChoices} />
+      <div className="composer-foot">
+        <StatusLine chat={chat} kind={kind} choices={choices} onChoices={setChoices} />
+        <KeysHint>{t('composer.keys')}</KeysHint>
+      </div>
       <ErrorBox error={submit.error} title={kind === 'send' ? t('work:runView.notSent') : kind === 'resume' ? t('composer.couldNotResume') : t('composer.couldNotFork')} />
     </div>
   );

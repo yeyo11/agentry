@@ -48,11 +48,11 @@ export default async ({ page, api, check }) => {
 
     // ---- the turn's three calls are one step, folded because it is done ----
     const step = await page.eval(
-      `const s=document.querySelector('.msg-step');return s?{text:s.innerText,state:s.querySelector('.collapsible-trigger')?.dataset.state}:null`,
+      `const s=document.querySelector('.msg-step');return s?{text:s.innerText,tools:[...s.querySelectorAll('.step-tools .badge')].map((b)=>b.textContent).join(' · '),state:s.querySelector('.collapsible-trigger')?.dataset.state}:null`,
     );
     check(step !== null, 'the tool calls are folded into a step');
     check(step?.text.includes('3 tools') && step?.text.includes('1 failed'), `the step says how many calls and how many failed (${step?.text})`);
-    check(step?.text.includes('Read · Grep · Bash'), 'the step names its tools in order');
+    check(step?.tools === 'Read · Grep · Bash', `the step names its tools in order, each as a badge (${step?.tools})`);
     check(step?.state === 'closed', 'a step that is done is folded');
     // Claude speaks once for the whole turn: the answer after the step does not repeat the author
     const heads = await page.eval(`return document.querySelectorAll('.transcript .msg-head').length`);
