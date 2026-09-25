@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Design system · Estados vacíos y de sistema</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app col" data-theme="dark" style="width: 1440px; height: 1320px; padding: 56px 64px; gap: 28px; overflow: hidden">
+<header class="col" style="gap: 8px"><span class="t-label">Agentry design system · v2 · estados</span><h1 class="t-display" style="margin: 0">Estados vacíos y de sistema</h1><p class="fg-2" style="margin: 0; max-width: 820px; line-height: 1.55">El patrón <code>.empty-state</code>: ilustración, título, una o dos frases que dicen qué pasa y por qué, y la acción que lo arregla. Dentro de una tarjeta cuando ocupa el sitio de una lista; a pantalla completa cuando no hay nada más que mostrar. El tono de la ilustración sigue al estado.</p></header>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+
+<article class="card empty-state" style="padding: 26px 22px; gap: 12px">
+
+
+<div class="app" data-theme="dark" style="display: inline-block; background: transparent">
+
+
+
+
+
+
+
+
+
+
+<svg class="il il-sm" viewBox="0 0 240 160" aria-hidden="true"><defs><linearGradient id="il-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><pattern id="il-dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="il-fade-g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="il-fade"><rect x="0" y="0" width="240" height="160" fill="url(#il-fade-g)"></rect></mask></defs><rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
+<path d="M131 97 L158 124" class="ln-grad w8"></path>
+<circle cx="106" cy="72" r="35" class="s1"></circle><circle cx="106" cy="72" r="35" class="ln-ink w3"></circle>
+<rect x="86" y="62" width="40" height="6" rx="3" class="s3"></rect><rect x="86" y="76" width="26" height="6" rx="3" class="s3"></rect>
+<path d="M84 54 A28 28 0 0 1 100 45" class="ln-soft"></path>
+<g class="a-float"><rect x="150" y="28" width="76" height="22" rx="11" class="c2"></rect><text x="188" y="42.5" text-anchor="middle" class="txt">0 coinciden</text></g>
+</svg>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+
+<h2 class="t-h2">Ningún chat coincide</h2>
+<p>Prueba a restablecer los filtros.</p>
+<div class="row" style="gap: 8px; justify-content: center; flex-wrap: wrap"><button type="button" class="btn btn-sm ">Restablecer filtros</button></div>
+<span class="mono t-xs fg-3">chats · filtros sin resultados</span>
+</article>
+
+<article class="card empty-state" style="padding: 26px 22px; gap: 12px">
+
+
+<div class="app" data-theme="dark" style="display: inline-block; background: transparent">
+
+
+
+
+<svg class="il il-sm" viewBox="0 0 240 160" aria-hidden="true"><defs><linearGradient id="il-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><pattern id="il-dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="il-fade-g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="il-fade"><rect x="0" y="0" width="240" height="160" fill="url(#il-fade-g)"></rect></mask></defs><rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
+<path d="M73 80 C 92 80, 94 46, 107 46" class="ln a-dash"></path>
+<path d="M73 80 C 92 80, 94 114, 107 114" class="ln a-dash"></path>
+<path d="M133 46 C 150 46, 148 80, 163 80" class="ln-grad a-dash"></path>
+<path d="M133 114 C 150 114, 148 80, 163 80" class="ln-grad a-dash"></path>
+<circle cx="60" cy="80" r="13" class="c2"></circle><circle cx="60" cy="80" r="4" class="f-ink"></circle>
+<circle cx="120" cy="46" r="13" class="c2"></circle><path d="M114 46 l4 4 l8 -8" class="ln-ok"></path>
+<circle cx="120" cy="114" r="13" class="c2"></circle><circle cx="120" cy="114" r="5" class="f-live a-pulse"></circle>
+<circle cx="182" cy="80" r="28" class="halo"></circle><circle cx="182" cy="80" r="19" class="f-grad"></circle><path d="M174 80 l5 5 l10 -11" class="ln-white"></path>
+</svg>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+
+<h2 class="t-h2">Aún no hay orquestaciones</h2>
+<p>Divide un objetivo en tareas y ejecútalas como agentes en paralelo, con dependencias.</p>
+<div class="row" style="gap: 8px; justify-content: center; flex-wrap: wrap"><button type="button" class="btn btn-sm btn-primary">Nueva orquestación</button><button type="button" class="btn btn-sm btn-ghost">Ver plantillas</button></div>
+<span class="mono t-xs fg-3">orquestaciones · lista vacía</span>
+</article>
+
+<article class="card empty-state" style="padding: 26px 22px; gap: 12px">
+
+
+<div class="app" data-theme="dark" style="display: inline-block; background: transparent">
+
+
+
+
+
+
+
+
+<svg class="il il-sm" viewBox="0 0 240 160" aria-hidden="true"><defs><linearGradient id="il-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><pattern id="il-dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="il-fade-g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="il-fade"><rect x="0" y="0" width="240" height="160" fill="url(#il-fade-g)"></rect></mask></defs><rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
+<path d="M168 99 C 186 99, 184 44, 202 44" class="ln-grad"></path>
+<path d="M168 99 L 202 99" class="ln"></path>
+<path d="M168 99 C 186 99, 184 136, 202 136" class="ln a-dash"></path>
+<circle cx="208" cy="44" r="7" class="f-grad a-pulse"></circle><circle cx="208" cy="99" r="6" class="c2"></circle><circle cx="208" cy="136" r="6" class="c2"></circle>
+<path d="M58 60 Q58 50 68 50 L94 50 L104 60 Z" class="c2"></path>
+<rect x="54" y="58" width="114" height="72" rx="11" class="c2"></rect>
+<rect x="54" y="72" width="114" height="58" rx="11" class="c1"></rect>
+<circle cx="111" cy="101" r="14" class="f-grad"></circle><path d="M111 94 v14 M104 101 h14" class="ln-white"></path>
+</svg>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+
+<h2 class="t-h2">Aún no hay proyectos</h2>
+<p>Importa un directorio para convertirlo en proyecto, o crea uno en el espacio de trabajo.</p>
+<div class="row" style="gap: 8px; justify-content: center; flex-wrap: wrap"><button type="button" class="btn btn-sm btn-primary">Importar directorio</button></div>
+<span class="mono t-xs fg-3">proyectos · lista vacía</span>
+</article>
+
+<article class="card empty-state" style="padding: 26px 22px; gap: 12px">
+
+
+<div class="app" data-theme="dark" style="display: inline-block; background: transparent">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<svg class="il il-sm il-warn" viewBox="0 0 240 160" aria-hidden="true"><defs><linearGradient id="il-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><pattern id="il-dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="il-fade-g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="il-fade"><rect x="0" y="0" width="240" height="160" fill="url(#il-fade-g)"></rect></mask></defs><rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
+<rect x="34" y="26" width="170" height="110" rx="12" class="c0"></rect>
+<path d="M34 46 H204" class="ln-soft"></path>
+<circle cx="48" cy="36" r="3" class="s3"></circle><circle cx="58" cy="36" r="3" class="s3"></circle><circle cx="68" cy="36" r="3" class="s3"></circle>
+<text x="48" y="66" class="txt">$ claude --version</text>
+<text x="48" y="83" class="txt-tone">command not found: claude</text>
+<text x="48" y="104" class="txt">$</text><rect x="58" y="95" width="6" height="12" rx="1" class="f-grad a-blink"></rect>
+<g class="a-float"><circle cx="206" cy="30" r="14" class="f-tone-soft"></circle><circle cx="206" cy="30" r="14" class="ln-tone"></circle><path d="M206 23 V31 M206 36.5 V37" class="ln-tone w3"></path></g>
+</svg>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+
+<h2 class="t-h2">No se detecta el CLI</h2>
+<p>Instálalo o define CLAUDE_BIN. Agentry habla con Claude Code solo a través de su CLI.</p>
+<div class="row" style="gap: 8px; justify-content: center; flex-wrap: wrap"><button type="button" class="btn btn-sm ">Cómo instalarlo</button><button type="button" class="btn btn-sm btn-ghost">Volver a comprobar</button></div>
+<span class="mono t-xs fg-3">sistema · Inicio y Cuentas (claude-swap)</span>
+</article>
+
+<article class="card empty-state" style="padding: 26px 22px; gap: 12px">
+
+
+<div class="app" data-theme="dark" style="display: inline-block; background: transparent">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<svg class="il il-sm il-warn" viewBox="0 0 240 160" aria-hidden="true"><defs><linearGradient id="il-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><pattern id="il-dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="il-fade-g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="il-fade"><rect x="0" y="0" width="240" height="160" fill="url(#il-fade-g)"></rect></mask></defs><rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
+<path d="M101 76 V60 a19 19 0 0 1 38 0 V76" class="ln-ink w4"></path>
+<rect x="88" y="72" width="64" height="56" rx="12" class="c2"></rect>
+<circle cx="120" cy="95" r="7" class="f-grad"></circle><rect x="117" y="99" width="6" height="14" rx="3" class="f-grad"></rect>
+<g class="a-float"><circle cx="188" cy="52" r="11" class="ln-grad w3"></circle><path d="M188 63 V104 M188 84 h8 M188 96 h6" class="ln-grad w3"></path></g>
+<g class="a-float-2"><rect x="16" y="98" width="60" height="22" rx="11" class="c2"></rect><text x="46" y="112.5" text-anchor="middle" class="txt">••••••</text></g>
+</svg>
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+
+<h2 class="t-h2">Sin sesión iniciada</h2>
+<p>Claude Code no tiene la sesión iniciada. Añade una credencial en Ajustes para poder lanzar chats.</p>
+<div class="row" style="gap: 8px; justify-content: center; flex-wrap: wrap"><button type="button" class="btn btn-sm btn-primary">Añadir una credencial</button></div>
+<span class="mono t-xs fg-3">sistema · Inicio y pantalla de acceso</span>
+</article>
+
+<article class="card empty-state" style="padding: 26px 22px; gap: 12px">
+
+
+<div class="app" data-theme="dark" style="display: inline-block; background: transparent">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<svg class="il il-sm il-bad" viewBox="0 0 240 160" aria-hidden="true"><defs><linearGradient id="il-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><pattern id="il-dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="il-fade-g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="il-fade"><rect x="0" y="0" width="240" height="160" fill="url(#il-fade-g)"></rect></mask></defs><rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
+<rect x="24" y="56" width="66" height="44" rx="7" class="c1"></rect><rect x="34" y="68" width="30" height="5" rx="2.5" class="s3"></rect><rect x="34" y="79" width="20" height="5" rx="2.5" class="s3"></rect>
+<path d="M16 104 H98 L92 111 H22 Z" class="c2"></path>
+<path d="M98 82 H114" class="ln"></path>
+<circle cx="126" cy="82" r="11" class="f-tone-soft"></circle><path d="M122 78 l8 8 M130 78 l-8 8" class="ln-tone"></path>
+<path d="M138 82 H154" class="ln a-dash"></path>
+<rect x="154" y="42" width="64" height="24" rx="6" class="c2"></rect><rect x="154" y="70" width="64" height="24" rx="6" class="c2"></rect><rect x="154" y="98" width="64" height="24" rx="6" class="c2"></rect>
+<circle cx="166" cy="54" r="3" class="f-ink"></circle><circle cx="166" cy="82" r="3" class="f-ink"></circle><circle cx="166" cy="110" r="3.5" class="f-tone a-pulse"></circle>
+<rect x="178" y="52" width="30" height="4" rx="2" class="s3"></rect><rect x="178" y="80" width="30" height="4" rx="2" class="s3"></rect><rect x="178" y="108" width="30" height="4" rx="2" class="s3"></rect>
+</svg>
+
+
+
+
+
+
+
+
+
+
+</div>
+
+<h2 class="t-h2">No se puede contactar con la API</h2>
+<p>Comprueba que el wrapper está en marcha y que esta página apunta a él.</p>
+<div class="row" style="gap: 8px; justify-content: center; flex-wrap: wrap"><button type="button" class="btn btn-sm ">Reintentar</button></div>
+<span class="mono t-xs fg-3">sistema · Inicio</span>
+</article>
+
+<article class="card empty-state" style="padding: 26px 22px; gap: 12px">
+
+
+<div class="app" data-theme="dark" style="display: inline-block; background: transparent">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<svg class="il il-sm il-warn" viewBox="0 0 240 160" aria-hidden="true"><defs><linearGradient id="il-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><pattern id="il-dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="il-fade-g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="il-fade"><rect x="0" y="0" width="240" height="160" fill="url(#il-fade-g)"></rect></mask></defs><rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
+<path d="M20 130 C 56 130, 58 100, 84 100" class="ln-ink w3"></path>
+<rect x="84" y="84" width="42" height="32" rx="8" class="c2"></rect>
+<path d="M98 84 V70 M112 84 V70" class="ln-ink w3"></path>
+<g class="a-pulse"><path d="M104 58 V48 M118 60 L126 52 M92 60 L84 52" class="ln-grad"></path></g>
+<path d="M176 36 L206 47 V74 C206 96 194 108 176 116 C158 108 146 96 146 74 V47 Z" class="c1"></path>
+<path d="M176 36 L206 47 V74 C206 96 194 108 176 116 C158 108 146 96 146 74 V47 Z" class="ln-tone"></path>
+<path d="M176 60 V80 M176 92 V92.5" class="ln-tone w3"></path>
+</svg>
+
+
+
+
+
+
+
+
+</div>
+
+<h2 class="t-h2">AgentMail necesita autorización</h2>
+<p>Ejecuta claude en una terminal, escribe /mcp y autentícate, o actívalo en claude.ai.</p>
+<div class="row" style="gap: 8px; justify-content: center; flex-wrap: wrap"><button type="button" class="btn btn-sm ">Volver a consultar</button><button type="button" class="btn btn-sm btn-ghost">Ver los pasos</button></div>
+<span class="mono t-xs fg-3">conectores</span>
+</article>
+
+<article class="card empty-state" style="padding: 26px 22px; gap: 12px">
+
+
+<div class="app" data-theme="dark" style="display: inline-block; background: transparent">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<svg class="il il-sm il-bad" viewBox="0 0 240 160" aria-hidden="true"><defs><linearGradient id="il-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><pattern id="il-dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="il-fade-g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="il-fade"><rect x="0" y="0" width="240" height="160" fill="url(#il-fade-g)"></rect></mask></defs><rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
+<path d="M58 118 A62 62 0 0 1 182 118" class="trk w12"></path>
+<path d="M58 118 A62 62 0 0 1 182 118" class="ln-tone w12"></path>
+<path d="M120 118 L176 108" class="ln-ink w3"></path><circle cx="120" cy="118" r="6" class="f-fg"></circle>
+<text x="58" y="138" text-anchor="middle" class="txt">0</text><text x="182" y="138" text-anchor="middle" class="txt-tone">100%</text>
+<g class="a-float"><path d="M196 30 h22 M196 62 h22 M199 30 c0 10 8 12 8 16 c0 4 -8 6 -8 16 M215 30 c0 10 -8 12 -8 16 c0 4 8 6 8 16" class="ln-grad"></path></g>
+<g class="a-float-2"><rect x="18" y="28" width="58" height="22" rx="11" class="c2"></rect><text x="47" y="42.5" text-anchor="middle" class="txt">19 min</text></g>
+</svg>
+
+
+
+
+
+
+</div>
+
+<h2 class="t-h2">Todas las cuentas agotadas</h2>
+<p>La primera vuelve en 19 min. Los runs que se corten por límite se reanudan en otra cuenta si la rotación está activa.</p>
+<div class="row" style="gap: 8px; justify-content: center; flex-wrap: wrap"><button type="button" class="btn btn-sm ">Ver cuentas</button></div>
+<span class="mono t-xs fg-3">propuesta · la app aún no tiene este estado</span>
+</article>
+
+<article class="card empty-state" style="padding: 26px 22px; gap: 12px">
+
+
+<div class="app" data-theme="dark" style="display: inline-block; background: transparent">
+
+
+
+
+
+
+
+
+
+
+
+
+<svg class="il il-sm" viewBox="0 0 240 160" aria-hidden="true"><defs><linearGradient id="il-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><pattern id="il-dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="il-fade-g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="il-fade"><rect x="0" y="0" width="240" height="160" fill="url(#il-fade-g)"></rect></mask></defs><rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
+<circle cx="42" cy="80" r="11" class="c2"></circle><circle cx="42" cy="80" r="4" class="f-grad"></circle>
+<path d="M53 80 H88" class="ln-grad"></path>
+<path d="M88 80 l6 -9 l6 13 l6 -8" class="ln-tone"></path>
+<path d="M122 80 H168" class="ln a-dash"></path>
+<circle cx="192" cy="80" r="24" class="ln dash-lg"></circle>
+<text x="192" y="85" text-anchor="middle" class="txt-big">404</text>
+<g class="a-float"><rect x="72" y="30" width="72" height="22" rx="11" class="c2"></rect><text x="108" y="44.5" text-anchor="middle" class="txt">¿por aquí?</text></g>
+</svg>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+
+<h2 class="t-h2">Página no encontrada</h2>
+<p>Puede que se haya eliminado o que el enlace esté mal escrito.</p>
+<div class="row" style="gap: 8px; justify-content: center; flex-wrap: wrap"><button type="button" class="btn btn-sm ">Ir a Inicio</button><button type="button" class="btn btn-sm btn-ghost">Explorar los chats</button></div>
+<span class="mono t-xs fg-3">404 · chat u orquestación inexistente</span>
+</article>
+
+</div>
+</div>
+</body></html>

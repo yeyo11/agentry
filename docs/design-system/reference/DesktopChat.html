@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Chat (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app shell" data-theme="dark" style="width: 1440px; height: 1024px">
+<div class="side">
+
+<nav class="app" data-theme="dark" aria-label="Principal" style="width: 256px; height: 1024px; background: var(--bg-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 18px">
+
+<div class="row" style="padding: 0 4px; height: 32px; gap: 10px">
+<a href="Main.html" class="row" style="gap: 10px; flex: 1 1 auto">
+<span style="width: 26px; height: 26px; border-radius: 8px; background: var(--grad); display: grid; place-items: center; color: #fff; box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 4px 14px -4px rgba(176,74,94,0.7)"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>
+<span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Agentry</span>
+</a>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Plegar barra lateral"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 4v16"></path></svg></button>
+</div>
+
+<button type="button" class="field" style="width: 100%; cursor: pointer; justify-content: flex-start; background: var(--bg-2)"><svg class="ico" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><span class="grow t-sm" style="text-align: left">Buscar o ejecutar…</span><span class="kbd">⌘K</span></button>
+
+<div class="col" style="gap: 1px">
+
+<a href="Main.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg><span class="grow">Inicio</span><span class="count"></span></a>
+
+<a href="DesktopChats.html" class="nav-item on"><svg class="ico" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span class="grow">Chats</span><span class="count">197</span></a>
+
+<a href="DesktopOrquestaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg><span class="grow">Orquestaciones</span><span class="count-pill live">2</span></a>
+
+<a href="DesktopProgramaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M5.5 5h13a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM3.5 10h17M8 3v4M16 3v4"></path></svg><span class="grow">Programaciones</span><span class="count"></span></a>
+
+</div>
+
+<div class="col" style="gap: 1px">
+<span class="t-label" style="padding: 0 10px 6px">Espacio</span>
+
+<a href="DesktopProyectos.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span class="grow">Proyectos</span></a>
+
+<a href="DesktopCuentas.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M12.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"></path></svg><span class="grow">Cuentas</span></a>
+
+<a href="DesktopConectores.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"></path></svg><span class="grow">Conectores</span></a>
+
+<a href="DesktopUso.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M4 20V11M10 20V4M16 20v-6M3 20.5h18"></path></svg><span class="grow">Uso</span></a>
+
+<a href="DesktopAjustes.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M17 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM11 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM19 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"></path></svg><span class="grow">Ajustes</span></a>
+
+</div>
+
+<div class="col" style="gap: 4px">
+<div class="row" style="padding: 0 10px 4px"><span class="t-label grow">En directo</span><span class="count-pill live">3</span></div>
+<a href="DesktopChat.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 3px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: 500">claude-wrapper-b67aa3</span></span>
+<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis grow">Compare styles</span><span class="mono fg-3">15s</span></span>
+</a>
+<a href="DesktopOrquestacion.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 6px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: 500">spanish-copy</span><span class="mono t-xs fg-3">2/6</span></span>
+<span class="segbar" style="height: 4px; margin-left: 15px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 60%"></i><i></i><i></i><i></i></span>
+</a>
+<a href="DesktopOrquestaciones.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 6px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: 500">app-updates</span><span class="mono t-xs fg-3">2/5</span></span>
+<span class="segbar" style="height: 4px; margin-left: 15px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 35%"></i><i></i><i></i></span>
+</a>
+</div>
+
+<div class="grow"></div>
+<a href="#" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5"></path></svg>Referencia de la API</a>
+</nav>
+</div>
+<div class="main-col">
+
+
+<header class="app" data-theme="dark" style="width: 1184px; height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 20px 0 24px; border-bottom: 1px solid var(--line); background: var(--bg)">
+<nav aria-label="Ruta" class="row t-sm" style="gap: 6px">
+<button type="button" class="btn btn-ghost btn-sm" style="gap: 6px; padding: 0 8px; color: var(--fg-2)"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Todos los proyectos<svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
+<span class="fg-3">/</span>
+<span style="font-weight: 500">Chats</span>
+</nav>
+<div class="grow"></div>
+<a href="DesktopOrquestaciones.html" class="chip" style="gap: 8px; border-color: transparent; background: var(--live-soft); color: var(--live); font-family: var(--mono); font-size: 11.5px"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>3 agentes trabajando</a>
+<button type="button" class="btn btn-ghost btn-icon" aria-label="Notificaciones" style="position: relative"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"></path></svg><span class="dot" style="position: absolute; top: 8px; right: 9px; width: 6px; height: 6px; background: var(--accent)"></span></button>
+<div class="row" style="gap: 0">
+<a href="DesktopNuevoChat.html" class="btn btn-primary" style="border-radius: 8px 0 0 8px"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Nuevo chat</a>
+<button type="button" class="btn btn-primary btn-icon" aria-label="Más formas de empezar" style="border-radius: 0 8px 8px 0; width: 30px; margin-left: 1px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+</header>
+
+<div class="row" style="flex: 1 1 auto; min-height: 0; align-items: stretch; gap: 0">
+
+<div class="col grow" style="gap: 0">
+<div class="row" style="height: 56px; padding: 0 20px 0 12px; border-bottom: 1px solid var(--line); gap: 10px">
+<a href="DesktopChats.html" class="btn btn-ghost btn-icon btn-sm" aria-label="Volver a chats"><svg class="ico" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"></path></svg></a>
+<span class="col grow" style="gap: 1px"><span class="ellipsis" style="font-weight: 600">Revisa la PWA y la app desktop para mejorarlas</span><span class="mono t-xs fg-3">claude-wrapper · b67aa3 · opus-5.5</span></span>
+<span class="badge b-live"><span class="spin-braille" style="width: auto"></span>trabajando · 15s</span>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Buscar en el chat"><svg class="ico" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg></button>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Más acciones"><svg class="ico" viewBox="0 0 24 24" style="stroke-width: 3"><path d="M5 12h.01M12 12h.01M19 12h.01"></path></svg></button>
+</div>
+
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 24px 32px 0">
+<div class="col" style="width: 100%; max-width: 740px; gap: 16px; font-size: 14.5px; line-height: 1.65">
+
+<div style="align-self: flex-end; max-width: 78%; background: var(--bg-3); border: 1px solid var(--line); border-radius: 16px 16px 4px 16px; padding: 11px 15px">Revisa la PWA y la app desktop para mejorarlas. No veo manera de actualizarlas cuando salen nuevas releases y creo que aún son bastante mejorables.</div>
+
+<div class="row t-xs" style="gap: 8px; font-family: var(--mono); color: var(--fg-3)"><svg class="ico ico-sm c-ok" viewBox="0 0 24 24" style="stroke-width: 2.4"><path d="m5 12 5 5 9-10"></path></svg><span>2 herramientas · 1s</span><span class="badge">kb_search_documents</span><span class="badge">Bash</span><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></div>
+
+<p style="margin: 0">Hay un <code>GLOSSARY.md</code> para i18n. Lo leo y reviso un par de muestras en español para ver qué tipo de problemas tienen.</p>
+
+<div class="row t-xs" style="gap: 8px; font-family: var(--mono); color: var(--fg-3)"><svg class="ico ico-sm c-ok" viewBox="0 0 24 24" style="stroke-width: 2.4"><path d="m5 12 5 5 9-10"></path></svg><span>4 herramientas · 1 min 5 s</span><span class="badge">Bash ×3</span><span class="badge">Write</span><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></div>
+
+<p style="margin: 0">He lanzado la orquestación con Sonnet y sin límites de tiempo ni de coste. Parte de <code>main</code> en la rama <code>fix/spanish-copy</code>, y el plan está en <code>docs/plans/spanish-copy.md</code>.</p>
+
+<a href="DesktopOrquestacion.html" class="card card-link grad-border col" style="padding: 14px 16px; gap: 10px; border-radius: 14px">
+<span class="row" style="gap: 10px"><span class="proj" style="background: var(--accent-soft); color: var(--accent)">SC</span><span class="col grow" style="gap: 1px"><span style="font-weight: 600; font-size: 14px">spanish-copy</span><span class="row t-xs" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">En curso</span><span class="mono fg-3">etapa 2 de 3 · 2/6 tareas</span></span></span><span class="btn btn-sm">Abrir<svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></span></span>
+<span class="segbar" style="height: 4px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 70%"></i><i class="live" style="--p: 45%"></i><i class="live" style="--p: 20%"></i><i></i></span>
+</a>
+
+<p style="margin: 0">Hay dos decisiones que he tomado yo y que puedes corregir:</p>
+<ul style="margin: 0; padding-left: 20px" class="col">
+<li><strong>Botones en infinitivo</strong> ("Guardar", "Eliminar"), que es lo habitual en España.</li>
+<li><strong>Términos en inglés:</strong> solo se quedan los que se dicen así en España (worktree, prompt, hook, commit, PR, token, MCP).</li>
+</ul>
+<div class="row t-sm" style="gap: 8px"><span class="spin-braille"></span><span class="shimmer" style="font-weight: 500">Ejecutando</span><span class="mono t-xs fg-3">Compare styles · 15s</span></div>
+</div>
+</div>
+
+<div style="display: flex; justify-content: center; padding: 12px 32px 18px">
+<div class="col" style="width: 100%; max-width: 780px; gap: 8px">
+<div class="card energy" style="border-radius: 16px; padding: 10px; display: flex; align-items: flex-end; gap: 8px">
+<button type="button" class="btn btn-ghost btn-icon" aria-label="Adjuntar"><svg class="ico" viewBox="0 0 24 24"><path d="M20 11.5 12.5 19a5 5 0 0 1-7-7l8-8a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4L15 7.5"></path></svg></button>
+<label class="grow" style="display: flex; min-height: 36px; align-items: center"><textarea rows="1" placeholder="Envía un mensaje de seguimiento…" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: 14.5px; padding: 0"></textarea></label>
+<button type="button" class="btn btn-danger btn-sm" style="height: 36px"><svg viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: currentColor"><path d="M6 6h12v12H6z"></path></svg>Detener</button>
+<button type="button" class="btn btn-primary btn-icon" aria-label="Enviar"><svg class="ico" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+<div class="row" style="gap: 6px"><button type="button" class="chip">Opus 5.5</button><button type="button" class="chip" style="color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent)">Sin pedir permisos</button><button type="button" class="chip">Sin preset</button><button type="button" class="chip">MCP de la CLI</button><span class="grow"></span><span class="t-xs fg-3 mono">↵ enviar · ⇧↵ salto</span></div>
+</div>
+</div>
+</div>
+
+<aside aria-label="Detalles del chat" class="col" style="width: 320px; flex-shrink: 0; border-left: 1px solid var(--line); background: var(--bg-1); gap: 0">
+<div class="tabs" role="tablist" style="padding: 8px 16px 0; height: 56px; align-items: flex-end"><button type="button" role="tab" aria-selected="true" class="tab on">Resumen</button><button type="button" role="tab" aria-selected="false" class="tab">Actividad</button><button type="button" role="tab" aria-selected="false" class="tab">Cambios</button><button type="button" role="tab" aria-selected="false" class="tab">Entorno</button></div>
+<div class="col" style="padding: 18px; gap: 22px">
+<section class="row" style="gap: 14px"><span class="ring ring-grad" style="--p: 14; width: 60px; height: 60px; font-size: 12px">14%</span><span class="col" style="gap: 3px"><span class="t-label">Contexto</span><span class="t-sm">144.826 de 1 M tokens</span></span></section>
+<section class="col" style="gap: 8px">
+<div class="row"><span class="t-label grow">Coste</span><span class="grad-text" style="font-size: 20px; font-weight: 600; letter-spacing: -0.02em">2,55 US$</span></div>
+<div class="row th" style="gap: 6px"><span class="grow">Modelo</span><span style="width: 44px; text-align: right">Entr.</span><span style="width: 50px; text-align: right">Sal.</span><span style="width: 50px; text-align: right">Caché</span></div>
+<div class="row t-sm" style="gap: 6px"><span class="grow">Sonnet 5</span><span class="mono t-xs" style="width: 44px; text-align: right">12</span><span class="mono t-xs" style="width: 50px; text-align: right">4,4 k</span><span class="mono t-xs" style="width: 50px; text-align: right">291 k</span></div>
+<div class="row t-sm" style="gap: 6px"><span class="grow">Opus 5.5</span><span class="mono t-xs" style="width: 44px; text-align: right">58</span><span class="mono t-xs" style="width: 50px; text-align: right">32,6 k</span><span class="mono t-xs" style="width: 50px; text-align: right">3,2 M</span></div>
+</section>
+<section class="col" style="gap: 0">
+<span class="t-label" style="padding-bottom: 8px">Chat</span>
+<div class="row t-sm" style="padding: 8px 0; border-top: 1px solid var(--line)"><span class="fg-3" style="width: 90px">Modo</span><span>Interactivo</span></div>
+<div class="row t-sm" style="padding: 8px 0; border-top: 1px solid var(--line)"><span class="fg-3" style="width: 90px">Permisos</span><span class="badge b-accent">bypassPermissions</span></div>
+<div class="row t-sm" style="padding: 8px 0; border-top: 1px solid var(--line)"><span class="fg-3" style="width: 90px">Proyecto</span><a href="DesktopProyectos.html" class="c-accent">claude-wrapper</a></div>
+<div class="row t-sm" style="padding: 8px 0; border-top: 1px solid var(--line)"><span class="fg-3" style="width: 90px">Directorio</span><span class="mono t-xs ellipsis">~/Escritorio/claude-wrapper</span></div>
+<div class="row t-sm" style="padding: 8px 0; border-top: 1px solid var(--line)"><span class="fg-3" style="width: 90px">Sesión</span><span class="mono t-xs grow">b67aa3ba…19bc</span><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Copiar id de sesión"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M9 9h10v10H9zM5 15V5h10"></path></svg></button></div>
+<div class="row t-sm" style="padding: 8px 0; border-top: 1px solid var(--line)"><span class="fg-3" style="width: 90px">Mensajes</span><span class="t-num">109</span></div>
+<div class="row t-sm" style="padding: 8px 0; border-top: 1px solid var(--line)"><span class="fg-3" style="width: 90px">Inicio</span><span>25 sep, 16:18</span></div>
+</section>
+</div>
+</aside>
+</div>
+
+
+<footer class="app statusbar" data-theme="dark" style="width: 1184px">
+<a href="DesktopCuentas.html" class="row" style="gap: 7px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>yeyo@inmoseo.net</a>
+<span class="row" style="gap: 6px">5h<span class="bar bar-thin grad"><i style="width: 45%"></i></span>45%</span>
+<span class="row" style="gap: 6px">7d<span class="bar bar-thin grad"><i style="width: 5%"></i></span>5%</span>
+<span class="grow"></span>
+<span class="row" style="gap: 6px"><span class="spin-braille"></span>3 en marcha</span>
+<span>hoy 3,41 US$</span>
+<span>Claude Code 2.1.282</span>
+</footer>
+
+</div>
+</div>
+</body></html>

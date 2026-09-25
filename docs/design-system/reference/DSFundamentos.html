@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Design system · Fundamentos</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app glow-top col" data-theme="dark" style="width: 1440px; height: 1700px; padding: 56px 64px; gap: 44px; background-size: 100% 420px; overflow: hidden">
+
+<header class="col" style="gap: 10px">
+<span class="t-label">Agentry design system · v2 · fundamentos</span>
+<h1 class="t-display" style="margin: 0; font-size: 48px">Night Shift</h1>
+<p class="fg-2" style="margin: 0; max-width: 760px; font-size: 16px; line-height: 1.55">Neutros casi negros y densidad de IDE, como Orca. Encima, lo que hace reconocible a Agentry: el degradado terracota→rosa para lo que importa, el borde de energía que gira en lo que está vivo y el spinner braille de terminal.</p>
+</header>
+
+<section class="col" style="gap: 16px">
+<h2 class="t-h2">Superficies y texto</h2>
+<div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px">
+
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg)"></div><span class="t-sm" style="font-weight: 500">--bg</span><span class="mono t-xs fg-3">#09090b</span><span class="t-xs fg-2">Fondo de página</span></div>
+
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-1)"></div><span class="t-sm" style="font-weight: 500">--bg-1</span><span class="mono t-xs fg-3">#0f0f12</span><span class="t-xs fg-2">Sidebar, paneles</span></div>
+
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-2)"></div><span class="t-sm" style="font-weight: 500">--bg-2</span><span class="mono t-xs fg-3">#151518</span><span class="t-xs fg-2">Tarjetas</span></div>
+
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-3)"></div><span class="t-sm" style="font-weight: 500">--bg-3</span><span class="mono t-xs fg-3">#1c1c21</span><span class="t-xs fg-2">Hover, controles</span></div>
+
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg-4)"></div><span class="t-sm" style="font-weight: 500">--bg-4</span><span class="mono t-xs fg-3">#26262c</span><span class="t-xs fg-2">Seleccionado, pistas</span></div>
+
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--fg)"></div><span class="t-sm" style="font-weight: 500">--fg</span><span class="mono t-xs fg-3">#f4f4f5</span><span class="t-xs fg-2">Texto principal</span></div>
+
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--fg-2)"></div><span class="t-sm" style="font-weight: 500">--fg-2</span><span class="mono t-xs fg-3">#a1a1aa</span><span class="t-xs fg-2">Secundario</span></div>
+
+<div class="col" style="gap: 8px"><div style="height: 72px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--fg-3)"></div><span class="t-sm" style="font-weight: 500">--fg-3</span><span class="mono t-xs fg-3">#8b8b95</span><span class="t-xs fg-2">Terciario (≥4.5:1)</span></div>
+
+</div>
+</section>
+
+<section class="col" style="gap: 16px">
+<h2 class="t-h2">Marca: degradado Agentry</h2>
+<div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px">
+<div class="col" style="gap: 8px"><div style="height: 96px; border-radius: 14px; background: var(--grad); box-shadow: 0 20px 50px -20px rgba(176,74,94,0.8)"></div><span class="t-sm" style="font-weight: 500">--grad</span><span class="mono t-xs fg-3">135° #b35a36 → #b04a5e → #9c3f77</span><span class="t-xs fg-2">Acción principal, FAB, avatar, logo. Texto blanco (≥4.5:1).</span></div>
+<div class="col" style="gap: 8px"><div class="card grad-border" style="height: 96px"></div><span class="t-sm" style="font-weight: 500">.grad-border</span><span class="t-xs fg-2">Lo destacado: cuenta en uso, KPI principal, compositor nuevo. Máx. 2 por pantalla.</span></div>
+<div class="col" style="gap: 8px"><div style="height: 96px; border-radius: 14px; background: var(--bg-2); display: grid; place-items: center; border: 1px solid var(--line)"><span class="grad-text" style="font-size: 36px; font-weight: 600; letter-spacing: -0.04em">45%</span></div><span class="t-sm" style="font-weight: 500">.grad-text</span><span class="t-xs fg-2">Cifras protagonistas y una palabra del titular. Nunca párrafos.</span></div>
+<div class="col" style="gap: 8px"><div class="glow-top" style="height: 96px; border-radius: 14px; background-color: var(--bg-1); border: 1px solid var(--line)"></div><span class="t-sm" style="font-weight: 500">.glow-top</span><span class="t-xs fg-2">Halo cálido en la cabecera de páginas «hero» y tarjetas destacadas.</span></div>
+</div>
+</section>
+
+<section class="col" style="gap: 16px">
+<h2 class="t-h2">Estado (reservados, siempre con icono o texto)</h2>
+<div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px">
+
+<div class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="dot" style="background: var(--live)"></span><span style="font-weight: 500">live</span></span><span class="badge b-live">en curso</span><span class="mono t-xs fg-3">#22d3ee</span><span class="t-xs fg-2">Un agente trabaja ahora. Nunca una acción.</span></div>
+
+<div class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="dot" style="background: var(--ok)"></span><span style="font-weight: 500">ok</span></span><span class="badge b-ok">completada</span><span class="mono t-xs fg-3">#4ade9a</span><span class="t-xs fg-2">Hecho, conectado, sano.</span></div>
+
+<div class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="dot" style="background: var(--warn)"></span><span style="font-weight: 500">warn</span></span><span class="badge b-warn">va alto</span><span class="mono t-xs fg-3">#f0b95c</span><span class="t-xs fg-2">Límite cerca, autorización pendiente.</span></div>
+
+<div class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="dot" style="background: var(--bad)"></span><span style="font-weight: 500">bad</span></span><span class="badge b-bad">agotado</span><span class="mono t-xs fg-3">#f87b7f</span><span class="t-xs fg-2">Fallo, interrumpido, destructivo.</span></div>
+
+<div class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="dot" style="background: var(--idle)"></span><span style="font-weight: 500">idle</span></span><span class="badge b-idle">en espera</span><span class="mono t-xs fg-3">#a78bfa</span><span class="t-xs fg-2">Espera tu respuesta o permiso.</span></div>
+
+<div class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="dot" style="background: var(--info)"></span><span style="font-weight: 500">info</span></span><span class="badge">info</span><span class="mono t-xs fg-3">#6cb6ff</span><span class="t-xs fg-2">Avisos neutros, enlaces a docs.</span></div>
+
+</div>
+</section>
+
+<div style="display: grid; grid-template-columns: 1.3fr 1fr; gap: 28px">
+<section class="col" style="gap: 14px">
+<h2 class="t-h2">Tipografía · Geist + Geist Mono</h2>
+<div class="card col" style="padding: 20px; gap: 14px">
+<div class="row" style="gap: 20px; align-items: baseline"><span class="mono t-xs fg-3" style="width: 110px">.t-display 34</span><span class="t-display">Todo en marcha</span></div>
+<div class="row" style="gap: 20px; align-items: baseline"><span class="mono t-xs fg-3" style="width: 110px">.t-h1 24</span><span class="t-h1">Orquestaciones</span></div>
+<div class="row" style="gap: 20px; align-items: baseline"><span class="mono t-xs fg-3" style="width: 110px">.t-h2 15</span><span class="t-h2">En marcha</span></div>
+<div class="row" style="gap: 20px; align-items: baseline"><span class="mono t-xs fg-3" style="width: 110px">body 14</span><span>Claude Code lo ejecuta en tu proyecto.</span></div>
+<div class="row" style="gap: 20px; align-items: baseline"><span class="mono t-xs fg-3" style="width: 110px">.t-sm 13</span><span class="t-sm fg-2">Texto secundario y filas de tabla</span></div>
+<div class="row" style="gap: 20px; align-items: baseline"><span class="mono t-xs fg-3" style="width: 110px">.t-label 11</span><span class="t-label">En directo · sección</span></div>
+<div class="row" style="gap: 20px; align-items: baseline"><span class="mono t-xs fg-3" style="width: 110px">.mono 12</span><span class="mono t-xs">pnpm --filter @agentry/web test · b67aa3</span></div>
+</div>
+</section>
+<section class="col" style="gap: 14px">
+<h2 class="t-h2">Forma</h2>
+<div class="card col" style="padding: 20px; gap: 18px">
+<div class="row" style="gap: 14px; align-items: flex-end">
+<div class="col" style="gap: 6px; align-items: center"><div style="width: 44px; height: 44px; background: var(--bg-4); border-radius: 4px"></div><span class="mono t-xs fg-3">xs 4</span></div>
+<div class="col" style="gap: 6px; align-items: center"><div style="width: 44px; height: 44px; background: var(--bg-4); border-radius: 6px"></div><span class="mono t-xs fg-3">sm 6</span></div>
+<div class="col" style="gap: 6px; align-items: center"><div style="width: 44px; height: 44px; background: var(--bg-4); border-radius: 8px"></div><span class="mono t-xs fg-3">8</span></div>
+<div class="col" style="gap: 6px; align-items: center"><div style="width: 44px; height: 44px; background: var(--bg-4); border-radius: 12px"></div><span class="mono t-xs fg-3">lg 12</span></div>
+<div class="col" style="gap: 6px; align-items: center"><div style="width: 44px; height: 44px; background: var(--bg-4); border-radius: 16px"></div><span class="mono t-xs fg-3">xl 16</span></div>
+<div class="col" style="gap: 6px; align-items: center"><div style="width: 64px; height: 28px; background: var(--bg-4); border-radius: 999px"></div><span class="mono t-xs fg-3">full</span></div>
+</div>
+<div class="row" style="gap: 14px">
+<div class="col grow" style="gap: 6px"><div style="height: 18px; border-radius: 4px; background: var(--line)"></div><span class="mono t-xs fg-3">--line 7%</span></div>
+<div class="col grow" style="gap: 6px"><div style="height: 18px; border-radius: 4px; background: var(--line-2)"></div><span class="mono t-xs fg-3">--line-2 12%</span></div>
+<div class="col grow" style="gap: 6px"><div style="height: 18px; border-radius: 4px; background: var(--line-3)"></div><span class="mono t-xs fg-3">--line-3 20%</span></div>
+</div>
+<span class="t-xs fg-2">Espaciado en múltiplos de 4: 4 · 8 · 12 · 16 · 20 · 24 · 32. Página: 28 × 32. Tarjeta: 18.</span>
+</div>
+</section>
+</div>
+
+<section class="col" style="gap: 16px">
+<h2 class="t-h2">Movimiento: lo vivo se mueve, lo demás no</h2>
+<div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px">
+<div class="card col" style="padding: 16px; gap: 12px; align-items: flex-start"><span class="spin-braille" style="font-size: 22px"></span><span style="font-weight: 500">.spin-braille</span><span class="t-xs fg-2">Agente trabajando. 10 frames, 800 ms. Siempre junto a un verbo.</span></div>
+<div class="card col" style="padding: 16px; gap: 12px; align-items: flex-start"><span class="spin-ring" style="width: 22px; height: 22px"></span><span style="font-weight: 500">.spin-ring</span><span class="t-xs fg-2">Tarea en curso dentro de una lista. Variante .grad para cargas de la UI.</span></div>
+<div class="card col" style="padding: 16px; gap: 12px; align-items: flex-start"><span class="spin-dots c-live" style="height: 22px"><i></i><i></i><i></i></span><span style="font-weight: 500">.spin-dots</span><span class="t-xs fg-2">Pensando, sin herramienta activa.</span></div>
+<div class="card col" style="padding: 16px; gap: 12px; align-items: flex-start"><span class="shimmer" style="font-size: 18px; font-weight: 600; height: 22px">Pensando</span><span style="font-weight: 500">.shimmer</span><span class="t-xs fg-2">Verbo del estado en curso. Una vez por bloque.</span></div>
+<div class="card col" style="padding: 16px; gap: 12px; align-items: flex-start"><span class="row" style="height: 22px"><span class="dot dot-live dot-ping"></span></span><span style="font-weight: 500">.dot-ping</span><span class="t-xs fg-2">Algo está en directo ahora: topbar, proyecto activo.</span></div>
+<div class="card energy col" style="padding: 16px; gap: 12px; align-items: flex-start"><span class="bar live" style="width: 100%; height: 6px; margin: 8px 0"><i style="width: 60%"></i></span><span style="font-weight: 500">.energy · .bar.live</span><span class="t-xs fg-2">Borde que gira: UNA superficie viva por pantalla.</span></div>
+</div>
+<div class="callout"><svg class="ico" viewBox="0 0 24 24" style="margin-top: 1px"><path d="M20.5 12a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0zM12 11v5M12 8h.01"></path></svg><span>Respeta <code>data-motion</code> (completo · sutil · desactivado) y <code>prefers-reduced-motion</code>. En «sutil» no hay bucles: el braille queda fijo, la energía se para y el shimmer desaparece. Duraciones: 120 / 200 / 360 ms, <code>--ease-out</code> para entrar, <code>--ease-spring</code> para aparecer.</span></div>
+</section>
+</div>
+</body></html>
