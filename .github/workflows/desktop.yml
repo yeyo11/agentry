@@ -41,7 +41,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Web UI, API bundle, Electron shell, then electron-builder: AppImage and .deb land in apps/desktop/release
+      # Web UI, API bundle, Electron shell, then electron-builder: AppImage, .deb and latest-linux.yml (what the
+      # desktop app's updater reads) land in apps/desktop/release. The AppImage's blockmap is embedded in the
+      # AppImage itself (latest-linux.yml gives its size), so there is no separate .blockmap file to ship.
       - run: pnpm desktop:dist
 
       - uses: actions/upload-artifact@v7
@@ -50,12 +52,14 @@ jobs:
           path: |
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.deb
+            apps/desktop/release/latest-linux.yml
           if-no-files-found: error
 
       # The release exists by now as a draft (release-please creates it before this runs), and the release
       # workflow publishes it afterwards. A published release is immutable and takes no files, so a rebuild
       # of one only keeps the packages as the run artifact above. --clobber makes a second build of a draft
-      # replace its packages instead of failing on the name.
+      # replace its packages instead of failing on the name. latest-linux.yml goes up in the same call: an
+      # installed app finds updates through it, and once the release is published it could not be added.
       - name: Attach to the release
         if: inputs.tag != ''
         run: |
@@ -63,7 +67,8 @@ jobs:
             echo "::warning::$TAG is already published and immutable; the packages stay on this run as an artifact"
             exit 0
           fi
-          gh release upload "$TAG" apps/desktop/release/*.AppImage apps/desktop/release/*.deb --clobber
+          gh release upload "$TAG" apps/desktop/release/*.AppImage apps/desktop/release/*.deb \
+            apps/desktop/release/latest-linux.yml --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
