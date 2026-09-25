@@ -21,8 +21,8 @@
     "fastify": "^5.12.5"
   },
   "devDependencies": {
-    "esbuild": "^0.25.12",
+    "esbuild": "^0.28.2",
     "ts-json-schema-generator": "^2.9.0",
-    "tsx": "^4.23.13"
+    "tsx": "^4.23.15"
   }
 }
