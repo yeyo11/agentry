@@ -1,15 +1,16 @@
 import type { NewChatRequest, PermissionMode } from '@agentry/shared';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowUp, ChevronDown, ChevronLeft, FolderOpen } from 'lucide-react';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { api, useAccounts, useOverview, useProjects } from '../api';
+import { api, keys, useAccounts, useOverview, useProjects } from '../api';
 import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
 import { ChatToolsPicker, type ToolChoices } from '../components/ChatToolsPicker';
 import { Combobox, Select, Switch } from '../components/controls';
 import { Tooltip } from '../components/controls/Tooltip';
 import { BrandMark, ICON, ICON_SM } from '../components/icons';
+import { SlashMenu, useSlashMenu } from '../components/SlashMenu';
 import { useProjectScope } from '../lib/project-scope';
 import { ErrorBox, Field, ModelCombobox, PERMISSION_MODES, usePageTitle } from '../components/ui';
 import { OptionsPanel } from './chat/Composer';
@@ -71,6 +72,10 @@ export function NewChat() {
 
   const system = overview.data?.system;
   const directory = cwd.trim() || system?.workspaceDir || t('new.wrapperWorkspace');
+  // What the CLI reported the last time a chat started in that directory: a new chat gets the same
+  const where = cwd.trim() || system?.workspaceDir || '';
+  const environment = useQuery({ queryKey: keys.environments(where), queryFn: () => api.environments(where), enabled: Boolean(where) });
+  const slash = useSlashMenu({ text: prompt, setText: setPrompt, commands: environment.data?.[0]?.slashCommands ?? [], skills: environment.data?.[0]?.skills, box });
   // The status line: where it runs, with what — the same words the chat's line shows
   const words = [directory, model.trim() || tc('newChat.defaultModel'), permissionMode || tc('newChat.defaultMode', { mode: system?.defaultPermissionMode ?? '…' })];
   const examples = [t('new.welcome.examples.one'), t('new.welcome.examples.two'), t('new.welcome.examples.three')];
@@ -126,37 +131,41 @@ export function NewChat() {
           <ErrorBox error={start.error} title={t('new.startError')} />
           <div {...files.dropProps}>
             <AttachmentTray state={files} />
-            <form
-              className="composer"
-              aria-label={t('new.prompt')}
-              onSubmit={(e) => {
-                e.preventDefault();
-                send();
-              }}
-            >
-              <AttachButton state={files} compact disabled={start.isPending} />
-              <textarea
-                ref={box}
-                autoFocus
-                rows={1}
+            <SlashMenu state={slash}>
+              <form
+                className="composer"
                 aria-label={t('new.prompt')}
-                placeholder={t('new.promptPlaceholder')}
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                onPaste={files.onPaste}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault();
-                    send();
-                  }
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  send();
                 }}
-              />
-              <Tooltip content={start.isPending ? t('new.starting') : files.uploading ? t('new.uploading') : t('new.start')}>
-                <button type="submit" className="composer-send" aria-label={t('new.start')} disabled={!ready || start.isPending}>
-                  <ArrowUp {...ICON_SM} />
-                </button>
-              </Tooltip>
-            </form>
+              >
+                <AttachButton state={files} compact disabled={start.isPending} />
+                <textarea
+                  ref={box}
+                  autoFocus
+                  rows={1}
+                  aria-label={t('new.prompt')}
+                  placeholder={t('new.promptPlaceholder')}
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onPaste={files.onPaste}
+                  {...slash.inputProps}
+                  onKeyDown={(e) => {
+                    if (slash.onKeyDown(e)) return;
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                />
+                <Tooltip content={start.isPending ? t('new.starting') : files.uploading ? t('new.uploading') : t('new.start')}>
+                  <button type="submit" className="composer-send" aria-label={t('new.start')} disabled={!ready || start.isPending}>
+                    <ArrowUp {...ICON_SM} />
+                  </button>
+                </Tooltip>
+              </form>
+            </SlashMenu>
           </div>
           <OptionsPanel
             title={t('new.title')}

@@ -566,6 +566,20 @@
   font-family: var(--mono);
   font-size: 11px;
 }
+/* The commands a message box offers after `/`: names in mono, as commands are everywhere else.
+   Anchored to the whole box, it would otherwise take the box's width for a list of short words */
+.slash-menu {
+  min-width: 240px;
+}
+.slash-menu-name {
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+@media (pointer: coarse) {
+  .slash-menu .menu-item {
+    min-height: 44px;
+  }
+}
 .menu-item.is-destructive,
 .menu-item.is-destructive .menu-item-icon {
   color: var(--bad);

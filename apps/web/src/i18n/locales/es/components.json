@@ -464,5 +464,9 @@
     "next": "Archivo siguiente",
     "count": "{{n}} de {{total}}",
     "noPreview": "Este archivo solo puede descargarse"
+  },
+  "slashMenu": {
+    "label": "Comandos",
+    "skill": "skill"
   }
 }
