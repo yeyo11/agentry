@@ -88,8 +88,8 @@ them is not part of the redesign.
 | Token | Dark | Light | Means |
 |---|---|---|---|
 | `--live` | `#22d3ee` | `#0e7490` | an agent is working **now**. Never an action colour |
-| `--ok` | `#4ade9a` | `#15803d` | done, connected, healthy |
-| `--warn` | `#f0b95c` | `#a16207` | near a limit, needs authorisation, stopped |
+| `--ok` | `#4ade9a` | `#166534` | done, connected, healthy |
+| `--warn` | `#f0b95c` | `#854d0e` | near a limit, needs authorisation, stopped |
 | `--bad` | `#f87b7f` | `#b91c1c` | failed, interrupted, exhausted, destructive |
 | `--idle` | `#a78bfa` | `#6d28d9` | waiting for the user |
 | `--info` | `#6cb6ff` | `#1d4ed8` | neutral notices |

@@ -189,9 +189,9 @@
   --ring: rgba(156, 77, 50, 0.24);
   --glow: rgba(179, 90, 54, 0.1);
   --on-warn: #ffffff;
-  --ok: #15803d;
+  --ok: #166534;
   --ok-soft: rgba(21, 128, 61, 0.1);
-  --warn: #a16207;
+  --warn: #854d0e;
   --warn-soft: rgba(161, 98, 7, 0.11);
   --bad: #b91c1c;
   --bad-soft: rgba(185, 28, 28, 0.09);
@@ -240,9 +240,9 @@
     --ring: rgba(156, 77, 50, 0.24);
     --glow: rgba(179, 90, 54, 0.1);
     --on-warn: #ffffff;
-    --ok: #15803d;
+    --ok: #166534;
     --ok-soft: rgba(21, 128, 61, 0.1);
-    --warn: #a16207;
+    --warn: #854d0e;
     --warn-soft: rgba(161, 98, 7, 0.11);
     --bad: #b91c1c;
     --bad-soft: rgba(185, 28, 28, 0.09);

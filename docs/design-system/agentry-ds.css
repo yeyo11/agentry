@@ -69,8 +69,8 @@
   --grad-text: linear-gradient(92deg, #a4502f 0%, #a8406a 100%);
   --glow: radial-gradient(60% 120% at 50% 0%, rgba(179, 90, 54, 0.1), transparent 70%);
   --live: #0e7490;  --live-soft: rgba(14, 116, 144, 0.1);
-  --ok: #15803d;    --ok-soft: rgba(21, 128, 61, 0.1);
-  --warn: #a16207;  --warn-soft: rgba(161, 98, 7, 0.11);
+  --ok: #166534;    --ok-soft: rgba(21, 128, 61, 0.1);
+  --warn: #854d0e;  --warn-soft: rgba(161, 98, 7, 0.11);
   --bad: #b91c1c;   --bad-soft: rgba(185, 28, 28, 0.09);
   --info: #1d4ed8;  --info-soft: rgba(29, 78, 216, 0.09);
   --idle: #6d28d9;  --idle-soft: rgba(109, 40, 217, 0.09);
