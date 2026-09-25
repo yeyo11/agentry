@@ -3,6 +3,18 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.18.0](https://github.com/yeyo11/agentry/compare/v0.17.2...v0.18.0) (2026-09-25)
+
+
+### Features
+
+* interruption level for notifications, and mobile layout fixes ([#93](https://github.com/yeyo11/agentry/issues/93)) ([5b05df2](https://github.com/yeyo11/agentry/commit/5b05df2b41bad5e1196ef7e03bb672974bcc8a77))
+
+
+### Bug fixes
+
+* app-updates follow-up — AppImage relaunch, Docker commands, .deb elevation, ELECTRON_RUN_AS_NODE ([#97](https://github.com/yeyo11/agentry/issues/97)) ([306d605](https://github.com/yeyo11/agentry/commit/306d6054b9000f262a2bebe27b6a70a89867d415))
+
 ## [0.17.2](https://github.com/yeyo11/agentry/compare/v0.17.1...v0.17.2) (2026-09-25)
 
 
