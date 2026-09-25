@@ -18,7 +18,7 @@
     "loop": {
       "command": "`{{command}}` se ejecutó {{count}} veces con el mismo resultado.",
       "call": "La misma llamada a {{tool}} se ejecutó {{count}} veces con el mismo resultado.",
-      "error": "El mismo error volvió {{count}} veces: «{{error}}»"
+      "error": "El mismo error volvió {{count}} veces: \"{{error}}\""
     },
     "weakenedTest": {
       "assertionsRemoved_one": "`{{file}}` se editó para que compruebe menos: se quitó {{count}} aserción.",
@@ -49,17 +49,17 @@
   },
   "connectors": {
     "authorise": {
-      "cli": "Ejecuta `claude` en una terminal, escribe `/mcp`, elige el conector y opta por autenticarte. La CLI abre el navegador para iniciar sesión.",
-      "claudeAi": "O actívalo y autorízalo en los ajustes de conectores de claude.ai; la CLI lista los conectores de la cuenta de claude.ai con la que ha iniciado sesión.",
-      "refresh": "Después recarga esta página: Agentry solo lee el estado que informa la CLI y no puede autorizar un conector por ti."
+      "cli": "Ejecuta `claude` en una terminal, escribe `/mcp`, elige el conector y opta por autenticarte. El CLI abre el navegador para iniciar sesión.",
+      "claudeAi": "O actívalo y autorízalo en los ajustes de conectores de claude.ai; el CLI lista los conectores de la cuenta de claude.ai con la que ha iniciado sesión.",
+      "refresh": "Después recarga esta página: Agentry solo lee el estado que informa el CLI y no puede autorizar un conector por ti."
     },
     "link": {
       "settings": "Ajustes de conectores en claude.ai",
       "mcpDocs": "Claude Code: conectar con herramientas mediante MCP"
     },
     "unavailable": {
-      "webArtifacts": "Los artefactos creados en claude.ai no tienen API pública ni comando de la CLI, así que Agentry no puede listarlos, leerlos ni crearlos.",
-      "claudeAiMemory": "Lo que claude.ai recuerda de ti no tiene API pública ni comando de la CLI. La memoria en archivos de Claude Code es otra cosa, en la pestaña Memoria."
+      "webArtifacts": "Los artefactos creados en claude.ai no tienen API pública ni comando del CLI, así que Agentry no puede listarlos, leerlos ni crearlos.",
+      "claudeAiMemory": "Lo que claude.ai recuerda de ti no tiene API pública ni comando del CLI. La memoria en archivos de Claude Code es otra cosa, en la pestaña Memoria."
     },
     "action": {
       "docs-recent": "Resumir mis documentos recientes",

@@ -27,53 +27,53 @@
     "installCli": "Instálalo o define CLAUDE_BIN",
     "addCredential": "Añade una credencial en Ajustes",
     "sidebar": "Barra lateral",
-    "expandSidebar": "Expande la barra lateral",
-    "collapseSidebar": "Contrae la barra lateral",
-    "openNavigation": "Abre la navegación",
-    "closeNavigation": "Cierra la navegación",
+    "expandSidebar": "Expandir la barra lateral",
+    "collapseSidebar": "Contraer la barra lateral",
+    "openNavigation": "Abrir la navegación",
+    "closeNavigation": "Cerrar la navegación",
     "mainNavigation": "Principal",
     "pageNotFound": "Página no encontrada",
     "newChat": "Nuevo chat",
-    "runWorkflow": "Ejecuta un workflow",
+    "runWorkflow": "Ejecutar un workflow",
     "skipToContent": "Saltar al contenido"
   },
   "ui": {
     "loadingShort": "Cargando",
-    "copy": "Copia",
+    "copy": "Copiar",
     "copied": "Copiado",
-    "copyPath": "Copia la ruta",
-    "copyCode": "Copia el código",
+    "copyPath": "Copiar la ruta",
+    "copyCode": "Copiar el código",
     "requestFailed": "La petición ha fallado",
     "unsavedChangesLabel": "cambios sin guardar",
     "claudeIsWorking": "Claude está trabajando"
   },
   "controls": {
-    "decrease": "Reduce",
-    "increase": "Aumenta"
+    "decrease": "Reducir",
+    "increase": "Aumentar"
   },
   "dialog": {
-    "close": "Cierra el diálogo",
-    "confirm": "Confirma",
+    "close": "Cerrar el diálogo",
+    "confirm": "Confirmar",
     "areYouSure": "¿Seguro?"
   },
   "toast": {
     "region": "Notificaciones",
     "showOutput": "Mostrar la salida",
-    "dismiss": "Descarta la notificación"
+    "dismiss": "Descartar la notificación"
   },
   "editors": {
-    "add": "Añade",
+    "add": "Añadir",
     "none": "Ninguno",
-    "removeItem": "Quita {{name}}",
+    "removeItem": "Quitar {{name}}",
     "row": "la fila",
     "keyPlaceholder": "CLAVE",
     "valuePlaceholder": "valor",
-    "addVariable": "Añade una variable",
+    "addVariable": "Añadir una variable",
     "duplicateName": "Nombre repetido: gana el último",
     "name": "Nombre",
     "value": "Valor",
-    "hideValue": "Oculta el valor",
-    "revealValue": "Muestra el valor"
+    "hideValue": "Ocultar el valor",
+    "revealValue": "Mostrar el valor"
   },
   "codeEditor": {
     "loading": "Cargando el editor…"
@@ -85,21 +85,21 @@
   },
   "scrollJump": {
     "transcript": {
-      "group": "Salta dentro de la transcripción",
-      "start": "Salta al principio de la transcripción",
-      "end": "Salta al final de la transcripción"
+      "group": "Saltar dentro de la transcripción",
+      "start": "Saltar al principio de la transcripción",
+      "end": "Saltar al final de la transcripción"
     },
     "output": {
-      "group": "Salta dentro de la salida",
-      "start": "Salta al principio de la salida",
-      "end": "Salta al final de la salida"
+      "group": "Saltar dentro de la salida",
+      "start": "Saltar al principio de la salida",
+      "end": "Saltar al final de la salida"
     },
     "oldest": "Lo más antiguo (arriba)",
     "newest": "Lo más reciente (abajo)"
   },
   "runSettings": {
     "permissionMode": "Modo de permisos",
-    "set": "Aplica"
+    "set": "Aplicar"
   },
   "notifications": {
     "bell": "Notificaciones",
@@ -107,18 +107,18 @@
     "bellUnread_other": "Notificaciones, {{count}} sin leer",
     "bellUnreadUrgent_one": "Notificaciones, {{count}} sin leer, alguna requiere tu respuesta",
     "bellUnreadUrgent_other": "Notificaciones, {{count}} sin leer, alguna requiere tu respuesta",
-    "answer": "Responde"
+    "answer": "Responder"
   },
   "notificationPanel": {
     "title": "Notificaciones",
-    "markAllRead": "Márcalas todas como leídas",
-    "clear": "Vacía",
-    "empty": "Nada todavía. Aquí aparecerán los runs que te necesiten y lo que vaya terminando.",
+    "markAllRead": "Marcar todas como leídas",
+    "clear": "Vaciar",
+    "empty": "Nada todavía. Aquí aparecerán las ejecuciones que te necesiten y lo que vaya terminando.",
     "answered": "respondida",
     "unread": "sin leer",
-    "allow": "Permite",
-    "deny": "Deniega",
-    "answerGroup": "Responde al permiso",
+    "allow": "Permitir",
+    "deny": "Denegar",
+    "answerGroup": "Responder al permiso",
     "answerFailed": "No se ha podido responder al permiso",
     "preferences": "Preferencias",
     "popupToasts": "Avisos emergentes",
@@ -131,13 +131,13 @@
       "unsupported": "Este navegador no admite notificaciones."
     },
     "kinds": {
-      "waiting": "Runs que me esperan",
-      "run": "Runs que terminan o fallan",
+      "waiting": "Ejecuciones que me esperan",
+      "run": "Ejecuciones que terminan o fallan",
       "orchestration": "Orquestaciones que terminan o fallan",
       "conflict": "Conflictos de integración",
       "limit": "Límites de uso y rotaciones de cuenta",
-      "activity": "Tareas en segundo plano, subagents y workflows que terminan",
-      "health": "Un run parece atascado o desviado"
+      "activity": "Tareas en segundo plano, subagentes y workflows que terminan",
+      "health": "Una ejecución parece atascada o desviada"
     }
   },
   "environment": {
@@ -145,7 +145,7 @@
     "noneReported": "Nada informado",
     "observed": "observado {{time}}",
     "cliVersion": "CLI {{version}}",
-    "style": "output style: {{style}}",
+    "style": "estilo: {{style}}",
     "source": "origen: {{source}}",
     "mcpServers": "Servidores MCP",
     "tools": "Herramientas",
@@ -174,7 +174,7 @@
     "empty": "(vacío)",
     "moreChars": "… [{{count}} caracteres más]",
     "user": "Usuario",
-    "subagent": "subagent",
+    "subagent": "subagente",
     "streamingThinking": "thinking",
     "streamingWriting": "escribiendo",
     "tools_one": "{{count}} herramienta",
@@ -183,9 +183,9 @@
     "failedCalls_other": "{{count}} fallaron",
     "stepCurrent": "en curso",
     "callFailed": "falló",
-    "callRunning": "en marcha",
+    "callRunning": "en curso",
     "callWaiting": "Esperando el resultado…",
-    "openSubagent": "Abrir el transcript del subagente",
+    "openSubagent": "Abrir la transcripción del subagente",
     "notice": {
       "task": "Tarea en segundo plano",
       "reminder": "Nota del sistema",
@@ -201,8 +201,8 @@
     "duration": "Duración",
     "started": "Inicio",
     "startedBy": "Iniciada por",
-    "fromSubagent": "un subagent",
-    "openSubagent": "ábrelo",
+    "fromSubagent": "un subagente",
+    "openSubagent": "abrirlo",
     "taskGone": "Esta tarea ya no aparece en la lista; lo que escribió se sigue mostrando abajo.",
     "output": "Salida",
     "live": "en directo",
@@ -224,10 +224,10 @@
     "result": "Resultado",
     "transcript": "Transcripción ({{total}})",
     "nothingYet": "Todavía no ha escrito nada.",
-    "showEarlier_one": "Muestra {{count}} entrada anterior",
-    "showEarlier_other": "Muestra {{count}} entradas anteriores",
+    "showEarlier_one": "Mostrar {{count}} entrada anterior",
+    "showEarlier_other": "Mostrar {{count}} entradas anteriores",
     "backgroundTask": "Tarea en segundo plano",
-    "subagent": "Subagent",
+    "subagent": "Subagente",
     "workflowAgent": "Agente de workflow",
     "taskOutput": "Salida de la tarea",
     "chat": "Chat",
@@ -241,13 +241,13 @@
   "permissions": {
     "waitingForYou": "Te está esperando",
     "wantsToRun": "quiere ejecutarse",
-    "allow": "Permite",
-    "allowAnd": "Permite y {{what}}",
-    "deny": "Deniega",
+    "allow": "Permitir",
+    "allowAnd": "Permitir y {{what}}",
+    "deny": "Denegar",
     "denyReason": "¿Por qué no? (se envía al modelo al denegar)",
-    "switchTo": "cambia a {{mode}}",
-    "alwaysAllow": "permite siempre {{rules}}",
-    "allowDirectories": "permite {{directories}}",
+    "switchTo": "cambiar a {{mode}}",
+    "alwaysAllow": "permitir siempre {{rules}}",
+    "allowDirectories": "permitir {{directories}}",
     "claudeIsAsking": "Claude te pregunta",
     "answeredCount": "{{answered}} de {{total}} respondidas",
     "questions": "Preguntas",
@@ -256,26 +256,26 @@
     "pickAny": "elige las que quieras",
     "otherAnswer": "Otra respuesta…",
     "declineReason": "¿Por qué no? (opcional, se envía al modelo)",
-    "decline": "Rechaza",
+    "decline": "Rechazar",
     "backToQuestions": "Volver a las preguntas",
     "previous": "Anterior",
     "next": "Siguiente",
-    "answer": "Responde",
-    "answerProgress": "Responde ({{answered}}/{{total}})",
+    "answer": "Responder",
+    "answerProgress": "Responder ({{answered}}/{{total}})",
     "planReady": "Plan listo para revisar",
-    "approve": "Aprueba",
-    "approveAcceptEditsHint": "Aprueba y déjale editar archivos sin preguntar durante el resto de la session",
-    "approveAcceptEdits": "Aprueba y acepta las ediciones",
-    "keepPlanning": "Sigue planificando",
+    "approve": "Aprobar",
+    "approveAcceptEditsHint": "Aprobar y dejarle editar archivos sin preguntar durante el resto de la sesión",
+    "approveAcceptEdits": "Aprobar y aceptar las ediciones",
+    "keepPlanning": "Seguir planificando",
     "planFeedback": "¿Qué debería cambiar? (se envía al modelo)",
     "otherAnswerTo": "Otra respuesta a: {{question}}",
     "whatItWantsToRun": "Lo que quiere ejecutar",
     "plan": "Plan"
   },
   "palette": {
-    "trigger": "Busca…",
+    "trigger": "Buscar…",
     "label": "Paleta de comandos",
-    "placeholder": "Busca páginas, proyectos, chats y acciones…",
+    "placeholder": "Buscar páginas, proyectos, chats y acciones…",
     "commands": "Comandos",
     "noMatches": "Nada coincide con",
     "navigate": "moverse",
@@ -295,18 +295,18 @@
     },
     "newOrchestration": "Nueva orquestación",
     "newOrchestrationHint": "Planifica y lanza un grafo de tareas con varios agentes",
-    "newProject": "Importa o crea un proyecto",
+    "newProject": "Importar o crear un proyecto",
     "newProjectHint": "Importa un directorio, o crea o clona uno en el espacio de trabajo",
-    "credential": "Define la credencial de la cuenta",
+    "credential": "Definir la credencial de la cuenta",
     "credentialHint": "Token OAuth o clave de API",
     "apiReference": "Referencia de la API",
     "apiReferenceHint": "Documentación interactiva de OpenAPI (Scalar) en una pestaña nueva",
     "userScope": "Ámbito de usuario",
-    "placeholderLabel": "Busca páginas, proyectos, chats y acciones",
+    "placeholderLabel": "Buscar páginas, proyectos, chats y acciones",
     "newChat": "Nuevo chat",
     "newChatHint": "Empieza una conversación con Claude",
     "newChatIn": "En {{name}}",
-    "runWorkflow": "Ejecuta un workflow guardado",
+    "runWorkflow": "Ejecutar un workflow guardado",
     "runWorkflowHint": "Inicia un chat que lo lanza",
     "settingsTabs": {
       "instructions": "Instrucciones",
@@ -315,7 +315,7 @@
       "agents": "Agentes",
       "skills": "Skills",
       "commands": "Comandos",
-      "outputStyles": "Output styles",
+      "outputStyles": "Estilos de salida",
       "rules": "Reglas",
       "files": "Archivos",
       "workflows": "Workflows",
@@ -337,9 +337,9 @@
     "motion": "Movimiento: {{level}}"
   },
   "find": {
-    "button": "Busca",
-    "buttonHint": "Busca en toda la transcripción ({{shortcut}})",
-    "field": "Busca en toda la transcripción",
+    "button": "Buscar",
+    "buttonHint": "Buscar en toda la transcripción ({{shortcut}})",
+    "field": "Buscar en toda la transcripción",
     "failed": "La búsqueda ha fallado",
     "searching": "Buscando…",
     "noMatches": "Sin coincidencias",
@@ -348,8 +348,8 @@
     "olderHint": "Coincidencia anterior (Intro)",
     "newer": "Coincidencia siguiente",
     "newerHint": "Coincidencia siguiente (Mayús+Intro)",
-    "close": "Cierra la búsqueda",
-    "closeHint": "Cierra (Esc)",
+    "close": "Cerrar la búsqueda",
+    "closeHint": "Cerrar (Esc)",
     "transcript": "Transcripción"
   },
   "attachments": {
@@ -357,11 +357,11 @@
     "imageTitle": "Imagen",
     "document": "Documento",
     "pasted": "pegado",
-    "attachFiles": "Adjunta archivos",
+    "attachFiles": "Adjuntar archivos",
     "attachHint": "Adjunta archivos, o suéltalos o pégalos aquí. Claude ve las imágenes y los PDF; el resto lo lee del disco.",
-    "attach": "Adjunta",
+    "attach": "Adjuntar",
     "uploading": "Subiendo",
-    "remove": "Quita {{name}}"
+    "remove": "Quitar {{name}}"
   },
   "theme": {
     "system": "Tema del sistema",
@@ -371,8 +371,8 @@
   "dirty": {
     "title": "¿Descartar los cambios sin guardar?",
     "body": "Tienes ediciones sin guardar. Si te vas ahora, se descartan.",
-    "discard": "Descarta los cambios",
-    "keepEditing": "Sigue editando"
+    "discard": "Descartar los cambios",
+    "keepEditing": "Seguir editando"
   },
   "notificationText": {
     "waitingPermission": "{{name}} necesita tu aprobación para usar {{tool}}",
@@ -401,7 +401,7 @@
     "conflict_other": "{{count}} archivos en {{branch}} necesitan tu atención.",
     "conflictResolving_one": "{{count}} archivo en {{branch}}.",
     "conflictResolving_other": "{{count}} archivos en {{branch}}.",
-    "fromSubagent": "Lo ha iniciado un subagent.",
+    "fromSubagent": "Lo ha iniciado un subagente.",
     "supervisorProposed": "{{name}}: el supervisor propone una pista"
   },
   "codeBlock": {
@@ -419,7 +419,7 @@
   },
   "projectExport": {
     "title": "Exportar {{name}}",
-    "body": "Todos los chats del proyecto en un archivo, del más antiguo al más reciente, con el coste que informó la CLI.",
+    "body": "Todos los chats del proyecto en un archivo, del más antiguo al más reciente, con el coste que informó el CLI.",
     "wholeProject": "Abarca el proyecto entero, no solo el intervalo elegido arriba.",
     "markdown": "Markdown",
     "json": "JSON",
@@ -450,6 +450,6 @@
     "previous": "Archivo anterior",
     "next": "Archivo siguiente",
     "count": "{{n}} de {{total}}",
-    "noPreview": "Este archivo sólo puede descargarse"
+    "noPreview": "Este archivo solo puede descargarse"
   }
 }

@@ -4,7 +4,7 @@
   "subtitle": "Tal como los informó el CLI {{when}}",
   "subtitleLoading": "Preguntando al CLI…",
   "intro": "Los conectores de claude.ai de la cuenta con la sesión iniciada, tal como los lista Claude Code. Agentry solo lee esta lista: no puede autorizar, cambiar ni llamar a un conector por sí mismo.",
-  "refresh": "Pregunta al CLI otra vez",
+  "refresh": "Preguntar al CLI otra vez",
   "refreshing": "Preguntando…",
   "cliFailed": "El CLI no pudo listar sus conectores",
   "none": "No hay conectores de claude.ai en la lista",
