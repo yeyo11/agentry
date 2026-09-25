@@ -214,7 +214,7 @@ function ProjectActions({ project, onRename, onRemove, onPurge }: { project: Pro
           <Ellipsis {...ICON_SM} />
         </button>
         <Sheet open={open} onOpenChange={setOpen} title={label} side="bottom" className="project-sheet">
-          <div className="project-sheet-actions">
+          <div className="sheet-actions">
             <Link to={`/?project=${encodeURIComponent(project.id)}`} className="btn">
               <FolderOpen {...ICON_SM} /> {t('common:actions.open')}
             </Link>

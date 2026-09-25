@@ -122,15 +122,6 @@
   color: var(--fg-3);
   white-space: normal;
 }
-.project-sheet-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.project-sheet-actions .btn {
-  justify-content: flex-start;
-  min-height: 44px;
-}
 .project-sheet-purge {
   flex-direction: column;
   align-items: flex-start;

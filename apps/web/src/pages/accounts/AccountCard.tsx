@@ -207,7 +207,7 @@ export function ExhaustedAccountRow({ account, busy, onToggle, onRemove }: { acc
           {backIn && <span className="account-meter-reset">{backIn}</span>}
         </span>
       </span>
-      <MoreActions label={t('card.more', { name })} title={name} items={items} />
+      <MoreActions label={t('card.more', { name })} title={name} entries={items} className="account-more" />
     </li>
   );
 }

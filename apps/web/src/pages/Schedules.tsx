@@ -251,7 +251,7 @@ function ScheduleCard({ schedule }: { schedule: Schedule }) {
       </Collapsible>
       {narrow && (
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen} title={schedule.name} side="bottom">
-          <div className="account-sheet-actions schedule-sheet-actions">
+          <div className="sheet-actions schedule-sheet-actions">
             <button type="button" className="btn btn-block" disabled={runNow.isPending} onClick={fromSheet(() => runNow.mutate())}>
               <Play {...ICON_SM} /> {t('card.runNow')}
             </button>
