@@ -166,6 +166,12 @@ export function NotificationPanel({ id, anchor, onClose }: { id: string; anchor:
           // A click on the bell is "outside" for the popover, which would close it just before the
           // bell's own click reopens it
           onInteractOutside={(e) => anchor.current?.contains(e.target as Node) && e.preventDefault()}
+          // The panel takes focus itself: its first control is an icon with a tooltip, which would
+          // open on arrival and swallow the first Escape meant for the panel
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            (e.currentTarget as HTMLElement | null)?.focus({ preventScroll: true });
+          }}
         >
           <div className="notif-head">
             <strong>{t('notificationPanel.title')}</strong>
