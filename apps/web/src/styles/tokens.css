@@ -113,6 +113,14 @@
   --energy-cycle: 3600ms;
   /* How long a toast stays; Toast.tsx sets each one's own on its timer */
   --toast-life: 4000ms;
+  /* The illustrations' idle loops: slow and out of step, so a scene drifts instead of ticking */
+  --il-float-cycle: 4800ms;
+  --il-float-2-cycle: 5600ms;
+  --il-float-2-delay: 800ms;
+  --il-dash-cycle: 1600ms;
+  --il-pulse-cycle: 2200ms;
+  --il-orbit-cycle: 24s;
+  --il-orbit-rev-cycle: 36s;
 
   /* Layout */
   --topbar-h: 52px;
