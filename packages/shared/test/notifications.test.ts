@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { KINDS, notificationsFor, settlesWaiting, waitingDrafts, type AgentryEvent, type NotificationDraft } from '../src/index.ts';
+import { interrupts, KINDS, LEVELS, notificationsFor, settlesWaiting, waitingDrafts, type AgentryEvent, type NotificationDraft } from '../src/index.ts';
 
 /*
  * The mapping the web's toasts and the server's push sender share. The web covers it through its
@@ -226,4 +226,22 @@ test('nothing in the mapping reaches for a browser: the sender runs it in Node',
     const code = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
     assert.equal(code.match(/\b(window|document|localStorage|sessionStorage|navigator)\b/)?.[0], undefined, `${file} reaches for the browser`);
   }
+});
+
+test('the level decides what interrupts, from everything down to nothing, and background activity never does', () => {
+  const n = (kind: NotificationDraft['kind'], priority: NotificationDraft['priority'], tone: NotificationDraft['tone']) => ({ kind, priority, tone });
+  const waiting = n('waiting', 'high', 'warn');
+  const failed = n('run', 'normal', 'bad');
+  const orchestrationDone = n('orchestration', 'normal', 'ok');
+  const conflict = n('conflict', 'normal', 'warn');
+  const turnDone = n('run', 'normal', 'ok');
+  const rotated = n('limit', 'normal', 'info');
+  const subagentDone = n('activity', 'low', 'ok');
+  const all = [waiting, failed, orchestrationDone, conflict, turnDone, rotated, subagentDone];
+  const passing = (level: (typeof LEVELS)[number]) => all.filter((x) => interrupts(x, level));
+
+  assert.deepEqual(passing('all'), [waiting, failed, orchestrationDone, conflict, turnDone, rotated]);
+  assert.deepEqual(passing('important'), [waiting, failed, orchestrationDone, conflict]);
+  assert.deepEqual(passing('urgent'), [waiting]);
+  assert.deepEqual(passing('silent'), []);
 });

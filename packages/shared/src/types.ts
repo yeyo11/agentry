@@ -1,6 +1,6 @@
 // Contract shared between core, API and UI.
 
-import type { NotificationKind, NotificationPriority } from './notifications.ts';
+import type { NotificationKind, NotificationLevel, NotificationPriority } from './notifications.ts';
 
 // ---------- System ----------
 
@@ -2192,6 +2192,8 @@ export interface RegisterPushSubscriptionRequest {
   keys: PushSubscriptionKeys;
   /** Kinds worth waking this install for; every kind when omitted */
   kinds?: NotificationKind[];
+  /** How much this install may be interrupted; `important` when omitted */
+  level?: NotificationLevel;
   /** What the Settings list calls this install, e.g. "Pixel 8 · Chrome". Derived from the user agent */
   label?: string;
 }
@@ -2207,6 +2209,7 @@ export interface PushSubscriptionSummary {
   endpoint: string;
   label: string;
   kinds: NotificationKind[];
+  level: NotificationLevel;
   createdAt: string;
   /** Last time this install registered or refreshed */
   lastSeenAt: string;

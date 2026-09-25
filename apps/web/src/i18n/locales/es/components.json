@@ -121,7 +121,19 @@
     "answerGroup": "Responder al permiso",
     "answerFailed": "No se ha podido responder al permiso",
     "preferences": "Preferencias",
-    "popupToasts": "Avisos emergentes",
+    "level": "Interrupciones",
+    "levels": {
+      "all": "Todo",
+      "important": "Solo lo importante",
+      "urgent": "Solo lo que me necesita",
+      "silent": "Silencio"
+    },
+    "levelHints": {
+      "all": "Un aviso, una notificación del sistema o un push por todo lo de abajo, salvo la actividad en segundo plano.",
+      "important": "Cuando un chat te necesita, algo falla o termina una orquestación. Lo demás espera en la campana.",
+      "urgent": "Solo cuando un chat te espera o su salud se pone en rojo. Lo demás espera en la campana.",
+      "silent": "No salta nada. Todo espera en la campana."
+    },
     "browserNotifications": "Notificaciones del navegador",
     "notifyMeWhen": "Avísame de",
     "browserHint": {

@@ -31,12 +31,16 @@ export default async ({ api, page, check }) => {
   const mine = listed.body.find((s) => s.id === created.body.id);
   check(!!mine, 'the registered install is in the list');
   check(mine.label === 'e2e device' && mine.kinds.join() === 'conflict', `the list carries the label and the kinds: ${JSON.stringify(mine)}`);
+  check(mine.level === 'important', `an install that names no level gets the default one: ${mine.level}`);
 
   // The same endpoint is one install however often the browser re-subscribes
-  const again = await api.post('/push/subscriptions', { endpoint: ENDPOINT, keys: KEYS, kinds: ['conflict', 'limit'], label: 'e2e device' });
+  const again = await api.post('/push/subscriptions', { endpoint: ENDPOINT, keys: KEYS, kinds: ['conflict', 'limit'], level: 'urgent', label: 'e2e device' });
   check(again.status === 201 && again.body.id === created.body.id, 're-subscribing refreshes the same row');
   const afterRefresh = (await api.get('/push/subscriptions')).body.filter((s) => s.id === created.body.id);
   check(afterRefresh.length === 1, `one row per endpoint, got ${afterRefresh.length}`);
+  check(afterRefresh[0]?.level === 'urgent', `re-subscribing updates the level: ${afterRefresh[0]?.level}`);
+  const badLevel = await api.post('/push/subscriptions', { endpoint: ENDPOINT, keys: KEYS, level: 'loud' });
+  check(badLevel.status === 400, `an unknown level is refused (${badLevel.status})`);
 
   const bad = await api.post('/push/subscriptions', { endpoint: 'http://push.invalid/plain', keys: KEYS });
   check(bad.status === 400, `a subscription that could never be delivered to is refused (${bad.status})`);
@@ -74,7 +78,11 @@ export default async ({ api, page, check }) => {
     `a secure origin gets a switch and not an explanation: "${preference}"`,
   );
   const switches = await page.eval(`return document.querySelectorAll('[role=switch]').length`);
-  check(switches >= 10, `the seven kinds, the toasts, the browser notifications and push are all switches: ${switches}`);
+  check(switches >= 9, `the seven kinds, the browser notifications and push are all switches: ${switches}`);
+  check(
+    await page.eval(`return !!document.querySelector('.select-trigger[aria-label=Interruptions]')`),
+    'how much notifications may interrupt is chosen with the themed select',
+  );
 
   const removed = await api.request('DELETE', '/push/subscriptions', { endpoint: ENDPOINT });
   check(removed.status === 200 && removed.body?.removed === true, `the subscription is unregistered (${removed.status})`);

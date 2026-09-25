@@ -143,7 +143,7 @@ async function register(subscription: PushSubscription, key: string): Promise<vo
   const p256dh = json.keys?.p256dh;
   const auth = json.keys?.auth;
   if (!endpoint || !p256dh || !auth) throw new Error(i18n.t('components:push.incomplete'));
-  await api.registerPush({ endpoint, keys: { p256dh, auth }, kinds: wantedKinds(), label: label() });
+  await api.registerPush({ endpoint, keys: { p256dh, auth }, kinds: wantedKinds(), level: getPrefs().level, label: label() });
   await rememberState(key);
   set({ enabled: true, id: await subscriptionId(endpoint), blocker: blockerNow(), ready: true });
 }

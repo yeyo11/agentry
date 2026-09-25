@@ -3,9 +3,10 @@ import { Info, Share, ShieldAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { keys as queryKeys } from '../api';
-import { browserPermission, enableBrowserNotifications, KINDS, setPrefs, useNotificationPrefs } from '../lib/notifications';
+import { browserPermission, enableBrowserNotifications, KINDS, LEVELS, setPrefs, useNotificationPrefs, type NotificationLevel } from '../lib/notifications';
 import { disablePush, enablePush, ensurePushConfigured, syncPush, usePushState } from '../lib/push';
 import type { PushBlocker } from '../lib/push-model';
+import { Select } from './controls/Select';
 import { Switch } from './controls/Toggle';
 import { ICON_SM } from './icons';
 import { useToast } from './Toast';
@@ -62,9 +63,20 @@ export function NotificationPreferences() {
 
   return (
     <div className="notif-prefs-body">
-      <Switch checked={prefs.toasts} onChange={(toasts) => setPrefs((p) => ({ ...p, toasts }))}>
-        {t('notificationPanel.popupToasts')}
-      </Switch>
+      <label className="field">
+        <span className="field-label">{t('notificationPanel.level')}</span>
+        <Select<NotificationLevel>
+          aria-label={t('notificationPanel.level')}
+          value={prefs.level}
+          onChange={(level) => {
+            setPrefs((p) => ({ ...p, level }));
+            // The server decides what to push by the level this install registered with
+            void syncPush();
+          }}
+          options={LEVELS.map((level) => ({ value: level, label: t(`notificationPanel.levels.${level}`), hint: t(`notificationPanel.levelHints.${level}`) }))}
+        />
+        <span className="field-hint">{t(`notificationPanel.levelHints.${prefs.level}`)}</span>
+      </label>
       <div>
         <Switch checked={prefs.browser && permission === 'granted'} disabled={permission === 'unsupported'} onChange={toggleBrowser}>
           {t('notificationPanel.browserNotifications')}

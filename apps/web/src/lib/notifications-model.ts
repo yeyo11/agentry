@@ -1,6 +1,8 @@
 import {
   chatHref,
+  DEFAULT_LEVEL,
   KINDS,
+  LEVELS,
   notificationsFor as draftsFor,
   orchestrationHref,
   waitingDrafts as waitingDraftsFor,
@@ -8,6 +10,7 @@ import {
   type ChatSummary,
   type NotificationDraft,
   type NotificationKind,
+  type NotificationLevel,
   type NotificationText,
   type PermissionRequest,
 } from '@agentry/shared';
@@ -26,11 +29,14 @@ import { serverText } from './server-strings';
  */
 
 export {
+  interrupts,
   KINDS,
+  LEVELS,
   PROMPT_PARAM,
   settlesWaiting,
   type NotificationDraft,
   type NotificationKind,
+  type NotificationLevel,
   type NotificationPriority,
   type NotificationTone,
 } from '@agentry/shared';
@@ -43,8 +49,10 @@ export type AppNotification = Omit<NotificationDraft, 'dedupeMs'> & {
 };
 
 export interface NotificationPrefs {
+  /** What is kept in the bell at all */
   kinds: Record<NotificationKind, boolean>;
-  toasts: boolean;
+  /** What of it interrupts: a toast, a system notification, a push */
+  level: NotificationLevel;
   /** Browser notifications for a hidden tab; only ever true after the person opted in */
   browser: boolean;
 }
@@ -89,7 +97,7 @@ export const waitingDrafts = (chat: Pick<ChatSummary, 'id' | 'title' | 'orchestr
 export const MAX_NOTIFICATIONS = 200;
 
 export function defaultPrefs(): NotificationPrefs {
-  return { kinds: Object.fromEntries(KINDS.map((kind) => [kind, true])) as Record<NotificationKind, boolean>, toasts: true, browser: false };
+  return { kinds: Object.fromEntries(KINDS.map((kind) => [kind, true])) as Record<NotificationKind, boolean>, level: DEFAULT_LEVEL, browser: false };
 }
 
 /** The person is already looking at what the notification is about, so a toast would only repeat it. */
@@ -199,7 +207,10 @@ function parsePrefs(value: unknown): NotificationPrefs {
       if (typeof on === 'boolean') prefs.kinds[kind] = on;
     }
   }
-  if (typeof value.toasts === 'boolean') prefs.toasts = value.toasts;
+  if (LEVELS.includes(value.level as NotificationLevel)) prefs.level = value.level as NotificationLevel;
+  // Saved before there were levels: toasts turned off is what `silent` means now, and toasts on
+  // takes the new default rather than `all`, which is what was found too loud
+  else if (value.toasts === false) prefs.level = 'silent';
   if (typeof value.browser === 'boolean') prefs.browser = value.browser;
   return prefs;
 }

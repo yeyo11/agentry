@@ -8,6 +8,7 @@ import {
   getPrefs,
   hasUrgent,
   ingest,
+  interrupts,
   isRedundant,
   markRead,
   seedWaiting,
@@ -87,27 +88,25 @@ export function NotificationHost() {
   const announce = (added: AppNotification[]) => {
     const prefs = getPrefs();
     for (const n of added) {
-      // Low priority stays in the center: a busy run finishes subagents all the time
-      if (n.priority === 'low') continue;
-      if (prefs.toasts) {
-        toast.show({
-          tone: n.tone,
-          title: n.title,
-          detail: n.body || undefined,
-          key: n.key,
-          persistent: n.priority === 'high',
-          urgent: n.priority === 'high',
-          action: n.href
-            ? {
-                label: n.kind === 'waiting' ? t('notifications.answer') : t('common:actions.open'),
-                onClick: () => {
-                  markRead(n.id);
-                  open(n.href);
-                },
-              }
-            : undefined,
-        });
-      }
+      // The bell keeps it either way; the level decides whether it is worth breaking in for
+      if (!interrupts(n, prefs.level)) continue;
+      toast.show({
+        tone: n.tone,
+        title: n.title,
+        detail: n.body || undefined,
+        key: n.key,
+        persistent: n.priority === 'high',
+        urgent: n.priority === 'high',
+        action: n.href
+          ? {
+              label: n.kind === 'waiting' ? t('notifications.answer') : t('common:actions.open'),
+              onClick: () => {
+                markRead(n.id);
+                open(n.href);
+              },
+            }
+          : undefined,
+      });
       // With push on, the same news is already on its way to this device from the server, under the
       // same tag; the page showing its own would be the one notification twice.
       if (!pushIsActive()) {
