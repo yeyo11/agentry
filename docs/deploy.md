@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-09-25T18:00:00Z
+updated_at: 2026-09-25T16:22:09Z
 tags:
     - deploy
     - docker
@@ -201,15 +201,11 @@ bell or out as a push, and a restart does not announce the same release again.
 - The image sets `AGENTRY_DISTRIBUTION=docker`, which is how the Updates card knows to show Docker
   steps rather than a source checkout's or the desktop app's.
 
-**What to run.** The container cannot replace its own image, so the card shows the command instead:
+**What to run.** The container cannot replace its own image, and it cannot tell how it was started,
+so the card lists the command for each way below, each under the setup it is for:
 
-```bash
-docker compose pull && docker compose up -d
-```
-
-That is the command for a compose file whose service uses the published image
-(`image: ghcr.io/yeyo11/agentry`), run from the folder that holds it. The other ways in:
-
+- **A compose file whose service uses the published image** (`image: ghcr.io/yeyo11/agentry`), from
+  the folder that holds it: `docker compose pull && docker compose up -d`.
 - **The repository's own `docker-compose.yml`** builds the image locally (`image: agentry:dev`), so
   there is nothing to pull: `git pull && docker compose up -d --build`.
 - **`docker run`**: `docker pull ghcr.io/yeyo11/agentry`, then remove the container and run the same

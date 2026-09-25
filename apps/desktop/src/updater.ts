@@ -1,5 +1,5 @@
 import { accessSync, constants, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import type { LiveSnapshot } from './live.ts';
 
 /**
@@ -13,7 +13,7 @@ import type { LiveSnapshot } from './live.ts';
 /** The kind of package this app runs from; also AGENTRY_DISTRIBUTION for the server child */
 export type Distribution = 'appimage' | 'deb';
 
-export type UnsupportedReason = 'development' | 'read-only' | 'unknown-package';
+export type UnsupportedReason = 'development' | 'read-only' | 'unknown-package' | 'no-elevation';
 
 export type UpdateState =
   | { status: 'idle' }
@@ -58,9 +58,33 @@ export function appImageWritable(path: string): boolean {
   }
 }
 
+/** The graphical sudo tools electron-updater tries for a .deb, in its order (LinuxUpdater.determineSudoCommand) */
+const GRAPHICAL_SUDO = ['gksudo', 'kdesudo', 'pkexec', 'beesu'];
+
+/**
+ * Whether installing a .deb can ask for a password on screen. Without one of these tools
+ * electron-updater falls back to plain `sudo`, which has no terminal to ask on and fails after the
+ * download, with the server already stopped. Looked up on this process's PATH, as electron-updater does.
+ */
+export function debCanElevate(env: NodeJS.ProcessEnv = process.env, uid = process.getuid?.()): boolean {
+  if (uid === 0) return true;
+  const dirs = (env.PATH ?? '').split(delimiter).filter(Boolean);
+  return GRAPHICAL_SUDO.some((tool) =>
+    dirs.some((dir) => {
+      try {
+        accessSync(join(dir, tool), constants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    }),
+  );
+}
+
 export interface SupportFacts extends PackageFacts {
   dev: boolean;
   appImageWritable: (path: string) => boolean;
+  debCanElevate: () => boolean;
 }
 
 export type Support = { supported: true; distribution: Distribution } | Extract<UpdateState, { status: 'unsupported' }>;
@@ -83,6 +107,14 @@ export function updateSupport(facts: SupportFacts): Support {
       status: 'unsupported',
       reason: 'read-only',
       message: `The AppImage at ${facts.appImage} cannot be replaced: the file or its folder is not writable.`,
+    };
+  }
+  if (distribution === 'deb' && !facts.debCanElevate()) {
+    return {
+      status: 'unsupported',
+      reason: 'no-elevation',
+      message:
+        'Installing the .deb needs a password prompt (pkexec), and none was found. Install policykit-1, or download the .deb and install it with apt.',
     };
   }
   return { supported: true, distribution };
@@ -266,6 +298,28 @@ export class DesktopUpdater {
       return false;
     }
   }
+}
+
+/**
+ * How the new AppImage is started once this process is gone. Not `app.relaunch()`: on Linux that
+ * hands the job to a helper run from Electron's own binary, which inside an AppImage lives in the
+ * image's mount, and the mount goes away as this process exits, taking the helper with it before it
+ * starts anything. A shell outside the mount waits for this process to exit, so the new instance
+ * gets the single-instance lock, and then runs the AppImage's real path.
+ *
+ * Chromium leaves some descriptors inheritable (the DevTools socket among them), and whatever reaches
+ * the new instance keeps files of the old mount open, so the old image's FUSE process never exits.
+ * The shell closes everything above stderr before it runs the new one. Bash, because a plain sh
+ * cannot close a descriptor above 9, and the AppImage's own AppRun already needs it.
+ */
+export function appImageRelaunch(pid: number, appImage: string, args: readonly string[]): { command: string; args: string[] } {
+  const script = [
+    'for fd in /proc/$$/fd/*; do n=${fd##*/}; if [ "$n" -gt 2 ]; then eval "exec $n>&-"; fi; done 2>/dev/null',
+    'while kill -0 "$1" 2>/dev/null; do sleep 0.2; done',
+    'shift',
+    'exec "$@"',
+  ].join('\n');
+  return { command: '/bin/bash', args: ['-c', script, 'agentry-relaunch', String(pid), appImage, ...args] };
 }
 
 /** What is live that a restart would stop */
