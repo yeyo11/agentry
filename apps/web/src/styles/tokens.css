@@ -75,6 +75,14 @@
   --scrim: rgba(4, 4, 6, 0.62);
   /* A mask's opaque channel, not a colour anyone sees */
   --mask-ink: #000;
+  /* Miniatures of each theme in Settings → Appearance: they show that theme whichever one is on,
+     so they are the same in both blocks */
+  --swatch-light-bg: #fafaf9;
+  --swatch-light-line: #d9d5cd;
+  --swatch-light-grad: linear-gradient(90deg, #b35a36, #9c3f77);
+  --swatch-dark-bg: #09090b;
+  --swatch-dark-line: #26262c;
+  --swatch-dark-grad: linear-gradient(90deg, #ec8a66, #e0668f);
 
   /* Shape */
   --radius-xs: 4px;

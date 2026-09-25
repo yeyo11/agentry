@@ -1,7 +1,9 @@
-import { Download, Share, ShieldAlert, Smartphone } from 'lucide-react';
+import { Bell, ChevronRight, Download, Share, ShieldAlert, Smartphone } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { ICON, ICON_SM } from '../../components/icons';
-import { Card } from '../../components/ui';
+import { Empty } from '../../components/ui';
+import { NARROW, useMediaQuery } from '../../lib/media';
 import { useInstallState } from '../../lib/pwa';
 
 /**
@@ -14,43 +16,64 @@ import { useInstallState } from '../../lib/pwa';
 export function InstallTab() {
   const { t } = useTranslation('config');
   const { status, install, secure, origin } = useInstallState();
+  const phone = useMediaQuery(NARROW);
 
   return (
-    <Card title={t('install.title')}>
-      <div className="stack" data-testid="install-card">
-        <p className="small muted">{t('install.intro')}</p>
-
-        {status === 'installed' && (
-          <p className="alert small" role="status">
-            <Smartphone className="alert-icon" {...ICON_SM} />
-            <span className="alert-body">{t('install.installed')}</span>
-          </p>
-        )}
-
-        {status === 'prompt' && (
-          <div>
-            <button type="button" className="btn btn-primary" onClick={install}>
+    <div className="install" data-testid="install-card">
+      <Empty
+        illustration="install"
+        size={phone ? 'sm' : 'md'}
+        title={t('install.title')}
+        action={
+          status === 'prompt' && (
+            <button type="button" className="btn btn-primary install-action" onClick={install}>
               <Download {...ICON} /> {t('install.action')}
             </button>
-          </div>
-        )}
+          )
+        }
+      >
+        {t('install.intro')}
+      </Empty>
 
-        {status === 'ios' && (
-          <p className="alert small" role="status">
-            <Share className="alert-icon" {...ICON_SM} />
-            <span className="alert-body">{t('install.ios')}</span>
-          </p>
-        )}
+      {status === 'installed' && (
+        <p className="alert small" role="status">
+          <Smartphone className="alert-icon" {...ICON_SM} />
+          <span className="alert-body">{t('install.installed')}</span>
+        </p>
+      )}
 
-        {status === 'manual' && <p className="small">{t('install.manual')}</p>}
+      {status === 'ios' && (
+        <p className="alert small" role="status">
+          <Share className="alert-icon" {...ICON_SM} />
+          <span className="alert-body">{t('install.ios')}</span>
+        </p>
+      )}
 
-        {!secure && (
-          <p className="alert alert-warn small" role="status" data-testid="install-insecure">
-            <ShieldAlert className="alert-icon" {...ICON_SM} />
-            <span className="alert-body">{t('install.insecure', { origin })}</span>
-          </p>
-        )}
-      </div>
-    </Card>
+      {status === 'manual' && (
+        <p className="alert small" role="status">
+          <Download className="alert-icon" {...ICON_SM} />
+          <span className="alert-body">{t('install.manual')}</span>
+        </p>
+      )}
+
+      {!secure && (
+        <p className="alert alert-warn small" role="status" data-testid="install-insecure">
+          <ShieldAlert className="alert-icon" {...ICON_SM} />
+          <span className="alert-body">{t('install.insecure', { origin })}</span>
+        </p>
+      )}
+
+      {/* The switch itself lives with the other notification choices: one place turns push on */}
+      <Link className="card install-push" to="/settings?tab=notifications">
+        <span className="install-push-icon" aria-hidden>
+          <Bell {...ICON_SM} />
+        </span>
+        <span className="install-push-text">
+          <span className="install-push-title">{t('install.push.title')}</span>
+          <span className="small muted">{t('install.push.text')}</span>
+        </span>
+        <ChevronRight className="install-push-chevron" {...ICON} />
+      </Link>
+    </div>
   );
 }

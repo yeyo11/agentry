@@ -31,6 +31,16 @@
       "security": "Security",
       "install": "Install",
       "notifications": "Notifications"
+    },
+    "groups": {
+      "agentry": "Agentry",
+      "claude": "Claude Code",
+      "extensions": "Extensions",
+      "system": "System"
+    },
+    "phone": {
+      "appearance": "Language and motion",
+      "back": "Back to Settings"
     }
   },
   "security": {
@@ -995,7 +1005,11 @@
     "action": "Install Agentry",
     "ios": "On iPhone and iPad there is no install button a page may offer: open Agentry in Safari, tap Share and then Add to Home Screen.",
     "manual": "This browser installs an app from its own menu, where the item is called Install or Add to Home Screen. Chrome and Edge offer it here as a button instead, on Android and on the desktop.",
-    "insecure": "This page is served from {{origin}}, which browsers do not treat as a secure origin. Adding Agentry to the home screen still works, but nothing that needs a service worker does: no immediate cold start, and no notifications while the app is closed. That needs https:// or localhost."
+    "insecure": "This page is served from {{origin}}, which browsers do not treat as a secure origin. Adding Agentry to the home screen still works, but nothing that needs a service worker does: no immediate cold start, and no notifications while the app is closed. That needs https:// or localhost.",
+    "push": {
+      "title": "Notifications on this device",
+      "text": "Get told when a chat finishes or needs you, even with Agentry closed. Turn it on in Notifications."
+    }
   },
   "notifications": {
     "title": "Notifications",
@@ -1020,5 +1034,10 @@
       "removeBody": "{{name}} stops being sent notifications. It can register again from its own settings.",
       "removeFailed": "Could not remove that device"
     }
+  },
+  "appearance": {
+    "ring": "ring",
+    "dots": "dots",
+    "thinking": "Thinking"
   }
 }

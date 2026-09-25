@@ -359,7 +359,8 @@ export function McpTab({ scope }: { scope: Scope }) {
           </button>
           <button
             type="button"
-            className="btn btn-small btn-primary"
+            // One primary per zone: while the list is empty, its empty state holds it
+            className={`btn btn-small ${servers.length > 0 ? 'btn-primary' : ''}`}
             onClick={() => setEditing({ form: emptyForm(scope.projectId ? 'project' : 'user'), isNew: true })}
           >
             <Plus size={14} strokeWidth={2} aria-hidden />
