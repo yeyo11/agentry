@@ -8,6 +8,7 @@ import { PageHeader, PathLabel, Skeleton, TabPanel, Tabs, useTabGroup } from '..
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
 import { useProjectScope } from '../lib/project-scope';
 import { Dashboard } from './dashboard/Dashboard';
+import { HomeHero } from './dashboard/Hero';
 import { defaultLayout } from './dashboard/registry';
 import { asProjectView, legacyTabRedirect, PROJECT_VIEWS, type ProjectViewId } from './dashboard/views';
 
@@ -17,20 +18,25 @@ const ProjectMemory = lazy(() => import('./home/ProjectMemory').then((m) => ({ d
 const ProjectResources = lazy(() => import('./home/ProjectResources').then((m) => ({ default: m.ProjectResources })));
 const ProjectWorktrees = lazy(() => import('./home/ProjectWorktrees').then((m) => ({ default: m.ProjectWorktrees })));
 
-function ProjectHeader({ project, actions }: { project: Project; actions?: ReactNode }) {
+function MissingAlert({ project }: { project: Project }) {
   const { t } = useTranslation('home');
+  if (project.exists) return null;
+  return (
+    <div className="alert alert-warn" role="alert">
+      <FolderX size={16} strokeWidth={1.75} aria-hidden className="alert-icon" />
+      <div className="alert-body">
+        <strong>{t('page.missing')}</strong>
+        <div>{t('page.missingHint')}</div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectHeader({ project, actions }: { project: Project; actions?: ReactNode }) {
   return (
     <>
       <PageHeader docTitle={project.name} title={project.name} subtitle={<PathLabel path={project.path} />} actions={actions} />
-      {!project.exists && (
-        <div className="alert alert-warn" role="alert">
-          <FolderX size={16} strokeWidth={1.75} aria-hidden className="alert-icon" />
-          <div className="alert-body">
-            <strong>{t('page.missing')}</strong>
-            <div>{t('page.missingHint')}</div>
-          </div>
-        </div>
-      )}
+      <MissingAlert project={project} />
     </>
   );
 }
@@ -79,14 +85,16 @@ function ProjectDashboard({ project }: { project: Project }) {
   const layout = useMemo(() => defaultLayout('project'), []);
   return (
     <>
-      <ProjectHeader
+      <HomeHero
         project={project}
+        aside={<PathLabel path={project.path} />}
         actions={
-          <Link to="/?view=settings" className="btn btn-small" aria-label={t('dashboard.projectSettings', { name: project.name })}>
+          <Link to="/?view=settings" className="btn home-hero-icon" aria-label={t('dashboard.projectSettings', { name: project.name })}>
             <Settings {...ICON_SM} />
           </Link>
         }
       />
+      <MissingAlert project={project} />
       <Dashboard layout={layout} project={project} label={t('dashboard.label', { name: project.name })} />
     </>
   );
@@ -114,7 +122,7 @@ export function Home() {
   if (!project) {
     return (
       <>
-        <PageHeader title={t('page.title')} subtitle={t('page.subtitle')} />
+        <HomeHero project={null} />
         <Dashboard layout={globalLayout} project={null} label={t('dashboard.labelAll')} />
       </>
     );
