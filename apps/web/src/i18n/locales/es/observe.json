@@ -13,26 +13,26 @@
     "to": "Ruta en esta máquina",
     "fromRow": "Ruta del contenedor de la fila {{n}}",
     "toRow": "Ruta del host de la fila {{n}}",
-    "removeRow": "Quita la fila {{n}}",
-    "addRow": "Añade una ruta",
+    "removeRow": "Quitar la fila {{n}}",
+    "addRow": "Añadir una ruta",
     "preview": "Vista previa",
     "previewPath": "Ruta que informa Agentry",
     "previewHost": "Ruta en esta máquina",
     "previewLink": "Enlace",
     "previewDiff": "Comando de diff",
-    "save": "Guarda",
+    "save": "Guardar",
     "saved": "Ajustes del editor guardados",
-    "reset": "Restablece el valor por defecto",
+    "reset": "Restablecer el valor predeterminado",
     "problem": {
       "empty": "La plantilla está vacía.",
       "scheme": "La plantilla tiene que empezar por un esquema que tu sistema abra, como vscode://.",
       "unsafe": "Ese esquema no está permitido: nunca se construye un enlace que ejecute un script o abra un archivo dentro de la página.",
       "path": "La plantilla no tiene {path}, así que no podría decir qué archivo abrir."
     },
-    "openWorktree": "Abre el worktree en el editor",
-    "copyDiffCommand": "Copia el comando de diff",
-    "openFile": "Abre {{path}} en el editor",
-    "openAtLine": "Abre {{path}} en la línea {{line}} del editor",
+    "openWorktree": "Abrir el worktree en el editor",
+    "copyDiffCommand": "Copiar el comando de diff",
+    "openFile": "Abrir {{path}} en el editor",
+    "openAtLine": "Abrir {{path}} en la línea {{line}} del editor",
     "saving": "Guardando…",
     "resetDone": "Ajustes del editor restablecidos"
   },
@@ -86,17 +86,17 @@
       "warn": "Aviso",
       "bad": "Problema"
     },
-    "cancel": "Cancela el comando",
+    "cancel": "Cancelar el comando",
     "cancelTitle": "¿Cancelar este comando?",
     "cancelBody": "Solo se detienen los procesos de este comando. El turno sigue: el worker recibe un resultado fallido del comando y decide qué hacer después.",
     "cancelled": "Comando cancelado",
-    "hint": "Envía una pista",
+    "hint": "Enviar una pista",
     "hintLabel": "Pista para el worker",
     "hintExplained": "Está escrita para esta señal; edítala antes de enviarla. Se añade a lo que el worker está haciendo ahora, y el worker sigue.",
     "hintSent": "Pista enviada",
-    "sendHint": "Envía la pista",
+    "sendHint": "Enviar la pista",
     "sending": "Enviando…",
-    "interrupt": "Interrumpe",
+    "interrupt": "Interrumpir",
     "interruptHint": "Interrumpe el turno en curso. El chat sigue abierto y espera lo que envíes a continuación."
   },
   "activity": {
@@ -108,7 +108,7 @@
   },
   "task": {
     "title": "Trabajo de {{name}}",
-    "close": "Cierra",
+    "close": "Cerrar",
     "notStarted": "Esta tarea no ha empezado, así que aún no ha hecho nada."
   },
   "supervisor": {
@@ -123,14 +123,14 @@
     "costInvalid": "El límite tiene que ser mayor que 0 $ y como mucho {{max}} $.",
     "autoSend": "Enviar cada propuesta al worker por sí sola",
     "autoSendHint": "Desactivado, la propuesta te espera. Activado, llega al worker en cuanto se escribe y queda en la tarjeta de salud como enviada.",
-    "save": "Guarda",
+    "save": "Guardar",
     "saving": "Guardando…",
     "saved": "Ajustes del supervisor guardados",
     "title": "La propuesta del supervisor",
     "proposes": "El supervisor propone esta pista",
     "badgeHint": "El supervisor propone una pista.",
-    "send": "Envía",
-    "edit": "Edita",
-    "dismiss": "Descarta"
+    "send": "Enviar",
+    "edit": "Editar",
+    "dismiss": "Descartar"
   }
 }
