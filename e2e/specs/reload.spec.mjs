@@ -70,4 +70,26 @@ export default async ({ page, api, check }) => {
   } finally {
     await remove();
   }
+
+  // ---- A lazy page whose file the deploy removed ----
+  // Blocking the Usage chunk is what a page built before a deploy meets: its import points at a
+  // file the new build no longer has. The route stands in with a page that says so, and the same
+  // banner offers the reload, instead of the app breaking.
+  await page.goto('/', 1500);
+  // The block makes the console report the failed load; what came before it is checked here instead
+  const earlier = page.takeErrors();
+  check(earlier.length === 0, `console errors before the block:\n  ${earlier.join('\n  ')}`);
+  const unblock = await page.blockUrls(['*/assets/Usage-*.js']);
+  try {
+    await page.goto('/usage', 1500);
+    const stale = await page.waitFor(`return (document.querySelector('main')?.innerText ?? '').includes('This page belongs to an older version of Agentry')`, { label: 'the stale page' });
+    check(stale, 'a missing chunk renders the stale page instead of breaking');
+    const banner = await page.waitFor(`return document.querySelector(${JSON.stringify(BANNER)})?.innerText ?? ''`, { label: 'the reload banner for a missing chunk' });
+    check(banner.includes('Agentry was updated.'), `a missing chunk raises the banner: ${banner}`);
+    const shell = await page.eval(`return !!document.querySelector('.sidebar')`);
+    check(shell, 'the rest of the app keeps working around the missing page');
+  } finally {
+    await unblock();
+  }
+  page.takeErrors();
 };
