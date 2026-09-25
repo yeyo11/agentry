@@ -42,7 +42,8 @@ export default async ({ page, api, check }) => {
     // ---- one header line: title, a pill that says state and who holds it, icon actions ----
     const head = await page.eval(`const h=document.querySelector('.chat-head');return {height:h.getBoundingClientRect().height,text:h.innerText}`);
     check(head.height <= 60, `the header is one line (${head.height}px)`);
-    const pill = await page.text('.chat-pill');
+    // The pill is uppercase by CSS (Night Shift): its words are read from the DOM
+    const pill = await page.eval(`return document.querySelector('.chat-pill')?.textContent ?? ''`);
     check(pill.includes('Idle') && pill.includes('resumable'), `the pill says the state and who holds the chat (${pill})`);
     check(!head.text.includes(SESSION), 'the raw id is not in the header');
 

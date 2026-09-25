@@ -78,7 +78,8 @@ export default async ({ page, api, check }) => {
     // The audit log lists the writes, filterable by path, and records who made them
     await page.fill('input[type=search]', '/security');
     await page.waitFor(`const t=document.querySelector('[role=tabpanel] table');return !!t&&t.textContent.includes('/api/security/auth')&&t.textContent.includes('token:')`, { label: 'the audit rows for /security' });
-    const rows = await page.text('[role=tabpanel] table');
+    // Badges are uppercase by CSS: the words are read from the DOM
+    const rows = await page.eval(`return document.querySelector('[role=tabpanel] table')?.textContent ?? ''`);
     check(rows.includes('PUT') && rows.includes('token:'), 'the audit log names the method and the token that made the write');
     check(/done/.test(rows), 'a result is said in words as well as a status code');
 

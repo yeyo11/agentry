@@ -125,13 +125,15 @@ export default async ({ page, api, check }) => {
   // A row opens the chat, which says what can be done with it
   await page.click('.crow-link', 'Fix the login bug', 1000);
   await page.waitFor(`return location.pathname === '/chats/aaaa-1111'`, { label: 'the row opens its chat' });
-  await page.waitFor(`return document.querySelector('main').innerText.includes('Context and cost')`, { label: 'the chat page' });
-  const chat = await page.text('main');
+  // The inspector's "Context and cost" section is two sections now, "Context in use" and "Cost"
+  // (Night Shift chat page); badges and section heads are in capitals by CSS, so text is read from the DOM
+  await page.waitFor(`return document.querySelector('main').textContent.includes('Context in use')`, { label: 'the chat page' });
+  const chat = await page.eval(`return document.querySelector('main').textContent`);
   check(chat.includes('Resumable'), 'the chat page shows its control');
   check(chat.includes('not available'), 'the cost of a chat the CLI reported none for reads not available');
   // What it has run is a tab of the inspector away
   await page.click('.chat-inspector [role=tab]', 'Activity');
-  await page.waitFor(`return document.querySelector('main').innerText.includes('Executions (0)')`, { label: 'the executions in the inspector' });
+  await page.waitFor(`return document.querySelector('main').textContent.includes('Executions (0)')`, { label: 'the executions in the inspector' });
   check(await page.eval(`return !!document.querySelector('textarea[placeholder^="Send a message"]')`), 'a resumable chat can be written to');
   await page.shot('chat-page');
   await page.goto('/chats', 800);
