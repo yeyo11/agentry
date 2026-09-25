@@ -628,7 +628,8 @@ async function schedulesScene({ stillName }) {
   await page.goto('/schedules', 1500);
   await visible('main', 'Nightly dependency audit');
   await page.click('main button', 'Run history', 800);
-  await visible('main', 'Overlapped');
+  // Tags are set in capitals by CSS, so innerText would read OVERLAPPED; the DOM keeps the word
+  await page.waitFor(`return document.querySelector('main')?.textContent.includes('Overlapped')`, { label: 'main "Overlapped"' });
   await settle();
   if (stillName) await still(stillName);
 }

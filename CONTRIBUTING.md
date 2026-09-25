@@ -66,6 +66,9 @@ searches are documents nobody wrote.
 - **Persistence:** a settings-shaped document belongs in a JSON file; anything that is a stream
   (events, history, records that accumulate) belongs in the SQLite store in `packages/core/src/db.ts`.
   Rows, not blobs — two processes share one data dir.
+- **UI work follows the Night Shift design system** in [docs/design-system.md](docs/design-system.md):
+  open the screen's reference in `docs/design-system/reference/` first, and go through its checklist
+  before you finish.
 - **UI controls come from `apps/web/src/components/controls`** (Select, Combobox, Checkbox,
   Switch, Slider, NumberInput, Tooltip, Collapsible, Menu, Sheet), not from native `<select>`, `<datalist>`,
   checkbox/range/number inputs, `<details>` or `title=` on interactive elements: the native ones
