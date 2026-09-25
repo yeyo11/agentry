@@ -8,118 +8,10 @@
  * pure function from an expression and an instant to the next instant, and that is testable.
  */
 
-interface Field {
-  name: string;
-  min: number;
-  max: number;
-  names?: readonly string[];
-  /** Index in `names` of the first name, when it is not `min` */
-  nameBase?: number;
-}
+import { describeCronIn, parseCron, type CronSpec, type CronWords } from '@agentry/shared';
 
-const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] as const;
-const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
-
-const FIELDS: readonly Field[] = [
-  { name: 'minute', min: 0, max: 59 },
-  { name: 'hour', min: 0, max: 23 },
-  { name: 'day of month', min: 1, max: 31 },
-  { name: 'month', min: 1, max: 12, names: MONTHS, nameBase: 1 },
-  // 7 is Sunday too, as in every cron since Vixie's
-  { name: 'day of week', min: 0, max: 7, names: WEEKDAYS, nameBase: 0 },
-];
-
-const ALIASES: Record<string, string> = {
-  '@yearly': '0 0 1 1 *',
-  '@annually': '0 0 1 1 *',
-  '@monthly': '0 0 1 * *',
-  '@weekly': '0 0 * * 0',
-  '@daily': '0 0 * * *',
-  '@midnight': '0 0 * * *',
-  '@hourly': '0 * * * *',
-};
-
-export interface CronSpec {
-  minutes: ReadonlySet<number>;
-  hours: ReadonlySet<number>;
-  daysOfMonth: ReadonlySet<number>;
-  months: ReadonlySet<number>;
-  /** 0-6, Sunday is 0 */
-  daysOfWeek: ReadonlySet<number>;
-  /** A field written as `*` does not restrict, which decides how the two day fields combine */
-  domRestricted: boolean;
-  dowRestricted: boolean;
-  /** The expression with the aliases expanded, as parsed */
-  source: string;
-}
-
-function parseValue(text: string, field: Field): number {
-  const named = field.names?.indexOf(text.toLowerCase()) ?? -1;
-  if (named >= 0) return named + (field.nameBase ?? 0);
-  if (!/^\d+$/.test(text)) throw new Error(`${field.name}: "${text}" is not a number${field.names ? ' or a name' : ''}`);
-  const value = Number(text);
-  if (value < field.min || value > field.max) throw new Error(`${field.name}: ${text} is outside ${field.min}-${field.max}`);
-  return value;
-}
-
-function parseField(text: string, field: Field): Set<number> {
-  const out = new Set<number>();
-  if (!text) throw new Error(`${field.name} is empty`);
-  for (const part of text.split(',')) {
-    const [range = '', stepText, extra] = part.split('/');
-    if (extra !== undefined) throw new Error(`${field.name}: "${part}" has two steps`);
-    let step = 1;
-    if (stepText !== undefined) {
-      if (!/^\d+$/.test(stepText) || Number(stepText) < 1) throw new Error(`${field.name}: the step in "${part}" must be a positive number`);
-      step = Number(stepText);
-    }
-    let from: number;
-    let to: number;
-    if (range === '*') {
-      from = field.min;
-      to = field.max;
-    } else if (range.includes('-')) {
-      const [a = '', b = '', more] = range.split('-');
-      if (more !== undefined) throw new Error(`${field.name}: "${range}" is not a range`);
-      from = parseValue(a, field);
-      to = parseValue(b, field);
-      if (from > to) throw new Error(`${field.name}: the range "${range}" runs backwards`);
-    } else {
-      from = parseValue(range, field);
-      // `5/15` means from 5 to the end, every 15, like everywhere else
-      to = stepText === undefined ? from : field.max;
-    }
-    for (let v = from; v <= to; v += step) out.add(v);
-  }
-  return out;
-}
-
-/** Throws an `Error` whose message says which field is wrong; the API shows it as it is. */
-export function parseCron(expression: string): CronSpec {
-  const trimmed = expression.trim();
-  const source = ALIASES[trimmed.toLowerCase()] ?? trimmed;
-  const parts = source.split(/\s+/).filter(Boolean);
-  if (parts.length !== 5) throw new Error(`a cron expression has five fields (minute hour day-of-month month day-of-week), got ${parts.length}`);
-  const [minute = '', hour = '', dom = '', month = '', dow = ''] = parts;
-  const [minutes, hours, daysOfMonth, months, weekdays] = [minute, hour, dom, month, dow].map((text, i) => parseField(text, FIELDS[i] as Field)) as [
-    Set<number>,
-    Set<number>,
-    Set<number>,
-    Set<number>,
-    Set<number>,
-  ];
-  const daysOfWeek = new Set([...weekdays].map((d) => d % 7));
-  return {
-    minutes,
-    hours,
-    daysOfMonth,
-    months,
-    daysOfWeek,
-    domRestricted: !dom.startsWith('*'),
-    dowRestricted: !dow.startsWith('*'),
-    source,
-  };
-}
+// The parser lives in shared so the web reads an expression exactly as the scheduler does
+export { parseCron, type CronSpec };
 
 // ---------- time zones ----------
 
@@ -236,52 +128,34 @@ export function nextFires(spec: CronSpec, after: number, count: number, zone?: s
 // ---------- in words ----------
 
 const pad = (n: number): string => String(n).padStart(2, '0');
-const only = (set: ReadonlySet<number>): number | null => (set.size === 1 ? ([...set][0] ?? null) : null);
-const list = (items: string[]): string => (items.length <= 2 ? items.join(' and ') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
+const list = (items: readonly string[]): string => (items.length <= 2 ? items.join(' and ') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-/** Consecutive values as "a to b", the rest as a list. */
-function runs(values: ReadonlySet<number>, label: (n: number) => string): string {
-  const sorted = [...values].sort((a, b) => a - b);
-  const parts: string[] = [];
-  for (let i = 0; i < sorted.length; ) {
-    let j = i;
-    while (sorted[j + 1] === (sorted[j] as number) + 1) j++;
-    parts.push(j - i >= 2 ? `${label(sorted[i] as number)} to ${label(sorted[j] as number)}` : sorted.slice(i, j + 1).map(label).join(' and '));
-    i = j + 1;
-  }
-  return list(parts);
-}
+/** The API has no language of its own, so it says an expression in English; the web says it in the UI's. */
+const ENGLISH: CronWords = {
+  list,
+  range: (_field, from, to) => `${from} to ${to}`,
+  weekday: (d) => DAY_NAMES[d] ?? String(d),
+  month: (m) => MONTH_NAMES[m - 1] ?? String(m),
+  at: (hour, minute) => `At ${pad(hour)}:${pad(minute)}`,
+  everyHourOnTheHour: () => 'Every hour, on the hour',
+  everyHourAt: (minute) => `Every hour, at minute ${minute}`,
+  everyMinute: () => 'Every minute',
+  everyMinutes: (step) => `Every ${step} minutes`,
+  atMinutes: (minutes) => `At minutes ${minutes}`,
+  atMinute: (minute) => `At minute ${minute}`,
+  hours: (hours) => `the hours ${hours.text}`,
+  ofHours: (every, hours) => `${every} of ${hours}`,
+  ofHour: (every, hour) => `${every} of the ${pad(hour)}:00 hour`,
+  monthDays: (days) => `on day ${days.text} of the month`,
+  weekdays: (days) => `on ${days.text}`,
+  months: (months) => `in ${months.text}`,
+  eitherDay: (monthDays, weekdays) => `${monthDays}, or ${weekdays}`,
+  clauses: (parts) => parts.join(', '),
+};
 
 /** A sentence for what an expression does, so a person can check it says what they meant. */
 export function describeCron(spec: CronSpec): string {
-  const minute = only(spec.minutes);
-  const hour = only(spec.hours);
-  const hoursText = `the hours ${runs(spec.hours, String)}`;
-  const everyHour = spec.hours.size === 24;
-  let when: string;
-  if (minute !== null && hour !== null) when = `At ${pad(hour)}:${pad(minute)}`;
-  else if (minute !== null && everyHour) when = minute === 0 ? 'Every hour, on the hour' : `Every hour, at minute ${minute}`;
-  else if (spec.minutes.size === 60) when = everyHour ? 'Every minute' : `Every minute of ${hoursText}`;
-  else if (minute !== null) when = `At minute ${minute} of ${hoursText}`;
-  else {
-    const values = [...spec.minutes].sort((a, b) => a - b);
-    const step = (values[1] ?? 0) - (values[0] ?? 0);
-    const even = values.length > 2 && values.every((v, i) => v === (values[0] as number) + i * step);
-    const every = even && values[0] === 0 && 60 % step === 0 ? `Every ${step} minutes` : `At minutes ${list(values.map(String))}`;
-    when = hour !== null ? `${every} of the ${pad(hour)}:00 hour` : everyHour ? every : `${every} of ${hoursText}`;
-  }
-  const weekdays = () => `on ${runs(spec.daysOfWeek, (d) => DAY_NAMES[d] ?? String(d))}`;
-  const monthDays = () => `on day ${runs(spec.daysOfMonth, String)} of the month`;
-  const days =
-    spec.domRestricted && spec.dowRestricted
-      ? `${monthDays()}, or ${weekdays()}`
-      : spec.domRestricted
-        ? monthDays()
-        : spec.dowRestricted
-          ? weekdays()
-          : '';
-  const months = spec.months.size < 12 ? `in ${runs(spec.months, (m) => MONTH_NAMES[m - 1] ?? String(m))}` : '';
-  return [when, days, months].filter(Boolean).join(', ');
+  return describeCronIn(spec, ENGLISH);
 }
