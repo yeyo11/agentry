@@ -54,5 +54,14 @@
     },
     "reducedForced": "Tu sistema pide reducir el movimiento, así que nada se mueve mientras ese ajuste esté activo. La opción de abajo vuelve a aplicarse cuando lo desactives.",
     "preview": "Vista previa"
+  },
+  "reload": {
+    "updated": "Agentry se actualizó a la versión {{version}}.",
+    "stale": "Agentry se actualizó.",
+    "action": "Recargar",
+    "reloading": "Recargando…",
+    "dismiss": "Descartar",
+    "stalePage": "Esta página es de una versión anterior de Agentry",
+    "stalePageHint": "El servidor se actualizó. Recarga para abrir la versión actual."
   }
 }
