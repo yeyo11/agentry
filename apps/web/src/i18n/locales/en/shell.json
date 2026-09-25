@@ -54,5 +54,14 @@
     },
     "reducedForced": "Your system asks for reduced motion, so nothing moves while that setting is on. The choice below applies again once it is turned off.",
     "preview": "Preview"
+  },
+  "reload": {
+    "updated": "Agentry was updated to {{version}}.",
+    "stale": "Agentry was updated.",
+    "action": "Reload",
+    "reloading": "Reloading…",
+    "dismiss": "Dismiss",
+    "stalePage": "This page belongs to an older version of Agentry",
+    "stalePageHint": "The server was updated. Reload to open the current version."
   }
 }

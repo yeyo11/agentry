@@ -500,6 +500,17 @@
   flex: none;
 }
 
+/* Between the top bar and the page, so it pushes the page down rather than covering any of it */
+.reload-banner {
+  flex: none;
+  align-items: center;
+  margin: 10px 28px 0;
+}
+
+.reload-banner-text {
+  flex: 1;
+}
+
 /*
  * The page's padding is kept in variables so a sticky bar can undo it. A sticky element sticks to
  * the edge of its scroll container's *content* box, so `top: 0` inside `.main` left a strip of the
@@ -655,6 +666,10 @@
   .topbar .live-chip,
   .topbar .topbar-new {
     display: none;
+  }
+
+  .reload-banner {
+    margin: 8px 14px 0;
   }
 
   .main {
