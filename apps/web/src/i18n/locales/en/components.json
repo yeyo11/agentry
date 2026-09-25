@@ -122,7 +122,19 @@
     "answerGroup": "Answer the permission",
     "answerFailed": "Could not answer the permission",
     "preferences": "Preferences",
-    "popupToasts": "Pop-up toasts",
+    "level": "Interruptions",
+    "levels": {
+      "all": "Everything",
+      "important": "Important only",
+      "urgent": "Only what needs me",
+      "silent": "Silent"
+    },
+    "levelHints": {
+      "all": "A toast, a system notification or a push for everything below, except background activity.",
+      "important": "When a chat needs you, something fails or an orchestration ends. The rest waits in the bell.",
+      "urgent": "Only when a chat is waiting for you or its health turns red. The rest waits in the bell.",
+      "silent": "Nothing pops up. Everything waits in the bell."
+    },
     "browserNotifications": "Browser notifications",
     "notifyMeWhen": "Notify me when",
     "browserHint": {

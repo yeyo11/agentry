@@ -207,7 +207,8 @@
   flex: none;
   flex-direction: column;
   gap: 4px;
-  padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  /* No safe-area inset here: the shell's padding already keeps the whole column above it */
+  padding-bottom: 10px;
 }
 
 .composer {

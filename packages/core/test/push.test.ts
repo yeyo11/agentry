@@ -120,14 +120,40 @@ test('a registration that could never deliver is refused instead of stored', () 
   assert.throws(() => push.register({ endpoint: ENDPOINT, keys: { p256dh: 'k' } }), /keys.auth is required/);
   assert.throws(() => push.register({ endpoint: ENDPOINT, keys, kinds: 'waiting' }), /kinds must be an array/);
   assert.throws(() => push.register({ endpoint: ENDPOINT, keys, kinds: ['nope'] }), /unknown notification kind/);
+  assert.throws(() => push.register({ endpoint: ENDPOINT, keys, level: 'loud' }), /level must be one of/);
   assert.deepEqual(push.list(), []);
+});
+
+test('an install is woken only for what its level lets interrupt, and keeps the level it chose', async () => {
+  const { transport, sent } = fakeTransport();
+  const { push, events } = harness(transport);
+  assert.equal(push.register({ endpoint: ENDPOINT, keys, label: 'phone' }).level, 'important', 'no level is the default one');
+  push.register({ endpoint: OTHER, keys, level: 'silent', label: 'laptop' });
+
+  // A chat that finished well is news for the bell, not for a phone at the default level
+  events.emit(endedEvent);
+  await settle();
+  assert.equal(sent.length, 0);
+
+  events.emit({ ...endedEvent, runId: 'chat-3', runName: 'chat-3', sessionId: 'chat-3', status: 'failed', error: 'boom' });
+  events.emit(waitingEvent);
+  await settle();
+  assert.deepEqual(
+    sent.map((s) => [s.endpoint, s.payload.kind]),
+    [
+      [ENDPOINT, 'run'],
+      [ENDPOINT, 'waiting'],
+    ],
+    'a failure and a chat waiting reach the phone; the silent laptop gets nothing',
+  );
+  assert.equal(push.list().find((s) => s.label === 'laptop')?.level, 'silent');
 });
 
 test('an event reaches only the installs that asked for its kind, with the key it is collapsed by', async () => {
   const { transport, sent } = fakeTransport();
   const { push, events } = harness(transport);
   push.register({ endpoint: ENDPOINT, keys, kinds: ['waiting'], label: 'phone' });
-  push.register({ endpoint: OTHER, keys, kinds: ['run'], label: 'laptop' });
+  push.register({ endpoint: OTHER, keys, kinds: ['run'], level: 'all', label: 'laptop' });
 
   events.emit(waitingEvent);
   await settle();
@@ -151,7 +177,7 @@ test('an event reaches only the installs that asked for its kind, with the key i
 test('the same news inside its dedupe window is pushed once', async () => {
   const { transport, sent } = fakeTransport();
   const { push, events } = harness(transport);
-  push.register({ endpoint: ENDPOINT, keys, label: 'phone' });
+  push.register({ endpoint: ENDPOINT, keys, level: 'all', label: 'phone' });
 
   // `run.waiting` keys on the permission id and never repeats; `run.ended` keys on the turn count
   events.emit(waitingEvent);
@@ -170,7 +196,7 @@ test('nothing is sent, and no key is spent, while no install is registered', asy
   const { push, events } = harness(transport);
   events.emit(waitingEvent);
   await settle();
-  assert.deepEqual(sent, []);
+  assert.equal(sent.length, 0);
 
   push.register({ endpoint: ENDPOINT, keys, label: 'phone' });
   events.emit(waitingEvent);
@@ -287,5 +313,5 @@ test('a closed service stops hearing the bus', async () => {
   push.close();
   events.emit(waitingEvent);
   await settle();
-  assert.deepEqual(sent, []);
+  assert.equal(sent.length, 0);
 });

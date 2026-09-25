@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import { KINDS, type NotificationKind } from '@agentry/shared';
+import { DEFAULT_LEVEL, KINDS, LEVELS, type NotificationKind, type NotificationLevel } from '@agentry/shared';
 import type {
   AuditEntry,
   AuditFilter,
@@ -169,6 +169,9 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      created_at   TEXT NOT NULL,
      last_seen_at TEXT NOT NULL
    );`,
+  // How much each install may be interrupted. Rows from before it get the default a new install
+  // gets: the page re-registers with its own choice the next time it opens anyway.
+  `ALTER TABLE push_subscriptions ADD COLUMN level TEXT NOT NULL DEFAULT 'important';`,
 ];
 
 /** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
@@ -755,10 +758,10 @@ export class Db {
   savePushSubscription(record: PushSubscriptionRecord): PushSubscriptionRecord {
     this.db
       .prepare(
-        `INSERT INTO push_subscriptions (id, endpoint, p256dh, auth, kinds, label, created_at, last_seen_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO push_subscriptions (id, endpoint, p256dh, auth, kinds, level, label, created_at, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(endpoint) DO UPDATE SET
-           p256dh = excluded.p256dh, auth = excluded.auth, kinds = excluded.kinds,
+           p256dh = excluded.p256dh, auth = excluded.auth, kinds = excluded.kinds, level = excluded.level,
            label = excluded.label, last_seen_at = excluded.last_seen_at`,
       )
       .run(
@@ -767,6 +770,7 @@ export class Db {
         record.p256dh,
         record.auth,
         JSON.stringify(record.kinds),
+        record.level,
         record.label,
         record.createdAt,
         record.lastSeenAt,
@@ -822,6 +826,7 @@ export interface PushSubscriptionRecord {
   p256dh: string;
   auth: string;
   kinds: NotificationKind[];
+  level: NotificationLevel;
   label: string;
   createdAt: string;
   lastSeenAt: string;
@@ -833,6 +838,7 @@ interface PushRow {
   p256dh: string;
   auth: string;
   kinds: string;
+  level: string;
   label: string;
   created_at: string;
   last_seen_at: string;
@@ -852,6 +858,7 @@ function pushRecordOf(row: PushRow): PushSubscriptionRecord {
     p256dh: row.p256dh,
     auth: row.auth,
     kinds,
+    level: LEVELS.includes(row.level as NotificationLevel) ? (row.level as NotificationLevel) : DEFAULT_LEVEL,
     label: row.label,
     createdAt: row.created_at,
     lastSeenAt: row.last_seen_at,
