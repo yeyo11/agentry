@@ -12,6 +12,7 @@ import { StatusDot } from '../components/motion';
 import { useToast } from '../components/Toast';
 import { ListToolbar, type ListToolbarTab } from '../components/ListToolbar';
 import { Empty, ErrorBox, PageHeader, Skeleton, StatusBadge, Tag } from '../components/ui';
+import { describeCron } from '../lib/cron-words';
 import { formatDateTime, formatDuration, timeAgo, toMs } from '../lib/format';
 import { matchesText, scheduleFields, scheduleView, type ScheduleView } from '../lib/lists';
 import '../insights.css';
@@ -183,7 +184,7 @@ function ScheduleCard({ schedule }: { schedule: Schedule }) {
           </span>
           <span className="schedule-state small">
             <StatusDot tone={schedule.enabled ? 'ok' : 'muted'} /> {schedule.enabled ? t('card.on') : t('card.off')}
-            {words.data?.valid && <span className="schedule-words">· {words.data.description}</span>}
+            {words.data?.valid && <span className="schedule-words">· {describeCron(schedule.cron) ?? words.data.description}</span>}
           </span>
           <span className="schedule-when">
             <code className="mono">{schedule.cron}</code>
