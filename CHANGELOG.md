@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.17.2](https://github.com/yeyo11/agentry/compare/v0.17.1...v0.17.2) (2026-09-25)
+
+
+### Documentation
+
+* where the project stands, and the knowledge base that keeps it ([#89](https://github.com/yeyo11/agentry/issues/89)) ([90f46c0](https://github.com/yeyo11/agentry/commit/90f46c0746046b1c96628d7913cb0b7c4ccc851c))
+
 ## [0.17.1](https://github.com/yeyo11/agentry/compare/v0.17.0...v0.17.1) (2026-09-24)
 
 
