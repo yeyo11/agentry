@@ -202,7 +202,7 @@
       "intro": "El contenedor no puede reemplazar su propia imagen. El comando depende de cómo se arrancó:",
       "run": "Con docker run: descarga la imagen, elimina el contenedor y vuelve a ejecutar el mismo docker run. Los volúmenes conservan los chats, los ajustes y las credenciales.",
       "compose": "Con un archivo compose que usa la imagen publicada (ghcr.io/yeyo11/agentry), desde su carpeta:",
-      "checkout": "Con el docker-compose.yml del propio repositorio, que construye la imagen, desde el checkout:",
+      "checkout": "Con el docker-compose.yml del propio repositorio, que construye la imagen, desde tu copia del repositorio:",
       "helm": "Con el chart de Helm: sube image.tag y ejecuta helm upgrade."
     },
     "source": "Descarga los cambios y vuelve a compilar; después reinicia el servidor:",
