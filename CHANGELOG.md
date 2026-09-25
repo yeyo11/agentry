@@ -3,6 +3,18 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.19.0](https://github.com/yeyo11/agentry/compare/v0.18.0...v0.19.0) (2026-09-25)
+
+
+### Features
+
+* **web:** offer the slash commands when a message starts with / ([#99](https://github.com/yeyo11/agentry/issues/99)) ([1e77220](https://github.com/yeyo11/agentry/commit/1e77220e8bae970d29c79565606e076b35c88416))
+
+
+### Bug fixes
+
+* show the output of slash commands and keep the chat's model ([#98](https://github.com/yeyo11/agentry/issues/98)) ([aaa771a](https://github.com/yeyo11/agentry/commit/aaa771a1ba4ed3fc9447fa10ddc77aa734c5ae79))
+
 ## [0.18.0](https://github.com/yeyo11/agentry/compare/v0.17.2...v0.18.0) (2026-09-25)
 
 
