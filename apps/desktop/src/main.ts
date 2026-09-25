@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -16,7 +17,9 @@ import { resolveUserPath } from './shell-path.ts';
 import { SPLASH_TITLE_BAR, parseTitleBarTheme, titleBarOptions, type TitleBarTheme } from './title-bar.ts';
 import { LiveTray } from './tray.ts';
 import {
+  appImageRelaunch,
   appImageWritable,
+  debCanElevate,
   DesktopUpdater,
   distributionOf,
   installDecision,
@@ -201,7 +204,7 @@ function fromLocalPage(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
 
 function createUpdater(): DesktopUpdater {
   const next = new DesktopUpdater({
-    support: updateSupport({ ...packageFacts, dev: isDev, appImageWritable }),
+    support: updateSupport({ ...packageFacts, dev: isDev, appImageWritable, debCanElevate: () => debCanElevate() }),
     // Picked the way electron-updater's own autoUpdater picks, from the same facts
     engine: () => (distribution === 'deb' ? new DebUpdater() : new AppImageUpdater()) satisfies UpdaterEngine,
     log: (line) => desktopLog.line(line),
@@ -234,8 +237,13 @@ async function restartToUpdate(): Promise<void> {
     return;
   }
   // The AppImage's own path, not process.execPath: that points inside its mount, gone after the exit
-  const execPath = distribution === 'appimage' ? (updater.installedAppImage ?? process.env.APPIMAGE) : undefined;
-  app.relaunch(execPath ? { execPath } : undefined);
+  const appImage = distribution === 'appimage' ? (updater.installedAppImage ?? process.env.APPIMAGE) : undefined;
+  if (appImage) {
+    const relaunch = appImageRelaunch(process.pid, appImage, process.argv.slice(1));
+    spawn(relaunch.command, relaunch.args, { detached: true, stdio: 'ignore', cwd: process.env.OWD ?? homedir() }).unref();
+  } else {
+    app.relaunch();
+  }
   app.quit();
 }
 
