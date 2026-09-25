@@ -248,6 +248,22 @@ export default async ({ page, api, check, dirs }) => {
     if (sidebarShown) problems.push('[420px] the sidebar is still shown next to the tab bar');
     const tabs = await page.eval(`return [...document.querySelectorAll('.tabbar a')].map((a) => a.getAttribute('href'))`);
     for (const href of ['/', '/chats', '/orchestration']) if (!tabs.includes(href)) problems.push(`[420px] the tab bar has no ${href} tab`);
+    // New chat is the FAB on a phone: an icon on the list, so its name has to be said, and a real button
+    const fab = await page.eval(`const f = document.querySelector('.fab'); return f ? { tag: f.tagName, name: f.getAttribute('aria-label'), size: Math.min(f.offsetWidth, f.offsetHeight) } : null`);
+    if (!fab) problems.push('[420px] there is no New chat FAB on the chat list');
+    else {
+      if (fab.tag !== 'BUTTON') problems.push(`[420px] the FAB is a ${fab.tag}, not a button`);
+      if (fab.name !== 'New chat') problems.push(`[420px] the icon-only FAB is named "${fab.name}", not "New chat"`);
+      if (fab.size < 44) problems.push(`[420px] the FAB is ${fab.size}px, under a 44px target`);
+    }
+    // "Run workflow" and "New orchestration" left the tab bar for the More sheet's Start group
+    await page.focus('.tabbar-more');
+    await page.press('Enter');
+    await page.waitFor(`return !!document.querySelector('.more-sheet')`, { label: 'the More sheet opens' });
+    const start = await page.eval(`return [...document.querySelectorAll('.more-sheet button.more-cell')].map((b) => b.textContent.trim())`);
+    for (const item of ['Run workflow', 'New orchestration']) if (!start.includes(item)) problems.push(`[420px] More has no "${item}" (${start.join(', ')})`);
+    await page.key('Escape');
+    await page.waitFor(`return !document.querySelector('.more-sheet')`, { label: 'More closes' });
     await page.focus('.tabbar-more');
     await page.press('Enter');
     await page.waitFor(`return !!document.querySelector('.more-sheet')`, { label: 'the More sheet opens from the keyboard' });

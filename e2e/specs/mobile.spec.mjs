@@ -66,6 +66,8 @@ export default async ({ page, api, check, dirs }) => {
     check(stage.head >= 0 && stage.head < stage.view / 4, `the header stays at the top (${stage.head}px)`);
     check(stage.page <= 1, `the page itself does not scroll (${stage.page}px over)`);
     check(stage.client < stage.view && stage.scroll > stage.client, `the chat log scrolls itself (${stage.client}px showing ${stage.scroll}px)`);
+    // The composer is the chat's footer: neither the tab bar nor the New chat FAB floats over it
+    check(!(await page.eval(`return !!document.querySelector('.fab, .tabbar')`)), 'no FAB or tab bar over the composer');
     await page.eval(`document.getElementById('e2e-filler')?.remove();return true`);
     await page.shot('mobile-chat');
   } finally {

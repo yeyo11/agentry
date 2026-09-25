@@ -12,8 +12,10 @@ export default async ({ page, api, check }) => {
 
   await page.goto('/chats', 1000);
   await page.waitFor(`return document.querySelector('main')?.innerText.trim().length > 10`, { label: 'chats page' });
-  const footer = await page.eval(`return document.querySelector('.sidebar-foot')?.innerText ?? ''`);
-  check(!/paused/i.test(footer), `the sidebar footer says live updates are paused: ${footer}`);
+  // The status bar took over the sidebar footer's job: its connection item says when the feed is down
+  const status = await page.eval(`return document.querySelector('.statusbar-conn')?.innerText ?? null`);
+  check(status !== null && status.trim() !== '', `the status bar shows the connection (${status})`);
+  check(!/paused/i.test(status ?? ''), `the status bar says live updates are paused: ${status}`);
 
   // The sandbox has no login, so the chat goes nowhere; its creation is what has to reach the open
   // page by itself. A chat is titled by its first prompt.
