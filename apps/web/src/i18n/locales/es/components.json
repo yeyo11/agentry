@@ -12,7 +12,8 @@
     "badge": {
       "waiting": "esperándote",
       "working": "trabajando",
-      "running": "en curso"
+      "running": "en curso",
+      "update": "actualización disponible"
     }
   },
   "shell": {

@@ -16,9 +16,9 @@ export class LiveTray {
     this.tray.on('click', () => act({ kind: 'show' }));
   }
 
-  update(snapshot: LiveSnapshot): void {
+  update(snapshot: LiveSnapshot, updateReady?: string): void {
     this.tray.setToolTip(trayTooltip(snapshot));
-    const template = trayMenu(snapshot).map((entry): MenuItemConstructorOptions => {
+    const template = trayMenu(snapshot, updateReady).map((entry): MenuItemConstructorOptions => {
       if (entry.type === 'separator') return { type: 'separator' };
       const { label, action } = entry;
       return action ? { label, click: () => this.act(action) } : { label, enabled: false };

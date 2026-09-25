@@ -41,6 +41,17 @@ test('the CLI version is read without asking the registry, and the check route i
   await app.close();
 });
 
+test('the Agentry release is read without asking GitHub, and the image says it is Docker', async () => {
+  const { app, core } = await wrapper();
+  const before = (await app.inject('/api/system/release')).json();
+  assert.equal(before.current, core.version);
+  assert.equal(before.latest, null);
+  assert.equal(before.checkedAt, null);
+  assert.equal(before.updateAvailable, false);
+  assert.match(dockerfile, /^\s+AGENTRY_DISTRIBUTION=docker$/m);
+  await app.close();
+});
+
 test('closing the server does not wait for a browser tab that is still listening to the event stream', async () => {
   const { app } = await wrapper();
   await app.listen({ port: 0, host: '127.0.0.1' });

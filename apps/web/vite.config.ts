@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 import { buildServiceWorker } from './scripts/sw-shell.ts';
 
+// release-please bumps every package.json together, and the root one is where the build reads it
+const VERSION = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
+
 const API_TARGET = process.env.VITE_API_TARGET ?? 'http://localhost:8787';
 
 /** Files of `public/` the shell needs; the icons are not among them, the platform fetches those. */
@@ -43,6 +46,8 @@ function serviceWorkerShell(): Plugin {
 
 export default defineConfig({
   plugins: [react(), serviceWorkerShell()],
+  // Compared with the version the server puts in every `stream.hello` (src/lib/reload.ts)
+  define: { __AGENTRY_VERSION__: JSON.stringify(VERSION) },
   server: {
     port: 5173,
     proxy: {

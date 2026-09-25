@@ -146,9 +146,10 @@ The wrapper drives Claude **only through the CLI** — no SDK, no terminal scrap
 | What an agent changed on disk | `git` in the task's worktree, and the `Write`/`Edit` calls in the transcript |
 | Stopping one command | The process tree under the CLI's own pid; the CLI writes the failed tool result itself |
 
-The one thing Agentry reads that is not the CLI is the npm registry's metadata for
+The one thing Agentry reads about Claude Code that is not the CLI is the npm registry's metadata for
 `@anthropic-ai/claude-code`, to tell you when a newer version exists. It is a plain metadata read
 (no Anthropic API), done on demand and once a day, and `AGENTRY_CLI_UPDATE_CHECK=off` stops the daily one.
+Agentry asks GitHub the same way about its own releases (`AGENTRY_UPDATE_CHECK=off` stops that one).
 
 ## Quick start
 
@@ -209,7 +210,7 @@ Volumes:
 | --- | --- | --- |
 | `agentry-config` / `claude-config` | `/home/node/.claude` | The whole account setup: `settings.json`, `.claude.json` (MCP servers), `CLAUDE.md`, agents, skills, commands and session transcripts |
 | `./workspace` | `/workspace` | Projects Claude works on (default `cwd` for runs) |
-| `agentry-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, the rotation log, account usage history, command durations, schedule runs, the supervisor's proposals, the installs registered for Web Push and the audit log. Settings-shaped files: `accounts.json` (auto-rotation), `account-config.json` (config directories and rotation policies), `auth.json` (the auth mode and the hash of the token, mode 600), `credentials.json` (the runtime credential, mode 600), `tool-presets.json` (the presets and the default), `orchestration-templates.json`, `schedules.json`, `supervisor.json`, `editor.json`, `cli-version.json` and `push.json` (the VAPID keypair, mode 600). `uploads/` holds attachments and `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets) |
+| `agentry-data` / `wrapper-data` | `/data` | Wrapper state. Rows in the SQLite store (`wrapper.db`): chats and their executions, orchestrations, plans, the rotation log, account usage history, command durations, schedule runs, the supervisor's proposals, the installs registered for Web Push and the audit log. Settings-shaped files: `accounts.json` (auto-rotation), `account-config.json` (config directories and rotation policies), `auth.json` (the auth mode and the hash of the token, mode 600), `credentials.json` (the runtime credential, mode 600), `tool-presets.json` (the presets and the default), `orchestration-templates.json`, `schedules.json`, `supervisor.json`, `editor.json`, `cli-version.json`, `release.json` (what the last Agentry release check learned) and `push.json` (the VAPID keypair, mode 600). `uploads/` holds attachments and `mcp/` the per-chat MCP config files (mode 600: they can hold a server's secrets) |
 | `agentry-accounts` / `claude-swap` | `/home/node/.local/share/claude-swap` | Credentials of every registered account |
 
 The compose file keeps its original volume names so an existing setup keeps its data; `docker compose`
@@ -230,8 +231,9 @@ install by hand, download either file from the release.
 It runs on your machine with your own Claude Code CLI and `~/.claude` login, so nothing is
 sandboxed and runs default to `acceptEdits` instead of `bypassPermissions`. The app's top bar is
 its title bar, a tray icon lists what is working and what waits for you, and the taskbar shows the
-running orchestrations' progress. Requirements, data locations, CLI detection, the tray and building
-from source are in [docs/desktop.md](docs/desktop.md).
+running orchestrations' progress. It updates itself from Help → **Check for updates…**, and never
+restarts over running work without asking. Requirements, data locations, CLI detection, the tray,
+updating and building from source are in [docs/desktop.md](docs/desktop.md).
 
 ## On a phone
 
@@ -344,6 +346,9 @@ transpiler.
 | `AGENTRY_OIDC_ISSUER` / `_AUDIENCE` / `_CLIENT_ID` | – | Seed the OIDC settings: the issuer whose JWKS validates a JWT, the `aud` it must carry and the client id. A configured client id refuses a token whose `azp` names another client, and accepts one that carries no `azp` at all |
 | `AGENTRY_CLI_UPDATE_CHECK` | on | `off` stops the daily check for a newer Claude Code (the button in Settings keeps working) |
 | `AGENTRY_CLI_REGISTRY_URL` | the npm registry | Where that check reads the package metadata: a mirror, for an air-gapped install |
+| `AGENTRY_UPDATE_CHECK` | on | `off` stops the daily check for a newer Agentry release (**Check for updates** in Settings keeps working) |
+| `AGENTRY_RELEASES_URL` | GitHub's latest release of `yeyo11/agentry` | Where that check asks instead: a mirror or a test fixture. It must answer in GitHub's shape (`tag_name`, `html_url`, `published_at`) |
+| `AGENTRY_DISTRIBUTION` | – (a source checkout) | How this server was installed, which decides the update steps the UI offers: `docker` (set by the image), `appimage` or `deb` (set by the desktop app) |
 | `AGENTRY_PID_FILE` | `/tmp/agentry.pid` in the image | Where the server writes its pid, so the image's healthcheck can end a wedged server |
 | `AGENTRY_HEALTH_RESTART_AFTER` | `3` | Consecutive failed health probes (30 s apart) after which the container restarts itself |
 | `AGENTRY_ALLOWED_HOSTS` | – (loopback only) | Comma-separated host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern standing for that domain's subdomains. A `Host` that matches none of them is refused `421` before the credential is read. Ports and letter case are ignored; `GET /api/health` is exempt. Behind a proxy, name the public host here or everything answers `421` |
@@ -479,6 +484,8 @@ Types live in [`packages/shared/src/types.ts`](packages/shared/src/types.ts).
 | GET | `/system?refresh=1` | CLI detection, auth status, paths. Cached for 30 s, and a value just past that is served while the refresh runs; `?refresh=1` always takes a fresh reading. Callers arriving together share one detection |
 | GET | `/system/cli-version` | Claude Code in use, the version the image pins and the newest published, as the last check left it (never reads the registry) |
 | POST | `/system/cli-version/check` | Check the npm registry for a newer Claude Code now (also done once a day) |
+| GET | `/system/release` | Agentry in use, the newest release, how this server was installed (`distribution`), as the last check left it (never asks GitHub) |
+| POST | `/system/release/check` | Check GitHub for a newer Agentry release now (also done once a day) |
 | GET | `/overview` | Everything the dashboard needs in one call |
 
 ### Account credentials
@@ -592,7 +599,7 @@ One Server-Sent Events stream for the whole app, so a client never has to poll.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes (`orchestration.updated` also carries `verificationStatus` while the checks run); `changes.updated` when a running task's or the integration branch's commits or uncommitted files move; `chat.activity` when what a chat's live execution is doing changes (a tool call, a block being written or thought, a prompt blocking it), at most once per chat per second; `health.changed` when a chat's health changes; `supervisor.proposed` when the supervisor answers one with a hint; `schedule.changed` (created, updated, enabled, disabled, deleted, rescheduled) and `schedule.fired` (every run row written or moved); `sessions.changed`. Opens with `stream.hello`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
+| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes (`orchestration.updated` also carries `verificationStatus` while the checks run); `changes.updated` when a running task's or the integration branch's commits or uncommitted files move; `chat.activity` when what a chat's live execution is doing changes (a tool call, a block being written or thought, a prompt blocking it), at most once per chat per second; `health.changed` when a chat's health changes; `supervisor.proposed` when the supervisor answers one with a hint; `schedule.changed` (created, updated, enabled, disabled, deleted, rescheduled) and `schedule.fired` (every run row written or moved); `sessions.changed`; `system.release` once per newer Agentry release a check finds (not a notification). Opens with `stream.hello`, which carries the server's `version`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
 
 ```bash
 curl -N localhost:8787/api/events
@@ -998,6 +1005,13 @@ Across the app:
   chats, prompts waiting for you, background tasks, subagents, workflows, orchestrations, changes on
   disk, health, account rotation — instead of each screen polling. If the stream drops, the sidebar status says so and the
   pages fall back to a slow poll until it returns.
+- **Updates**: Settings → Account has an **Updates** card with the version in use, the newest
+  Agentry release, its notes and **Check for updates**, and the steps that take it for this install —
+  the commands for Docker or a source checkout, or Download and Restart to update in the desktop app.
+  While a newer release is known, a dot marks Settings in the sidebar (More, on a phone); it never
+  goes in the bell. A page left open while its server moves to another version says **Agentry was
+  updated to X** and offers **Reload**, but never reloads on its own. See
+  [docs/plans/app-updates.md](docs/plans/app-updates.md).
 - **What an agent is doing right now**: from the stream-json events of each live process, Agentry
   keeps one line per chat — the tool it is calling and on what (`Editing src/app.ts`,
   `Running npm test`), or that it is writing, thinking or waiting for you — and sends it on the feed

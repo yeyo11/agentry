@@ -12,6 +12,25 @@ export interface NavItem {
   icon: LucideIcon;
   /** What the badge counts, for the screen reader */
   count?: { value: number | undefined; what: string };
+  /** Something here wants a look (a newer Agentry): shown as a dot, and this is what it says to a screen reader */
+  dot?: string;
+  /** Where the link lands inside the page, e.g. the settings tab the dot is about */
+  search?: string;
+}
+
+/** The link's target: the page, plus the tab its dot points at */
+export function navTarget(item: NavItem): string | { pathname: string; search: string } {
+  return item.search ? { pathname: item.to, search: item.search } : item.to;
+}
+
+/** A dot with words for the screen reader; never a count, never colour alone (it is there or not) */
+export function NavDot({ label }: { label: string | undefined }) {
+  if (!label) return null;
+  return (
+    <span className="nav-dot">
+      <span className="sr-only">{label}</span>
+    </span>
+  );
 }
 
 export function isActive(item: NavItem, pathname: string): boolean {
@@ -54,16 +73,19 @@ export function TabBar({
   // Following a link closes the sheet; the page takes focus from there
   useEffect(() => setOpen(false), [pathname]);
   const moreActive = more.some((item) => isActive(item, pathname));
+  // Settings lives behind "More" on a phone, so its dot shows on the button that leads there
+  const moreDot = more.find((item) => item.dot)?.dot;
 
   return (
     <nav className="tabbar" aria-label={t('tabbar.label')}>
       {tabs.map((item) => {
         const Icon = item.icon;
         return (
-          <NavLink key={item.to} to={item.to} end={item.to === '/'} className={`tabbar-tab ${isActive(item, pathname) ? 'is-active' : ''}`}>
+          <NavLink key={item.to} to={navTarget(item)} end={item.to === '/'} className={`tabbar-tab ${isActive(item, pathname) ? 'is-active' : ''}`}>
             <span className="tabbar-icon">
               <Icon {...ICON} />
               <Badge count={item.count} />
+              <NavDot label={item.dot} />
             </span>
             <span className="tabbar-label">{item.label}</span>
           </NavLink>
@@ -86,6 +108,7 @@ export function TabBar({
       <button type="button" className={`tabbar-tab tabbar-more ${moreActive ? 'is-active' : ''}`} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
         <span className="tabbar-icon">
           <Ellipsis {...ICON} />
+          <NavDot label={moreDot} />
         </span>
         <span className="tabbar-label">{t('tabbar.more')}</span>
       </button>
@@ -95,11 +118,12 @@ export function TabBar({
           {more.map((item) => {
             const Icon = item.icon;
             return (
-              <NavLink key={item.to} to={item.to} className={`nav-link ${isActive(item, pathname) ? 'is-active' : ''}`} onClick={() => setOpen(false)}>
+              <NavLink key={item.to} to={navTarget(item)} className={`nav-link ${isActive(item, pathname) ? 'is-active' : ''}`} onClick={() => setOpen(false)}>
                 <span className="nav-icon">
                   <Icon {...ICON} />
                 </span>
                 <span className="nav-label">{item.label}</span>
+                <NavDot label={item.dot} />
               </NavLink>
             );
           })}

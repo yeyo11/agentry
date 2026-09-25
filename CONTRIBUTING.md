@@ -80,6 +80,11 @@ searches are documents nobody wrote.
   next to it. `--live` (cyan) means "an agent is doing this right now" and the brand orange means
   "you can press this"; never swap them. Decorative motion follows the motion level
   (`apps/web/src/lib/motion.ts`): at `subtle` nothing loops, at `off` nothing moves.
+- **Lazy routes go through `lazyPage()`** (`apps/web/src/components/ReloadOffer.tsx`), never a bare
+  `React.lazy`: a page that outlived a deploy asks for a chunk the new build no longer has, and
+  `lazyPage()` turns that into the reload offer instead of a broken route. An e2e spec that needs a
+  script in every page it loads uses `page.onNewDocument(source)` and calls the function it returns
+  before it finishes, so the next spec starts clean.
 - **Accessibility is checked, not asserted.** `e2e/specs/a11y.spec.mjs` runs axe-core over every
   page in both themes and at phone width, over the overlays that open above them, and walks the
   keyboard; a violation fails the build. Status is never colour alone (words and an icon: reuse

@@ -12,7 +12,8 @@
     "badge": {
       "waiting": "waiting for you",
       "working": "working",
-      "running": "running"
+      "running": "running",
+      "update": "update available"
     }
   },
   "shell": {

@@ -12,6 +12,16 @@ extraMetadata:
   name: agentry
   desktopName: agentry.desktop
 
+# Where electron-updater looks for releases. With it, the build also writes latest-linux.yml (versions,
+# file names and SHA-512s of the AppImage and the .deb), app-update.yml in the resources and
+# resources/package-type in the .deb. The AppImage's blockmap, for differential downloads, is embedded in it.
+# It never publishes: dist:linux passes --publish never, and .github/workflows/desktop.yml uploads
+# everything to the draft release itself.
+publish:
+  provider: github
+  owner: yeyo11
+  repo: agentry
+
 directories:
   output: release
   buildResources: build

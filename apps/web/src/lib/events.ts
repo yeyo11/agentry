@@ -18,6 +18,7 @@ import { keys } from '../api';
 import { withToken } from './auth';
 import { dispatchEvent, setFeedState, useFeedState, type FeedState } from './feed';
 import { browserPermission, getPrefs } from './notifications';
+import { noticeServerVersion } from './reload';
 
 export {
   FALLBACK_POLL_MS,
@@ -84,6 +85,7 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'chat.activity': true,
   'health.changed': true,
   'sessions.changed': true,
+  'system.release': true,
   'schedule.changed': true,
   'schedule.fired': true,
   'supervisor.proposed': true,
@@ -191,6 +193,9 @@ export function targetsFor(event: AgentryEvent): Target[] {
       return [
         [keys.chats, CHATS], [['chat'], CHATS], [keys.projects, CHATS], [keys.overview, CHATS], [['usage'], CHATS], ...activity(CHATS),
       ];
+    case 'system.release':
+      // Reading it back costs nothing: the server answers from release.json, not from GitHub
+      return [[keys.release, NOW]];
   }
 }
 
@@ -346,6 +351,9 @@ function startEventFeed(client: QueryClient): () => void {
         resync();
       }
       bootId = hello.bootId;
+      // Every connection, not only the first: reconnecting after a server restart is how a page
+      // left open across a deploy finds out
+      noticeServerVersion(hello.version);
     });
     es.addEventListener('stream.resync', (raw) => {
       // Unreadable, it still says events were missed: everything is read again from where it is

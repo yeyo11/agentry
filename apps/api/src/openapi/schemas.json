@@ -4112,6 +4112,9 @@
         "$ref": "#/components/schemas/SessionsChangedEvent"
       },
       {
+        "$ref": "#/components/schemas/SystemReleaseEvent"
+      },
+      {
         "$ref": "#/components/schemas/ScheduleChangedEvent"
       },
       {
@@ -5770,6 +5773,102 @@
     ],
     "description": "Files under the CLI's projects directory changed: a session was created, grew or ended."
   },
+  "SystemReleaseEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "system.release"
+      },
+      "release": {
+        "$ref": "#/components/schemas/AgentryReleaseInfo"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "release",
+      "title",
+      "type"
+    ],
+    "description": "A release check found a newer Agentry than the last one it announced. Sent once per version, and never a notification: a release is not worth waking a phone for."
+  },
+  "AgentryReleaseInfo": {
+    "type": "object",
+    "properties": {
+      "current": {
+        "type": "string",
+        "description": "The version this server runs"
+      },
+      "latest": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Newest published release, without the tag's `v`; null when the check has never succeeded"
+      },
+      "publishedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The release's page on GitHub, with its notes"
+      },
+      "checkedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "updateAvailable": {
+        "type": "boolean",
+        "description": "`latest` is newer than `current`; false while `latest` is unknown"
+      },
+      "distribution": {
+        "$ref": "#/components/schemas/AgentryDistribution"
+      },
+      "error": {
+        "type": "string",
+        "description": "Why the last check failed (GitHub unreachable, unexpected answer); the previous `latest` is kept"
+      }
+    },
+    "required": [
+      "current",
+      "latest",
+      "publishedAt",
+      "url",
+      "checkedAt",
+      "updateAvailable",
+      "distribution"
+    ]
+  },
+  "AgentryDistribution": {
+    "type": "string",
+    "enum": [
+      "docker",
+      "appimage",
+      "deb",
+      "source"
+    ],
+    "description": "How this Agentry was installed, from `AGENTRY_DISTRIBUTION`: what decides which way to update it a client offers. `source` is a checkout run with pnpm, and whatever the variable does not name."
+  },
   "ScheduleChangedEvent": {
     "type": "object",
     "properties": {
@@ -5989,13 +6088,18 @@
       },
       "serverTime": {
         "type": "string"
+      },
+      "version": {
+        "type": "string",
+        "description": "The Agentry version the server runs; a page built for another one is out of date"
       }
     },
     "required": [
       "type",
       "lastEventId",
       "bootId",
-      "serverTime"
+      "serverTime",
+      "version"
     ],
     "description": "Sent first on every connection, without an SSE id: it is not part of the replay buffer."
   },
