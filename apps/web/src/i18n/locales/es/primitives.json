@@ -8,7 +8,7 @@
     "browsing": "Navegando",
     "writing": "Escribiendo",
     "thinking": "Pensando",
-    "waiting": "Te espera",
+    "waiting": "Esperándote",
     "working": "Trabajando"
   },
   "progress": {
@@ -37,18 +37,18 @@
     "more": "Más opciones de {{action}}"
   },
   "sheet": {
-    "close": "Cierra"
+    "close": "Cerrar"
   },
   "toolbar": {
-    "search": "Busca",
-    "searchLabel": "Busca en esta lista",
+    "search": "Buscar",
+    "searchLabel": "Buscar en esta lista",
     "filters": "Filtros",
     "filtersActive_one": "Filtros, {{count}} activo",
     "filtersActive_other": "Filtros, {{count}} activos",
     "activeFilters": "Filtros activos",
-    "removeFilter": "Quita el filtro {{filter}}",
-    "sort": "Ordena por",
-    "reset": "Restablece",
-    "views": "Muestra"
+    "removeFilter": "Quitar el filtro {{filter}}",
+    "sort": "Ordenar por",
+    "reset": "Restablecer",
+    "views": "Mostrar"
   }
 }
