@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { interrupts, KINDS, LEVELS, notificationsFor, settlesWaiting, waitingDrafts, type AgentryEvent, type NotificationDraft } from '../src/index.ts';
+import { displayTitle, interrupts, KINDS, LEVELS, notificationsFor, settlesWaiting, waitingDrafts, type AgentryEvent, type NotificationDraft } from '../src/index.ts';
 
 /*
  * The mapping the web's toasts and the server's push sender share. The web covers it through its
@@ -195,7 +195,7 @@ test('every kind the preferences list can be produced by some event', () => {
 });
 
 test('the mapping is the same news for a prompt heard live and one found on a reload', () => {
-  const chat = { id: 'run1', title: 'fix the build', orchestration: null };
+  const chat = { id: 'run1', title: 'fix the build', firstPrompt: null, orchestration: null };
   const live = only(notificationsFor(waiting('p1')));
   const [seeded] = waitingDrafts(chat, [{ id: 'p1', runId: 'run1', toolName: 'Bash', toolUseId: 'tu1', input: {}, requestedAt: AT }]);
   assert.ok(seeded);
@@ -244,4 +244,14 @@ test('the level decides what interrupts, from everything down to nothing, and ba
   assert.deepEqual(passing('important'), [waiting, failed, orchestrationDone, conflict]);
   assert.deepEqual(passing('urgent'), [waiting]);
   assert.deepEqual(passing('silent'), []);
+});
+
+test('a chat named by Agentry is told by its first prompt, a name someone chose is kept', () => {
+  const request = { id: 'p1', runId: 'b1c2d3e4-0000', toolName: 'Bash', toolUseId: 'tu1', input: {}, requestedAt: AT };
+  const generated = { id: 'b1c2d3e4-0000', title: 'harbor-api-b1c2d3', firstPrompt: 'Fix the flaky login test\nand more', orchestration: null };
+  const title = waitingDrafts(generated, [request])[0]?.title ?? '';
+  assert.ok(title.includes('Fix the flaky login test'), title);
+  assert.ok(!title.includes('harbor-api-b1c2d3'), title);
+  assert.equal(displayTitle({ ...generated, title: 'Release checklist' }), 'Release checklist');
+  assert.equal(displayTitle({ ...generated, firstPrompt: null }), 'harbor-api-b1c2d3');
 });

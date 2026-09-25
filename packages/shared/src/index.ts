@@ -5,3 +5,4 @@ export * from './search.ts';
 export * from './detail.ts';
 export * from './notifications.ts';
 export * from './cron.ts';
+export * from './chat-title.ts';
