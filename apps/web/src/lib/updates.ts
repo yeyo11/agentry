@@ -102,5 +102,14 @@ export function updateRoute({
   return { kind: 'steps', how, remote: !isLoopback(hostname) };
 }
 
-export const DOCKER_UPDATE_COMMAND = 'docker compose pull && docker compose up -d';
+/**
+ * A container cannot tell how it was started, so the card offers each way docs/deploy.md documents,
+ * in the order people meet them: the README's `docker run`, a compose file on the published image,
+ * and the repository's own compose file, which builds the image instead of pulling one.
+ */
+export const DOCKER_UPDATE_WAYS = [
+  { way: 'run', command: 'docker pull ghcr.io/yeyo11/agentry' },
+  { way: 'compose', command: 'docker compose pull && docker compose up -d' },
+  { way: 'checkout', command: 'git pull && docker compose up -d --build' },
+] as const;
 export const SOURCE_UPDATE_COMMAND = 'git pull && pnpm install && pnpm build';
