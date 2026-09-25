@@ -86,6 +86,11 @@
     "tasksUnit": "tasks",
     "openChatBeside": "Open its chat beside the graph",
     "openChat": "Open chat",
+    "summary": {
+      "blocked": "Waiting for a decision",
+      "skipped": "Given up"
+    },
+    "taskDetails": "Details of {{name}}",
     "box": {
       "completed": "Completed",
       "failed": "Failed",
@@ -95,8 +100,6 @@
     }
   },
   "list": {
-    "sections": "Orchestrations and templates",
-    "orchestrations": "Orchestrations",
     "templates": "Templates",
     "statusLabel": "Show orchestrations by status",
     "status": {

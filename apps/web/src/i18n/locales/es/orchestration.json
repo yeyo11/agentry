@@ -86,6 +86,11 @@
     "tasksUnit": "tareas",
     "openChatBeside": "Abrir su chat junto al grafo",
     "openChat": "Abrir chat",
+    "summary": {
+      "blocked": "Esperando una decisión",
+      "skipped": "Descartada"
+    },
+    "taskDetails": "Detalles de {{name}}",
     "box": {
       "completed": "Completada",
       "failed": "Fallida",
@@ -95,8 +100,6 @@
     }
   },
   "list": {
-    "sections": "Orquestaciones y plantillas",
-    "orchestrations": "Orquestaciones",
     "templates": "Plantillas",
     "statusLabel": "Mostrar orquestaciones por estado",
     "status": {

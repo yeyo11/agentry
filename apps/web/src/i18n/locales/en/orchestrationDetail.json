@@ -15,6 +15,14 @@
   "viewSteps": "Steps",
   "viewGraph": "Graph",
   "stepsLabel": "Steps of this orchestration",
+  "pipelineState": {
+    "done": "done",
+    "current": "in progress",
+    "waiting": "waiting for you",
+    "failed": "failed",
+    "skipped": "skipped",
+    "pending": "pending"
+  },
   "backToLive": "Back to live",
   "backToLatest": "Back to the latest step",
   "steps": {

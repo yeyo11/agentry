@@ -2,6 +2,7 @@ import type { Orchestration, OrchestrationTaskState } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Ban,
+  ChevronDown,
   CircleAlert,
   CircleCheck,
   CircleDashed,
@@ -32,6 +33,7 @@ import { durationBetween, formatCost } from '../lib/format';
 import { useClockTick } from '../lib/motion';
 import { canRerun, dependantsOf } from '../lib/orchestration-v2';
 import { orchestrationProgress } from '../lib/orchestration-steps';
+import { NARROW, useMediaQuery } from '../lib/media';
 import { healthReason } from '../lib/server-strings';
 import { ActivityTicker } from './ActivityTicker';
 import { Collapsible, Tooltip } from './controls';
@@ -516,9 +518,52 @@ export function TaskCard({
 }
 
 /**
+ * A task's state in the one line a phone's summary card has for it: what a running worker is doing,
+ * else how it ended or what it waits for, in its status colour and always in words.
+ */
+function TaskSummaryLine({ orch, task }: { orch: Orchestration; task: OrchestrationTaskState }) {
+  const { t } = useTranslation(['orchestration', 'primitives']);
+  const attempt = attemptLabel(orch, task);
+  if (task.status === 'running')
+    return task.activity ? (
+      <ActivityTicker activity={task.activity} showElapsed={false} className="task-row-summary is-live" />
+    ) : (
+      <span className="task-row-summary shimmer">{t('primitives:activity.thinking')}</span>
+    );
+  let tone = 'muted';
+  let text = t('board.box.pending');
+  switch (task.status) {
+    case 'completed':
+      tone = 'ok';
+      text = attempt ?? t('board.box.completed');
+      break;
+    case 'failed':
+      tone = 'bad';
+      text = attempt ?? t('board.box.failed');
+      break;
+    case 'blocked':
+      tone = 'warn';
+      text = t('board.summary.blocked');
+      break;
+    case 'skipped':
+      text = t('board.summary.skipped');
+      break;
+    case 'stopped':
+    case 'interrupted':
+      tone = 'warn';
+      text = t(`board.box.${task.status}`);
+      break;
+  }
+  return <span className={`task-row-summary is-${tone}`}>{text}</span>;
+}
+
+/**
  * A task as a card of the selected stage: its mark, name and numbers on one line, the box that says
  * what it is doing, then what a graph node says. The stage's most active task takes the page's
  * energy border (`energy`); any other running one takes the live rail.
+ *
+ * On a phone every other task is one line, as the reference draws it: its name, where it stands and
+ * its numbers. Its box, its prompt and its actions open under it from the chevron.
  */
 export function TaskRow({
   orch,
@@ -533,25 +578,60 @@ export function TaskRow({
   onInspect?: () => void;
   energy?: boolean;
 }) {
+  const { t } = useTranslation('orchestration');
   const titleId = useId();
+  const bodyId = useId();
+  const narrow = useMediaQuery(NARROW);
+  const [open, setOpen] = useState(false);
+  const summary = narrow && !energy;
   const live = energy ? 'live-energy' : task.status === 'running' ? 'live-rail' : '';
+  const facts = (
+    <span className="task-row-facts mono small muted">
+      <TaskDuration task={task} />
+      {task.costUsd > 0 && (
+        <>
+          {task.startedAt ? ' · ' : ''}
+          <TaskCost task={task} />
+        </>
+      )}
+    </span>
+  );
   return (
     <li className="task-row-item">
-      <article className={`task-row status-${task.status} ${live}`.trim()} aria-labelledby={titleId}>
+      <article className={`task-row status-${task.status} ${live} ${summary ? 'is-summary' : ''}`.replace(/\s+/g, ' ').trim()} aria-labelledby={titleId}>
         <div className="task-row-head">
           <TaskMark status={task.status} />
-          <TaskName task={task} id={titleId} className="task-row-name" level="h3" />
-          <span className="task-row-facts mono small muted">
-            <TaskDuration task={task} />
-            {task.costUsd > 0 && (
-              <>
-                {task.startedAt ? ' · ' : ''}
-                <TaskCost task={task} />
-              </>
-            )}
-          </span>
+          {summary ? (
+            <div className="task-row-title">
+              <TaskName task={task} id={titleId} className="task-row-name" level="h3" />
+              <TaskSummaryLine orch={orch} task={task} />
+            </div>
+          ) : (
+            <TaskName task={task} id={titleId} className="task-row-name" level="h3" />
+          )}
+          {facts}
+          {summary && (
+            <button
+              type="button"
+              className="icon-btn task-row-toggle"
+              aria-expanded={open}
+              aria-controls={open ? bodyId : undefined}
+              aria-label={t('board.taskDetails', { name: task.name || task.id })}
+              onClick={() => setOpen((value) => !value)}
+            >
+              <ChevronDown {...ICON_SM} />
+            </button>
+          )}
         </div>
-        <TaskBody orch={orch} task={task} inspected={inspected} onInspect={onInspect} />
+        {summary ? (
+          open && (
+            <div id={bodyId} className="task-row-body">
+              <TaskBody orch={orch} task={task} inspected={inspected} onInspect={onInspect} />
+            </div>
+          )
+        ) : (
+          <TaskBody orch={orch} task={task} inspected={inspected} onInspect={onInspect} />
+        )}
       </article>
     </li>
   );
