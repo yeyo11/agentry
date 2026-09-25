@@ -47,7 +47,8 @@
 }
 .notif-head-actions {
   display: flex;
-  gap: 6px;
+  flex: none;
+  gap: 2px;
 }
 .notif-empty {
   margin: 0;

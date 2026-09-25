@@ -1,7 +1,7 @@
 import type { PermissionDecision } from '@agentry/shared';
 import * as Popover from '@radix-ui/react-popover';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, CircleAlert, CircleCheck, CircleHelp, Gauge, GitMerge, Timer, TriangleAlert, X, type LucideIcon } from 'lucide-react';
+import { Check, CheckCheck, CircleAlert, CircleCheck, CircleHelp, Gauge, GitMerge, Timer, TriangleAlert, Trash2, X, type LucideIcon } from 'lucide-react';
 import { useEffect, useId, useState, type KeyboardEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { timeAgo } from '../lib/format';
 import { clearNotifications, markAllRead, markRead, removeNotification, unreadCount, useNotifications, type AppNotification } from '../lib/notifications';
 import { Collapsible } from './controls/Collapsible';
 import { LAYER_ATTR } from './controls/layer';
+import { Tooltip } from './controls/Tooltip';
 import { ICON, ICON_SM } from './icons';
 import { NotificationPreferences } from './NotificationPreferences';
 import { useToast } from './Toast';
@@ -169,12 +170,16 @@ export function NotificationPanel({ id, anchor, onClose }: { id: string; anchor:
           <div className="notif-head">
             <strong>{t('notificationPanel.title')}</strong>
             <span className="notif-head-actions">
-              <button type="button" className="btn btn-small" disabled={unread === 0} onClick={markAllRead}>
-                {t('notificationPanel.markAllRead')}
-              </button>
-              <button type="button" className="btn btn-small" disabled={items.length === 0} onClick={clearNotifications}>
-                {t('notificationPanel.clear')}
-              </button>
+              <Tooltip content={t('notificationPanel.markAllRead')}>
+                <button type="button" className="icon-btn" aria-label={t('notificationPanel.markAllRead')} disabled={unread === 0} onClick={markAllRead}>
+                  <CheckCheck {...ICON_SM} />
+                </button>
+              </Tooltip>
+              <Tooltip content={t('notificationPanel.clear')}>
+                <button type="button" className="icon-btn" aria-label={t('notificationPanel.clear')} disabled={items.length === 0} onClick={clearNotifications}>
+                  <Trash2 {...ICON_SM} />
+                </button>
+              </Tooltip>
             </span>
           </div>
 

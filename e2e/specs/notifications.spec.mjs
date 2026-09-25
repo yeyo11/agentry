@@ -57,7 +57,7 @@ export default async ({ page, check }) => {
 
   await page.click('.bell');
   await page.waitFor(`return !!document.querySelector('.notif-panel')`, { label: 'the panel reopens' });
-  await page.click('.notif-panel .btn', 'Mark all read');
+  await page.click('.notif-panel [aria-label="Mark all read"]');
   await page.waitFor(`return !document.querySelector('.bell-badge')`, { label: 'the badge clears after mark all read' });
   const stored = await page.eval(`return JSON.parse(localStorage.getItem(${JSON.stringify(KEY)})).items.every((n) => n.read)`);
   check(stored, 'read state is persisted');
@@ -67,7 +67,7 @@ export default async ({ page, check }) => {
   await page.select('.notif-prefs .select-trigger', 'Silent');
   await page.waitFor(`return JSON.parse(localStorage.getItem(${JSON.stringify(KEY)})).prefs.level === 'silent'`, { label: 'the interruption level is saved' });
 
-  await page.click('.notif-panel .btn', 'Clear');
+  await page.click('.notif-panel [aria-label="Clear"]');
   await page.waitFor(`return !document.querySelector('.notif-item') && !!document.querySelector('.notif-empty')`, { label: 'clear empties the list' });
 
   // Clicking a notification marks it read, closes the panel and goes to its link
