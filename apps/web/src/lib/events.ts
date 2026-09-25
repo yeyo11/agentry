@@ -18,6 +18,7 @@ import { keys } from '../api';
 import { withToken } from './auth';
 import { dispatchEvent, setFeedState, useFeedState, type FeedState } from './feed';
 import { browserPermission, getPrefs } from './notifications';
+import { noticeServerVersion } from './reload';
 
 export {
   FALLBACK_POLL_MS,
@@ -350,6 +351,9 @@ function startEventFeed(client: QueryClient): () => void {
         resync();
       }
       bootId = hello.bootId;
+      // Every connection, not only the first: reconnecting after a server restart is how a page
+      // left open across a deploy finds out
+      noticeServerVersion(hello.version);
     });
     es.addEventListener('stream.resync', (raw) => {
       // Unreadable, it still says events were missed: everything is read again from where it is

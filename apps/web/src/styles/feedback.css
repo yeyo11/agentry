@@ -324,6 +324,15 @@ a.badge:hover {
   color: var(--warn);
 }
 
+.alert-info {
+  border-color: color-mix(in srgb, var(--info) 35%, transparent);
+  background: var(--info-soft);
+}
+
+.alert-info .alert-icon {
+  color: var(--info);
+}
+
 .skeleton-stack {
   display: flex;
   flex-direction: column;

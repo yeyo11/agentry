@@ -163,6 +163,16 @@ export async function launch({ baseUrl, port = 0, shotsDir }) {
       await send('Page.navigate', { url: 'about:blank' });
       await send('Storage.clearDataForOrigin', { origin: new URL(baseUrl).origin, storageTypes: 'local_storage,session_storage,indexeddb,cookies' });
     },
+    /**
+     * Runs `source` in every document loaded from now on, before any of the page's own scripts,
+     * which is the only way to stand between the app and what it opens on load (its event stream).
+     * Returns what removes it again, which a spec must call so the next one gets an untouched page.
+     */
+    async onNewDocument(source) {
+      const added = await send('Page.addScriptToEvaluateOnNewDocument', { source });
+      const identifier = added.result.identifier;
+      return () => send('Page.removeScriptToEvaluateOnNewDocument', { identifier });
+    },
     /** Console errors and uncaught exceptions seen so far; `takeErrors()` also clears them. */
     takeErrors: () => errors.splice(0),
     async goto(path, wait = 1200) {
