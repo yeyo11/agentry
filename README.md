@@ -479,6 +479,8 @@ Types live in [`packages/shared/src/types.ts`](packages/shared/src/types.ts).
 | GET | `/system?refresh=1` | CLI detection, auth status, paths. Cached for 30 s, and a value just past that is served while the refresh runs; `?refresh=1` always takes a fresh reading. Callers arriving together share one detection |
 | GET | `/system/cli-version` | Claude Code in use, the version the image pins and the newest published, as the last check left it (never reads the registry) |
 | POST | `/system/cli-version/check` | Check the npm registry for a newer Claude Code now (also done once a day) |
+| GET | `/system/release` | Agentry in use, the newest release, how this server was installed (`distribution`), as the last check left it (never asks GitHub) |
+| POST | `/system/release/check` | Check GitHub for a newer Agentry release now (also done once a day) |
 | GET | `/overview` | Everything the dashboard needs in one call |
 
 ### Account credentials

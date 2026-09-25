@@ -49,7 +49,7 @@ const ROOT_TYPES = [
   // Web Push
   'PushKeyInfo', 'RegisterPushSubscriptionRequest', 'PushSubscriptionSummary', 'RemovePushSubscriptionRequest', 'SendTestPushRequest', 'PushSendResult', 'PushPayload',
   // Packaging
-  'CliVersionInfo',
+  'CliVersionInfo', 'AgentryReleaseInfo',
 ];
 
 const generator = createGenerator({

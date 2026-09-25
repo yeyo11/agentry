@@ -50,6 +50,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   }
 
   core.cliVersion.startDaily();
+  core.release.startDaily();
 
   const system = await core.system();
   if (!system.cli.installed) app.log.error(`Claude Code CLI not detected: ${system.cli.error}`);

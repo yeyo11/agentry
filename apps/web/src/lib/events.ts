@@ -84,6 +84,7 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'chat.activity': true,
   'health.changed': true,
   'sessions.changed': true,
+  'system.release': true,
   'schedule.changed': true,
   'schedule.fired': true,
   'supervisor.proposed': true,
@@ -191,6 +192,9 @@ export function targetsFor(event: AgentryEvent): Target[] {
       return [
         [keys.chats, CHATS], [['chat'], CHATS], [keys.projects, CHATS], [keys.overview, CHATS], [['usage'], CHATS], ...activity(CHATS),
       ];
+    case 'system.release':
+      // Reading it back costs nothing: the server answers from release.json, not from GitHub
+      return [[keys.release, NOW]];
   }
 }
 

@@ -78,7 +78,8 @@ WORKDIR /app
 COPY --from=build --chown=node:node /app/apps/api/dist/api.mjs /app/api.mjs
 COPY --from=build --chown=node:node /app/apps/web/dist /app/web
 
-# Keeping .claude.json inside the config dir means one volume persists the whole account setup
+# Keeping .claude.json inside the config dir means one volume persists the whole account setup.
+# AGENTRY_DISTRIBUTION tells the UI that an update here is a new image, not something it can install.
 ENV NODE_ENV=production \
     AGENTRY_PID_FILE=/tmp/agentry.pid \
     PORT=8787 \
@@ -88,7 +89,8 @@ ENV NODE_ENV=production \
     AGENTRY_DATA_DIR=/data \
     AGENTRY_DEFAULT_PERMISSION_MODE=bypassPermissions \
     DISABLE_AUTOUPDATER=1 \
-    AGENTRY_WEB_DIST=/app/web
+    AGENTRY_WEB_DIST=/app/web \
+    AGENTRY_DISTRIBUTION=docker
 
 EXPOSE 8787
 VOLUME ["/home/node/.claude", "/workspace", "/data", "/home/node/.local/share/claude-swap"]
