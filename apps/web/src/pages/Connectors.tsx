@@ -1,9 +1,9 @@
 import type { Connector, ConnectorAction, ConnectorKind, ConnectorsOverview } from '@agentry/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CalendarDays, ExternalLink, FileText, Info, Mail, Plug, RefreshCw, Sparkles, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { api, keys } from '../api';
+import { api, keys, useConnectors } from '../api';
 import { Tooltip } from '../components/controls';
 import { ICON_SM } from '../components/icons';
 import { StatusDot } from '../components/motion';
@@ -122,7 +122,7 @@ export function Connectors() {
   const narrow = useMediaQuery(NARROW);
   // The CLI connects to every server to answer, which takes seconds: the server caches it for a
   // minute, and the button asks again on purpose
-  const { data, error, isLoading, isFetching } = useQuery({ queryKey: keys.connectors, queryFn: () => api.connectors(), staleTime: 60_000 });
+  const { data, error, isLoading, isFetching } = useConnectors();
   const refresh = useMutation({
     mutationFn: () => api.connectors(true),
     onSuccess: (next) => queryClient.setQueryData(keys.connectors, next),

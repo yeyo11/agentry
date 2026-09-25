@@ -474,6 +474,14 @@ a.list-row:hover {
   color: var(--text-faint);
 }
 
+/* On a phone the project chip sits on the title's row, as in the reference, rather than under it */
+@media (max-width: 900px) {
+  .chats-page .page-header {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+}
+
 @media (max-width: 560px) {
   .chats-title-count {
     display: inline;

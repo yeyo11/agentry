@@ -378,6 +378,15 @@ Rules:
   button for the same action takes `.page-action-fab`.
 - The More sheet opens on the account and limits card, then the sections, a **Start** group (Run
   workflow, New orchestration), the API reference and the connection.
+- Each section of the More sheet says its figure (`.more-cell-note`, mono): the projects, the
+  accounts, the schedules and today's cost. A problem replaces the count with a badge and its word:
+  exhausted accounts in bad ("2 agotadas"), connectors waiting for authorisation in warn ("1
+  pendiente"). The figures come from the queries the pages use (`useMoreNotes`), and the lists only
+  the sheet needs (accounts, schedules, connectors) are read while it is open.
+- On a phone, Chats carries the project scope as a chip beside its title, as MobileChats draws it,
+  and the top bar leaves its selector out there (`pageHoldsScope`, decided with the `NARROW` media
+  query, not hidden in CSS), so the page has exactly one `.project-selector`. A desktop keeps it in
+  the top bar on every page.
 
 **Screens**
 

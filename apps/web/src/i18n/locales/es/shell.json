@@ -31,7 +31,11 @@
     "more": "Más",
     "connection": "Conexión",
     "sections": "Secciones",
-    "start": "Empezar"
+    "start": "Empezar",
+    "exhausted_one": "{{count}} agotada",
+    "exhausted_other": "{{count}} agotadas",
+    "pending_one": "{{count}} pendiente",
+    "pending_other": "{{count}} pendientes"
   },
   "nav": {
     "work": "Trabajo",

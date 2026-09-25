@@ -5,15 +5,17 @@ import { ICON_SM } from './icons';
 import { ALL_PROJECTS, useProjectScope } from '../lib/project-scope';
 
 /**
- * The top bar's project scope, first in its crumb: what Home, Chats and Orchestrations are about.
- * It reads as the crumb's root, a quiet button with a folder, not as a form field.
+ * The project scope: what Home, Chats and Orchestrations are about. In the top bar it is the
+ * crumb's root, a quiet button with a folder, not a form field. `chip` is the phone's Chats header,
+ * where the reference draws it as a chip beside the title and the top bar leaves its own out
+ * (`pageHoldsScope`): the page has one selector, never two.
  */
-export function ProjectSelector() {
+export function ProjectSelector({ chip = false }: { chip?: boolean }) {
   const { t } = useTranslation(['home', 'work']);
   const { project, projects, select } = useProjectScope();
   return (
-    <span className="project-scope">
-      <Folder {...ICON_SM} className="project-scope-icon" />
+    <span className={`project-scope ${chip ? 'project-scope-chip' : ''}`.trim()}>
+      {!chip && <Folder {...ICON_SM} className="project-scope-icon" />}
       <Select
         className="project-selector"
         aria-label={t('work:shared.project')}

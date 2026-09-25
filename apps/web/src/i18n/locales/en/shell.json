@@ -31,7 +31,11 @@
     "more": "More",
     "connection": "Connection",
     "sections": "Sections",
-    "start": "Start"
+    "start": "Start",
+    "exhausted_one": "{{count}} exhausted",
+    "exhausted_other": "{{count}} exhausted",
+    "pending_one": "{{count}} pending",
+    "pending_other": "{{count}} pending"
   },
   "nav": {
     "work": "Work",

@@ -223,3 +223,50 @@ export function swapUsageWindows(usage: Pick<AccountUsage, 'fiveHour' | 'sevenDa
       : null;
   return { fiveHour: read('five_hour', usage?.fiveHour ?? null), sevenDay: read('seven_day', usage?.sevenDay ?? null) };
 }
+
+/**
+ * What a cell of the phone's More sheet says beside its name. A problem outranks a count: an
+ * account out of quota or a connector waiting for authorisation is what a person opens the sheet
+ * to see, so it is said in words with its status colour; otherwise a plain figure.
+ */
+export type MoreNote =
+  | { kind: 'count'; value: number }
+  | { kind: 'exhausted'; value: number }
+  | { kind: 'pending'; value: number }
+  | { kind: 'cost'; value: number | null };
+
+export interface MoreNotesInput {
+  projects?: number | undefined;
+  /** Accounts claude-swap knows of; `exhausted` only once their usage has been read */
+  accounts?: { total: number; exhausted?: number | undefined } | undefined;
+  schedules?: number | undefined;
+  /** Null when nothing cost anything today */
+  todayCost?: number | null | undefined;
+  connectors?: { total: number; pending: number } | undefined;
+}
+
+/** Keyed by the section's path. A section with nothing known yet has no entry rather than a guess. */
+export function moreNotes(input: MoreNotesInput): Record<string, MoreNote> {
+  const notes: Record<string, MoreNote> = {};
+  if (input.projects !== undefined) notes['/projects'] = { kind: 'count', value: input.projects };
+  if (input.accounts) {
+    const { total, exhausted } = input.accounts;
+    notes['/accounts'] = exhausted ? { kind: 'exhausted', value: exhausted } : { kind: 'count', value: total };
+  }
+  if (input.schedules !== undefined) notes['/schedules'] = { kind: 'count', value: input.schedules };
+  if (input.todayCost !== undefined) notes['/usage'] = { kind: 'cost', value: input.todayCost };
+  if (input.connectors) {
+    const { total, pending } = input.connectors;
+    notes['/connectors'] = pending ? { kind: 'pending', value: pending } : { kind: 'count', value: total };
+  }
+  return notes;
+}
+
+/**
+ * The pages that carry the project scope in their own header on a phone, as the reference draws
+ * them. There the top bar leaves its selector out, so the page never has two of them.
+ */
+export function pageHoldsScope(pathname: string): boolean {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  return path === '/chats';
+}
