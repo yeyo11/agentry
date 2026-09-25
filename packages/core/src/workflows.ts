@@ -237,6 +237,77 @@ export async function readSessionWorkflows(transcript: string, sessionId: string
 }
 
 /**
+ * A live chat's workflows: what its stream reported, merged with the files beside its transcript.
+ *
+ * The stream only knows the runs its own process started, under the task id; a chat resumed after
+ * a restart, or taken over from a terminal, ran others before, and only the files know those. The
+ * files know a run by its `wf_…` id, which is what an agent's transcript is filed under, so a run
+ * both report keeps that id and the stream's fresher progress. `onDisk` is read as for an ended
+ * session: a run without a record that the stream does not report went down with an earlier
+ * process, unless it began after this one started and its first event is still on the way.
+ */
+export function mergeLiveWorkflows(streamed: readonly WorkflowRun[], onDisk: readonly WorkflowRun[], processStartedAt: string | null): WorkflowRun[] {
+  const pending = new Set(streamed);
+  const take = (match: (s: WorkflowRun) => boolean): WorkflowRun | undefined => {
+    const found = [...pending].find(match);
+    if (found) pending.delete(found);
+    return found;
+  };
+  const agentIds = (run: WorkflowRun) => new Set(run.agents.map((a) => a.agentId).filter((id): id is string => id !== null));
+  const out: WorkflowRun[] = [];
+  // Strongest evidence first, so a weaker rule never takes the stream's run another disk run owns
+  const rules: Array<(disk: WorkflowRun) => (s: WorkflowRun) => boolean> = [
+    (disk) => (s) => disk.taskId !== null && s.taskId === disk.taskId,
+    (disk) => {
+      const ids = agentIds(disk);
+      return (s) => s.agents.some((a) => a.agentId !== null && ids.has(a.agentId));
+    },
+    // The same script may have run before this process: only a run begun since can be the one it streams
+    (disk) => (s) => disk.script !== null && s.script === disk.script && (processStartedAt === null || disk.startedAt >= processStartedAt),
+  ];
+  let remaining = [...onDisk];
+  const pairs = new Map<WorkflowRun, WorkflowRun>();
+  // onDisk is newest first, so a script that ran twice pairs with its latest run
+  for (const rule of rules) {
+    remaining = remaining.filter((disk) => {
+      const live = take(rule(disk));
+      if (live) pairs.set(disk, live);
+      return !live;
+    });
+  }
+  for (const disk of onDisk) {
+    const live = pairs.get(disk);
+    if (live) {
+      out.push(joinRun(disk, live));
+      continue;
+    }
+    const recent = processStartedAt !== null && disk.startedAt >= processStartedAt;
+    // A record is final; a journal-only run is running only if this process can be the one running it
+    out.push(disk.taskId === null && disk.status === 'stopped' && recent ? { ...disk, status: 'running', endedAt: null } : disk);
+  }
+  out.push(...pending);
+  return out.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+}
+
+/** One run both the files and the stream report: the files' id, and whichever knows more of the rest. */
+function joinRun(disk: WorkflowRun, live: WorkflowRun): WorkflowRun {
+  // The record is written when the run ends, and has its result and final progress
+  const recorded = disk.taskId !== null;
+  const base = recorded ? disk : { ...disk, status: live.status, endedAt: live.endedAt };
+  return {
+    ...base,
+    taskId: live.taskId ?? disk.taskId,
+    name: disk.name ?? live.name,
+    startedAt: live.startedAt < disk.startedAt ? live.startedAt : disk.startedAt,
+    phases: recorded && disk.phases.length ? disk.phases : live.phases.length ? live.phases : disk.phases,
+    agents: recorded && disk.agents.length ? disk.agents : live.agents.length ? live.agents : disk.agents,
+    summary: disk.summary ?? live.summary,
+    totalTokens: disk.totalTokens ?? live.totalTokens,
+    script: disk.script ?? live.script,
+  };
+}
+
+/**
  * One agent of a workflow run, as the run's record reports it, or — for a run without a record yet —
  * whether its journal has a result for it. `agent` is null when neither knows it.
  */
