@@ -39,8 +39,21 @@ function readPreference(): ThemePreference {
 
 let preference: ThemePreference = readPreference();
 
+/**
+ * The browser bar's colour. index.html carries one theme-color per scheme, keyed to the OS; a
+ * stored 'dark' or 'light' wins over the OS, so the meta of that theme is made to match always and
+ * the other never. Under 'system' both go back to their own query.
+ */
+function syncThemeColor(): void {
+  for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+    const scheme = (meta.dataset.scheme ??= /light/.test(meta.media) ? 'light' : 'dark');
+    meta.media = preference === 'system' ? `(prefers-color-scheme: ${scheme})` : preference === scheme ? 'all' : 'not all';
+  }
+}
+
 function apply(): void {
   document.documentElement.dataset.theme = preference;
+  syncThemeColor();
   // The desktop app's window controls sit on the top bar and follow its colours
   syncDesktopTitleBar();
 }
