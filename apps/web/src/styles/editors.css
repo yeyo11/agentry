@@ -94,7 +94,7 @@
 .change {
   font: 12px var(--mono);
   padding: 1px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--warn-soft);
   color: var(--warn);
   animation: pop-in var(--dur-base) var(--ease-spring);
@@ -401,7 +401,7 @@ button.master-item-on:hover {
   display: flex;
   align-items: center;
   min-width: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
@@ -413,7 +413,7 @@ button.master-item-on:hover {
   min-width: 0;
   padding: 5px 8px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--text);
   font: inherit;
@@ -516,7 +516,7 @@ button.master-item-on:hover {
   align-items: center;
   gap: 6px 10px;
   padding: 6px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   border-left: 2px solid var(--border);
   min-width: 0;
 }

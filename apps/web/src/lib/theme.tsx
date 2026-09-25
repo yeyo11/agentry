@@ -1,37 +1,52 @@
-// Theme: 'system' follows the OS; 'light' / 'dark' are stamped on <html data-theme> so the CSS
-// token blocks (`:root[data-theme='…']`) win over prefers-color-scheme in both directions.
+// Theme: dark unless the user chose otherwise. The preference is always stamped on
+// <html data-theme>: 'light' and 'dark' pick a token block outright, and 'system' is the only value
+// under which tokens.css lets prefers-color-scheme switch to light. With nothing stamped the bare
+// :root tokens are dark, so a page that paints before any script runs is already right.
 import { useSyncExternalStore } from 'react';
 import { syncDesktopTitleBar } from './desktop';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type EffectiveTheme = 'light' | 'dark';
 
-const STORAGE_KEY = 'agentry-theme';
+export const THEME_STORAGE_KEY = 'agentry-theme';
+export const DEFAULT_THEME: ThemePreference = 'dark';
+
+/** What a stored value means: anything unknown, or nothing at all, is the default. */
+export function resolvePreference(stored: string | null | undefined): ThemePreference {
+  return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : DEFAULT_THEME;
+}
+
+/** The theme on screen for a preference, given whether the OS asks for light. */
+export function resolveEffective(preference: ThemePreference, osPrefersLight: boolean): EffectiveTheme {
+  if (preference === 'system') return osPrefersLight ? 'light' : 'dark';
+  return preference;
+}
 
 const listeners = new Set<() => void>();
-const osLight = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: light)') : null;
+const osLight =
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-color-scheme: light)')
+    : null;
 
 function readPreference(): ThemePreference {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'light' || stored === 'dark') return stored;
+    return resolvePreference(localStorage.getItem(THEME_STORAGE_KEY));
   } catch {
-    // storage blocked: fall through to system
+    // storage blocked (or none at all under node): the default
+    return DEFAULT_THEME;
   }
-  return 'system';
 }
 
 let preference: ThemePreference = readPreference();
 
 function apply(): void {
-  const root = document.documentElement;
-  if (preference === 'system') delete root.dataset.theme;
-  else root.dataset.theme = preference;
+  document.documentElement.dataset.theme = preference;
   // The desktop app's window controls sit on the top bar and follow its colours
   syncDesktopTitleBar();
 }
 
-// Applied at import time, before React renders, so there is no flash of the wrong theme.
+// Applied at import time, before React renders; index.html's pre-paint script has already stamped
+// the same value, so this only confirms it.
 if (typeof document !== 'undefined') apply();
 osLight?.addEventListener('change', () => {
   if (preference === 'system') syncDesktopTitleBar();
@@ -41,8 +56,8 @@ osLight?.addEventListener('change', () => {
 export function setThemePreference(next: ThemePreference): void {
   preference = next;
   try {
-    if (next === 'system') localStorage.removeItem(STORAGE_KEY);
-    else localStorage.setItem(STORAGE_KEY, next);
+    // 'system' is stored too: nothing stored now means dark
+    localStorage.setItem(THEME_STORAGE_KEY, next);
   } catch {
     // not persisted; still applied for this visit
   }
@@ -55,7 +70,7 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-const effective = (): EffectiveTheme => (preference === 'system' ? (osLight?.matches ? 'light' : 'dark') : preference);
+const effective = (): EffectiveTheme => resolveEffective(preference, osLight?.matches ?? false);
 
 export function useThemePreference(): ThemePreference {
   return useSyncExternalStore(subscribe, () => preference);

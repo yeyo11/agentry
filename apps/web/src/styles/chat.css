@@ -87,7 +87,7 @@
   gap: 6px;
   padding: 2px 9px;
   border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font: 500 11.5px/1.5 var(--mono);
   color: var(--text-muted);
   white-space: nowrap;
@@ -165,8 +165,8 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  -webkit-mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 14px), transparent);
-  mask-image: linear-gradient(transparent, #000 14px, #000 calc(100% - 14px), transparent);
+  -webkit-mask-image: linear-gradient(transparent, var(--mask-ink) 14px, var(--mask-ink) calc(100% - 14px), transparent);
+  mask-image: linear-gradient(transparent, var(--mask-ink) 14px, var(--mask-ink) calc(100% - 14px), transparent);
 }
 
 /* The ticker sits where the next row will appear, lined up with the messages' text */
@@ -185,7 +185,7 @@
   gap: 6px;
   padding: 6px 14px;
   border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--bg-glass);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
@@ -216,7 +216,7 @@
   align-items: flex-end;
   padding: 5px 5px 5px 8px;
   border: 1px solid var(--border-strong);
-  border-radius: 22px;
+  border-radius: var(--radius-2xl);
   background: var(--bg-elev);
   transition: border-color var(--dur-fast), box-shadow var(--dur-base);
 }
@@ -742,7 +742,7 @@
   font-family: var(--mono);
   font-size: 12.5px;
   background: var(--bg-sunken);
-  border-radius: calc(var(--radius) - 3px);
+  border-radius: var(--radius-sm);
 }
 
 .permission-actions {
@@ -797,7 +797,7 @@
   align-items: flex-start;
   padding: 7px 10px;
   border: 1px solid var(--border);
-  border-radius: calc(var(--radius) - 3px);
+  border-radius: var(--radius-sm);
   background: var(--bg-elev);
   color: var(--text);
   font: inherit;
@@ -826,11 +826,11 @@
   margin-top: 2px;
   border: 1.5px solid var(--border-strong);
   border-radius: 50%;
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .question-option.is-multi .question-mark {
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .question-option.is-on .question-mark {
@@ -865,7 +865,7 @@
   margin-bottom: 10px;
   padding: 8px 12px;
   overflow-y: auto;
-  border-radius: calc(var(--radius) - 3px);
+  border-radius: var(--radius-sm);
   background: var(--bg-sunken);
 }
 
@@ -883,7 +883,7 @@
   max-width: 100%;
   padding: 4px 8px;
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--bg-sunken);
   color: var(--text);
   font-size: 12.5px;
@@ -915,7 +915,7 @@ a.attachment-chip:hover {
   max-width: 100%;
   height: 180px;
   border: 1px solid var(--border-strong);
-  border-radius: 10px;
+  border-radius: var(--radius);
   overflow: hidden;
   line-height: 0;
   background: var(--bg-sunken);
@@ -931,7 +931,7 @@ a.attachment-chip:hover {
   width: 20px;
   height: 20px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .attachments-pending {
@@ -955,7 +955,7 @@ a.attachment-chip:hover {
 }
 
 .spin {
-  animation: spin 0.9s linear infinite;
+  animation: spin var(--ring-spin-cycle) linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

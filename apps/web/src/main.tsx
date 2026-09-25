@@ -6,8 +6,8 @@ import { App } from './App';
 import { TooltipProvider } from './components/controls/Tooltip';
 import { ConfirmProvider } from './components/Dialog';
 import { ToastProvider } from './components/Toast';
-import '@fontsource-variable/inter';
-import '@fontsource-variable/jetbrains-mono';
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
 import './i18n'; // picks the language and sets <html lang> before the first render
 import { registerServiceWorker } from './lib/pwa';
 import { watchChunkErrors } from './lib/reload';
