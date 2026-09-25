@@ -467,17 +467,6 @@
   background: var(--bg-3);
 }
 
-.account-sheet-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.account-sheet-actions .btn {
-  min-height: 44px;
-  justify-content: flex-start;
-}
-
 /* Automatic rotation: one card, its settings in a row of four, its save at the foot */
 .rotation-card {
   padding: 0;

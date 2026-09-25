@@ -162,7 +162,7 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.kpi` | `.usage-tile`, the widget headline figures | big-number tiles |
 | `.bar`, `.segbar`, `.ring` | `.meter-*`, `.gauge*`, `.progress`, `.ring*`, `.ctx-bar`, `.slice-*`, `.board-task-fill` | see the thresholds below |
 | `.list-row`, `.sel` | `.crow`, `.list-row`, `.master-item`, `.now-row`, `.widget-row` | clickable rows. The selected row gets an accent inset |
-| `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. On a phone, use `Sheet` |
+| `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. On a phone, use `Sheet`: `MoreActions` (components/controls) is the `⋯` that is a menu on a desktop and a `.sheet-actions` column of buttons on a phone |
 | `.tooltip` · `.toast` · `.callout` | `Tooltip`, `.toast*`, `.alert*` | the toast drains a gradient bar |
 | `.spin-braille` · `.spin-ring` · `.spin-dots` · `.shimmer` · `.skeleton` · `.caret` | `Spinner`, `.ticker*`, `.skeleton`, `.caret` | see §3 |
 | `.empty-state` + `Illustration` | `Empty` (`components/ui.tsx`), and the new `components/illustrations/` | see §4 |
@@ -400,8 +400,16 @@ Rules:
   an answer the shell draws anyway.
 - **Chat**: the inspector drawer is 344 px wide, not the reference's 320, so the English tab
   labels ("Environment" the longest) fit beside the collapse button without being cut.
-- **Orchestration detail**: the summary is no longer sticky, because its figures moved into the KPI
-  tiles.
+- **Orchestrations** open their templates from a secondary "Templates (n)" button in the page
+  header, as the reference draws it, not from a tab. It keeps `?tab=templates` and reads as pressed
+  while the templates are shown.
+- **Orchestration detail**: on a desktop the header scrolls with the page, because its figures moved
+  into the KPI tiles and the reference does not pin it. On a phone the header (back, name, state,
+  `⋯`) sticks, as the phone reference keeps it above the scrolling body, and its `⋯` opens a
+  `Sheet`. The pipeline says its states in its own lowercase words after the count ("1/1 ·
+  hecha", "pendiente"), passed to `Stepper` as `stateLabels`; other steppers keep the shared
+  words. On a phone every task but the one with the energy border is a one-line card (name, where
+  it stands, time and cost), and its box, prompt and actions open under its chevron.
 - Primary actions: when a list is empty, its empty state holds the one gradient button, and the
   header's button for the same action goes plain.
 

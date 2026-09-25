@@ -7,7 +7,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, ApiRequestError, keys, useOrchestration } from '../api';
 import { AnimatedNumber } from '../components/AnimatedNumber';
 import { CodeBlock } from '../components/CodeBlock';
-import { Collapsible, Menu, Switch, type MenuEntry } from '../components/controls';
+import { Collapsible, MoreActions, Switch, type MenuEntry } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
 import { ICON, ICON_SM } from '../components/icons';
 import { BoardStatusBadge, StageHead, TaskCard, TaskRow, WaitingNotice } from '../components/OrchestrationBoard';
@@ -27,6 +27,7 @@ import { useClockTick } from '../lib/motion';
 import { costSplit } from '../lib/orchestration-board';
 import { followedStep, layerTasks, orchestrationSteps, type OrchestrationStep } from '../lib/orchestration-steps';
 import { canRelaunch, pullRequestHeld, rerunBlockedByPullRequest } from '../lib/orchestration-v2';
+import type { StepState } from '../lib/progress';
 
 /**
  * The one branch a worktree graph delivers. Built by itself when the graph finishes; this shows
@@ -750,6 +751,15 @@ export function OrchestrationDetail() {
   // A step picked by hand stays put; without one the stepper follows the orchestration
   const pinned = steps.find((s) => s.id === params.get('step'));
   const selected = pinned ?? followed;
+  // The pipeline's own words, lowercase after a step's count as the reference reads them: "1/1 · done", "pending"
+  const pipelineStates: Record<StepState, string> = {
+    done: t('pipelineState.done'),
+    current: t('pipelineState.current'),
+    waiting: t('pipelineState.waiting'),
+    failed: t('pipelineState.failed'),
+    skipped: t('pipelineState.skipped'),
+    pending: t('pipelineState.pending'),
+  };
   const stepItems: StepItem[] = steps.map((step) => ({ id: step.id, label: stepLabel(step), state: step.state, meta: stepMeta(step, orch), progress: stepProgress(step) }));
 
   const tree = worktreeTarget(orch);
@@ -792,90 +802,90 @@ export function OrchestrationDetail() {
       ];
 
   return (
-    <>
-      <div className="orch-hero glow-top">
-        <header className="orch-summary">
-          <Link to="/orchestration" className="icon-btn orch-back" aria-label={t('config:detail.back')}>
-            <ArrowLeft {...ICON} />
-          </Link>
-          <div className="orch-title-block">
-            <h1 className="orch-title">{orch.name}</h1>
-            <BoardStatusBadge status={orch.status} />
-          </div>
-          <div className="orch-actions">
-            {!narrow && tree && (
-              <button type="button" className="btn" onClick={openWorktree}>
-                <FolderGit2 {...ICON_SM} /> {t('viewWorktree')}
-              </button>
-            )}
-            {/* Waiting is stoppable but nothing else: resuming or deleting would throw away the decision it waits for */}
-            {live ? (
-              !narrow && (
-                <button className="btn btn-danger" disabled={stop.isPending} onClick={() => stop.mutate()}>
-                  <Square {...ICON_SM} /> {t('config:detail.stop')}
-                </button>
-              )
-            ) : (
-              canRelaunch(orch) && (
-                <button className="btn btn-primary" disabled={relaunching} onClick={() => setRelaunching(true)}>
-                  <Rocket {...ICON_SM} /> {tv('relaunch.button')}
-                </button>
-              )
-            )}
-            {menu.length > 0 && <Menu entries={menu} label={t('moreActions')} align="end" />}
-          </div>
-        </header>
-
-        <div className="orch-overview">
-          <section className="card orch-brief" aria-label={orch.objective ? undefined : t('settingsLabel')}>
-            {orch.objective && <Objective text={orch.objective} />}
-            <div className="orch-settings">
-              <span className="badge">{orch.model ?? t('config:detail.defaultModel')}</span>
-              <span className="badge">{orch.permissionMode}</span>
-              <span className="badge">{t('config:orchestration.concurrencyValue', { n: orch.concurrency })}</span>
-              {orch.engine === 'workflow' ? (
-                <span className="badge">{t('config:detail.workflowEngine')}</span>
-              ) : (
-                orch.worktree && <span className="badge">{t('config:detail.worktreePerTask')}</span>
-              )}
-              <span className="badge">{t('config:detail.created', { date: formatDateTime(orch.createdAt) })}</span>
-              {orch.templateId && <span className="badge">{tv('origin.fromTemplate')}</span>}
-            </div>
-            <div className="orch-brief-foot small">
-              <span className="mono muted" title={orch.cwd}>
-                {shortPath(orch.cwd)}
-              </span>
-              {orch.relaunchedFrom && <Link to={`/orchestration/${orch.relaunchedFrom}`}>{tv('origin.relaunchedFrom')}</Link>}
-            </div>
-          </section>
-          <dl className="orch-kpis">
-            <div className="card orch-kpi">
-              <dt className="section-label">{t('kpi.tasks')}</dt>
-              <dd className="orch-kpi-value">
-                {done}
-                <span className="orch-kpi-of">/{orch.tasks.length}</span>
-              </dd>
-            </div>
-            <div className="card orch-kpi">
-              <dt className="section-label">{t('kpi.time')}</dt>
-              <dd className="orch-kpi-value mono orch-clock">{formatElapsed(elapsedSince(orch.createdAt, orch.endedAt ? Date.parse(orch.endedAt) : Date.now()))}</dd>
-            </div>
-            <div className="card orch-kpi grad-border" title={other > 0 ? t('costOnNoTask', { cost: formatCost(other) }) : undefined}>
-              <dt className="section-label">{t('costLabel')}</dt>
-              <dd className="orch-kpi-value">
-                <AnimatedNumber value={orch.costUsd} format={costFigure} className="grad-text" />
-                <span className="orch-kpi-unit">{costCurrency(orch.costUsd)}</span>
-              </dd>
-            </div>
-            <div className="card orch-kpi orch-kpi-parallel">
-              <dt className="section-label">{t('kpi.parallel')}</dt>
-              <dd className="orch-kpi-value">
-                {working}
-                <span className="orch-kpi-of">/{orch.concurrency}</span>
-              </dd>
-            </div>
-          </dl>
+    // One box for the whole page, so the header can stick over all of it on a phone and the halo sits behind the header
+    <div className="orch-detail glow-top">
+      <header className="orch-summary">
+        <Link to="/orchestration" className="icon-btn orch-back" aria-label={t('config:detail.back')}>
+          <ArrowLeft {...ICON} />
+        </Link>
+        <div className="orch-title-block">
+          <h1 className="orch-title">{orch.name}</h1>
+          <BoardStatusBadge status={orch.status} />
         </div>
+        <div className="orch-actions">
+          {!narrow && tree && (
+            <button type="button" className="btn" onClick={openWorktree}>
+              <FolderGit2 {...ICON_SM} /> {t('viewWorktree')}
+            </button>
+          )}
+          {/* Waiting is stoppable but nothing else: resuming or deleting would throw away the decision it waits for */}
+          {live ? (
+            !narrow && (
+              <button className="btn btn-danger" disabled={stop.isPending} onClick={() => stop.mutate()}>
+                <Square {...ICON_SM} /> {t('config:detail.stop')}
+              </button>
+            )
+          ) : (
+            canRelaunch(orch) && (
+              <button className="btn btn-primary" disabled={relaunching} onClick={() => setRelaunching(true)}>
+                <Rocket {...ICON_SM} /> {tv('relaunch.button')}
+              </button>
+            )
+          )}
+          {/* A menu by the button on a desktop, a sheet of big buttons on a phone */}
+          {menu.length > 0 && <MoreActions entries={menu} label={t('moreActions')} title={orch.name} />}
+        </div>
+      </header>
+
+      <div className="orch-overview">
+        <section className="card orch-brief" aria-label={orch.objective ? undefined : t('settingsLabel')}>
+          {orch.objective && <Objective text={orch.objective} />}
+          <div className="orch-settings">
+            <span className="badge">{orch.model ?? t('config:detail.defaultModel')}</span>
+            <span className="badge">{orch.permissionMode}</span>
+            <span className="badge">{t('config:orchestration.concurrencyValue', { n: orch.concurrency })}</span>
+            {orch.engine === 'workflow' ? (
+              <span className="badge">{t('config:detail.workflowEngine')}</span>
+            ) : (
+              orch.worktree && <span className="badge">{t('config:detail.worktreePerTask')}</span>
+            )}
+            <span className="badge">{t('config:detail.created', { date: formatDateTime(orch.createdAt) })}</span>
+            {orch.templateId && <span className="badge">{tv('origin.fromTemplate')}</span>}
+          </div>
+          <div className="orch-brief-foot small">
+            <span className="mono muted" title={orch.cwd}>
+              {shortPath(orch.cwd)}
+            </span>
+            {orch.relaunchedFrom && <Link to={`/orchestration/${orch.relaunchedFrom}`}>{tv('origin.relaunchedFrom')}</Link>}
+          </div>
+        </section>
+        <dl className="orch-kpis">
+          <div className="card orch-kpi">
+            <dt className="section-label">{t('kpi.tasks')}</dt>
+            <dd className="orch-kpi-value">
+              {done}
+              <span className="orch-kpi-of">/{orch.tasks.length}</span>
+            </dd>
+          </div>
+          <div className="card orch-kpi">
+            <dt className="section-label">{t('kpi.time')}</dt>
+            <dd className="orch-kpi-value mono orch-clock">{formatElapsed(elapsedSince(orch.createdAt, orch.endedAt ? Date.parse(orch.endedAt) : Date.now()))}</dd>
+          </div>
+          <div className="card orch-kpi grad-border" title={other > 0 ? t('costOnNoTask', { cost: formatCost(other) }) : undefined}>
+            <dt className="section-label">{t('costLabel')}</dt>
+            <dd className="orch-kpi-value">
+              <AnimatedNumber value={orch.costUsd} format={costFigure} className="grad-text" />
+              <span className="orch-kpi-unit">{costCurrency(orch.costUsd)}</span>
+            </dd>
+          </div>
+          <div className="card orch-kpi orch-kpi-parallel">
+            <dt className="section-label">{t('kpi.parallel')}</dt>
+            <dd className="orch-kpi-value">
+              {working}
+              <span className="orch-kpi-of">/{orch.concurrency}</span>
+            </dd>
+          </div>
+        </dl>
       </div>
 
       <ErrorBox error={error ?? stop.error ?? resume.error ?? remove.error} />
@@ -891,6 +901,7 @@ export function OrchestrationDetail() {
             variant="pipeline"
             steps={stepItems}
             label={t('stepsLabel')}
+            stateLabels={pipelineStates}
             selected={selected?.id}
             // Picking the step it would follow anyway goes back to following
             onSelect={(step) => setParam('step', step === followed?.id ? null : step)}
@@ -930,6 +941,6 @@ export function OrchestrationDetail() {
       )}
 
       {inspectedTask && <TaskWork orch={orch} task={inspectedTask} onClose={() => setParam('task', null)} />}
-    </>
+    </div>
   );
 }

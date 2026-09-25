@@ -45,6 +45,7 @@ export function Stepper({
   compact = false,
   variant = 'steps',
   expanded,
+  stateLabels,
   className = '',
 }: {
   steps: readonly StepItem[];
@@ -65,6 +66,8 @@ export function Stepper({
    * panel after the whole row instead.
    */
   expanded?: ReactNode;
+  /** A caller's own word for a state, where the shared one does not read right in its place ("pending" in a pipeline) */
+  stateLabels?: Partial<Record<StepState, string>>;
   className?: string;
 }) {
   const { t } = useTranslation('primitives');
@@ -73,7 +76,7 @@ export function Stepper({
       <ol className="stepper-list" aria-label={label}>
         {steps.map((step) => {
           const Icon = STEP_ICON[step.state];
-          const state = t(`step.${step.state}`);
+          const state = stateLabels?.[step.state] ?? t(`step.${step.state}`);
           const body =
             variant === 'pipeline' ? (
               <>

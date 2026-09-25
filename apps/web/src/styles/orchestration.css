@@ -638,12 +638,18 @@
 
 /* ---- The detail page: the header, the brief and its figures, the pipeline, the stage's tasks ---- */
 
-.orch-hero {
+/* The page in one box: the halo is sized to the header and figures, not stretched over the whole page */
+.orch-detail {
   display: flex;
   flex-direction: column;
   gap: 18px;
   min-width: 0;
   background-position: top center;
+  background-size: 100% 360px;
+}
+
+.orch-detail > * {
+  flex-shrink: 0;
 }
 
 .orch-summary {
@@ -684,6 +690,13 @@
   flex: none;
   align-items: center;
   gap: 8px;
+}
+
+/* The header's Templates button reads as pressed while the templates are what the page shows */
+.orch-templates-btn[aria-pressed='true'] {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
 .orch-overview {
@@ -880,7 +893,10 @@
 
 .stepper.is-pipeline .step-meta {
   color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 12px;
   font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 
 /* The step whose panel is open is underlined by its own name */
@@ -1063,6 +1079,75 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A phone's one-line task: its name over where it stands, the rest under the chevron */
+.task-row.is-summary {
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.task-row.is-summary.live-rail {
+  padding-left: 16px;
+}
+
+.task-row-title {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.task-row.is-summary .task-row-name {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-row-summary {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-row-summary.is-ok {
+  color: var(--ok);
+}
+
+.task-row-summary.is-bad {
+  color: var(--bad);
+}
+
+.task-row-summary.is-warn {
+  color: var(--warn);
+}
+
+.task-row-summary.is-live {
+  color: var(--live);
+}
+
+.task-row-toggle svg {
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.task-row-toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.task-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
 .task-mark {
   display: inline-grid;
   flex: none;
@@ -1234,8 +1319,17 @@
 
 /* A phone: the name and state stacked, three figures, and compact task cards */
 @media (max-width: 768px) {
+  /* The header stays in view over the page, as the phone's reference keeps it above the scrolling body */
   .orch-summary {
+    position: sticky;
+    top: var(--stick-top, 0px);
+    z-index: 3;
     align-items: flex-start;
+    margin-inline: calc(-1 * var(--main-pad-x, 0px));
+    padding: 8px var(--main-pad-x, 0px);
+    background: var(--bg-glass);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
   }
   .orch-title-block {
     flex-direction: column;
@@ -1275,8 +1369,12 @@
   .orch-view-bar .segment,
   .back-to-live,
   .orch-card-actions .btn,
-  .task-actions .btn {
+  .task-actions .btn,
+  .task-row-toggle {
     min-height: 44px;
+  }
+  .task-row-toggle {
+    min-width: 44px;
   }
   .stepper.is-pipeline .step {
     min-height: 44px;

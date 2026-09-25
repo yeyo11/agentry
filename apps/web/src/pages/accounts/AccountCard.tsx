@@ -1,13 +1,11 @@
 import type { AccountConfig, AccountSummary, AccountUsageWindow } from '@agentry/shared';
-import { CircleCheck, CirclePause, Ellipsis, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { CircleCheck, CirclePause, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Menu, Sheet, type MenuItem } from '../../components/controls';
+import { MoreActions, type MenuItem } from '../../components/controls';
 import { ICON_SM } from '../../components/icons';
 import { usageTone } from '../../components/motion';
 import { StatusBadge, Tag } from '../../components/ui';
 import { formatDateTime } from '../../lib/format';
-import { NARROW, useMediaQuery } from '../../lib/media';
 import { ConfigDirPanel } from './ConfigDirPanel';
 import { accountExhausted, bindingReset, timeToReset, windowExhausted } from './usage';
 
@@ -51,42 +49,6 @@ function WindowMeter({ label, win, resetInHead }: { label: string; win: AccountU
         <div className={`meter-fill ${fill}`.trim()} style={{ width: `${pct}%` }} />
       </div>
     </div>
-  );
-}
-
-/** The `⋯` of a card: a menu by the button on a desktop, a sheet from the bottom on a phone. */
-function MoreActions({ label, title, items }: { label: string; title: string; items: MenuItem[] }) {
-  const narrow = useMediaQuery(NARROW);
-  const [open, setOpen] = useState(false);
-  if (!narrow) return <Menu entries={items} label={label} className="account-more" />;
-  return (
-    <>
-      <button type="button" className="icon-btn account-more" aria-label={label} onClick={() => setOpen(true)}>
-        <Ellipsis {...ICON_SM} />
-      </button>
-      <Sheet open={open} onOpenChange={setOpen} title={title}>
-        <div className="account-sheet-actions">
-          {items.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={`btn btn-block ${item.destructive ? 'btn-danger' : ''}`.trim()}
-                disabled={item.disabled}
-                onClick={() => {
-                  setOpen(false);
-                  item.onSelect?.();
-                }}
-              >
-                {Icon && <Icon {...ICON_SM} />}
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      </Sheet>
-    </>
   );
 }
 
@@ -186,7 +148,7 @@ export function AccountCard({
               {t('card.use')}
             </button>
           )}
-          <MoreActions label={t('card.more', { name })} title={name} items={menu} />
+          <MoreActions label={t('card.more', { name })} title={name} entries={menu} className="account-more" />
         </span>
       </div>
     </li>

@@ -1,7 +1,7 @@
-import { Ban, CircleCheck, CircleX, CirclePause, LayoutTemplate, Play, Plus, Square, Zap } from 'lucide-react';
+import { ArrowLeft, Ban, CircleCheck, CircleX, CirclePause, LayoutTemplate, Play, Plus, Square, Zap } from 'lucide-react';
 import type { Orchestration as OrchestrationRecord, OrchestrationEngine, OrchestrationSpec, OrchestrationTemplate, OrchestrationTaskSpec, PermissionMode, TaskLimits } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useOrchestrations, useProjects } from '../api';
@@ -13,7 +13,7 @@ import { BoardStatusBadge } from '../components/OrchestrationBoard';
 import { SaveTemplateDialog, TemplatesList } from '../components/OrchestrationTemplates';
 import { ProgressBar } from '../components/ProgressBar';
 import { removeTaskAt, renameTask, TaskEditor, validateGraph } from '../components/TaskEditor';
-import { Card, Empty, ErrorBox, Field, Loading, ModelCombobox, PageHeader, PERMISSION_MODES, Segmented, TabPanel, Tabs, Tag, useTabGroup } from '../components/ui';
+import { Card, Empty, ErrorBox, Field, Loading, ModelCombobox, PageHeader, PERMISSION_MODES, Segmented, Tag } from '../components/ui';
 import { useFallbackInterval } from '../lib/feed';
 import { formatCost, timeAgo } from '../lib/format';
 import { NARROW, useMediaQuery } from '../lib/media';
@@ -595,21 +595,11 @@ function OrchestrationCard({ orch, energy }: { orch: OrchestrationRecord; energy
   );
 }
 
-function TabLabel({ text, count }: { text: string; count: number | undefined }) {
-  return (
-    <>
-      {text}
-      {count !== undefined && <span className="segment-count">{count}</span>}
-    </>
-  );
-}
-
 export function Orchestration() {
   const { t } = useTranslation(['orchestration', 'config']);
   const { data, error, isLoading } = useOrchestrations();
   const templates = useQuery({ queryKey: keys.orchestrationTemplates, queryFn: api.orchestrationTemplates });
   const [params, setParams] = useSearchParams();
-  const group = useTabGroup();
   // `?new` opens the form, so the top bar's "New ▾" menu, the palette or a link can start one here
   const [creating, setCreating] = useState(() => params.has('new'));
   // A template opened for editing: the form starts from its graph instead of an empty one. The
@@ -649,7 +639,10 @@ export function Orchestration() {
   // One energy border a screen: the first running card has it, the others take the live rail
   const energyId = shown.find((orch) => orch.status === 'running')?.id;
   const narrow = useMediaQuery(NARROW);
+  const templatesTitleId = useId();
   const openTemplates = () => setParam({ tab: 'templates' });
+  const closeTemplates = () => setParam({ tab: null });
+  const templateCount = templates.data?.length;
 
   return (
     <>
@@ -657,33 +650,41 @@ export function Orchestration() {
         title={t('list.title')}
         subtitle={t('config:orchestration.subtitle')}
         actions={
-          !creating && (
-            <button className={`btn ${emptyList ? '' : 'btn-primary'} page-action-fab`} onClick={() => setCreating(true)}>
-              <Plus size={14} strokeWidth={2} aria-hidden />
-              {t('config:orchestration.new')}
+          <>
+            {/* Templates are a view of the page reached from its header, as the reference draws them: pressed while open */}
+            <button type="button" className="btn orch-templates-btn" aria-pressed={tab === 'templates'} onClick={tab === 'templates' ? closeTemplates : openTemplates}>
+              {t('list.templates')}
+              {templateCount !== undefined && <span className="count">{templateCount}</span>}
             </button>
-          )
+            {!creating && (
+              <button type="button" className={`btn ${emptyList ? '' : 'btn-primary'} page-action-fab`} onClick={() => setCreating(true)}>
+                <Plus size={14} strokeWidth={2} aria-hidden />
+                {t('config:orchestration.new')}
+              </button>
+            )}
+          </>
         }
       />
       {creating && <CreateForm key={editing?.n ?? 'blank'} template={editing?.template} onDone={closeForm} />}
-      <Tabs<PageTab>
-        group={group}
-        label={t('list.sections')}
-        value={tab}
-        onChange={(next) => setParam({ tab: next === 'templates' ? 'templates' : null })}
-        tabs={[
-          { id: 'orchestrations', label: <TabLabel text={t('list.orchestrations')} count={data ? list.length : undefined} /> },
-          { id: 'templates', label: <TabLabel text={t('list.templates')} count={templates.data?.length} /> },
-        ]}
-      />
-      <TabPanel group={group} tab={tab} className="stack">
+      <div className="stack">
         {tab === 'templates' ? (
-          <TemplatesList
-            onEdit={(template) => {
-              setEditing((prev) => ({ template, n: (prev?.n ?? 0) + 1 }));
-              setCreating(true);
-            }}
-          />
+          <section className="stack" aria-labelledby={templatesTitleId}>
+            <div className="orch-view-bar">
+              <h2 id={templatesTitleId} className="orch-panel-title">
+                {t('list.templates')}
+              </h2>
+              <button type="button" className="btn btn-small" onClick={closeTemplates}>
+                <ArrowLeft size={14} strokeWidth={2} aria-hidden />
+                {t('config:detail.back')}
+              </button>
+            </div>
+            <TemplatesList
+              onEdit={(template) => {
+                setEditing((prev) => ({ template, n: (prev?.n ?? 0) + 1 }));
+                setCreating(true);
+              }}
+            />
+          </section>
         ) : (
           <>
             <ListToolbar<StatusTab>
@@ -746,7 +747,7 @@ export function Orchestration() {
             )}
           </>
         )}
-      </TabPanel>
+      </div>
     </>
   );
 }
