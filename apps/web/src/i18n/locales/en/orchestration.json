@@ -101,7 +101,7 @@
     "statusLabel": "Show orchestrations by status",
     "status": {
       "all": "All",
-      "live": "Live",
+      "live": "Running",
       "completed": "Completed",
       "failed": "Failed",
       "stopped": "Stopped"

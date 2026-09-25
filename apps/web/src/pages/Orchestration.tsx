@@ -639,6 +639,8 @@ export function Orchestration() {
   }, [params]);
 
   const tab: PageTab = params.get('tab') === 'templates' ? 'templates' : 'orchestrations';
+  // One primary per zone: while the empty state offers New orchestration, the header's copy steps back
+  const emptyList = !isLoading && list.length === 0 && tab === 'orchestrations';
   const status: StatusTab = STATUS_TABS.find((s) => s === params.get('status')) ?? 'all';
   const sort: Sort = SORTS.find((s) => s === params.get('sort')) ?? 'recent';
   const query = params.get('q') ?? '';
@@ -656,7 +658,7 @@ export function Orchestration() {
         subtitle={t('config:orchestration.subtitle')}
         actions={
           !creating && (
-            <button className="btn btn-primary" onClick={() => setCreating(true)}>
+            <button className={`btn ${emptyList ? '' : 'btn-primary'} page-action-fab`} onClick={() => setCreating(true)}>
               <Plus size={14} strokeWidth={2} aria-hidden />
               {t('config:orchestration.new')}
             </button>

@@ -972,6 +972,11 @@ a.statusbar-item:focus-visible {
     --main-covered-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 72px);
   }
 
+  /* A page's own button for what the FAB starts would be the same action twice */
+  .shell-has-fab .page-action-fab {
+    display: none;
+  }
+
   .tabbar {
     position: fixed;
     inset: auto 0 0;

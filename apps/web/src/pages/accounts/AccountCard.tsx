@@ -22,15 +22,16 @@ function useResetText() {
   };
 }
 
-function WindowMeter({ label, win, featured, resetInHead }: { label: string; win: AccountUsageWindow | null; featured: boolean; resetInHead: boolean }) {
+function WindowMeter({ label, win, resetInHead }: { label: string; win: AccountUsageWindow | null; resetInHead: boolean }) {
   const { t } = useTranslation('accountsConfig');
   const resetText = useResetText();
   if (!win) return null;
   const pct = Math.min(100, Math.round(win.pct));
   const spent = windowExhausted(win);
   const tone = usageTone(pct, spent);
-  // The account in use carries the brand on its bars while they are calm; a warning always wins
-  const fill = tone === 'neutral' ? (featured ? 'is-grad' : '') : `is-${tone}`;
+  // Neutral below the threshold on every account, as in the status bar: the active one already
+  // wears the brand on its card, and a coloured bar would read as a warning
+  const fill = tone === 'neutral' ? '' : `is-${tone}`;
   const reset = spent && resetInHead ? null : resetText(win, spent);
   return (
     <div className="account-meter">
@@ -39,7 +40,7 @@ function WindowMeter({ label, win, featured, resetInHead }: { label: string; win
           {label}
           {win.name ? ` · ${win.name}` : ''}
         </span>
-        {spent ? <Tag tone="bad">{t('card.exhausted')}</Tag> : tone !== 'neutral' ? <Tag tone="warn">{t('card.runningHigh')}</Tag> : null}
+        {spent ? <Tag tone="bad">{t('card.exhausted')}</Tag> : tone !== 'neutral' ? <Tag tone={tone === 'bad' ? 'bad' : 'warn'}>{t('card.runningHigh')}</Tag> : null}
         {reset && <span className="account-meter-reset">{reset}</span>}
         {win.resetsAt && <span className="sr-only">({formatDateTime(win.resetsAt)})</span>}
         <span className="account-meter-pct">
@@ -153,10 +154,10 @@ export function AccountCard({
       <div className="account-meters">
         {account.usage ? (
           <>
-            <WindowMeter label={t('config:accounts.fiveHours')} win={account.usage.fiveHour} featured={account.active} resetInHead={!!backIn} />
-            <WindowMeter label={t('config:accounts.sevenDays')} win={account.usage.sevenDay} featured={account.active} resetInHead={!!backIn} />
+            <WindowMeter label={t('config:accounts.fiveHours')} win={account.usage.fiveHour} resetInHead={!!backIn} />
+            <WindowMeter label={t('config:accounts.sevenDays')} win={account.usage.sevenDay} resetInHead={!!backIn} />
             {account.usage.scoped.map((win) => (
-              <WindowMeter key={win.name ?? 'model'} label={t('config:accounts.sevenDays')} win={win} featured={account.active} resetInHead={false} />
+              <WindowMeter key={win.name ?? 'model'} label={t('config:accounts.sevenDays')} win={win} resetInHead={false} />
             ))}
           </>
         ) : (

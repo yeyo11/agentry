@@ -417,12 +417,14 @@ export function Projects() {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<ProjectSort>('activity');
   const shown = projects.filter((project) => matchesText(search, [project.name, project.path])).sort(PROJECT_SORTERS[sort]);
-  const importButton = (
-    <button className="btn btn-primary" onClick={() => setAdding('import')}>
+  const importButton = (primary: boolean) => (
+    <button className={primary ? 'btn btn-primary' : 'btn'} onClick={() => setAdding('import')}>
       <FolderPlus {...ICON_SM} />
       {t('page.importDirectory')}
     </button>
   );
+  // One primary per zone: while the empty state offers the import, the header's copy steps back
+  const emptyShown = first && offered.length === 0;
 
   return (
     <>
@@ -436,7 +438,7 @@ export function Projects() {
                 <Plus {...ICON_SM} />
                 {t('work:projects.newProject')}
               </button>
-              {importButton}
+              {importButton(!emptyShown)}
             </>
           )
         }
@@ -448,7 +450,7 @@ export function Projects() {
         <Loading />
       ) : projects.length === 0 ? (
         offered.length === 0 && (
-          <Empty illustration="projects" size={narrow ? 'sm' : undefined} title={t('work:projects.empty')} action={adding === null ? importButton : undefined}>
+          <Empty illustration="projects" size={narrow ? 'sm' : undefined} title={t('work:projects.empty')} action={adding === null ? importButton(true) : undefined}>
             {t('page.emptyHint')}
           </Empty>
         )

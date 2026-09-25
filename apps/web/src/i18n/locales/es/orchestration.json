@@ -101,7 +101,7 @@
     "statusLabel": "Mostrar orquestaciones por estado",
     "status": {
       "all": "Todas",
-      "live": "En directo",
+      "live": "En marcha",
       "completed": "Completadas",
       "failed": "Fallidas",
       "stopped": "Detenidas"
