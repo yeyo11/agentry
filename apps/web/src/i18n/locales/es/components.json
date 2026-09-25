@@ -274,7 +274,7 @@
     "plan": "Plan"
   },
   "palette": {
-    "trigger": "Buscar…",
+    "trigger": "Buscar o ejecutar…",
     "label": "Paleta de comandos",
     "placeholder": "Buscar páginas, proyectos, chats y acciones…",
     "commands": "Comandos",

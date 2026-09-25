@@ -100,10 +100,11 @@ function readRecent(): string[] {
   }
 }
 
-export function CommandPaletteTrigger() {
+/** A search field in the sidebar on a desktop, an icon in the top bar on a phone: `className` says which. */
+export function CommandPaletteTrigger({ className = '' }: { className?: string }) {
   const { t } = useTranslation('components');
   return (
-    <button type="button" className="palette-trigger" onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}>
+    <button type="button" className={`palette-trigger ${className}`.trim()} onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}>
       <Search size={14} strokeWidth={1.75} aria-hidden />
       <span className="palette-trigger-label">{t('palette.trigger')}</span>
       <kbd className="palette-kbd">{isMac ? '⌘' : 'Ctrl'} K</kbd>

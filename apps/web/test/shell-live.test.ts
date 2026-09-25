@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { desktopClasses } from '../src/lib/desktop.ts';
-import { chatActivity, hidesTabBar, liveSummary, orchestrationProgress, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
+import { chatActivity, fabFor, hidesTabBar, liveSummary, orchestrationProgress, pickUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
 
 // The shell is where a person sees at a glance what is alive. What it lists has to be in the order
 // that needs them most, never twice, and a shape it does not expect must not break a row.
@@ -104,6 +104,27 @@ test('the tab bar steps aside on a chat and on an orchestration, not on their li
   // A new chat is that page too: the box sits at the bottom of the window, where the bar would be
   for (const path of ['/chats/abc', '/chats/abc/', '/chats/new', '/orchestration/o1']) assert.equal(hidesTabBar(path), true, path);
   for (const path of ['/', '/chats', '/orchestration', '/settings', '/projects']) assert.equal(hidesTabBar(path), false, path);
+});
+
+test('the phone FAB follows the page: words on Home, an icon on the lists, none where the tab bar steps aside', () => {
+  assert.deepEqual(fabFor('/'), { action: 'chat', labelled: true });
+  for (const path of ['/chats', '/chats/', '/projects']) assert.deepEqual(fabFor(path), { action: 'chat', labelled: false }, path);
+  assert.deepEqual(fabFor('/orchestration'), { action: 'orchestration', labelled: false });
+  for (const path of ['/chats/abc', '/chats/new', '/orchestration/o1', '/settings', '/accounts', '/usage', '/nowhere']) assert.equal(fabFor(path), null, path);
+});
+
+test('the status bar reads the account-wide 5 h and 7 d windows, never a per-model one', () => {
+  const picked = pickUsageWindows({
+    seven_day_opus: { utilization: 0.9, resetsAt: 3 },
+    seven_day: { utilization: 0.054, resetsAt: 2 },
+    five_hour: { utilization: 0.449, resetsAt: 1 },
+  });
+  assert.deepEqual(picked.fiveHour, { name: 'five_hour', percent: 45, resetsAt: 1 });
+  assert.deepEqual(picked.sevenDay, { name: 'seven_day', percent: 5, resetsAt: 2 });
+  // A window the CLI did not report is missing, not zero, and a reading over 100 % is capped
+  assert.deepEqual(pickUsageWindows(undefined), { fiveHour: null, sevenDay: null });
+  assert.equal(pickUsageWindows({ five_hour: { utilization: 1.3, resetsAt: 0 } }).fiveHour?.percent, 100);
+  assert.equal(pickUsageWindows({ five_hour: { utilization: 0.2, resetsAt: 0 } }).sevenDay, null);
 });
 
 test('the desktop app marks the page with its platform; a browser marks nothing', () => {

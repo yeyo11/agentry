@@ -25,16 +25,19 @@ import { useId } from 'react';
 export const ICON: LucideProps = { size: 16, strokeWidth: 1.75, 'aria-hidden': true };
 export const ICON_SM: LucideProps = { size: 14, strokeWidth: 1.75, 'aria-hidden': true };
 
-/** Brand mark: an eight-point spark inside a gradient rounded square. */
+/**
+ * Brand mark: one node fanning out to three, on the brand gradient. The stops repeat `--grad`
+ * (tokens.css) because an SVG gradient stop cannot read a CSS variable in every browser.
+ */
 export function BrandMark({ size = 26 }: { size?: number }) {
   const gradient = useId();
   return (
     <svg className="brand-mark" width={size} height={size} viewBox="0 0 28 28" aria-hidden>
       <defs>
         <linearGradient id={gradient} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#e58a63" />
-          <stop offset="55%" stopColor="#d97757" />
-          <stop offset="100%" stopColor="#c8527a" />
+          <stop offset="0%" stopColor="#b35a36" />
+          <stop offset="55%" stopColor="#b04a5e" />
+          <stop offset="100%" stopColor="#9c3f77" />
         </linearGradient>
       </defs>
       <rect width="28" height="28" rx="8" fill={`url(#${gradient})`} />
