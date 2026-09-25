@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-09-25T16:27:30.6668753Z
+updated_at: 2026-09-25T18:55:39Z
 tags:
     - design-system
     - web
@@ -19,6 +19,10 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
 | The 13 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
 | The tokens the app actually uses | `apps/web/src/styles/tokens.css` |
+
+The app reached this design in the `night-shift` orchestration. Where the implementation settled a
+detail differently from what is written below, the [Landed](#landed) section at the end says so,
+and it wins.
 
 The prototypes use Spanish copy because they were designed on the `es` locale. The app keeps every
 string in i18n: `en` is the source and `es` follows `apps/web/src/i18n/GLOSSARY.md`.
@@ -116,8 +120,9 @@ icon.
 - Durations: `--dur-fast 120`, `--dur-base 200`, `--dur-slow 360`, `--spin-cycle 800`,
   `--pulse-cycle 1800`, `--energy-cycle 3600`. Easing is `--ease-out` to enter and `--ease-spring`
   to pop in.
-- The only hard-coded colours outside `tokens.css` are `#fff` for text on `--grad`, and the
-  Electron splash, which cannot read CSS variables.
+- The only hard-coded colours outside `tokens.css` are `#fff` for text on `--grad`, the Electron
+  splash and error page, which cannot read CSS variables, and the two `theme-color` metas in
+  `apps/web/index.html`.
 
 ### Reference stylesheet names vs app names
 
@@ -161,6 +166,8 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.tooltip` · `.toast` · `.callout` | `Tooltip`, `.toast*`, `.alert*` | the toast drains a gradient bar |
 | `.spin-braille` · `.spin-ring` · `.spin-dots` · `.shimmer` · `.skeleton` · `.caret` | `Spinner`, `.ticker*`, `.skeleton`, `.caret` | see §3 |
 | `.empty-state` + `Illustration` | `Empty` (`components/ui.tsx`), and the new `components/illustrations/` | see §4 |
+| `.avatar` (initials) | `.monogram` | a soft tint of the name's hue with letters in that hue; the gradient only on the active one |
+| `.fab` | `.fab`, `.fab-labelled` (components/shell/Fab.tsx) | a page's own button for the same action carries `.page-action-fab` and hides wherever the FAB shows |
 
 These keep their behaviour and take the new styling: the controls in
 `apps/web/src/components/controls`, and the primitives in `components/ui.tsx` and
@@ -193,14 +200,15 @@ status bar (30 px).
   - today's spend,
   - the CLI version.
 
-  It takes over the sidebar footer's job. The footer's text stays reachable, because
-  `e2e/specs/events.spec.mjs` reads it.
+  It takes over the sidebar footer's job, and `e2e/specs/events.spec.mjs` now reads the connection
+  from `.statusbar-conn`.
 
 The phone is the top bar, the page and a tab bar.
 
 - **Tab bar.** Four tabs: Home, Chats, Orchestrations (with a live counter) and More.
 - **New chat** moves to a gradient FAB. The FAB has a label on Home and only an icon on the lists.
-  It sits 100 px above the tab bar and respects safe areas.
+  It sits 16 px above the tab bar (the prototype's 100 px is measured from the bottom of the
+  frame) and respects safe areas. On Orchestrations it starts a new orchestration instead.
 - **More.** A sheet that opens with the account and limits card, then the rest of the navigation
   and the connection.
 - **Detail screens** (chat, new chat, orchestration detail) hide the tab bar and put the composer
@@ -318,6 +326,89 @@ Rules:
 7. An empty, error or install state uses `Empty` with the matching illustration (§4), and uses at
    most one illustration per screen.
 8. A new variant or illustration is added to this document and to `agentry-ds.css` in the same PR.
+
+## Landed
+
+> **Landed** in the `night-shift` orchestration (2026-09-25), in full. The notes below are where the
+> app settled something this document did not say, or said differently. The before/after pairs are
+> in [`media/night-shift/`](media/night-shift/README.md).
+
+**Tokens and theme**
+
+- The v1 names hold the values and the v2 names are aliases, as planned. Besides the tokens in §1,
+  `tokens.css` gained `--il-*` durations for the illustrations' loops and fixed `--swatch-*`
+  colours for the theme thumbnails in Settings → Appearance, which show their own theme whichever
+  one is on.
+- The theme preference is always stamped on `<html data-theme>`, `system` included. Light tokens
+  follow the OS only under `[data-theme='system']`. The pre-paint script in `index.html` resolves
+  the same way, and a test runs it against every stored value.
+- The browser's `theme-color` follows the stored theme, not the OS: under `system` the two metas go
+  back to their media queries.
+- `test/design-tokens.test.ts` fails on any hex, `rgb()`/`hsl()`, pixel radius or millisecond
+  duration outside `tokens.css`, `#fff` on the gradient excepted.
+- `.monogram` works out its colours per element from `--hue`, in `tokens.css`: a 14 % tint and
+  letters mixed with `--text`, which keeps 4.5:1 in both themes from one rule.
+
+**Components**
+
+- `Empty` without an illustration is the compact version, restyled as a neutral tile (no violet
+  halo). With `illustration`, it renders the §4 pattern under `.state-illustrated`.
+- `ProgressBar` has a `segments` variant (one cell per task: ok, bad, live partly filled, empty).
+  Past 32 tasks a cell would be thinner than the gap, so it falls back to drawing by share.
+- `Stepper` has a `pipeline` form: a row of bars with the state in words under each label, which
+  turns into chips when the box is narrow.
+- Four segmented bars look alike and are separate classes: `.segbar` (Home), `.live-segbar`
+  (sidebar), `.chat-launch-bar` (a workflow started from a chat) and `.progress-segbar`
+  (`ProgressBar`). Merging them is left for later.
+- Badges are mono uppercase through CSS, so specs that read a badge's word match it
+  case-insensitively or read it from the DOM.
+
+**Shell**
+
+- Desktop groups the nav as **Work** and **Space**, with **Live** under them. Under 900 px the
+  palette trigger moves into the top bar as an icon.
+- The status bar and Home read the 5 h and 7 d windows the same way: claude-swap's reading of the
+  active account first, then the CLI's last rate-limit event (`swapUsageWindows`). Both come from
+  one shared hook (`useUsageNow`), so nothing is fetched twice.
+- The FAB shows on Home (with its label), Chats and Projects (icon only, New chat) and
+  Orchestrations (icon only, New orchestration), and nowhere else (`fabFor`). A page header's
+  button for the same action takes `.page-action-fab`.
+- The More sheet opens on the account and limits card, then the sections, a **Start** group (Run
+  workflow, New orchestration), the API reference and the connection.
+
+**Screens**
+
+- **Home** draws its widgets in three areas (`top`, `main`, `side`). Two new widget types sit in
+  `top`: `kpis` (agents running, waiting, today's spend) and `limits` (the 5 h ring with the weekly
+  share, the account card at the bottom on a phone). "In progress" folds the orchestrations into the
+  live widget and holds the page's one energy border while anything runs.
+- **Settings** has 20 tabs in four groups (Agentry, Claude Code, Extensions, System): a vertical side
+  nav on desktop that is still one ARIA tablist, and cells in cards on a phone, where a tab opens as
+  its own screen. The `?tab=` ids did not change.
+- **Chats** folds each row into a phone card with a container query on the list, not the window.
+  On touch, checkboxes appear only after a long press.
+- **Usage** picks its metric with the KPI tiles themselves (pressed buttons, the chosen one
+  `grad-border`), next to a busiest-day tile.
+- **Schedules** offers three templates on its empty state. They open the editor preset through a
+  new `?cron=` parameter.
+- **Orchestration detail**: the summary is no longer sticky, because its figures moved into the KPI
+  tiles.
+- Primary actions: when a list is empty, its empty state holds the one gradient button, and the
+  header's button for the same action goes plain.
+
+**Copy**
+
+- Cost reads "sin coste" / "no cost" everywhere the CLI reported none, Home included.
+- A running filter reads "En marcha" / "Running", never "En directo".
+- The three words drawn in Spanish inside the illustrations go through i18n.
+
+**Still open**
+
+- Cron descriptions ("At 03:00") are built in English in `packages/core/src/cron.ts`. Translating
+  them needs an API change.
+- The observability "stuck" badge stays bad (red): stuck is a problem, not a warning.
+- `quota` is still reserved: the app has no "every account exhausted" state yet.
+- `.meter-fill.is-grad` in `feedback.css` is no longer used anywhere.
 
 ## Related
 

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:29:53.447735844Z
-updated_at: 2026-09-25T16:29:53.447735844Z
+updated_at: 2026-09-25T18:55:39Z
 tags:
     - plan
     - design-system
@@ -624,6 +624,51 @@ Runs alone, so it may run `pnpm e2e`.
   themes, with no duplicated ids, and still under reduced motion.
 - **`pnpm typecheck`, `pnpm test`, `pnpm build` and `pnpm e2e` are green**, apart from the baseline
   failures if they still reproduce.
+
+## Outcome
+
+Every task landed on 2026-09-25 (orchestration `e9acede9`). The details the implementation settled
+differently are in the design system's [Landed](../design-system.md#landed) section. Before/after
+pairs of the main screens are in [`docs/media/night-shift/`](../media/night-shift/README.md), and
+the README's stills were re-recorded with `pnpm media`.
+
+| Task | What landed |
+| --- | --- |
+| `foundation` | Geist and Geist Mono; the Night Shift tokens under the v1 names with v2 aliases; dark as the default and `system` stored explicitly; restyled primitives, a ring and dots `Spinner`, `.shimmer`; the token guard test; `intlLocale()` drops POSIX suffixes and validates the tag, so Home no longer crashes on `en-US@posix`; no more capitalised sentences in gauges and meters |
+| `illustrations` | The 13 SVGs as React components behind `<Illustration name size tone />`, coloured by `styles/illustrations.css`, ids from `useId()`; `Empty` takes an illustration and keeps its compact version |
+| `shell` | Grouped sidebar with a Live section, a leaner top bar with the live chip, the desktop status bar, four phone tabs and a FAB, the More sheet with a Start group; 404 and sign-in illustrated |
+| `home` | Live hero, `kpis` and `limits` widgets in a top area, "In progress" with the page's one energy border, a compact state instead of the large empty block |
+| `chats` | Table rows led by the first prompt, grouped by day; phone cards from a container query; no always-visible checkboxes on touch; bulk actions in a floating toast |
+| `chat` | Header, transcript, composer with the energy border while working, inspector and New chat restyled; a workflow the chat started shows as a card under its step |
+| `orchestration` | Card list, detail with KPI tiles, a pipeline stepper and task cards; `ProgressBar` segments and `Stepper` pipeline variants |
+| `workspace` | Projects as cards, Accounts in sentence case with threshold-coloured bars, Connectors, Schedules with templates, Usage with KPI tiles as the metric picker |
+| `settings` | 20 tabs in four groups: a side nav on desktop, cells on a phone; Appearance and Install redesigned |
+| `desktop-pwa` | Electron splash, error page and title bar in the dark palette; `theme-color` and the PWA manifest |
+| `consistency` | Cross-screen fixes (limits read the same in the status bar and Home, "no cost" wording, initials badges, calm bars, one primary per zone, FAB duplicates), `theme-color` follows the stored theme, `pnpm media` serves its own build |
+
+**How it was checked.** The consistency task shot 31 routes at 1440 × 1024 and 390 × 844, in dark,
+light and `motion=subtle` (186 screenshots) against a seeded sandbox and an empty one. It compared
+them with the references and checked from the page itself:
+
+- no duplicated SVG ids;
+- no sideways scroll;
+- no loop under `subtle`;
+- no console errors;
+- at most one illustration and one energy border per screen, and at most two gradient surfaces.
+
+`pnpm typecheck` and `pnpm test` passed on every task branch. One core test ("two commands running
+at once…", `processes.test.ts`) failed once under the full parallel run and passed alone, so it is a
+timing flake unrelated to the redesign, which does not touch `packages/`. `pnpm e2e` runs once, in
+the orchestration's verification phase on the merged branch.
+
+**Left for later**
+
+- Cron descriptions are built in English in `packages/core/src/cron.ts`, so the Spanish UI shows
+  "At 03:00". Translating them needs an API change, which this plan ruled out.
+- Four segmented bars (`.segbar`, `.live-segbar`, `.chat-launch-bar`, `.progress-segbar`) look
+  alike but are separate classes. Merging them is a refactor.
+- `.meter-fill.is-grad` in `feedback.css` is unused.
+- The `quota` illustration has no state to show on yet.
 
 ## Related
 

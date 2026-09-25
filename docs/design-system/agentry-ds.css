@@ -243,6 +243,9 @@
 .list-row.sel { background: var(--bg-3); box-shadow: inset 2px 0 0 var(--accent); }
 .avatar { width: 28px; height: 28px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11.5px; font-weight: 600; color: #fff; background: var(--grad); flex-shrink: 0; }
 .proj { width: 28px; height: 28px; border-radius: var(--r-sm); display: inline-grid; place-items: center; font-family: var(--mono); font-size: 11px; font-weight: 600; flex-shrink: 0; }
+/* Initials badge (the app's .monogram): a soft tint of the name's hue, letters mixed with --fg so they hold 4.5:1 in both themes. Set --hue on the element; the active one takes --grad and #fff */
+.proj.monogram { background: hsl(var(--hue) 70% 55% / 0.14); color: color-mix(in oklab, hsl(var(--hue) 70% 55%), var(--fg) 50%); }
+.proj.monogram.on { background: var(--grad); color: #fff; }
 
 /* ---------- 11. Vivo: spinners y movimiento ---------- */
 .spin-braille { display: inline-block; width: 1ch; font-family: var(--mono); color: var(--live); line-height: 1; }
@@ -307,6 +310,8 @@
 .tab-m.on .pill { background: var(--bg-4); }
 .tab-m .count-pill { position: absolute; top: -2px; left: 54%; }
 .fab { position: absolute; right: 16px; bottom: 100px; height: 54px; min-width: 54px; padding: 0 18px; border-radius: 18px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: #fff; font-weight: 600; font-size: 14px; background: var(--grad); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 12px 30px -8px rgba(176, 74, 94, 0.7); z-index: 5; }
+/* A page header's button for what the FAB starts: hidden wherever the FAB shows, so the action is never offered twice */
+.has-fab .page-action-fab { display: none; }
 .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--bg-2); border-radius: 22px 22px 0 0; box-shadow: var(--shadow-pop); padding: 10px 16px 30px; }
 .sheet .grab { width: 38px; height: 5px; border-radius: 5px; background: var(--line-3); margin: 0 auto 12px; }
 .cell { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 14px; border-bottom: 1px solid var(--line); }
