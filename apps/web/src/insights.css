@@ -1,4 +1,5 @@
-/* Schedules and Usage. Every colour is a theme token, so both themes read without a second set. */
+/* The workspace pages: Projects, Accounts, Connectors, Schedules and Usage. Every colour is a theme
+   token, so both themes read without a second set. */
 
 .alert-note {
   background: var(--bg-elev);
@@ -216,3 +217,23 @@
   border-top: 1px solid var(--border);
   background: var(--bg);
 }
+
+/* ==== Projects (Night Shift) ==== */
+
+/* ==== end Projects ==== */
+
+/* ==== Accounts (Night Shift) ==== */
+
+/* ==== end Accounts ==== */
+
+/* ==== Connectors (Night Shift) ==== */
+
+/* ==== end Connectors ==== */
+
+/* ==== Schedules (Night Shift) ==== */
+
+/* ==== end Schedules ==== */
+
+/* ==== Usage (Night Shift) ==== */
+
+/* ==== end Usage ==== */
