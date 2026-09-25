@@ -31,6 +31,16 @@
       "security": "Seguridad",
       "install": "Instalar",
       "notifications": "Notificaciones"
+    },
+    "groups": {
+      "agentry": "Agentry",
+      "claude": "Claude Code",
+      "extensions": "Extensiones",
+      "system": "Sistema"
+    },
+    "phone": {
+      "appearance": "Idioma y movimiento",
+      "back": "Volver a Ajustes"
     }
   },
   "security": {
@@ -995,7 +1005,11 @@
     "action": "Instalar Agentry",
     "ios": "En iPhone y iPad ninguna página puede ofrecer un botón de instalación: abre Agentry en Safari, toca Compartir y después Añadir a pantalla de inicio.",
     "manual": "Este navegador instala la aplicación desde su propio menú, donde la opción se llama Instalar o Añadir a pantalla de inicio. Chrome y Edge la ofrecen aquí como botón, tanto en Android como en el escritorio.",
-    "insecure": "Esta página se sirve desde {{origin}}, que los navegadores no consideran un origen seguro. Añadir Agentry a la pantalla de inicio sigue funcionando, pero nada que dependa de un service worker: ni arranque inmediato ni notificaciones con la aplicación cerrada. Para eso hace falta https:// o localhost."
+    "insecure": "Esta página se sirve desde {{origin}}, que los navegadores no consideran un origen seguro. Añadir Agentry a la pantalla de inicio sigue funcionando, pero nada que dependa de un service worker: ni arranque inmediato ni notificaciones con la aplicación cerrada. Para eso hace falta https:// o localhost.",
+    "push": {
+      "title": "Notificaciones en este dispositivo",
+      "text": "Entérate de cuándo termina un chat o te necesita, aunque Agentry esté cerrado. Se activan en Notificaciones."
+    }
   },
   "notifications": {
     "title": "Notificaciones",
@@ -1020,5 +1034,10 @@
       "removeBody": "{{name}} dejará de recibir notificaciones. Puede volver a registrarse desde sus propios ajustes.",
       "removeFailed": "No se pudo quitar ese dispositivo"
     }
+  },
+  "appearance": {
+    "ring": "anillo",
+    "dots": "puntos",
+    "thinking": "Pensando"
   }
 }
