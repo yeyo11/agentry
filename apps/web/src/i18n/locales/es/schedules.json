@@ -185,5 +185,35 @@
         "hint": "Una franja que llega mientras la última ejecución sigue en marcha espera y empieza cuando esta termina. Solo espera una: una franja más reciente ocupa su lugar."
       }
     }
+  },
+  "cron": {
+    "and": "{{rest}} y {{last}}",
+    "range": {
+      "hour": "de {{from}} a {{to}}",
+      "monthDay": "del {{from}} al {{to}}",
+      "weekday": "de {{from}} a {{to}}",
+      "month": "de {{from}} a {{to}}"
+    },
+    "at_one": "A la {{time}}",
+    "at_other": "A las {{time}}",
+    "everyHourOnTheHour": "Cada hora, en punto",
+    "everyHourAt": "Cada hora, en el minuto {{minute}}",
+    "everyMinute": "Cada minuto",
+    "everyMinutes": "Cada {{step}} minutos",
+    "atMinutes": "En los minutos {{minutes}}",
+    "atMinute": "En el minuto {{minute}}",
+    "hours_one": "la hora {{hours}}",
+    "hours_other": "las horas {{hours}}",
+    "ofHours": "{{every}} de {{hours}}",
+    "ofHour_one": "{{every}} de la hora de la {{time}}",
+    "ofHour_other": "{{every}} de la hora de las {{time}}",
+    "monthDays_one": "el día {{days}} de cada mes",
+    "monthDays_other": "los días {{days}} de cada mes",
+    "monthDaysRange": "{{days}} de cada mes",
+    "weekdays": "cada {{days}}",
+    "weekdaysRange": "{{days}}",
+    "months": "en {{months}}",
+    "monthsRange": "{{months}}",
+    "eitherDay": "{{monthDays}} o {{weekdays}}"
   }
 }

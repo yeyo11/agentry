@@ -185,5 +185,35 @@
         "hint": "A slot that comes due while the last run is still going waits and starts when it ends. At most one waits: a newer slot takes its place."
       }
     }
+  },
+  "cron": {
+    "and": "{{rest}} and {{last}}",
+    "range": {
+      "hour": "{{from}} to {{to}}",
+      "monthDay": "{{from}} to {{to}}",
+      "weekday": "{{from}} to {{to}}",
+      "month": "{{from}} to {{to}}"
+    },
+    "at_one": "At {{time}}",
+    "at_other": "At {{time}}",
+    "everyHourOnTheHour": "Every hour, on the hour",
+    "everyHourAt": "Every hour, at minute {{minute}}",
+    "everyMinute": "Every minute",
+    "everyMinutes": "Every {{step}} minutes",
+    "atMinutes": "At minutes {{minutes}}",
+    "atMinute": "At minute {{minute}}",
+    "hours_one": "the hours {{hours}}",
+    "hours_other": "the hours {{hours}}",
+    "ofHours": "{{every}} of {{hours}}",
+    "ofHour_one": "{{every}} of the {{time}} hour",
+    "ofHour_other": "{{every}} of the {{time}} hour",
+    "monthDays_one": "on day {{days}} of the month",
+    "monthDays_other": "on day {{days}} of the month",
+    "monthDaysRange": "on day {{days}} of the month",
+    "weekdays": "on {{days}}",
+    "weekdaysRange": "on {{days}}",
+    "months": "in {{months}}",
+    "monthsRange": "in {{months}}",
+    "eitherDay": "{{monthDays}}, or {{weekdays}}"
   }
 }
