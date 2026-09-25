@@ -452,5 +452,10 @@
     "next": "Next file",
     "count": "{{n}} of {{total}}",
     "noPreview": "This file can only be downloaded"
+  },
+  "illustrations": {
+    "noResults": "0 matches",
+    "notFound": "this way?",
+    "weekday": "Mon"
   }
 }
