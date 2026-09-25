@@ -16,8 +16,8 @@
     "@agentry/shared": "workspace:*",
     "@fastify/cors": "^11.3.0",
     "@fastify/static": "^10.1.4",
-    "@fastify/swagger": "^9.8.1",
-    "@scalar/fastify-api-reference": "^1.69.0",
+    "@fastify/swagger": "^9.9.0",
+    "@scalar/fastify-api-reference": "^1.70.0",
     "fastify": "^5.12.5"
   },
   "devDependencies": {
