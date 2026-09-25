@@ -15,6 +15,7 @@ import { usageTone } from '../components/motion';
 import { Spinner } from '../components/Spinner';
 import { useToast } from '../components/Toast';
 import { Card, Empty, ErrorBox, PageHeader, Skeleton } from '../components/ui';
+import { ProjectSelector } from '../components/ProjectSelector';
 import {
   ALL_ORIGINS,
   contextShare,
@@ -43,7 +44,7 @@ import {
 } from '../lib/chat-model';
 import { formatDateTime, formatNumber, timeAgo } from '../lib/format';
 import { useListKeys } from '../lib/list-keys';
-import { COARSE, COMPACT, useMediaQuery } from '../lib/media';
+import { COARSE, COMPACT, NARROW, useMediaQuery } from '../lib/media';
 import { useMinute } from '../lib/minute';
 import { ALL_PROJECTS, useProjectScope } from '../lib/project-scope';
 import i18n from '../i18n';
@@ -401,6 +402,8 @@ export function Chats() {
   const minute = useMinute();
   const coarse = useMediaQuery(COARSE);
   const compact = useMediaQuery(COMPACT);
+  // On a phone the scope is a chip in this header and the top bar leaves its own out (`pageHoldsScope`)
+  const phone = useMediaQuery(NARROW);
 
   const state = STATES.find((s) => s === params.get('state')) ?? null;
   const sort = SORTS.find((s) => s === params.get('sort')) ?? 'activity';
@@ -588,6 +591,7 @@ export function Chats() {
             )}
           </span>
         }
+        actions={phone ? <ProjectSelector chip /> : undefined}
       />
 
       <ListToolbar
