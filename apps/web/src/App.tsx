@@ -4,14 +4,12 @@ import {
   ChartColumn,
   FolderGit2,
   House,
-  MessageSquarePlus,
   MessagesSquare,
   PanelLeftClose,
   PanelLeftOpen,
   Play,
   Plug,
   Plus,
-  SearchX,
   Settings2,
   Users,
   Workflow,
@@ -19,10 +17,10 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { api, chatListQuery, keys, useOverview } from './api';
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { api, chatListQuery, keys } from './api';
 import { CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
-import type { MenuEntry } from './components/controls/Menu';
+import type { MenuItem } from './components/controls/Menu';
 import { Tooltip } from './components/controls/Tooltip';
 import { DetailHost } from './components/DetailHost';
 import { BrandMark, ICON } from './components/icons';
@@ -30,18 +28,21 @@ import { NotificationBell, NotificationHost } from './components/Notifications';
 import { PageTransition, SlidingIndicator, StatusDot } from './components/motion';
 import { ProjectSelector } from './components/ProjectSelector';
 import { lazyPage, ReloadBanner } from './components/ReloadOffer';
+import { Fab } from './components/shell/Fab';
 import { LiveChip, LiveSection, useLive } from './components/shell/live';
+import { AccountCard, StatusBar, useConnection } from './components/shell/StatusBar';
 import { isActive, NavDot, navTarget, TabBar, type NavItem } from './components/shell/TabBar';
 import { SignIn } from './components/SignIn';
 import { SplitButton } from './components/SplitButton';
 import { Empty, Skeleton } from './components/ui';
+import { useUsageNow } from './lib/usage-now';
 import { useAuthChallenge } from './lib/auth';
 import { listRequest } from './lib/chat-model';
 import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
-import { hidesTabBar } from './lib/shell-live';
+import { fabFor, hidesTabBar } from './lib/shell-live';
 import { Home } from './pages/Home';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
@@ -95,16 +96,15 @@ function Shell() {
   const { project, settled } = useProjectScope();
   const { pathname } = useLocation();
   const { t } = useTranslation(['components', 'connectors', 'shell']);
-  const overview = useOverview();
-  // The one connection that keeps every page current; the sidebar footer shows when it is down
+  // The same queries the Home usage widgets read, so the status bar never fetches its own
+  const now = useUsageNow();
+  const overview = now.overview;
+  // The one connection that keeps every page current; the status bar shows when it is down
   const feed = useEventFeed();
   useDesktopNavigation();
   useKeyboardInset();
   const counts = overview.data?.counts;
-  const auth = overview.data?.system.auth;
-  const cli = overview.data?.system.cli;
-  const healthy = cli?.installed === true && auth?.loggedIn === true;
-  const feedDown = feed !== 'open' && overview.data !== undefined;
+  const connection = useConnection(overview, feed === 'open');
   const live = useLive(counts);
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [workflowOpen, setWorkflowOpen] = useState(false);
@@ -162,71 +162,62 @@ function Shell() {
   const release = useQuery({ queryKey: keys.release, queryFn: () => api.release() });
   const updateAvailable = release.data?.updateAvailable === true;
 
-  const items: NavItem[] = [
-    { to: '/', label: t('nav.home'), icon: House, count: { value: counts?.chatsWaiting, what: t('nav.badge.waiting') } },
-    { to: '/chats', label: t('nav.chats'), icon: MessagesSquare, count: { value: counts?.chatsWorking, what: t('nav.badge.working') } },
-    { to: '/orchestration', label: t('nav.orchestrations'), icon: Workflow, count: { value: counts?.orchestrationsRunning, what: t('nav.badge.running') } },
-    { to: '/projects', label: t('nav.projects'), icon: FolderGit2 },
-    { to: '/accounts', label: t('nav.accounts'), icon: Users },
-    { to: '/schedules', label: t('nav.schedules'), icon: CalendarClock },
-    { to: '/usage', label: t('nav.usage'), icon: ChartColumn },
-    { to: '/connectors', label: t('connectors:nav'), icon: Plug },
-    {
-      to: '/settings',
-      label: t('nav.settings'),
-      icon: Settings2,
-      // The Updates card is on the account tab: the dot leads straight to it
-      ...(updateAvailable ? { dot: t('nav.badge.update'), search: '?tab=account' } : {}),
-    },
+  const home: NavItem = { to: '/', label: t('nav.home'), icon: House, count: { value: counts?.chatsWaiting, what: t('nav.badge.waiting') } };
+  const chats: NavItem = { to: '/chats', label: t('nav.chats'), icon: MessagesSquare, count: { value: counts?.chatsWorking, what: t('nav.badge.working'), live: true } };
+  const orchestrations: NavItem = {
+    to: '/orchestration',
+    label: t('nav.orchestrations'),
+    icon: Workflow,
+    count: { value: counts?.orchestrationsRunning, what: t('nav.badge.running'), live: true },
+  };
+  const schedules: NavItem = { to: '/schedules', label: t('nav.schedules'), icon: CalendarClock };
+  const projects: NavItem = { to: '/projects', label: t('nav.projects'), icon: FolderGit2 };
+  const accounts: NavItem = { to: '/accounts', label: t('nav.accounts'), icon: Users };
+  const connectors: NavItem = { to: '/connectors', label: t('connectors:nav'), icon: Plug };
+  const usage: NavItem = { to: '/usage', label: t('nav.usage'), icon: ChartColumn };
+  const settings: NavItem = {
+    to: '/settings',
+    label: t('nav.settings'),
+    icon: Settings2,
+    // The Updates card is on the account tab: the dot leads straight to it
+    ...(updateAvailable ? { dot: t('nav.badge.update'), search: '?tab=account' } : {}),
+  };
+  // What a person does, then where it happens: the sidebar's two groups
+  const groups = [
+    { id: 'work', label: t('shell:nav.work'), items: [home, chats, orchestrations, schedules] },
+    { id: 'space', label: t('shell:nav.space'), items: [projects, accounts, connectors, usage, settings] },
   ];
+  const items = groups.flatMap((group) => group.items);
 
   const current = items.find((item) => isActive(item, pathname));
 
   const newChat = () => navigate(project?.exists ? `/chats/new?cwd=${encodeURIComponent(project.path)}` : '/chats/new');
-  // What else a person can start: behind "New chat ▾" in the top bar, and in the phone's "New" tab
-  const startEntries: MenuEntry[] = [
+  const newOrchestration = () => navigate(NEW_ORCHESTRATION_PATH);
+  // What else a person can start: behind "New chat ▾" in the top bar, and in the phone's More sheet
+  const startEntries: MenuItem[] = [
     { id: 'run-workflow', label: t('shell.runWorkflow'), icon: Play, onSelect: () => setWorkflowOpen(true) },
-    { id: 'new-orchestration', label: t('shell:topbar.newOrchestration'), icon: Workflow, onSelect: () => navigate(NEW_ORCHESTRATION_PATH) },
+    { id: 'new-orchestration', label: t('shell:topbar.newOrchestration'), icon: Workflow, onSelect: newOrchestration },
   ];
 
-  const statusTone = overview.isError ? 'bad' : healthy && !feedDown ? 'ok' : 'warn';
-  const statusTitle = overview.isError
-    ? t('shell.apiUnreachable')
-    : !overview.data
-      ? t('shell.connecting')
-      : healthy
-        ? t('shell.claudeCode', { version: cli?.version ?? '' })
-        : !cli?.installed
-          ? t('shell.cliNotDetected')
-          : t('shell.notLoggedIn');
-  const statusDetail = healthy
-    ? feedDown
-      ? t('shell.liveUpdatesPaused')
-      : [auth?.subscriptionType ?? auth?.authMethod, auth?.email].filter(Boolean).join(' · ') || t('shell.loggedIn')
-    : overview.isError
-      ? t('shell.checkWrapper')
-      : !overview.data
-        ? ''
-        : !cli?.installed
-          ? t('shell.installCli')
-          : t('shell.addCredential');
-  const connection = (
-    <NavLink to="/settings?tab=account" className="sidebar-foot">
-      <StatusDot tone={statusTone} live={healthy && !feedDown} />
-      <span className="sidebar-foot-text">
-        <span className="sidebar-foot-title ellipsis">{statusTitle}</span>
-        {statusDetail && <span className="sidebar-foot-detail ellipsis">{statusDetail}</span>}
+  // The phone has no status bar: its More sheet says the same, in two lines
+  const connectionLink = (
+    <NavLink to="/settings?tab=account" className="more-connection">
+      <StatusDot tone={connection.tone} live={connection.live} />
+      <span className="more-connection-text">
+        <span className="more-connection-title ellipsis">{connection.title}</span>
+        {connection.detail && <span className="more-connection-detail ellipsis">{connection.detail}</span>}
       </span>
     </NavLink>
   );
 
   const tabBar = !hidesTabBar(pathname);
+  const fab = fabFor(pathname) !== null;
 
   // In the icon rail the labels are hidden, so they move into tooltips
   const railTip = (label: string) => (collapsed ? label : undefined);
 
   return (
-    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${tabBar ? 'shell-has-tabbar' : ''}`}>
+    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${tabBar ? 'shell-has-tabbar' : ''} ${fab ? 'shell-has-fab' : ''}`}>
       <a
         href="#main"
         className="skip-link"
@@ -258,37 +249,45 @@ function Shell() {
           </Tooltip>
         </div>
 
+        <CommandPaletteTrigger className="sidebar-search" />
+
         <nav className="nav" aria-label={t('shell.mainNavigation')}>
-          <div className="nav-group">
-            {items.map((item) => {
-              const active = isActive(item, pathname);
-              const Icon = item.icon;
-              const badge = item.count?.value;
-              return (
-                <Tooltip key={item.to} content={railTip(item.label)} side="right">
-                  <NavLink
-                    to={navTarget(item)}
-                    end={item.to === '/'}
-                    className={`nav-link ${active ? 'is-active' : ''}`}
-                    {...(item.to === '/chats' && !active ? { onPointerEnter: warmChats, onFocus: warmChats } : {})}
-                  >
-                    {active && <SlidingIndicator layoutId="nav-pill" className="nav-pill" />}
-                    <span className="nav-icon">
-                      <Icon {...ICON} />
-                    </span>
-                    <span className="nav-label">{item.label}</span>
-                    {badge ? (
-                      <span className="nav-count">
-                        {badge}
-                        <span className="sr-only"> {item.count?.what}</span>
+          {groups.map((group) => (
+            <div key={group.id} className="nav-group" role="group" aria-labelledby={`nav-group-${group.id}`}>
+              {/* Work is where the sidebar starts, so only Space shows its name; both have one */}
+              <span id={`nav-group-${group.id}`} className={`nav-group-label ${group.id === 'work' ? 'sr-only' : ''}`.trim()}>
+                {group.label}
+              </span>
+              {group.items.map((item) => {
+                const active = isActive(item, pathname);
+                const Icon = item.icon;
+                const badge = item.count?.value;
+                return (
+                  <Tooltip key={item.to} content={railTip(item.label)} side="right">
+                    <NavLink
+                      to={navTarget(item)}
+                      end={item.to === '/'}
+                      className={`nav-link ${active ? 'is-active' : ''}`}
+                      {...(item.to === '/chats' && !active ? { onPointerEnter: warmChats, onFocus: warmChats } : {})}
+                    >
+                      {active && <SlidingIndicator layoutId="nav-pill" className="nav-pill" />}
+                      <span className="nav-icon">
+                        <Icon {...ICON} />
                       </span>
-                    ) : null}
-                    <NavDot label={item.dot} />
-                  </NavLink>
-                </Tooltip>
-              );
-            })}
-          </div>
+                      <span className="nav-label">{item.label}</span>
+                      {badge ? (
+                        <span className={`nav-count ${item.count?.live ? 'is-live' : ''}`.trim()}>
+                          {badge}
+                          <span className="sr-only"> {item.count?.what}</span>
+                        </span>
+                      ) : null}
+                      <NavDot label={item.dot} />
+                    </NavLink>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <LiveSection live={live} rail={collapsed} />
@@ -301,10 +300,6 @@ function Shell() {
             <span className="nav-label">{t('nav.apiReference')}</span>
           </a>
         </Tooltip>
-
-        <Tooltip content={`${statusTitle}${statusDetail ? ` · ${statusDetail}` : ''}`} side="right">
-          {connection}
-        </Tooltip>
       </aside>
 
       <div className="content">
@@ -312,24 +307,20 @@ function Shell() {
         <header className="topbar">
           {/* A phone has no sidebar, so the bar carries the mark that leads home */}
           <NavLink to="/" className="brand topbar-brand" aria-label="Agentry">
-            <BrandMark size={24} />
+            <BrandMark size={28} />
           </NavLink>
+          {/* The scope is the crumb's root: every page below it is about that project */}
           <div className="crumbs">
-            <span className="crumb-page">{current?.label ?? 'Agentry'}</span>
-            {current?.to === '/' && project && (
-              <>
-                <span className="crumb-sep" aria-hidden>
-                  /
-                </span>
-                <span className="crumb-group ellipsis">{project.name}</span>
-              </>
-            )}
+            <ProjectSelector />
+            <span className="crumb-sep" aria-hidden>
+              /
+            </span>
+            <span className="crumb-page ellipsis">{current?.label ?? 'Agentry'}</span>
           </div>
           <div className="topbar-actions">
-            <ProjectSelector />
-            <CommandPaletteTrigger />
-            <NotificationBell />
+            <CommandPaletteTrigger className="topbar-search" />
             <LiveChip live={live} />
+            <NotificationBell />
             <SplitButton className="topbar-new" label={t('shell.newChat')} icon={Plus} onClick={newChat} entries={startEntries} />
           </div>
         </header>
@@ -355,21 +346,43 @@ function Shell() {
               <Route path="/usage" element={<Usage />} />
               <Route path="/connectors" element={<Connectors />} />
               <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<Empty icon={SearchX} title={t('shell.pageNotFound')} />} />
+              <Route
+                path="*"
+                element={
+                  <Empty
+                    illustration="not-found"
+                    size="md"
+                    title={t('shell.pageNotFound')}
+                    action={
+                      <Link to="/" className="btn btn-primary">
+                        {t('shell:notFound.home')}
+                      </Link>
+                    }
+                  >
+                    {t('shell:notFound.body')}
+                  </Empty>
+                }
+              />
             </Routes>
             </Suspense>
           </PageTransition>
         </main>
+
+        <StatusBar now={now} connection={connection} agents={live.working || live.running} />
       </div>
 
       {tabBar && (
-        <TabBar
-          pathname={pathname}
-          tabs={items.slice(0, 3)}
-          more={items.slice(3)}
-          newEntries={[{ id: 'new-chat', label: t('shell.newChat'), icon: MessageSquarePlus, onSelect: newChat }, ...startEntries]}
-          connection={connection}
-        />
+        <>
+          <Fab pathname={pathname} onNewChat={newChat} onNewOrchestration={newOrchestration} />
+          <TabBar
+            pathname={pathname}
+            tabs={[home, chats, orchestrations]}
+            more={[projects, accounts, schedules, usage, connectors, settings]}
+            start={startEntries}
+            account={<AccountCard now={now} connection={connection} />}
+            connection={connectionLink}
+          />
+        </>
       )}
 
       {workflowOpen && (

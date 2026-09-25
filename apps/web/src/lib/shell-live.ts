@@ -157,3 +157,52 @@ export function hidesTabBar(pathname: string): boolean {
   if (/^\/chats\/[^/]+\/?$/.test(pathname)) return true;
   return /^\/orchestration\/[^/]+\/?$/.test(pathname);
 }
+
+/** What the phone's floating button starts on a page, and whether it has room for its words. */
+export interface FabPlan {
+  action: 'chat' | 'orchestration';
+  labelled: boolean;
+}
+
+/**
+ * The phone's one "start something" button. It follows the page: Home says it in words, the lists
+ * keep only the icon so it covers less of them, and Orchestrations starts one of its own. Where
+ * the tab bar steps aside the page has its own footer, so the button does too; on the other pages
+ * a floating button would only cover a form or a table that has nothing to do with starting a chat.
+ */
+export function fabFor(pathname: string): FabPlan | null {
+  if (hidesTabBar(pathname)) return null;
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  if (path === '/') return { action: 'chat', labelled: true };
+  if (path === '/chats' || path === '/projects') return { action: 'chat', labelled: false };
+  if (path === '/orchestration') return { action: 'orchestration', labelled: false };
+  return null;
+}
+
+/** A usage window as a whole percentage, for a bar and its label. */
+export interface UsageWindowReading {
+  /** The window's own name, as the CLI reports it (`five_hour`) */
+  name: string;
+  percent: number;
+  /** Epoch seconds, as the CLI reports it */
+  resetsAt: number;
+}
+
+/**
+ * The 5 h and 7 d windows out of whatever the CLI reported. Per-model weekly windows
+ * (`seven_day_opus`) share the prefix of the general one, so the shortest name that matches wins:
+ * the bar speaks for the account, not for one model.
+ */
+export function pickUsageWindows(windows: Record<string, { utilization: number; resetsAt: number }> | undefined): {
+  fiveHour: UsageWindowReading | null;
+  sevenDay: UsageWindowReading | null;
+} {
+  const entries = Object.entries(windows ?? {}).filter(([, w]) => Number.isFinite(w.utilization));
+  const pick = (pattern: RegExp): UsageWindowReading | null => {
+    const found = entries.filter(([name]) => pattern.test(name)).sort(([a], [b]) => a.length - b.length)[0];
+    if (!found) return null;
+    const [name, win] = found;
+    return { name, percent: Math.max(0, Math.min(100, Math.round(win.utilization * 100))), resetsAt: win.resetsAt };
+  };
+  return { fiveHour: pick(/^(five|5)[_-]?h/i), sevenDay: pick(/^(seven|7)[_-]?d/i) };
+}
