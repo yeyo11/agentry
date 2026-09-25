@@ -32,6 +32,17 @@ const LIST = {
   ],
 };
 
+// The phone's list: the same two, and a third whose five hours are spent and whose week runs high
+const SPENT = {
+  number: 3,
+  email: 'three@example.com',
+  active: false,
+  usageStatus: 'ok',
+  usage: { fiveHour: { pct: 100.0, resetsAt: new Date(Date.now() + 19 * 60_000).toISOString(), countdown: null }, sevenDay: { pct: 79.0, resetsAt: null, countdown: null } },
+  usageFetchedAt: new Date().toISOString(),
+};
+const stub = (list) => `#!/bin/sh\ncase "$1" in\n  --version) echo "cswap 0.26.0" ;;\n  list) echo '${JSON.stringify(list)}' ;;\n  *) echo "unexpected: $*" >&2; exit 2 ;;\nesac\n`;
+
 export default async ({ page, api, check, dirs }) => {
   // The wrapper was started with CSWAP_BIN pointing here, at a file that does not exist
   const bin = resolve(dirs.dataDir, '..', 'no-cswap');
@@ -45,7 +56,7 @@ export default async ({ page, api, check, dirs }) => {
   const installed = async () => (await api.get('/accounts?refresh=1')).body;
 
   try {
-    writeFileSync(bin, `#!/bin/sh\ncase "$1" in\n  --version) echo "cswap 0.26.0" ;;\n  list) echo '${JSON.stringify(LIST)}' ;;\n  *) echo "unexpected: $*" >&2; exit 2 ;;\nesac\n`);
+    writeFileSync(bin, stub(LIST));
     chmodSync(bin, 0o755);
     check((await installed()).cswap.installed === true, 'the stub claude-swap was found');
 
@@ -134,7 +145,49 @@ export default async ({ page, api, check, dirs }) => {
     );
     check((await page.text('main')).includes('at most one may'), 'the form says why');
     await page.click('main form button', 'Cancel', 300);
+
+    // ---------- on a phone: an exhausted account is one row, rotation a screen of its own ----------
+    writeFileSync(bin, stub({ ...LIST, accounts: [...LIST.accounts, SPENT] }));
+    check((await installed()).accounts.length === 3, 'the stub now lists an exhausted third account');
+    await page.viewport(390, 844);
+    await page.goto('/accounts', 1500);
+    await page.waitFor(`return !!document.querySelector('main .account-row')`, { label: 'the exhausted account as a row' });
+    const rows = await page.eval(
+      `return [...document.querySelectorAll('main .account-grid > li')].map((li) => ({ row: li.classList.contains('account-row'), email: li.querySelector('.account-email')?.textContent ?? '', meters: li.querySelectorAll('.meter-track').length }))`,
+    );
+    check(rows.map((r) => `${r.email}:${r.row}`).join(',') === 'one@example.com:false,work:false,three@example.com:true', `only the exhausted account is a row, last (${JSON.stringify(rows)})`);
+    check(rows[2]?.meters === 0, 'the row has no meters');
+    const state = await page.eval(`return document.querySelector('main .account-row .account-row-state')?.textContent ?? ''`);
+    check(/5h exhausted/.test(state) && /7d 79%/.test(state) && /back in \d+\s?m/.test(state), `the row says which window is spent, what runs high and when it is back (${state})`);
+    const tones = await page.eval(`return [...document.querySelectorAll('main .account-row .badge')].map((b) => b.className.replace('badge ', '') + ':' + b.textContent.trim())`);
+    // 79 % is past the 75 % where a meter turns bad, so both tags are bad; each says it in words too
+    check(tones.join(',') === 'badge-bad:5h exhausted,badge-bad:7d 79%', `the tags carry the meters' status colours (${tones.join(', ')})`);
+    check(!(await page.eval(`return !!document.querySelector('main .rotation-card')`)), 'rotation is not a card on the list');
+    const cell = await page.eval(`const a = document.querySelector('main a.rotation-cell'); return a ? { href: a.getAttribute('href'), text: a.textContent, h: a.getBoundingClientRect().height } : null`);
+    check(cell !== null && cell.href === '/accounts?view=rotation' && /Auto-rotation/.test(cell.text) && /threshold \d+%/.test(cell.text) && cell.h >= 44, `rotation is a cell to its own screen (${JSON.stringify(cell)})`);
+    await page.click('main .account-row button[aria-label="More actions for three@example.com"]', undefined, 500);
+    await page.waitFor(`return !!document.querySelector('[role=dialog] .account-sheet-actions')`, { label: 'the row\'s actions as a sheet' });
+    const actions = await page.eval(`return [...document.querySelectorAll('[role=dialog] .account-sheet-actions .btn')].map((b) => b.textContent.trim())`);
+    check(actions.length === 2 && actions[0] === 'Hold out of the rotation' && actions[1] === 'Remove the account', `the row keeps hold-out and removal behind the ⋯ (${actions.join(', ')})`);
+    await page.key('Escape');
+    await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: 'the sheet closed' });
+    const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
+    check(overflow <= 1, `/accounts scrolls sideways by ${overflow}px at 390px`);
+
+    await page.click('main a.rotation-cell', undefined, 800);
+    await page.waitFor(`return location.search === '?view=rotation' && !!document.querySelector('main .rotation-card')`, { label: 'the rotation screen' });
+    check((await page.text('main h1')) === 'Auto-rotation', 'the screen is named for rotation');
+    check(!(await page.eval(`return !!document.querySelector('main .account-grid')`)), 'the rotation screen shows rotation alone');
+    await page.click('main button[aria-label="Back to Accounts"]', undefined, 800);
+    await page.waitFor(`return location.search === '' && !!document.querySelector('main .account-row')`, { label: 'back on the accounts' });
+
+    // A desktop never has the rows or the cell, and ignores the phone's view
+    await page.viewport(1440, 900);
+    await page.goto('/accounts?view=rotation', 1500);
+    await page.waitFor(`return !!document.querySelector('main .rotation-card') && !!document.querySelector('main .account-grid')`, { label: 'the desktop page with its rotation card' });
+    check(!(await page.eval(`return !!document.querySelector('main .account-row, main .rotation-cell')`)), 'a desktop keeps every account a card and rotation a card');
   } finally {
+    await page.viewport(1440, 900).catch(() => {});
     await api.put('/accounts/1/config', { configDir: null }).catch(() => {});
     for (const id of policies) await api.del(`/accounts/policies/${id}`).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
@@ -143,6 +196,7 @@ export default async ({ page, api, check, dirs }) => {
       db.exec('PRAGMA busy_timeout = 5000');
       const remove = db.prepare('DELETE FROM usage_history WHERE account = ? AND at = ?');
       for (const [account, at] of seeded) remove.run(account, at);
+      db.prepare('DELETE FROM usage_history WHERE account = ?').run(SPENT.number);
       db.close();
     } catch {
       // the rows are only a chart's input: leaving some behind breaks nothing

@@ -154,3 +154,60 @@ export function AccountCard({
     </li>
   );
 }
+
+/**
+ * An exhausted account on a phone (MobileCuentas): one row with its name and why it cannot take a
+ * run, its hold-out and removal behind the ⋯. Nothing can use it until it resets, so its meters and
+ * its use button would only push the accounts that can work down the screen.
+ */
+export function ExhaustedAccountRow({ account, busy, onToggle, onRemove }: { account: AccountSummary; busy: boolean; onToggle: () => void; onRemove: () => void }) {
+  const { t } = useTranslation(['accountsConfig', 'config']);
+  const resetText = useResetText();
+  const name = account.alias ?? account.email;
+  const binding = bindingReset(account);
+  const backIn = binding ? resetText(binding, true) : null;
+  const toggleLabel = account.disabled ? t('config:accounts.returnToRotation') : t('config:accounts.holdOut');
+  const items: MenuItem[] = [
+    { id: 'toggle', label: toggleLabel, icon: account.disabled ? CircleCheck : CirclePause, disabled: busy, onSelect: onToggle },
+    { id: 'remove', label: t('config:accounts.removeAccount'), icon: Trash2, destructive: true, disabled: busy, onSelect: onRemove },
+  ];
+  const windows = [
+    { id: 'fiveHour', label: t('row.fiveHour'), win: account.usage?.fiveHour ?? null },
+    { id: 'sevenDay', label: t('row.sevenDay'), win: account.usage?.sevenDay ?? null },
+  ];
+
+  return (
+    <li className="card account-row is-exhausted">
+      <span className="account-avatar" aria-hidden>
+        {name.charAt(0).toUpperCase()}
+      </span>
+      <span className="account-id">
+        <span className="account-email">{name}</span>
+        <span className="account-row-state">
+          {windows.map(({ id, label, win }) => {
+            if (!win) return null;
+            if (windowExhausted(win)) {
+              return (
+                <Tag key={id} tone="bad">
+                  {t('row.spent', { window: label })}
+                </Tag>
+              );
+            }
+            const pct = Math.min(100, Math.round(win.pct));
+            // Only a window near its limit earns a tag here, in the meters' colours; a quiet one is noise
+            const tone = usageTone(pct);
+            return tone === 'neutral' ? null : (
+              <Tag key={id} tone={tone}>
+                {t('row.used', { window: label, pct })}
+              </Tag>
+            );
+          })}
+          {account.disabled && <Tag tone="muted">{t('config:accounts.outOfRotation')}</Tag>}
+          {account.headroomPct === 0 && !binding && <Tag tone="bad">{t('card.exhausted')}</Tag>}
+          {backIn && <span className="account-meter-reset">{backIn}</span>}
+        </span>
+      </span>
+      <MoreActions label={t('card.more', { name })} title={name} items={items} />
+    </li>
+  );
+}

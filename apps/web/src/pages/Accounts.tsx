@@ -1,19 +1,22 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, Info, Plus, RefreshCw } from 'lucide-react';
+import type { AccountSummary, AutoSwitchSettings } from '@agentry/shared';
+import { ChevronLeft, ChevronRight, ExternalLink, Info, Plus, RefreshCw } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, keys, useAccountEvents, useAccounts } from '../api';
 import { useConfirm } from '../components/Dialog';
-import { ICON_SM } from '../components/icons';
+import { ICON, ICON_SM } from '../components/icons';
 import { useToast } from '../components/Toast';
-import { Card, Empty, ErrorBox, PageHeader, Skeleton, StatusBadge } from '../components/ui';
+import { Card, Empty, ErrorBox, PageHeader, Skeleton, StatusBadge, usePageTitle } from '../components/ui';
 import { formatDateTime, timeAgo, toMs } from '../lib/format';
-import { AccountCard } from './accounts/AccountCard';
+import { NARROW, useMediaQuery } from '../lib/media';
+import { AccountCard, ExhaustedAccountRow } from './accounts/AccountCard';
 import { AddAccountDialog } from './accounts/AddAccountDialog';
 import { AutoSwitchCard } from './accounts/AutoSwitchCard';
 import { PoliciesCard } from './accounts/PoliciesCard';
 import { UsageHistoryCard } from './accounts/UsageHistoryCard';
-import { sortAccounts } from './accounts/usage';
+import { accountExhausted, sortAccounts } from './accounts/usage';
 import '../insights.css';
 
 const CSWAP_URL = 'https://github.com/realiti4/claude-swap';
@@ -31,6 +34,9 @@ export function Accounts() {
   // The overview carries the most recent window; the rest of the history is one query away
   const [fullHistory, setFullHistory] = useState(false);
   const history = useAccountEvents(fullHistory);
+  // On a phone automatic rotation is a screen of its own, reached from a cell under the accounts
+  const narrow = useMediaQuery(NARROW);
+  const [params, setParams] = useSearchParams();
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: keys.accounts });
 
@@ -56,6 +62,29 @@ export function Accounts() {
   // Falls back to the overview's window while the history query is still in flight
   const events = fullHistory ? (history.data ?? data.events) : data.events;
   const lastRead = data.accounts.reduce<string | null>((latest, a) => ((toMs(a.usageFetchedAt) ?? 0) > (toMs(latest) ?? 0) ? a.usageFetchedAt : latest), null);
+  const toggle = (account: AccountSummary) =>
+    void act(
+      account.disabled ? t('config:accounts.backInRotation', { email: account.email }) : t('config:accounts.heldOut', { email: account.email }),
+      account.disabled ? t('config:accounts.backInRotationFailed', { email: account.email }) : t('config:accounts.heldOutFailed', { email: account.email }),
+      () => api.setAccountEnabled(account.number, account.disabled),
+    );
+  const remove = (account: AccountSummary) =>
+    void confirm({
+      title: t('config:accounts.removeTitle', { email: account.email }),
+      body: t('config:accounts.removeBody'),
+      confirmLabel: t('common:actions.remove'),
+      danger: true,
+    }).then(async (ok) => {
+      if (ok) {
+        await act(t('config:accounts.removed', { email: account.email }), t('config:accounts.removeFailed', { email: account.email }), () => api.removeAccount(account.number));
+      }
+    });
+
+  if (narrow && installed && data.accounts.length > 0 && params.get('view') === 'rotation') {
+    // Back is a step up to the accounts, not through history: a deep link has nothing behind it
+    return <PhoneRotation onBack={() => setParams({})} settings={data.autoSwitch} running={data.autoSwitchRunning} />;
+  }
+
   const addButton = (
     <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
       <Plus {...ICON_SM} /> {t('page.add')}
@@ -116,46 +145,27 @@ export function Accounts() {
       ) : (
         <>
           <ul className="account-grid">
-            {accounts.map((account) => (
-              <AccountCard
-                key={account.number}
-                account={account}
-                config={data.configs.find((c) => c.number === account.number)}
-                busy={busy}
-                onSwitch={() =>
-                  void act(
-                    t('config:accounts.switched', { email: account.email }),
-                    t('config:accounts.switchFailed', { email: account.email }),
-                    () => api.switchAccount({ target: String(account.number) }),
-                  )
-                }
-                onToggle={() =>
-                  void act(
-                    account.disabled ? t('config:accounts.backInRotation', { email: account.email }) : t('config:accounts.heldOut', { email: account.email }),
-                    account.disabled
-                      ? t('config:accounts.backInRotationFailed', { email: account.email })
-                      : t('config:accounts.heldOutFailed', { email: account.email }),
-                    () => api.setAccountEnabled(account.number, account.disabled),
-                  )
-                }
-                onRemove={() =>
-                  void confirm({
-                    title: t('config:accounts.removeTitle', { email: account.email }),
-                    body: t('config:accounts.removeBody'),
-                    confirmLabel: t('common:actions.remove'),
-                    danger: true,
-                  }).then(async (ok) => {
-                    if (ok) {
-                      await act(
-                        t('config:accounts.removed', { email: account.email }),
-                        t('config:accounts.removeFailed', { email: account.email }),
-                        () => api.removeAccount(account.number),
-                      );
-                    }
-                  })
-                }
-              />
-            ))}
+            {accounts.map((account) =>
+              narrow && !account.active && accountExhausted(account) ? (
+                <ExhaustedAccountRow key={account.number} account={account} busy={busy} onToggle={() => toggle(account)} onRemove={() => remove(account)} />
+              ) : (
+                <AccountCard
+                  key={account.number}
+                  account={account}
+                  config={data.configs.find((c) => c.number === account.number)}
+                  busy={busy}
+                  onSwitch={() =>
+                    void act(
+                      t('config:accounts.switched', { email: account.email }),
+                      t('config:accounts.switchFailed', { email: account.email }),
+                      () => api.switchAccount({ target: String(account.number) }),
+                    )
+                  }
+                  onToggle={() => toggle(account)}
+                  onRemove={() => remove(account)}
+                />
+              ),
+            )}
           </ul>
 
           {data.accounts.length > 1 && (
@@ -165,7 +175,20 @@ export function Accounts() {
             </div>
           )}
 
-          <AutoSwitchCard settings={data.autoSwitch} running={data.autoSwitchRunning} />
+          {narrow ? (
+            <Link to="/accounts?view=rotation" className="card rotation-cell">
+              <span className="rotation-cell-text">
+                <span className="rotation-cell-title">{t('config:accounts.autoRotation')}</span>
+                <span className="rotation-cell-sub">
+                  {data.autoSwitchRunning ? t('rotation.running') : data.autoSwitch.enabled ? t('rotation.stopped') : t('rotation.off')} ·{' '}
+                  {t('rotation.thresholdShort', { pct: data.autoSwitch.threshold })}
+                </span>
+              </span>
+              <ChevronRight className="rotation-cell-chevron" {...ICON} />
+            </Link>
+          ) : (
+            <AutoSwitchCard settings={data.autoSwitch} running={data.autoSwitchRunning} />
+          )}
 
           <PoliciesCard policies={data.policies} accounts={data.accounts} />
 
@@ -203,6 +226,23 @@ export function Accounts() {
           </Card>
         </>
       )}
+    </div>
+  );
+}
+
+/** Automatic rotation on a phone: its card on a screen of its own, with the way back to the accounts above it. */
+function PhoneRotation({ onBack, settings, running }: { onBack: () => void; settings: AutoSwitchSettings; running: boolean }) {
+  const { t } = useTranslation(['accountsConfig', 'config']);
+  usePageTitle(t('config:accounts.autoRotation'));
+  return (
+    <div className="stack accounts-page">
+      <header className="settings-phone-head">
+        <button type="button" className="icon-btn settings-phone-back" aria-label={t('rotation.back')} onClick={onBack}>
+          <ChevronLeft {...ICON} />
+        </button>
+        <h1 className="settings-phone-title">{t('config:accounts.autoRotation')}</h1>
+      </header>
+      <AutoSwitchCard settings={settings} running={running} />
     </div>
   );
 }

@@ -192,9 +192,12 @@ function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; fir
   );
 }
 
-/** Rename, remove and purge: a `⋯` menu on a desktop, a sheet of big buttons on a phone. */
+/**
+ * Rename, remove and purge: a `⋯` menu on a desktop, a sheet of big buttons on a phone. The phone's
+ * card keeps one button, so opening the project joins the sheet (MobileProyectos).
+ */
 function ProjectActions({ project, onRename, onRemove, onPurge }: { project: Project; onRename: () => void; onRemove: () => void; onPurge: () => void }) {
-  const { t } = useTranslation(['projects']);
+  const { t } = useTranslation(['projects', 'common']);
   const narrow = useMediaQuery(NARROW);
   const [open, setOpen] = useState(false);
   const label = t('card.actionsNamed', { name: project.name });
@@ -212,6 +215,9 @@ function ProjectActions({ project, onRename, onRemove, onPurge }: { project: Pro
         </button>
         <Sheet open={open} onOpenChange={setOpen} title={label} side="bottom" className="project-sheet">
           <div className="project-sheet-actions">
+            <Link to={`/?project=${encodeURIComponent(project.id)}`} className="btn">
+              <FolderOpen {...ICON_SM} /> {t('common:actions.open')}
+            </Link>
             <button type="button" className="btn" onClick={run(onRename)}>
               <Pencil {...ICON_SM} /> {t('card.rename')}
             </button>
@@ -399,6 +405,9 @@ function ProjectCard({ project, active, live }: { project: Project; active: bool
   );
 }
 
+/** How many projects a phone lists before it offers the search and the sort. */
+const PHONE_TOOLBAR_FROM = 5;
+
 export function Projects() {
   const { t } = useTranslation(['projects', 'work', 'common', 'config']);
   const narrow = useMediaQuery(NARROW);
@@ -430,7 +439,8 @@ export function Projects() {
     <>
       <PageHeader
         title={t('work:projects.title')}
-        subtitle={t('page.subtitle', { count: projects.length, n: formatNumber(projects.length) })}
+        // A phone's header is its title and its actions (MobileProyectos); the count is the cards themselves
+        subtitle={narrow ? undefined : t('page.subtitle', { count: projects.length, n: formatNumber(projects.length) })}
         actions={
           adding === null && (
             <>
@@ -456,10 +466,13 @@ export function Projects() {
         )
       ) : (
         <div>
-          <ListToolbar
-            search={{ value: search, onChange: setSearch, placeholder: t('list.searchPlaceholder'), label: t('list.searchLabel') }}
-            sort={{ value: sort, options: PROJECT_SORTS.map((value) => ({ value, label: t(`list.sort.${value}`) })), onChange: (v) => setSort(PROJECT_SORTS.find((s) => s === v) ?? 'activity'), label: t('list.sortLabel') }}
-          />
+          {/* On a phone a handful of cards is read at a glance; the search and the sort come with a longer list */}
+          {(!narrow || projects.length >= PHONE_TOOLBAR_FROM) && (
+            <ListToolbar
+              search={{ value: search, onChange: setSearch, placeholder: t('list.searchPlaceholder'), label: t('list.searchLabel') }}
+              sort={{ value: sort, options: PROJECT_SORTS.map((value) => ({ value, label: t(`list.sort.${value}`) })), onChange: (v) => setSort(PROJECT_SORTS.find((s) => s === v) ?? 'activity'), label: t('list.sortLabel') }}
+            />
+          )}
           {shown.length === 0 ? (
             <Empty illustration="no-results" size={narrow ? 'sm' : undefined} title={t('list.noneMatch')}>
               {t('list.noneMatchHint')}

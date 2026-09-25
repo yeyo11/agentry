@@ -438,6 +438,8 @@ References: the matching `Desktop*` and `Mobile*` screens.
     stats (chats, worktrees, activity with the live dot), "Nuevo chat aquí" and Abrir.
   - Rename / remove / purge in a menu (a sheet on the phone); purge asks for confirmation.
   - "N more directories have chats" as a dashed callout.
+  - Phone (`MobileProyectos`): no subtitle, one "Nuevo chat aquí" per card, and Abrir joins
+    rename / remove / purge in the "⋯" sheet. The search and sort show from five projects on.
 - **Accounts.**
   - The active account first, as a `grad-border` card with the "en uso" gradient badge and a
     gradient free-quota figure. Accounts that are exhausted come last.
@@ -448,23 +450,37 @@ References: the matching `Desktop*` and `Mobile*` screens.
   - Automatic rotation is one card: threshold slider, strategy segmented, interval, windows, and a
     resume toggle.
   - Usage history keeps working, restyled.
+  - Phone (`MobileCuentas`): an exhausted account that is not in use is one row (avatar, name,
+    "5h agotado" and any window running high as tags, "vuelve en …"), with hold-out and removal
+    behind its "⋯" sheet. Automatic rotation is a cell ("detenida · umbral 90%") that opens
+    `/accounts?view=rotation`, a screen with the rotation card and a way back. A desktop ignores
+    `?view=` and keeps every account a card.
 - **Connectors.**
   - A connected connector: status dot and the "Probar" prompt button.
   - A connector that needs authorisation: a warn-tinted card with the numbered steps once (drop the
     duplicated how-to).
   - "La CLI no lista …" as a callout, and the out-of-scope notes in a side column.
+  - Phone (`MobileConectores`): the header is the title, "consultado …" and a refresh icon. The
+    callout and the out-of-scope notes become one footnote under the cards.
 - **Schedules.**
   - Empty state: the `schedules` illustration, a headline, and three template cards (every
     morning, every Monday, every 15 min) that open the editor preset where it already supports it
     (otherwise `/schedules/new`).
   - The two rules as callouts.
   - The list and editor restyled.
+  - Phone: a card keeps its on/off switch; run now, edit and delete go behind a "⋯" `Sheet` titled
+    with the schedule, as on Projects and Accounts. Desktop keeps them as buttons on the card.
 - **Usage.**
   - The period as a segmented control.
   - KPI tiles that act as the metric selector (Cost, Tokens, Chats; the selected one
     `grad-border`), plus a "busiest day" tile.
   - The per-day bar chart: gradient bars, the peak highlighted with a glow, and a tooltip on hover.
-    Keep the table view and the chart's accessible description.
+    Keep the table view and the chart's accessible description. The table is a "Ver tabla" toggle
+    button (`aria-pressed`) in the chart card's header, next to Día/Semana, that puts the table in
+    the chart's place.
+  - Phone (`MobileUso`): one big figure ("Coste · 30 días") instead of the tiles, with the other two
+    metrics under it as buttons that move them into the figure and the chart; the chart card says
+    the peak above the bars.
   - By project / by model as gradient bars.
 - **Illustrations.**
   - Projects: none yet → `projects`; no match → `no-results`.

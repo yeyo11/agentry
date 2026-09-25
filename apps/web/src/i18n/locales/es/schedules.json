@@ -59,6 +59,7 @@
     "editNamed": "Editar {{name}}",
     "delete": "Eliminar",
     "deleteNamed": "Eliminar {{name}}",
+    "moreNamed": "Más acciones de {{name}}",
     "deleteTitle": "¿Eliminar «{{name}}»?",
     "deleteBody": "Deja de dispararse y se borra su historial de ejecuciones. Los chats y las orquestaciones que ya lanzó se conservan.",
     "deleted": "{{name}} eliminada",

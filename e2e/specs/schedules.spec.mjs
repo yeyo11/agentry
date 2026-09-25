@@ -127,6 +127,28 @@ export default async ({ page, api, check }) => {
     await page.eval(`localStorage.removeItem('agentry-theme'); return true`);
     await page.goto('/schedules', 900);
 
+    // ---------- on a phone the card keeps its switch and moves the rest behind a ⋯ sheet ----------
+    await page.viewport(390, 844);
+    await page.goto('/schedules', 900);
+    await page.waitFor(`return !!document.querySelector('.schedule-card [role=switch]')`, { label: 'the card on a phone' });
+    const inline = await page.eval(`return [...document.querySelectorAll('.schedule-card .schedule-actions .btn')].map((b) => b.getAttribute('aria-label'))`);
+    check(inline.length === 0, `on a phone no action button sits on the card (${inline.join(', ')})`);
+    const more = await page.eval(`const b = document.querySelector('.schedule-card button[aria-label="More actions for ${NAME}"]'); if (!b) return null; const r = b.getBoundingClientRect(); return { w: r.width, h: r.height }`);
+    check(more !== null && more.w >= 44 && more.h >= 44, `the ⋯ is there and big enough for a finger (${JSON.stringify(more)})`);
+    await page.click(`.schedule-card button[aria-label="More actions for ${NAME}"]`, undefined, 500);
+    await page.waitFor(`return !!document.querySelector('[role=dialog] .schedule-sheet-actions')`, { label: 'the actions sheet' });
+    const sheet = await page.eval(`return [...document.querySelectorAll('[role=dialog] .schedule-sheet-actions .btn')].map((b) => b.textContent.trim())`);
+    check(sheet.join('|') === 'Run now|Edit|Delete', `the sheet offers run now, edit and delete (${sheet.join('|')})`);
+    check((await page.text('[role=dialog] .sheet-title')) === NAME, 'the sheet is titled with the schedule');
+    await noViolations(page, 'the schedule actions sheet', check, { rules: { region: { enabled: false } } });
+    await page.key('Escape');
+    await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: 'Escape closes the sheet' });
+    const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
+    check(overflow <= 1, `/schedules scrolls sideways by ${overflow}px at 390px`);
+    await page.viewport(1440, 900);
+    await page.goto('/schedules', 900);
+    await page.waitFor(`return !!document.querySelector('.schedule-card')`, { label: 'the card on a desktop again' });
+
     // ---------- delete ----------
     await page.click(`.schedule-card button[aria-label="Delete ${NAME}"]`);
     await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the confirmation' });
@@ -135,6 +157,7 @@ export default async ({ page, api, check }) => {
     check((await api.get('/schedules')).body.length === 0, 'the schedule is gone');
     scheduleId = null;
   } finally {
+    await page.viewport(1440, 900).catch(() => {});
     await page.reduceMotion(false).catch(() => {});
     await page.eval(`localStorage.removeItem('agentry-theme'); return true`).catch(() => {});
     if (scheduleId) await api.del(`/schedules/${scheduleId}`).catch(() => {});

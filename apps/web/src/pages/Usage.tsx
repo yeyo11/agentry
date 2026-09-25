@@ -1,13 +1,14 @@
 import type { UsageBucket, UsagePoint, UsageSlice } from '@agentry/shared';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useUsageBreakdown, useUsageSeries, type UsageRange } from '../api';
 import { BarChart } from '../components/BarChart';
 import { ProjectExportCard } from '../components/ProjectExport';
-import { Collapsible, DatePicker } from '../components/controls';
+import { DatePicker } from '../components/controls';
 import { Card, Empty, ErrorBox, PageHeader, Segmented, Skeleton } from '../components/ui';
 import { formatCost, formatNumber } from '../lib/format';
 import { intlLocale } from '../i18n/language';
+import { NARROW, useMediaQuery } from '../lib/media';
 import { useProjectScope } from '../lib/project-scope';
 import { bucketFor, customRangeError, metricValue, parseDay, presetRange, sumMetric, topSlices, toDay, type RangePreset, type UsageMetric } from '../lib/usage-view';
 import '../insights.css';
@@ -54,6 +55,8 @@ export function Usage() {
   const [wantedBucket, setWantedBucket] = useState<UsageBucket>('day');
   const [metric, setMetric] = useState<UsageMetric>('cost');
   const [active, setActive] = useState<number | null>(null);
+  const [asTable, setAsTable] = useState(false);
+  const narrow = useMediaQuery(NARROW);
   const fmt = useFormatMetric();
 
   const bucket = bucketFor(applied, wantedBucket);
@@ -96,6 +99,13 @@ export function Usage() {
     if (value === 'tokens') return chatCount > 0 && totals.tokens ? t('tiles.tokensSub', { n: formatNumber(totals.tokens / chatCount, { notation: 'compact', maximumFractionDigits: 1 }) }) : '';
     return t('tiles.chatsSub');
   };
+  // The phone's hero names the period it adds up: a preset by its name, a custom range by its days
+  const rangeLabel = preset !== 'custom' ? t(`range.${preset}`) : first && last ? t('tiles.costSub', { from: dayLabel(first.at), to: dayLabel(last.at) }) : t('range.custom');
+  const heroPick = (value: UsageMetric): string => {
+    if (value === 'cost') return fmt('cost', totals.cost);
+    if (value === 'tokens') return totals.tokens === null ? t('notReported') : t('readout.tokens', { n: formatNumber(totals.tokens, { notation: 'compact', maximumFractionDigits: 1 }) });
+    return t('readout.chats', { count: chatCount });
+  };
 
   return (
     <>
@@ -136,17 +146,27 @@ export function Usage() {
       )}
       <ErrorBox error={series.error ?? breakdown.error} />
 
-      {/* The tiles are the metric picker too: the one pressed is what the chart and the breakdowns show */}
-      <div className="usage-tiles" role="group" aria-label={t('over.metric')}>
-        {METRICS.map((value) => (
-          <MetricTile key={value} label={t(`tiles.${value}`)} value={tileValue(value)} sub={tileSub(value)} pending={value === 'chats' ? breakdown.isPending : series.isPending} on={metric === value} onPick={() => pickMetric(value)} />
-        ))}
-        <div className="usage-tile usage-tile-peak">
-          <span className="usage-tile-label">{t(bucket === 'week' ? 'tiles.peakWeek' : 'tiles.peakDay')}</span>
-          <span className="usage-tile-value">{series.isPending ? <TileSkeleton /> : peak ? fmt(metric, metricValue(peak, metric)) : t('tiles.noPeak')}</span>
-          <span className="usage-tile-sub">{!series.isPending && peak ? t('tiles.peakSub', { period: dayLabel(peak.at, 'weekday'), share: peakShare }) : '\u00a0'}</span>
+      {narrow ? (
+        <UsageHero
+          label={t('hero.label', { metric: t(`metrics.${metric}`), range: rangeLabel })}
+          value={tileValue(metric)}
+          pending={metric === 'chats' ? breakdown.isPending : series.isPending}
+          picks={METRICS.filter((value) => value !== metric).map((value) => ({ value, text: heroPick(value) }))}
+          onPick={pickMetric}
+        />
+      ) : (
+        // The tiles are the metric picker too: the one pressed is what the chart and the breakdowns show
+        <div className="usage-tiles" role="group" aria-label={t('over.metric')}>
+          {METRICS.map((value) => (
+            <MetricTile key={value} label={t(`tiles.${value}`)} value={tileValue(value)} sub={tileSub(value)} pending={value === 'chats' ? breakdown.isPending : series.isPending} on={metric === value} onPick={() => pickMetric(value)} />
+          ))}
+          <div className="usage-tile usage-tile-peak">
+            <span className="usage-tile-label">{t(bucket === 'week' ? 'tiles.peakWeek' : 'tiles.peakDay')}</span>
+            <span className="usage-tile-value">{series.isPending ? <TileSkeleton /> : peak ? fmt(metric, metricValue(peak, metric)) : t('tiles.noPeak')}</span>
+            <span className="usage-tile-sub">{!series.isPending && peak ? t('tiles.peakSub', { period: dayLabel(peak.at, 'weekday'), share: peakShare }) : '\u00a0'}</span>
+          </div>
         </div>
-      </div>
+      )}
 
       <Card
         className="usage-over"
@@ -159,6 +179,10 @@ export function Usage() {
               onChange={setWantedBucket}
               options={(['day', 'week'] as const).map((value) => ({ value, label: t(`buckets.${value}`) }))}
             />
+            {/* The same figures as a table: what a chart drawn in colour alone owes a screen reader and a keyboard */}
+            <button type="button" className="btn btn-small usage-table-toggle" aria-pressed={asTable} disabled={series.isPending || !anyData} onClick={() => setAsTable(!asTable)}>
+              {t('table.view')}
+            </button>
           </span>
         }
       >
@@ -169,7 +193,11 @@ export function Usage() {
             {t('over.emptyBody')}
           </Empty>
         ) : (
-          <OverTime points={points} metric={metric} bucket={bucket} active={active} onActive={setActive} />
+          <>
+            {/* The phone has no peak tile, so the chart says it above the bars */}
+            {narrow && peak && <p className="usage-over-peak">{t('hero.peak', { value: fmt(metric, metricValue(peak, metric)), period: dayLabel(peak.at) })}</p>}
+            <OverTime points={points} metric={metric} bucket={bucket} active={active} onActive={setActive} asTable={asTable} />
+          </>
         )}
         <p className="usage-note">{t('over.note')}</p>
       </Card>
@@ -197,18 +225,60 @@ function MetricTile({ label, value, sub, pending, on, onPick }: { label: string;
   );
 }
 
+/**
+ * The phone's version of the tiles: one big figure for the metric the chart shows, and the other two
+ * in the line under it, each a button that puts its metric in the big figure and the chart.
+ */
+function UsageHero({
+  label,
+  value,
+  pending,
+  picks,
+  onPick,
+}: {
+  label: string;
+  value: string;
+  pending: boolean;
+  picks: ReadonlyArray<{ value: UsageMetric; text: string }>;
+  onPick: (metric: UsageMetric) => void;
+}) {
+  const { t } = useTranslation('usage');
+  return (
+    <div className="usage-hero">
+      <span className="section-label">{label}</span>
+      <span className="usage-hero-value grad-text">{pending ? <TileSkeleton /> : value}</span>
+      <span className="usage-hero-picks" role="group" aria-label={t('hero.pick')}>
+        {picks.map((pick, index) => (
+          <Fragment key={pick.value}>
+            {index > 0 && (
+              <span className="usage-hero-sep" aria-hidden>
+                ·
+              </span>
+            )}
+            <button type="button" className="usage-hero-pick" onClick={() => onPick(pick.value)}>
+              {pick.text}
+            </button>
+          </Fragment>
+        ))}
+      </span>
+    </div>
+  );
+}
+
 function OverTime({
   points,
   metric,
   bucket,
   active,
   onActive,
+  asTable,
 }: {
   points: readonly UsagePoint[];
   metric: UsageMetric;
   bucket: UsageBucket;
   active: number | null;
   onActive: (index: number | null) => void;
+  asTable: boolean;
 }) {
   const { t } = useTranslation('usage');
   const fmt = useFormatMetric();
@@ -242,44 +312,45 @@ function OverTime({
     );
   };
 
-  return (
-    <div className="stack">
-      <BarChart
-        bars={bars}
-        label={t('chart.label', { metric: t(`metrics.${metric}`) })}
-        description={description}
-        active={active}
-        onActive={onActive}
-        tip={tip}
-        integer={metric !== 'cost'}
-        formatAxis={(value) => (metric === 'cost' ? formatCost(value) : formatNumber(value, { notation: 'compact' }))}
-      />
-      <Collapsible title={t('table.show')}>
-        <div className="table-wrap" tabIndex={0} role="region" aria-label={t('table.label')}>
-          <table className="table usage-table">
-            <caption className="sr-only">{t('table.caption', { bucket: t(`buckets.${bucket}`).toLowerCase() })}</caption>
-            <thead>
-              <tr>
-                <th scope="col">{t('table.period')}</th>
-                <th scope="col" className="num">{t('metrics.cost')}</th>
-                <th scope="col" className="num">{t('metrics.tokens')}</th>
-                <th scope="col" className="num">{t('metrics.chats')}</th>
+  if (asTable) {
+    return (
+      <div className="table-wrap" tabIndex={0} role="region" aria-label={t('table.label')}>
+        <table className="table usage-table">
+          <caption className="sr-only">{t('table.caption', { bucket: t(`buckets.${bucket}`).toLowerCase() })}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{t('table.period')}</th>
+              <th scope="col" className="num">{t('metrics.cost')}</th>
+              <th scope="col" className="num">{t('metrics.tokens')}</th>
+              <th scope="col" className="num">{t('metrics.chats')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {points.map((point) => (
+              <tr key={point.at}>
+                <th scope="row">{periodLabel(point.at)}</th>
+                <td className="num">{fmt('cost', point.costUsd)}</td>
+                <td className="num">{fmt('tokens', point.tokens)}</td>
+                <td className="num">{fmt('chats', point.chats)}</td>
               </tr>
-            </thead>
-            <tbody>
-              {points.map((point) => (
-                <tr key={point.at}>
-                  <th scope="row">{periodLabel(point.at)}</th>
-                  <td className="num">{fmt('cost', point.costUsd)}</td>
-                  <td className="num">{fmt('tokens', point.tokens)}</td>
-                  <td className="num">{fmt('chats', point.chats)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Collapsible>
-    </div>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  return (
+    <BarChart
+      bars={bars}
+      label={t('chart.label', { metric: t(`metrics.${metric}`) })}
+      description={description}
+      active={active}
+      onActive={onActive}
+      tip={tip}
+      integer={metric !== 'cost'}
+      formatAxis={(value) => (metric === 'cost' ? formatCost(value) : formatNumber(value, { notation: 'compact' }))}
+    />
   );
 }
 
