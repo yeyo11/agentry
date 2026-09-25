@@ -206,6 +206,7 @@ export function PoliciesCard({ policies, accounts }: { policies: RotationPolicy[
 
   return (
     <Card
+      className="policies-card"
       title={
         <span className="title-icon">
           <Route {...ICON_SM} /> {t('policies.title')}
