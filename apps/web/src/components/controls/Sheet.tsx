@@ -45,6 +45,7 @@ export function Sheet({
   // Radix gives focus back to its Trigger, and a sheet is opened by a plain button: without this it
   // would land on the body
   const opener = useRef<HTMLElement | null>(null);
+  const content = useRef<HTMLDivElement | null>(null);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (edge !== 'bottom' || !touch) return;
@@ -68,10 +69,16 @@ export function Sheet({
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="sheet-scrim" />
         <RadixDialog.Content
+          ref={content}
           className={`sheet sheet-${edge} ${className}`.trim()}
           style={drag ? { transform: `translateY(${drag}px)` } : undefined}
-          onOpenAutoFocus={() => {
+          onOpenAutoFocus={(event) => {
             opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            // Radix would focus the first control while the sheet is still sliding in from off
+            // screen: the browser scrolls to reveal it (the jump on a phone) and lays out the whole
+            // page synchronously to do so. The panel itself takes focus instead, without scrolling.
+            event.preventDefault();
+            content.current?.focus({ preventScroll: true });
           }}
           onCloseAutoFocus={(event) => {
             const back = opener.current;
