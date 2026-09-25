@@ -19,6 +19,7 @@ import {
   ALL_ORIGINS,
   contextShare,
   deleteBlocker,
+  displayTitle,
   facetOptions,
   formatPercent,
   formatUsd,
@@ -172,7 +173,7 @@ const ChatRow = memo(function ChatRow({
       data-id={chat.id}
     >
       <span className="crow-select">
-        <Checkbox checked={selected} onChange={(on) => onSelect(chat.id, on)} aria-label={t('list.selectChat', { title: chat.title })} />
+        <Checkbox checked={selected} onChange={(on) => onSelect(chat.id, on)} aria-label={t('list.selectChat', { title: displayTitle(chat) })} />
       </span>
       <Link
         to={`/chats/${chat.id}`}
@@ -218,7 +219,7 @@ const ChatRow = memo(function ChatRow({
           <StateMark chat={chat} />
         </span>
         <span className="crow-main">
-          <span className="crow-title-text">{chat.title}</span>
+          <span className="crow-title-text">{displayTitle(chat)}</span>
           <span className="crow-sub">
             <StateWord chat={chat} />
             {/* The table's line: the id, how the chat can be driven, and on demand its model */}
