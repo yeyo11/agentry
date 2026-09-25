@@ -68,6 +68,7 @@ function toBlocks(content: unknown): ContentBlock[] {
 export function normalizeMessage(raw: unknown): TranscriptEntry | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
+  if (o.type === 'system' && o.subtype === 'local_command') return localCommand(o);
   if (o.type !== 'user' && o.type !== 'assistant') return null;
   if (o.isMeta === true) return null;
   const message = o.message as Record<string, unknown> | undefined;
@@ -87,6 +88,24 @@ export function normalizeMessage(raw: unknown): TranscriptEntry | null {
           ? o.parentToolUseID
           : null,
     blocks,
+  };
+}
+
+/**
+ * The output of a slash command the CLI ran itself (`/context`, `/cost`, …). The CLI used to write
+ * it as a `user` message wrapped in `<local-command-stdout>`, and now writes a `system` line with
+ * the same text: read as the message it was, so the page keeps showing it as the command's output.
+ */
+function localCommand(o: Record<string, unknown>): TranscriptEntry | null {
+  if (o.isMeta === true || typeof o.content !== 'string' || !o.content) return null;
+  return {
+    uuid: String(o.uuid ?? ''),
+    role: 'user',
+    timestamp: typeof o.timestamp === 'string' ? o.timestamp : null,
+    model: null,
+    isSidechain: o.isSidechain === true,
+    parentToolUseId: null,
+    blocks: [{ type: 'text', text: o.content }],
   };
 }
 

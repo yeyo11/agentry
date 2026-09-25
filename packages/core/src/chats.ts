@@ -6,6 +6,7 @@ import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
   entryText,
+  isModelName,
   normalizeMessage,
   type Attachment,
   type ChatActivity,
@@ -1571,7 +1572,8 @@ export class ChatManager extends EventEmitter {
       if (entry.role === 'assistant' && !entry.isSidechain) {
         const text = entryText(entry);
         if (text) chat.lastText = text.slice(0, 2000);
-        if (entry.model) chat.setSettings({ model: entry.model });
+        // A slash command's reply comes from `<synthetic>`, which a resume would pass back as `--model`
+        if (isModelName(entry.model)) chat.setSettings({ model: entry.model });
       }
       chat.push({ kind: 'message', type, entry });
       return;
