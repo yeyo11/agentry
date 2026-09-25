@@ -166,8 +166,8 @@ export default async ({ page, api, check, dirs }) => {
     const cell = await page.eval(`const a = document.querySelector('main a.rotation-cell'); return a ? { href: a.getAttribute('href'), text: a.textContent, h: a.getBoundingClientRect().height } : null`);
     check(cell !== null && cell.href === '/accounts?view=rotation' && /Auto-rotation/.test(cell.text) && /threshold \d+%/.test(cell.text) && cell.h >= 44, `rotation is a cell to its own screen (${JSON.stringify(cell)})`);
     await page.click('main .account-row button[aria-label="More actions for three@example.com"]', undefined, 500);
-    await page.waitFor(`return !!document.querySelector('[role=dialog] .account-sheet-actions')`, { label: 'the row\'s actions as a sheet' });
-    const actions = await page.eval(`return [...document.querySelectorAll('[role=dialog] .account-sheet-actions .btn')].map((b) => b.textContent.trim())`);
+    await page.waitFor(`return !!document.querySelector('[role=dialog] .sheet-actions')`, { label: 'the row\'s actions as a sheet' });
+    const actions = await page.eval(`return [...document.querySelectorAll('[role=dialog] .sheet-actions .btn')].map((b) => b.textContent.trim())`);
     check(actions.length === 2 && actions[0] === 'Hold out of the rotation' && actions[1] === 'Remove the account', `the row keeps hold-out and removal behind the ⋯ (${actions.join(', ')})`);
     await page.key('Escape');
     await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: 'the sheet closed' });
