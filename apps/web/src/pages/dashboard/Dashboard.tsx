@@ -3,7 +3,7 @@ import { Component, Suspense, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ErrorBox, Skeleton } from '../../components/ui';
 import type { DashboardLayout, LayoutWidget } from './layout';
-import { widgetDefinition } from './registry';
+import { WIDGET_AREAS, widgetDefinition, type WidgetArea } from './registry';
 
 /** One widget failing to render (or to load its chunk) takes its own cell down, not the dashboard. */
 class WidgetBoundary extends Component<{ fallback: (error: unknown) => ReactNode; children: ReactNode }, { error: unknown }> {
@@ -43,16 +43,30 @@ function Slot({ widget, project }: { widget: LayoutWidget; project: Project | nu
 }
 
 /**
- * Draws a layout: a 12-column grid on a wide page, 6 on a tablet, one column on a phone, measured
- * on the dashboard's own width so the sidebar being open or folded is accounted for.
+ * Draws a layout in three areas: the strip of figures on top, the wide column of live work and the
+ * narrow one beside it. Each widget's area comes from its type; within an area the layout's order
+ * holds. Measured on the dashboard's own width, so a folded sidebar is room gained; on a phone the
+ * areas melt into one column.
  */
 export function Dashboard({ layout, project, label }: { layout: DashboardLayout; project: Project | null; label: string }) {
+  const byArea = new Map<WidgetArea, LayoutWidget[]>(WIDGET_AREAS.map((area) => [area, []]));
+  for (const widget of layout.widgets) {
+    const area = widgetDefinition(widget.type)?.area;
+    if (area) byArea.get(area)?.push(widget);
+  }
   return (
     <div className="dashboard">
       <div className="dashboard-grid" role="region" aria-label={label}>
-        {layout.widgets.map((widget) => (
-          <Slot key={widget.id} widget={widget} project={project} />
-        ))}
+        {WIDGET_AREAS.map((area) => {
+          const widgets = byArea.get(area) ?? [];
+          return widgets.length === 0 ? null : (
+            <div key={area} className={`dashboard-area area-${area}`}>
+              {widgets.map((widget) => (
+                <Slot key={widget.id} widget={widget} project={project} />
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
