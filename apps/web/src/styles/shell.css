@@ -123,9 +123,20 @@
 
 .nav-icon,
 .nav-label,
-.nav-count {
+.nav-count,
+.nav-dot {
   position: relative;
   z-index: 1;
+}
+
+/* "Something here wants a look" (a newer Agentry): a dot, not a count, and the brand colour because
+   it leads somewhere to press. Its words are for the screen reader, inside it. */
+.nav-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 .nav-icon {
@@ -389,6 +400,12 @@
   padding: 0 3px;
   font-size: 9.5px;
   background: var(--bg-sunken);
+}
+
+.shell-rail .nav-dot {
+  position: absolute;
+  top: 5px;
+  right: 8px;
 }
 
 .shell-rail .sidebar-foot {
@@ -746,6 +763,12 @@
   .tabbar-icon {
     position: relative;
     display: inline-flex;
+  }
+
+  .tabbar-icon .nav-dot {
+    position: absolute;
+    top: -2px;
+    right: -4px;
   }
 
   .tabbar-new-icon {

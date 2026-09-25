@@ -316,6 +316,23 @@ input.is-invalid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* A shell command to copy and run elsewhere (the Updates card's steps) */
+.update-command {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+}
+
+.update-command code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .form-actions {
   display: flex;
   align-items: center;

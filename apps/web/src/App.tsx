@@ -16,11 +16,11 @@ import {
   Users,
   Workflow,
 } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { chatListQuery, useOverview } from './api';
+import { api, chatListQuery, keys, useOverview } from './api';
 import { CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
 import type { MenuEntry } from './components/controls/Menu';
 import { Tooltip } from './components/controls/Tooltip';
@@ -31,7 +31,7 @@ import { PageTransition, SlidingIndicator, StatusDot } from './components/motion
 import { ProjectSelector } from './components/ProjectSelector';
 import { lazyPage, ReloadBanner } from './components/ReloadOffer';
 import { LiveChip, LiveSection, useLive } from './components/shell/live';
-import { isActive, TabBar, type NavItem } from './components/shell/TabBar';
+import { isActive, NavDot, navTarget, TabBar, type NavItem } from './components/shell/TabBar';
 import { SignIn } from './components/SignIn';
 import { SplitButton } from './components/SplitButton';
 import { Empty, Skeleton } from './components/ui';
@@ -158,6 +158,10 @@ function Shell() {
     return () => window.removeEventListener(RUN_WORKFLOW_EVENT, open);
   }, []);
 
+  // Read from release.json, never from GitHub; `system.release` refetches it (lib/events.ts)
+  const release = useQuery({ queryKey: keys.release, queryFn: () => api.release() });
+  const updateAvailable = release.data?.updateAvailable === true;
+
   const items: NavItem[] = [
     { to: '/', label: t('nav.home'), icon: House, count: { value: counts?.chatsWaiting, what: t('nav.badge.waiting') } },
     { to: '/chats', label: t('nav.chats'), icon: MessagesSquare, count: { value: counts?.chatsWorking, what: t('nav.badge.working') } },
@@ -167,7 +171,13 @@ function Shell() {
     { to: '/schedules', label: t('nav.schedules'), icon: CalendarClock },
     { to: '/usage', label: t('nav.usage'), icon: ChartColumn },
     { to: '/connectors', label: t('connectors:nav'), icon: Plug },
-    { to: '/settings', label: t('nav.settings'), icon: Settings2 },
+    {
+      to: '/settings',
+      label: t('nav.settings'),
+      icon: Settings2,
+      // The Updates card is on the account tab: the dot leads straight to it
+      ...(updateAvailable ? { dot: t('nav.badge.update'), search: '?tab=account' } : {}),
+    },
   ];
 
   const current = items.find((item) => isActive(item, pathname));
@@ -257,7 +267,7 @@ function Shell() {
               return (
                 <Tooltip key={item.to} content={railTip(item.label)} side="right">
                   <NavLink
-                    to={item.to}
+                    to={navTarget(item)}
                     end={item.to === '/'}
                     className={`nav-link ${active ? 'is-active' : ''}`}
                     {...(item.to === '/chats' && !active ? { onPointerEnter: warmChats, onFocus: warmChats } : {})}
@@ -273,6 +283,7 @@ function Shell() {
                         <span className="sr-only"> {item.count?.what}</span>
                       </span>
                     ) : null}
+                    <NavDot label={item.dot} />
                   </NavLink>
                 </Tooltip>
               );

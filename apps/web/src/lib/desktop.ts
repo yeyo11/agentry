@@ -27,6 +27,20 @@ export interface DesktopBridge {
   setTitleBarTheme?: (theme: TitleBarTheme) => void;
   /** The tray asks the page to open an in-app path; returns the unsubscribe function */
   onNavigate?: (listener: (path: string) => void) => () => void;
+  /** The app's own updates, through electron-updater; see lib/updates.ts for the shapes it answers with */
+  updates?: DesktopUpdatesBridge;
+}
+
+/**
+ * The preload hands these over as `unknown`: what they carry is checked by `parseUpdateState` and
+ * `parseInstallAnswer` in lib/updates.ts rather than trusted.
+ */
+export interface DesktopUpdatesBridge {
+  state: () => Promise<unknown>;
+  /** Returns the unsubscribe function */
+  onState: (listener: (state: unknown) => void) => () => void;
+  download: () => Promise<unknown>;
+  install: (options?: { whenIdle?: boolean; force?: boolean }) => Promise<unknown>;
 }
 
 declare global {
