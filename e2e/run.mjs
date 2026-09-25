@@ -11,8 +11,13 @@
 // A spec that exports `fakeCli = true` runs against the fake `claude` of e2e/fake-cli instead of the
 // real one: the server is restarted with it first on PATH, and those specs run after every other,
 // so a spec that did not ask never sees it. See e2e/fake-cli/README.md.
+// Agentry's own release check never reaches GitHub: AGENTRY_RELEASES_URL points at a fixture served
+// here, whose tag a spec sets through `releases.set(tag)`. The daily check is off, so only a spec
+// that presses Check for updates (or posts /system/release/check) learns of a release.
 import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +48,26 @@ if (!existsSync(join(root, 'apps/web/dist/index.html'))) {
   process.exit(2);
 }
 
+// GitHub's latest-release shape, reduced to the fields the check reads
+const releases = {
+  tag: 'v999.0.0',
+  set(tag) {
+    releases.tag = tag;
+  },
+  get url() {
+    return `https://github.com/yeyo11/agentry/releases/tag/${releases.tag}`;
+  },
+};
+const releaseFixture = createServer((req, res) => {
+  res.setHeader('content-type', 'application/json');
+  res.end(JSON.stringify({ tag_name: releases.tag, html_url: releases.url, published_at: '2026-09-01T12:00:00Z', draft: false, prerelease: false }));
+});
+releaseFixture.listen(0, '127.0.0.1');
+await once(releaseFixture, 'listening');
+// It must not keep the run alive on its own; the process ending closes it
+releaseFixture.unref();
+const releasesUrl = `http://127.0.0.1:${releaseFixture.address().port}/repos/yeyo11/agentry/releases/latest`;
+
 const sandbox = mkdtempSync(join(tmpdir(), 'agentry-e2e-'));
 // Specs seed transcripts and files straight into these directories
 const dirs = {
@@ -62,6 +87,10 @@ const env = {
   // server serves that instead, and the suite reports on a build nobody asked it to look at. The
   // check above proves this directory exists; it is also the one every spec means.
   AGENTRY_WEB_DIST: join(root, 'apps/web/dist'),
+  AGENTRY_RELEASES_URL: releasesUrl,
+  AGENTRY_UPDATE_CHECK: 'off',
+  // The Updates card offers the Docker commands, the one distribution a browser run can stand for
+  AGENTRY_DISTRIBUTION: 'docker',
   // Live specs need the real login; everything else runs against an empty config dir
   ...(live ? {} : { CLAUDE_CONFIG_DIR: join(sandbox, 'claude'), CSWAP_BIN: join(sandbox, 'no-cswap') }),
 };
@@ -196,7 +225,7 @@ try {
     try {
       await browser.page.reset();
       browser.page.takeErrors();
-      const context = cli === 'fake' ? { page: browser.page, api, check, dirs: { ...dirs, configDir: join(sandbox, 'claude') }, fakeCli } : { page: browser.page, api, check, dirs };
+      const context = cli === 'fake' ? { page: browser.page, api, check, dirs: { ...dirs, configDir: join(sandbox, 'claude') }, fakeCli, releases } : { page: browser.page, api, check, dirs, releases };
       await within(spec.default(context), limit, file);
       const errors = browser.page.takeErrors();
       check(errors.length === 0, `console errors:\n  ${[...new Set(errors)].join('\n  ')}`);

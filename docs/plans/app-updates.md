@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T14:26:57Z
-updated_at: 2026-09-25T14:26:57Z
+updated_at: 2026-09-25T18:00:00Z
 tags:
     - plan
     - updates
@@ -259,6 +259,123 @@ verification  pnpm install --frozen-lockfile · pnpm typecheck · pnpm test · p
   the new build, with a service worker or without one.
 - `pnpm e2e` is green, and the next release carries `latest-linux.yml` and the blockmap next to the
   packages.
+
+## Outcome
+
+All five tasks shipped. What was built differs from the plan in a few places, each for a reason
+found while building it.
+
+### What shipped
+
+- **The release check** (`release-watch`). `packages/core/src/version-check.ts` holds what the CLI
+  check and the release check share — the JSON document, one request in flight for simultaneous
+  callers, the timer (first look 60 s after start, then hourly, fetching only once the answer is a
+  day old) and `compareVersions`. `CliVersionWatch` sits on it unchanged in behaviour, and
+  `ReleaseWatch` (`release-watch.ts`) asks GitHub's latest release, strips the tag's `v`, refuses a
+  tag that is not a version and keeps `{ latest, publishedAt, url, checkedAt }` in `release.json`.
+  `AGENTRY_UPDATE_CHECK=off`, `AGENTRY_RELEASES_URL` and `AGENTRY_DISTRIBUTION` work as planned;
+  an unset or unknown distribution is `'source'` rather than null, so the UI never handles a missing
+  value. `system.release` goes out once per newer version, and the memory of what was announced
+  starts from `release.json`, so a restart does not repeat it. `GET /api/system/release` and
+  `POST /api/system/release/check` are documented, `stream.hello` carries `version`, and the image
+  sets `AGENTRY_DISTRIBUTION=docker`.
+- **The desktop updater** (`desktop-updater`). electron-updater 6.8.9, bundled into `main.cjs`;
+  `apps/desktop/src/updater.ts` is the planned state machine, with three `unsupported` reasons
+  (`development`, `read-only`, `unknown-package`) that carry the message the UI shows.
+  `window.agentryDesktop.updates` (`state`, `onState`, `download`, `install`) is accepted only from
+  the local server's page. Help → **Check for updates…** walks through dialogs, and the tray gets
+  **Restart to update to X**. A restart stops the tray's monitor and the server child, installs
+  silently and relaunches after the old process exits, so the new one gets the single-instance lock;
+  a failed install starts the server again. The main process passes `appimage` or `deb` to its server
+  as `AGENTRY_DISTRIBUTION`. `desktop.yml` attaches `latest-linux.yml` to the draft release with the
+  packages, and electron-builder runs with `--publish never`.
+- **The reload offer** (`web-reload`). The build knows its version (`__AGENTRY_VERSION__` from the
+  root `package.json`) and compares it with `stream.hello.version` on every connection. The banner
+  (**Agentry was updated to X. Reload**) blocks nothing, never reloads by itself, stays dismissed
+  until the server moves to yet another version, and is withdrawn if the server goes back. Every lazy
+  route goes through `lazyPage()`: a missing chunk raises the banner and renders "this page belongs to
+  an older version" instead of breaking, and `vite:preloadError` and unhandled chunk rejections are
+  caught too. Reload calls `registration.update()` and waits up to 5 s for `controllerchange` when a
+  newer worker is coming, and reloads at once otherwise.
+- **The Updates card and the indicator** (`update-ui`). The card is at the top of Settings →
+  Account, where the CLI version already lived: there is no About tab. It shows the version in use,
+  the newest release with its date and notes, when it was last checked and **Check for updates**,
+  then the action for this install — Download with progress and Restart to update in the desktop
+  window (asking *restart now or update when you quit* over live work), the unsupported reason and
+  the release link, the Docker or source commands with a copy button, or "use Help → Check for
+  updates…" for a desktop app's server seen from a browser. A page on a non-loopback host is told
+  that whoever runs that server does the update. The shell's answers are parsed defensively, so an
+  older or newer shell cannot break the card. A dot with an accessible label marks Settings in the
+  sidebar, and More plus Settings inside its sheet on a phone; the bell is untouched.
+- **Documentation** (`docs`). The README's environment, volumes, REST and events rows, an Updating
+  section in [desktop.md](../desktop.md), Updating Agentry in [deploy.md](../deploy.md), and the
+  ROADMAP.
+
+### Where it differs from the plan
+
+- **Install on quit is Agentry's, not electron-updater's.** Setting `autoInstallOnAppQuit = true`
+  after a download does nothing: electron-updater registers its quit handler only if the flag is
+  already on when the download finishes. So the flag stays off, and `install({ whenIdle: true })`
+  makes the app's own quit path install the update once the server child has stopped, which is also
+  the order the plan asked for.
+- **`install()` takes `force`.** Without it, "Restart now" after the warning about live work could
+  never go through. Chats waiting for a permission answer count as live, since their CLI process is
+  still running.
+- **No `.blockmap` file.** The AppImage's blockmap is embedded in the AppImage, and electron-builder
+  writes no separate file, so `desktop.yml` uploads only `latest-linux.yml` next to the packages.
+  Listing `*.blockmap` would have made `gh release upload` fail on the unmatched pattern. The
+  generated `latest-linux.yml` does list the `.deb` as well as the AppImage, each with its SHA-512,
+  so the `.deb` path needs no fallback.
+
+### What did not ship, and why
+
+- **Everything under *Not in this orchestration*** — an apt repository, Flatpak and Snap (both now
+  under *Decided against, for now* in the [ROADMAP](../../ROADMAP.md)), installing without asking, a
+  notification kind or push for releases, updating the Docker image from the UI, other platforms, and
+  signing.
+- **A real download and install.** The in-app update has never taken a real release, because none
+  carries `latest-linux.yml` yet: the first release built with this change is the first one an
+  installed app can find, and the first in-app update is from that release to the next.
+- **No check for a graphical `pkexec` agent on a `.deb`.** Without one, electron-updater falls back
+  to plain `sudo`, which fails without a terminal; [desktop.md](../desktop.md#updating) says to
+  install the `.deb` by hand then.
+
+### Noticed and not fixed
+
+- **The Docker command on the card** (`docker compose pull && docker compose up -d`) is right for a
+  compose file that uses the published image, but the repository's own `docker-compose.yml` builds
+  `agentry:dev` locally and the README's quick start uses `docker run`, and that command updates
+  neither. [deploy.md](../deploy.md#updating-agentry) gives the right command for each; the card
+  should name the setup its command is for, or offer one per setup. Listed in the ROADMAP.
+- **`ELECTRON_RUN_AS_NODE=1` leaks into chats started from the desktop app**, apparently inherited
+  through the server child, so an Electron app launched from such a chat runs as plain Node. Found
+  while smoke-testing the packaged app, which needed it unset.
+- **The Spanish card names the desktop menu path in English** ("Help → Check for updates…"), because
+  the desktop menus are English-only.
+
+### How it was checked
+
+- `pnpm typecheck` and `pnpm test` in every package on the integrated branch. New unit tests: the
+  release check (11, injected `fetch` and clock with mock timers: the daily timing, a failure that
+  keeps the previous answer, the `v` prefix, a pre-release current version, the event once per
+  version and not again after a restart, the distribution values, the off switch, the URL override
+  and headers), `GET /system/release` making no network call and the Dockerfile setting `docker`,
+  `stream.hello` carrying `version`, the updater state machine against a fake engine, the reload
+  rules and the worker handover (16), and the card's parsers and route choice (7).
+- **e2e specs**, run once in the verification phase on the merged branch: `reload.spec.mjs` fakes a
+  `stream.hello` with another version through a new `page.onNewDocument()` and expects the banner,
+  its role, no axe violations, no reload by itself, dismiss and a real reload; `updates.spec.mjs`
+  checks for a release against a fixture the harness serves (`AGENTRY_RELEASES_URL`, with
+  `AGENTRY_UPDATE_CHECK=off` and `AGENTRY_DISTRIBUTION=docker` for every spec) and expects the newer
+  version, the Docker commands, the notes link, the dot on Settings and on More at phone width, the
+  bell unchanged, and a server-side check reaching the open page through `system.release`.
+- **The packaged desktop app**, built with `pnpm desktop:dist` and started headless under
+  `xvfb-run` with a separate config folder: the bundle with electron-updater loads, the server starts
+  with `AGENTRY_DISTRIBUTION=appimage`, and the AppImage's `AppRun` honours
+  `APPIMAGE_EXIT_AFTER_INSTALL`, so a silent install exits instead of starting the new version twice.
+- **Not covered automatically:** the chunk-error path (the harness cannot make a chunk go missing;
+  unit tests cover the matching), `lazyPage`'s fallback rendering (no React renderer in the web unit
+  tests), and the card's desktop branch in a real Electron window.
 
 ## Related
 

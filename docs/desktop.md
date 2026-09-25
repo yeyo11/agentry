@@ -1,12 +1,13 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-09-23T20:41:01Z
+updated_at: 2026-09-25T18:00:00Z
 tags:
     - desktop
     - electron
     - linux
     - packaging
     - operations
+    - updates
 ---
 # Desktop app (Linux)
 
@@ -80,7 +81,8 @@ curl -fsSL https://raw.githubusercontent.com/yeyo11/agentry/main/scripts/install
 curl -fsSL https://raw.githubusercontent.com/yeyo11/agentry/main/scripts/install.sh | bash -s -- --uninstall
 ```
 
-Uninstalling keeps your data (`~/.config/Agentry`, `~/Agentry`). Run it again to update.
+Uninstalling keeps your data (`~/.config/Agentry`, `~/Agentry`). To update, see [Updating](#updating):
+the app installs a new release itself.
 
 **By hand**
 
@@ -139,6 +141,57 @@ every 30 s while the feed is down. If `AGENTRY_AUTH_TOKEN` is set in the app's e
 sends it as a bearer token. A token set only from Settings → Security is not known to the tray, so
 its requests are refused: it then shows nothing live and the failures go to `desktop.log`. The tray
 and the window menus are in English only.
+
+## Updating
+
+The app learns of a release from its own server, which asks GitHub for the latest Agentry release
+once a day and whenever you press **Check for updates** (see
+[plans/app-updates.md](plans/app-updates.md)). While a newer one is known, a dot marks Settings in
+the sidebar. The app never downloads or restarts on its own: both happen when you ask.
+
+**Where to ask.** Settings → Account → **Updates** shows the version in use and the newest release,
+with **Download Agentry X** and its progress, then **Restart to update to X**. Help → **Check for
+updates…** does the same through dialogs: up to date, available (Download), ready (Restart), or why
+it cannot. Once a download is ready, the tray menu also has **Restart to update to X**, just above
+Quit. The check that looks for the files to download only runs when you ask for the download, so the
+server's daily check is the only one there is.
+
+**The restart waits for idle.** Restarting the app restarts its server, and that stops every chat
+and orchestration in flight. So if chats are working, waiting for your answer (their CLI process is
+still running) or orchestrations are running, the restart asks first — *2 chats are working, 1
+orchestration is running…* — and offers **Restart now**, **Update when I quit** or Cancel. *Update
+when I quit* installs the update the next time you quit Agentry, after the server has stopped. A
+restart stops the tray's monitor and the server first, installs, and starts the new version; if the
+install fails, the old server is started again.
+
+**AppImage.** The update replaces the AppImage file in place. `install.sh` installs it as
+`~/.local/share/agentry/Agentry.AppImage`, a name with no version in it, so the menu entry keeps working. A copy
+you downloaded by hand as `Agentry-<version>-x86_64.AppImage` is replaced by a file under the new
+version's name, so a launcher or a shortcut pointing at the old name has to be pointed at the new
+one.
+
+**`.deb`.** The update downloads the new `.deb` and installs it through `pkexec`, which asks for your
+password in a system dialog. The window does not respond while that dialog is up; the server is
+already stopped by then. Without a graphical `pkexec` agent, electron-updater falls back to plain
+`sudo`, which fails without a terminal: install the `.deb` from the release by hand instead.
+
+**When it says it cannot update itself** (`unsupported`), it gives one of three reasons, and links
+the release page so you can install by hand:
+
+| Reason | Message |
+| --- | --- |
+| A development build (`desktop:dev`) | Updates are off in a development build. |
+| The AppImage cannot be written | The AppImage at *path* cannot be replaced: the file or its folder is not writable. |
+| Neither an AppImage nor a `.deb` | This copy of Agentry was not installed from an AppImage or a .deb, so it cannot update itself. |
+
+A copy is an AppImage when its runtime sets `APPIMAGE`, and a `.deb` when `resources/package-type`
+(which electron-builder writes into the package) says `deb`, the same test electron-updater makes.
+The app passes the answer to its server as `AGENTRY_DISTRIBUTION`, which is how a browser pointed at
+this server knows to send you to Help → Check for updates… instead of showing Docker commands.
+
+Every download is checked against the SHA-512 in the release's `latest-linux.yml`, fetched over HTTPS
+from the same GitHub release; GitHub is the trust root, as it is for `install.sh`. What the updater
+does is logged to `desktop.log`.
 
 ## Where things live
 
@@ -200,11 +253,13 @@ app. It does not watch for changes: rerun it after editing the UI or the API. Fo
 `pnpm dev` and the browser are faster.
 
 `pnpm --filter @agentry/desktop test` runs the shell's unit tests (the tray menu and tooltip, the
-progress fraction, the event-stream reader, the title-bar options), and the root `pnpm test`
+progress fraction, the event-stream reader, the title-bar options, the updater state machine), and the root `pnpm test`
 includes them.
 
 The web UI knows it is in the app through `window.agentryDesktop`, which the preload exposes with
-`platform`, `version`, `setTitleBarTheme({ color, symbolColor })` and `onNavigate(listener)`. When it
+`platform`, `version`, `setTitleBarTheme({ color, symbolColor })`, `onNavigate(listener)` and
+`updates` (`state()`, `onState(listener)`, `download()`, `install({ whenIdle?, force? })`, accepted
+only from the local server's page like the title-bar colours). When it
 exists, `<html>` carries `is-desktop` and `desktop-<platform>`: `.is-desktop .topbar` and
 `.is-desktop .sidebar-head` are the drag region (`app-region: drag`, with links, buttons, inputs and
 menus opted out), the top bar keeps clear of the window controls with `env(titlebar-area-x)` and
@@ -222,7 +277,10 @@ needs network access. The packaging is configured in `apps/desktop/electron-buil
 [release-please](https://github.com/googleapis/release-please) creates a draft GitHub release as
 described in [CONTRIBUTING.md](../CONTRIBUTING.md#how-a-release-happens). The release workflow then
 calls `.github/workflows/desktop.yml`, which builds on Ubuntu with `pnpm desktop:dist` and attaches
-the AppImage and the `.deb` to that draft before it is published. Re-running it for a tag replaces
+the AppImage, the `.deb` and `latest-linux.yml` — what an installed app's updater reads, listing both
+packages with their SHA-512 — to that draft before it is published. electron-builder runs with
+`--publish never`, so that workflow is the only thing that uploads, and there is no separate
+`.blockmap` file: the AppImage's is embedded in the AppImage. Re-running it for a tag replaces
 the files while the release is still a draft; a published release is immutable, so a rebuild of one
 only keeps the packages as a run artifact.
 
@@ -232,4 +290,4 @@ release.
 
 ## Related
 
-[[deploy.md]] · [[status.md]] · [[plans/ui-redesign.md]]
+[[deploy.md]] · [[status.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]]

@@ -140,6 +140,15 @@
   release-please versioning and changelog.
 - **Linux desktop app** — Electron shell running the bundled API, packaged as AppImage and `.deb`
   and attached to every release. See [docs/desktop.md](docs/desktop.md).
+- **Knowing about a new release, and taking it** — the server asks GitHub for Agentry's latest
+  release once a day and on demand, keeps the answer in `release.json` and tells every open page
+  through `system.release`; Settings → Account has an Updates card with the steps for this install
+  (Docker, a source checkout, the desktop app), and a dot on Settings — never the bell — says a newer
+  release is known. The desktop app downloads and installs it itself through electron-updater,
+  AppImage in place and `.deb` through `pkexec`, and never restarts over live work without asking
+  (restart now, or update when you quit). A page that outlived a deploy notices from the version in
+  `stream.hello`, or from a lazy chunk that is gone, and offers a reload that goes through the service
+  worker. See [docs/plans/app-updates.md](docs/plans/app-updates.md).
 
 ## Next
 
@@ -181,6 +190,17 @@ The rest of what is still open was decided against rather than left undone. The 
   release-please, and running the image build, the Caddy profile, the chart and the e2e harness's
   own test through a real cluster in CI. All of it is release plumbing rather than product, and it
   wants its own change.
+- **An apt repository of our own** — updates would arrive through the system's updater like any
+  other package, but it costs a GPG key, signing in CI and a hosted repository to keep alive, and the
+  desktop app's own updater already installs a new `.deb` through `pkexec`. Revisit if people ask for
+  unattended updates.
+- **Flatpak and Snap** — their sandbox is the opposite of what the desktop app does: run the user's
+  own `claude`, with their `PATH`, on their real files. Making that work means escaping the sandbox
+  (`flatpak-spawn --host`, classic confinement), and then all that is left is a second packaging
+  pipeline.
+- **Installing an update without asking** — a restart of the desktop app restarts its server and
+  stops every chat and orchestration in flight, so the person decides when. For the same reason a
+  release is an indicator in the app, not a notification or a Web Push.
 - **Polls kept on purpose** — accounts (10 s: usage has no event) and the detail panels while an
   agent or task runs (2.5 s: neither the output file nor the transcript announces each line), until
   the CLI reports more.
@@ -191,6 +211,12 @@ The rest of what is still open was decided against rather than left undone. The 
   until its transcript is on disk; after that its first prompt becomes the title. Seen while
   recording the README's media, and left alone: the fix belongs to how a chat is named, not to a
   recorder.
+
+- **The Docker update command the Updates card shows** (`docker compose pull && docker compose up -d`)
+  fits a compose file that uses the published image, but the repository's own `docker-compose.yml`
+  builds `agentry:dev` locally and the README's quick start uses `docker run`. Neither of those two is
+  updated by that command; [docs/deploy.md](docs/deploy.md#updating-agentry) gives the right one for
+  each. The card should say which setup its command is for, or offer one per setup.
 
 ### Out of reach of the CLI
 

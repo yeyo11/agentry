@@ -1,17 +1,18 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-09-23T23:12:12Z
+updated_at: 2026-09-25T18:00:00Z
 tags:
     - deploy
     - docker
     - kubernetes
     - tls
     - operations
+    - updates
 ---
 # Deploying Agentry
 
-Three ways to run the image, from one machine to a cluster, what a phone needs from it, and what
-to know about restarts.
+Three ways to run the image, from one machine to a cluster, what a phone needs from it, how it learns
+of a new release, and what to know about restarts.
 
 ## Docker Compose
 
@@ -178,6 +179,51 @@ To move to a newer version, rebuild with `CLAUDE_CODE_VERSION=<version>` (set it
 Compose) or use a newer Agentry image. The CLI's own autoupdater is disabled in the image so a
 restart cannot change the version.
 
+## Updating Agentry
+
+**How it learns of a release.** The server asks GitHub for the latest release of `yeyo11/agentry`
+60 s after it starts, then once the last answer is a day old (it looks every hour), and whenever
+someone presses **Check for updates** in Settings → Account. GitHub's `latest` never returns a draft
+or a pre-release. What it said is kept as `release.json` in the data directory, and pages read that
+file, never GitHub: `GET /api/system/release` makes no network call. A failed check keeps the
+previous answer and shows the error on the card. One request a day stays far below GitHub's 60 an
+hour for unauthenticated callers.
+
+When a check finds a version newer than the last one it announced, it sends `system.release` on
+`/api/events`, so every open page — a browser, a phone, the desktop window — shows it without
+polling, and a dot marks Settings (More, on a phone). It is not a notification and never goes in the
+bell or out as a push, and a restart does not announce the same release again.
+
+- `AGENTRY_UPDATE_CHECK=off` stops the daily check; the button still works.
+- `AGENTRY_RELEASES_URL` points the check at a mirror or a fixture that answers in GitHub's shape
+  (`tag_name`, `html_url`, `published_at`). An egress-filtered install needs `api.github.com`, or
+  this.
+- The image sets `AGENTRY_DISTRIBUTION=docker`, which is how the Updates card knows to show Docker
+  steps rather than a source checkout's or the desktop app's.
+
+**What to run.** The container cannot replace its own image, so the card shows the command instead:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+That is the command for a compose file whose service uses the published image
+(`image: ghcr.io/yeyo11/agentry`), run from the folder that holds it. The other ways in:
+
+- **The repository's own `docker-compose.yml`** builds the image locally (`image: agentry:dev`), so
+  there is nothing to pull: `git pull && docker compose up -d --build`.
+- **`docker run`**: `docker pull ghcr.io/yeyo11/agentry`, then remove the container and run the same
+  command again. The volumes keep every chat, setting and credential.
+- **Helm**: raise `image.tag` and `helm upgrade`.
+
+A page that stayed open across the update notices on its next reconnection to `/api/events`: the
+server's `stream.hello` carries its version, and a page built from another one says **Agentry was
+updated to X** with a **Reload** button. It never reloads on its own, so a half-written message is
+safe. With a service worker in control, Reload first asks it to update and waits up to 5 s for the
+new one to take over, so the new build is served rather than the cached one. A lazy route whose file
+the new build no longer has shows the same banner instead of breaking. None of this needs a service
+worker, so it works on a plain `http://<lan-ip>:8787` too.
+
 ## Health and restarts
 
 `GET /api/health` is open even with authentication on — the host allowlist lets it through too — and
@@ -201,7 +247,7 @@ a fresh reading.
 
 | Signal | What the server does |
 | --- | --- |
-| `SIGTERM`, `SIGINT` | Clean shutdown: stops the update timer, stops every chat process (the transcripts are on disk, so the chats can be resumed), closes the SQLite store, closes the HTTP server **including open event streams**, exits `0`. |
+| `SIGTERM`, `SIGINT` | Clean shutdown: stops the update timers (Claude Code's and Agentry's), stops every chat process (the transcripts are on disk, so the chats can be resumed), closes the SQLite store, closes the HTTP server **including open event streams**, exits `0`. |
 | `SIGKILL` | Nothing runs. Chats in flight are restored on the next start as cut off by the restart, and the store is left to SQLite's own crash recovery. |
 
 `docker stop` exits `0`: the process being signalled is the server itself, not a package manager
@@ -213,4 +259,4 @@ Both orchestrators allow 30 s between `SIGTERM` and `SIGKILL` (`stop_grace_perio
 
 ## Related
 
-[[desktop.md]] · [[status.md]] · [[plans/mobile.md]]
+[[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]]
