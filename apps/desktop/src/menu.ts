@@ -6,7 +6,12 @@ export interface MenuFolders {
   logs: string;
 }
 
-export function buildMenu(folders: MenuFolders, isDev: boolean, quit: () => void): Menu {
+export interface MenuActions {
+  quit: () => void;
+  checkForUpdates: () => void;
+}
+
+export function buildMenu(folders: MenuFolders, isDev: boolean, actions: MenuActions): Menu {
   const open = (path: string) => () => void shell.openPath(path);
   const template: MenuItemConstructorOptions[] = [
     {
@@ -16,7 +21,7 @@ export function buildMenu(folders: MenuFolders, isDev: boolean, quit: () => void
         { label: 'Open workspace folder', click: open(folders.workspace) },
         { label: 'Open logs folder', click: open(folders.logs) },
         { type: 'separator' },
-        { label: 'Quit', accelerator: 'CommandOrControl+Q', click: quit },
+        { label: 'Quit', accelerator: 'CommandOrControl+Q', click: actions.quit },
       ],
     },
     { role: 'editMenu' },
@@ -35,6 +40,10 @@ export function buildMenu(folders: MenuFolders, isDev: boolean, quit: () => void
       ],
     },
     { role: 'windowMenu' },
+    {
+      label: 'Help',
+      submenu: [{ label: 'Check for updates…', click: actions.checkForUpdates }],
+    },
   ];
   return Menu.buildFromTemplate(template);
 }

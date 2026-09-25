@@ -1,5 +1,6 @@
 // Compiles the Electron main and preload processes into dist/. Both are CommonJS: a sandboxed preload
-// cannot be ESM, and Electron's main works the same with either. `electron` is provided by the runtime.
+// cannot be ESM, and Electron's main works the same with either. `electron` is provided by the runtime;
+// everything else, electron-updater included, is bundled in, because only dist/ ships (electron-builder.yml).
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 
