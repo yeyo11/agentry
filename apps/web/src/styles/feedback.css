@@ -506,12 +506,6 @@ a.badge:hover {
   flex: 1 1 12rem;
 }
 
-.meters {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
 .gauges {
   display: flex;
   flex-wrap: wrap;
@@ -564,10 +558,6 @@ a.badge:hover {
   background: var(--text-muted);
   border-radius: var(--radius-pill);
   transition: width var(--dur-meter) var(--ease-out);
-}
-
-.meter-fill.is-grad {
-  background: var(--grad);
 }
 
 .meter-fill.is-ok {

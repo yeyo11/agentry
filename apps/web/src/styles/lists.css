@@ -442,14 +442,6 @@ a.list-row:hover {
   min-width: 0;
 }
 
-/* An account's usage windows sit side by side on a wide screen rather than stretching across it */
-.accounts-list .meters {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 10px 28px;
-  max-width: 900px;
-}
-
 @media (max-width: 560px) {
   .lrow-head {
     flex-wrap: wrap;

@@ -411,7 +411,6 @@ Rules:
   them needs an API change.
 - The observability "stuck" badge stays bad (red): stuck is a problem, not a warning.
 - `quota` is still reserved: the app has no "every account exhausted" state yet.
-- `.meter-fill.is-grad` in `feedback.css` is no longer used anywhere.
 
 ## Related
 
