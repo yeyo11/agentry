@@ -853,7 +853,7 @@
     "synthesize": "Ejecutar un agente final que sintetice los resultados de todas las tareas",
     "worktree": "Dar a cada tarea su propio worktree de git y su rama",
     "askPermissions": "Preguntarme cuando un worker necesite permiso",
-    "askPermissionsHint": "Las peticiones aparecen en la página del run del worker para que las permitas o deniegues. Sin esto, un worker no tiene a quién preguntar, así que todo lo que no esté en la lista de abajo se deniega automáticamente.",
+    "askPermissionsHint": "Las peticiones aparecen en la página de la ejecución del worker para que las permitas o deniegues. Sin esto, un worker no tiene a quién preguntar, así que todo lo que no esté en la lista de abajo se deniega automáticamente.",
     "tools": "Herramientas que pueden usar los workers",
     "toolsHint": "Un worker no tiene a quién preguntar, así que el CLI deniega todo lo que no esté autorizado aquí de antemano. Déjalo vacío para depender solo del modo de permisos.",
     "worktreeHint": "Así los workers nunca se pisan entre sí ni editan el checkout desde el que se ejecuta Agentry: una orquestación que edita este repositorio reinicia el wrapper y se mata a sí misma. Requiere que el directorio sea un repositorio git.",

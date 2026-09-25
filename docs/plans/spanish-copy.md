@@ -132,6 +132,98 @@ added after merge.
 - Buttons use the infinitive, and English survives only where Spanish developers really use it.
 - `pnpm typecheck`, `pnpm test`, `pnpm build` and `pnpm e2e` are green.
 
+## Outcome
+
+Stage 0 rewrote `GLOSSARY.md`, Stage 1 rewrote every file under `locales/es/` against it in four
+parallel groups, and this `review` task read the whole of `locales/es/` in one pass afterwards, file
+by file against the English and against every other Spanish file, to catch what four independent
+writers could not see in each other's work.
+
+### What the review pass found and fixed
+
+Four writers working from the same glossary still drifted in the small number of places a term
+crosses a file boundary. Every fix below changes only Spanish values, never keys or order:
+
+- **`la CLI` survived in five strings the Stage-1 search missed**: `server.json`'s
+  `connectors.authorise.claudeAi`, `.refresh`, `.unavailable.webArtifacts`, `.unavailable.claudeAiMemory`,
+  and `components.json`'s `projectExport.body`. The glossary task and `copy-shell` had already fixed
+  the one instance each had found and reported fixing; these five were the same bug in strings
+  neither had reason to open. All five are now "el CLI" / "del CLI".
+- **A literal `run` survived in `config.json`'s `orchestration.askPermissionsHint`**: "la página del
+  run del worker" → "la página de la ejecución del worker", per the glossary's `run` decision.
+  `copy-config` rewrote the rest of that file but this one sentence was not on the search list it
+  used.
+- **The same concept, gendered two ways across two files**: `chat.json`'s `badges.outcome` (a chat's
+  execution outcome, written by `copy-chats`) already used the feminine forms the glossary's status
+  table calls for — Fallida, Detenida, Interrumpida — but `chats.json`'s `list.outcome`, which
+  `pages/Chats.tsx` reads for the exact same value (confirmed in the component, not guessed), still
+  had the previous revision's masculine Fallido/Detenido/Interrumpido. Both files were in the same
+  task's scope, but only one of the two objects got the glossary's gender ripple. Now both agree.
+- **The same "N running" count, two different words**: `home.json`'s
+  `widgets.orchestrations.running` said "en marcha" while `shell.json`'s `live.running` and
+  `primitives.json`'s `progress.running_one/other` — the same status, same English "running" — said
+  "en curso", which is what the glossary's status table specifies. `home.json` now says "en curso"
+  too. (Other uses of "en marcha" survive: they describe a process or the wrapper itself being
+  underway — "el wrapper está en marcha", "la ejecución sigue en marcha" — a different, correctly
+  distinct sense from the discrete `running` status badge, so they were left alone.)
+- **The fork button, two phrasings**: the glossary records "Crear un fork" as the canonical phrase
+  (`orchestration.json`'s `board.fork` already used it), but `chat.json`'s `view.fork` and
+  `composer.fork` — the same action, opened from a different screen — said "Crear fork". Both now
+  say "Crear un fork". (`chat.json`'s `status.forkTitle`, "Crear fork con", was left as is: it is a
+  panel heading parallel to `status.resumeTitle`'s "Reanudar con", a different grammatical shape,
+  not a button.)
+- **A quote style mismatch**: `server.json`'s `health.loop.error` wrapped a literal CLI error string
+  in guillemets («{{error}}»), where the English source deliberately uses straight quotes
+  (`\"{{error}}\"`) because the text quoted is a literal message a program printed, not a phrase
+  being emphasised. Changed to match.
+
+Everything else searched for — the full "old → new" table in `GLOSSARY.md`'s "Terms that changed"
+section, every recurring UI word, every status name, `sólo`/`éste`/`ésta`, `usted` or Latin American
+forms, literal ellipses (`...` instead of `…`), and every imperative-form button reported by the four
+Stage-1 tasks — turned up clean: each Stage-1 task had already done what it reported doing. The
+`sendHint`/`sendAHint` (orchestration.json) vs. `sendHint` (observe.json) difference that looked like
+drift on first read turned out to be correct: they translate three deliberately different English
+strings ("Send hint" / "Send a hint" / "Send the hint"), and the Spanish already tracks the articles
+correctly.
+
+### Judgment calls left as the Stage-1 tasks made them
+
+Three calls flagged by `copy-shell` for this review were re-examined and left unchanged, because
+re-deciding them differently would have been arbitrary, not a correction:
+
+- `components.json`'s `workflowCard.script`: "Script" stays. It is not in the glossary's
+  kept-English list, but it is a bare label naming the workflow's own script file, and "el script" is
+  as assimilated in Spanish developer speech as "el token" or "el wrapper", both of which the
+  glossary does keep.
+- `primitives.json`'s `progress.failed_one/other` ("con error") and `skipped_one/other` ("sin
+  ejecutar"): still deliberately gender-neutral, because this component's `unit` varies (tasks,
+  steps, agents — different genders) and a prepositional phrase sidesteps a mismatch that "fallida"
+  would create for a masculine unit.
+- The `palette.*Hint` strings whose Spanish verb form reads as either indicative or imperative: left
+  alone, since Spanish -ar verbs make the two identical here and nothing is actually wrong.
+
+### Hardcoded strings
+
+None of the four Stage-1 tasks found user-visible English or Spanish hardcoded outside
+`locales/es/`/`locales/en/` in the components they checked, and this pass's own scan of `apps/web/src`
+for stray Spanish imperative text outside `t()` calls (the four leftover-form verbs from the
+"Terms that changed" table, as literal JSX text) turned up nothing either. There is nothing to move
+and nothing to list.
+
+### Checks run
+
+`pnpm typecheck` (all five packages) and `pnpm --filter @agentry/web test` (430/430), both under
+`timeout`, after `pnpm install --frozen-lockfile` (this worktree had no `node_modules`). No test in
+`apps/web/test` or spec in `e2e/specs` asserted any of the strings this pass changed, so none needed
+updating. `pnpm e2e` was not run; that happens once, in the verification phase, on the merged branch.
+
+### What "done" means, revisited
+
+Every value in `locales/es/` was rewritten against the English and the new glossary, buttons are
+infinitive throughout, and the one term-level inconsistencies a four-way parallel rewrite produces —
+listed above — are now resolved. `pnpm typecheck` and `pnpm test` are green on this branch;
+`pnpm build` and `pnpm e2e` are for the verification phase after every task's branch is merged.
+
 ## Related
 
 [[plans/ui-redesign.md]] · [[status.md]]

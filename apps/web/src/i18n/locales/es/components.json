@@ -419,7 +419,7 @@
   },
   "projectExport": {
     "title": "Exportar {{name}}",
-    "body": "Todos los chats del proyecto en un archivo, del más antiguo al más reciente, con el coste que informó la CLI.",
+    "body": "Todos los chats del proyecto en un archivo, del más antiguo al más reciente, con el coste que informó el CLI.",
     "wholeProject": "Abarca el proyecto entero, no solo el intervalo elegido arriba.",
     "markdown": "Markdown",
     "json": "JSON",

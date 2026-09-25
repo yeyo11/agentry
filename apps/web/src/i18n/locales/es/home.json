@@ -101,7 +101,7 @@
       "stage": "Etapa {{n}} · {{done}}/{{total}}",
       "started": "empezó {{when}}",
       "ended": "terminó {{when}}",
-      "running": "{{n}} en marcha",
+      "running": "{{n}} en curso",
       "all": "Todas las orquestaciones",
       "none": "Aquí aún no se ha ejecutado ninguna orquestación."
     },
