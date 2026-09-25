@@ -49,7 +49,7 @@
   },
   "connectors": {
     "authorise": {
-      "cli": "Ejecuta `claude` en una terminal, escribe `/mcp`, elige el conector y opta por autenticarte. La CLI abre el navegador para iniciar sesión.",
+      "cli": "Ejecuta `claude` en una terminal, escribe `/mcp`, elige el conector y opta por autenticarte. El CLI abre el navegador para iniciar sesión.",
       "claudeAi": "O actívalo y autorízalo en los ajustes de conectores de claude.ai; la CLI lista los conectores de la cuenta de claude.ai con la que ha iniciado sesión.",
       "refresh": "Después recarga esta página: Agentry solo lee el estado que informa la CLI y no puede autorizar un conector por ti."
     },
