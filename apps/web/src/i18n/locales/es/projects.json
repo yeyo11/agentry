@@ -12,7 +12,7 @@
   },
   "page": {
     "subtitle": "{{n}} importados · un proyecto es un directorio que importas a mano; sus worktrees le pertenecen",
-    "importDirectory": "Importa un directorio",
+    "importDirectory": "Importar un directorio",
     "emptyHint": "Importa un directorio para convertirlo en proyecto, o crea uno en el espacio de trabajo."
   },
   "importForm": {
@@ -21,10 +21,10 @@
     "candidateHint_one": "{{n}} chat · {{path}}",
     "candidateHint_other": "{{n}} chats · {{path}}",
     "nameOptional": "Nombre (opcional)",
-    "nameOptionalHint": "Por defecto, el nombre del directorio.",
+    "nameOptionalHint": "Si lo dejas vacío, se usa el nombre del directorio.",
     "failed": "No se ha podido importar el directorio",
     "importing": "Importando…",
-    "import": "Importa"
+    "import": "Importar"
   },
   "candidates": {
     "imported": "{{name}} importado",
@@ -33,7 +33,7 @@
     "chats_one": "{{n}} chat",
     "chats_other": "{{n}} chats",
     "last": " · última vez {{ago}}",
-    "importNamed": "Importa {{name}}",
+    "importNamed": "Importar {{name}}",
     "firstTitle": "Empieza por los directorios en los que ya trabajas",
     "firstBody": "Claude Code se ha ejecutado sobre todo en estos directorios. Importa los que sean proyectos: sus chats se unen a ellos y el resto se queda al margen. Puedes importar cualquier otro directorio a mano.",
     "others": "Otros directorios con chats ({{n}})"
@@ -48,20 +48,20 @@
     "removeTitle": "¿Quitar {{name}}?",
     "removeBody_one": "Agentry olvida este directorio. No cambia nada en el disco, y si lo importas de nuevo recupera su chat.",
     "removeBody_other": "Agentry olvida este directorio. No cambia nada en el disco, y si lo importas de nuevo recupera sus {{n}} chats.",
-    "removeConfirm": "Quita el proyecto",
+    "removeConfirm": "Quitar proyecto",
     "purgeTitle": "¿Purgar lo que Claude Code guarda sobre {{name}}?",
     "purgeBody_one": "Esto elimina sus transcripciones, tareas en segundo plano, historial de archivos y su entrada en la configuración de Claude Code (<code>claude project purge</code>), así que su chat se pierde para siempre. Tus archivos no se tocan. El proyecto sigue importado. <strong>Esto no se puede deshacer.</strong>",
     "purgeBody_other": "Esto elimina sus transcripciones, tareas en segundo plano, historial de archivos y su entrada en la configuración de Claude Code (<code>claude project purge</code>), así que sus {{n}} chats se pierden para siempre. Tus archivos no se tocan. El proyecto sigue importado. <strong>Esto no se puede deshacer.</strong>",
-    "purgeConfirm": "Purga para siempre",
+    "purgeConfirm": "Purgar para siempre",
     "nameLabel": "Nombre del proyecto",
     "chats_one": "{{n}} chat",
     "chats_other": "{{n}} chats",
-    "openNamed": "Abre {{name}}",
-    "rename": "Renombra",
-    "renameNamed": "Renombra {{name}}",
-    "removeNamed": "Quita {{name}}",
-    "purge": "Purga el estado de Claude Code",
-    "purgeNamed": "Purga el estado de Claude Code de {{name}}"
+    "openNamed": "Abrir {{name}}",
+    "rename": "Renombrar",
+    "renameNamed": "Renombrar {{name}}",
+    "removeNamed": "Quitar {{name}}",
+    "purge": "Purgar el estado de Claude Code",
+    "purgeNamed": "Purgar el estado de Claude Code de {{name}}"
   },
   "worktrees": {
     "title": "Worktrees",

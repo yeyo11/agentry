@@ -3,7 +3,7 @@
     "notAvailable": "no disponible",
     "state": {
       "working": "Trabajando",
-      "waiting": "Esperando tu respuesta",
+      "waiting": "Esperándote",
       "idle": "Inactivo"
     },
     "origin": {
@@ -27,7 +27,7 @@
     "messages": "{{n}} msgs",
     "cost": "coste {{cost}}",
     "count": "{{shown}} de {{total}} chats",
-    "resetFilters": "Restablece los filtros",
+    "resetFilters": "Restablecer los filtros",
     "newChat": "Nuevo chat",
     "searchPlaceholder": "Busca por título, primer prompt, proyecto, id…",
     "searchLabel": "Buscar chats",
@@ -62,7 +62,7 @@
       "readOnly": "Solo lectura"
     },
     "outcome": {
-      "failed": "Falló",
+      "failed": "Fallido",
       "stopped": "Detenido",
       "interrupted": "Interrumpido"
     },
@@ -92,7 +92,7 @@
     "skipIntro_other": "Estos {{count}} se quedan como están:",
     "why": {
       "live": "algo se está ejecutando en él",
-      "held": "otro proceso lo tiene abierto"
+      "held": "algo más lo retiene"
     },
     "nothingTitle": "Ninguno de estos chats se puede eliminar ahora",
     "ok": "De acuerdo",
@@ -127,7 +127,7 @@
     "startError": "No se pudo iniciar el chat",
     "starting": "Iniciando…",
     "uploading": "Subiendo…",
-    "start": "Inicia el chat",
+    "start": "Iniciar chat",
     "welcome": {
       "title": "Empieza algo",
       "lead": "Pide un cambio, una revisión, una investigación. Claude Code lo ejecuta en el directorio de abajo y responde aquí.",
@@ -155,7 +155,7 @@
     "modelPlaceholder": "predeterminado",
     "startError": "No se pudo iniciar el workflow",
     "starting": "Iniciando…",
-    "run": "Ejecuta",
+    "run": "Ejecutar",
     "back": "Volver",
     "intro": "Scripts de <code>.claude/workflows/</code> del proyecto y de los tuyos. Al ejecutar uno se inicia un chat que lo lanza, así que sus peticiones llegan a este panel.",
     "emptyTitle": "No hay workflows guardados",

@@ -7,24 +7,24 @@
     "notFoundHint": "Puede que se haya eliminado. <anchor>Explora los chats</anchor> para encontrar la conversación.",
     "conversation": "Conversación",
     "back": "Volver a los chats",
-    "subagentMessages": "Mensajes de subagents",
+    "subagentMessages": "Mensajes de subagentes",
     "interruptHint": "Termina este turno y mantén el chat abierto para tu siguiente mensaje",
     "export": {
-      "markdown": "Exporta Markdown",
-      "json": "Exporta JSON"
+      "markdown": "Exportar Markdown",
+      "json": "Exportar JSON"
     },
-    "fork": "Fork",
+    "fork": "Crear fork",
     "deleteLive": "No se puede eliminar un chat con un proceso trabajando en él",
-    "deleteHeld": "Otro proceso tiene retenido este chat",
+    "deleteHeld": "Otra cosa retiene este chat",
     "messages_one": "{{count}} mensaje",
     "messages_other": "{{count}} mensajes",
-    "sendHint": "Envía una pista en el tablero",
+    "sendHint": "Enviar una pista en el tablero",
     "transcript": "Transcripción",
     "nothingWritten": "Todavía no hay nada escrito",
     "forkIntro": "Un chat nuevo con todo el historial de este. Este chat se queda como está y la copia registra de dónde viene.",
     "details": "Detalles del chat",
     "synthesis": "síntesis",
-    "cancelFork": "Cancelar la copia",
+    "cancelFork": "Cancelar el fork",
     "copyId": "Copiar el id del chat",
     "copiedId": "Id del chat copiado",
     "copyFailed": "No se pudo copiar el id",
@@ -50,9 +50,9 @@
     "firstMessage": "Primer mensaje de la copia",
     "placeholderFork": "Primer mensaje de la copia… (suelta o pega archivos para adjuntarlos)",
     "placeholderResume": "Envía un mensaje: el chat se reanudará…",
-    "resume": "Reanuda",
+    "resume": "Reanudar",
     "resuming": "Reanudando…",
-    "fork": "Fork",
+    "fork": "Crear fork",
     "forking": "Creando fork…",
     "couldNotResume": "No se ha podido reanudar",
     "couldNotFork": "No se ha podido crear el fork"
@@ -71,10 +71,10 @@
     "asBeforeNone": "Como antes (sin preset)",
     "servers": "Servidores MCP",
     "serversHint": "Si eliges servidores, el chat arranca solo con esos: los conectores de claude.ai y los servidores de plugins quedan fuera.",
-    "serversDefault": "Como los carga la CLI",
+    "serversDefault": "Como los carga el CLI",
     "serversAsBeforeChosen_one": "Como antes ({{count}} elegido)",
     "serversAsBeforeChosen_other": "Como antes ({{count}} elegidos)",
-    "serversAsBeforeDefault": "Como antes (como los carga la CLI)",
+    "serversAsBeforeDefault": "Como antes (como los carga el CLI)",
     "serversChoose": "Solo los que elija",
     "onlyThese": "Arrancar solo con estos servidores",
     "noServers": "No hay servidores MCP configurados.",
@@ -86,13 +86,13 @@
       "disallowed": "Bloqueadas",
       "none": "ninguna",
       "noServers": "ninguno: el chat arrancó sin ningún servidor MCP",
-      "serversDefault": "como los carga la CLI",
+      "serversDefault": "como los carga el CLI",
       "strictNote": "Solo se cargan estos servidores: no se recoge nada más del proyecto, del usuario ni de claude.ai.",
       "frozenNote": "Queda fijado cuando el chat arrancó o se reanudó por última vez. Editar un preset después no lo cambia."
     },
-    "defaultPreset": "Por defecto ({{name}})",
-    "noPresetAtAll": "Sin preset: las herramientas de la propia CLI",
-    "newDefaultHint": "Si no lo cambias, el chat arranca con el preset por defecto, {{name}}. Edita los presets y el preset por defecto en Ajustes.",
+    "defaultPreset": "Predeterminado ({{name}})",
+    "noPresetAtAll": "Sin preset: las herramientas del propio CLI",
+    "newDefaultHint": "Si no lo cambias, el chat arranca con el preset predeterminado, {{name}}. Edita los presets y el preset predeterminado en Ajustes.",
     "resumeHint": "Si no lo cambias, el chat se reanuda con las herramientas que tenía. Elegir un preset las sustituye.",
     "forkHint": "Si no lo cambias, el fork hereda las herramientas y los servidores MCP de este chat. Elegir otros los sustituye solo en la copia."
   },
@@ -153,7 +153,7 @@
       "output": "Salida",
       "cache": "Caché",
       "total": "Total",
-      "subagentsNote": "Los tokens incluyen lo que han gastado sus subagents.",
+      "subagentsNote": "Los tokens incluyen lo que han gastado sus subagentes.",
       "tokensOfWindow": "tokens de {{window}}",
       "tokensWindowUnknown": "tokens · aún no se conoce la ventana de este modelo"
     },
@@ -161,7 +161,7 @@
       "title": "Ejecuciones ({{n}})",
       "empty": "Agentry no ha ejecutado este chat: se escribió en una terminal.",
       "lasted": "duró {{duration}}",
-      "up": "en marcha desde hace {{duration}}",
+      "up": "lleva {{duration}} en marcha",
       "turns_one": "{{count}} turno",
       "turns_other": "{{count}} turnos",
       "account": "cuenta {{name}}",
@@ -170,11 +170,11 @@
     },
     "branches": {
       "title": "Ramas ({{n}})",
-      "empty": "No se delegó nada: ni subagents, ni tareas en segundo plano, ni workflows.",
-      "subagents": "Subagents",
+      "empty": "No se delegó nada: ni subagentes, ni tareas en segundo plano, ni workflows.",
+      "subagents": "Subagentes",
       "backgroundTasks": "Tareas en segundo plano",
       "workflows": "Workflows",
-      "fromSubagent": "de un subagent"
+      "fromSubagent": "de un subagente"
     },
     "health": {
       "title": "Salud",
@@ -201,7 +201,7 @@
     "title": "¿Eliminar este chat?",
     "body_one": "La transcripción ({{count}} mensaje) se borra del disco y el chat ya no podrá reanudarse ni hacer fork. No se puede deshacer.",
     "body_other": "La transcripción ({{count}} mensajes) se borra del disco y el chat ya no podrá reanudarse ni hacer fork. No se puede deshacer.",
-    "confirm": "Elimina el chat"
+    "confirm": "Eliminar chat"
   },
   "head": {
     "checklist": "Lista de tareas: {{progress}}"
@@ -224,13 +224,13 @@
   },
   "status": {
     "noPreset": "sin preset",
-    "mcpDefault": "MCP: lo que cargue la CLI",
+    "mcpDefault": "MCP: lo que cargue el CLI",
     "mcpChosen_one": "MCP: {{count}} servidor",
     "mcpChosen_other": "MCP: {{count}} servidores",
     "open": "Opciones de ejecución: {{status}}",
     "liveTitle": "Cómo se ejecuta este chat",
     "resumeTitle": "Reanudar con",
-    "forkTitle": "Copiar con",
+    "forkTitle": "Crear fork con",
     "liveHint": "El modo de permisos y el modelo cambian al momento. Las herramientas y los servidores quedaron fijados al empezar el chat; reanudarlo más tarde puede cambiarlos."
   },
   "inspector": {
@@ -244,7 +244,7 @@
   },
   "newChat": {
     "advanced": "Opciones avanzadas",
-    "defaultModel": "modelo por defecto",
-    "defaultMode": "modo por defecto ({{mode}})"
+    "defaultModel": "modelo predeterminado",
+    "defaultMode": "modo predeterminado ({{mode}})"
   }
 }

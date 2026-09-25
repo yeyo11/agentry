@@ -9,7 +9,7 @@
     "title": "Inicio",
     "subtitle": "Todo lo que te necesita, en todos los proyectos",
     "sections": "Secciones del proyecto",
-    "missing": "Este directorio no existe en el disco",
+    "missing": "Este directorio no está en el disco",
     "missingHint": "Sus chats siguen aquí, pero no se puede iniciar nada en él hasta que el directorio vuelva o se quite el proyecto."
   },
   "projectSelector": {
@@ -26,22 +26,22 @@
       "title": "Memoria",
       "intro": "Claude guarda su memoria por proyecto, así que se lee y se edita en la página del proyecto, en su pestaña Memoria.",
       "none": "No hay proyectos importados",
-      "goToProjects": "Ve a Proyectos",
+      "goToProjects": "Ir a Proyectos",
       "noneHint": "Importa un proyecto para ver la memoria que Claude guarda de él.",
       "lastUpdate": "Última actualización",
       "actions": "Acciones",
-      "open": "Abre la memoria",
-      "openNamed": "Abre la memoria de {{name}}"
+      "open": "Abrir memoria",
+      "openNamed": "Abrir la memoria de {{name}}"
     }
   },
   "activity": {
     "waitingForYou": "Te esperan",
     "cliMissing": "No se ha detectado el CLI de Claude Code",
     "cliMissingHint": "El binario `claude` no está disponible en el PATH: instálalo o define CLAUDE_BIN.",
-    "openSettings": "Abre los ajustes",
+    "openSettings": "Abrir los ajustes",
     "notLoggedIn": "Claude Code no tiene la sesión iniciada",
     "noCredentials": "No se han encontrado credenciales válidas.",
-    "addCredential": "Añade una credencial",
+    "addCredential": "Añadir una credencial",
     "waiting": {
       "generic": "te está esperando",
       "plan": "quiere tu aprobación para un plan",
@@ -49,17 +49,17 @@
       "tool": "quiere usar {{tool}}"
     },
     "more": "(+{{n}} más)",
-    "answer": "Responde",
+    "answer": "Responder",
     "tasksBlocked_one": "{{n}} tarea bloqueada",
     "tasksBlocked_other": "{{n}} tareas bloqueadas",
-    "decide": "Decide",
+    "decide": "Decidir",
     "mergeConflict": "Conflicto de fusión en <strong>{{branch}}</strong>",
     "integrationFailed": "Integración fallida en <strong>{{branch}}</strong>",
     "hungCommand": "Un comando lleva {{duration}} en ejecución en <strong>{{title}}</strong>",
     "noProjectYet": "Aún no hay ningún proyecto",
-    "noProjectYetHint": "Un proyecto es un directorio que importas, y todo lo que cuelga de él —sus chats, worktrees y ajustes— vive en su página. <anchor>Importa tu primer proyecto</anchor>.",
+    "noProjectYetHint": "Un proyecto es un directorio que importas, y todo lo que cuelga de él —sus chats, worktrees y ajustes— vive en su página. <anchor>Importar tu primer proyecto</anchor>.",
     "nothing": "No hay nada en curso ni nada esperando",
-    "startChat": "Empieza un chat",
+    "startChat": "Iniciar un chat",
     "nothingHint": "Los chats que empieces y lo que hagan tus orquestaciones aparecerán aquí.",
     "rightNow": "Ahora mismo",
     "working": "{{n}} trabajando",
@@ -132,8 +132,8 @@
       "title": "Inicio rápido",
       "prompt": "Prompt para un chat nuevo en {{name}}",
       "placeholder": "Pídele algo a Claude en {{name}}…",
-      "defaultModel": "modelo por defecto",
-      "defaultMode": "modo por defecto",
+      "defaultModel": "modelo predeterminado",
+      "defaultMode": "modo predeterminado",
       "noPreset": "sin preset",
       "mcpDefault": "MCP: el del CLI",
       "mcpChosen_one": "MCP: {{count}} servidor",
@@ -145,7 +145,7 @@
       "edit": "Editar instrucciones",
       "excerpt": "El CLAUDE.md del proyecto",
       "noInstructions": "Este proyecto aún no tiene CLAUDE.md.",
-      "files": "Ficheros de memoria"
+      "files": "Archivos de memoria"
     },
     "worktrees": {
       "title": "Worktrees",
