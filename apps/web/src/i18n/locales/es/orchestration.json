@@ -84,7 +84,15 @@
     "blockedBehindThem_other": "y {{count}} están bloqueadas tras ellas",
     "decide": "Decide en las tarjetas de abajo.",
     "tasksUnit": "tareas",
-    "openChatBeside": "Abrir su chat junto al grafo"
+    "openChatBeside": "Abrir su chat junto al grafo",
+    "openChat": "Abrir chat",
+    "box": {
+      "completed": "Completada",
+      "failed": "Fallida",
+      "pending": "Aún no ha empezado",
+      "stopped": "Detenida antes de terminar",
+      "interrupted": "Interrumpida por un reinicio"
+    }
   },
   "list": {
     "sections": "Orquestaciones y plantillas",
@@ -110,6 +118,16 @@
     "noMatch": "Ninguna orquestación coincide",
     "showAll": "Mostrarlas todas",
     "where": "etapa {{stage}} · {{task}}",
-    "advanced": "Opciones avanzadas"
+    "advanced": "Opciones avanzadas",
+    "title": "Orquestaciones",
+    "parallel": "{{n}} en paralelo",
+    "done_one": "{{count}} hecha",
+    "done_other": "{{count}} hechas",
+    "tasksDone": "{{done}}/{{total}} tareas",
+    "stageOf": "etapa {{at}} de {{of}}",
+    "seeFailures": "Ver fallos",
+    "resume": "Reanudar",
+    "emptyBody": "Divide un objetivo en tareas y ejecútalas como agentes en paralelo. Crea una nueva o parte de una plantilla.",
+    "noMatchBody": "Prueba con otro nombre o quita el filtro de estado."
   }
 }

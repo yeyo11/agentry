@@ -1,7 +1,7 @@
-/* Orchestration: the board, its connectors, the workflow card and task output. */
+/* Orchestration: the list's cards, the detail page, the board, the workflow card and task output. */
 .task-editor {
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   padding: 14px;
   display: flex;
   flex-direction: column;
@@ -68,9 +68,10 @@
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -103,14 +104,14 @@
   position: relative;
   background: var(--bg-elev);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 14px 12px 16px;
+  border-radius: var(--radius-lg);
+  padding: 14px 14px 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   min-width: 0;
   overflow: hidden;
-  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-sm);
+  box-shadow: var(--shadow-card);
   transition: border-color var(--dur-base), box-shadow var(--dur-base);
 }
 
@@ -126,12 +127,23 @@
 }
 
 .board-task:hover {
-  border-color: var(--border-strong);
-  box-shadow: inset 0 1px 0 var(--highlight), var(--shadow-md);
+  border-color: var(--line-3);
 }
 
-.board-task > .badge {
-  align-self: flex-start;
+.board-task-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.board-task-facts {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A graph node is narrow: its actions go under its facts instead of beside them */
+.board-task .task-actions {
+  margin-left: 0;
 }
 
 .board-task.status-running {
@@ -169,12 +181,6 @@
   border-style: dashed;
 }
 
-.task-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
 @media (max-width: 900px) {
 .board-track {
     gap: 26px;
@@ -210,7 +216,7 @@
   min-width: 0;
   padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--bg-elev);
 }
 
@@ -350,201 +356,6 @@
   text-overflow: ellipsis;
 }
 
-/* ---- The redesigned orchestration page: a sticky summary, the steps, the selected step's panel ---- */
-
-/* Stays in view while the steps scroll under it: name, state, clock, cost and progress are the page's answer */
-.orch-summary {
-  position: sticky;
-  top: var(--stick-top, 0px);
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 0 10px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-}
-
-.orch-summary-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  min-width: 0;
-}
-
-.orch-title {
-  flex: 0 1 auto;
-  min-width: 0;
-  margin: 0;
-  font-size: 18px;
-  font-weight: 650;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.orch-figures {
-  display: inline-flex;
-  gap: 12px;
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-}
-
-.orch-progress {
-  flex: 1 1 140px;
-  min-width: 100px;
-  max-width: 320px;
-}
-
-.orch-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-}
-
-.orch-meta {
-  font-size: 12px;
-}
-
-.orch-section-label {
-  margin: 0;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.orch-objective {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-}
-
-.orch-objective-text {
-  max-width: 90ch;
-  white-space: pre-wrap;
-}
-
-.orch-objective-text.is-clamped {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  overflow: hidden;
-}
-
-.orch-view-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-}
-
-.orch-steps {
-  min-width: 0;
-}
-
-/* The selected step's panel, opened in place under its step on the timeline form */
-.step-expanded {
-  padding: 8px 0 14px 12px;
-  border-left: 2px solid var(--border);
-}
-
-.step-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-}
-
-.step-panel-progress {
-  max-width: 480px;
-}
-
-.step-note {
-  margin: 0;
-}
-
-/* A stage's tasks: rows with a rail, not boxes, one under the other */
-.task-rows {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border-top: 1px solid var(--border);
-}
-
-.task-row-item {
-  border-bottom: 1px solid var(--border);
-}
-
-.task-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  padding: 10px 4px 10px 12px;
-  border-left: var(--rail-w) solid var(--task-tone, transparent);
-}
-
-/* `.live-rail` draws its own rail, so the border would be a second one */
-.task-row.live-rail {
-  border-left-color: transparent;
-}
-
-.task-row.status-completed {
-  --task-tone: var(--ok);
-}
-
-.task-row.status-failed {
-  --task-tone: var(--bad);
-}
-
-.task-row.status-blocked,
-.task-row.status-stopped,
-.task-row.status-interrupted {
-  --task-tone: var(--warn);
-}
-
-.task-row-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
-  min-width: 0;
-}
-
-.task-row-name {
-  margin: 0;
-  min-width: 0;
-  font-size: 14px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.task-name-btn {
-  font: inherit;
-  color: inherit;
-  text-align: left;
-}
-
-.task-row-facts {
-  display: inline-flex;
-  gap: 10px;
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
-}
-
-.task-ticker {
-  max-width: 100%;
-}
-
 .board-col-title {
   flex: 1 1 auto;
 }
@@ -603,11 +414,158 @@
   transform: scaleX(0.5);
 }
 
-/* The list: a running graph's row says where it is, in one line */
-.list-row.orch-row.live-rail {
-  padding-left: 14px;
+/* ---- The list: two columns of cards, one per orchestration ---- */
+
+.orch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
+.orch-card {
+  transition:
+    border-color var(--dur-fast),
+    transform var(--dur-base) var(--ease-out);
+}
+
+/* The name's link covers the card, so the whole card opens the graph; the card shows where focus is */
+.orch-card:hover {
+  border-color: var(--line-3);
+  transform: translateY(-1px);
+}
+
+.orch-card:has(.orch-card-link:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.orch-card-link {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orch-card-link:hover {
+  text-decoration: none;
+}
+
+.orch-card-link:focus-visible {
+  outline: none;
+}
+
+.orch-card-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+/* What can be pressed inside the card sits over the link's box */
+.orch-card-actions,
+.orch-card .ticker {
+  position: relative;
+  z-index: 1;
+}
+
+/* `.live-rail` pads for a row; a card keeps its own padding, and its rail stops short of the corners */
+.orch-card.live-rail {
+  padding-left: 18px;
+}
+
+.orch-card.live-rail::before,
+.task-row.live-rail::before {
+  inset: 14px auto 14px 0;
+}
+
+/* The running card that has the page's energy border also has its glow */
+.orch-card.live-energy,
+.task-row.live-energy {
+  border-color: transparent;
+  box-shadow: var(--shadow-card), 0 0 28px -8px var(--live);
+}
+
+.orch-card.is-stopped {
+  border-color: color-mix(in srgb, var(--warn) 30%, var(--border));
+}
+
+.orch-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.orch-initials {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.orch-initials.is-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.orch-initials.is-idle {
+  background: var(--idle-soft);
+  color: var(--idle);
+}
+
+.orch-initials.is-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.orch-initials.is-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.orch-initials.is-bad {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.orch-card-title {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.orch-card-meta {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orch-card-objective {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A running graph's card says where it is, in one line */
 .orch-row-live {
   display: flex;
   align-items: baseline;
@@ -633,12 +591,666 @@
   min-width: 0;
 }
 
-.orch-row-objective {
+.orch-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  font-size: 12px;
+}
+
+.orch-card-facts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.orch-card-counts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.orch-card-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.orch-card-tags:empty {
+  display: none;
+}
+
+.orch-card-cost {
+  margin-left: auto;
+  color: var(--text);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.orch-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---- A segmented bar with a cell per task: ok, bad, live (partly filled) and empty for pending ---- */
+
+.progress-segbar {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+  height: 6px;
+}
+
+.progress-segbar-cell {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 2px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--bg-4);
+  transition: background var(--dur-slow) var(--ease-out);
+}
+
+.progress-segbar-cell.is-done {
+  background: var(--ok);
+}
+
+.progress-segbar-cell.is-failed {
+  background: var(--bad);
+}
+
+.progress-segbar-cell.is-skipped {
+  background: var(--text-faint);
+  opacity: 0.5;
+}
+
+.progress-segbar-cell.is-running {
+  background: var(--live-soft);
+}
+
+.progress-segbar-cell.is-running::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 45%;
+  border-radius: inherit;
+  background: var(--live);
+  box-shadow: 0 0 10px var(--live);
+}
+
+/* ---- The detail page: the header, the brief and its figures, the pipeline, the stage's tasks ---- */
+
+.orch-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  background-position: top center;
+}
+
+.orch-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.orch-back {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.orch-title-block {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.orch-title {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orch-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.orch-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 560px);
+  gap: 14px;
+}
+
+.orch-brief {
+  gap: 10px;
+}
+
+.orch-objective {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.orch-objective .section-label {
+  margin: 0;
+}
+
+.orch-objective-text {
+  max-width: 90ch;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.orch-objective-text.is-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.orch-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.orch-brief-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: auto;
+}
+
+.orch-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.orch-kpi {
+  gap: 6px;
+  padding: 16px;
+}
+
+.orch-kpi dt {
+  color: var(--text-muted);
+}
+
+.orch-kpi dd {
+  margin: 0;
+}
+
+.orch-kpi-value {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  /* A figure stays on one line: the cost's currency does not drop under its number */
+  white-space: nowrap;
+}
+
+.orch-kpi-value.orch-clock {
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.orch-kpi-of {
+  color: var(--text-faint);
+  font-size: 18px;
+}
+
+.orch-kpi-unit {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/* The pipeline: a bar over each step, its name, and its state in words under it */
+.orch-steps {
+  min-width: 0;
+}
+
+.stepper.is-pipeline .stepper-list {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 6px;
+}
+
+.stepper.is-pipeline .step {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 0 0 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.stepper.is-pipeline .step-bar {
+  position: relative;
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--bg-4);
+}
+
+.stepper.is-pipeline .step-bar > i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--text-muted);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.stepper.is-pipeline .step.is-done .step-bar > i {
+  background: var(--ok);
+}
+
+.stepper.is-pipeline .step.is-failed .step-bar > i {
+  background: var(--bad);
+}
+
+.stepper.is-pipeline .step.is-waiting .step-bar > i {
+  background: var(--warn);
+}
+
+.stepper.is-pipeline .step.is-skipped .step-bar > i {
+  background: var(--text-faint);
+  opacity: 0.5;
+}
+
+.stepper.is-pipeline .step.is-current .step-bar > i {
+  background: repeating-linear-gradient(90deg, var(--live) 0 10px, color-mix(in srgb, var(--live) 65%, transparent) 10px 20px);
+  background-size: 24px 100%;
+  animation: flow var(--flow-cycle) linear infinite;
+}
+
+.stepper.is-pipeline .step-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.stepper.is-pipeline .step.is-pending .step-label {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.stepper.is-pipeline .step.is-done .step-label > svg {
+  color: var(--ok);
+}
+
+.stepper.is-pipeline .step.is-failed .step-label {
+  color: var(--bad);
+}
+
+.stepper.is-pipeline .step.is-waiting .step-label {
+  color: var(--warn);
+}
+
+.stepper.is-pipeline .step.is-current .step-label,
+.stepper.is-pipeline .step.is-current .step-meta {
+  color: var(--live);
+  font-weight: 600;
+}
+
+.stepper.is-pipeline .step-meta {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+/* The step whose panel is open is underlined by its own name */
+.stepper.is-pipeline .step.is-selected .step-label {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+}
+
+.stepper.is-pipeline button.step:hover .step-label {
+  color: var(--text);
+}
+
+/* Too narrow for a row of bars: the steps become a row of chips that scrolls sideways */
+@container (max-width: 520px) {
+  .stepper.is-pipeline .stepper-list {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .stepper.is-pipeline .step-item {
+    flex: none;
+  }
+  .stepper.is-pipeline .step {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elev);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .stepper.is-pipeline .step-bar {
+    display: none;
+  }
+  .stepper.is-pipeline .step.is-done {
+    border-color: transparent;
+    background: var(--ok-soft);
+    color: var(--ok);
+  }
+  .stepper.is-pipeline .step.is-current {
+    border-color: transparent;
+    background: var(--live-soft);
+  }
+  .stepper.is-pipeline .step.is-failed {
+    border-color: transparent;
+    background: var(--bad-soft);
+  }
+  .stepper.is-pipeline .step.is-waiting {
+    border-color: transparent;
+    background: var(--warn-soft);
+  }
+  .stepper.is-pipeline .step.is-done .step-label {
+    color: var(--ok);
+  }
+  .stepper.is-pipeline .step.is-selected {
+    border-color: var(--line-3);
+  }
+  .stepper.is-pipeline .step.is-selected .step-label {
+    text-decoration: none;
+  }
+  /* A chip has room for its name; its state is its icon and colour, and still read out in words */
+  .stepper.is-pipeline .step:not(.is-current) .step-meta {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+.orch-view-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.orch-panel-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* The selected step's panel, opened in place under its step on the timeline form */
+.step-expanded {
+  padding: 8px 0 14px 12px;
+  border-left: 2px solid var(--border);
+}
+
+.step-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.step-note {
+  margin: 0;
+}
+
+/* A stage's tasks: cards in two columns */
+.task-rows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-row-item {
+  display: flex;
+  min-width: 0;
+}
+
+.task-row {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-card);
+}
+
+.task-row.live-rail {
+  padding-left: 18px;
+}
+
+.task-row.status-failed {
+  border-color: color-mix(in srgb, var(--bad) 30%, var(--border));
+}
+
+.task-row.status-blocked {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--warn) 40%, var(--border));
+}
+
+.task-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.task-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.orch-row-progress {
-  max-width: 420px;
+.task-name-btn {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.task-row-facts {
+  flex: none;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  color: var(--text-faint);
+}
+
+.task-mark.is-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.task-mark.is-bad {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.task-mark.is-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+/* Where a task stands, in one boxed line: its command in mono while it runs, its outcome after */
+.task-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.task-box > svg {
+  flex: none;
+}
+
+.task-box.is-live {
+  font-family: var(--mono);
+}
+
+.task-box.is-ok,
+.task-box.is-bad,
+.task-box.is-warn {
+  border-color: transparent;
+}
+
+.task-box.is-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.task-box.is-bad {
+  align-items: flex-start;
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.task-box.is-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.task-box-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.task-box-detail {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.task-ticker {
+  flex: 1 1 auto;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.task-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-top: auto;
+}
+
+.task-foot-facts {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.task-id {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.task-actions:empty {
+  display: none;
+}
+
+/* The quieter actions of a task card, beside its one bordered button */
+.task-actions .btn-quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--text-muted);
+}
+
+.task-actions .btn-quiet:hover:not(:disabled),
+.task-actions .btn-quiet[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
 .orch-advanced .form {
@@ -650,28 +1262,75 @@
   padding: 6px 0;
 }
 
+@media (max-width: 1100px) {
+  .orch-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 900px) {
-  .orch-title {
-    font-size: 16px;
-    flex-basis: calc(100% - 60px);
-  }
-  .orch-progress {
-    order: 5;
-    flex-basis: 100%;
-    max-width: none;
-  }
-  .task-row-facts {
-    margin-left: 0;
+  .orch-grid,
+  .task-rows {
+    grid-template-columns: minmax(0, 1fr);
   }
   .orch-row-where {
     max-width: 55%;
   }
 }
 
+/* A phone: the name and state stacked, three figures, and compact task cards */
+@media (max-width: 768px) {
+  .orch-summary {
+    align-items: flex-start;
+  }
+  .orch-title-block {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .orch-title {
+    max-width: 100%;
+    font-size: 20px;
+  }
+  .orch-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .orch-kpi-parallel {
+    display: none;
+  }
+  .orch-kpi {
+    padding: 12px;
+  }
+  .orch-kpi-value,
+  .orch-kpi-value.orch-clock {
+    font-size: 22px;
+  }
+
+  .orch-brief .orch-settings,
+  .orch-brief-foot {
+    display: none;
+  }
+  .orch-card,
+  .task-row {
+    padding: 14px;
+    gap: 10px;
+  }
+}
+
 @media (pointer: coarse) {
   .task-name-btn,
   .orch-view-bar .segment,
-  .back-to-live {
+  .back-to-live,
+  .orch-card-actions .btn,
+  .task-actions .btn {
     min-height: 44px;
+  }
+  .stepper.is-pipeline .step {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 768px) {
+  .orch-brief:not(:has(.orch-objective)) {
+    display: none;
   }
 }

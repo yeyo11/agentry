@@ -27,5 +27,15 @@
     "synthesisWriting": "The synthesis agent is writing the final report.",
     "synthesisNoReport": "The synthesis ended without a report. Its chat says why.",
     "synthesisSkipped": "No synthesis ran: no task completed, or the graph was stopped first."
-  }
+  },
+  "notFoundBody": "It may have been deleted, or the link is wrong. The other orchestrations are still on the list.",
+  "viewWorktree": "View worktree",
+  "settingsLabel": "Settings",
+  "kpi": {
+    "tasks": "Tasks",
+    "time": "Time",
+    "parallel": "Parallel"
+  },
+  "stageTasks_one": "{{count}} task",
+  "stageTasks_other": "{{count}} tasks in parallel"
 }

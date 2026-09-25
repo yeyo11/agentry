@@ -22,7 +22,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { TFunction } from 'i18next';
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
@@ -161,7 +161,12 @@ function HintForm({ orchId, task, onDone }: { orchId: string; task: Orchestratio
   );
 }
 
-function TaskActions({ orch, task }: { orch: Orchestration; task: OrchestrationTaskState }) {
+/**
+ * What a person can do to a task: the decisions a failed graph waits for, a re-run, a hint. The
+ * buttons go on the card's foot line with its links; the hint form and any error open under the
+ * card's body, where there is room for them.
+ */
+function useTaskActions(orch: Orchestration, task: OrchestrationTaskState): { buttons: ReactNode; panel: ReactNode } {
   const { t } = useTranslation('orchestration');
   const { t: tv } = useTranslation('orchestrationV2');
   const queryClient = useQueryClient();
@@ -188,88 +193,84 @@ function TaskActions({ orch, task }: { orch: Orchestration; task: OrchestrationT
   // The task itself is not counted among what depends on it
   const dependants = dependantsOf(orch.tasks, task.id).length - 1;
 
-  if (!decisions.retry && !decisions.skip && !decisions.hint && !rerunnable) return null;
-  return (
-    <div className="stack-tight">
-      <div className="task-actions">
-        {decisions.retry && (
-          <button
-            type="button"
-            className="btn btn-small btn-primary"
-            disabled={decide.isPending}
-            title={t('board.retryTitle')}
-            onClick={() => decide.mutate('retry')}
-          >
-            <RotateCcw {...ICON_SM} /> {t('board.retry')}
-          </button>
-        )}
-        {decisions.retryClean && (
-          <button
-            type="button"
-            className="btn btn-small"
-            disabled={decide.isPending}
-            onClick={() =>
-              void confirm({
-                title: t('board.retryCleanTitle', { name }),
-                body: t('board.retryCleanBody'),
-                confirmLabel: t('board.retryClean'),
-                danger: true,
-              }).then((ok) => {
-                if (ok) decide.mutate('retry-clean');
-              })
-            }
-          >
-            <RotateCcw {...ICON_SM} /> {t('board.retryClean')}
-          </button>
-        )}
-        {decisions.skip && (
-          <button
-            type="button"
-            className="btn btn-small"
-            disabled={decide.isPending}
-            onClick={() =>
-              void confirm({
-                title: t('board.skipTitle', { name }),
-                // Not `behind` itself: 0 would read as plural, and the text is singular unless several branches are held
-                body: t('board.skipBody', { count: behind > 1 ? 2 : 1 }),
-                confirmLabel: t('board.skipConfirm'),
-              }).then((ok) => {
-                if (ok) decide.mutate('skip');
-              })
-            }
-          >
-            <SkipForward {...ICON_SM} /> {t('board.skip')}
-          </button>
-        )}
-        {rerunnable && (
-          <button
-            type="button"
-            className="btn btn-small"
-            disabled={rerun.isPending}
-            onClick={() =>
-              void confirm({
-                title: tv('rerun.title', { name }),
-                body: dependants > 0 ? tv('rerun.bodyWithDependants', { count: dependants }) : tv('rerun.bodyAlone'),
-                confirmLabel: tv('rerun.confirm'),
-                danger: true,
-              }).then((ok) => {
-                if (ok) rerun.mutate();
-              })
-            }
-          >
-            <RefreshCcw {...ICON_SM} /> {tv('rerun.button')}
-          </button>
-        )}
-        {decisions.hint && !hinting && (
-          <button type="button" className="btn btn-small" onClick={() => setHinting(true)}>
-            <Send {...ICON_SM} /> {t('board.sendAHint')}
-          </button>
-        )}
-      </div>
+  const buttons = (
+    <>
+      {decisions.hint && !hinting && (
+        <button type="button" className="btn btn-small btn-quiet" onClick={() => setHinting(true)}>
+          <Send {...ICON_SM} /> {t('board.sendAHint')}
+        </button>
+      )}
+      {decisions.skip && (
+        <button
+          type="button"
+          className="btn btn-small btn-quiet"
+          disabled={decide.isPending}
+          onClick={() =>
+            void confirm({
+              title: t('board.skipTitle', { name }),
+              // Not `behind` itself: 0 would read as plural, and the text is singular unless several branches are held
+              body: t('board.skipBody', { count: behind > 1 ? 2 : 1 }),
+              confirmLabel: t('board.skipConfirm'),
+            }).then((ok) => {
+              if (ok) decide.mutate('skip');
+            })
+          }
+        >
+          <SkipForward {...ICON_SM} /> {t('board.skip')}
+        </button>
+      )}
+      {decisions.retryClean && (
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={decide.isPending}
+          onClick={() =>
+            void confirm({
+              title: t('board.retryCleanTitle', { name }),
+              body: t('board.retryCleanBody'),
+              confirmLabel: t('board.retryClean'),
+              danger: true,
+            }).then((ok) => {
+              if (ok) decide.mutate('retry-clean');
+            })
+          }
+        >
+          <RotateCcw {...ICON_SM} /> {t('board.retryClean')}
+        </button>
+      )}
+      {rerunnable && (
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={rerun.isPending}
+          onClick={() =>
+            void confirm({
+              title: tv('rerun.title', { name }),
+              body: dependants > 0 ? tv('rerun.bodyWithDependants', { count: dependants }) : tv('rerun.bodyAlone'),
+              confirmLabel: tv('rerun.confirm'),
+              danger: true,
+            }).then((ok) => {
+              if (ok) rerun.mutate();
+            })
+          }
+        >
+          <RefreshCcw {...ICON_SM} /> {tv('rerun.button')}
+        </button>
+      )}
+      {decisions.retry && (
+        <button type="button" className="btn btn-small btn-primary" disabled={decide.isPending} title={t('board.retryTitle')} onClick={() => decide.mutate('retry')}>
+          <RotateCcw {...ICON_SM} /> {t('board.retry')}
+        </button>
+      )}
+    </>
+  );
+  const panel = (
+    <>
       {hinting && decisions.hint && <HintForm orchId={orch.id} task={task} onDone={() => setHinting(false)} />}
       <ErrorBox error={decide.error ?? rerun.error} />
-    </div>
+    </>
   );
+  return { buttons, panel };
 }
 
 /** How long a task has taken, read again every second while it runs. */
@@ -305,48 +306,105 @@ function TaskCost({ task }: { task: OrchestrationTaskState }) {
   return <span title={t('board.costTitle')}>{formatCost(task.costUsd)}</span>;
 }
 
-/** Everything a task says beyond its head line, the same in a stage's row and in a graph node. */
+/** A task's state as a mark beside its name: the ring while it runs, a shape once it has an outcome. The word is in its status box. */
+function TaskMark({ status }: { status: OrchestrationTaskState['status'] }) {
+  if (status === 'running') return <Spinner variant="ring" />;
+  const { icon: Icon, tone } = STATUS[status];
+  return (
+    <span className={`task-mark is-${tone}`} aria-hidden>
+      <Icon size={12} strokeWidth={2.25} />
+    </span>
+  );
+}
+
+/**
+ * The one line that says where a task stands, in words: what a running worker is doing (its
+ * command, in mono), how a finished one ended, what a blocked one waits for.
+ */
+function TaskStatusBox({ orch, task }: { orch: Orchestration; task: OrchestrationTaskState }) {
+  const { t } = useTranslation(['orchestration', 'primitives']);
+  const attempt = attemptLabel(orch, task);
+  const behind = task.status === 'blocked' ? blockedBy(orch, task) : [];
+  switch (task.status) {
+    case 'running':
+      return task.activity ? (
+        <div className="task-box is-live">
+          <ActivityTicker activity={task.activity} className="task-ticker" />
+        </div>
+      ) : (
+        <div className="task-box is-live">
+          <Spinner variant="dots" />
+          <span className="shimmer">{t('primitives:activity.thinking')}</span>
+        </div>
+      );
+    case 'completed':
+      return (
+        <div className="task-box is-ok">
+          <CircleCheck {...ICON_SM} />
+          <span>{attempt ?? t('board.box.completed')}</span>
+        </div>
+      );
+    case 'failed':
+      return (
+        <div className="task-box is-bad">
+          <CircleAlert {...ICON_SM} />
+          <div className="task-box-text">
+            <span className="strong">{attempt ?? t('board.box.failed')}</span>
+            {task.error && <span className="task-box-detail">{task.error}</span>}
+          </div>
+        </div>
+      );
+    case 'blocked':
+      return (
+        <div className="task-box is-warn">
+          <CirclePause {...ICON_SM} />
+          <span>
+            {t('board.blockedNote')}
+            {behind.length > 0 && <> {t('board.cannotStart', { count: behind.length, names: behind.map((b) => b.name || b.id).join(', ') })}</>}
+          </span>
+        </div>
+      );
+    case 'skipped':
+      return (
+        <div className="task-box">
+          <Ban {...ICON_SM} />
+          <span>{t('board.givenUp')}</span>
+        </div>
+      );
+    case 'stopped':
+    case 'interrupted':
+      return (
+        <div className="task-box is-warn">
+          {task.status === 'stopped' ? <Square {...ICON_SM} /> : <Zap {...ICON_SM} />}
+          <span>{t(`board.box.${task.status}`)}</span>
+        </div>
+      );
+    case 'pending':
+      return (
+        <div className="task-box">
+          <CircleDashed {...ICON_SM} />
+          <span>{t('board.box.pending')}</span>
+        </div>
+      );
+  }
+}
+
+/** Everything a task says beyond its head line, the same in a stage's card and in a graph node. */
 function TaskBody({ orch, task, inspected, onInspect }: { orch: Orchestration; task: OrchestrationTaskState; inspected: boolean; onInspect?: () => void }) {
   const { t } = useTranslation('orchestration');
   const previousError = usePreviousError(task);
-  const attempt = attemptLabel(orch, task);
   const chat = chatPath(task);
-  const behind = task.status === 'blocked' ? blockedBy(orch, task) : [];
   const finished = DONE.has(task.status);
+  const actions = useTaskActions(orch, task);
   return (
     <>
-      {task.status === 'running' && task.activity && <ActivityTicker activity={task.activity} className="task-ticker" />}
+      <TaskStatusBox orch={orch} task={task} />
       {task.status === 'running' && task.health && task.health.level !== 'ok' && (
         <div className="stack-tight">
           <HealthBadge health={task.health} />
           <div className="small">{healthReason(task.health)}</div>
         </div>
       )}
-      {(task.dependsOn?.length ?? 0) > 0 && (
-        <div className="small muted meta-icon">
-          <CornerDownRight size={12} strokeWidth={1.75} aria-hidden /> {t('board.after', { deps: task.dependsOn?.join(', ') })}
-        </div>
-      )}
-      {attempt && (
-        <div className={`small meta-icon ${task.status === 'failed' ? '' : 'muted'}`}>
-          <RotateCcw size={12} strokeWidth={1.75} aria-hidden /> {attempt}
-        </div>
-      )}
-      {task.status === 'blocked' && (
-        <div className="alert alert-warn small">
-          <CirclePause className="alert-icon" {...ICON_SM} />
-          <div className="alert-body">
-            {t('board.blockedNote')}
-            {behind.length > 0 && (
-              <>
-                {' '}
-                {t('board.cannotStart', { count: behind.length, names: behind.map((b) => b.name || b.id).join(', ') })}
-              </>
-            )}
-          </div>
-        </div>
-      )}
-      {task.status === 'skipped' && <div className="small muted">{t('board.givenUp')}</div>}
       {previousError && (
         <div className="alert alert-warn small">
           <CircleAlert className="alert-icon" {...ICON_SM} />
@@ -355,44 +413,55 @@ function TaskBody({ orch, task, inspected, onInspect }: { orch: Orchestration; t
           </div>
         </div>
       )}
-      <Collapsible className="fold" title={t('board.prompt')}>
-        <div className="prose small">{task.prompt}</div>
-      </Collapsible>
-      {task.error && task.status !== 'running' && (
+      {task.error && task.status !== 'running' && task.status !== 'failed' && (
         <div className="alert alert-bad small">
           <CircleAlert className="alert-icon" {...ICON_SM} />
           <div className="alert-body">{task.error}</div>
         </div>
       )}
+      <Collapsible className="fold" title={t('board.prompt')}>
+        <div className="prose small">{task.prompt}</div>
+      </Collapsible>
       {task.result && (
         <Collapsible className="fold" title={t('board.result')}>
           <RichText text={task.result} />
         </Collapsible>
       )}
-      <TaskActions orch={orch} task={task} />
-      <div className="meta">
-        {onInspect && task.status !== 'pending' && task.status !== 'blocked' && (
-          <button type="button" className="btn btn-small" aria-pressed={inspected} onClick={onInspect}>
-            <ListChecks {...ICON_SM} /> {t('board.work')}
-          </button>
-        )}
-        {chat && (
-          <Link to={chat} className="meta-icon">
-            <MessageSquare size={12} strokeWidth={1.75} aria-hidden /> {t('board.chat')}
-          </Link>
-        )}
-        {chat && finished && (
-          <Link to={chat} className="meta-icon" title={t('board.forkTitle')}>
-            <GitFork size={12} strokeWidth={1.75} aria-hidden /> {t('board.fork')}
-          </Link>
-        )}
-        {task.model && <span className="mono">{task.model}</span>}
-        {/* The branch is how the work is found afterwards, so it is worth the space */}
-        {task.branch && (
-          <span className="mono" title={task.worktree ?? undefined}>
-            {task.branch}
-          </span>
-        )}
+      {actions.panel}
+      <div className="task-foot">
+        <span className="task-foot-facts">
+          <span className="badge task-id">{task.id}</span>
+          {(task.dependsOn?.length ?? 0) > 0 && (
+            <span className="meta-icon">
+              <CornerDownRight size={12} strokeWidth={1.75} aria-hidden /> {t('board.after', { deps: task.dependsOn?.join(', ') })}
+            </span>
+          )}
+          {task.model && <span className="mono">{task.model}</span>}
+          {/* The branch is how the work is found afterwards, so it is worth the space */}
+          {task.branch && (
+            <span className="mono ellipsis" title={task.worktree ?? undefined}>
+              {task.branch}
+            </span>
+          )}
+        </span>
+        <div className="task-actions">
+          {actions.buttons}
+          {onInspect && task.status !== 'pending' && task.status !== 'blocked' && (
+            <button type="button" className="btn btn-small btn-quiet" aria-pressed={inspected} onClick={onInspect}>
+              <ListChecks {...ICON_SM} /> {t('board.work')}
+            </button>
+          )}
+          {chat && finished && (
+            <Link to={chat} className="btn btn-small btn-quiet" title={t('board.forkTitle')}>
+              <GitFork {...ICON_SM} /> {t('board.fork')}
+            </Link>
+          )}
+          {chat && (
+            <Link to={chat} className="btn btn-small">
+              <MessageSquare {...ICON_SM} /> {t('board.openChat')}
+            </Link>
+          )}
+        </div>
       </div>
     </>
   );
@@ -428,50 +497,58 @@ export function TaskCard({
       transition={{ duration: 0.3 }}
     >
       <span className="board-task-fill" aria-hidden />
-      <div className="side-item-head">
+      <div className="board-task-head">
         <BoardStatusBadge status={task.status} />
-        <span className="muted small mono">
+        <span className="muted small mono board-task-facts">
           <TaskDuration task={task} />
+          {task.costUsd > 0 && (
+            <>
+              {task.startedAt ? ' · ' : ''}
+              <TaskCost task={task} />
+            </>
+          )}
         </span>
       </div>
       <TaskName task={task} id={titleId} className="board-task-name" level="h4" />
-      <div className="mono small muted">{task.id}</div>
-      {task.costUsd > 0 && (
-        <div className="small mono muted">
-          <TaskCost task={task} />
-        </div>
-      )}
       <TaskBody orch={orch} task={task} inspected={inspected} onInspect={onInspect} />
     </motion.article>
   );
 }
 
 /**
- * A task as a row of the selected stage: its state, name and numbers on one line, a rail that
- * pulses while its worker is at it and the ticker that says what it is doing, then what a card says.
+ * A task as a card of the selected stage: its mark, name and numbers on one line, the box that says
+ * what it is doing, then what a graph node says. The stage's most active task takes the page's
+ * energy border (`energy`); any other running one takes the live rail.
  */
 export function TaskRow({
   orch,
   task,
   inspected = false,
   onInspect,
+  energy = false,
 }: {
   orch: Orchestration;
   task: OrchestrationTaskState;
   inspected?: boolean;
   onInspect?: () => void;
+  energy?: boolean;
 }) {
   const titleId = useId();
+  const live = energy ? 'live-energy' : task.status === 'running' ? 'live-rail' : '';
   return (
     <li className="task-row-item">
-      <article className={`task-row status-${task.status} ${task.status === 'running' ? 'live-rail' : ''}`.trim()} aria-labelledby={titleId}>
+      <article className={`task-row status-${task.status} ${live}`.trim()} aria-labelledby={titleId}>
         <div className="task-row-head">
-          <BoardStatusBadge status={task.status} />
+          <TaskMark status={task.status} />
           <TaskName task={task} id={titleId} className="task-row-name" level="h3" />
-          <span className="mono small muted task-row-id">{task.id}</span>
           <span className="task-row-facts mono small muted">
             <TaskDuration task={task} />
-            {task.costUsd > 0 && <TaskCost task={task} />}
+            {task.costUsd > 0 && (
+              <>
+                {task.startedAt ? ' · ' : ''}
+                <TaskCost task={task} />
+              </>
+            )}
           </span>
         </div>
         <TaskBody orch={orch} task={task} inspected={inspected} onInspect={onInspect} />
