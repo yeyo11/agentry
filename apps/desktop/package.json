@@ -22,7 +22,7 @@
   "devDependencies": {
     "electron": "^44.4.3",
     "electron-builder": "^26.15.3",
-    "esbuild": "^0.25.12"
+    "esbuild": "^0.28.2"
   },
   "dependencies": {
     "electron-updater": "^6.8.9"
