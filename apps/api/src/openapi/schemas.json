@@ -6793,6 +6793,13 @@
       "title": {
         "type": "string"
       },
+      "firstPrompt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat's first prompt, which a screen shows as its title when `title` is only a generated name"
+      },
       "project": {
         "anyOf": [
           {
@@ -6820,6 +6827,7 @@
     "required": [
       "id",
       "title",
+      "firstPrompt",
       "project",
       "cwd",
       "worktree"

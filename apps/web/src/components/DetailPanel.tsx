@@ -2,6 +2,7 @@ import type { AgentTranscript, ChatBackgroundTask } from '@agentry/shared';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { displayTitle } from '../lib/chat-model';
 import { useAgentDetail, useChatTasks, useChatTranscript, useTaskOutput, type AgentRef } from '../lib/chats';
 import { useDetailPanel, type DetailRef } from '../lib/detail';
 import { durationBetween, formatCost, formatDateTime, formatDuration, formatNumber } from '../lib/format';
@@ -357,7 +358,7 @@ function ChatBody({ chatId }: { chatId: string }) {
 function ChatTitle({ chatId }: { chatId: string }) {
   const { t } = useTranslation('components');
   const { chat } = useChatTranscript(chatId, false);
-  return <span className="ellipsis">{chat?.title || t('detail.chat')}</span>;
+  return <span className="ellipsis">{(chat && displayTitle(chat)) || t('detail.chat')}</span>;
 }
 
 function TaskTitle({ chatId, taskId }: { chatId: string; taskId: string }) {

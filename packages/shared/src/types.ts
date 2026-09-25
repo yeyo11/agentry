@@ -767,6 +767,8 @@ export type ChatSummary = Omit<Chat, 'children' | 'environment' | 'health'>;
 export interface ChatRef {
   id: string;
   title: string;
+  /** The chat's first prompt, which a screen shows as its title when `title` is only a generated name */
+  firstPrompt: string | null;
   project: ChatProject | null;
   cwd: string;
   worktree: ChatWorktree | null;

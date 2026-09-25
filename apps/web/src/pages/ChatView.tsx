@@ -15,6 +15,7 @@ import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind } from '../c
 import { Empty, ErrorBox, Loading, PageHeader, Skeleton, usePageTitle } from '../components/ui';
 import { api, ApiRequestError, keys } from '../api';
 import { tickerActivity } from '../lib/chat-live';
+import { displayTitle } from '../lib/chat-model';
 import { subagentFor, transcriptRows } from '../lib/chat-steps';
 import type { ChatStreamStore } from '../lib/chat-stream';
 import { useChatStream, useChatTranscript, useStreamSnapshot } from '../lib/chats';
@@ -71,7 +72,7 @@ export function ChatView() {
   const [restore, setRestore] = useState<{ text: string; at: number } | null>(null);
   // A message still waiting for the turn is a card over the box, so it is not also a row here
   const items = useMemo(() => (queued.length === 0 ? transcript.items : transcript.items.filter((entry) => !isPending(entry))), [transcript.items, queued.length, isPending]);
-  usePageTitle(chat ? t('view.pageTitle', { title: chat.title }) : t('view.pageTitleFallback'));
+  usePageTitle(chat ? t('view.pageTitle', { title: displayTitle(chat) }) : t('view.pageTitleFallback'));
 
   // Another chat starts at its end, with nothing half-typed for a copy of the last one
   useEffect(() => {

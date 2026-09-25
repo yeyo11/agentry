@@ -9,6 +9,7 @@ import { chatActivity, fabFor, hidesTabBar, liveSummary, orchestrationProgress, 
 const chat = (id: string, state: LiveChatInput['state'], updatedAt: string, extra: Partial<LiveChatInput> = {}): LiveChatInput => ({
   id,
   title: `chat ${id}`,
+  firstPrompt: null,
   state,
   updatedAt,
   project: null,
@@ -45,6 +46,21 @@ test('a chat present in both lists is shown once, in its latest state', () => {
   assert.equal(summary.items[0]?.kind === 'chat' && summary.items[0].state, 'waiting');
   assert.equal(summary.working, 0);
   assert.equal(summary.waiting, 1);
+});
+
+test('a live chat reads as its first prompt when its title is only the generated name', () => {
+  const id = 'e2b36e0c-1111-2222-3333-444455556666';
+  const summary = liveSummary({
+    chats: [
+      chat(id, 'working', '2026-09-21T10:00:00Z', { title: 'workspace-e2b36e', firstPrompt: 'Fix the login bug\nand test it' }),
+      chat('b', 'waiting', '2026-09-21T10:00:00Z', { title: 'Login work', firstPrompt: 'Fix the login bug' }),
+    ],
+    orchestrations: [],
+  });
+  assert.deepEqual(
+    summary.items.map((i) => i.title),
+    ['Login work', 'Fix the login bug'],
+  );
 });
 
 test('idle chats and orchestrations that are not running are not live', () => {

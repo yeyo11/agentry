@@ -683,7 +683,7 @@ export class ChatService {
 
   private async refOf(id: string, facts: Facts): Promise<ChatRef | null> {
     const chat = await this.summaryWith(id, facts);
-    return chat ? { id: chat.id, title: chat.title, project: chat.project, cwd: chat.cwd, worktree: chat.worktree } : null;
+    return chat ? { id: chat.id, title: chat.title, firstPrompt: chat.firstPrompt, project: chat.project, cwd: chat.cwd, worktree: chat.worktree } : null;
   }
 
   /**

@@ -5,6 +5,7 @@
  * without a browser.
  */
 import type { AccountUsage, ChatState, OrchestrationStatus, OrchestrationTaskStatus } from '@agentry/shared';
+import { displayTitle } from './chat-model';
 import type { TickerActivity } from './live';
 import type { ProgressCounts } from './progress';
 
@@ -12,6 +13,7 @@ import type { ProgressCounts } from './progress';
 export interface LiveChatInput {
   id: string;
   title: string;
+  firstPrompt: string | null;
   state: ChatState;
   updatedAt: string | null;
   project: { name: string } | null;
@@ -119,7 +121,7 @@ export function liveSummary({
         kind: 'chat',
         id: chat.id,
         href: `/chats/${encodeURIComponent(chat.id)}`,
-        title: chat.title,
+        title: displayTitle(chat),
         state: chat.state === 'waiting' ? 'waiting' : 'working',
         project: chat.project?.name ?? null,
         activity: chat.state === 'working' ? chatActivity(chat) : null,

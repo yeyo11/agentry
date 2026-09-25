@@ -15,6 +15,7 @@ import type { TranscriptFind } from '../../components/TranscriptSearch';
 import { ICON, ICON_SM } from '../../components/icons';
 import { api } from '../../api';
 import { chatPill, checklistCounts, RECONNECTING_AFTER_MS } from '../../lib/chat-live';
+import { displayTitle } from '../../lib/chat-model';
 import { COMPACT, useMediaQuery } from '../../lib/media';
 import { checklistProgress } from '../../lib/observe';
 import type { InspectorTab } from './Inspector';
@@ -196,7 +197,7 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
         </Link>
       </Tooltip>
       <div className="chat-heading">
-        <h1 className="chat-title ellipsis">{chat.title}</h1>
+        <h1 className="chat-title ellipsis">{displayTitle(chat)}</h1>
         {/* Where it runs, which chat it is and on what, in the mono of ids: the title is the prompt */}
         <span className="chat-sub ellipsis">{headingFacts(chat).join(' · ')}</span>
       </div>

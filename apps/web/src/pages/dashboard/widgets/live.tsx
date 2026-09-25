@@ -23,6 +23,7 @@ import { ActivityTicker } from '../../../components/ActivityTicker';
 import { ICON_SM } from '../../../components/icons';
 import { ProgressRing, StatusDot, usageTone } from '../../../components/motion';
 import { Empty, Skeleton, StatusBadge } from '../../../components/ui';
+import { displayTitle } from '../../../lib/chat-model';
 import { detailHref } from '../../../lib/detail';
 import { formatCost, formatDuration, formatNumber, timeAgo, timeUntil, truncate } from '../../../lib/format';
 import { formatElapsed } from '../../../lib/live';
@@ -204,7 +205,7 @@ function WorkingChat({ chat, showProject }: { chat: ChatSummary; showProject: bo
       </span>
       <div className="now-main">
         <Link to={chatHref(chat)} className="strong ellipsis now-title">
-          {chat.title}
+          {displayTitle(chat)}
         </Link>
         {chat.activity ? (
           <ActivityTicker activity={chat.activity} className="now-ticker" />
@@ -275,7 +276,7 @@ export function NowWidget({ project, title, id }: WidgetProps) {
       icon: kind === 'question' ? MessageCircleQuestion : ShieldQuestion,
       what: (
         <>
-          <strong>{chat.title}</strong> {more > 0 ? `${words} ${t('activity.more', { n: more })}` : words}
+          <strong>{displayTitle(chat)}</strong> {more > 0 ? `${words} ${t('activity.more', { n: more })}` : words}
         </>
       ),
       detail,
@@ -328,7 +329,7 @@ export function NowWidget({ project, title, id }: WidgetProps) {
         <Trans
           t={t}
           i18nKey="activity.hungCommand"
-          values={{ duration: formatDuration(running), title: task.chat.title }}
+          values={{ duration: formatDuration(running), title: displayTitle(task.chat) }}
           components={{ strong: <strong /> }}
         />
       ),
@@ -543,7 +544,7 @@ export function PickUpWidget({ project, title, id, config }: WidgetProps) {
                 <Link to={chatHref(chat)} className="home-row pick-row">
                   <span className={`dot ${troubled ? 'dot-bad' : 'dot-idle'}`} aria-hidden />
                   <span className="pick-main">
-                    <span className="pick-title ellipsis">{chat.title}</span>
+                    <span className="pick-title ellipsis">{displayTitle(chat)}</span>
                     <span className="pick-phone mono faint ellipsis">{[percent !== null ? `${percent}%` : null, cost, timeAgo(chat.updatedAt)].filter(Boolean).join(' · ')}</span>
                   </span>
                   {troubled && outcome ? <span className="badge badge-bad">{t(`widgets.pickUp.${outcome}`)}</span> : !project && <span className="mono faint nowrap pick-project">{chat.project?.name ?? t('activity.noProject')}</span>}

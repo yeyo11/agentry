@@ -322,7 +322,7 @@ function useBulkDelete(onDone: () => void) {
         <ul className="bulk-skipped">
           {skipped.map(({ chat, why }) => (
             <li key={chat.id}>
-              <span className="strong break">{chat.title}</span> <span className="muted">— {t(`bulk.why.${why}`)}</span>
+              <span className="strong break">{displayTitle(chat)}</span> <span className="muted">— {t(`bulk.why.${why}`)}</span>
             </li>
           ))}
         </ul>
@@ -360,10 +360,10 @@ function useBulkDelete(onDone: () => void) {
     if (deleted > 0) {
       toast.success(
         t('bulk.deleted', { count: deleted }),
-        skipped.length > 0 ? t('bulk.skippedNote', { count: skipped.length, titles: skipped.map((s) => s.chat.title).join(', ') }) : undefined,
+        skipped.length > 0 ? t('bulk.skippedNote', { count: skipped.length, titles: skipped.map((s) => displayTitle(s.chat)).join(', ') }) : undefined,
       );
     }
-    for (const { chat, error } of failed) toast.error(t('bulk.failed', { title: chat.title }), error);
+    for (const { chat, error } of failed) toast.error(t('bulk.failed', { title: displayTitle(chat) }), error);
     onDone();
   };
 

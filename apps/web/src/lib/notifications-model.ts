@@ -12,6 +12,7 @@ import {
   type PermissionRequest,
 } from '@agentry/shared';
 import i18n from '../i18n';
+import { displayTitle } from './chat-model';
 import { serverText } from './server-strings';
 
 /*
@@ -83,8 +84,8 @@ const text: NotificationText = {
 export const notificationsFor = (event: AgentryEvent): NotificationDraft[] => draftsFor(event, text);
 
 /** The `waiting` notifications for the prompts a chat is holding right now, in the active language. */
-export const waitingDrafts = (chat: Pick<ChatSummary, 'id' | 'title' | 'orchestration'>, requests: readonly PermissionRequest[]): NotificationDraft[] =>
-  waitingDraftsFor(chat, requests, text);
+export const waitingDrafts = (chat: Pick<ChatSummary, 'id' | 'title' | 'firstPrompt' | 'orchestration'>, requests: readonly PermissionRequest[]): NotificationDraft[] =>
+  waitingDraftsFor({ ...chat, title: displayTitle(chat) }, requests, text);
 
 export const MAX_NOTIFICATIONS = 200;
 

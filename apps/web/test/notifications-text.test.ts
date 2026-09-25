@@ -75,7 +75,7 @@ for (const [index, event] of EVENTS.entries()) {
 }
 
 test('the web and the push sender say the same thing about a prompt found on a reload', () => {
-  const chat = { id: 'run1', title: 'fix the build', orchestration: null };
+  const chat = { id: 'run1', title: 'fix the build', firstPrompt: null, orchestration: null };
   const requests = [
     { id: 'p1', runId: 'run1', toolName: 'Bash', toolUseId: 'a', input: {}, requestedAt: AT },
     { id: 'q', runId: 'run1', toolName: 'AskUserQuestion', toolUseId: 'b', input: {}, requestedAt: AT },
