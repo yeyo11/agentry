@@ -88,11 +88,19 @@
     "widgetFailed": "No se pudo mostrar el widget {{title}}"
   },
   "widgets": {
+    "kpis": {
+      "title": "Cifras"
+    },
     "now": {
-      "title": "Ahora",
+      "title": "En marcha",
       "needYou_one": "{{n}} te necesita",
       "needYou_other": "{{n}} te necesitan",
-      "noActivity": "Trabajando"
+      "noActivity": "Trabajando",
+      "live": "en vivo",
+      "all": "Ver todo",
+      "offline": "Agentry no responde",
+      "offlineHint": "La página no llega al wrapper. Comprueba que está en marcha y vuelve a intentarlo.",
+      "retry": "Reintentar"
     },
     "orchestrations": {
       "title": "Orquestaciones",
@@ -103,7 +111,17 @@
       "ended": "terminó {{when}}",
       "running": "{{n}} en curso",
       "all": "Todas las orquestaciones",
-      "none": "Aquí aún no se ha ejecutado ninguna orquestación."
+      "none": "Aquí aún no se ha ejecutado ninguna orquestación.",
+      "kind": "orquestación",
+      "parallel": "{{n}} en paralelo",
+      "progress": "{{done}} de {{total}} tareas hechas, {{running}} en curso",
+      "done_one": "{{n}} hecha",
+      "done_other": "{{n}} hechas",
+      "failed_one": "{{n}} fallida",
+      "failed_other": "{{n}} fallidas",
+      "pending_one": "{{n}} pendiente",
+      "pending_other": "{{n}} pendientes",
+      "stageOf": "etapa {{n}} de {{total}}"
     },
     "limits": {
       "title": "Límites",
@@ -111,22 +129,26 @@
     },
     "pickUp": {
       "title": "Retomar",
-      "none": "No hay chats que retomar."
+      "none": "No hay chats que retomar.",
+      "failed": "fallido",
+      "interrupted": "interrumpido"
     },
     "today": {
-      "title": "Hoy",
-      "usage": "Uso"
+      "title": "Uso de hoy",
+      "usage": "Detalle"
     },
     "schedules": {
-      "title": "Próximas programaciones",
+      "title": "Programaciones",
       "all": "Todas las programaciones",
-      "none": "No hay nada programado."
+      "none": "Nada programado. Lanza un chat cada mañana o una orquestación cada lunes.",
+      "create": "Crear programación"
     },
     "projects": {
       "title": "Proyectos",
       "all": "Todos los proyectos",
       "waiting": "{{n}} esperando",
-      "never": "sin actividad"
+      "never": "sin actividad",
+      "now": "ahora"
     },
     "quickStart": {
       "title": "Inicio rápido",
@@ -159,5 +181,45 @@
     "export": {
       "title": "Exportar"
     }
+  },
+  "hero": {
+    "running": "Todo en marcha, <grad>nada te espera</grad>",
+    "waiting_one": "<grad>{{n}} espera</grad> tu respuesta",
+    "waiting_other": "<grad>{{n}} esperan</grad> tu respuesta",
+    "idle": "Nada <grad>en marcha</grad>",
+    "working_one": "{{n}} agente trabajando en {{where}}.",
+    "working_other": "{{n}} agentes trabajando en {{where}}.",
+    "nothingWorking": "Ningún agente está trabajando ahora.",
+    "waitingNone": "Ningún permiso ni pregunta pendiente.",
+    "waitingSome": "Lo que te espera está arriba, en En marcha.",
+    "newOrchestration": "Nueva orquestación",
+    "newChat": "Nuevo chat"
+  },
+  "kpis": {
+    "agents": "Agentes en marcha",
+    "agentsShort_one": "agente",
+    "agentsShort_other": "agentes",
+    "orchestrations_one": "{{n}} orquestación",
+    "orchestrations_other": "{{n}} orquestaciones",
+    "chats_one": "{{n}} chat",
+    "chats_other": "{{n}} chats",
+    "nothingRunning": "nada en marcha",
+    "waiting": "Esperan tu respuesta",
+    "waitingShort_one": "espera",
+    "waitingShort_other": "esperan",
+    "waitingNone": "sin permisos pendientes",
+    "waitingSome": "permisos, preguntas o decisiones",
+    "spend": "Gasto de hoy",
+    "today": "Hoy",
+    "spent": "gastado",
+    "withoutCost_one": "+{{n}} chat de terminal sin coste",
+    "withoutCost_other": "+{{n}} chats de terminal sin coste",
+    "everyProject": "en todos los proyectos",
+    "inProject": "en este proyecto",
+    "fiveHour": "Límite de 5 h",
+    "resets": "vuelve {{when}}",
+    "weekly": "semanal {{pct}}%",
+    "fiveHourShort": "5h {{pct}}%",
+    "weeklyShort": "7d {{pct}}%"
   }
 }
