@@ -49,6 +49,13 @@ export function layerTasks(tasks: OrchestrationTaskState[]): OrchestrationTaskSt
   return Array.from(layers, (layer) => layer ?? []);
 }
 
+/** The stage a task is in, from 1, out of the graph's stages; null when the graph has no such task. */
+export function taskStage(tasks: OrchestrationTaskState[], taskId: string): { at: number; of: number } | null {
+  const layers = layerTasks(tasks);
+  const index = layers.findIndex((layer) => layer.some((t) => t.id === taskId));
+  return index === -1 ? null : { at: index + 1, of: layers.length };
+}
+
 /**
  * A stage is waiting when the graph is: a task in it failed for good or is blocked behind one, and
  * nothing moves until a person decides. Stopped or interrupted tasks leave the stage pending, since

@@ -160,6 +160,89 @@
   flex: none;
 }
 
+/* A worker's way back to its orchestration: one quiet line, the graph's progress at its end */
+.chat-part-of {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  font-size: 13px;
+  transition: background var(--dur-fast);
+}
+
+.chat-part-of:hover {
+  background: var(--bg-hover);
+}
+
+.chat-part-of:has(.chat-part-of-name:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The name is the link, and its box covers the row: the whole line opens the graph */
+.chat-part-of-name::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.chat-part-of-name:hover {
+  text-decoration: none;
+}
+
+.chat-part-of-name:focus-visible {
+  outline: none;
+}
+
+@media (pointer: coarse) {
+  .chat-part-of {
+    min-height: 44px;
+  }
+}
+
+.chat-part-of-icon {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.chat-part-of-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-part-of-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.chat-part-of-where {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-part-of-progress {
+  flex: 0 1 160px;
+  min-width: 64px;
+}
+
+@media (max-width: 640px) {
+  .chat-part-of-progress {
+    display: none;
+  }
+}
+
 /* ---- the conversation ---- */
 .run-stage {
   position: relative;

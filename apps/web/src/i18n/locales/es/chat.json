@@ -24,6 +24,10 @@
     "forkIntro": "Un chat nuevo con todo el historial de este. Este chat se queda como está y la copia registra de dónde viene.",
     "details": "Detalles del chat",
     "synthesis": "síntesis",
+    "partOf": {
+      "label": "Parte de la orquestación",
+      "stage": "etapa {{n}} de {{total}}"
+    },
     "cancelFork": "Cancelar el fork",
     "copyId": "Copiar el id del chat",
     "copiedId": "Id del chat copiado",
