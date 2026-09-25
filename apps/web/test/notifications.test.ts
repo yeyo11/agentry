@@ -295,8 +295,16 @@ test('storage keeps the entries that are valid and drops the ones that are not',
   assert.equal(restored.prefs.kinds.waiting, true);
 });
 
+test('a seeded waiting notification names the chat by its first prompt, not its generated name', () => {
+  const id = 'e2b36e0c-1111-2222-3333-444455556666';
+  const chat = { id, title: 'workspace-e2b36e', firstPrompt: 'Fix the login bug', orchestration: null };
+  const request = { id: 'p1', runId: id, toolName: 'Bash', toolUseId: 'tu1', input: {}, requestedAt: at(-5000) };
+  const [seeded] = waitingDrafts(chat, [request]);
+  assert.match(seeded?.title ?? '', /^Fix the login bug needs your approval/);
+});
+
 test('a prompt a chat was already holding when the page loaded becomes the same notification its event would have made', () => {
-  const chat = { id: 'run1', title: 'fix the build', orchestration: null };
+  const chat = { id: 'run1', title: 'fix the build', firstPrompt: null, orchestration: null };
   const request = { id: 'p1', runId: 'run1', toolName: 'Bash', toolUseId: 'tu1', input: {}, requestedAt: at(-5000) };
   const [seeded] = waitingDrafts(chat, [request]);
   assert.ok(seeded);
@@ -313,7 +321,7 @@ test('a prompt a chat was already holding when the page loaded becomes the same 
 });
 
 test('seeded questions and plans read as such, and carry the orchestration they work for', () => {
-  const chat = { id: 'run1', title: 'plan the work', orchestration: { id: 'o1', name: 'graph', taskId: 't1', taskName: 'plan' } };
+  const chat = { id: 'run1', title: 'plan the work', firstPrompt: null, orchestration: { id: 'o1', name: 'graph', taskId: 't1', taskName: 'plan' } };
   const [question, plan] = waitingDrafts(chat, [
     { id: 'q', runId: 'run1', toolName: 'AskUserQuestion', toolUseId: 'a', input: {}, requestedAt: at() },
     { id: 'pl', runId: 'run1', toolName: 'ExitPlanMode', toolUseId: 'b', input: {}, requestedAt: at() },
@@ -330,7 +338,7 @@ test('only a plain tool permission can be answered from the list; questions and 
   assert.equal(notificationsFor(waiting('pl', 'plan'))[0]?.permissionId, null);
   assert.equal(notificationsFor(ended('completed'))[0]?.permissionId, null);
 
-  const chat = { id: 'run1', title: 'fix the build', orchestration: null };
+  const chat = { id: 'run1', title: 'fix the build', firstPrompt: null, orchestration: null };
   const [tool, question, plan, interactive] = waitingDrafts(chat, [
     { id: 'p1', runId: 'run1', toolName: 'Bash', toolUseId: 'a', input: {}, requestedAt: at() },
     { id: 'q', runId: 'run1', toolName: 'AskUserQuestion', toolUseId: 'b', input: {}, requestedAt: at() },

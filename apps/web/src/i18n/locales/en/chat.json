@@ -24,6 +24,10 @@
     "forkIntro": "A new chat with this one's whole history. This chat stays as it is, and the copy records where it came from.",
     "details": "Chat details",
     "synthesis": "synthesis",
+    "partOf": {
+      "label": "Part of orchestration",
+      "stage": "stage {{n}} of {{total}}"
+    },
     "cancelFork": "Cancel the fork",
     "copyId": "Copy chat id",
     "copiedId": "Chat id copied",
@@ -55,7 +59,8 @@
     "fork": "Fork",
     "forking": "Forking…",
     "couldNotResume": "Could not resume",
-    "couldNotFork": "Could not fork"
+    "couldNotFork": "Could not fork",
+    "keys": "↵ send · ⇧↵ new line"
   },
   "controls": {
     "permissionModeNew": "Permission mode for the new execution",
@@ -245,6 +250,24 @@
   "newChat": {
     "advanced": "Advanced options",
     "defaultModel": "default model",
-    "defaultMode": "default mode ({{mode}})"
+    "defaultMode": "default mode ({{mode}})",
+    "hero": "What are we <grad>building</grad> today?",
+    "heroShort": "What are we <grad>building</grad>?",
+    "lead": "Claude Code runs it in your project and answers here.",
+    "kind": "Kind",
+    "kindChat": "Chat",
+    "kindOrchestration": "Orchestration",
+    "placeholder": "Describe the task: a change, a review, an investigation…",
+    "start": "Start",
+    "keys": "Ctrl ↵",
+    "where": "runs in {{dir}} · drag or paste files to attach them",
+    "examples": "To get started",
+    "close": "Close"
+  },
+  "launch": {
+    "phase": "phase {{n}} of {{total}}",
+    "agents": "{{done}}/{{total}} agents",
+    "open": "Open",
+    "openHint": "Open {{name}} in the details"
   }
 }

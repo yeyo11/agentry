@@ -45,7 +45,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.goto(`/chats/${SESSION}`, 1200);
     // Branches are on the inspector's Environment tab
     await page.click('.chat-inspector [role=tab]', 'Environment');
-    await page.waitFor(`return document.querySelector('main').innerText.includes('Branches (')`, { label: 'the branches of the chat' });
+    await page.waitFor(`return document.querySelector('main').textContent.includes('Branches (')`, { label: 'the branches of the chat' });
     await page.click('main .detail-task-link', shown);
     await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText.includes('rebuilt in 12ms')`, { label: 'the task output in the panel' });
     check((await page.eval('return location.search')).includes('detail=task'), 'the open panel is in the address');

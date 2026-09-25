@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Design system · Componentes</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app col" data-theme="dark" style="width: 1440px; height: 1620px; padding: 56px 64px; gap: 36px; overflow: hidden">
+
+<header class="col" style="gap: 8px"><span class="t-label">Agentry design system · v2 · componentes</span><h1 class="t-display" style="margin: 0">Componentes</h1><p class="fg-2" style="margin: 0">Cada pieza con su clase en <code>agentry-ds.css</code>. Combínalas; no inventes variantes nuevas sin añadirlas aquí.</p></header>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px">
+
+<section class="card card-pad col" style="gap: 16px">
+<div class="row"><h2 class="t-h2 grow">Botones</h2><span class="mono t-xs fg-3">.btn · -primary · -ghost · -danger · -sm · -lg · -icon</span></div>
+<div class="row" style="gap: 10px; flex-wrap: wrap">
+<button type="button" class="btn btn-primary"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Nuevo chat</button>
+<button type="button" class="btn">Secundario</button>
+<button type="button" class="btn btn-ghost">Fantasma</button>
+<button type="button" class="btn btn-danger"><svg viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: currentColor"><path d="M6 6h12v12H6z"></path></svg>Detener</button>
+<button type="button" class="btn btn-icon" aria-label="Buscar"><svg class="ico" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg></button>
+<button type="button" class="btn" disabled="">Deshabilitado</button>
+</div>
+<div class="row" style="gap: 10px"><button type="button" class="btn btn-primary btn-sm">Pequeño</button><button type="button" class="btn btn-primary btn-lg">Grande · táctil 44</button><span class="row" style="gap: 4px"><span class="kbd">⌘</span><span class="kbd">K</span></span></div>
+<span class="t-xs fg-2">Una sola acción .btn-primary por zona. Destructivas siempre .btn-danger y con confirmación.</span>
+</section>
+
+<section class="card card-pad col" style="gap: 16px">
+<div class="row"><h2 class="t-h2 grow">Campos</h2><span class="mono t-xs fg-3">.field · .field-lg · .select</span></div>
+<label class="field"><svg class="ico" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><input type="search" placeholder="Filtra por título, prompt, proyecto o id" aria-label="Ejemplo de búsqueda"><span class="kbd">/</span></label>
+<div class="row" style="gap: 10px"><label class="field grow" style="border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft)"><input type="text" value="Foco: borde acento + halo" aria-label="Campo con foco"></label><select class="select" aria-label="Ejemplo de selector"><option>Español</option></select></div>
+<div class="row" style="gap: 12px"><label class="row t-sm" style="gap: 8px"><input type="checkbox" checked="" style="width: 16px; height: 16px; margin: 0; accent-color: #e0668f">Checkbox</label><label class="row t-sm" style="gap: 8px"><input type="range" value="70" style="accent-color: #e0668f; margin: 0">Rango</label></div>
+</section>
+
+<section class="card card-pad col" style="gap: 16px">
+<div class="row"><h2 class="t-h2 grow">Chips, badges y puntos</h2><span class="mono t-xs fg-3">.chip .on · .badge .b-* · .dot .dot-*</span></div>
+<div class="row" style="gap: 8px; flex-wrap: wrap"><button type="button" class="chip on">Todos <span class="n">197</span></button><button type="button" class="chip"><span class="dot dot-live" style="width: 6px; height: 6px"></span>Trabajando <span class="n">1</span></button><button type="button" class="chip">claude-wrapper<svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+<div class="row" style="gap: 8px; flex-wrap: wrap"><span class="badge b-live"><span class="spin-braille" style="width: auto"></span>en curso</span><span class="badge b-ok">completada</span><span class="badge b-warn">detenida</span><span class="badge b-bad">interrumpido</span><span class="badge b-idle">esperando</span><span class="badge b-accent">agentry</span><span class="badge">terminal</span><span class="badge b-grad">en uso</span></div>
+<div class="row" style="gap: 16px"><span class="row t-xs fg-2" style="gap: 6px"><span class="dot dot-live dot-ping"></span>vivo</span><span class="row t-xs fg-2" style="gap: 6px"><span class="dot dot-ok"></span>ok</span><span class="row t-xs fg-2" style="gap: 6px"><span class="dot dot-warn"></span>aviso</span><span class="row t-xs fg-2" style="gap: 6px"><span class="dot dot-bad"></span>error</span><span class="row t-xs fg-2" style="gap: 6px"><span class="dot dot-idle"></span>inactivo</span><span class="count-pill">197</span><span class="count-pill live">2</span></div>
+</section>
+
+<section class="card card-pad col" style="gap: 16px">
+<div class="row"><h2 class="t-h2 grow">Navegación</h2><span class="mono t-xs fg-3">.seg · .tabs .tab · .nav-item .on</span></div>
+<div class="seg"><button type="button" class="on">30 días</button><button type="button">90 días</button><button type="button">Todo</button></div>
+<div class="tabs"><button type="button" class="tab on">Resumen</button><button type="button" class="tab">Actividad</button><button type="button" class="tab">Cambios</button><button type="button" class="tab">Entorno</button></div>
+<div class="col" style="gap: 1px; width: 240px; padding-left: 12px; background: var(--bg-1); border-radius: 10px; padding: 8px 8px 8px 12px"><a href="#" class="nav-item on"><svg class="ico" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span class="grow">Chats</span><span class="count">197</span></a><a href="#" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span class="grow">Proyectos</span></a></div>
+</section>
+
+<section class="card card-pad col" style="gap: 16px">
+<div class="row"><h2 class="t-h2 grow">Progreso</h2><span class="mono t-xs fg-3">.bar (.grad .live .warn .bad) · .segbar · .ring</span></div>
+<div class="col" style="gap: 10px"><div class="bar grad"><i style="width: 45%"></i></div><div class="bar live"><i style="width: 62%"></i></div><div class="bar warn"><i style="width: 79%"></i></div><div class="bar bad"><i style="width: 100%"></i></div></div>
+<div class="segbar"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 70%"></i><i class="live" style="--p: 30%"></i><i class="bad"></i><i></i></div>
+<div class="row" style="gap: 14px"><span class="ring ring-grad" style="--p: 45; width: 48px; height: 48px; font-size: 11px">45%</span><span class="ring" style="--p: 14; --c: var(--fg-2)">14%</span><span class="ring" style="--p: 67; --c: var(--warn)">67%</span><span class="t-xs fg-2 grow">Ámbar desde 60% de contexto o límite, rojo desde 75% o agotado.</span></div>
+</section>
+
+<section class="card card-pad col" style="gap: 16px">
+<div class="row"><h2 class="t-h2 grow">Tarjetas</h2><span class="mono t-xs fg-3">.card · .grad-border · .energy · .rail-live · .kpi</span></div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+<div class="card kpi" style="background: var(--bg-1)"><span class="t-label">normal</span><span class="v">228</span></div>
+<div class="card kpi grad-border"><span class="t-label">destacada</span><span class="v grad-text">5,61 $</span></div>
+<div class="card kpi energy"><span class="t-label">viva</span><span class="row" style="gap: 6px"><span class="spin-braille"></span><span class="shimmer" style="font-weight: 600">Ejecutando</span></span></div>
+</div>
+<div class="card rail-live row" style="padding: 12px 14px 12px 18px; gap: 10px; background: var(--bg-1)"><span class="spin-ring"></span><span class="grow t-sm" style="font-weight: 500">Fila viva con raíl que respira</span><span class="mono t-xs fg-3">10:59</span></div>
+</section>
+
+<section class="card card-pad col" style="gap: 12px">
+<div class="row"><h2 class="t-h2 grow">Listas y tablas</h2><span class="mono t-xs fg-3">.list-row .sel · .th · .proj · .avatar</span></div>
+<div class="row th" style="gap: 12px; padding: 0 14px"><span style="width: 28px"></span><span class="grow">Proyecto</span><span style="width: 60px; text-align: right">Chats</span><span style="width: 60px; text-align: right">Coste</span></div>
+<div class="list-row"><span class="proj" style="background: var(--accent-soft); color: var(--accent)">CW</span><span class="grow t-sm" style="font-weight: 500">claude-wrapper</span><span class="t-num t-sm" style="width: 60px; text-align: right">186</span><span class="t-num t-sm" style="width: 60px; text-align: right">1137 $</span></div>
+<div class="list-row sel"><span class="proj" style="background: var(--info-soft); color: var(--info)">GD</span><span class="grow t-sm" style="font-weight: 500">google-docs-mcp · seleccionada</span><span class="t-num t-sm" style="width: 60px; text-align: right">2</span><span class="t-num t-sm" style="width: 60px; text-align: right">8 $</span></div>
+<div class="row" style="gap: 8px; padding: 0 14px"><span class="avatar">Y</span><span class="avatar" style="background: var(--bg-4); color: var(--fg-2)">J</span><span class="t-xs fg-2">Avatar: degradado solo para la cuenta en uso.</span></div>
+</section>
+
+<section class="card card-pad col" style="gap: 14px">
+<div class="row"><h2 class="t-h2 grow">Capas flotantes</h2><span class="mono t-xs fg-3">.menu · .tooltip · .toast · .callout</span></div>
+<div class="row" style="gap: 16px; align-items: flex-start">
+<div class="menu" style="min-width: 200px"><button type="button" class="menu-item on">Renombrar</button><button type="button" class="menu-item">Quitar</button><hr class="divider" style="margin: 4px 0"><button type="button" class="menu-item danger">Purgar estado</button></div>
+<div class="col" style="gap: 12px"><span class="tooltip"><span class="mono" style="opacity: 0.7">mié 23 sep</span><strong>807,93 US$</strong></span><div class="toast" style="min-width: 300px"><svg class="ico c-accent" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"></path></svg><span class="t-sm grow">Orquestación reanudada</span><button type="button" class="btn btn-sm btn-ghost">Ver</button></div></div>
+</div>
+<div class="callout"><svg class="ico" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0zM12 11v5M12 8h.01"></path></svg><span>Callout: explicación breve de una regla del sistema.</span></div>
+</section>
+</div>
+
+<section class="col" style="gap: 14px">
+<h2 class="t-h2">Estructura desktop y compositor</h2>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px">
+<div class="card card-pad col" style="gap: 12px"><span class="mono t-xs fg-3">.shell = Sidebar (256) + .main-col [Topbar 52 · .page · StatusBar 30]</span>
+<div class="row" style="height: 150px; gap: 0; border: 1px solid var(--line-2); border-radius: 10px; overflow: hidden"><div style="width: 70px; height: 100%; background: var(--bg-1); border-right: 1px solid var(--line)"></div><div class="col grow" style="gap: 0; height: 100%"><div style="height: 18px; border-bottom: 1px solid var(--line)"></div><div class="glow-top grow" style="background-color: var(--bg)"></div><div style="height: 12px; background: var(--bg-1); border-top: 1px solid var(--line)"></div></div></div>
+<span class="t-xs fg-2">La barra de estado (estilo Orca) muestra cuenta, límites 5h/7d, agentes en marcha y gasto de hoy en todas las pantallas.</span></div>
+<div class="card card-pad col" style="gap: 12px"><span class="mono t-xs fg-3">compositor: .card.energy mientras el agente trabaja · .grad-border al empezar</span>
+<div class="card energy" style="border-radius: 16px; padding: 10px; display: flex; align-items: center; gap: 8px"><button type="button" class="btn btn-ghost btn-icon" aria-label="Adjuntar"><svg class="ico" viewBox="0 0 24 24"><path d="M20 11.5 12.5 19a5 5 0 0 1-7-7l8-8a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4L15 7.5"></path></svg></button><span class="grow fg-3 t-sm">Envía un mensaje de seguimiento…</span><button type="button" class="btn btn-danger btn-sm">Detener</button><button type="button" class="btn btn-primary btn-icon" aria-label="Enviar"><svg class="ico" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button></div>
+<div class="row" style="gap: 6px"><button type="button" class="chip">Opus 5.5</button><button type="button" class="chip" style="color: var(--accent)">Sin pedir permisos</button><button type="button" class="chip">MCP de la CLI</button></div></div>
+</div>
+</section>
+</div>
+</body></html>

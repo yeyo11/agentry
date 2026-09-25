@@ -15,6 +15,14 @@
   "viewSteps": "Pasos",
   "viewGraph": "Grafo",
   "stepsLabel": "Pasos de esta orquestación",
+  "pipelineState": {
+    "done": "hecha",
+    "current": "en curso",
+    "waiting": "te espera",
+    "failed": "fallida",
+    "skipped": "omitida",
+    "pending": "pendiente"
+  },
   "backToLive": "Volver al directo",
   "backToLatest": "Volver al último paso",
   "steps": {
@@ -27,5 +35,15 @@
     "synthesisWriting": "El agente de síntesis está escribiendo el informe final.",
     "synthesisNoReport": "La síntesis terminó sin informe. Su chat explica por qué.",
     "synthesisSkipped": "No hubo síntesis: ninguna tarea se completó o el grafo se detuvo antes."
-  }
+  },
+  "notFoundBody": "Puede que se haya eliminado o que el enlace no sea correcto. Las demás orquestaciones siguen en la lista.",
+  "viewWorktree": "Ver worktree",
+  "settingsLabel": "Ajustes",
+  "kpi": {
+    "tasks": "Tareas",
+    "time": "Tiempo",
+    "parallel": "Paralelo"
+  },
+  "stageTasks_one": "{{count}} tarea",
+  "stageTasks_other": "{{count}} tareas en paralelo"
 }

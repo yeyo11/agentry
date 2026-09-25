@@ -2,8 +2,21 @@ import type { Orchestration, OrchestrationTaskState, PermissionRequest, Schedule
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { configCount, SIZE_SPANS, validateLayout, WIDGET_SIZES, type WidgetRule } from '../src/pages/dashboard/layout.ts';
-import { excerpt, liveByProject, orchestrationStages, orchestrationsToShow, scheduleCwd, taskCounts, upcomingSchedules, waitingFor } from '../src/pages/dashboard/model.ts';
-import { defaultLayout, resolveLayout, widgetDefinition, WIDGETS } from '../src/pages/dashboard/registry.ts';
+import {
+  excerpt,
+  homeHeadline,
+  initials,
+  limitSummary,
+  liveByProject,
+  orchestrationStages,
+  orchestrationsToShow,
+  scheduleCwd,
+  taskCounts,
+  taskSegments,
+  upcomingSchedules,
+  waitingFor,
+} from '../src/pages/dashboard/model.ts';
+import { defaultLayout, resolveLayout, WIDGET_AREAS, widgetDefinition, WIDGETS } from '../src/pages/dashboard/registry.ts';
 import { legacyTabRedirect } from '../src/pages/dashboard/views.ts';
 
 // Home draws whatever layout it is handed. A stored layout is data from another version, or from a
@@ -89,6 +102,7 @@ test('the registry: unique types, a default size each type offers, a title key',
     assert.ok(widget.sizes.includes(widget.defaultSize), `${widget.type} offers its default size`);
     assert.match(widget.titleKey, /^widgets\.\w+\.title$/, widget.type);
     assert.equal(widgetDefinition(widget.type), widget);
+    assert.ok(WIDGET_AREAS.includes(widget.area), `${widget.type} has an area the page draws`);
   }
   assert.equal(widgetDefinition('documents'), undefined);
 });
@@ -98,12 +112,16 @@ test('the default layouts: what the plan asks for, each widget in its scope, and
   const global = defaultLayout('global');
   assert.deepEqual(
     project.widgets.map((w) => w.type).sort(),
-    ['export', 'limits', 'memory', 'now', 'orchestrations', 'pickUp', 'quickStart', 'resources', 'schedules', 'today', 'worktrees'].sort(),
+    ['export', 'kpis', 'limits', 'memory', 'now', 'pickUp', 'quickStart', 'resources', 'schedules', 'today', 'worktrees'].sort(),
   );
-  assert.deepEqual(global.widgets.map((w) => w.type).sort(), ['limits', 'now', 'orchestrations', 'pickUp', 'projects', 'schedules', 'today'].sort());
+  // Orchestrations are part of "In progress": their own widget would show them twice
+  assert.deepEqual(global.widgets.map((w) => w.type).sort(), ['kpis', 'limits', 'now', 'pickUp', 'projects', 'schedules', 'today'].sort());
   for (const [scope, layout] of [['project', project], ['global', global]] as const) {
     assert.deepEqual(resolveLayout(layout, scope), layout, `${scope} survives its own validation`);
-    assert.equal(layout.widgets[0]?.type, 'now', 'what is live comes first');
+    const main = layout.widgets.filter((w) => widgetDefinition(w.type)?.area === 'main');
+    assert.equal(main[0]?.type, 'now', 'what is live comes first in the wide column');
+    const top = layout.widgets.filter((w) => widgetDefinition(w.type)?.area === 'top').map((w) => w.type);
+    assert.deepEqual(top, ['kpis', 'limits'], 'the figures, then the limit beside them');
   }
 });
 
@@ -214,4 +232,56 @@ test('an excerpt skips front matter and runs of blank lines, and stops after a f
   const doc = '---\nname: x\n---\n\n# Rules\n\n\nOne\nTwo\n\nThree\nFour\nFive\nSix\n';
   assert.equal(excerpt(doc, 3), '# Rules\n\nOne\nTwo');
   assert.equal(excerpt('\n\n'), '');
+});
+
+// ---------- Home's hero and figures ----------
+
+test('the headline: someone waiting outranks everything, then running, then nothing', () => {
+  assert.deepEqual(homeHeadline({ running: 3, waiting: 0 }), { kind: 'running' });
+  assert.deepEqual(homeHeadline({ running: 3, waiting: 2 }), { kind: 'waiting', n: 2 });
+  assert.deepEqual(homeHeadline({ running: 0, waiting: 1 }), { kind: 'waiting', n: 1 });
+  assert.deepEqual(homeHeadline({ running: 0, waiting: 0 }), { kind: 'idle' });
+});
+
+test('initials: the first letters of the first two words, whatever splits them', () => {
+  assert.equal(initials('spanish-copy'), 'SC');
+  assert.equal(initials('google-docs-mcp'), 'GD');
+  assert.equal(initials('claude_wrapper'), 'CW');
+  assert.equal(initials('obra10'), 'O');
+  assert.equal(initials('ñandú rápido'), 'ÑR');
+  assert.equal(initials('--'), '?');
+});
+
+test('task segments: one per task, done first and what is ahead last', () => {
+  const tasks = (['pending', 'running', 'completed', 'failed', 'blocked', 'completed', 'stopped'] as const).map((status) => ({ status }));
+  assert.deepEqual(taskSegments(tasks), ['done', 'done', 'skipped', 'failed', 'running', 'pending', 'pending']);
+  assert.deepEqual(taskSegments([]), []);
+});
+
+test('limits: the active account from claude-swap first, the CLI windows by name otherwise', () => {
+  const swap = {
+    rateLimit: { status: 'allowed', windows: { five_hour: { utilization: 0.9, resetsAt: 100 } }, observedAt: '' },
+    accounts: {
+      installed: true,
+      total: 1,
+      autoSwitchRunning: false,
+      active: {
+        number: 1,
+        email: 'a@b.c',
+        organizationName: null,
+        alias: null,
+        active: true,
+        disabled: false,
+        usageStatus: 'ok',
+        usageFetchedAt: null,
+        headroomPct: 55,
+        usage: { fiveHour: { pct: 45.4, resetsAt: '2026-09-25T12:00:00Z', countdown: null }, sevenDay: { pct: 5, resetsAt: null, countdown: null }, scoped: [] },
+      },
+    },
+  };
+  assert.deepEqual(limitSummary(swap), { fiveHour: { pct: 45, resetsAt: Date.parse('2026-09-25T12:00:00Z') }, weekly: { pct: 5, resetsAt: null } });
+  const cli = { accounts: null, rateLimit: { status: 'allowed', windows: { seven_day: { utilization: 0.051, resetsAt: 200 }, five_hour: { utilization: 1.2, resetsAt: 100 } }, observedAt: '' } };
+  assert.deepEqual(limitSummary(cli), { fiveHour: { pct: 100, resetsAt: 100_000 }, weekly: { pct: 5, resetsAt: 200_000 } });
+  assert.deepEqual(limitSummary(undefined), { fiveHour: null, weekly: null });
+  assert.deepEqual(limitSummary({ accounts: null, rateLimit: null }), { fiveHour: null, weekly: null });
 });

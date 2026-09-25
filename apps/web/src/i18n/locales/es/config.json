@@ -31,6 +31,16 @@
       "security": "Seguridad",
       "install": "Instalar",
       "notifications": "Notificaciones"
+    },
+    "groups": {
+      "agentry": "Agentry",
+      "claude": "Claude Code",
+      "extensions": "Extensiones",
+      "system": "Sistema"
+    },
+    "phone": {
+      "appearance": "Idioma y movimiento",
+      "back": "Volver a Ajustes"
     }
   },
   "security": {
@@ -676,14 +686,10 @@
     "title": "Cuentas",
     "count_one": "{{count}} cuenta",
     "count_other": "{{count}} cuentas",
-    "resetsIn": "· se reinicia en {{countdown}}",
-    "active": "activa",
     "outOfRotation": "fuera de la rotación",
-    "use": "Usar",
     "returnToRotation": "Devolver a la rotación",
     "holdOut": "Sacar de la rotación",
     "removeAccount": "Quitar la cuenta",
-    "quotaLeft": "{{pct}}% de cuota disponible",
     "fiveHours": "5 horas",
     "sevenDays": "7 días",
     "noUsage": "No se ha informado de uso.",
@@ -691,7 +697,6 @@
     "usageRead": "uso leído {{ago}}",
     "registered": "Cuenta registrada",
     "registerFailed": "No se ha podido registrar la cuenta",
-    "add": "Añadir una cuenta",
     "token": "Token",
     "tokenHint": "Ejecuta `claude setup-token` con la sesión iniciada en esa cuenta, o pega una clave de API. La guarda claude-swap y la API nunca la devuelve.",
     "label": "Etiqueta (opcional)",
@@ -705,14 +710,9 @@
     "stopped": "detenido",
     "rotateBefore": "Rotar antes de que la cuenta activa se agote (`cswap auto`)",
     "rotateOnLimit": "Rotar y reanudar una ejecución que muere al llegar a su límite",
-    "thresholdValue": "Umbral · {{pct}}%",
-    "thresholdHint": "Uso de la ventana 5h/7d que manda a partir del cual se cambia de cuenta.",
     "threshold": "Umbral",
     "strategy": "Estrategia",
-    "strategyHint": "`best` se queda hasta el límite; `consume-first` gasta primero la cuenta que antes se reinicia.",
     "interval": "Intervalo de consulta (s)",
-    "intervalHint": "Mínimo 15.",
-    "models": "Ventanas por modelo",
     "modelsHint": "Nombres visibles separados por comas (Fable, Opus…) o `all`. Vacío vigila solo las ventanas de toda la cuenta.",
     "needsCswap": "El soporte multicuenta necesita claude-swap",
     "refreshUsage": "Actualizar el uso",
@@ -729,16 +729,12 @@
     "removed": "Se ha quitado {{email}}",
     "removeFailed": "No se ha podido quitar {{email}}",
     "none": "Aún no hay cuentas registradas",
-    "noneHint": "Registra la primera abajo. Hasta entonces el wrapper sigue usando la credencial de su propia configuración.",
     "switchNote": "Cambiar de cuenta reescribe el archivo de credenciales compartido. Las ejecuciones que ya están en marcha conservan la cuenta con la que empezaron; las ejecuciones nuevas y los turnos reanudados usan la activa.",
     "log": "Registro de rotaciones",
     "recentOnly": "Solo recientes",
     "fullHistory": "Historial completo",
     "nothingYet": "Nada todavía",
-    "logHint": "Los cambios, consultas y cuarentenas aparecen aquí cuando la rotación automática está en marcha.",
-    "usedNearlyOut": "usado, casi agotado",
-    "usedRunningHigh": "usado, va alto",
-    "useAccount": "Usar {{name}}"
+    "logHint": "Los cambios, consultas y cuarentenas aparecen aquí cuando la rotación automática está en marcha."
   },
   "memory": {
     "saved": "{{name}} guardado",
@@ -1001,7 +997,11 @@
     "action": "Instalar Agentry",
     "ios": "En iPhone y iPad ninguna página puede ofrecer un botón de instalación: abre Agentry en Safari, toca Compartir y después Añadir a pantalla de inicio.",
     "manual": "Este navegador instala la aplicación desde su propio menú, donde la opción se llama Instalar o Añadir a pantalla de inicio. Chrome y Edge la ofrecen aquí como botón, tanto en Android como en el escritorio.",
-    "insecure": "Esta página se sirve desde {{origin}}, que los navegadores no consideran un origen seguro. Añadir Agentry a la pantalla de inicio sigue funcionando, pero nada que dependa de un service worker: ni arranque inmediato ni notificaciones con la aplicación cerrada. Para eso hace falta https:// o localhost."
+    "insecure": "Esta página se sirve desde {{origin}}, que los navegadores no consideran un origen seguro. Añadir Agentry a la pantalla de inicio sigue funcionando, pero nada que dependa de un service worker: ni arranque inmediato ni notificaciones con la aplicación cerrada. Para eso hace falta https:// o localhost.",
+    "push": {
+      "title": "Notificaciones en este dispositivo",
+      "text": "Entérate de cuándo termina un chat o te necesita, aunque Agentry esté cerrado. Se activan en Notificaciones."
+    }
   },
   "notifications": {
     "title": "Notificaciones",
@@ -1026,5 +1026,10 @@
       "removeBody": "{{name}} dejará de recibir notificaciones. Puede volver a registrarse desde sus propios ajustes.",
       "removeFailed": "No se pudo quitar ese dispositivo"
     }
+  },
+  "appearance": {
+    "ring": "anillo",
+    "dots": "puntos",
+    "thinking": "Pensando"
   }
 }

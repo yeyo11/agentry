@@ -39,6 +39,7 @@ import {
 } from '@agentry/shared';
 import { pageSize } from './sessions.ts';
 import { toChatEnvironment, toChildren, type BranchFacts } from './chat-branches.ts';
+import { mergeLiveWorkflows } from './workflows.ts';
 import { chatControl, chatState, lastEndedOf, sessionHolder, type SessionHolder } from './chat-model.ts';
 import type { ChatTools } from './chat-tools.ts';
 import type { AdoptedChat, ChatManager, ChatRuntime } from './chats.ts';
@@ -616,14 +617,21 @@ export class ChatService {
    * the files the CLI writes beside the transcript, which is also what shows a chat started from a
    * terminal, whose stream Agentry never sees, and one that ended, whose in-memory lists a restart
    * empties. `live` says whether something is still around for its work to be running in.
+   *
+   * A live chat's workflows need both: the stream only has the runs of its current process, under
+   * the task id, while the files have the runs of earlier ones and the `wf_…` id an agent's
+   * transcript is filed under.
    */
   private async branchFacts(id: string, runtime: ChatRuntime | null, live: boolean): Promise<BranchFacts> {
     if (runtime && runtime.pid !== null) {
       const needsOwners = runtime.backgroundTasks.some((t) => t.fromSubagent && !t.ownerAgentId);
-      const owners = needsOwners ? await this.deps.sessions.taskOwners(id) : null;
+      const [owners, onDisk] = await Promise.all([
+        needsOwners ? this.deps.sessions.taskOwners(id) : null,
+        this.deps.sessions.workflows(id, false).catch(() => []),
+      ]);
       return {
         subagents: runtime.subagents,
-        workflows: runtime.workflows,
+        workflows: mergeLiveWorkflows(runtime.workflows, onDisk, runtime.processStartedAt ?? null),
         // Only a subagent's own transcript says which subagent launched a task
         tasks: runtime.backgroundTasks.map((t) => {
           const owner = t.ownerAgentId ?? (t.fromSubagent ? owners?.get(t.id) : undefined);
@@ -683,7 +691,7 @@ export class ChatService {
 
   private async refOf(id: string, facts: Facts): Promise<ChatRef | null> {
     const chat = await this.summaryWith(id, facts);
-    return chat ? { id: chat.id, title: chat.title, project: chat.project, cwd: chat.cwd, worktree: chat.worktree } : null;
+    return chat ? { id: chat.id, title: chat.title, firstPrompt: chat.firstPrompt, project: chat.project, cwd: chat.cwd, worktree: chat.worktree } : null;
   }
 
   /**

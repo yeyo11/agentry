@@ -6,8 +6,11 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const tabsText = `return [...(document.querySelector('main [role=tablist]')?.querySelectorAll('[role=tab]') ?? [])].map((t) => t.textContent.trim()).join(',')`;
-// The widgets drawn, in order: the page renders the layout it is given, so this is the layout
-const widgetTypes = `return [...document.querySelectorAll('main .dashboard-grid > .widget-slot')].map((s) => s.dataset.widget).join(',')`;
+// The widgets drawn, in order: the figures on top, then the wide column, then the narrow one. Each
+// widget's area comes from its type and the layout's order holds within it, so this is the layout.
+const widgetTypes = `return [...document.querySelectorAll('main .dashboard-grid > .dashboard-area > .widget-slot')].map((s) => s.dataset.widget).join(',')`;
+// With All projects the headline says the live state, so the page is known by its hero and its title
+const allProjects = `return !!document.querySelector('main .home-hero h1') && document.title.startsWith('Home ·')`;
 
 export default async ({ page, api, check, dirs }) => {
   const dir = join(dirs.workspaceDir, 'e2e-home');
@@ -19,14 +22,15 @@ export default async ({ page, api, check, dirs }) => {
   try {
     // With no project selected the page is the dashboard of every project, and nothing else
     await page.goto('/?project=all', 1200);
-    await page.waitFor(`return document.querySelector('main h1')?.textContent === 'Home'`, { label: 'Home with All projects' });
+    await page.waitFor(allProjects, { label: 'Home with All projects' });
     check((await page.eval(tabsText)) === '', 'All projects has no tabs: the dashboard is the page');
     await page.waitFor(`return document.querySelectorAll('main .dashboard-grid .widget').length >= 5`, { label: 'the All projects widgets' });
     check(
-      (await page.eval(widgetTypes)) === 'now,orchestrations,limits,pickUp,today,schedules,projects',
+      (await page.eval(widgetTypes)) === 'kpis,limits,now,pickUp,today,projects,schedules',
       `All projects draws its default layout (${await page.eval(widgetTypes)})`,
     );
-    check(await page.eval(`return [...document.querySelectorAll('main .widget h2')].some((h) => h.textContent === 'Now')`), 'every widget names itself with a heading');
+    check(await page.eval(`return [...document.querySelectorAll('main .widget h2')].some((h) => h.textContent === 'In progress')`), 'every widget names itself with a heading');
+    check(await page.eval(`return !!document.querySelector('main [data-widget=kpis] .kpi-strip')`), 'the figures are a strip under the hero');
     check((await page.text('main [data-widget=projects]')).includes('e2e-home'), 'the Projects widget lists the imported project');
 
     // A deep link selects the project and the selector says so
@@ -36,7 +40,7 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.eval(tabsText)) === '', 'the project page is a dashboard, not a tab strip');
     await page.waitFor(`return !!document.querySelector('main [data-widget=quickStart] textarea')`, { label: 'the quick start widget' });
     check(
-      (await page.eval(widgetTypes)) === 'now,quickStart,limits,orchestrations,schedules,pickUp,today,memory,worktrees,resources,export',
+      (await page.eval(widgetTypes)) === 'kpis,limits,now,quickStart,pickUp,export,today,schedules,memory,worktrees,resources',
       `the project draws its default layout (${await page.eval(widgetTypes)})`,
     );
     check((await page.text('main [data-widget=quickStart]')).includes('MCP: CLI default'), 'the quick start options are one status line, closed');
@@ -91,7 +95,7 @@ export default async ({ page, api, check, dirs }) => {
     // Back to everything through the selector
     await page.click('.project-selector', undefined, 400);
     await page.click('[role=option]', 'All projects', 800);
-    await page.waitFor(`return document.querySelector('main h1')?.textContent === 'Home'`, { label: 'All projects again' });
+    await page.waitFor(allProjects, { label: 'All projects again' });
   } finally {
     await page.eval(`localStorage.removeItem('agentry:project'); return true`);
     await api.del(`/projects/${id}`);

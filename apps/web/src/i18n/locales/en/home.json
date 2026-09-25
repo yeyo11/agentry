@@ -64,7 +64,7 @@
     "rightNow": "Right now",
     "working": "{{n}} working",
     "context": "{{percent}}% context",
-    "costUnavailable": "cost not available",
+    "costUnavailable": "no cost",
     "noProject": "no project",
     "nothingSpent": "Nothing spent yet today.",
     "spent": "{{cost}} spent",
@@ -88,11 +88,19 @@
     "widgetFailed": "The {{title}} widget could not be shown"
   },
   "widgets": {
+    "kpis": {
+      "title": "Figures"
+    },
     "now": {
-      "title": "Now",
+      "title": "In progress",
       "needYou_one": "{{n}} needs you",
       "needYou_other": "{{n}} need you",
-      "noActivity": "Working"
+      "noActivity": "Working",
+      "live": "live",
+      "all": "See all",
+      "offline": "Agentry is not answering",
+      "offlineHint": "The page cannot reach the wrapper. Check that it is running, then try again.",
+      "retry": "Try again"
     },
     "orchestrations": {
       "title": "Orchestrations",
@@ -103,7 +111,17 @@
       "ended": "ended {{when}}",
       "running": "{{n}} running",
       "all": "All orchestrations",
-      "none": "No orchestration has run here yet."
+      "none": "No orchestration has run here yet.",
+      "kind": "orchestration",
+      "parallel": "{{n}} in parallel",
+      "progress": "{{done}} of {{total}} tasks done, {{running}} running",
+      "done_one": "{{n}} done",
+      "done_other": "{{n}} done",
+      "failed_one": "{{n}} failed",
+      "failed_other": "{{n}} failed",
+      "pending_one": "{{n}} pending",
+      "pending_other": "{{n}} pending",
+      "stageOf": "stage {{n}} of {{total}}"
     },
     "limits": {
       "title": "Limits",
@@ -111,22 +129,26 @@
     },
     "pickUp": {
       "title": "Pick up again",
-      "none": "No chat to pick up."
+      "none": "No chat to pick up.",
+      "failed": "failed",
+      "interrupted": "interrupted"
     },
     "today": {
-      "title": "Today",
-      "usage": "Usage"
+      "title": "Today's usage",
+      "usage": "Details"
     },
     "schedules": {
-      "title": "Upcoming schedules",
+      "title": "Schedules",
       "all": "All schedules",
-      "none": "Nothing scheduled."
+      "none": "Nothing scheduled. Start a chat every morning or an orchestration every Monday.",
+      "create": "Create schedule"
     },
     "projects": {
       "title": "Projects",
       "all": "All projects",
       "waiting": "{{n}} waiting",
-      "never": "no activity"
+      "never": "no activity",
+      "now": "now"
     },
     "quickStart": {
       "title": "Quick start",
@@ -159,5 +181,45 @@
     "export": {
       "title": "Export"
     }
+  },
+  "hero": {
+    "running": "All running, <grad>nothing waits for you</grad>",
+    "waiting_one": "<grad>{{n}} is waiting</grad> for your answer",
+    "waiting_other": "<grad>{{n}} are waiting</grad> for your answer",
+    "idle": "Nothing <grad>running</grad>",
+    "working_one": "{{n}} agent working in {{where}}.",
+    "working_other": "{{n}} agents working in {{where}}.",
+    "nothingWorking": "No agent is working right now.",
+    "waitingNone": "No permission or question pending.",
+    "waitingSome": "What waits for you is at the top of In progress.",
+    "newOrchestration": "New orchestration",
+    "newChat": "New chat"
+  },
+  "kpis": {
+    "agents": "Agents running",
+    "agentsShort_one": "agent",
+    "agentsShort_other": "agents",
+    "orchestrations_one": "{{n}} orchestration",
+    "orchestrations_other": "{{n}} orchestrations",
+    "chats_one": "{{n}} chat",
+    "chats_other": "{{n}} chats",
+    "nothingRunning": "nothing running",
+    "waiting": "Waiting for your answer",
+    "waitingShort_one": "waiting",
+    "waitingShort_other": "waiting",
+    "waitingNone": "no pending permissions",
+    "waitingSome": "permissions, questions or decisions",
+    "spend": "Today's spend",
+    "today": "Today",
+    "spent": "spent",
+    "withoutCost_one": "+{{n}} terminal chat with no cost",
+    "withoutCost_other": "+{{n}} terminal chats with no cost",
+    "everyProject": "across every project",
+    "inProject": "in this project",
+    "fiveHour": "5 h limit",
+    "resets": "resets {{when}}",
+    "weekly": "weekly {{pct}}%",
+    "fiveHourShort": "5h {{pct}}%",
+    "weeklyShort": "7d {{pct}}%"
   }
 }

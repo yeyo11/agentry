@@ -51,3 +51,14 @@ test('Intl locale keeps the browser variant of the active language', () => {
   assert.equal(intlLocale('es', ['en-US']), 'es-ES');
   assert.equal(intlLocale('en', ['de-DE']), 'en-US');
 });
+
+test('Intl locale drops POSIX suffixes and never hands Intl a tag it rejects', () => {
+  assert.equal(intlLocale('en', ['en-US@posix']), 'en-US');
+  assert.equal(intlLocale('es', ['es_ES.UTF-8']), 'es-ES');
+  assert.equal(intlLocale('es', ['es-419@euro']), 'es-419');
+  // Not a language tag at all: the language's default instead of a RangeError
+  assert.equal(intlLocale('en', ['en-!!']), 'en-US');
+  for (const tag of [intlLocale('en', ['en-US@posix']), intlLocale('es', ['es_MX.UTF-8'])]) {
+    assert.doesNotThrow(() => new Intl.NumberFormat(tag).format(1));
+  }
+});

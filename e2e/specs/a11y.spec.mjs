@@ -248,6 +248,25 @@ export default async ({ page, api, check, dirs }) => {
     if (sidebarShown) problems.push('[420px] the sidebar is still shown next to the tab bar');
     const tabs = await page.eval(`return [...document.querySelectorAll('.tabbar a')].map((a) => a.getAttribute('href'))`);
     for (const href of ['/', '/chats', '/orchestration']) if (!tabs.includes(href)) problems.push(`[420px] the tab bar has no ${href} tab`);
+    // The Chats header carries the project scope on a phone, and the top bar leaves its own out: one selector, never two
+    const scopes = await page.eval(`return [...document.querySelectorAll('.project-selector')].map((s) => s.closest('.topbar') ? 'topbar' : s.closest('main .page-header') ? 'header' : 'elsewhere')`);
+    if (scopes.join() !== 'header') problems.push(`[420px] /chats should have one project selector, in its header (found: ${scopes.join(', ') || 'none'})`);
+    // New chat is the FAB on a phone: an icon on the list, so its name has to be said, and a real button
+    const fab = await page.eval(`const f = document.querySelector('.fab'); return f ? { tag: f.tagName, name: f.getAttribute('aria-label'), size: Math.min(f.offsetWidth, f.offsetHeight) } : null`);
+    if (!fab) problems.push('[420px] there is no New chat FAB on the chat list');
+    else {
+      if (fab.tag !== 'BUTTON') problems.push(`[420px] the FAB is a ${fab.tag}, not a button`);
+      if (fab.name !== 'New chat') problems.push(`[420px] the icon-only FAB is named "${fab.name}", not "New chat"`);
+      if (fab.size < 44) problems.push(`[420px] the FAB is ${fab.size}px, under a 44px target`);
+    }
+    // "Run workflow" and "New orchestration" left the tab bar for the More sheet's Start group
+    await page.focus('.tabbar-more');
+    await page.press('Enter');
+    await page.waitFor(`return !!document.querySelector('.more-sheet')`, { label: 'the More sheet opens' });
+    const start = await page.eval(`return [...document.querySelectorAll('.more-sheet button.more-cell')].map((b) => b.textContent.trim())`);
+    for (const item of ['Run workflow', 'New orchestration']) if (!start.includes(item)) problems.push(`[420px] More has no "${item}" (${start.join(', ')})`);
+    await page.key('Escape');
+    await page.waitFor(`return !document.querySelector('.more-sheet')`, { label: 'More closes' });
     await page.focus('.tabbar-more');
     await page.press('Enter');
     await page.waitFor(`return !!document.querySelector('.more-sheet')`, { label: 'the More sheet opens from the keyboard' });
@@ -256,6 +275,10 @@ export default async ({ page, api, check, dirs }) => {
     if ((await page.eval(`return document.querySelector('.tabbar-more').getAttribute('aria-expanded')`)) !== 'true') problems.push('[420px] the More button does not say its sheet is open');
     const rest = await page.eval(`return [...document.querySelectorAll('.more-sheet a')].map((a) => a.getAttribute('href'))`);
     for (const href of ['/projects', '/accounts', '/schedules', '/usage', '/connectors', '/settings', '/docs', '/settings?tab=account']) if (!rest.includes(href)) problems.push(`[420px] More does not offer ${href}`);
+    // Its sections say their figures, as the reference does: at least the project imported above is counted
+    await page.waitFor(`return !!document.querySelector('.more-sheet a[href="/projects"] .more-cell-note')`, { label: 'the Projects cell has its count' });
+    const projectCount = await page.text('.more-sheet a[href="/projects"] .more-cell-note');
+    if (!/^[1-9]\d*$/.test(projectCount.trim())) problems.push(`[420px] the Projects cell in More should count the projects, and says "${projectCount}"`);
     await scan(page, '420px more sheet', { rules: OVERLAY_RULES });
     await page.key('Escape');
     await page.waitFor(`return !document.querySelector('.more-sheet')`, { label: 'Escape closes More' });
@@ -265,6 +288,10 @@ export default async ({ page, api, check, dirs }) => {
     await settle(page, `/chats/${SESSION}`);
     if (await page.eval(`return !!document.querySelector('.tabbar')`)) problems.push('[420px] the tab bar covers a chat, which has its own footer');
     await page.viewport(1440, 900);
+    // A desktop keeps the scope in the top bar, on Chats too
+    await settle(page, '/chats');
+    const desktopScopes = await page.eval(`return [...document.querySelectorAll('.project-selector')].map((s) => s.closest('.topbar') ? 'topbar' : 'page')`);
+    if (desktopScopes.join() !== 'topbar') problems.push(`[1440px] /chats should have one project selector, in the top bar (found: ${desktopScopes.join(', ') || 'none'})`);
 
     // ---------- axe: what opens over the pages ----------
     await page.eval(`localStorage.removeItem('agentry:project'); return true`);

@@ -118,11 +118,20 @@ const TICKS_PER_SECOND = 100;
  * comes from the uptime, which has a hundredth of a second, and not from `btime` in `/proc/stat`,
  * which is whole seconds: that is a second of error, and a command is told apart from its
  * neighbour by less than that.
+ *
+ * `bootMs` lets a caller comparing several processes estimate the boot time once: each estimate
+ * is off by however long the thread waited between reading the uptime and the clock, and siblings
+ * each measured against their own could swap places on a busy machine.
  */
-export function startedAtMs(entry: ProcessEntry): number | null {
+export function startedAtMs(entry: ProcessEntry, bootMs: number | null = bootTimeMs()): number | null {
+  return bootMs === null ? null : bootMs + (entry.started / TICKS_PER_SECOND) * 1000;
+}
+
+/** When the machine booted, as a wall-clock time; null where it is not known. */
+export function bootTimeMs(): number | null {
   try {
     const uptime = Number(readFileSync('/proc/uptime', 'utf8').split(' ')[0]);
-    return Number.isFinite(uptime) ? Date.now() - uptime * 1000 + (entry.started / TICKS_PER_SECOND) * 1000 : null;
+    return Number.isFinite(uptime) ? Date.now() - uptime * 1000 : null;
   } catch {
     return null;
   }
@@ -177,9 +186,10 @@ export function commandRoots(
 ): { roots: Array<ProcessEntry | null>; unclaimed: number } {
   const earliest = openSince[0];
   if (earliest === undefined) return { roots: [], unclaimed: 0 };
+  const boot = bootTimeMs();
   const children = table
     .filter((p) => p.ppid === cli)
-    .map((entry) => ({ entry, at: startedAtMs(entry) }))
+    .map((entry) => ({ entry, at: startedAtMs(entry, boot) }))
     .filter((c): c is { entry: ProcessEntry; at: number } => c.at !== null && c.at >= earliest - toleranceMs)
     .sort((a, b) => a.at - b.at);
   const claimed = new Set<number>();

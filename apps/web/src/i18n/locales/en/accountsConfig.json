@@ -1,4 +1,43 @@
 {
+  "page": {
+    "subtitle": "{{accounts}} in claude-swap {{version}}",
+    "add": "Add account",
+    "addTitle": "Add an account",
+    "noneHint": "Register one with a token from claude setup-token. Until then the wrapper keeps using the credential from its own configuration.",
+    "installGuide": "How to install claude-swap"
+  },
+  "card": {
+    "inUse": "in use",
+    "free": "free",
+    "use": "Use this account",
+    "useNamed": "Use this account: {{name}}",
+    "more": "More actions for {{name}}",
+    "exhausted": "exhausted",
+    "runningHigh": "running high",
+    "used": "used"
+  },
+  "reset": {
+    "in": "in {{duration}}",
+    "back": "back in {{duration}}",
+    "now": "resets now"
+  },
+  "rotation": {
+    "subtitle": "Switches account before the active one runs out.",
+    "enable": "Enable",
+    "thresholdAt": "switches at {{pct}}% of 5 h or 7 days",
+    "strategies": {
+      "best": "Use up the current one",
+      "consume-first": "Soonest reset first"
+    },
+    "watchAlso": "Watch also",
+    "modelsPlaceholder": "Fable, Opus… or all",
+    "intervalPlaceholder": "min. 15",
+    "running": "running",
+    "stopped": "stopped",
+    "off": "off",
+    "thresholdShort": "threshold {{pct}}%",
+    "back": "Back to Accounts"
+  },
   "configDir": {
     "title": "Config directory",
     "own": "own directory",
@@ -88,5 +127,11 @@
     "peak": "Peak",
     "readings": "Readings",
     "lastReading": "Last reading"
+  },
+  "row": {
+    "fiveHour": "5h",
+    "sevenDay": "7d",
+    "spent": "{{window}} exhausted",
+    "used": "{{window}} {{pct}}%"
   }
 }

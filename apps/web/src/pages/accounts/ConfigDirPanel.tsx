@@ -8,7 +8,7 @@ import { Collapsible, Switch } from '../../components/controls';
 import { useConfirm } from '../../components/Dialog';
 import { ICON_SM } from '../../components/icons';
 import { useToast } from '../../components/Toast';
-import { ErrorBox, Field, Tag } from '../../components/ui';
+import { ErrorBox, Field } from '../../components/ui';
 
 /**
  * Where this account's Claude Code keeps its own files. Off by default: every account shares the
@@ -37,16 +37,19 @@ export function ConfigDirPanel({ account, config }: { account: AccountSummary; c
 
   return (
     <Collapsible
-      className="fold"
+      className="account-config"
+      triggerClassName="account-config-trigger"
       title={
-        <span className="meta">
-          <FolderCog {...ICON_SM} /> {t('configDir.title')}
-          {current ? <Tag tone="info">{t('configDir.own')}</Tag> : <Tag tone="muted">{t('configDir.shared')}</Tag>}
+        <span className="account-config-title">
+          <FolderCog {...ICON_SM} aria-hidden />
+          <span>{t('configDir.title')}</span>
+          {/* Lower-case mono, as the reference writes it: a badge would shout a plain fact */}
+          <span className={`account-config-state ${current ? 'is-own' : ''}`.trim()}>· {current ? t('configDir.own') : t('configDir.shared')}</span>
         </span>
       }
     >
       <form
-        className="form"
+        className="form account-config-form"
         onSubmit={(e) => {
           e.preventDefault();
           if (absolute) save.mutate(dir.trim());

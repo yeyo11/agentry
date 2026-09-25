@@ -1,4 +1,43 @@
 {
+  "page": {
+    "subtitle": "{{accounts}} en claude-swap {{version}}",
+    "add": "Añadir cuenta",
+    "addTitle": "Añadir una cuenta",
+    "noneHint": "Registra una con un token de claude setup-token. Hasta entonces el wrapper sigue usando la credencial de su propia configuración.",
+    "installGuide": "Cómo instalar claude-swap"
+  },
+  "card": {
+    "inUse": "en uso",
+    "free": "libre",
+    "use": "Usar esta cuenta",
+    "useNamed": "Usar esta cuenta: {{name}}",
+    "more": "Más acciones de {{name}}",
+    "exhausted": "agotado",
+    "runningHigh": "va alto",
+    "used": "usado"
+  },
+  "reset": {
+    "in": "en {{duration}}",
+    "back": "vuelve en {{duration}}",
+    "now": "se reinicia ya"
+  },
+  "rotation": {
+    "subtitle": "Cambia de cuenta antes de que la activa se agote.",
+    "enable": "Activar",
+    "thresholdAt": "cambia al {{pct}}% de 5 h o 7 días",
+    "strategies": {
+      "best": "Agotar la actual",
+      "consume-first": "Antes se reinicia"
+    },
+    "watchAlso": "Vigilar también",
+    "modelsPlaceholder": "Fable, Opus… o all",
+    "intervalPlaceholder": "mín. 15",
+    "running": "en marcha",
+    "stopped": "detenida",
+    "off": "desactivada",
+    "thresholdShort": "umbral {{pct}}%",
+    "back": "Volver a Cuentas"
+  },
   "configDir": {
     "title": "Directorio de configuración",
     "own": "directorio propio",
@@ -88,5 +127,11 @@
     "peak": "Máximo",
     "readings": "Lecturas",
     "lastReading": "Última lectura"
+  },
+  "row": {
+    "fiveHour": "5h",
+    "sevenDay": "7d",
+    "spent": "{{window}} agotado",
+    "used": "{{window}} {{pct}}%"
   }
 }

@@ -4,10 +4,12 @@
  * how much is live in each project.
  */
 import type {
+  AccountUsageWindow,
   ChatSummary,
   Orchestration,
   OrchestrationTaskState,
   OrchestrationTaskStatus,
+  Overview,
   PermissionRequest,
   Schedule,
 } from '@agentry/shared';
@@ -166,4 +168,65 @@ export function excerpt(markdown: string, lines = 6): string {
   }
   while (kept[kept.length - 1] === '') kept.pop();
   return kept.join('\n');
+}
+
+/** What the Home headline says, from the live state: someone waiting outranks everything else. */
+export type Headline = { kind: 'waiting'; n: number } | { kind: 'running' } | { kind: 'idle' };
+
+export function homeHeadline({ running, waiting }: { running: number; waiting: number }): Headline {
+  if (waiting > 0) return { kind: 'waiting', n: waiting };
+  return running > 0 ? { kind: 'running' } : { kind: 'idle' };
+}
+
+/** Two letters that tell a project or an orchestration apart at a glance: `spanish-copy` is SC. */
+export function initials(name: string): string {
+  const [first, second] = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  if (!first) return '?';
+  const head = (word: string) => [...word][0] ?? '';
+  return `${head(first)}${second ? head(second) : ''}`.toUpperCase();
+}
+
+/* A segmented bar reads left to right: what is behind, what is on, what is ahead. */
+const SEGMENT_ORDER: Record<ProgressStatus, number> = { done: 0, skipped: 1, failed: 2, running: 3, pending: 4 };
+
+/** One segment per task, in the order the bar reads. */
+export function taskSegments(tasks: readonly Pick<OrchestrationTaskState, 'status'>[]): ProgressStatus[] {
+  return tasks.map((task) => TASK_PROGRESS[task.status]).sort((a, b) => SEGMENT_ORDER[a] - SEGMENT_ORDER[b]);
+}
+
+export interface LimitWindow {
+  /** 0..100 */
+  pct: number;
+  /** Epoch milliseconds, when known */
+  resetsAt: number | null;
+}
+
+export interface LimitSummary {
+  fiveHour: LimitWindow | null;
+  weekly: LimitWindow | null;
+}
+
+const FIVE_HOUR = /five|5\s*h|session/i;
+const WEEKLY = /seven|7\s*d|week/i;
+
+const clampPct = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
+
+/**
+ * The 5 h and weekly windows of the account in use. claude-swap's reading of the active account is
+ * the precise one when it is installed; otherwise the windows the CLI reported in its last rate
+ * limit event, recognised by name.
+ */
+export function limitSummary(overview: Pick<Overview, 'accounts' | 'rateLimit'> | undefined): LimitSummary {
+  const usage = overview?.accounts?.active?.usage;
+  if (usage && (usage.fiveHour || usage.sevenDay)) {
+    const fromSwap = (w: AccountUsageWindow | null): LimitWindow | null =>
+      w ? { pct: clampPct(w.pct), resetsAt: w.resetsAt ? Date.parse(w.resetsAt) || null : null } : null;
+    return { fiveHour: fromSwap(usage.fiveHour), weekly: fromSwap(usage.sevenDay) };
+  }
+  const windows = Object.entries(overview?.rateLimit?.windows ?? {});
+  const find = (pattern: RegExp): LimitWindow | null => {
+    const found = windows.find(([name]) => pattern.test(name))?.[1];
+    return found ? { pct: clampPct(found.utilization * 100), resetsAt: found.resetsAt ? found.resetsAt * 1000 : null } : null;
+  };
+  return { fiveHour: find(FIVE_HOUR), weekly: find(WEEKLY) };
 }

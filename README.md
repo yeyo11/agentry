@@ -16,7 +16,7 @@ A REST API, a web UI and multi-agent orchestration around the Claude Code CLI, i
 [![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-6ba539?logo=openapiinitiative&logoColor=white)](#rest-api)
 [![Buy me a coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/yeyo11)
 
-<img src="docs/media/tour.gif" alt="A tour of Agentry: a project's dashboard with what is working now, the command palette, a working chat with its activity ticker and the inspector's changes and diff, an orchestration followed as steps through to its verification, and the accounts with their usage" width="100%">
+<img src="docs/media/tour.gif" alt="A tour of Agentry in the Night Shift design: a project's dashboard with what is working now, the command palette, a working chat with its activity and the inspector's changes, an orchestration followed as steps through to its verification, and the accounts with their usage" width="100%">
 
 </div>
 
@@ -105,25 +105,25 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
 
 ### A project's dashboard: what is working now, and what to pick up
 
-<img src="docs/media/home.png" alt="A project's dashboard: a Now widget with one working chat and the command it is running, a quick-start prompt with its model and permission mode in one line, the usage limits and the latest orchestration with its stages done" width="100%">
+<img src="docs/media/home.png" alt="A project's dashboard in the dark theme: a hero saying one agent is working, tiles for agents running, answers waiting, today's spend and the 5 h limit ring, the chat in progress with the command it is running, a quick-start prompt and the chats to pick up again, above the status bar with the account and its limits" width="100%">
 
 ### Workers in parallel, then one branch that was checked
 
-<img src="docs/media/orchestration.png" alt="An orchestration followed as steps: a pinned summary with its status, cost and task progress, a stepper on stage 2 of 3 followed by integration, verification and pull request, and the stage's two tasks running side by side, each saying what it is running" width="100%">
+<img src="docs/media/orchestration.png" alt="An orchestration followed as steps: its objective and settings, tiles for tasks, time, cost and parallel workers, a pipeline on stage 2 of 3 followed by integration, verification and pull request, and the stage's two tasks running side by side, the most active one with the energy border" width="100%">
 
 ### See what an agent really did, and step in
 
-<img src="docs/media/chat.png" alt="A working chat: its transcript with the tool calls folded into steps, a ticker saying the command it is running now, and beside it the inspector's Changes tab with the branch, commit and files it changed" width="100%">
+<img src="docs/media/chat.png" alt="A working chat: its transcript with the tool calls folded into steps and the command it is running now, the composer with its energy border and Interrupt, and beside it the inspector's Changes tab with the branch, commit and files it changed" width="100%">
 
-<p align="center"><img src="docs/media/chat-mobile.png" alt="The same working chat on a phone: a one-line header, the transcript with its folded steps and ticker, and the composer with its status line at the bottom" width="320"></p>
+<p align="center"><img src="docs/media/chat-mobile.png" alt="The same working chat on a phone: a one-line header, the transcript with its folded steps and what it is running, and the composer with its model and permission chips at the bottom" width="320"></p>
 
 ### Several accounts, rotated before they run out
 
-<img src="docs/media/accounts.png" alt="The accounts page: three accounts with the share of each usage window they have spent, and which one is active" width="100%">
+<img src="docs/media/accounts.png" alt="The accounts page: the account in use first with a highlighted border, then the others, each with the share of every usage window it has spent, bars that turn amber and red as they near the limit, and when each window resets" width="100%">
 
 ### Work that comes back every night
 
-<img src="docs/media/schedules.png" alt="The schedules page: a nightly chat, a weekly orchestration and one paused, each with its cron expression in words, and a run history where a slot that overlapped a running one is marked" width="100%">
+<img src="docs/media/schedules.png" alt="The schedules page: a nightly chat with its run history open, where a slot that overlapped a running one is marked, and a weekly orchestration, each with its cron expression in words and its next run" width="100%">
 
 ## How it talks to Claude
 

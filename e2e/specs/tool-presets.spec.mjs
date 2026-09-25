@@ -20,7 +20,7 @@ export default async ({ page, api, check }) => {
   await page.select('[aria-label="Default preset"]', 'E2E docs');
   await page.sleep(600);
   check((await api.get('/config/tool-presets')).body.defaultPresetId === 'e2e-docs', 'the default preset is stored');
-  check((await page.text('[role=tabpanel] tbody')).includes('Default'), 'the default is marked in the list');
+  check((await page.eval(`return document.querySelector('[role=tabpanel] tbody')?.textContent ?? ''`)).includes('Default'), 'the default is marked in the list');
 
   await page.goto('/chats/new', 1200);
   // Tools are behind the line under the box

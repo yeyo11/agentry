@@ -6,9 +6,10 @@ import { App } from './App';
 import { TooltipProvider } from './components/controls/Tooltip';
 import { ConfirmProvider } from './components/Dialog';
 import { ToastProvider } from './components/Toast';
-import '@fontsource-variable/inter';
-import '@fontsource-variable/jetbrains-mono';
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
 import './i18n'; // picks the language and sets <html lang> before the first render
+import { probeAuth } from './lib/auth';
 import { registerServiceWorker } from './lib/pwa';
 import { watchChunkErrors } from './lib/reload';
 import './lib/theme'; // applies the stored theme before the first paint
@@ -20,6 +21,8 @@ import './observe.css';
 
 // Before anything lazy is asked for: the first chunk a stale page misses may be the first it loads
 watchChunkErrors();
+// Before the first render, so a guarded wrapper opens on its sign-in screen and not on the shell
+void probeAuth();
 
 const queryClient = new QueryClient({
   defaultOptions: {

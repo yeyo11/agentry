@@ -7,22 +7,44 @@
     "searchPlaceholder": "Buscar por nombre, expresión, prompt…",
     "searchLabel": "Buscar programaciones",
     "noneMatch": "Ninguna programación coincide",
-    "noneMatchBody": "Prueba otra búsqueda o muestra todas las programaciones."
+    "noneMatchBody": "Prueba otra búsqueda o muestra todas las programaciones.",
+    "reset": "Restablecer filtros"
   },
   "page": {
     "title": "Programaciones",
     "subtitle": "Chats y orquestaciones que arrancan según un horario",
     "new": "Nueva programación",
     "missedTitle": "Una franja perdida mientras Agentry estaba apagado se omite, no se repite",
-    "missedBody": "Si el wrapper no está en marcha cuando le toca a una franja, esa franja queda registrada como omitida y no se lanza nada tarde. Nadie está delante del teclado cuando se dispara una programación, así que a un chat programado se le deniega cualquier permiso que su modo no permita ya.",
-    "emptyTitle": "Aún no hay programaciones",
-    "emptyBody": "Lanza un chat o una orquestación cada mañana, cada lunes o cada 15 minutos."
+    "missedBody": "Si el wrapper no está en marcha cuando le toca a una franja, esa franja queda registrada como omitida y no se lanza nada tarde.",
+    "permissionsTitle": "Nadie aprueba permisos",
+    "permissionsBody": "Nadie está delante del teclado cuando se dispara una programación, así que se deniega cualquier permiso que su modo no permita ya.",
+    "emptyTitle": "Pon a tus agentes a trabajar mientras duermes",
+    "emptyBody": "Aún no hay programaciones. Empieza desde una plantilla y ajústala después."
+  },
+  "templates": {
+    "label": "Plantillas",
+    "morning": {
+      "when": "Cada mañana",
+      "title": "Un chat a las 09:00",
+      "body": "Por ejemplo, un resumen de lo que cambió ayer en el repositorio."
+    },
+    "monday": {
+      "when": "Cada lunes",
+      "title": "Una ejecución semanal",
+      "body": "Por ejemplo, actualizar las dependencias y pasar los tests."
+    },
+    "quarter": {
+      "when": "Cada 15 min",
+      "title": "Una comprobación corta",
+      "body": "Por ejemplo, vigilar un despliegue o una cola."
+    }
   },
   "card": {
     "kind": {
       "chat": "Chat",
       "orchestration": "Orquestación"
     },
+    "on": "Activada",
     "off": "Desactivada",
     "enabledLabel": "Activada",
     "enabled": "{{name}} está activada",
@@ -37,6 +59,7 @@
     "editNamed": "Editar {{name}}",
     "delete": "Eliminar",
     "deleteNamed": "Eliminar {{name}}",
+    "moreNamed": "Más acciones de {{name}}",
     "deleteTitle": "¿Eliminar «{{name}}»?",
     "deleteBody": "Deja de dispararse y se borra su historial de ejecuciones. Los chats y las orquestaciones que ya lanzó se conservan.",
     "deleted": "{{name}} eliminada",
@@ -70,6 +93,7 @@
     "editTitle": "Editar la programación",
     "back": "Volver a programaciones",
     "notFound": "Esta programación ya no existe",
+    "notFoundBody": "Puede que se haya eliminado o que el enlace esté mal escrito.",
     "saving": "Guardando…",
     "save": "Guardar",
     "create": "Crear la programación",
@@ -161,5 +185,35 @@
         "hint": "Una franja que llega mientras la última ejecución sigue en marcha espera y empieza cuando esta termina. Solo espera una: una franja más reciente ocupa su lugar."
       }
     }
+  },
+  "cron": {
+    "and": "{{rest}} y {{last}}",
+    "range": {
+      "hour": "de {{from}} a {{to}}",
+      "monthDay": "del {{from}} al {{to}}",
+      "weekday": "de {{from}} a {{to}}",
+      "month": "de {{from}} a {{to}}"
+    },
+    "at_one": "A la {{time}}",
+    "at_other": "A las {{time}}",
+    "everyHourOnTheHour": "Cada hora, en punto",
+    "everyHourAt": "Cada hora, en el minuto {{minute}}",
+    "everyMinute": "Cada minuto",
+    "everyMinutes": "Cada {{step}} minutos",
+    "atMinutes": "En los minutos {{minutes}}",
+    "atMinute": "En el minuto {{minute}}",
+    "hours_one": "la hora {{hours}}",
+    "hours_other": "las horas {{hours}}",
+    "ofHours": "{{every}} de {{hours}}",
+    "ofHour_one": "{{every}} de la hora de la {{time}}",
+    "ofHour_other": "{{every}} de la hora de las {{time}}",
+    "monthDays_one": "el día {{days}} de cada mes",
+    "monthDays_other": "los días {{days}} de cada mes",
+    "monthDaysRange": "{{days}} de cada mes",
+    "weekdays": "cada {{days}}",
+    "weekdaysRange": "{{days}}",
+    "months": "en {{months}}",
+    "monthsRange": "{{months}}",
+    "eitherDay": "{{monthDays}} o {{weekdays}}"
   }
 }

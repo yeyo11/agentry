@@ -31,6 +31,16 @@
       "security": "Security",
       "install": "Install",
       "notifications": "Notifications"
+    },
+    "groups": {
+      "agentry": "Agentry",
+      "claude": "Claude Code",
+      "extensions": "Extensions",
+      "system": "System"
+    },
+    "phone": {
+      "appearance": "Language and motion",
+      "back": "Back to Settings"
     }
   },
   "security": {
@@ -676,14 +686,10 @@
     "title": "Accounts",
     "count_one": "{{count}} account",
     "count_other": "{{count}} accounts",
-    "resetsIn": "· resets in {{countdown}}",
-    "active": "active",
     "outOfRotation": "out of rotation",
-    "use": "Use",
     "returnToRotation": "Return to the rotation",
     "holdOut": "Hold out of the rotation",
     "removeAccount": "Remove the account",
-    "quotaLeft": "{{pct}}% quota left",
     "fiveHours": "5 hours",
     "sevenDays": "7 days",
     "noUsage": "No usage reported.",
@@ -691,7 +697,6 @@
     "usageRead": "usage read {{ago}}",
     "registered": "Account registered",
     "registerFailed": "Could not register the account",
-    "add": "Add an account",
     "token": "Token",
     "tokenHint": "Run `claude setup-token` while logged in as that account, or paste an API key. It is stored by claude-swap and never returned by the API.",
     "label": "Label (optional)",
@@ -705,14 +710,9 @@
     "stopped": "stopped",
     "rotateBefore": "Rotate before the active account runs out (`cswap auto`)",
     "rotateOnLimit": "Rotate and resume a run that dies against its limit",
-    "thresholdValue": "Threshold · {{pct}}%",
-    "thresholdHint": "Utilization of the binding 5h/7d window that triggers a switch.",
     "threshold": "Threshold",
     "strategy": "Strategy",
-    "strategyHint": "`best` stays until the limit; `consume-first` spends the soonest-resetting account first.",
     "interval": "Poll interval (s)",
-    "intervalHint": "Minimum 15.",
-    "models": "Per-model windows",
     "modelsHint": "Comma-separated display names (Fable, Opus…) or `all`. Empty watches only the account-wide windows.",
     "needsCswap": "Multi-account support needs claude-swap",
     "refreshUsage": "Refresh usage",
@@ -729,16 +729,12 @@
     "removed": "Removed {{email}}",
     "removeFailed": "Removed {{email}} failed",
     "none": "No accounts registered yet",
-    "noneHint": "Register the first one below. Until then the wrapper keeps using the credential from its own configuration.",
     "switchNote": "Switching rewrites the shared credential file. Runs already in flight keep the account they started with; new runs and resumed turns use the active one.",
     "log": "Rotation log",
     "recentOnly": "Recent only",
     "fullHistory": "Full history",
     "nothingYet": "Nothing yet",
-    "logHint": "Switches, polls and quarantines show up here once auto-rotation runs.",
-    "usedNearlyOut": "used, nearly out",
-    "usedRunningHigh": "used, running high",
-    "useAccount": "Use {{name}}"
+    "logHint": "Switches, polls and quarantines show up here once auto-rotation runs."
   },
   "memory": {
     "saved": "{{name}} saved",
@@ -1001,7 +997,11 @@
     "action": "Install Agentry",
     "ios": "On iPhone and iPad there is no install button a page may offer: open Agentry in Safari, tap Share and then Add to Home Screen.",
     "manual": "This browser installs an app from its own menu, where the item is called Install or Add to Home Screen. Chrome and Edge offer it here as a button instead, on Android and on the desktop.",
-    "insecure": "This page is served from {{origin}}, which browsers do not treat as a secure origin. Adding Agentry to the home screen still works, but nothing that needs a service worker does: no immediate cold start, and no notifications while the app is closed. That needs https:// or localhost."
+    "insecure": "This page is served from {{origin}}, which browsers do not treat as a secure origin. Adding Agentry to the home screen still works, but nothing that needs a service worker does: no immediate cold start, and no notifications while the app is closed. That needs https:// or localhost.",
+    "push": {
+      "title": "Notifications on this device",
+      "text": "Get told when a chat finishes or needs you, even with Agentry closed. Turn it on in Notifications."
+    }
   },
   "notifications": {
     "title": "Notifications",
@@ -1026,5 +1026,10 @@
       "removeBody": "{{name}} stops being sent notifications. It can register again from its own settings.",
       "removeFailed": "Could not remove that device"
     }
+  },
+  "appearance": {
+    "ring": "ring",
+    "dots": "dots",
+    "thinking": "Thinking"
   }
 }

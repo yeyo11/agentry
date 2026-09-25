@@ -51,7 +51,7 @@ export function ProjectWorktrees({ project }: { project: Project }) {
       }
     >
       {project.worktrees.length === 0 ? (
-        <Empty title={t('worktrees.emptyTitle')} icon={GitBranch}>
+        <Empty title={t('worktrees.emptyTitle')} illustration="projects">
           <Trans t={t} i18nKey="worktrees.emptyBody" components={{ mono: <span className="mono" /> }} />
         </Empty>
       ) : (

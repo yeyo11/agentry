@@ -627,8 +627,12 @@ export const useScheduleRuns = (id: string, enabled: boolean) => {
 };
 
 /** Usage refreshes on claude-swap's own cadence; polling faster would only re-read its cache. */
-export const useAccounts = () =>
-  useQuery({ queryKey: keys.accounts, queryFn: ({ signal }) => api.accounts(false, { signal }), refetchInterval: 10_000 });
+export const useAccounts = (enabled = true) =>
+  useQuery({ queryKey: keys.accounts, queryFn: ({ signal }) => api.accounts(false, { signal }), refetchInterval: 10_000, enabled });
+
+/** `claude mcp list` is slow, and the server keeps its answer for a minute: asking sooner gains nothing. */
+export const useConnectors = (enabled = true) =>
+  useQuery({ queryKey: keys.connectors, queryFn: () => api.connectors(), staleTime: 60_000, enabled });
 
 /** The rotation history kept beyond the window `GET /accounts` carries; only fetched when asked for. */
 export const useAccountEvents = (enabled: boolean) =>

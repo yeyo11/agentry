@@ -20,7 +20,7 @@ export default async ({ page, api, check, releases }) => {
 
   // ---- Check for updates ----
   await page.click(`${CARD} button`, 'Check for updates');
-  await page.waitFor(`return document.querySelector(${JSON.stringify(CARD)})?.innerText.includes('Agentry 999.0.0 is available')`, { label: 'the newer release in the card' });
+  await page.waitFor(`return document.querySelector(${JSON.stringify(CARD)})?.textContent.includes('Agentry 999.0.0 is available')`, { label: 'the newer release in the card' });
   // A container cannot tell how it was started, so every documented way gets its own command
   const ways = {
     run: 'docker pull ghcr.io/yeyo11/agentry',
@@ -62,11 +62,11 @@ export default async ({ page, api, check, releases }) => {
   releases.set('v999.1.0');
   const found = await api.post('/system/release/check');
   check(found.body?.latest === '999.1.0', `the server found the next release: ${JSON.stringify(found.body)}`);
-  await page.waitFor(`return document.querySelector(${JSON.stringify(CARD)})?.innerText.includes('Agentry 999.1.0 is available')`, { label: 'the card to follow system.release without a reload' });
+  await page.waitFor(`return document.querySelector(${JSON.stringify(CARD)})?.textContent.includes('Agentry 999.1.0 is available')`, { label: 'the card to follow system.release without a reload' });
 
   // ---- Back to the version in use: the card says so and the dot goes, for the specs after this one ----
   releases.set(`v${current}`);
   await page.click(`${CARD} button`, 'Check for updates');
-  await page.waitFor(`return document.querySelector(${JSON.stringify(CARD)})?.innerText.includes('Agentry is up to date.')`, { label: 'the card to say it is up to date' });
+  await page.waitFor(`return document.querySelector(${JSON.stringify(CARD)})?.textContent.includes('Agentry is up to date.')`, { label: 'the card to say it is up to date' });
   await page.waitFor(`return !document.querySelector('.nav-dot')`, { label: 'the dot to go' });
 };

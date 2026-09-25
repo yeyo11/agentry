@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Orquestaciones (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app m-screen" data-theme="dark">
+<header class="col" style="flex-shrink: 0; padding: 12px 16px 10px; gap: 10px">
+<div class="row" style="height: 40px"><h1 class="t-h1 grow" style="font-size: 26px">Orquestaciones</h1><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Buscar"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg></button></div>
+<div class="row" role="tablist" aria-label="Estado" style="gap: 6px; overflow: hidden"><button type="button" role="tab" aria-selected="true" class="chip on" style="height: 32px">Todas <span class="n">4</span></button><button type="button" role="tab" aria-selected="false" class="chip" style="height: 32px"><span class="dot dot-live" style="width: 6px; height: 6px"></span>En marcha <span class="n">2</span></button><button type="button" role="tab" aria-selected="false" class="chip" style="height: 32px">Detenidas <span class="n">1</span></button><button type="button" role="tab" aria-selected="false" class="chip" style="height: 32px">Completadas <span class="n">1</span></button></div>
+</header>
+
+<div class="m-body" style="gap: 10px">
+<a href="MobileOrquestacion.html" class="card energy col" style="padding: 14px; gap: 12px">
+<div class="row" style="gap: 10px"><span class="proj" style="background: var(--accent-soft); color: var(--accent)">SC</span><span class="col grow" style="gap: 1px"><span style="font-weight: 600">spanish-copy</span><span class="mono t-xs fg-3">etapa 2 de 3 · 20:32</span></span><span class="badge b-live"><span class="spin-braille" style="width: auto"></span>en curso</span></div>
+<div class="segbar"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 70%"></i><i class="live" style="--p: 45%"></i><i class="live" style="--p: 20%"></i><i></i></div>
+<div class="row mono t-xs fg-3"><span class="grow">2/6 tareas · 4 en paralelo</span><span class="t-num t-sm" style="color: var(--fg)">5,61 US$</span></div>
+</a>
+<a href="MobileOrquestacion.html" class="card col rail-live" style="padding: 14px 14px 14px 16px; gap: 12px">
+<div class="row" style="gap: 10px"><span class="proj" style="background: var(--idle-soft); color: var(--idle)">AU</span><span class="col grow" style="gap: 1px"><span style="font-weight: 600">app-updates</span><span class="row t-xs" style="gap: 6px"><span class="shimmer">Pensando</span><span class="mono fg-3">· 3 min</span></span></span><span class="badge b-live">en curso</span></div>
+<div class="segbar"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 35%"></i><i></i><i></i></div>
+<div class="row mono t-xs fg-3"><span class="grow">2/5 tareas · 2 en paralelo</span><span class="t-num t-sm" style="color: var(--fg)">0,00 US$</span></div>
+</a>
+<div class="card col" style="padding: 14px; gap: 12px; border-color: color-mix(in srgb, var(--warn) 30%, transparent)">
+<div class="row" style="gap: 10px"><span class="proj" style="background: var(--warn-soft); color: var(--warn)">AR</span><span class="col grow" style="gap: 1px"><a href="MobileOrquestacion.html" style="font-weight: 600">audit-remediation</a><span class="mono t-xs fg-3">hace 2 d</span></span><span class="badge b-warn">detenida</span></div>
+<div class="segbar"><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="ok"></i><i class="bad"></i><i class="bad"></i><i class="bad"></i><i></i><i></i></div>
+<div class="row t-xs" style="gap: 10px"><span class="c-ok">6 hechas</span><span class="c-bad">3 fallidas</span><span class="fg-3 grow">2 pendientes</span><span class="t-num t-sm">23,08 US$</span></div>
+<button type="button" class="btn btn-primary btn-lg">Reanudar</button>
+</div>
+<a href="MobileOrquestacion.html" class="card col" style="padding: 14px; gap: 12px">
+<div class="row" style="gap: 10px"><span class="proj" style="background: var(--ok-soft); color: var(--ok)">AR</span><span class="col grow" style="gap: 1px"><span style="font-weight: 600">audit-remediation</span><span class="mono t-xs fg-3">relanzada · hace 1 d</span></span><span class="badge b-ok">completada</span></div>
+<div class="bar ok"><i style="width: 100%"></i></div>
+</a>
+</div>
+
+<a href="MobileNuevoChat.html" class="fab" aria-label="Nueva orquestación" style="padding: 0; width: 56px"><svg class="ico ico-lg" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M12 5v14M5 12h14"></path></svg></a>
+
+
+<nav class="app tabbar" data-theme="dark" aria-label="Principal" style="width: 390px">
+
+<a href="MobileInicio.html" class="tab-m"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg></span>Inicio</a>
+
+<a href="MobileChats.html" class="tab-m"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg></span>Chats</a>
+
+<a href="MobileOrquestaciones.html" class="tab-m on"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>Orquestaciones<span class="count-pill live">2</span></a>
+
+<a href="MobileMas.html" class="tab-m"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></span>Más</a>
+
+</nav>
+
+</div>
+</body></html>

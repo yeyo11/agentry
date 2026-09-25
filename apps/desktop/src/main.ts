@@ -369,7 +369,7 @@ function createWindow(): void {
     title: 'Agentry',
     // The dock and the window switcher show this; the launcher entry's icon only covers the menu
     icon: resolveResources().icon,
-    backgroundColor: '#101114',
+    backgroundColor: '#09090b',
     autoHideMenuBar: true,
     // The web's top bar is the title bar; dark until the page says which theme it shows (the splash is dark)
     ...titleBarOptions(process.platform, SPLASH_TITLE_BAR),

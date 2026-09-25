@@ -442,14 +442,6 @@ a.list-row:hover {
   min-width: 0;
 }
 
-/* An account's usage windows sit side by side on a wide screen rather than stretching across it */
-.accounts-list .meters {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 10px 28px;
-  max-width: 900px;
-}
-
 @media (max-width: 560px) {
   .lrow-head {
     flex-wrap: wrap;
@@ -461,11 +453,53 @@ a.list-row:hover {
 }
 
 /*
- * The chat list. Rows are two lines and never wider than the page: everything on a line that can
- * be long gives way with an ellipsis, and what a row only needs on demand shows on hover or focus.
+ * The chat list (design system: DesktopChats and MobileChats). On a wide list it is a table: the
+ * state, the chat, its project, origin, context, cost and last activity, each in its column. On a
+ * narrow one — a phone, or a window squeezed by the sidebar — the same row is a card of two lines:
+ * the title on up to two lines and one mono line of meta. A container query picks the layout, so
+ * it follows the list's own width rather than the window's.
  */
+.chats-page {
+  display: contents;
+}
+
+.chats-title-count {
+  display: none;
+  margin-left: 8px;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+/* On a phone the project chip sits on the title's row, as in the reference, rather than under it */
+@media (max-width: 900px) {
+  .chats-page .page-header {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+}
+
+@media (max-width: 560px) {
+  .chats-title-count {
+    display: inline;
+  }
+  /* On a phone the count is in the title, and the line under it would only repeat it */
+  .chats-page .page-header .muted {
+    display: none;
+  }
+}
+
 .crow-list {
+  --crow-cols: 18px minmax(0, 1fr) 140px 96px 120px 88px 72px;
+  --crow-pad-x: 18px;
+  container: crow-list / inline-size;
+  gap: 0;
   padding: 0;
+  /* Rounds the corners without making the card a scroll container, so the day heads still stick */
+  overflow: clip;
 }
 
 .crow-list ul {
@@ -474,18 +508,28 @@ a.list-row:hover {
   padding: 0;
 }
 
-/* Four tabs with counts are wider than a phone: they scroll inside their own strip */
-.chats-toolbar .segmented {
-  max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
+.crow-cols {
+  display: grid;
+  grid-template-columns: var(--crow-cols);
+  column-gap: 16px;
+  align-items: center;
+  padding: 10px var(--crow-pad-x);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-1);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
 }
 
-/* The strip says it goes on: its far edge fades instead of cutting a tab in half */
-@media (max-width: 560px) {
-  .chats-toolbar .segmented {
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-  }
+.crow-cols .is-end {
+  text-align: right;
+}
+
+.crow-group + .crow-group .crow-group-head {
+  border-top: 1px solid var(--border);
 }
 
 .crow-group-head {
@@ -494,16 +538,15 @@ a.list-row:hover {
   z-index: 2;
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
   margin: 0;
-  padding: 10px 10px 5px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
+  padding: 12px var(--crow-pad-x) 4px;
+  background: var(--bg-elev);
   color: var(--text-faint);
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -511,31 +554,24 @@ a.list-row:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.crow-group-count::before {
+  content: '·';
+  margin-right: 6px;
+}
+
 .crow {
   position: relative;
-  display: flex;
-  align-items: stretch;
-  padding-left: 8px;
-  border-bottom: 1px solid var(--border);
   transition: background var(--dur-fast);
 }
 
-/* The rail says the state from across the page; the word beside the title says it in words */
-.crow::before {
-  content: '';
-  position: absolute;
-  inset: 8px auto 8px 0;
-  width: var(--rail-w);
-  border-radius: var(--rail-w);
-  background: transparent;
+.crow + .crow {
+  border-top: 1px solid var(--border);
 }
 
-.crow.is-waiting::before {
-  background: var(--warn);
-}
-
+/* The rail and a live wash say an agent is on it from across the page */
 .crow.live-rail {
-  padding-left: 8px;
+  padding-left: 0;
+  background: linear-gradient(90deg, var(--live-soft), transparent 40%);
 }
 
 .crow:hover,
@@ -544,55 +580,80 @@ a.list-row:hover {
 }
 
 .crow.is-selected {
-  background: var(--accent-soft);
-}
-
-.crow-select {
-  flex: none;
-  display: flex;
-  align-items: center;
-  width: 0;
-  overflow: hidden;
-  transition: width var(--dur-fast) var(--ease-out);
-}
-
-.crow-select .check {
-  padding: 4px;
-}
-
-.crow:hover .crow-select,
-.crow:focus-within .crow-select,
-.crow-list.is-selecting .crow-select {
-  width: 30px;
+  background: var(--bg-hover);
+  box-shadow: inset var(--rail-w) 0 0 var(--accent-rose);
 }
 
 .crow-link {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 9px 10px 9px 4px;
+  display: grid;
+  grid-template-columns: var(--crow-cols);
+  column-gap: 16px;
+  align-items: center;
+  padding: 12px var(--crow-pad-x);
   color: var(--text);
+  -webkit-touch-callout: none;
 }
 
 .crow-link:hover {
   text-decoration: none;
 }
 
+.crow-mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  min-height: 18px;
+}
+
+.crow-dot-rest {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text-faint);
+}
+
+/*
+ * The box to pick a row sits over the state mark, so showing it moves nothing: on hover or focus
+ * under a pointer, and on every row once one is picked.
+ */
+.crow-select {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--crow-pad-x);
+  z-index: 1;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+}
+
+.crow-select .check {
+  padding: 0;
+}
+
+.crow:focus-within .crow-select,
+.crow-list.is-selecting .crow-select {
+  display: flex;
+}
+
+.crow:focus-within .crow-mark,
+.crow-list.is-selecting .crow-mark {
+  visibility: hidden;
+}
+
+@media (hover: hover) {
+  .crow:hover .crow-select {
+    display: flex;
+  }
+  .crow:hover .crow-mark {
+    visibility: hidden;
+  }
+}
+
 .crow-main {
-  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-}
-
-.crow-line {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
+  gap: 2px;
 }
 
 .crow-title-text {
@@ -600,96 +661,91 @@ a.list-row:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
-}
-
-.crow-state {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-faint);
-}
-
-.crow-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  border: 1px solid var(--text-faint);
-}
-
-.crow-state.is-live {
-  color: var(--live);
-}
-
-.crow-state.is-warn {
-  color: var(--warn);
-}
-
-.crow-state.is-warn .crow-dot {
-  border-color: var(--warn);
-  background: var(--warn);
-}
-
-.crow-state.is-bad {
-  color: var(--bad);
-}
-
-.crow-state.is-bad .crow-dot {
-  border-color: var(--bad);
-  background: var(--bad);
+  font-weight: 500;
 }
 
 .crow-sub {
-  color: var(--text-muted);
-  font-size: 12.5px;
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-.crow-prompt,
-.crow-ticker {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.crow-place {
-  flex: 0 0 auto;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   min-width: 0;
-  max-width: 45%;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.crow-sub-wide,
+.crow-sub-narrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
   color: var(--text-faint);
 }
 
-.crow-place svg {
+.crow-sub-narrow {
+  display: none;
+}
+
+.crow-word {
   flex: none;
 }
 
-.crow-place-name,
-.crow-tag {
+.crow-word.is-live {
+  color: var(--live);
+}
+
+.crow-word.is-idle {
+  color: var(--idle);
+}
+
+.crow-outcome {
+  flex: none;
+}
+
+/* The row's first column already spins: the ticker keeps its verb and drops its own spinner */
+.crow-ticker {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.crow .ticker-spinner {
+  display: none;
+}
+
+.crow-ticker .ticker-line {
+  font-size: 11px;
+}
+
+.crow-ticker .ticker-verb {
+  font-family: var(--sans);
+  font-size: 12px;
+}
+
+.crow-ticker .ticker-target {
+  color: var(--text-faint);
+}
+
+.crow-id {
+  flex: none;
 }
 
 .crow-tag {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  min-width: 0;
   max-width: 18ch;
-  padding: 0 5px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  font-family: var(--mono);
-  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-muted);
 }
 
@@ -705,53 +761,200 @@ a.list-row:hover {
   color: var(--warn);
 }
 
+/* What the chat itself says in full, only for whoever points at the row or has picked it */
 .crow-extra {
   display: none;
-  flex: none;
   gap: 8px;
-  font-family: var(--mono);
-  font-size: 11px;
+  min-width: 0;
+}
+
+.crow-extra > span::before,
+.crow-meta-place + span::before,
+.crow-meta-context + .crow-meta-cost::before {
+  content: '·';
+  margin-right: 6px;
   color: var(--text-faint);
 }
 
 .crow:hover .crow-extra,
-.crow:focus-within .crow-extra {
+.crow:focus-within .crow-extra,
+.crow.is-selected .crow-extra {
   display: inline-flex;
 }
 
-.crow-side {
-  flex: none;
+.crow-cell {
+  min-width: 0;
+}
+
+.crow-project {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Where a chat was born: Agentry's own in the accent, the rest neutral */
+.crow-origin .badge.is-agentry {
+  --tone: var(--accent);
+  --tone-soft: var(--accent-soft);
+  border-color: transparent;
+}
+
+.crow-origin .badge {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ctx-cell {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
   white-space: nowrap;
 }
 
-.crow-time {
+.ctx-cell .meter-track {
+  flex: 1 1 auto;
+  min-width: 24px;
+}
+
+.ctx-cell.is-none,
+.ctx-cell.is-tokens {
   color: var(--text-faint);
 }
 
-.crow-numbers {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+.ctx-cell.is-warn .ctx-cell-value,
+.crow-meta-context.is-warn {
+  color: var(--warn);
+}
+
+.ctx-cell.is-bad .ctx-cell-value,
+.crow-meta-context.is-bad {
+  color: var(--bad);
+}
+
+.crow-cost {
+  text-align: right;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.crow-no-cost {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.crow-time {
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.crow-time.is-live {
+  color: var(--live);
 }
 
 .crow-more {
   display: flex;
   justify-content: center;
   padding: 12px;
+  border-top: 1px solid var(--border);
 }
 
 .crow-keys {
   margin: 0;
-  padding: 10px;
+  padding: 10px var(--crow-pad-x);
+  border-top: 1px solid var(--border);
   font-family: var(--mono);
+}
+
+/* A narrow list: the columns fold into the card's meta line */
+@container crow-list (max-width: 760px) {
+  .crow-list {
+    --crow-pad-x: 16px;
+  }
+  .crow-cols,
+  .crow-cell {
+    display: none;
+  }
+  .crow-link {
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    column-gap: 12px;
+    align-items: start;
+  }
+  .crow-mark {
+    min-height: 20px;
+  }
+  .crow-title-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  .crow-main {
+    gap: 4px;
+  }
+  .crow-sub-wide {
+    display: none;
+  }
+  .crow-sub-narrow {
+    display: flex;
+  }
+  .crow-meta-place {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .crow-origin-badge {
+    flex: none;
+  }
+  .crow-time {
+    padding-top: 2px;
+  }
+  .crow.live-rail {
+    background: linear-gradient(90deg, var(--live-soft), transparent 55%);
+  }
+}
+
+/* On a phone the list runs edge to edge, as the rows of a native list do */
+@media (max-width: 560px) {
+  .crow-list {
+    margin-inline: calc(-1 * var(--main-pad-x, 0px));
+    border-inline: 0;
+    border-radius: 0;
+  }
+}
+
+/* A phone has no key to press: the hint would only take room from the search */
+.list-toolbar.is-narrow .list-toolbar-kbd {
+  display: none;
+}
+
+/* Nothing to list at all: the page is the empty state */
+.card.glow-top.chats-empty {
+  padding: 72px 24px 64px;
+  background-size: 100% 320px, auto;
+}
+
+@media (max-width: 560px) {
+  .card.glow-top.chats-empty {
+    padding: 40px 16px;
+  }
 }
 
 /* A context window as a ring: amber and red as it fills, with the words in its accessible name */
@@ -791,6 +994,106 @@ a.list-row:hover {
   color: var(--bad);
 }
 
+/* The toolbar's own pieces that only lists use: the key that focuses the search, the phone strip */
+.list-toolbar-kbd {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--bg-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.list-toolbar-tab-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.list-toolbar-sheet-sort {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.list-toolbar-sheet-sort .list-toolbar-sort {
+  max-width: none;
+}
+
+.list-toolbar.is-narrow .list-toolbar-row {
+  flex-wrap: nowrap;
+}
+
+.list-toolbar.is-narrow .list-toolbar-search {
+  min-height: 44px;
+}
+
+.list-toolbar.is-narrow .list-toolbar-search input {
+  font-size: 16px;
+}
+
+/* On a phone the filter button is an icon: the search takes the rest of the row */
+.list-toolbar.is-narrow .list-toolbar-filters {
+  flex: none;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+
+.list-toolbar.is-narrow .list-toolbar-filters > span:not(.list-toolbar-count) {
+  display: none;
+}
+
+/* The state tabs as a strip of chips that scrolls sideways, its far edge fading to say it goes on */
+.list-toolbar-strip .segmented {
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  mask-image: linear-gradient(to right, var(--mask-ink) calc(100% - 28px), transparent);
+}
+
+.list-toolbar-strip .segment {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 4px 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elev);
+  font-size: 13.5px;
+}
+
+.list-toolbar-strip .segment:last-child {
+  margin-right: 28px;
+}
+
+.list-toolbar-strip .segment-thumb {
+  display: none;
+}
+
+.list-toolbar-strip .segment-on {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.list-toolbar-strip .segment-on .segment-count {
+  color: inherit;
+}
+
 /* The facets behind the Filters button */
 .facets {
   display: flex;
@@ -814,7 +1117,7 @@ a.list-row:hover {
   padding: 0;
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-faint);
 }
@@ -842,29 +1145,46 @@ a.list-row:hover {
   color: var(--text-faint);
 }
 
-/* What can be done with the rows picked: a footer flush with the page's bottom edge while the list scrolls under it */
-.bulk-bar {
+/*
+ * What can be done with the rows picked: a floating toast, centred over the list and held above
+ * the page's bottom edge (and a phone's tab bar) while the list scrolls under it.
+ */
+.toast.bulk-bar {
   position: sticky;
-  bottom: var(--stick-bottom, 0px);
+  bottom: calc(var(--stick-bottom, 0px) + 16px);
   z-index: 5;
-  display: flex;
+  align-self: center;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  padding: 10px;
-  border-top: 1px solid var(--border-strong);
-  background: var(--bg-elev);
-  box-shadow: var(--shadow-md);
+  gap: 6px;
+  width: max-content;
+  max-width: 100%;
+  margin: -6px auto 0;
+  padding: 8px 8px 8px 14px;
 }
 
 .bulk-count {
-  flex: 1;
+  flex: 1 1 auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-family: var(--mono);
-  font-size: 12px;
+  gap: 8px;
+  margin-right: 8px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bulk-count svg {
+  color: var(--accent);
+}
+
+.bulk-bar .bulk-quiet {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.bulk-bar .bulk-quiet:hover:not(:disabled) {
+  background: var(--bg-3);
 }
 
 .bulk-skipped {
@@ -872,44 +1192,40 @@ a.list-row:hover {
   padding-left: 18px;
 }
 
-@media (max-width: 560px) {
-  .crow-extra {
-    display: none !important;
-  }
-  /* On a phone the prompt keeps enough room to be read; the place and the tags give way first */
-  .crow-prompt,
-  .crow-ticker {
-    flex: 1 1 45%;
-  }
-  .crow-place,
-  .crow-tag {
-    flex-shrink: 1;
-    min-width: 0;
-    max-width: 35%;
-  }
-}
-
-@media (max-width: 420px) {
-  /* Too narrow for tags beside the prompt: they are all on the chat's own page */
-  .crow-tag {
-    display: none;
-  }
-}
-
-/* No hover on a touch screen: the box to pick a row is always there, and big enough for a finger */
+/* No hover on a touch screen: a long press picks a row, and every target is big enough for a finger */
 @media (pointer: coarse) {
   .crow-select {
-    width: 44px;
+    left: 0;
+    width: calc(var(--crow-pad-x) * 2 + 18px);
   }
   .crow-select .check {
     min-width: 44px;
     min-height: 44px;
     justify-content: center;
   }
-  .crow-keys {
+  .crow:focus-within .crow-select {
     display: none;
   }
+  .crow:focus-within .crow-mark {
+    visibility: visible;
+  }
+  .crow-list.is-selecting .crow-select {
+    display: flex;
+  }
+  .crow-list.is-selecting .crow-mark {
+    visibility: hidden;
+  }
+  .crow-keys,
+  .list-toolbar-kbd {
+    display: none;
+  }
+  .list-toolbar-strip .segment {
+    min-height: 44px;
+  }
   .facet .check {
+    min-height: 44px;
+  }
+  .toast.bulk-bar .btn {
     min-height: 44px;
   }
 }

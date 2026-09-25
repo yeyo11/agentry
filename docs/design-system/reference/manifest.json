@@ -1,0 +1,230 @@
+[
+  {
+    "file": "DSFundamentos.html",
+    "title": "Design system · Fundamentos",
+    "w": 1440,
+    "h": 1700
+  },
+  {
+    "file": "DSComponentes.html",
+    "title": "Design system · Componentes",
+    "w": 1440,
+    "h": 1620
+  },
+  {
+    "file": "DSMovil.html",
+    "title": "Design system · Móvil",
+    "w": 1440,
+    "h": 900
+  },
+  {
+    "file": "Sidebar.html",
+    "title": "Componente · Barra lateral",
+    "w": 256,
+    "h": 1024
+  },
+  {
+    "file": "Topbar.html",
+    "title": "Componente · Barra superior",
+    "w": 1184,
+    "h": 52
+  },
+  {
+    "file": "StatusBar.html",
+    "title": "Componente · Barra de estado",
+    "w": 1184,
+    "h": 30
+  },
+  {
+    "file": "TabBar.html",
+    "title": "Componente · Pestañas móvil",
+    "w": 390,
+    "h": 84
+  },
+  {
+    "file": "Main.html",
+    "title": "Desktop · Inicio",
+    "w": 1440,
+    "h": 1060
+  },
+  {
+    "file": "DesktopChats.html",
+    "title": "Desktop · Chats",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopOrquestaciones.html",
+    "title": "Desktop · Orquestaciones",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopChat.html",
+    "title": "Desktop · Chat",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopNuevoChat.html",
+    "title": "Desktop · Nuevo chat",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopOrquestacion.html",
+    "title": "Desktop · Orquestación (detalle)",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopProyectos.html",
+    "title": "Desktop · Proyectos",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopCuentas.html",
+    "title": "Desktop · Cuentas",
+    "w": 1440,
+    "h": 1320
+  },
+  {
+    "file": "DesktopProgramaciones.html",
+    "title": "Desktop · Programaciones",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopUso.html",
+    "title": "Desktop · Uso",
+    "w": 1440,
+    "h": 1240
+  },
+  {
+    "file": "DesktopConectores.html",
+    "title": "Desktop · Conectores",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopAjustes.html",
+    "title": "Desktop · Ajustes",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "MobileInicio.html",
+    "title": "Móvil · Inicio",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileChats.html",
+    "title": "Móvil · Chats",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileChat.html",
+    "title": "Móvil · Chat",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileNuevoChat.html",
+    "title": "Móvil · Nuevo chat",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileOrquestaciones.html",
+    "title": "Móvil · Orquestaciones",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileOrquestacion.html",
+    "title": "Móvil · Orquestación (detalle)",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileMas.html",
+    "title": "Móvil · Más",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileProyectos.html",
+    "title": "Móvil · Proyectos",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileCuentas.html",
+    "title": "Móvil · Cuentas",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileUso.html",
+    "title": "Móvil · Uso",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileProgramaciones.html",
+    "title": "Móvil · Programaciones",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileConectores.html",
+    "title": "Móvil · Conectores",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileAjustes.html",
+    "title": "Móvil · Ajustes",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "DSIlustraciones.html",
+    "title": "Design system · Ilustraciones",
+    "w": 1440,
+    "h": 1560
+  },
+  {
+    "file": "Illustration.html",
+    "title": "Componente · Ilustración",
+    "w": 240,
+    "h": 160
+  },
+  {
+    "file": "DSEstados.html",
+    "title": "Design system · Estados",
+    "w": 1440,
+    "h": 1320
+  },
+  {
+    "file": "DesktopChatsVacio.html",
+    "title": "Desktop · Chats vacío",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopAcceso.html",
+    "title": "Desktop · Acceso con credencial",
+    "w": 1440,
+    "h": 900
+  },
+  {
+    "file": "MobileInstalar.html",
+    "title": "Móvil · Instalar",
+    "w": 390,
+    "h": 844
+  }
+]

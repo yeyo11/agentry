@@ -1,7 +1,7 @@
 {
   "nav": "Conectores",
   "title": "Conectores",
-  "subtitle": "Tal como los informó el CLI {{when}}",
+  "subtitle": "consultado {{when}}",
   "subtitleLoading": "Preguntando al CLI…",
   "intro": "Los conectores de claude.ai de la cuenta con la sesión iniciada, tal como los lista Claude Code. Agentry solo lee esta lista: no puede autorizar, cambiar ni llamar a un conector por sí mismo.",
   "refresh": "Preguntar al CLI otra vez",
@@ -10,6 +10,7 @@
   "none": "No hay conectores de claude.ai en la lista",
   "noneHint": "El CLI no lista ninguno para esta cuenta. Conecta Docs, Gmail o Calendar en los ajustes de conectores de claude.ai y pregunta de nuevo.",
   "notListed": "El CLI no lista: {{kinds}}.",
+  "notListedSame": "Se autorizan igual.",
   "kinds": {
     "docs": "Docs",
     "gmail": "Gmail",
@@ -21,9 +22,14 @@
     "needsAuth": "Necesita autorización"
   },
   "cliSays": "El CLI dice: {{detail}}",
+  "blocked": {
+    "title_one": "{{name}} necesita autorización",
+    "title_other": "Todos los conectores necesitan autorización",
+    "body": "Ejecuta claude en una terminal, escribe /mcp y autentícate, o actívalo en los ajustes de conectores de claude.ai. Después vuelve a preguntar al CLI."
+  },
   "ask": {
-    "title": "Pregunta a Claude",
-    "named": "{{action}} ({{connector}})",
+    "try": "Probar: «{{action}}»",
+    "named": "Probar: «{{action}}» ({{connector}})",
     "starting": "Iniciando…",
     "hint": "Abre un chat nuevo con el prompt ya escrito. El prompt solo pide a Claude que lea, y cualquier permiso que necesiten las herramientas del conector se pide en ese chat.",
     "none": "No hay prompts preparados para este conector."
@@ -33,6 +39,7 @@
   },
   "unavailable": {
     "title": "Fuera de alcance",
-    "intro": "Agentry habla con Claude Code solo a través de su CLI, así que todo aquello para lo que el CLI no tiene comando queda fuera de alcance:"
+    "intro": "Agentry habla con Claude Code solo a través de su CLI, así que todo aquello para lo que el CLI no tiene comando queda fuera de alcance:",
+    "short": "{{items}} quedan fuera del alcance de Agentry."
   }
 }

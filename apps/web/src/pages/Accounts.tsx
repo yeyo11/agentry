@@ -1,270 +1,42 @@
-import type { AccountConfig, AccountSummary, AccountUsageWindow, AutoSwitchSettings } from '@agentry/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleCheck, CirclePause, CirclePlay, CircleX, KeyRound, RefreshCw, Trash2, TriangleAlert, Users } from 'lucide-react';
-import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import type { AccountSummary, AutoSwitchSettings } from '@agentry/shared';
+import { ChevronLeft, ChevronRight, ExternalLink, Info, Plus, RefreshCw } from 'lucide-react';
+import { useCallback, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, keys, useAccountEvents, useAccounts } from '../api';
-import { NumberInput, Select, Slider, Switch, Tooltip } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
-import { ICON_SM } from '../components/icons';
+import { ICON, ICON_SM } from '../components/icons';
 import { useToast } from '../components/Toast';
-import { Card, Empty, ErrorBox, Field, PageHeader, Skeleton, StatusBadge, Tag } from '../components/ui';
-import { formatDateTime, timeAgo } from '../lib/format';
-import { ConfigDirPanel } from './accounts/ConfigDirPanel';
+import { Card, Empty, ErrorBox, PageHeader, Skeleton, StatusBadge, usePageTitle } from '../components/ui';
+import { formatDateTime, timeAgo, toMs } from '../lib/format';
+import { NARROW, useMediaQuery } from '../lib/media';
+import { AccountCard, ExhaustedAccountRow } from './accounts/AccountCard';
+import { AddAccountDialog } from './accounts/AddAccountDialog';
+import { AutoSwitchCard } from './accounts/AutoSwitchCard';
 import { PoliciesCard } from './accounts/PoliciesCard';
 import { UsageHistoryCard } from './accounts/UsageHistoryCard';
+import { accountExhausted, sortAccounts } from './accounts/usage';
+import '../insights.css';
 
-const STRATEGIES = ['best', 'consume-first'] as const;
-
-function tone(pct: number): string {
-  return pct >= 90 ? 'is-bad' : pct >= 70 ? 'is-warn' : '';
-}
-
-function Meter({ label, window: win }: { label: string; window: AccountUsageWindow | null }) {
-  const { t } = useTranslation(['config', 'common']);
-  if (!win) return null;
-  const pct = Math.min(100, Math.round(win.pct));
-  return (
-    <div>
-      <div className="meter-head small">
-        <span>
-          {label}
-          {win.name ? ` · ${win.name}` : ''}
-        </span>
-        <span className="muted meta-icon">
-          {/* The bar turns amber and red; the icon and the words say the same to anyone who cannot tell them apart */}
-          {pct >= 90 ? (
-            <CircleX className="text-bad" {...ICON_SM} />
-          ) : pct >= 70 ? (
-            <TriangleAlert className="text-warn" {...ICON_SM} />
-          ) : null}
-          {pct}%{' '}
-          {pct >= 90 ? <span className="sr-only">{t('accounts.usedNearlyOut')} </span> : pct >= 70 ? <span className="sr-only">{t('accounts.usedRunningHigh')} </span> : null}
-          {win.countdown ? t('accounts.resetsIn', { countdown: win.countdown }) : ''}
-          {win.resetsAt && <span className="sr-only"> ({formatDateTime(win.resetsAt)})</span>}
-        </span>
-      </div>
-      <div className="meter-track" aria-hidden>
-        <div className={`meter-fill ${tone(pct)}`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function AccountCard({
-  account,
-  config,
-  busy,
-  onSwitch,
-  onToggle,
-  onRemove,
-}: {
-  account: AccountSummary;
-  config: AccountConfig | undefined;
-  busy: boolean;
-  onSwitch: () => void;
-  onToggle: () => void;
-  onRemove: () => void;
-}) {
-  const { t } = useTranslation(['config', 'common']);
-  const rail = account.usageStatus !== 'ok' ? 'is-warn' : account.disabled ? 'is-muted' : account.active ? 'is-ok' : '';
-  return (
-    <li className={`lrow account-row ${rail}`.trim()}>
-      <div className="lrow-head">
-        <div className="lrow-main">
-          <span className="lrow-title">
-            <span className="break">{account.alias ?? account.email}</span>
-            {account.active && <Tag tone="ok">{t('accounts.active')}</Tag>}
-            {account.disabled && <Tag tone="muted">{t('accounts.outOfRotation')}</Tag>}
-            {account.usageStatus !== 'ok' && <StatusBadge status={account.usageStatus} />}
-          </span>
-          <span className="lrow-sub">
-            <span className="mono">#{account.number}</span>
-            <span className="break">{account.email}</span>
-            {account.organizationName && <span className="break">{account.organizationName}</span>}
-            {account.headroomPct !== null && <span className="mono">{t('accounts.quotaLeft', { pct: account.headroomPct })}</span>}
-          </span>
-        </div>
-        <span className="lrow-actions">
-          {!account.active && (
-            <button type="button" className="btn btn-small" onClick={onSwitch} disabled={busy} aria-label={t('accounts.useAccount', { name: account.alias ?? account.email })}>
-              <CirclePlay {...ICON_SM} /> {t('accounts.use')}
-            </button>
-          )}
-          <Tooltip content={account.disabled ? t('accounts.returnToRotation') : t('accounts.holdOut')}>
-            <button
-              type="button"
-              className="btn btn-small"
-              onClick={onToggle}
-              disabled={busy}
-              aria-label={`${account.disabled ? t('accounts.returnToRotation') : t('accounts.holdOut')}: ${account.alias ?? account.email}`}
-            >
-              {account.disabled ? <CircleCheck {...ICON_SM} /> : <CirclePause {...ICON_SM} />}
-            </button>
-          </Tooltip>
-          <Tooltip content={t('accounts.removeAccount')}>
-            <button type="button" className="btn btn-small btn-danger" onClick={onRemove} disabled={busy} aria-label={`${t('accounts.removeAccount')} ${account.alias ?? account.email}`}>
-              <Trash2 {...ICON_SM} />
-            </button>
-          </Tooltip>
-        </span>
-      </div>
-      <div className="meters lrow-body">
-        {account.usage ? (
-          <>
-            <Meter label={t('accounts.fiveHours')} window={account.usage.fiveHour} />
-            <Meter label={t('accounts.sevenDays')} window={account.usage.sevenDay} />
-            {account.usage.scoped.map((win) => (
-              <Meter key={win.name ?? 'model'} label={t('accounts.sevenDays')} window={win} />
-            ))}
-          </>
-        ) : (
-          <div className="muted small">
-            {account.usageStatus !== 'ok' ? t('accounts.noUsageStatus', { status: account.usageStatus }) : t('accounts.noUsage')}
-          </div>
-        )}
-        {account.usageFetchedAt && <div className="muted small">{t('accounts.usageRead', { ago: timeAgo(account.usageFetchedAt) })}</div>}
-      </div>
-      <ConfigDirPanel account={account} config={config} />
-    </li>
-  );
-}
-
-function AddAccount({ onAdded }: { onAdded: () => void }) {
-  const { t } = useTranslation(['config', 'common']);
-  const toast = useToast();
-  const [token, setToken] = useState('');
-  const [email, setEmail] = useState('');
-  const mutation = useMutation({
-    mutationFn: () => api.addAccount({ token, email: email.trim() || undefined }),
-    onSuccess: () => {
-      setToken('');
-      setEmail('');
-      toast.success(t('accounts.registered'));
-      onAdded();
-    },
-    onError: (err) => toast.error(t('accounts.registerFailed'), err),
-  });
-
-  return (
-    <Card title={t('accounts.add')}>
-      <form
-        className="form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (token.trim()) mutation.mutate();
-        }}
-      >
-        <Field label={t('accounts.token')} hint={t('accounts.tokenHint')}>
-          <input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="sk-ant-oat…" autoComplete="off" />
-        </Field>
-        <Field label={t('accounts.label')} hint={t('accounts.labelHint')}>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="work@example.com" autoComplete="off" />
-        </Field>
-        <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={!token.trim() || mutation.isPending}>
-            <KeyRound {...ICON_SM} /> {mutation.isPending ? t('accounts.registering') : t('accounts.register')}
-          </button>
-        </div>
-      </form>
-    </Card>
-  );
-}
-
-function AutoSwitchPanel({ settings, running }: { settings: AutoSwitchSettings; running: boolean }) {
-  const { t } = useTranslation(['config', 'common']);
-  const queryClient = useQueryClient();
-  const toast = useToast();
-  const [draft, setDraft] = useState(settings);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
-
-  const mutation = useMutation({
-    mutationFn: (next: Partial<AutoSwitchSettings>) => api.setAutoSwitch(next),
-    onSuccess: (saved) => {
-      setDraft(saved);
-      toast.success(t('accounts.autoUpdated'));
-      void queryClient.invalidateQueries({ queryKey: keys.accounts });
-    },
-    onError: (err) => toast.error(t('accounts.autoUpdateFailed'), err),
-  });
-
-  return (
-    <Card
-      title={t('accounts.autoRotation')}
-      actions={running ? <Tag tone="ok">{t('accounts.supervisorRunning')}</Tag> : <Tag tone="muted">{t('accounts.stopped')}</Tag>}
-    >
-      <form
-        className="form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          mutation.mutate(draft);
-        }}
-      >
-        <Switch checked={draft.enabled} onChange={(enabled) => setDraft({ ...draft, enabled })}>
-          {t('accounts.rotateBefore')}
-        </Switch>
-        <Switch checked={draft.rotateOnLimit} onChange={(rotateOnLimit) => setDraft({ ...draft, rotateOnLimit })}>
-          {t('accounts.rotateOnLimit')}
-        </Switch>
-        <div className="form-grid">
-          <Field label={t('accounts.thresholdValue', { pct: draft.threshold })} hint={t('accounts.thresholdHint')}>
-            <Slider
-              aria-label={t('accounts.threshold')}
-              min={50}
-              max={99}
-              value={draft.threshold}
-              onChange={(threshold) => setDraft({ ...draft, threshold })}
-            />
-          </Field>
-          <Field label={t('accounts.strategy')} hint={t('accounts.strategyHint')}>
-            <Select<AutoSwitchSettings['strategy']>
-              value={draft.strategy}
-              onChange={(strategy) => setDraft({ ...draft, strategy })}
-              options={STRATEGIES.map((s) => ({ value: s, label: s }))}
-            />
-          </Field>
-          <Field label={t('accounts.interval')} hint={t('accounts.intervalHint')}>
-            <NumberInput
-              min={15}
-              max={3600}
-              step={15}
-              value={draft.intervalSec}
-              onChange={(intervalSec) => setDraft({ ...draft, intervalSec: intervalSec ?? 0 })}
-            />
-          </Field>
-          <Field label={t('accounts.models')} hint={t('accounts.modelsHint')}>
-            <input
-              value={draft.models.join(',')}
-              onChange={(e) => setDraft({ ...draft, models: e.target.value.split(',').map((m) => m.trim()).filter(Boolean) })}
-              placeholder="Fable,Opus"
-            />
-          </Field>
-        </div>
-        <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={!dirty || mutation.isPending}>
-            {t('shared.save')}
-          </button>
-          {dirty && (
-            <button type="button" className="btn btn-small" onClick={() => setDraft(settings)}>
-              {t('shared.reset')}
-            </button>
-          )}
-        </div>
-      </form>
-    </Card>
-  );
-}
+const CSWAP_URL = 'https://github.com/realiti4/claude-swap';
 
 export function Accounts() {
-  const { t } = useTranslation(['config', 'common']);
+  const { t } = useTranslation(['accountsConfig', 'config', 'common']);
   const { data, error, isLoading, refetch, isFetching } = useAccounts();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
+  // The dialog refocuses whenever its onClose changes, so it gets the same function every render
+  const closeAdd = useCallback(() => setAdding(false), []);
   // The overview carries the most recent window; the rest of the history is one query away
   const [fullHistory, setFullHistory] = useState(false);
   const history = useAccountEvents(fullHistory);
+  // On a phone automatic rotation is a screen of its own, reached from a cell under the accounts
+  const narrow = useMediaQuery(NARROW);
+  const [params, setParams] = useSearchParams();
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: keys.accounts });
 
@@ -285,122 +57,162 @@ export function Accounts() {
   if (error) return <ErrorBox error={error} />;
   if (!data) return null;
 
-  const liveRotationWarning = data.accounts.length > 1;
+  const installed = data.cswap.installed;
+  const accounts = sortAccounts(data.accounts);
   // Falls back to the overview's window while the history query is still in flight
   const events = fullHistory ? (history.data ?? data.events) : data.events;
+  const lastRead = data.accounts.reduce<string | null>((latest, a) => ((toMs(a.usageFetchedAt) ?? 0) > (toMs(latest) ?? 0) ? a.usageFetchedAt : latest), null);
+  const toggle = (account: AccountSummary) =>
+    void act(
+      account.disabled ? t('config:accounts.backInRotation', { email: account.email }) : t('config:accounts.heldOut', { email: account.email }),
+      account.disabled ? t('config:accounts.backInRotationFailed', { email: account.email }) : t('config:accounts.heldOutFailed', { email: account.email }),
+      () => api.setAccountEnabled(account.number, account.disabled),
+    );
+  const remove = (account: AccountSummary) =>
+    void confirm({
+      title: t('config:accounts.removeTitle', { email: account.email }),
+      body: t('config:accounts.removeBody'),
+      confirmLabel: t('common:actions.remove'),
+      danger: true,
+    }).then(async (ok) => {
+      if (ok) {
+        await act(t('config:accounts.removed', { email: account.email }), t('config:accounts.removeFailed', { email: account.email }), () => api.removeAccount(account.number));
+      }
+    });
+
+  if (narrow && installed && data.accounts.length > 0 && params.get('view') === 'rotation') {
+    // Back is a step up to the accounts, not through history: a deep link has nothing behind it
+    return <PhoneRotation onBack={() => setParams({})} settings={data.autoSwitch} running={data.autoSwitchRunning} />;
+  }
+
+  const addButton = (
+    <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
+      <Plus {...ICON_SM} /> {t('page.add')}
+    </button>
+  );
 
   return (
-    <div className="stack">
+    <div className="stack accounts-page">
       <PageHeader
-        title={t('accounts.title')}
+        title={t('config:accounts.title')}
         subtitle={
-          data.cswap.installed
-            ? `claude-swap ${data.cswap.version ?? ''} · ${t('accounts.count', { count: data.accounts.length })}`
-            : t('accounts.needsCswap')
+          installed
+            ? [
+                t('page.subtitle', { accounts: t('config:accounts.count', { count: data.accounts.length }), version: data.cswap.version ?? '' }).trim(),
+                lastRead ? t('config:accounts.usageRead', { ago: timeAgo(lastRead) }) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : t('config:accounts.needsCswap')
         }
         actions={
-          <button type="button" className="btn btn-small" onClick={() => void refetch()} disabled={isFetching}>
-            <RefreshCw {...ICON_SM} /> {t('accounts.refreshUsage')}
-          </button>
+          <>
+            <button type="button" className="btn" onClick={() => void refetch()} disabled={isFetching} aria-label={t('config:accounts.refreshUsage')}>
+              <RefreshCw {...ICON_SM} /> <span className="accounts-action-text">{t('config:accounts.refreshUsage')}</span>
+            </button>
+            {installed && data.accounts.length > 0 && addButton}
+          </>
         }
       />
 
-      {!data.cswap.installed ? (
-        <Empty icon={Users} title={t('accounts.notInstalled')}>
+      {adding && <AddAccountDialog onClose={closeAdd} onAdded={() => void refresh()} />}
+
+      {!installed ? (
+        <Empty
+          illustration="cli-missing"
+          tone="warn"
+          title={t('config:accounts.notInstalled')}
+          action={
+            <a className="btn btn-primary" href={CSWAP_URL} target="_blank" rel="noreferrer">
+              <ExternalLink {...ICON_SM} /> {t('page.installGuide')}
+            </a>
+          }
+        >
           <Trans
             t={t}
-            i18nKey="accounts.notInstalledHint"
+            i18nKey="config:accounts.notInstalledHint"
             components={{
-              anchor: <a href="https://github.com/realiti4/claude-swap" target="_blank" rel="noreferrer" />,
+              anchor: <a href={CSWAP_URL} target="_blank" rel="noreferrer" />,
               code: <code className="mono" />,
             }}
           />
           {data.cswap.error && <div className="muted small">{data.cswap.error}</div>}
         </Empty>
+      ) : data.accounts.length === 0 ? (
+        <Empty illustration="signed-out" tone="warn" title={t('config:accounts.none')} action={addButton}>
+          {t('page.noneHint')}
+        </Empty>
       ) : (
         <>
-          <ul className="lrows accounts-list">
-            {data.accounts.map((account) => (
-              <AccountCard
-                key={account.number}
-                account={account}
-                config={data.configs.find((c) => c.number === account.number)}
-                busy={busy}
-                onSwitch={() =>
-                  void act(
-                    t('accounts.switched', { email: account.email }),
-                    t('accounts.switchFailed', { email: account.email }),
-                    () => api.switchAccount({ target: String(account.number) }),
-                  )
-                }
-                onToggle={() =>
-                  void act(
-                    account.disabled ? t('accounts.backInRotation', { email: account.email }) : t('accounts.heldOut', { email: account.email }),
-                    account.disabled
-                      ? t('accounts.backInRotationFailed', { email: account.email })
-                      : t('accounts.heldOutFailed', { email: account.email }),
-                    () => api.setAccountEnabled(account.number, account.disabled),
-                  )
-                }
-                onRemove={() =>
-                  void confirm({
-                    title: t('accounts.removeTitle', { email: account.email }),
-                    body: t('accounts.removeBody'),
-                    confirmLabel: t('common:actions.remove'),
-                    danger: true,
-                  }).then(async (ok) => {
-                    if (ok) {
-                      await act(
-                        t('accounts.removed', { email: account.email }),
-                        t('accounts.removeFailed', { email: account.email }),
-                        () => api.removeAccount(account.number),
-                      );
-                    }
-                  })
-                }
-              />
-            ))}
+          <ul className="account-grid">
+            {accounts.map((account) =>
+              narrow && !account.active && accountExhausted(account) ? (
+                <ExhaustedAccountRow key={account.number} account={account} busy={busy} onToggle={() => toggle(account)} onRemove={() => remove(account)} />
+              ) : (
+                <AccountCard
+                  key={account.number}
+                  account={account}
+                  config={data.configs.find((c) => c.number === account.number)}
+                  busy={busy}
+                  onSwitch={() =>
+                    void act(
+                      t('config:accounts.switched', { email: account.email }),
+                      t('config:accounts.switchFailed', { email: account.email }),
+                      () => api.switchAccount({ target: String(account.number) }),
+                    )
+                  }
+                  onToggle={() => toggle(account)}
+                  onRemove={() => remove(account)}
+                />
+              ),
+            )}
           </ul>
 
-          {data.accounts.length === 0 && (
-            <Empty icon={Users} title={t('accounts.none')}>
-              {t('accounts.noneHint')}
-            </Empty>
-          )}
-
-          {liveRotationWarning && (
-            <div className="muted small">
-              {t('accounts.switchNote')}
+          {data.accounts.length > 1 && (
+            <div className="alert alert-note">
+              <Info {...ICON_SM} className="alert-icon" aria-hidden />
+              <div className="alert-body">{t('config:accounts.switchNote')}</div>
             </div>
           )}
 
-          <div className="grid-2">
-            <AddAccount onAdded={() => void refresh()} />
-            <AutoSwitchPanel settings={data.autoSwitch} running={data.autoSwitchRunning} />
-          </div>
-
-          <UsageHistoryCard accounts={data.accounts} threshold={data.autoSwitch.threshold} />
+          {narrow ? (
+            <Link to="/accounts?view=rotation" className="card rotation-cell">
+              <span className="rotation-cell-text">
+                <span className="rotation-cell-title">{t('config:accounts.autoRotation')}</span>
+                <span className="rotation-cell-sub">
+                  {data.autoSwitchRunning ? t('rotation.running') : data.autoSwitch.enabled ? t('rotation.stopped') : t('rotation.off')} ·{' '}
+                  {t('rotation.thresholdShort', { pct: data.autoSwitch.threshold })}
+                </span>
+              </span>
+              <ChevronRight className="rotation-cell-chevron" {...ICON} />
+            </Link>
+          ) : (
+            <AutoSwitchCard settings={data.autoSwitch} running={data.autoSwitchRunning} />
+          )}
 
           <PoliciesCard policies={data.policies} accounts={data.accounts} />
 
+          <UsageHistoryCard accounts={data.accounts} threshold={data.autoSwitch.threshold} />
+
           <Card
-            title={t('accounts.log')}
+            className="rotation-log"
+            title={t('config:accounts.log')}
             actions={
               <button type="button" className="btn btn-small" onClick={() => setFullHistory((v) => !v)}>
-                {fullHistory ? t('accounts.recentOnly') : t('accounts.fullHistory')}
+                {fullHistory ? t('config:accounts.recentOnly') : t('config:accounts.fullHistory')}
               </button>
             }
           >
             {events.length === 0 ? (
-              <Empty icon={RefreshCw} title={t('accounts.nothingYet')}>
-                {t('accounts.logHint')}
+              <Empty icon={RefreshCw} title={t('config:accounts.nothingYet')}>
+                {t('config:accounts.logHint')}
               </Empty>
             ) : (
               <ul className="list">
                 {[...events].reverse().slice(0, fullHistory ? 500 : 40).map((event) => (
                   <li key={event.seq} className="list-row list-row-flow small">
                     <StatusBadge status={event.event} />
-                    <span className="muted nowrap" title={formatDateTime(event.ts)}>
+                    <span className="muted nowrap mono" title={formatDateTime(event.ts)}>
                       {timeAgo(event.ts)}
                     </span>
                     <span className="break">
@@ -414,6 +226,23 @@ export function Accounts() {
           </Card>
         </>
       )}
+    </div>
+  );
+}
+
+/** Automatic rotation on a phone: its card on a screen of its own, with the way back to the accounts above it. */
+function PhoneRotation({ onBack, settings, running }: { onBack: () => void; settings: AutoSwitchSettings; running: boolean }) {
+  const { t } = useTranslation(['accountsConfig', 'config']);
+  usePageTitle(t('config:accounts.autoRotation'));
+  return (
+    <div className="stack accounts-page">
+      <header className="settings-phone-head">
+        <button type="button" className="icon-btn settings-phone-back" aria-label={t('rotation.back')} onClick={onBack}>
+          <ChevronLeft {...ICON} />
+        </button>
+        <h1 className="settings-phone-title">{t('config:accounts.autoRotation')}</h1>
+      </header>
+      <AutoSwitchCard settings={settings} running={running} />
     </div>
   );
 }

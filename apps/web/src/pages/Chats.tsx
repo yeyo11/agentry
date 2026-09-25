@@ -1,23 +1,28 @@
-import type { ChatOrigin, ChatState, ChatSummary } from '@agentry/shared';
+import type { ChatState, ChatSummary } from '@agentry/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckSquare, Cog, Download, GitBranch, GitFork, Lock, MessageSquare, Network, Play, Terminal, Trash2, X, Zap, type LucideIcon } from 'lucide-react';
+import { Check, Download, GitBranch, GitFork, Lock, Plus, Trash2, Zap, type LucideIcon } from 'lucide-react';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useChats, useProjects } from '../api';
 import { ActivityTicker } from '../components/ActivityTicker';
-import { ContextRing } from '../components/ContextRing';
+import { ContextBar } from '../components/ChatBadges';
 import { Checkbox, hasOpenLayer } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
 import { ICON_SM } from '../components/icons';
 import { ListToolbar, type ListFilterChip } from '../components/ListToolbar';
+import { usageTone } from '../components/motion';
 import { Spinner } from '../components/Spinner';
 import { useToast } from '../components/Toast';
 import { Card, Empty, ErrorBox, PageHeader, Skeleton } from '../components/ui';
+import { ProjectSelector } from '../components/ProjectSelector';
 import {
   ALL_ORIGINS,
+  contextShare,
   deleteBlocker,
+  displayTitle,
   facetOptions,
+  formatPercent,
   formatUsd,
   groupByDay,
   lastEnded,
@@ -39,6 +44,7 @@ import {
 } from '../lib/chat-model';
 import { formatDateTime, formatNumber, timeAgo } from '../lib/format';
 import { useListKeys } from '../lib/list-keys';
+import { COARSE, COMPACT, NARROW, useMediaQuery } from '../lib/media';
 import { useMinute } from '../lib/minute';
 import { ALL_PROJECTS, useProjectScope } from '../lib/project-scope';
 import i18n from '../i18n';
@@ -55,7 +61,11 @@ const SORTS = Object.keys(SORT_LABEL) as ChatSort[];
 /** Browsers let a page start a burst of downloads when they come a little apart. */
 const DOWNLOAD_GAP_MS = 250;
 
-const ORIGIN_ICON: Record<ChatOrigin, LucideIcon> = { agentry: Play, external: Terminal, orchestration: Network, internal: Cog };
+/** A long press on a touch screen picks the row, as the box does under a pointer. */
+const LONG_PRESS_MS = 500;
+/** How far a finger may drift before the press is a scroll rather than a hold. */
+const LONG_PRESS_SLOP = 10;
+
 const TAG_ICON: Record<RowTag, LucideIcon> = { interactive: Zap, readOnly: Lock, fork: GitFork, worktree: GitBranch };
 
 /** A URL list parameter as a set; absent is empty, which every facet reads as "all". */
@@ -67,22 +77,33 @@ function originLabel(chat: ChatSummary): string {
   return `${chat.orchestration.name} · ${chat.orchestration.taskName ?? i18n.t('chats:list.synthesis')}`;
 }
 
-/** The word next to the dot: the state, or how the last execution ended when that went wrong. */
-function StateMark({ chat }: { chat: ChatSummary }) {
-  const { t } = useTranslation('chats');
+/** How the last execution ended, when an idle chat's last run went wrong. */
+function badOutcome(chat: ChatSummary) {
   const ended = chat.state === 'idle' && !chat.execution ? lastEnded(chat) : null;
-  const bad = ended?.outcome && ended.outcome !== 'completed' ? ended.outcome : null;
-  const tone = chat.state === 'working' ? 'live' : chat.state === 'waiting' ? 'warn' : bad ? 'bad' : 'idle';
-  // A working chat with an activity has its ticker on the line below, spinner and verb included:
-  // a second spinner and "Working" above it would say the same thing twice
-  if (chat.state === 'working' && chat.activity) return <span className="sr-only">{STATE_LABEL.working}</span>;
-  return (
-    <span className={`crow-state is-${tone}`}>
-      {chat.state === 'working' ? <Spinner className="crow-spinner" /> : <span className="crow-dot" aria-hidden />}
-      {/* Idle is what most rows are: said to a screen reader, not printed on every line */}
-      <span className={chat.state === 'idle' && !bad ? 'sr-only' : 'crow-state-word'}>{bad ? t(`list.outcome.${bad}`) : STATE_LABEL[chat.state]}</span>
-    </span>
-  );
+  return ended?.outcome && ended.outcome !== 'completed' ? ended.outcome : null;
+}
+
+/**
+ * The first column: the braille spinner while an agent works, and otherwise a dot — a hollow violet
+ * ring waiting for the person, a red one after a run that went wrong, a faint ring at rest. It is
+ * decoration: the word it stands for is on the line under the title.
+ */
+function StateMark({ chat }: { chat: ChatSummary }) {
+  if (chat.state === 'working') return <Spinner className="crow-spinner" />;
+  const tone = chat.state === 'waiting' ? 'dot-idle' : badOutcome(chat) ? 'dot-bad' : 'crow-dot-rest';
+  return <span className={`dot ${tone}`} aria-hidden />;
+}
+
+/** The state in words, at the start of the line under the title. Idle, what most rows are, is said to a screen reader only. */
+function StateWord({ chat }: { chat: ChatSummary }) {
+  const { t } = useTranslation('chats');
+  const bad = badOutcome(chat);
+  // A working chat with an activity has its ticker here instead, verb included
+  if (chat.state === 'working' && chat.activity) return <ActivityTicker activity={chat.activity} className="crow-ticker" />;
+  if (chat.state === 'working') return <span className="crow-word is-live">{STATE_LABEL.working}</span>;
+  if (chat.state === 'waiting') return <span className="crow-word is-idle">{STATE_LABEL.waiting}</span>;
+  if (bad) return <span className="badge badge-bad crow-outcome">{t(`list.outcome.${bad}`)}</span>;
+  return <span className="sr-only">{STATE_LABEL.idle}</span>;
 }
 
 /** How long ago, kept current by the shared minute clock rather than by whatever re-renders the row. */
@@ -91,15 +112,34 @@ function Ago({ iso }: { iso: string | null }) {
   return <>{timeAgo(iso)}</>;
 }
 
-/*
+/** What the chat cost, or that the CLI reported nothing: a dash would read as zero. */
+function Cost({ usd }: { usd: number | null }) {
+  const { t } = useTranslation('chats');
+  if (usd !== null) return <>{formatUsd(usd)}</>;
+  return (
+    <>
+      <span className="crow-no-cost" aria-hidden>
+        {t('list.noCost')}
+      </span>
+      <span className="sr-only">{t('list.cost', { cost: formatUsd(null) })}</span>
+    </>
+  );
+}
+
+/**
  * Memoized, and handed callbacks that take the chat's id, so a keystroke in the search, a cursor
  * move or one row's live numbers re-render the rows that changed rather than a hundred of them.
+ *
+ * One row is a table line on a wide list and a two-line card on a narrow one: which of the two
+ * lines under the title shows is the stylesheet's business (a container query on the list), so
+ * the row never waits for a resize to re-render.
  */
 const ChatRow = memo(function ChatRow({
   chat,
   index,
   cursor,
   selected,
+  tapSelects,
   onSelect,
   onFocus,
 }: {
@@ -107,80 +147,132 @@ const ChatRow = memo(function ChatRow({
   index: number;
   cursor: boolean;
   selected: boolean;
+  /** In select mode on a touch screen a tap picks the row instead of opening it */
+  tapSelects: boolean;
   onSelect: (id: string, on: boolean) => void;
   onFocus: (id: string) => void;
 }) {
-  const { t } = useTranslation(['chats', 'chat']);
-  const firstLine = chat.firstPrompt?.split('\n')[0]?.trim() ?? '';
-  const prompt = firstLine && firstLine.slice(0, 100) !== chat.title ? firstLine : null;
-  const OriginIcon = ORIGIN_ICON[chat.origin];
-  const live = chat.state === 'working' && chat.activity;
+  const { t } = useTranslation(['chats', 'chat', 'common']);
   const place = chat.origin === 'orchestration' && chat.orchestration ? originLabel(chat) : (chat.project?.name ?? t('list.noProject'));
   const tags = rowTags(chat);
+  const working = chat.state === 'working';
+  const share = contextShare(chat);
+  const contextTone = share === null ? 'neutral' : usageTone(Math.round(share * 100));
+
+  const press = useRef<{ timer: number; x: number; y: number } | null>(null);
+  const pressed = useRef(false);
+  const release = () => {
+    if (press.current) window.clearTimeout(press.current.timer);
+    press.current = null;
+  };
+  useEffect(() => release, []);
+
   return (
     <li
-      className={`crow is-${chat.state} ${chat.state === 'working' ? 'live-rail' : ''} ${cursor ? 'is-cursor' : ''} ${selected ? 'is-selected' : ''}`}
+      className={`crow is-${chat.state} ${working ? 'live-rail' : ''} ${cursor ? 'is-cursor' : ''} ${selected ? 'is-selected' : ''}`}
       data-row={index}
       data-id={chat.id}
     >
       <span className="crow-select">
-        <Checkbox checked={selected} onChange={(on) => onSelect(chat.id, on)} aria-label={t('list.selectChat', { title: chat.title })} />
+        <Checkbox checked={selected} onChange={(on) => onSelect(chat.id, on)} aria-label={t('list.selectChat', { title: displayTitle(chat) })} />
       </span>
-      <Link to={`/chats/${chat.id}`} className="crow-link" onFocus={() => onFocus(chat.id)}>
+      <Link
+        to={`/chats/${chat.id}`}
+        className="crow-link"
+        onFocus={() => onFocus(chat.id)}
+        onPointerDown={(event) => {
+          pressed.current = false;
+          if (event.pointerType === 'mouse') return;
+          release();
+          press.current = {
+            x: event.clientX,
+            y: event.clientY,
+            timer: window.setTimeout(() => {
+              press.current = null;
+              pressed.current = true;
+              onSelect(chat.id, true);
+            }, LONG_PRESS_MS),
+          };
+        }}
+        onPointerMove={(event) => {
+          const start = press.current;
+          if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > LONG_PRESS_SLOP) release();
+        }}
+        onPointerUp={release}
+        onPointerCancel={release}
+        onContextMenu={(event) => {
+          // The press that picked the row must not also open the browser's menu for the link
+          if (pressed.current || press.current) event.preventDefault();
+        }}
+        onClick={(event) => {
+          if (pressed.current) {
+            pressed.current = false;
+            event.preventDefault();
+            return;
+          }
+          if (tapSelects) {
+            event.preventDefault();
+            onSelect(chat.id, !selected);
+          }
+        }}
+      >
+        <span className="crow-mark">
+          <StateMark chat={chat} />
+        </span>
         <span className="crow-main">
-          <span className="crow-line">
-            <StateMark chat={chat} />
-            <span className="crow-title-text">{chat.title}</span>
-          </span>
-          <span className="crow-line crow-sub">
-            {live ? (
-              <ActivityTicker activity={chat.activity} className="crow-ticker" />
-            ) : (
-              prompt && <span className="crow-prompt">{prompt}</span>
-            )}
-            <span className="crow-place">
-              <OriginIcon size={11} strokeWidth={2} aria-hidden />
-              {chat.origin !== 'orchestration' && <span className="sr-only">{ORIGIN_LABEL[chat.origin]}</span>}
-              <span className="crow-place-name">{place}</span>
+          <span className="crow-title-text">{displayTitle(chat)}</span>
+          <span className="crow-sub">
+            <StateWord chat={chat} />
+            {/* The table's line: the id, how the chat can be driven, and on demand its model */}
+            <span className="crow-sub-wide">
+              <span className="crow-id">{chat.id.slice(0, 6)}</span>
+              {tags.map((tag) => {
+                const Icon = TAG_ICON[tag];
+                return (
+                  <span key={tag} className={`crow-tag is-${tag}`}>
+                    <Icon size={11} strokeWidth={2} aria-hidden />
+                    {tag === 'worktree' ? (chat.worktree?.branch ?? chat.worktree?.name ?? t('list.worktree')) : tag === 'fork' ? t('list.fork') : t(`list.tag.${tag}`)}
+                  </span>
+                );
+              })}
+              <span className="crow-extra">
+                {chat.model && <span>{chat.model}</span>}
+                {chat.worktree?.branch && !tags.includes('worktree') && <span>{chat.worktree.branch}</span>}
+                <span>{t('list.messages', { n: formatNumber(chat.messageCount) })}</span>
+              </span>
             </span>
-            {tags.map((tag) => {
-              const Icon = TAG_ICON[tag];
-              return (
-                <span key={tag} className={`crow-tag is-${tag}`}>
-                  <Icon size={11} strokeWidth={2} aria-hidden />
-                  {tag === 'worktree' ? (chat.worktree?.branch ?? chat.worktree?.name ?? t('list.worktree')) : tag === 'fork' ? t('list.fork') : t(`list.tag.${tag}`)}
+            {/* The card's line, where there are no columns: where it runs, the context and the cost */}
+            <span className="crow-sub-narrow">
+              {chat.origin !== 'agentry' && <span className="badge crow-origin-badge">{ORIGIN_LABEL[chat.origin]}</span>}
+              <span className="crow-meta-place">{place}</span>
+              {share !== null && (
+                <span className={`crow-meta-context is-${contextTone}`}>
+                  {formatPercent(share)}
+                  {contextTone !== 'neutral' && ` ${t('list.contextShort')}`}
                 </span>
-              );
-            })}
-            {/* What the chat itself says in full, here only for whoever points at the row */}
-            <span className="crow-extra">
-              {chat.model && <span className="mono">{chat.model}</span>}
-              {chat.worktree?.branch && !tags.includes('worktree') && <span className="mono">{chat.worktree.branch}</span>}
-              <span>{t('list.messages', { n: formatNumber(chat.messageCount) })}</span>
-            </span>
-          </span>
-        </span>
-        <span className="crow-side">
-          <time className="crow-time" dateTime={chat.updatedAt ?? undefined}>
-            <span className="sr-only">{formatDateTime(chat.updatedAt)}</span>
-            <span aria-hidden>
-              <Ago iso={chat.updatedAt} />
-            </span>
-          </time>
-          <span className="crow-numbers">
-            <ContextRing chat={chat} />
-            <span className="crow-cost">
-              {chat.cost.usd === null ? (
-                <>
-                  <span aria-hidden>—</span>
-                  <span className="sr-only">{t('list.cost', { cost: formatUsd(null) })}</span>
-                </>
-              ) : (
-                formatUsd(chat.cost.usd)
               )}
+              <span className="crow-meta-cost">
+                <Cost usd={chat.cost.usd} />
+              </span>
             </span>
           </span>
         </span>
+        <span className="crow-cell crow-project" title={place}>
+          {place}
+        </span>
+        <span className="crow-cell crow-origin">
+          <span className={`badge ${chat.origin === 'agentry' ? 'is-agentry' : ''}`.trim()}>{ORIGIN_LABEL[chat.origin]}</span>
+        </span>
+        <span className="crow-cell crow-context">
+          <ContextBar chat={chat} />
+        </span>
+        <span className="crow-cell crow-cost">
+          <Cost usd={chat.cost.usd} />
+        </span>
+        <time className={`crow-time ${working ? 'is-live' : ''}`.trim()} dateTime={chat.updatedAt ?? undefined}>
+          <span className="sr-only">{formatDateTime(chat.updatedAt)}</span>
+          <span aria-hidden>{working ? t('common:time.now') : <Ago iso={chat.updatedAt} />}</span>
+        </time>
       </Link>
     </li>
   );
@@ -231,7 +323,7 @@ function useBulkDelete(onDone: () => void) {
         <ul className="bulk-skipped">
           {skipped.map(({ chat, why }) => (
             <li key={chat.id}>
-              <span className="strong break">{chat.title}</span> <span className="muted">— {t(`bulk.why.${why}`)}</span>
+              <span className="strong break">{displayTitle(chat)}</span> <span className="muted">— {t(`bulk.why.${why}`)}</span>
             </li>
           ))}
         </ul>
@@ -269,10 +361,10 @@ function useBulkDelete(onDone: () => void) {
     if (deleted > 0) {
       toast.success(
         t('bulk.deleted', { count: deleted }),
-        skipped.length > 0 ? t('bulk.skippedNote', { count: skipped.length, titles: skipped.map((s) => s.chat.title).join(', ') }) : undefined,
+        skipped.length > 0 ? t('bulk.skippedNote', { count: skipped.length, titles: skipped.map((s) => displayTitle(s.chat)).join(', ') }) : undefined,
       );
     }
-    for (const { chat, error } of failed) toast.error(t('bulk.failed', { title: chat.title }), error);
+    for (const { chat, error } of failed) toast.error(t('bulk.failed', { title: displayTitle(chat) }), error);
     onDone();
   };
 
@@ -308,6 +400,10 @@ export function Chats() {
   const listRef = useRef<HTMLDivElement>(null);
   const focusCursor = useRef(false);
   const minute = useMinute();
+  const coarse = useMediaQuery(COARSE);
+  const compact = useMediaQuery(COMPACT);
+  // On a phone the scope is a chip in this header and the top bar leaves its own out (`pageHoldsScope`)
+  const phone = useMediaQuery(NARROW);
 
   const state = STATES.find((s) => s === params.get('state')) ?? null;
   const sort = SORTS.find((s) => s === params.get('sort')) ?? 'activity';
@@ -463,7 +559,7 @@ export function Chats() {
 
   const stateTabs = [
     { id: 'all' as const, label: t('list.stateAll'), count: counts.all, title: t('list.stateAllHint') },
-    { id: 'working' as const, label: STATE_LABEL.working, count: counts.working, title: t('list.stateWorkingHint') },
+    { id: 'working' as const, label: STATE_LABEL.working, count: counts.working, title: t('list.stateWorkingHint'), live: true },
     { id: 'waiting' as const, label: STATE_LABEL.waiting, count: counts.waiting, title: t('list.stateWaitingHint') },
     { id: 'idle' as const, label: STATE_LABEL.idle, count: counts.idle },
   ];
@@ -475,14 +571,27 @@ export function Chats() {
   let rowIndex = 0;
 
   return (
-    <>
+    <div className="chats-page">
       <PageHeader
-        title={t('list.title')}
+        docTitle={t('list.title')}
+        title={
+          <>
+            {t('list.title')}
+            {answered && <span className="chats-title-count">{formatNumber(all.length)}</span>}
+          </>
+        }
         subtitle={
           <span role="status">
-            {answered && t('list.count', { shown: formatNumber(visible.length), total: formatNumber(all.length) })}
+            {answered && (
+              <>
+                {t('list.count', { shown: formatNumber(visible.length), total: formatNumber(all.length) })}
+                {' · '}
+                {t('list.summary', { count: counts.working, waiting: formatNumber(counts.waiting) })}
+              </>
+            )}
           </span>
         }
+        actions={phone ? <ProjectSelector chip /> : undefined}
       />
 
       <ListToolbar
@@ -496,6 +605,7 @@ export function Chats() {
           },
           placeholder: t('list.searchPlaceholder'),
           label: t('list.searchLabel'),
+          shortcut: '/',
         }}
         tabs={{ value: state ?? 'all', options: stateTabs, onChange: (v) => patch({ state: v === 'all' ? null : v }), label: t('list.stateLabel') }}
         sort={{ value: sort, options: SORTS.map((value) => ({ value, label: SORT_LABEL[value] })), onChange: (v) => patch({ sort: v === 'activity' ? null : v }), label: t('list.sortLabel') }}
@@ -527,7 +637,7 @@ export function Chats() {
         chips={chips}
         onReset={reset}
         actions={
-          filtersActive && chips.length === 0 ? (
+          filtersActive && chips.length === 0 && visible.length > 0 ? (
             <button type="button" className="link-btn" onClick={reset}>
               {t('list.resetFilters')}
             </button>
@@ -542,23 +652,56 @@ export function Chats() {
           <Skeleton rows={8} height={20} />
         </Card>
       ) : !answered ? null : visible.length === 0 ? (
-        <Card>
-          <Empty
-            icon={MessageSquare}
-            title={filtersActive ? t('list.emptyFiltered') : t('list.empty')}
-            action={
-              !filtersActive && (
-                <Link to="/chats/new" className="btn btn-primary">
-                  {t('list.newChat')}
-                </Link>
-              )
-            }
-          >
-            {filtersActive ? t('list.emptyFilteredBody') : t('list.emptyBody')}
-          </Empty>
-        </Card>
+        filtersActive ? (
+          <Card>
+            <Empty
+              illustration="no-results"
+              size={compact ? 'sm' : 'md'}
+              title={t('list.emptyFiltered')}
+              action={
+                <button type="button" className="btn" onClick={reset}>
+                  {t('list.resetFilters')}
+                </button>
+              }
+            >
+              {t('list.emptyFilteredBody')}
+            </Empty>
+          </Card>
+        ) : (
+          // Nothing to list at all: the page is the empty state, the one place the halo goes
+          <section className="card glow-top chats-empty">
+            <Empty
+              illustration="chats"
+              size={compact ? 'md' : 'lg'}
+              title={t('list.empty')}
+              action={
+                <>
+                  <Link to="/chats/new" className="btn btn-primary">
+                    <Plus {...ICON_SM} aria-hidden />
+                    {t('list.newChat')}
+                  </Link>
+                  <Link to="/projects" className="btn">
+                    {t('list.importProject')}
+                  </Link>
+                </>
+              }
+            >
+              {t('list.emptyBody')}
+            </Empty>
+          </section>
+        )
       ) : (
-        <div className={`scard crow-list ${selecting ? 'is-selecting' : ''}`} ref={listRef}>
+        <div className={`card scard crow-list ${selecting ? 'is-selecting' : ''}`} ref={listRef}>
+          {/* The column heads: every cell they name also says what it is to a screen reader */}
+          <div className="crow-cols" aria-hidden>
+            <span />
+            <span>{t('list.columns.chat')}</span>
+            <span>{t('list.columns.project')}</span>
+            <span>{t('list.columns.origin')}</span>
+            <span>{t('list.columns.context')}</span>
+            <span className="is-end">{t('list.columns.cost')}</span>
+            <span className="is-end">{t('list.columns.activity')}</span>
+          </div>
           {groups.map(({ group, chats: rows }) => (
             <div key={group ?? 'all'} className="crow-group">
               {group && (
@@ -575,6 +718,7 @@ export function Chats() {
                     index={rowIndex++}
                     cursor={cursor === chat.id}
                     selected={selected.has(chat.id)}
+                    tapSelects={selecting && coarse}
                     onSelect={toggleSelected}
                     onFocus={setCursor}
                   />
@@ -596,21 +740,21 @@ export function Chats() {
       )}
 
       {selecting && (
-        <div className="bulk-bar" role="region" aria-label={t('bulk.region')}>
+        <div className="toast bulk-bar" role="region" aria-label={t('bulk.region')}>
           <span className="bulk-count" role="status">
-            <CheckSquare {...ICON_SM} aria-hidden /> {t('bulk.selected', { count: selectedChats.length })}
+            <Check {...ICON_SM} aria-hidden /> {t('bulk.selected', { count: selectedChats.length })}
           </span>
-          <button type="button" className="btn btn-small" onClick={() => exportMarkdown(selectedChats)}>
+          <button type="button" className="btn btn-small bulk-quiet" onClick={() => exportMarkdown(selectedChats)}>
             <Download {...ICON_SM} /> {t('bulk.exportMarkdown')}
+          </button>
+          <button type="button" className="btn btn-small bulk-quiet" onClick={clearSelection} aria-label={t('bulk.clear')}>
+            {t('bulk.cancel')}
           </button>
           <button type="button" className="btn btn-small btn-danger" disabled={bulkDelete.busy} onClick={() => bulkDelete.run(selectedChats)}>
             <Trash2 {...ICON_SM} /> {bulkDelete.busy ? t('bulk.deleting') : t('bulk.delete')}
           </button>
-          <button type="button" className="icon-btn" onClick={clearSelection} aria-label={t('bulk.clear')}>
-            <X {...ICON_SM} />
-          </button>
         </div>
       )}
-    </>
+    </div>
   );
 }

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Uso (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app shell" data-theme="dark" style="width: 1440px; height: 1240px">
+<div class="side">
+
+<nav class="app" data-theme="dark" aria-label="Principal" style="width: 256px; height: 1024px; background: var(--bg-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 18px">
+
+<div class="row" style="padding: 0 4px; height: 32px; gap: 10px">
+<a href="Main.html" class="row" style="gap: 10px; flex: 1 1 auto">
+<span style="width: 26px; height: 26px; border-radius: 8px; background: var(--grad); display: grid; place-items: center; color: #fff; box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 4px 14px -4px rgba(176,74,94,0.7)"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>
+<span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Agentry</span>
+</a>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Plegar barra lateral"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 4v16"></path></svg></button>
+</div>
+
+<button type="button" class="field" style="width: 100%; cursor: pointer; justify-content: flex-start; background: var(--bg-2)"><svg class="ico" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><span class="grow t-sm" style="text-align: left">Buscar o ejecutar…</span><span class="kbd">⌘K</span></button>
+
+<div class="col" style="gap: 1px">
+
+<a href="Main.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg><span class="grow">Inicio</span><span class="count"></span></a>
+
+<a href="DesktopChats.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span class="grow">Chats</span><span class="count">197</span></a>
+
+<a href="DesktopOrquestaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg><span class="grow">Orquestaciones</span><span class="count-pill live">2</span></a>
+
+<a href="DesktopProgramaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M5.5 5h13a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM3.5 10h17M8 3v4M16 3v4"></path></svg><span class="grow">Programaciones</span><span class="count"></span></a>
+
+</div>
+
+<div class="col" style="gap: 1px">
+<span class="t-label" style="padding: 0 10px 6px">Espacio</span>
+
+<a href="DesktopProyectos.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span class="grow">Proyectos</span></a>
+
+<a href="DesktopCuentas.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M12.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"></path></svg><span class="grow">Cuentas</span></a>
+
+<a href="DesktopConectores.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"></path></svg><span class="grow">Conectores</span></a>
+
+<a href="DesktopUso.html" class="nav-item on"><svg class="ico" viewBox="0 0 24 24"><path d="M4 20V11M10 20V4M16 20v-6M3 20.5h18"></path></svg><span class="grow">Uso</span></a>
+
+<a href="DesktopAjustes.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M17 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM11 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM19 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"></path></svg><span class="grow">Ajustes</span></a>
+
+</div>
+
+<div class="col" style="gap: 4px">
+<div class="row" style="padding: 0 10px 4px"><span class="t-label grow">En directo</span><span class="count-pill live">3</span></div>
+<a href="DesktopChat.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 3px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: 500">claude-wrapper-b67aa3</span></span>
+<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis grow">Compare styles</span><span class="mono fg-3">15s</span></span>
+</a>
+<a href="DesktopOrquestacion.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 6px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: 500">spanish-copy</span><span class="mono t-xs fg-3">2/6</span></span>
+<span class="segbar" style="height: 4px; margin-left: 15px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 60%"></i><i></i><i></i><i></i></span>
+</a>
+<a href="DesktopOrquestaciones.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 6px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: 500">app-updates</span><span class="mono t-xs fg-3">2/5</span></span>
+<span class="segbar" style="height: 4px; margin-left: 15px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 35%"></i><i></i><i></i></span>
+</a>
+</div>
+
+<div class="grow"></div>
+<a href="#" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5"></path></svg>Referencia de la API</a>
+</nav>
+</div>
+<div class="main-col">
+
+
+<header class="app" data-theme="dark" style="width: 1184px; height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 20px 0 24px; border-bottom: 1px solid var(--line); background: var(--bg)">
+<nav aria-label="Ruta" class="row t-sm" style="gap: 6px">
+<button type="button" class="btn btn-ghost btn-sm" style="gap: 6px; padding: 0 8px; color: var(--fg-2)"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Todos los proyectos<svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
+<span class="fg-3">/</span>
+<span style="font-weight: 500">Uso</span>
+</nav>
+<div class="grow"></div>
+<a href="DesktopOrquestaciones.html" class="chip" style="gap: 8px; border-color: transparent; background: var(--live-soft); color: var(--live); font-family: var(--mono); font-size: 11.5px"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>3 agentes trabajando</a>
+<button type="button" class="btn btn-ghost btn-icon" aria-label="Notificaciones" style="position: relative"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"></path></svg><span class="dot" style="position: absolute; top: 8px; right: 9px; width: 6px; height: 6px; background: var(--accent)"></span></button>
+<div class="row" style="gap: 0">
+<a href="DesktopNuevoChat.html" class="btn btn-primary" style="border-radius: 8px 0 0 8px"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Nuevo chat</a>
+<button type="button" class="btn btn-primary btn-icon" aria-label="Más formas de empezar" style="border-radius: 0 8px 8px 0; width: 30px; margin-left: 1px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+</header>
+
+<main class="page">
+
+<div class="page-head">
+<div class="col" style="gap: 6px"><h1 class="t-h1">Uso</h1><p class="fg-2 t-sm" style="margin: 0">Lo que han gastado tus chats, por día, proyecto y modelo.</p></div>
+<div class="seg" role="radiogroup" aria-label="Periodo"><button type="button" role="radio" aria-checked="false">7 días</button><button type="button" role="radio" aria-checked="true" class="on">30 días</button><button type="button" role="radio" aria-checked="false">90 días</button><button type="button" role="radio" aria-checked="false">Todo</button><button type="button" role="radio" aria-checked="false">Personalizado</button></div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+<button type="button" aria-pressed="true" class="card kpi grad-border glow-top" style="text-align: left"><span class="t-label">Coste</span><span class="v grad-text" style="font-size: 32px">1145,86 US$</span><span class="t-xs fg-3 mono">27 ago – 25 sep</span></button>
+<button type="button" aria-pressed="false" class="card kpi card-link" style="text-align: left"><span class="t-label">Tokens</span><span class="v">3.632 M</span><span class="t-xs fg-3 mono">3.631.850.299</span></button>
+<button type="button" aria-pressed="false" class="card kpi card-link" style="text-align: left"><span class="t-label">Chats</span><span class="v">228</span><span class="t-xs fg-3 mono">en el periodo</span></button>
+<div class="card kpi" style="background: var(--bg-1)"><span class="t-label">Día con más gasto</span><span class="v">807,93 US$</span><span class="t-xs fg-3 mono">mié 23 sep · 70% del periodo</span></div>
+</div>
+
+<section class="card col" style="gap: 0">
+<div class="card-head"><h2 class="t-h2 grow">Coste por día</h2><div class="seg" role="radiogroup" aria-label="Agrupar"><button type="button" role="radio" aria-checked="true" class="on">Día</button><button type="button" role="radio" aria-checked="false">Semana</button></div><button type="button" class="btn btn-sm">Ver tabla</button></div>
+<div class="row" style="padding: 22px 22px 14px; gap: 12px; align-items: stretch">
+<div class="col mono t-xs fg-3" style="width: 60px; height: 260px; justify-content: space-between; align-items: flex-end; margin-top: -7px"><span>900 US$</span><span>600 US$</span><span>300 US$</span><span>0</span></div>
+<div class="col grow" style="gap: 8px">
+<div style="position: relative; height: 260px; border-bottom: 1px solid var(--line-2); background-image: linear-gradient(var(--line) 1px, transparent 1px); background-size: 100% 86.67px">
+<div style="position: absolute; inset: 0; display: grid; grid-template-columns: repeat(30, minmax(0, 1fr)); gap: 6px; align-items: end">
+<div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="22,00 US$" style="height: 6px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: color-mix(in srgb, #ec8a66 60%, transparent)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="Sin gasto" style="height: 2px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: var(--bg-4)"></div><div title="807,93 US$" style="height: 233px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, #f3a07c, #e0668f); box-shadow: 0 0 24px -4px rgba(224, 102, 143, 0.7)"></div><div title="305,00 US$" style="height: 88px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: color-mix(in srgb, #ec8a66 60%, transparent)"></div><div title="10,90 US$" style="height: 3px; width: 72%; justify-self: center; border-radius: 4px 4px 0 0; background: color-mix(in srgb, #ec8a66 60%, transparent)"></div>
+</div>
+<div class="tooltip pop-in" style="position: absolute; right: 76px; top: 4px"><span class="mono" style="opacity: 0.7">mié 23 sep</span><span style="font-weight: 600; font-size: 13px">807,93 US$</span></div>
+</div>
+<div class="row mono t-xs fg-3" style="justify-content: space-between"><span>27 ago</span><span>3 sep</span><span>10 sep</span><span>17 sep</span><span>25 sep</span></div>
+</div>
+</div>
+<p class="t-xs fg-3" style="margin: 0; padding: 0 22px 18px">Coste informado por Claude Code, contado el día en que terminó cada ejecución. Los chats de terminal solo informan de tokens.</p>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+<section class="card card-pad col" style="gap: 14px">
+<h2 class="t-h2">Por proyecto</h2>
+<div class="col" style="gap: 6px"><div class="row t-sm"><span class="proj" style="width: 20px; height: 20px; font-size: 9px; background: var(--accent-soft); color: var(--accent)">CW</span><span class="grow">claude-wrapper</span><span class="t-num">1137,53 US$</span></div><div class="bar grad"><i style="width: 99.3%"></i></div></div>
+<div class="col" style="gap: 6px"><div class="row t-sm"><span class="proj" style="width: 20px; height: 20px; font-size: 9px; background: var(--info-soft); color: var(--info)">GD</span><span class="grow">google-docs-mcp</span><span class="t-num">8,31 US$</span></div><div class="bar grad"><i style="width: 1%; min-width: 4px"></i></div></div>
+<div class="row t-sm fg-2"><span class="grow">Sin proyecto</span><span class="t-num">0,02 US$</span></div>
+<div class="row t-sm fg-3"><span class="grow">obra10</span><span>sin datos</span></div>
+</section>
+<section class="card card-pad col" style="gap: 10px">
+<h2 class="t-h2" style="padding-bottom: 4px">Por modelo</h2>
+
+<div class="row t-sm" style="gap: 12px"><span style="width: 118px">Opus 5</span><span class="bar grow"><i style="min-width: 3px; background: var(--grad); width: 100.0%"></i></span><span class="t-num" style="width: 90px; text-align: right">990,11 US$</span></div>
+
+<div class="row t-sm" style="gap: 12px"><span style="width: 118px">Opus 5 (1M)</span><span class="bar grow"><i style="min-width: 3px; background: var(--grad); width: 6.8%"></i></span><span class="t-num" style="width: 90px; text-align: right">67,08 US$</span></div>
+
+<div class="row t-sm" style="gap: 12px"><span style="width: 118px">Fable 5.1</span><span class="bar grow"><i style="min-width: 3px; background: var(--grad); width: 5.1%"></i></span><span class="t-num" style="width: 90px; text-align: right">50,11 US$</span></div>
+
+<div class="row t-sm" style="gap: 12px"><span style="width: 118px">Sonnet 5</span><span class="bar grow"><i style="min-width: 3px; background: var(--grad); width: 3.1%"></i></span><span class="t-num" style="width: 90px; text-align: right">30,58 US$</span></div>
+
+<div class="row t-sm" style="gap: 12px"><span style="width: 118px">Opus 5.5</span><span class="bar grow"><i style="min-width: 3px; background: var(--grad); width: 0.7%"></i></span><span class="t-num" style="width: 90px; text-align: right">7,10 US$</span></div>
+
+<div class="row t-sm" style="gap: 12px"><span style="width: 118px">Opus 5.5 (1M)</span><span class="bar grow"><i style="min-width: 3px; background: var(--grad); width: 0.1%"></i></span><span class="t-num" style="width: 90px; text-align: right">0,86 US$</span></div>
+
+<div class="row t-sm" style="gap: 12px"><span style="width: 118px">Haiku 4.5</span><span class="bar grow"><i style="min-width: 3px; background: var(--grad); width: 0.0%"></i></span><span class="t-num" style="width: 90px; text-align: right">0,02 US$</span></div>
+
+<span class="t-xs fg-3">El coste por modelo solo se registra desde esta versión.</span>
+</section>
+</div>
+</main>
+
+
+<footer class="app statusbar" data-theme="dark" style="width: 1184px">
+<a href="DesktopCuentas.html" class="row" style="gap: 7px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>yeyo@inmoseo.net</a>
+<span class="row" style="gap: 6px">5h<span class="bar bar-thin grad"><i style="width: 45%"></i></span>45%</span>
+<span class="row" style="gap: 6px">7d<span class="bar bar-thin grad"><i style="width: 5%"></i></span>5%</span>
+<span class="grow"></span>
+<span class="row" style="gap: 6px"><span class="spin-braille"></span>3 en marcha</span>
+<span>hoy 3,41 US$</span>
+<span>Claude Code 2.1.282</span>
+</footer>
+
+</div>
+</div>
+</body></html>

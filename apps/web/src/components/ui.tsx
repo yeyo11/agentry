@@ -23,6 +23,7 @@ import { errorMessage } from '../lib/format';
 import { Combobox, type ComboboxOption } from './controls/Combobox';
 import { Tooltip } from './controls/Tooltip';
 import { ICON, ICON_SM } from './icons';
+import { Illustration, type IllustrationName, type IllustrationSize, type IllustrationTone } from './illustrations';
 import { AnimatePresence, motion, SlidingIndicator, useIndicatorId } from './motion';
 
 const TONES = {
@@ -128,22 +129,38 @@ export function Loading({ label }: { label?: string }) {
   );
 }
 
+/**
+ * An empty, error or system state. With an `illustration` it is the full pattern of design system
+ * §4 (illustration, title, a sentence or two, a primary action and at most one secondary), for a
+ * state that takes the place of a list or a page. Without one it stays the compact icon version,
+ * for dialogs, editors and panels that sit beside other content.
+ */
 export function Empty({
   title,
   children,
   action,
   icon: Icon = Inbox,
+  illustration,
+  tone,
+  size,
 }: {
   title: string;
   children?: ReactNode;
   action?: ReactNode;
   icon?: LucideIcon;
+  illustration?: IllustrationName;
+  tone?: IllustrationTone;
+  size?: IllustrationSize;
 }) {
   return (
-    <div className="state state-empty">
-      <span className="state-icon" aria-hidden>
-        <Icon size={20} strokeWidth={1.75} />
-      </span>
+    <div className={illustration ? 'state state-empty state-illustrated' : 'state state-empty'}>
+      {illustration ? (
+        <Illustration name={illustration} tone={tone} size={size} />
+      ) : (
+        <span className="state-icon" aria-hidden>
+          <Icon size={20} strokeWidth={1.75} />
+        </span>
+      )}
       <strong>{title}</strong>
       {children && <div className="muted">{children}</div>}
       {action && <div className="state-action">{action}</div>}

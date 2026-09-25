@@ -9,8 +9,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="color-scheme" content="dark light" />
     <meta name="description" content="Control panel for Claude Code: runs, sessions, orchestration and configuration." />
-    <meta name="theme-color" content="#0a0a0c" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#faf9f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#09090b" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <!-- iOS reads none of the manifest: the standalone window, the status bar and the home-screen
@@ -24,11 +24,14 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <title>Agentry</title>
     <script>
-      // Stamp the saved theme before first paint (src/lib/theme.tsx owns it afterwards)
+      // Stamp the theme before first paint (src/lib/theme.tsx owns it afterwards). Nothing stored
+      // means dark, which is also what the bare :root tokens paint if this never runs.
+      var theme = 'dark';
       try {
-        var theme = localStorage.getItem('agentry-theme');
-        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+        var stored = localStorage.getItem('agentry-theme');
+        if (stored === 'light' || stored === 'dark' || stored === 'system') theme = stored;
       } catch (e) {}
+      document.documentElement.dataset.theme = theme;
     </script>
   </head>
   <body>

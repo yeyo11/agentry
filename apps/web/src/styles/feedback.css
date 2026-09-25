@@ -1,24 +1,29 @@
 /* Status and feedback: badges, dots, alerts, empty states, skeletons, facts. */
 /*
- * A badge is data, not decoration: mono text, no fill, a 1px border and the tone carried by the
- * icon or dot beside the word. `--tone` is the only thing a variant sets, so a new one is a line.
+ * A badge is a state label: mono, uppercase, on a soft fill of its tone. `--tone` and `--tone-soft`
+ * are all a variant sets, so a new one is two lines. The word is always there: the colour only
+ * repeats it.
  */
 .badge {
-  --tone: var(--text-faint);
+  --tone: var(--text-muted);
+  --tone-soft: var(--bg-hover);
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 0 6px;
+  min-height: 20px;
+  padding: 0 7px;
   border-radius: var(--radius-xs);
   border: 1px solid var(--border);
-  background: transparent;
+  background: var(--tone-soft);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
   line-height: 1.7;
+  text-transform: uppercase;
   white-space: nowrap;
-  color: var(--text-muted);
+  color: var(--tone);
 }
 
 .badge > svg,
@@ -29,50 +34,62 @@
 a.badge:hover {
   text-decoration: none;
   border-color: var(--border-strong);
-  background: var(--bg-hover);
+}
+
+.badge-ok,
+.badge-bad,
+.badge-warn,
+.badge-info,
+.badge-idle,
+.badge-active,
+.badge-project {
+  border-color: transparent;
 }
 
 .badge-ok {
   --tone: var(--ok);
-  border-color: color-mix(in srgb, var(--ok) 26%, var(--border));
-  color: var(--ok);
+  --tone-soft: var(--ok-soft);
 }
 
 .badge-bad {
   --tone: var(--bad);
-  border-color: color-mix(in srgb, var(--bad) 26%, var(--border));
-  color: var(--bad);
+  --tone-soft: var(--bad-soft);
 }
 
 .badge-warn {
   --tone: var(--warn);
-  border-color: color-mix(in srgb, var(--warn) 26%, var(--border));
-  color: var(--warn);
+  --tone-soft: var(--warn-soft);
 }
 
 .badge-info {
   --tone: var(--info);
-  border-color: color-mix(in srgb, var(--info) 26%, var(--border));
-  color: var(--info);
+  --tone-soft: var(--info-soft);
 }
 
 .badge-idle {
   --tone: var(--idle);
-  border-color: color-mix(in srgb, var(--idle) 26%, var(--border));
-  color: var(--idle);
+  --tone-soft: var(--idle-soft);
 }
 
 /* Something happening now is `--live`, not the accent: the accent is what you can press. */
 .badge-active {
   --tone: var(--live);
-  border-color: color-mix(in srgb, var(--live) 30%, var(--border));
-  color: var(--live);
+  --tone-soft: var(--live-soft);
 }
 
+/* A project is a name, not a state: it keeps its own case */
 .badge-project {
-  --tone: var(--accent-2);
-  border-color: color-mix(in srgb, var(--accent-2) 26%, var(--border));
-  color: var(--accent-2);
+  --tone: var(--accent);
+  --tone-soft: var(--accent-soft);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* The gradient badge: only for what is in use (the active account) */
+.badge-grad {
+  border-color: transparent;
+  background: var(--grad);
+  color: var(--accent-text);
 }
 
 .status-dot {
@@ -96,7 +113,7 @@ a.badge:hover {
   inset: 0;
   border-radius: 50%;
   background: inherit;
-  animation: ping 1.6s var(--ease-out) infinite;
+  animation: ping var(--ping-cycle) var(--ease-out) infinite;
 }
 
 .tone-ok {
@@ -119,13 +136,11 @@ a.badge:hover {
   --dot: var(--idle);
 }
 
+/* Active means an agent is on it: live cyan, like every other live mark */
 .tone-active {
-  --dot: var(--accent);
+  --dot: var(--live);
 }
 
-.tone-ok:not(.is-live) {
-  box-shadow: 0 0 0 3px var(--ok-soft);
-}
 
 /* Legacy dots still used by a few tables */
 .pulse {
@@ -133,7 +148,7 @@ a.badge:hover {
   height: 6px;
   border-radius: 50%;
   background: currentColor;
-  animation: pulse 1.2s ease-in-out infinite;
+  animation: pulse var(--pulse-cycle) ease-in-out infinite;
 }
 
 .dot {
@@ -146,70 +161,127 @@ a.badge:hover {
 
 .dot-ok {
   background: var(--ok);
-  box-shadow: 0 0 0 3px var(--ok-soft);
 }
 
 .dot-warn {
   background: var(--warn);
-  box-shadow: 0 0 0 3px var(--warn-soft);
 }
 
 .dot-bad {
   background: var(--bad);
-  box-shadow: 0 0 0 3px var(--bad-soft);
 }
 
-.spinner {
+.dot-live {
+  background: var(--live);
+}
+
+/* Waiting for the user: a hollow ring, so it reads apart from the filled states without colour */
+.dot-idle {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--idle);
+}
+
+/*
+ * Ring spinners, drawn as a conic sweep cut to a ring. `.spinner` is the UI's own loading (in the
+ * brand's colours: it is not an agent); `.spinner-ring` is a task in progress, in live cyan;
+ * `.spinner-xs` takes the colour of the text it sits in (a badge's tone).
+ */
+.spinner,
+.spinner-ring {
+  --spinner-w: 2px;
   display: inline-block;
+  flex: none;
   width: 14px;
   height: 14px;
-  border: 2px solid var(--border-strong);
-  border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+  background: conic-gradient(from 0deg, transparent 0 20%, var(--accent), var(--accent-rose));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--spinner-w)), var(--mask-ink) calc(100% - var(--spinner-w)));
+  mask: radial-gradient(farthest-side, transparent calc(100% - var(--spinner-w)), var(--mask-ink) calc(100% - var(--spinner-w)));
+  animation: spin var(--ring-spin-cycle) linear infinite;
   vertical-align: -2px;
 }
 
+.spinner-ring {
+  width: 16px;
+  height: 16px;
+  background: conic-gradient(from 0deg, transparent 0 25%, var(--live));
+}
+
 .spinner-xs {
+  --spinner-w: 1.5px;
   width: 9px;
   height: 9px;
-  border-width: 1.5px;
-  border-color: color-mix(in srgb, currentColor 30%, transparent);
-  border-top-color: currentColor;
+  background: conic-gradient(from 0deg, transparent 0 25%, currentColor);
   vertical-align: 0;
 }
 
+/* Thinking, with no tool running: three dots, in live cyan because an agent is at work */
+.spinner-dots,
 .thinking-dots {
   display: inline-flex;
   align-items: center;
+  gap: 3px;
+  color: var(--live);
+}
+
+.thinking-dots {
   gap: 4px;
   padding: 6px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--bg-hover);
+}
+
+.spinner-dots > i,
+.thinking-dots span {
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: bounce-dot var(--dots-cycle) ease-in-out infinite;
 }
 
 .thinking-dots span {
   width: 5px;
   height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: bounce-dot 1.2s ease-in-out infinite;
 }
 
+.spinner-dots > i:nth-child(2),
 .thinking-dots span:nth-child(2) {
-  animation-delay: 0.15s;
+  animation-delay: var(--dots-step);
 }
 
+.spinner-dots > i:nth-child(3),
 .thinking-dots span:nth-child(3) {
-  animation-delay: 0.3s;
+  animation-delay: calc(var(--dots-step) * 2);
 }
 
+/* The verb of what is going on now ("Thinking"), with light running across it */
+.shimmer {
+  background: linear-gradient(90deg, var(--text-faint) 30%, var(--text) 50%, var(--text-faint) 70%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer var(--shimmer-text-cycle) linear infinite;
+}
+
+/*
+ * Rings: context, limits, stage progress. Neutral below 60 %, warn from 60 %, bad from 75 % or when
+ * exhausted (`usageTone` in components/motion picks the class); `accent` is the brand's sweep for
+ * a figure that is not a limit.
+ */
 .ring {
   position: relative;
   display: inline-flex;
   flex: none;
-  --ring-from: #e58a63;
-  --ring-to: #c8527a;
+  --ring-from: var(--accent);
+  --ring-to: var(--accent-rose);
+}
+
+.ring-neutral {
+  --ring-from: var(--text-muted);
+  --ring-to: var(--text-muted);
 }
 
 .ring-ok {
@@ -219,23 +291,31 @@ a.badge:hover {
 
 .ring-warn {
   --ring-from: var(--warn);
-  --ring-to: #e88a4a;
+  --ring-to: var(--warn);
 }
 
 .ring-bad {
   --ring-from: var(--bad);
-  --ring-to: #d8456b;
+  --ring-to: var(--bad);
 }
 
 .ring-track {
-  stroke: var(--bg-hover);
+  stroke: var(--bg-4);
 }
 
 .ring-value {
-  transition: stroke-dashoffset 0.9s var(--ease-out);
+  transition: stroke-dashoffset var(--dur-meter) var(--ease-out);
 }
 
 .ring-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.ring .ring-label {
   position: absolute;
   inset: 0;
   display: flex;
@@ -250,12 +330,13 @@ a.badge:hover {
   gap: 8px;
   padding: 26px;
   text-align: center;
-  color: var(--text-muted);
+  color: var(--fg-2);
 }
 
+/* The compact version: an icon tile, for dialogs, editors and panels beside other content */
 .state-empty {
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   padding: 30px 22px;
 }
 
@@ -266,33 +347,64 @@ a.badge:hover {
   width: 44px;
   height: 44px;
   margin-bottom: 8px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: radial-gradient(circle at 30% 20%, var(--accent-soft), var(--accent-2-soft) 70%, transparent);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-2);
+  background: var(--bg-3);
   color: var(--accent);
+  box-shadow: var(--shadow-raised);
 }
 
 .state-empty strong {
-  color: var(--text);
+  color: var(--fg);
   font-weight: 600;
   font-size: 14px;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 
 .state-empty .muted {
   max-width: 46ch;
   font-size: 13px;
+  line-height: 1.55;
+  color: var(--fg-2);
 }
 
 .state-action {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
   margin-top: 12px;
+}
+
+/* The full pattern (design system §4, `.empty-state`): illustration, title, text, actions */
+.state-illustrated {
+  gap: 14px;
+  padding: 40px 24px;
+}
+
+.state-illustrated strong {
+  font-size: 17px;
+}
+
+.state-illustrated .muted {
+  max-width: 420px;
+  font-size: 13.5px;
+}
+
+/* The shared gap already spaces the actions from the text */
+.state-illustrated .state-action {
+  margin-top: 0;
 }
 
 .alert {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px 13px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-sunken);
+  padding: 12px 14px;
+  font-size: 13px;
   overflow-wrap: anywhere;
   animation: fade-rise var(--dur-base) var(--ease-out);
 }
@@ -307,7 +419,7 @@ a.badge:hover {
 }
 
 .alert-bad {
-  border-color: color-mix(in srgb, var(--bad) 35%, transparent);
+  border-color: transparent;
   background: var(--bad-soft);
 }
 
@@ -316,7 +428,7 @@ a.badge:hover {
 }
 
 .alert-warn {
-  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+  border-color: transparent;
   background: var(--warn-soft);
 }
 
@@ -325,7 +437,7 @@ a.badge:hover {
 }
 
 .alert-info {
-  border-color: color-mix(in srgb, var(--info) 35%, transparent);
+  border-color: transparent;
   background: var(--info-soft);
 }
 
@@ -341,10 +453,10 @@ a.badge:hover {
 }
 
 .skeleton {
-  border-radius: 6px;
-  background: linear-gradient(100deg, var(--bg-hover) 30%, var(--border-strong) 50%, var(--bg-hover) 70%);
-  background-size: 220% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(100deg, var(--bg-hover) 30%, var(--bg-4) 50%, var(--bg-hover) 70%);
+  background-size: 200% 100%;
+  animation: shimmer var(--shimmer-cycle) linear infinite;
 }
 
 .kv {
@@ -394,12 +506,6 @@ a.badge:hover {
   flex: 1 1 12rem;
 }
 
-.meters {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
 .gauges {
   display: flex;
   flex-wrap: wrap;
@@ -414,7 +520,7 @@ a.badge:hover {
 
 .gauge-value {
   font-size: 18px;
-  font-weight: 680;
+  font-weight: 600;
   letter-spacing: -0.02em;
 }
 
@@ -423,35 +529,39 @@ a.badge:hover {
   flex-direction: column;
 }
 
+/* Sentence case, as the copy is written: capitalising read "Se Reinicia En" */
 .gauge-name {
   font-weight: 600;
-  text-transform: capitalize;
 }
 
 .meter-head {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 5px;
-  text-transform: capitalize;
+  margin-bottom: 6px;
 }
 
 .meter-track {
-  height: 8px;
-  border-radius: 999px;
-  background: var(--bg-hover);
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-4);
   overflow: hidden;
 }
 
 .meter-thin {
-  height: 5px;
+  height: 4px;
 }
 
+/* Neutral until it means something: warn from 60 %, bad from 75 % */
 .meter-fill {
   height: 100%;
-  background: var(--gradient-accent);
-  border-radius: 999px;
-  transition: width 0.7s var(--ease-out);
+  background: var(--text-muted);
+  border-radius: var(--radius-pill);
+  transition: width var(--dur-meter) var(--ease-out);
+}
+
+.meter-fill.is-ok {
+  background: var(--ok);
 }
 
 .meter-fill.is-warn {
@@ -485,8 +595,8 @@ a.badge:hover {
 
 .scroll-jump .icon-btn {
   pointer-events: auto;
-  background: var(--surface-2, var(--surface));
+  background: var(--bg-elev);
   border: 1px solid var(--border-strong);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 0.28);
+  box-shadow: var(--shadow-float);
   backdrop-filter: blur(6px);
 }

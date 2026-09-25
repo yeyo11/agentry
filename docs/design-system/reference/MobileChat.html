@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Chat (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app m-screen" data-theme="dark" style="font-size: 15px">
+<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 2px; border-bottom: 1px solid var(--line); background: var(--bg-1)">
+<a href="MobileChats.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver a chats"><svg class="ico ico-lg" viewBox="0 0 24 24" style="stroke-width: 2"><path d="m15 6-6 6 6 6"></path></svg></a>
+<span class="col grow" style="gap: 2px"><span class="ellipsis" style="font-weight: 600; font-size: 15px">Revisa la PWA y la app desktop</span><span class="row t-xs mono" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">trabajando</span><span class="fg-3">· 14% · 2,55 US$</span></span></span>
+<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Detalles del chat"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0zM12 11v5M12 8h.01"></path></svg></button>
+</header>
+
+<div class="col" style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px 18px; gap: 14px; line-height: 1.6">
+<div class="row t-xs mono fg-3" style="gap: 6px"><svg class="ico ico-sm c-ok" viewBox="0 0 24 24" style="stroke-width: 2.4"><path d="m5 12 5 5 9-10"></path></svg>4 herramientas · 1 min 5 s<span class="badge">Bash ×3</span><span class="badge">Write</span></div>
+<p style="margin: 0">He lanzado la orquestación con Sonnet. Parte de <code>main</code> en la rama <code>fix/spanish-copy</code>.</p>
+<a href="MobileOrquestacion.html" class="card grad-border col" style="padding: 12px 14px; gap: 10px; border-radius: 14px">
+<span class="row" style="gap: 10px"><span class="proj" style="background: var(--accent-soft); color: var(--accent)">SC</span><span class="col grow" style="gap: 1px"><span style="font-weight: 600; font-size: 14px">spanish-copy</span><span class="mono t-xs c-live">en curso · etapa 2 de 3</span></span><svg class="ico fg-3" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></span>
+<span class="segbar" style="height: 4px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 70%"></i><i class="live" style="--p: 45%"></i><i class="live" style="--p: 20%"></i><i></i></span>
+</a>
+<ul class="col" style="margin: 0; padding-left: 20px; gap: 6px">
+<li><strong>Glosario primero:</strong> el problema empieza ahí.</li>
+<li><strong>Ficheros en paralelo:</strong> cuatro tareas se reparten los 19 ficheros.</li>
+<li><strong>Coherencia y verificación:</strong> typecheck, tests, build y e2e.</li>
+</ul>
+<div class="row t-sm" style="gap: 8px"><span class="spin-braille"></span><span class="shimmer" style="font-weight: 500">Ejecutando</span><span class="mono t-xs fg-3">Compare styles · 15s</span></div>
+</div>
+
+<div class="col" style="flex-shrink: 0; padding: 8px 12px 28px; gap: 8px; border-top: 1px solid var(--line); background: var(--bg-1)">
+<div class="row" style="gap: 6px; overflow: hidden"><button type="button" class="chip" style="height: 32px">Opus 5.5</button><button type="button" class="chip" style="height: 32px; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent)">Sin permisos</button><button type="button" class="chip" style="height: 32px">MCP</button></div>
+<div class="card energy row" style="border-radius: 24px; padding: 4px; gap: 4px; align-items: flex-end">
+<button type="button" class="btn btn-ghost btn-icon" aria-label="Adjuntar" style="width: 40px; height: 40px; border-radius: 50%"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></button>
+<label class="grow" style="display: flex; min-height: 40px; align-items: center"><textarea rows="1" placeholder="Envía un mensaje" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: 16px; padding: 0"></textarea></label>
+<button type="button" class="btn btn-danger btn-icon" aria-label="Detener" style="width: 40px; height: 40px; border-radius: 50%"><svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: currentColor"><path d="M6 6h12v12H6z"></path></svg></button>
+</div>
+</div>
+</div>
+</body></html>

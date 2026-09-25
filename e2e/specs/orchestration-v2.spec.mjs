@@ -4,7 +4,7 @@
 // graph that already ran. Nothing is logged in inside the sandbox, so every worker fails at once: the
 // graph is stopped to be a finished one, which is what these controls are for. On the way, the
 // detail page is read as steps (followed, picked, back to the latest), a task's chat opens beside it,
-// the graph view carries every stage's progress, and the list is searched and has its templates tab.
+// the graph view carries every stage's progress, and the list is searched and opens its templates from the header.
 //
 // The verification outcome card is not driven here: an outcome only exists once the core runs the
 // checks on a real integration branch, which needs a repository and a logged-in CLI.
@@ -76,7 +76,7 @@ export default async ({ page, api, check, dirs }) => {
     // The survey failed and the fix never ran: two stages, and the page follows the one that failed
     const steps = await page.eval(`return [...document.querySelectorAll('main .stepper .step')].map((s) => s.textContent)`);
     check(steps.length === 2 && steps[0].includes('Stage 1') && steps[1].includes('Stage 2'), `the stepper shows both stages (${JSON.stringify(steps)})`);
-    check(steps[0].includes('Failed'), 'the failed stage says so in words, not in colour alone');
+    check(steps[0].includes('failed'), 'the failed stage says so in words, not in colour alone');
     check(
       (await page.eval(`return document.querySelector('main .stepper [aria-current=step]')?.textContent ?? ''`)).includes('Stage 1'),
       'the stepper follows the step where the graph stopped',
@@ -144,10 +144,13 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.text('main')).includes('No orchestration matches'), 'a search that finds nothing says so');
 
     // ---------- launch the template ----------
-    // Templates are a tab of the page, with their count, not a card above the list
+    // Templates are a button in the page's header, with their count, not a card above the list
     await page.goto('/orchestration', 1500);
-    await page.click('main [role=tab]', 'Templates', 600);
-    await page.waitFor(`return new URLSearchParams(location.search).get('tab') === 'templates'`, { label: 'the templates tab' });
+    await page.click('main .page-actions button.orch-templates-btn', 'Templates', 600);
+    await page.waitFor(
+      `return new URLSearchParams(location.search).get('tab') === 'templates' && document.querySelector('main .orch-templates-btn')?.getAttribute('aria-pressed') === 'true'`,
+      { label: 'the templates view' },
+    );
     check((await page.text('main')).includes('e2e-v2 template'), 'the template is listed');
     await clickButton('Launch');
     await page.fill('[role=dialog] textarea', 'the same graph on another objective');

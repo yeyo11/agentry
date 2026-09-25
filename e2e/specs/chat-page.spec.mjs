@@ -42,17 +42,18 @@ export default async ({ page, api, check }) => {
     // ---- one header line: title, a pill that says state and who holds it, icon actions ----
     const head = await page.eval(`const h=document.querySelector('.chat-head');return {height:h.getBoundingClientRect().height,text:h.innerText}`);
     check(head.height <= 60, `the header is one line (${head.height}px)`);
-    const pill = await page.text('.chat-pill');
+    // The pill is uppercase by CSS (Night Shift): its words are read from the DOM
+    const pill = await page.eval(`return document.querySelector('.chat-pill')?.textContent ?? ''`);
     check(pill.includes('Idle') && pill.includes('resumable'), `the pill says the state and who holds the chat (${pill})`);
     check(!head.text.includes(SESSION), 'the raw id is not in the header');
 
     // ---- the turn's three calls are one step, folded because it is done ----
     const step = await page.eval(
-      `const s=document.querySelector('.msg-step');return s?{text:s.innerText,state:s.querySelector('.collapsible-trigger')?.dataset.state}:null`,
+      `const s=document.querySelector('.msg-step');return s?{text:s.innerText,tools:[...s.querySelectorAll('.step-tools .badge')].map((b)=>b.textContent).join(' · '),state:s.querySelector('.collapsible-trigger')?.dataset.state}:null`,
     );
     check(step !== null, 'the tool calls are folded into a step');
     check(step?.text.includes('3 tools') && step?.text.includes('1 failed'), `the step says how many calls and how many failed (${step?.text})`);
-    check(step?.text.includes('Read · Grep · Bash'), 'the step names its tools in order');
+    check(step?.tools === 'Read · Grep · Bash', `the step names its tools in order, each as a badge (${step?.tools})`);
     check(step?.state === 'closed', 'a step that is done is folded');
     // Claude speaks once for the whole turn: the answer after the step does not repeat the author
     const heads = await page.eval(`return document.querySelectorAll('.transcript .msg-head').length`);
@@ -75,6 +76,8 @@ export default async ({ page, api, check }) => {
     // ---- the inspector: a drawer with four tabs, open by default on a wide screen, and remembered closed ----
     const tabs = await page.eval(`return [...document.querySelectorAll('.chat-inspector [role=tab]')].map((t)=>t.textContent.trim()).join('|')`);
     check(tabs === 'Summary|Activity|Changes|Environment', `the inspector has its four tabs (${tabs})`);
+    const clipped = await page.eval(`const s=document.querySelector('.chat-inspector [role=tablist]');return s.scrollWidth-s.clientWidth`);
+    check(clipped <= 0, `every tab label fits the drawer (${clipped}px over)`);
     check((await page.text('.chat-inspector')).includes(SESSION), 'the id lives in the inspector');
     check(!(await page.eval(`return !!document.querySelector('.chat-head button[aria-label="Chat details"]')`)), 'with a drawer beside it the header needs no details button');
     await page.click('.chat-inspector button[aria-label="Hide details"]');

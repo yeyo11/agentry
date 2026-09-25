@@ -45,7 +45,7 @@
     "internalHint": "Housekeeping chats of Agentry itself (the planner, the auth check)",
     "emptyFiltered": "No chats match",
     "empty": "No chats yet",
-    "emptyFilteredBody": "Try resetting the filters.",
+    "emptyFilteredBody": "Nothing in this list matches the search or the filters in force.",
     "emptyBody": "Chats you start here, and the ones Claude Code has run in an imported project, appear in this list.",
     "showMore": "Show more ({{n}} left)",
     "filtersTitle": "Filter chats",
@@ -72,7 +72,20 @@
       "week": "This week",
       "earlier": "Earlier"
     },
-    "keysHint": "j / k to move · Enter to open · x to select · / to search"
+    "keysHint": "j / k to move · Enter to open · x to select · / to search",
+    "summary_one": "{{count}} working · {{waiting}} waiting for you",
+    "summary_other": "{{count}} working · {{waiting}} waiting for you",
+    "noCost": "no cost",
+    "contextShort": "context",
+    "importProject": "Import a project",
+    "columns": {
+      "chat": "Chat",
+      "project": "Project",
+      "origin": "Origin",
+      "context": "Context",
+      "cost": "Cost",
+      "activity": "Activity"
+    }
   },
   "bulk": {
     "region": "Selected chats",
@@ -100,7 +113,8 @@
     "deleted_other": "{{count}} chats deleted",
     "skippedNote_one": "Left alone: {{titles}}",
     "skippedNote_other": "Left alone ({{count}}): {{titles}}",
-    "failed": "Could not delete {{title}}"
+    "failed": "Could not delete {{title}}",
+    "cancel": "Cancel"
   },
   "new": {
     "title": "New chat",
@@ -129,15 +143,7 @@
     "uploading": "Uploading…",
     "start": "Start chat",
     "welcome": {
-      "title": "Start something",
-      "lead": "Ask for a change, a review, an investigation. Claude Code runs it in the directory below and writes back here.",
-      "tips": {
-        "files": "Drop or paste files to attach them",
-        "send": "Ctrl/⌘ + Enter starts the chat",
-        "options": "The line under the box says where it runs — press it to change any of it"
-      },
       "examples": {
-        "title": "For instance",
         "one": "Read this project and tell me how it is laid out",
         "two": "Find where the retries are handled and explain the policy",
         "three": "Add a test for the case where the file is missing"

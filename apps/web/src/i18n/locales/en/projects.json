@@ -8,11 +8,13 @@
       "name": "Name",
       "chats": "Most chats"
     },
-    "noneMatch": "No projects match"
+    "noneMatch": "No projects match",
+    "noneMatchHint": "Try another name or path, or clear the search."
   },
   "page": {
-    "subtitle": "{{n}} imported · a project is a directory you import by hand; its worktrees belong to it",
-    "importDirectory": "Import a directory",
+    "subtitle_one": "{{n}} directory imported. Its worktrees belong to it.",
+    "subtitle_other": "{{n}} directories imported. Their worktrees belong to them.",
+    "importDirectory": "Import directory",
     "emptyHint": "Import a directory to make it a project, or create one in the workspace."
   },
   "importForm": {
@@ -36,7 +38,11 @@
     "importNamed": "Import {{name}}",
     "firstTitle": "Start with the directories you already work in",
     "firstBody": "Claude Code has run in these directories the most. Import the ones that are projects: their chats join them, and the rest stay out of the way. You can import any other directory by hand.",
-    "others": "Other directories with chats ({{n}})"
+    "moreTitle_one": "{{n}} more directory has chats",
+    "moreTitle_other": "{{n}} more directories have chats",
+    "moreBody": "Import them to group their chats, see them in Usage and start chats from here.",
+    "review": "Review",
+    "hide": "Hide"
   },
   "card": {
     "renameFailed": "Could not rename the project",
@@ -54,14 +60,17 @@
     "purgeBody_other": "This deletes its transcripts, background tasks, file history and its entry in Claude Code's configuration (<code>claude project purge</code>), so its {{n}} chats are gone for good. Your files are not touched. The project stays imported. <strong>This cannot be undone.</strong>",
     "purgeConfirm": "Purge for good",
     "nameLabel": "Project name",
-    "chats_one": "{{n}} chat",
-    "chats_other": "{{n}} chats",
     "openNamed": "Open {{name}}",
     "rename": "Rename",
-    "renameNamed": "Rename {{name}}",
-    "removeNamed": "Remove {{name}}",
     "purge": "Purge Claude Code state",
-    "purgeNamed": "Purge Claude Code state of {{name}}"
+    "purgeHint": "Asks for confirmation before deleting",
+    "remove": "Remove from Agentry",
+    "actionsNamed": "Actions for {{name}}",
+    "stats": {
+      "chats": "chats",
+      "worktrees": "worktrees",
+      "activity": "activity"
+    }
   },
   "worktrees": {
     "title": "Worktrees",

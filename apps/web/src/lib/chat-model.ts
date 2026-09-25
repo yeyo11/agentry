@@ -104,6 +104,9 @@ export function listRequest(filters: Pick<ChatFilters, 'internal' | 'workers'>):
   return { origin: originsToFetch(filters), ...(filters.workers ? {} : { workers: false as const }) };
 }
 
+// Shared with the server, which names chats in the notifications it builds
+export { displayTitle } from '@agentry/shared';
+
 // A row object is replaced whenever the chat changes (react-query keeps the ones that did not), so
 // its text is lowered once per version instead of on every keystroke of a search
 const searchTexts = new WeakMap<ChatSummary, string>();

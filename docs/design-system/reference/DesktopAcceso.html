@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Acceso con credencial (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app glow-top" data-theme="dark" style="width: 1440px; height: 900px; display: flex; align-items: center; justify-content: center; background-size: 100% 520px">
+<main class="card col" style="width: 460px; padding: 32px; gap: 18px; align-items: stretch">
+<div style="align-self: center; margin: -8px 0 -4px">
+
+<div class="app" data-theme="dark" style="display: inline-block; background: transparent">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<svg class="il" viewBox="0 0 240 160" aria-hidden="true"><defs><linearGradient id="il-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><pattern id="il-dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="il-fade-g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="il-fade"><rect x="0" y="0" width="240" height="160" fill="url(#il-fade-g)"></rect></mask></defs><rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
+<path d="M101 76 V60 a19 19 0 0 1 38 0 V76" class="ln-ink w4"></path>
+<rect x="88" y="72" width="64" height="56" rx="12" class="c2"></rect>
+<circle cx="120" cy="95" r="7" class="f-grad"></circle><rect x="117" y="99" width="6" height="14" rx="3" class="f-grad"></rect>
+<g class="a-float"><circle cx="188" cy="52" r="11" class="ln-grad w3"></circle><path d="M188 63 V104 M188 84 h8 M188 96 h6" class="ln-grad w3"></path></g>
+<g class="a-float-2"><rect x="16" y="98" width="60" height="22" rx="11" class="c2"></rect><text x="46" y="112.5" text-anchor="middle" class="txt">••••••</text></g>
+</svg>
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+</div>
+<div class="row" style="gap: 10px; justify-content: center"><span style="width: 26px; height: 26px; border-radius: 8px; background: var(--grad); display: grid; place-items: center; color: #fff"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span><span style="font-weight: 600; font-size: 15px">Agentry</span></div>
+<div class="col" style="gap: 6px; text-align: center"><h1 class="t-h1" style="font-size: 21px">Este wrapper pide una credencial</h1><p class="fg-2 t-sm" style="margin: 0; line-height: 1.55">Agentry está funcionando con autenticación por token. Pega el token que te dieron al crearlo; solo se guarda en este navegador.</p></div>
+<label class="col" style="gap: 6px"><span class="t-label">Token</span><span class="field field-lg"><svg class="ico" viewBox="0 0 24 24"><path d="M15 7a4 4 0 1 1-3.9 5H4v3H2v-5h9.1A4 4 0 0 1 15 7z"></path></svg><input type="password" placeholder="Pega el token" aria-label="Token"></span></label>
+<button type="button" class="btn btn-primary btn-lg">Entrar</button>
+<p class="t-xs fg-3" style="margin: 0; text-align: center; line-height: 1.5">Un token se muestra una sola vez, al crearlo. ¿Lo has perdido? Rótalo desde la máquina donde corre Agentry.</p>
+</main>
+</div>
+</body></html>

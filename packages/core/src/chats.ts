@@ -138,6 +138,8 @@ export interface ChatRuntime {
   /** The process's state, as the stream reports it: a chat's own state is derived from it */
   status: RunStatus;
   pid: number | null;
+  /** When the live process started; null without one */
+  processStartedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   endedAt: string | null;
@@ -228,6 +230,8 @@ class LiveChat {
   /** The execution a wrapper restart cut off, when this chat was restored with one: its stop time is still an estimate */
   cutOff: Execution | null = null;
   proc: ChildProcessWithoutNullStreams | null = null;
+  /** When `proc` was spawned: its stream reports every workflow started since, and none before */
+  procStartedAt: string | null = null;
   seq = 0;
   status: RunStatus = 'starting';
   model: string | null;
@@ -438,6 +442,7 @@ class LiveChat {
       permissionMode: this.permissionMode,
       status: this.status,
       pid: this.alive ? (this.proc?.pid ?? null) : null,
+      processStartedAt: this.alive ? this.procStartedAt : null,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       endedAt: this.endedAt,
@@ -1358,6 +1363,7 @@ export class ChatManager extends EventEmitter {
     const env = launch.configDir ? { ...base, CLAUDE_CONFIG_DIR: launch.configDir } : base;
     const proc = spawn(bin, argv, { cwd: chat.cwd, env, stdio: 'pipe' });
     chat.proc = proc;
+    chat.procStartedAt = now();
     // The chat's status follows the process it tracks and no other: an earlier process ending late
     // used to mark the chat failed while its current one was still working
     const current = () => chat.proc === proc;

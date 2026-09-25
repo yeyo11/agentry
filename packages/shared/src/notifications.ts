@@ -1,3 +1,4 @@
+import { displayTitle } from './chat-title.ts';
 import { detailHref } from './detail.ts';
 import type { AgentryEvent, ChatSummary, LocalizedParams, PermissionRequest, RunWaitingReason } from './types.ts';
 
@@ -198,7 +199,7 @@ const reasonOf = (toolName: string): RunWaitingReason => (toolName === 'AskUserQ
  * prompt that is in the list already is not told twice.
  */
 export function waitingDrafts(
-  chat: Pick<ChatSummary, 'id' | 'title' | 'orchestration'>,
+  chat: Pick<ChatSummary, 'id' | 'title' | 'firstPrompt' | 'orchestration'>,
   requests: readonly PermissionRequest[],
   text: NotificationText = englishNotificationText,
 ): NotificationDraft[] {
@@ -212,7 +213,7 @@ export function waitingDrafts(
       kind: 'waiting',
       priority: 'high',
       tone: 'warn',
-      title: waitingTitle(text, reason, chat.title, request.toolName),
+      title: waitingTitle(text, reason, displayTitle(chat), request.toolName),
       body: waitingBody(text, reason, request.toolName),
       href: chatHref(chat.id, request.id),
       runId: chat.id,

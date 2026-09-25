@@ -5,9 +5,12 @@
   "live": {
     "section": "Live",
     "working": "{{count}} working",
+    "agentsWorking_one": "{{count}} agent working",
+    "agentsWorking_other": "{{count}} agents working",
     "waiting": "{{count}} waiting",
     "running": "{{count}} running",
     "progress": "{{done}}/{{total}}",
+    "progressWords": "{{done}} of {{total}} tasks done",
     "chipLabel": "Live now: {{summary}}",
     "menu": "What is live",
     "groups": {
@@ -26,7 +29,34 @@
     "new": "New",
     "newMenu": "Start something new",
     "more": "More",
-    "connection": "Connection"
+    "connection": "Connection",
+    "sections": "Sections",
+    "start": "Start",
+    "exhausted_one": "{{count}} exhausted",
+    "exhausted_other": "{{count}} exhausted",
+    "pending_one": "{{count}} pending",
+    "pending_other": "{{count}} pending"
+  },
+  "nav": {
+    "work": "Work",
+    "space": "Space"
+  },
+  "statusbar": {
+    "label": "Status bar",
+    "fiveHour": "5h",
+    "sevenDay": "7d",
+    "window": "{{window}} limit: {{percent}}% used",
+    "running": "{{count}} running",
+    "today": "today {{cost}}",
+    "todayNone": "today, no cost"
+  },
+  "account": {
+    "card": "Account and limits",
+    "cli": "CLI {{version}}"
+  },
+  "notFound": {
+    "body": "The address may be mistyped, or the page is no longer there.",
+    "home": "Go to Home"
   },
   "appearance": {
     "tab": "Appearance",

@@ -79,6 +79,8 @@ const env = {
   CLAUDE_CONFIG_DIR: dirs.config,
   AGENTRY_WORKSPACE_DIR: dirs.workspace,
   AGENTRY_DATA_DIR: dirs.data,
+  // The UI just built: a terminal of the desktop app inherits the installed app's own
+  AGENTRY_WEB_DIST: join(root, 'apps/web/dist'),
   CSWAP_BIN: cswap,
   AGENTRY_HEALTH_INTERVAL_MS: '1000',
   AGENTRY_FAKE_CLI_HEARTBEAT_MS: '1000',
@@ -626,7 +628,8 @@ async function schedulesScene({ stillName }) {
   await page.goto('/schedules', 1500);
   await visible('main', 'Nightly dependency audit');
   await page.click('main button', 'Run history', 800);
-  await visible('main', 'Overlapped');
+  // Tags are set in capitals by CSS, so innerText would read OVERLAPPED; the DOM keeps the word
+  await page.waitFor(`return document.querySelector('main')?.textContent.includes('Overlapped')`, { label: 'main "Overlapped"' });
   await settle();
   if (stillName) await still(stillName);
 }

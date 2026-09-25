@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Design system · Móvil</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app col" data-theme="dark" style="width: 1440px; height: 900px; padding: 56px 64px; gap: 32px; overflow: hidden">
+<header class="col" style="gap: 8px"><span class="t-label">Agentry design system · v2 · móvil</span><h1 class="t-display" style="margin: 0">Patrones móviles</h1><p class="fg-2" style="margin: 0">Zonas táctiles de 44 px, campos a 16 px (sin zoom en iOS), acción principal abajo y al alcance del pulgar.</p></header>
+
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: start">
+
+<section class="card card-pad col" style="gap: 14px">
+<h2 class="t-h2">Cabecera</h2><span class="mono t-xs fg-3">.m-head · volver + título + acción</span>
+<div class="row" style="gap: 2px; background: var(--bg-1); border-radius: 12px; padding: 6px 4px"><span class="btn btn-ghost btn-icon btn-lg"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"></path></svg></span><span class="col grow" style="gap: 1px"><span style="font-weight: 600">spanish-copy</span><span class="row t-xs mono" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">en curso</span></span></span><span class="btn btn-ghost btn-icon btn-lg"><svg class="ico ico-lg" viewBox="0 0 24 24" style="stroke-width: 3"><path d="M5 12h.01M12 12h.01M19 12h.01"></path></svg></span></div>
+<span class="t-xs fg-2">El subtítulo lleva el estado vivo; nunca más de 2 acciones a la derecha.</span>
+</section>
+
+<section class="card card-pad col" style="gap: 14px">
+<h2 class="t-h2">Celdas</h2><span class="mono t-xs fg-3">.cell en .card · min 52 px</span>
+<div class="card" style="overflow: hidden; background: var(--bg-1)"><div class="cell"><span class="spin-ring"></span><span class="col grow" style="gap: 1px"><span class="t-sm" style="font-weight: 500">Chats and home</span><span class="mono t-xs c-live">Run web unit tests</span></span></div><div class="cell"><span class="dot dot-idle"></span><span class="grow t-sm">Cual es el estado…</span><svg class="ico fg-3" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></div></div>
+<span class="t-xs fg-2">Sin casillas visibles: selección múltiple con pulsación larga.</span>
+</section>
+
+<section class="card card-pad col" style="gap: 14px">
+<h2 class="t-h2">Filtros</h2><span class="mono t-xs fg-3">.chip en fila con scroll horizontal</span>
+<div class="row" style="gap: 6px; overflow: hidden"><span class="chip on" style="height: 32px">Todos <span class="n">197</span></span><span class="chip" style="height: 32px"><span class="dot dot-live" style="width: 6px; height: 6px"></span>Trabajando</span><span class="chip" style="height: 32px">Esperan</span></div>
+<label class="field field-lg"><svg class="ico" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><input type="search" placeholder="Busca en tus chats" aria-label="Ejemplo" style="font-size: 16px"></label>
+</section>
+
+<section class="card card-pad col" style="gap: 14px">
+<h2 class="t-h2">Acción principal</h2><span class="mono t-xs fg-3">.fab · degradado + sombra cálida</span>
+<div style="position: relative; height: 110px; background: var(--bg-1); border-radius: 12px"><a href="#" class="fab" style="position: absolute; bottom: 16px; right: 16px">+ Nuevo chat</a></div>
+<span class="t-xs fg-2">Con texto en Inicio; solo icono en listas. 100 px sobre la barra de pestañas.</span>
+</section>
+</div>
+
+<div style="display: grid; grid-template-columns: 420px 420px minmax(0, 1fr); gap: 20px; align-items: start">
+<section class="card card-pad col" style="gap: 14px">
+<h2 class="t-h2">Barra de pestañas</h2><span class="mono t-xs fg-3">.tabbar · 4 destinos · cristal + blur</span>
+<div style="border-radius: 12px; overflow: hidden; width: 390px">
+
+<nav class="app tabbar" data-theme="dark" aria-label="Principal" style="width: 390px">
+
+<a href="MobileInicio.html" class="tab-m"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg></span>Inicio</a>
+
+<a href="MobileChats.html" class="tab-m on"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg></span>Chats</a>
+
+<a href="MobileOrquestaciones.html" class="tab-m"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>Orquestaciones<span class="count-pill live">2</span></a>
+
+<a href="MobileMas.html" class="tab-m"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></span>Más</a>
+
+</nav>
+</div>
+<span class="t-xs fg-2">Inicio, Chats, Orquestaciones (con contador vivo) y Más. El resto vive en Más.</span>
+</section>
+<section class="card card-pad col" style="gap: 14px">
+<h2 class="t-h2">Compositor móvil</h2><span class="mono t-xs fg-3">píldora 24 px · .energy cuando trabaja</span>
+<div class="card energy row" style="border-radius: 24px; padding: 4px; gap: 4px; background: var(--bg-2)"><span class="btn btn-ghost btn-icon" style="width: 40px; height: 40px; border-radius: 50%"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></span><span class="grow fg-3" style="font-size: 16px">Envía un mensaje</span><span class="btn btn-danger btn-icon" style="width: 40px; height: 40px; border-radius: 50%"><svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: currentColor"><path d="M6 6h12v12H6z"></path></svg></span></div>
+<div class="card grad-border row" style="border-radius: 24px; padding: 4px; gap: 4px"><span class="btn btn-ghost btn-icon" style="width: 40px; height: 40px; border-radius: 50%"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></span><span class="grow fg-3" style="font-size: 16px">¿Qué debería hacer Claude?</span><span class="btn btn-primary btn-icon" style="width: 40px; height: 40px; border-radius: 50%"><svg class="ico ico-lg" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></span></div>
+</section>
+<section class="card card-pad col" style="gap: 14px">
+<h2 class="t-h2">Hoja inferior</h2><span class="mono t-xs fg-3">.sheet · .grab</span>
+<div style="position: relative; height: 230px; background: var(--bg); border-radius: 12px; overflow: hidden"><div class="sheet" style="position: absolute"><div class="grab"></div><div class="col" style="gap: 2px"><button type="button" class="menu-item" style="height: 46px">Renombrar</button><button type="button" class="menu-item" style="height: 46px">Quitar de Agentry</button><button type="button" class="menu-item danger" style="height: 46px">Purgar estado de Claude Code</button></div></div></div>
+<span class="t-xs fg-2">Los menús de «⋯» en móvil se abren como hoja, nunca como menú flotante.</span>
+</section>
+</div>
+</div>
+</body></html>

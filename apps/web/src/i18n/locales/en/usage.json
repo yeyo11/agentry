@@ -18,7 +18,14 @@
   "tiles": {
     "cost": "Cost",
     "tokens": "Tokens",
-    "chats": "Chats"
+    "chats": "Chats",
+    "costSub": "{{from}} – {{to}}",
+    "tokensSub": "{{n}} per chat",
+    "chatsSub": "in the period",
+    "peakDay": "Busiest day",
+    "peakWeek": "Busiest week",
+    "peakSub": "{{period}} · {{share}} of the period",
+    "noPeak": "None yet"
   },
   "metrics": {
     "cost": "Cost",
@@ -32,7 +39,7 @@
   "notReported": "Not reported",
   "weekOf": "Week of {{day}}",
   "over": {
-    "title": "Over time",
+    "per": "{{metric}} per {{bucket}}",
     "metric": "What to show",
     "bucket": "Group by",
     "emptyTitle": "Nothing in this range",
@@ -49,11 +56,10 @@
   "readout": {
     "tokens": "{{n}} tokens",
     "chats_one": "{{count}} chat",
-    "chats_other": "{{count}} chats",
-    "hint": "Move over the chart for the figures of one period, or open the table below"
+    "chats_other": "{{count}} chats"
   },
   "table": {
-    "show": "Show the figures as a table",
+    "view": "View table",
     "label": "Usage by period",
     "caption": "Cost, tokens and chats for each {{bucket}}",
     "period": "Period"
@@ -70,5 +76,10 @@
   "other": "Other ({{n}})",
   "noSlices": "Nothing to show in this range.",
   "looseChats": "No project",
-  "unknownModel": "Unknown model"
+  "unknownModel": "Unknown model",
+  "hero": {
+    "label": "{{metric}} · {{range}}",
+    "pick": "Chart another figure",
+    "peak": "peak {{value}} · {{period}}"
+  }
 }

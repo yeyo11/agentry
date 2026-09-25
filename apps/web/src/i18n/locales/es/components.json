@@ -286,7 +286,7 @@
     "plan": "Plan"
   },
   "palette": {
-    "trigger": "Buscar…",
+    "trigger": "Buscar o ejecutar…",
     "label": "Paleta de comandos",
     "placeholder": "Buscar páginas, proyectos, chats y acciones…",
     "commands": "Comandos",
@@ -464,6 +464,11 @@
     "next": "Archivo siguiente",
     "count": "{{n}} de {{total}}",
     "noPreview": "Este archivo solo puede descargarse"
+  },
+  "illustrations": {
+    "noResults": "0 coinciden",
+    "notFound": "¿por aquí?",
+    "weekday": "lun"
   },
   "slashMenu": {
     "label": "Comandos",

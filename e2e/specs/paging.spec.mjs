@@ -73,7 +73,8 @@ export default async ({ page, api, check, dirs }) => {
     check(aboveOnLanding === TOTAL - 200, `the earlier-messages button counts what is above (${aboveOnLanding})`);
 
     // Following the bottom stops as soon as the reader scrolls away from it
-    await page.eval(`const main=document.querySelector('.run-scroll');main.scrollTop=main.scrollHeight-main.clientHeight-1500;return true`);
+    // A wheel going up is what lets go of the end: a scrollTop written on its own is not the reader
+    await page.eval(`const main=document.querySelector('.run-scroll');main.dispatchEvent(new WheelEvent('wheel',{deltaY:-100}));main.scrollTop=main.scrollHeight-main.clientHeight-1500;return true`);
     await settle(page);
 
     // ---- Load earlier: the page grows above, and the row being read does not move ----
@@ -92,7 +93,7 @@ export default async ({ page, api, check, dirs }) => {
       `window.__held=new Promise(r=>window.__release=r);const f=window.fetch;window.__fetch=f;` +
         `window.fetch=async(...a)=>{if(String(a[0] instanceof Request?a[0].url:a[0]).includes('before='))await window.__held;return f(...a)};return true`,
     );
-    await page.eval(`document.querySelector('.run-scroll').scrollTop=0;return true`);
+    await page.eval(`const main=document.querySelector('.run-scroll');main.dispatchEvent(new WheelEvent('wheel',{deltaY:-100}));main.scrollTop=0;return true`);
     await settle(page);
     const top = await page.waitFor(READING, { label: 'a row at the top' });
     check(top.mark === mark(TOTAL - 400), `the first row held is at the top before the page arrives (${top.mark})`);

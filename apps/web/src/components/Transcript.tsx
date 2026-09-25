@@ -1,13 +1,15 @@
-import type { ContentBlock, TranscriptEntry } from '@agentry/shared';
-import { Brain, CircleAlert, CircleStop, Check, Info, PanelRightOpen, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
+import type { ChatWorkflow, ChatWorkflowAgent, ContentBlock, TranscriptEntry } from '@agentry/shared';
+import { Brain, CircleAlert, CircleStop, Check, ChevronRight, Info, PanelRightOpen, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
 import { lazy, memo, Suspense, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
 import { justStreamed } from '../lib/chat-stream';
 import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, transcriptRows, type StepCall, type StepPart, type TranscriptRow } from '../lib/chat-steps';
 import { formatDuration, formatClock, formatDateTime, truncate } from '../lib/format';
+import type { ProgressStatus } from '../lib/progress';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
 import { CodeBlock } from './CodeBlock';
+import { ProgressBar } from './ProgressBar';
 import { Collapsible } from './controls/Collapsible';
 import { Tooltip } from './controls/Tooltip';
 import { BrandMark, ICON_SM, toolIcon } from './icons';
@@ -194,15 +196,13 @@ export const EntryView = memo(function EntryView({ entry, continued = false, fre
     <article className={`msg msg-${role} ${entry.isSidechain ? 'msg-sidechain' : ''} ${continued ? 'is-continued' : ''} ${fresh ? 'is-fresh' : ''}`.trimEnd()}>
       {head ? <Avatar role={entry.role} /> : <span className="avatar-gap" aria-hidden />}
       <div className="msg-body">
-        {head ? (
+        <RowTime at={entry.timestamp} />
+        {head && (
           <header className="msg-head">
             <span className="msg-role">{entry.role === 'user' ? t('transcript.user') : 'Claude'}</span>
             {entry.isSidechain && <span className="badge badge-info">{t('transcript.subagent')}</span>}
             {entry.model && <span className="muted small msg-model">{entry.model}</span>}
-            <RowTime at={entry.timestamp} />
           </header>
-        ) : (
-          <RowTime at={entry.timestamp} />
         )}
         {withoutListedMedia(blocks).map((block, i) => (
           <Block key={i} block={block} role={entry.role} />
@@ -281,7 +281,22 @@ function PartView({ part, settled, subagents }: { part: StepPart; settled: boole
  * on right now is open and carries the live rail; once it is done it folds away, unless the reader
  * opened or closed it themselves.
  */
-const StepView = memo(function StepView({ row, current, subagents, fresh = false }: { row: Extract<TranscriptRow, { kind: 'step' }>; current: boolean; subagents?: SubagentLink; fresh?: boolean }) {
+const StepView = memo(function StepView({
+  row,
+  current,
+  subagents,
+  fresh = false,
+  launches,
+  onOpenLaunch,
+}: {
+  row: Extract<TranscriptRow, { kind: 'step' }>;
+  current: boolean;
+  subagents?: SubagentLink;
+  fresh?: boolean;
+  /** The workflows its `Workflow` calls started, each shown as a card under the step */
+  launches?: ChatWorkflow[];
+  onOpenLaunch?: () => void;
+}) {
   const { t } = useTranslation('components');
   const [chosen, setChosen] = useState<boolean | null>(null);
   const open = chosen ?? current;
@@ -293,6 +308,7 @@ const StepView = memo(function StepView({ row, current, subagents, fresh = false
     <article className={`msg msg-step ${row.isSidechain ? 'msg-sidechain' : ''} ${current ? 'is-current' : ''} ${fresh ? 'is-fresh' : ''}`.trimEnd()}>
       <span className="avatar-gap" aria-hidden />
       <div className="msg-body">
+        <RowTime at={row.startedAt} />
         <Collapsible
           className={`fold tool-step ${current ? 'live-rail' : ''}`}
           open={open}
@@ -305,9 +321,14 @@ const StepView = memo(function StepView({ row, current, subagents, fresh = false
                 {duration !== null && duration >= 1000 && ` · ${formatDuration(duration)}`}
                 {failed > 0 && ` · ${t('transcript.failedCalls', { count: failed })}`}
               </span>
-              <span className="step-tools">{tools.map((tool) => (tool.count > 1 ? `${tool.name} ×${tool.count}` : tool.name)).join(' · ')}</span>
+              <span className="step-tools">
+                {tools.map((tool) => (
+                  <span key={tool.name} className="badge step-tool">
+                    {tool.count > 1 ? `${tool.name} ×${tool.count}` : tool.name}
+                  </span>
+                ))}
+              </span>
               {current && <span className="sr-only">{t('transcript.stepCurrent')}</span>}
-              <RowTime at={row.startedAt} />
             </>
           }
         >
@@ -317,10 +338,81 @@ const StepView = memo(function StepView({ row, current, subagents, fresh = false
             ))}
           </div>
         </Collapsible>
+        {launches?.map((workflow) => <LaunchCard key={workflow.id} workflow={workflow} onOpen={onOpenLaunch} />)}
       </div>
     </article>
   );
 });
+
+/** Workflows a chat started, and where to see them whole. */
+export interface WorkflowLaunches {
+  list: readonly ChatWorkflow[];
+  open: () => void;
+}
+
+// A call is answered in seconds, the run it starts is stamped a moment after: some slack either side
+const LAUNCH_SLACK_MS = 30_000;
+
+/**
+ * The workflows a step's `Workflow` calls started. The transcript does not carry the run's id, so a
+ * run belongs to the step it started during: between the step's first entry and its last.
+ */
+function launchesOf(row: Extract<TranscriptRow, { kind: 'step' }>, list: readonly ChatWorkflow[]): ChatWorkflow[] | undefined {
+  if (!row.startedAt || !row.parts.some((part) => part.kind === 'call' && part.name === WORKFLOW_TOOL)) return undefined;
+  const from = Date.parse(row.startedAt) - LAUNCH_SLACK_MS;
+  const to = Date.parse(row.endedAt ?? row.startedAt) + LAUNCH_SLACK_MS;
+  const found = list.filter((workflow) => {
+    const at = Date.parse(workflow.startedAt);
+    return at >= from && at <= to;
+  });
+  return found.length > 0 ? found : undefined;
+}
+
+const WORKFLOW_TOOL = 'Workflow';
+const LAUNCH_SEGMENT: Record<ChatWorkflowAgent['status'], ProgressStatus> = { completed: 'done', running: 'running', failed: 'failed' };
+
+/**
+ * A workflow the chat started, as the card the conversation points at: its name, how far it has
+ * got, one segment per agent, and a way to its full card in the inspector.
+ */
+function LaunchCard({ workflow, onOpen }: { workflow: ChatWorkflow; onOpen?: () => void }) {
+  const { t } = useTranslation('chat');
+  const name = workflow.name ?? workflow.description;
+  const running = workflow.status === 'running';
+  const done = workflow.agents.filter((agent) => agent.status === 'completed').length;
+  // The phase it is in: the last one an agent has started in
+  const phase = workflow.agents.reduce((at, agent) => Math.max(at, agent.phase ? workflow.phases.indexOf(agent.phase) + 1 : 0), 0);
+  const facts = [
+    workflow.phases.length > 0 && phase > 0 ? t('launch.phase', { n: phase, total: workflow.phases.length }) : null,
+    workflow.agents.length > 0 ? t('launch.agents', { done, total: workflow.agents.length }) : null,
+  ].filter(Boolean);
+  return (
+    <div className={`chat-launch grad-border ${running ? 'is-running' : ''}`.trim()}>
+      <div className="chat-launch-head">
+        <span className="chat-launch-mark" aria-hidden>
+          {name.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase()}
+        </span>
+        <span className="chat-launch-what">
+          <span className="chat-launch-name ellipsis">{name}</span>
+          <span className="chat-launch-state">
+            {running && <Spinner />}
+            <span className={`chat-launch-status is-${workflow.status}`}>{t(`badges.outcome.${workflow.status}`)}</span>
+            {facts.length > 0 && <span className="chat-launch-facts">{facts.join(' · ')}</span>}
+          </span>
+        </span>
+        {onOpen && (
+          <button type="button" className="btn btn-small chat-launch-open" onClick={onOpen} aria-label={t('launch.openHint', { name })}>
+            {t('launch.open')}
+            <ChevronRight {...ICON_SM} />
+          </button>
+        )}
+      </div>
+      {workflow.agents.length > 0 && (
+        <ProgressBar variant="segments" size="sm" decorative cells={workflow.agents.map((agent) => LAUNCH_SEGMENT[agent.status])} />
+      )}
+    </div>
+  );
+}
 
 /** The block Claude is generating right now, fed by ephemeral `partial` stream events. */
 export function StreamingEntry({ block, text, continued = false }: { block: 'text' | 'thinking'; text: string; continued?: boolean }) {
@@ -384,6 +476,7 @@ export function Transcript({
   focus,
   working = false,
   subagents,
+  workflows,
 }: {
   entries: TranscriptEntry[];
   /** The rows of `entries`, when the caller has already worked them out */
@@ -394,11 +487,23 @@ export function Transcript({
   /** The chat is working: its last step is the one being worked on */
   working?: boolean;
   subagents?: SubagentLink;
+  /** Workflows the chat started: each shows as a card under the step that started it */
+  workflows?: WorkflowLaunches;
 }) {
   const own = useMemo(() => rows ?? transcriptRows(entries), [rows, entries]);
   const target = focus ? rowOf(own, focus.item) : undefined;
   const focused = useMemo(() => (target ? { item: target } : null), [target, focus]);
   const last = own.at(-1);
+  // Worked out once per change of rows or runs, so a step's props hold still between renders
+  const launches = useMemo(() => {
+    if (!workflows || workflows.list.length === 0) return null;
+    const byRow = new Map<string, ChatWorkflow[]>();
+    for (const row of own) {
+      const found = row.kind === 'step' ? launchesOf(row, workflows.list) : undefined;
+      if (found) byRow.set(row.key, found);
+    }
+    return byRow;
+  }, [own, workflows]);
   return (
     <VirtualList className="transcript" items={own} itemKey={(row) => row.key} pinToBottom={pinToBottom} onReachTop={onReachTop} focus={focused} estimate={estimateRow}>
       {(row) =>
@@ -406,7 +511,14 @@ export function Transcript({
           // Only what a person sent: an answer of Claude's was already on screen as it was written
           <EntryView entry={row.entry} continued={row.continued} fresh={row.entry.role === 'user' && justStreamed(row.entry)} />
         ) : (
-          <StepView row={row} current={working && row === last} subagents={subagents} fresh={justStreamed(row.entries[row.entries.length - 1] ?? row.entries[0]!)} />
+          <StepView
+            row={row}
+            current={working && row === last}
+            subagents={subagents}
+            fresh={justStreamed(row.entries[row.entries.length - 1] ?? row.entries[0]!)}
+            launches={launches?.get(row.key)}
+            onOpenLaunch={workflows?.open}
+          />
         )
       }
     </VirtualList>

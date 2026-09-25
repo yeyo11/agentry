@@ -39,6 +39,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
 import { LANGUAGES, setLanguage } from '../i18n';
+import { displayTitle } from '../lib/chat-model';
 import { setMotionPreference, type MotionLevel } from '../lib/motion';
 import { useProjectScope } from '../lib/project-scope';
 import { liveSummary } from '../lib/shell-live';
@@ -100,10 +101,11 @@ function readRecent(): string[] {
   }
 }
 
-export function CommandPaletteTrigger() {
+/** A search field in the sidebar on a desktop, an icon in the top bar on a phone: `className` says which. */
+export function CommandPaletteTrigger({ className = '' }: { className?: string }) {
   const { t } = useTranslation('components');
   return (
-    <button type="button" className="palette-trigger" onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}>
+    <button type="button" className={`palette-trigger ${className}`.trim()} onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}>
       <Search size={14} strokeWidth={1.75} aria-hidden />
       <span className="palette-trigger-label">{t('palette.trigger')}</span>
       <kbd className="palette-kbd">{isMac ? '⌘' : 'Ctrl'} K</kbd>
@@ -237,7 +239,7 @@ export function CommandPalette() {
       }
     }
     for (const chat of overview.data?.recentChats ?? []) {
-      list.push({ id: `recent:${chat.id}`, group: 'recentChats', title: chat.title, hint: chat.cwd, keywords: 'chat transcript', icon: MessageSquare, run: go(`/chats/${encodeURIComponent(chat.id)}`) });
+      list.push({ id: `recent:${chat.id}`, group: 'recentChats', title: displayTitle(chat), hint: chat.cwd, keywords: 'chat transcript', icon: MessageSquare, run: go(`/chats/${encodeURIComponent(chat.id)}`) });
     }
     return list;
   }, [navigate, t, selected, projects.data, working.data, waiting.data, orchestrations.data, overview.data]);

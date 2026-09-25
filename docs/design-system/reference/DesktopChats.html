@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Chats (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app shell" data-theme="dark" style="width: 1440px; height: 1024px">
+<div class="side">
+
+<nav class="app" data-theme="dark" aria-label="Principal" style="width: 256px; height: 1024px; background: var(--bg-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 18px">
+
+<div class="row" style="padding: 0 4px; height: 32px; gap: 10px">
+<a href="Main.html" class="row" style="gap: 10px; flex: 1 1 auto">
+<span style="width: 26px; height: 26px; border-radius: 8px; background: var(--grad); display: grid; place-items: center; color: #fff; box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 4px 14px -4px rgba(176,74,94,0.7)"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>
+<span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Agentry</span>
+</a>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Plegar barra lateral"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 4v16"></path></svg></button>
+</div>
+
+<button type="button" class="field" style="width: 100%; cursor: pointer; justify-content: flex-start; background: var(--bg-2)"><svg class="ico" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><span class="grow t-sm" style="text-align: left">Buscar o ejecutar…</span><span class="kbd">⌘K</span></button>
+
+<div class="col" style="gap: 1px">
+
+<a href="Main.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg><span class="grow">Inicio</span><span class="count"></span></a>
+
+<a href="DesktopChats.html" class="nav-item on"><svg class="ico" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span class="grow">Chats</span><span class="count">197</span></a>
+
+<a href="DesktopOrquestaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg><span class="grow">Orquestaciones</span><span class="count-pill live">2</span></a>
+
+<a href="DesktopProgramaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M5.5 5h13a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM3.5 10h17M8 3v4M16 3v4"></path></svg><span class="grow">Programaciones</span><span class="count"></span></a>
+
+</div>
+
+<div class="col" style="gap: 1px">
+<span class="t-label" style="padding: 0 10px 6px">Espacio</span>
+
+<a href="DesktopProyectos.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span class="grow">Proyectos</span></a>
+
+<a href="DesktopCuentas.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M12.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"></path></svg><span class="grow">Cuentas</span></a>
+
+<a href="DesktopConectores.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"></path></svg><span class="grow">Conectores</span></a>
+
+<a href="DesktopUso.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M4 20V11M10 20V4M16 20v-6M3 20.5h18"></path></svg><span class="grow">Uso</span></a>
+
+<a href="DesktopAjustes.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M17 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM11 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM19 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"></path></svg><span class="grow">Ajustes</span></a>
+
+</div>
+
+<div class="col" style="gap: 4px">
+<div class="row" style="padding: 0 10px 4px"><span class="t-label grow">En directo</span><span class="count-pill live">3</span></div>
+<a href="DesktopChat.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 3px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: 500">claude-wrapper-b67aa3</span></span>
+<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis grow">Compare styles</span><span class="mono fg-3">15s</span></span>
+</a>
+<a href="DesktopOrquestacion.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 6px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: 500">spanish-copy</span><span class="mono t-xs fg-3">2/6</span></span>
+<span class="segbar" style="height: 4px; margin-left: 15px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 60%"></i><i></i><i></i><i></i></span>
+</a>
+<a href="DesktopOrquestaciones.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 6px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: 500">app-updates</span><span class="mono t-xs fg-3">2/5</span></span>
+<span class="segbar" style="height: 4px; margin-left: 15px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 35%"></i><i></i><i></i></span>
+</a>
+</div>
+
+<div class="grow"></div>
+<a href="#" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5"></path></svg>Referencia de la API</a>
+</nav>
+</div>
+<div class="main-col">
+
+
+<header class="app" data-theme="dark" style="width: 1184px; height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 20px 0 24px; border-bottom: 1px solid var(--line); background: var(--bg)">
+<nav aria-label="Ruta" class="row t-sm" style="gap: 6px">
+<button type="button" class="btn btn-ghost btn-sm" style="gap: 6px; padding: 0 8px; color: var(--fg-2)"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Todos los proyectos<svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
+<span class="fg-3">/</span>
+<span style="font-weight: 500">Chats</span>
+</nav>
+<div class="grow"></div>
+<a href="DesktopOrquestaciones.html" class="chip" style="gap: 8px; border-color: transparent; background: var(--live-soft); color: var(--live); font-family: var(--mono); font-size: 11.5px"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>3 agentes trabajando</a>
+<button type="button" class="btn btn-ghost btn-icon" aria-label="Notificaciones" style="position: relative"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"></path></svg><span class="dot" style="position: absolute; top: 8px; right: 9px; width: 6px; height: 6px; background: var(--accent)"></span></button>
+<div class="row" style="gap: 0">
+<a href="DesktopNuevoChat.html" class="btn btn-primary" style="border-radius: 8px 0 0 8px"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Nuevo chat</a>
+<button type="button" class="btn btn-primary btn-icon" aria-label="Más formas de empezar" style="border-radius: 0 8px 8px 0; width: 30px; margin-left: 1px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+</header>
+
+<main class="page">
+
+<div class="page-head">
+<div class="col" style="gap: 6px"><h1 class="t-h1">Chats</h1><p class="fg-2 t-sm" style="margin: 0">197 chats · 1 trabajando · 0 esperan tu respuesta</p></div>
+</div>
+
+<div class="row" style="gap: 10px">
+<div class="seg" role="tablist" aria-label="Estado"><button type="button" role="tab" aria-selected="true" class="on">Todos <span class="count">197</span></button><button type="button" role="tab" aria-selected="false"><span class="dot dot-live" style="width: 6px; height: 6px"></span>Trabajando <span class="count">1</span></button><button type="button" role="tab" aria-selected="false">Esperan <span class="count">0</span></button><button type="button" role="tab" aria-selected="false">Inactivos <span class="count">196</span></button></div>
+<label class="field grow"><svg class="ico" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><input type="search" placeholder="Filtra por título, prompt, proyecto o id" aria-label="Filtrar chats"><span class="kbd">/</span></label>
+<button type="button" class="btn"><svg class="ico" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>Filtros</button>
+<button type="button" class="btn">Recientes<svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+
+<div class="card" style="overflow: hidden">
+<div class="row th" style="gap: 16px; padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--bg-1)"><span style="width: 18px"></span><span class="grow">Chat</span><span style="width: 130px">Proyecto</span><span style="width: 96px">Origen</span><span style="width: 110px">Contexto</span><span style="width: 84px; text-align: right">Coste</span><span style="width: 64px; text-align: right">Actividad</span></div>
+
+<div class="t-label" style="padding: 12px 18px 4px">Hoy · 3</div>
+
+<a href="DesktopChat.html" class="row rail-live" style="gap: 16px; padding: 12px 18px; background: linear-gradient(90deg, var(--live-soft), transparent 40%)">
+<span style="width: 18px; display: grid; place-items: center"><span class="spin-braille"></span></span>
+<span class="col grow" style="gap: 2px"><span class="ellipsis" style="font-weight: 500">Revisa la PWA y la app desktop para mejorarlas. No veo manera de actualizarlas cuando salen releases</span><span class="row t-xs" style="gap: 8px"><span class="c-live">Ejecutando</span><span class="mono fg-3">Compare styles · b67aa3</span></span></span>
+<span class="t-sm fg-2" style="width: 130px">claude-wrapper</span>
+<span style="width: 96px"><span class="badge b-accent">agentry</span></span>
+<span class="row" style="width: 110px; gap: 8px"><span class="bar bar-thin grow"><i style="width: 14%"></i></span><span class="mono t-xs fg-2">14%</span></span>
+<span class="t-num t-sm" style="width: 84px; text-align: right">2,55 US$</span>
+<span class="t-xs c-live" style="width: 64px; text-align: right">ahora</span>
+</a>
+
+<a href="DesktopChat.html" class="row" style="gap: 16px; padding: 12px 18px; border-top: 1px solid var(--line)">
+<span style="width: 18px; display: grid; place-items: center"><span class="dot dot-idle"></span></span>
+<span class="col grow" style="gap: 2px"><span class="ellipsis" style="font-weight: 500">Cual es el estado actual del proyecto?</span><span class="mono t-xs fg-3">391372</span></span>
+<span class="t-sm fg-2" style="width: 130px">claude-wrapper</span>
+<span style="width: 96px"><span class="badge b-accent">agentry</span></span>
+<span class="row" style="width: 110px; gap: 8px"><span class="bar bar-thin grow"><i style="width: 6%"></i></span><span class="mono t-xs fg-2">6%</span></span>
+<span class="t-num t-sm" style="width: 84px; text-align: right">0,86 US$</span>
+<span class="t-xs fg-3" style="width: 64px; text-align: right">4 h</span>
+</a>
+
+<a href="DesktopChat.html" class="row" style="gap: 16px; padding: 12px 18px; border-top: 1px solid var(--line)">
+<span style="width: 18px; display: grid; place-items: center"><span class="dot dot-idle"></span></span>
+<span class="col grow" style="gap: 2px"><span class="ellipsis" style="font-weight: 500">Cual es el estado actual del proyecto?</span><span class="mono t-xs fg-3">c5de8e</span></span>
+<span class="t-sm fg-2" style="width: 130px">claude-wrapper</span>
+<span style="width: 96px"><span class="badge">terminal</span></span>
+<span class="mono t-xs fg-3" style="width: 110px">—</span>
+<span class="t-xs fg-3" style="width: 84px; text-align: right">sin coste</span>
+<span class="t-xs fg-3" style="width: 64px; text-align: right">4 h</span>
+</a>
+
+<div class="t-label" style="padding: 14px 18px 4px; border-top: 1px solid var(--line)">Ayer · 4</div>
+
+<a href="DesktopChat.html" class="row" style="gap: 16px; padding: 12px 18px">
+<span style="width: 18px; display: grid; place-items: center"><span class="dot dot-idle"></span></span>
+<span class="col grow" style="gap: 2px"><span class="ellipsis" style="font-weight: 500">Necesito que me ayudes a configurar claude-wrapper con pando en modo MCP</span><span class="mono t-xs fg-3">69b7ae</span></span>
+<span class="t-sm fg-2" style="width: 130px">claude-wrapper</span>
+<span style="width: 96px"><span class="badge b-accent">agentry</span></span>
+<span class="row" style="width: 110px; gap: 8px"><span class="bar bar-thin grow"><i style="width: 34%"></i></span><span class="mono t-xs fg-2">34%</span></span>
+<span class="t-num t-sm" style="width: 84px; text-align: right">56,68 US$</span>
+<span class="t-xs fg-3" style="width: 64px; text-align: right">1 d</span>
+</a>
+
+<div class="row list-row sel" style="gap: 16px; padding: 12px 18px; border-radius: 0; border-top: 1px solid var(--line)">
+<input type="checkbox" checked="" aria-label="Seleccionar chat" style="width: 16px; height: 16px; margin: 0 1px; accent-color: #e0668f">
+<span class="col grow" style="gap: 2px"><a href="DesktopChat.html" class="ellipsis" style="font-weight: 500">Cual es el estado actual del proyecto?</a><span class="mono t-xs fg-3">6991ac · opus-5 · 69 mensajes</span></span>
+<span class="t-sm fg-2" style="width: 130px">claude-wrapper</span>
+<span style="width: 96px"><span class="badge">terminal</span></span>
+<span class="row" style="width: 110px; gap: 8px"><span class="bar bar-thin grow"><i style="width: 17%"></i></span><span class="mono t-xs fg-2">17%</span></span>
+<span class="t-xs fg-3" style="width: 84px; text-align: right">sin coste</span>
+<span style="width: 64px; display: flex; justify-content: flex-end"><button type="button" class="btn btn-sm btn-icon" aria-label="Más acciones"><svg class="ico" viewBox="0 0 24 24" style="stroke-width: 3"><path d="M5 12h.01M12 12h.01M19 12h.01"></path></svg></button></span>
+</div>
+
+<a href="DesktopChat.html" class="row" style="gap: 16px; padding: 12px 18px; border-top: 1px solid var(--line)">
+<span style="width: 18px; display: grid; place-items: center"><span class="dot dot-idle"></span></span>
+<span class="col grow" style="gap: 2px"><span class="ellipsis" style="font-weight: 500">Audit the transcript paging in this repo (Agentry, pnpm monorepo) and tell me</span><span class="mono t-xs fg-3">c9ee3b</span></span>
+<span class="t-sm fg-2" style="width: 130px">claude-wrapper</span>
+<span style="width: 96px"><span class="badge b-accent">agentry</span></span>
+<span class="row" style="width: 110px; gap: 8px"><span class="bar bar-thin grow"><i style="width: 17%"></i></span><span class="mono t-xs fg-2">17%</span></span>
+<span class="t-num t-sm" style="width: 84px; text-align: right">45,14 US$</span>
+<span class="t-xs fg-3" style="width: 64px; text-align: right">1 d</span>
+</a>
+
+<a href="DesktopChat.html" class="row" style="gap: 16px; padding: 12px 18px; border-top: 1px solid var(--line)">
+<span style="width: 18px; display: grid; place-items: center"><span class="dot dot-idle"></span></span>
+<span class="col grow" style="gap: 2px"><span class="ellipsis" style="font-weight: 500">Necesito que hagas un análisis de la página del chat. No termina de funcionar fluido en móvil</span><span class="mono t-xs fg-3">639c53</span></span>
+<span class="t-sm fg-2" style="width: 130px">claude-wrapper</span>
+<span style="width: 96px"><span class="badge b-accent">agentry</span></span>
+<span class="row" style="width: 110px; gap: 8px"><span class="bar bar-thin warn grow"><i style="width: 67%"></i></span><span class="mono t-xs c-warn">67%</span></span>
+<span class="t-num t-sm" style="width: 84px; text-align: right">197,56 US$</span>
+<span class="t-xs fg-3" style="width: 64px; text-align: right">1 d</span>
+</a>
+
+<div class="t-label" style="padding: 14px 18px 4px; border-top: 1px solid var(--line)">Esta semana · 93</div>
+
+<a href="DesktopChat.html" class="row" style="gap: 16px; padding: 12px 18px">
+<span style="width: 18px; display: grid; place-items: center"><span class="dot dot-bad"></span></span>
+<span class="col grow" style="gap: 2px"><span class="ellipsis" style="font-weight: 500">Investiga por qué no me funcionan las notificaciones en mi PWA de Agentry</span><span class="row t-xs" style="gap: 8px"><span class="badge b-bad">interrumpido</span><span class="mono fg-3">f798d4</span></span></span>
+<span class="t-sm fg-2" style="width: 130px">claude-wrapper</span>
+<span style="width: 96px"><span class="badge b-accent">agentry</span></span>
+<span class="row" style="width: 110px; gap: 8px"><span class="bar bar-thin grow"><i style="width: 11%"></i></span><span class="mono t-xs fg-2">11%</span></span>
+<span class="t-num t-sm" style="width: 84px; text-align: right">3,65 US$</span>
+<span class="t-xs fg-3" style="width: 64px; text-align: right">1 d</span>
+</a>
+
+<a href="DesktopChat.html" class="row" style="gap: 16px; padding: 12px 18px; border-top: 1px solid var(--line)">
+<span style="width: 18px; display: grid; place-items: center"><span class="dot dot-idle"></span></span>
+<span class="col grow" style="gap: 2px"><span class="ellipsis" style="font-weight: 500">Rol</span><span class="mono t-xs fg-3">a3004e</span></span>
+<span class="t-sm fg-2" style="width: 130px">claude-wrapper</span>
+<span style="width: 96px"><span class="badge b-accent">agentry</span></span>
+<span class="row" style="width: 110px; gap: 8px"><span class="bar bar-thin bad grow"><i style="width: 75%"></i></span><span class="mono t-xs c-bad">75%</span></span>
+<span class="t-num t-sm" style="width: 84px; text-align: right">725,75 US$</span>
+<span class="t-xs fg-3" style="width: 64px; text-align: right">1 d</span>
+</a>
+</div>
+
+<div class="toast pop-in" style="align-self: center; margin-top: -8px"><svg class="ico c-accent" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"></path></svg><span class="t-sm grow">1 chat seleccionado</span><button type="button" class="btn btn-sm btn-ghost">Cancelar</button><button type="button" class="btn btn-sm btn-danger">Eliminar</button></div>
+</main>
+
+
+<footer class="app statusbar" data-theme="dark" style="width: 1184px">
+<a href="DesktopCuentas.html" class="row" style="gap: 7px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>yeyo@inmoseo.net</a>
+<span class="row" style="gap: 6px">5h<span class="bar bar-thin grad"><i style="width: 45%"></i></span>45%</span>
+<span class="row" style="gap: 6px">7d<span class="bar bar-thin grad"><i style="width: 5%"></i></span>5%</span>
+<span class="grow"></span>
+<span class="row" style="gap: 6px"><span class="spin-braille"></span>3 en marcha</span>
+<span>hoy 3,41 US$</span>
+<span>Claude Code 2.1.282</span>
+</footer>
+
+</div>
+</div>
+</body></html>

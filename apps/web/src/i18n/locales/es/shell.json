@@ -5,9 +5,12 @@
   "live": {
     "section": "En directo",
     "working": "{{count}} trabajando",
+    "agentsWorking_one": "{{count}} agente trabajando",
+    "agentsWorking_other": "{{count}} agentes trabajando",
     "waiting": "{{count}} esperando",
     "running": "{{count}} en curso",
     "progress": "{{done}}/{{total}}",
+    "progressWords": "{{done}} de {{total}} tareas hechas",
     "chipLabel": "En directo: {{summary}}",
     "menu": "Qué está en marcha",
     "groups": {
@@ -26,7 +29,34 @@
     "new": "Nuevo",
     "newMenu": "Empezar algo nuevo",
     "more": "Más",
-    "connection": "Conexión"
+    "connection": "Conexión",
+    "sections": "Secciones",
+    "start": "Empezar",
+    "exhausted_one": "{{count}} agotada",
+    "exhausted_other": "{{count}} agotadas",
+    "pending_one": "{{count}} pendiente",
+    "pending_other": "{{count}} pendientes"
+  },
+  "nav": {
+    "work": "Trabajo",
+    "space": "Espacio"
+  },
+  "statusbar": {
+    "label": "Barra de estado",
+    "fiveHour": "5h",
+    "sevenDay": "7d",
+    "window": "Límite de {{window}}: {{percent}} % usado",
+    "running": "{{count}} en marcha",
+    "today": "hoy {{cost}}",
+    "todayNone": "hoy, sin coste"
+  },
+  "account": {
+    "card": "Cuenta y límites",
+    "cli": "CLI {{version}}"
+  },
+  "notFound": {
+    "body": "La dirección puede estar mal escrita, o la página ya no existe.",
+    "home": "Ir a Inicio"
   },
   "appearance": {
     "tab": "Apariencia",

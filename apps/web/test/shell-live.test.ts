@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { desktopClasses } from '../src/lib/desktop.ts';
-import { chatActivity, hidesTabBar, liveSummary, orchestrationProgress, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
+import { chatActivity, fabFor, hidesTabBar, liveSummary, moreNotes, orchestrationProgress, pageHoldsScope, pickUsageWindows, swapUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
 
 // The shell is where a person sees at a glance what is alive. What it lists has to be in the order
 // that needs them most, never twice, and a shape it does not expect must not break a row.
@@ -9,6 +9,7 @@ import { chatActivity, hidesTabBar, liveSummary, orchestrationProgress, type Liv
 const chat = (id: string, state: LiveChatInput['state'], updatedAt: string, extra: Partial<LiveChatInput> = {}): LiveChatInput => ({
   id,
   title: `chat ${id}`,
+  firstPrompt: null,
   state,
   updatedAt,
   project: null,
@@ -45,6 +46,21 @@ test('a chat present in both lists is shown once, in its latest state', () => {
   assert.equal(summary.items[0]?.kind === 'chat' && summary.items[0].state, 'waiting');
   assert.equal(summary.working, 0);
   assert.equal(summary.waiting, 1);
+});
+
+test('a live chat reads as its first prompt when its title is only the generated name', () => {
+  const id = 'e2b36e0c-1111-2222-3333-444455556666';
+  const summary = liveSummary({
+    chats: [
+      chat(id, 'working', '2026-09-21T10:00:00Z', { title: 'workspace-e2b36e', firstPrompt: 'Fix the login bug\nand test it' }),
+      chat('b', 'waiting', '2026-09-21T10:00:00Z', { title: 'Login work', firstPrompt: 'Fix the login bug' }),
+    ],
+    orchestrations: [],
+  });
+  assert.deepEqual(
+    summary.items.map((i) => i.title),
+    ['Login work', 'Fix the login bug'],
+  );
 });
 
 test('idle chats and orchestrations that are not running are not live', () => {
@@ -106,10 +122,65 @@ test('the tab bar steps aside on a chat and on an orchestration, not on their li
   for (const path of ['/', '/chats', '/orchestration', '/settings', '/projects']) assert.equal(hidesTabBar(path), false, path);
 });
 
+test('the phone FAB follows the page: words on Home, an icon on the lists, none where the tab bar steps aside', () => {
+  assert.deepEqual(fabFor('/'), { action: 'chat', labelled: true });
+  for (const path of ['/chats', '/chats/', '/projects']) assert.deepEqual(fabFor(path), { action: 'chat', labelled: false }, path);
+  assert.deepEqual(fabFor('/orchestration'), { action: 'orchestration', labelled: false });
+  for (const path of ['/chats/abc', '/chats/new', '/orchestration/o1', '/settings', '/accounts', '/usage', '/nowhere']) assert.equal(fabFor(path), null, path);
+});
+
+test('the status bar reads the account-wide 5 h and 7 d windows, never a per-model one', () => {
+  const picked = pickUsageWindows({
+    seven_day_opus: { utilization: 0.9, resetsAt: 3 },
+    seven_day: { utilization: 0.054, resetsAt: 2 },
+    five_hour: { utilization: 0.449, resetsAt: 1 },
+  });
+  assert.deepEqual(picked.fiveHour, { name: 'five_hour', percent: 45, resetsAt: 1 });
+  assert.deepEqual(picked.sevenDay, { name: 'seven_day', percent: 5, resetsAt: 2 });
+  // A window the CLI did not report is missing, not zero, and a reading over 100 % is capped
+  assert.deepEqual(pickUsageWindows(undefined), { fiveHour: null, sevenDay: null });
+  assert.equal(pickUsageWindows({ five_hour: { utilization: 1.3, resetsAt: 0 } }).fiveHour?.percent, 100);
+  assert.equal(pickUsageWindows({ five_hour: { utilization: 0.2, resetsAt: 0 } }).sevenDay, null);
+});
+
+test("claude-swap's reading of the active account becomes the same bars, in whole percent", () => {
+  const read = swapUsageWindows({ fiveHour: { pct: 82.4, resetsAt: '1970-01-01T00:00:10.000Z', countdown: null }, sevenDay: null });
+  assert.deepEqual(read.fiveHour, { name: 'five_hour', percent: 82, resetsAt: 10 });
+  assert.equal(read.sevenDay, null);
+  assert.deepEqual(swapUsageWindows(undefined), { fiveHour: null, sevenDay: null });
+});
+
 test('the desktop app marks the page with its platform; a browser marks nothing', () => {
   assert.deepEqual(desktopClasses(undefined), []);
   assert.deepEqual(desktopClasses({ platform: 'linux', version: '1.0.0' }), ['is-desktop', 'desktop-linux']);
   assert.deepEqual(desktopClasses({ platform: 'Darwin' }), ['is-desktop', 'desktop-darwin']);
   // A platform that is not a plain word still marks the desktop, but never becomes a class name
   assert.deepEqual(desktopClasses({ platform: 'linux x" onload' }), ['is-desktop']);
+});
+
+test('the More sheet says a problem before a count, and nothing it does not know yet', () => {
+  assert.deepEqual(moreNotes({}), {});
+  assert.deepEqual(
+    moreNotes({ projects: 3, accounts: { total: 4, exhausted: 2 }, schedules: 0, todayCost: 1145.86, connectors: { total: 3, pending: 1 } }),
+    {
+      '/projects': { kind: 'count', value: 3 },
+      '/accounts': { kind: 'exhausted', value: 2 },
+      '/schedules': { kind: 'count', value: 0 },
+      '/usage': { kind: 'cost', value: 1145.86 },
+      '/connectors': { kind: 'pending', value: 1 },
+    },
+  );
+  // No account spent and none waiting for authorisation: the plain count, not a zero badge
+  const calm = moreNotes({ accounts: { total: 4, exhausted: 0 }, connectors: { total: 3, pending: 0 } });
+  assert.deepEqual(calm['/accounts'], { kind: 'count', value: 4 });
+  assert.deepEqual(calm['/connectors'], { kind: 'count', value: 3 });
+  // Before the account list is read, the overview's total; a day with no cost is said, not left blank
+  assert.deepEqual(moreNotes({ accounts: { total: 2 } })['/accounts'], { kind: 'count', value: 2 });
+  assert.deepEqual(moreNotes({ todayCost: null })['/usage'], { kind: 'cost', value: null });
+});
+
+test('only the chat list holds the project scope in its own header', () => {
+  assert.equal(pageHoldsScope('/chats'), true);
+  assert.equal(pageHoldsScope('/chats/'), true);
+  for (const path of ['/', '/chats/new', '/chats/abc', '/orchestration', '/projects']) assert.equal(pageHoldsScope(path), false, path);
 });

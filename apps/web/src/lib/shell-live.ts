@@ -4,7 +4,8 @@
  * (what counts as live, in what order, how an orchestration's progress is counted) are tested
  * without a browser.
  */
-import type { ChatState, OrchestrationStatus, OrchestrationTaskStatus } from '@agentry/shared';
+import type { AccountUsage, ChatState, OrchestrationStatus, OrchestrationTaskStatus } from '@agentry/shared';
+import { displayTitle } from './chat-model';
 import type { TickerActivity } from './live';
 import type { ProgressCounts } from './progress';
 
@@ -12,6 +13,7 @@ import type { ProgressCounts } from './progress';
 export interface LiveChatInput {
   id: string;
   title: string;
+  firstPrompt: string | null;
   state: ChatState;
   updatedAt: string | null;
   project: { name: string } | null;
@@ -119,7 +121,7 @@ export function liveSummary({
         kind: 'chat',
         id: chat.id,
         href: `/chats/${encodeURIComponent(chat.id)}`,
-        title: chat.title,
+        title: displayTitle(chat),
         state: chat.state === 'waiting' ? 'waiting' : 'working',
         project: chat.project?.name ?? null,
         activity: chat.state === 'working' ? chatActivity(chat) : null,
@@ -156,4 +158,115 @@ export function hidesTabBar(pathname: string): boolean {
   // the bar would sit over it; its header carries the way back instead
   if (/^\/chats\/[^/]+\/?$/.test(pathname)) return true;
   return /^\/orchestration\/[^/]+\/?$/.test(pathname);
+}
+
+/** What the phone's floating button starts on a page, and whether it has room for its words. */
+export interface FabPlan {
+  action: 'chat' | 'orchestration';
+  labelled: boolean;
+}
+
+/**
+ * The phone's one "start something" button. It follows the page: Home says it in words, the lists
+ * keep only the icon so it covers less of them, and Orchestrations starts one of its own. Where
+ * the tab bar steps aside the page has its own footer, so the button does too; on the other pages
+ * a floating button would only cover a form or a table that has nothing to do with starting a chat.
+ */
+export function fabFor(pathname: string): FabPlan | null {
+  if (hidesTabBar(pathname)) return null;
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  if (path === '/') return { action: 'chat', labelled: true };
+  if (path === '/chats' || path === '/projects') return { action: 'chat', labelled: false };
+  if (path === '/orchestration') return { action: 'orchestration', labelled: false };
+  return null;
+}
+
+/** A usage window as a whole percentage, for a bar and its label. */
+export interface UsageWindowReading {
+  /** The window's own name, as the CLI reports it (`five_hour`) */
+  name: string;
+  percent: number;
+  /** Epoch seconds, as the CLI reports it */
+  resetsAt: number;
+}
+
+/**
+ * The 5 h and 7 d windows out of whatever the CLI reported. Per-model weekly windows
+ * (`seven_day_opus`) share the prefix of the general one, so the shortest name that matches wins:
+ * the bar speaks for the account, not for one model.
+ */
+export function pickUsageWindows(windows: Record<string, { utilization: number; resetsAt: number }> | undefined): {
+  fiveHour: UsageWindowReading | null;
+  sevenDay: UsageWindowReading | null;
+} {
+  const entries = Object.entries(windows ?? {}).filter(([, w]) => Number.isFinite(w.utilization));
+  const pick = (pattern: RegExp): UsageWindowReading | null => {
+    const found = entries.filter(([name]) => pattern.test(name)).sort(([a], [b]) => a.length - b.length)[0];
+    if (!found) return null;
+    const [name, win] = found;
+    return { name, percent: Math.max(0, Math.min(100, Math.round(win.utilization * 100))), resetsAt: win.resetsAt };
+  };
+  return { fiveHour: pick(/^(five|5)[_-]?h/i), sevenDay: pick(/^(seven|7)[_-]?d/i) };
+}
+
+/**
+ * The active account's windows as claude-swap read them, when it is installed: the more precise
+ * reading, and the one Home's limits tile shows, so the status bar never disagrees with it.
+ */
+export function swapUsageWindows(usage: Pick<AccountUsage, 'fiveHour' | 'sevenDay'> | null | undefined): {
+  fiveHour: UsageWindowReading | null;
+  sevenDay: UsageWindowReading | null;
+} {
+  const read = (name: string, win: AccountUsage['fiveHour']): UsageWindowReading | null =>
+    win && Number.isFinite(win.pct)
+      ? { name, percent: Math.max(0, Math.min(100, Math.round(win.pct))), resetsAt: win.resetsAt ? Math.round((Date.parse(win.resetsAt) || 0) / 1000) : 0 }
+      : null;
+  return { fiveHour: read('five_hour', usage?.fiveHour ?? null), sevenDay: read('seven_day', usage?.sevenDay ?? null) };
+}
+
+/**
+ * What a cell of the phone's More sheet says beside its name. A problem outranks a count: an
+ * account out of quota or a connector waiting for authorisation is what a person opens the sheet
+ * to see, so it is said in words with its status colour; otherwise a plain figure.
+ */
+export type MoreNote =
+  | { kind: 'count'; value: number }
+  | { kind: 'exhausted'; value: number }
+  | { kind: 'pending'; value: number }
+  | { kind: 'cost'; value: number | null };
+
+export interface MoreNotesInput {
+  projects?: number | undefined;
+  /** Accounts claude-swap knows of; `exhausted` only once their usage has been read */
+  accounts?: { total: number; exhausted?: number | undefined } | undefined;
+  schedules?: number | undefined;
+  /** Null when nothing cost anything today */
+  todayCost?: number | null | undefined;
+  connectors?: { total: number; pending: number } | undefined;
+}
+
+/** Keyed by the section's path. A section with nothing known yet has no entry rather than a guess. */
+export function moreNotes(input: MoreNotesInput): Record<string, MoreNote> {
+  const notes: Record<string, MoreNote> = {};
+  if (input.projects !== undefined) notes['/projects'] = { kind: 'count', value: input.projects };
+  if (input.accounts) {
+    const { total, exhausted } = input.accounts;
+    notes['/accounts'] = exhausted ? { kind: 'exhausted', value: exhausted } : { kind: 'count', value: total };
+  }
+  if (input.schedules !== undefined) notes['/schedules'] = { kind: 'count', value: input.schedules };
+  if (input.todayCost !== undefined) notes['/usage'] = { kind: 'cost', value: input.todayCost };
+  if (input.connectors) {
+    const { total, pending } = input.connectors;
+    notes['/connectors'] = pending ? { kind: 'pending', value: pending } : { kind: 'count', value: total };
+  }
+  return notes;
+}
+
+/**
+ * The pages that carry the project scope in their own header on a phone, as the reference draws
+ * them. There the top bar leaves its selector out, so the page never has two of them.
+ */
+export function pageHoldsScope(pathname: string): boolean {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  return path === '/chats';
 }

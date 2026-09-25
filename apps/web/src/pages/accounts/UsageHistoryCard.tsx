@@ -43,6 +43,7 @@ export function UsageHistoryCard({ accounts, threshold }: { accounts: AccountSum
 
   return (
     <Card
+      className="usage-history-card"
       title={
         <span className="title-icon">
           <ChartLine {...ICON_SM} /> {t('history.title')}
@@ -50,7 +51,7 @@ export function UsageHistoryCard({ accounts, threshold }: { accounts: AccountSum
       }
     >
       <p className="muted small">{t('history.intro')}</p>
-      <div className="toolbar">
+      <div className="toolbar usage-history-toolbar">
         <Segmented<UsageWindowKind>
           label={t('history.window')}
           value={window}

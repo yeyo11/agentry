@@ -7,22 +7,44 @@
     "searchPlaceholder": "Search name, expression, prompt…",
     "searchLabel": "Search schedules",
     "noneMatch": "No schedules match",
-    "noneMatchBody": "Try another search, or show every schedule."
+    "noneMatchBody": "Try another search, or show every schedule.",
+    "reset": "Reset filters"
   },
   "page": {
     "title": "Schedules",
     "subtitle": "Chats and orchestrations that start on a timetable",
     "new": "New schedule",
     "missedTitle": "A window missed while Agentry was down is skipped, not replayed",
-    "missedBody": "If the wrapper is not running when a slot comes due, that run is recorded as skipped and nothing is started late. Nobody is at the keyboard when a schedule fires, so a scheduled chat is denied any permission its mode does not already allow.",
-    "emptyTitle": "No schedules yet",
-    "emptyBody": "Start a chat or an orchestration every morning, every Monday, or every 15 minutes."
+    "missedBody": "If the wrapper is not running when a slot comes due, that run is recorded as skipped and nothing is started late.",
+    "permissionsTitle": "Nobody approves permissions",
+    "permissionsBody": "Nobody is at the keyboard when a schedule fires, so a scheduled run is denied any permission its mode does not already allow.",
+    "emptyTitle": "Put your agents to work while you sleep",
+    "emptyBody": "No schedules yet. Start from a template and adjust it afterwards."
+  },
+  "templates": {
+    "label": "Templates",
+    "morning": {
+      "when": "Every morning",
+      "title": "A chat at 09:00",
+      "body": "For example, a summary of what changed in the repository yesterday."
+    },
+    "monday": {
+      "when": "Every Monday",
+      "title": "A weekly run",
+      "body": "For example, update the dependencies and run the tests."
+    },
+    "quarter": {
+      "when": "Every 15 min",
+      "title": "A short check",
+      "body": "For example, keep an eye on a deployment or a queue."
+    }
   },
   "card": {
     "kind": {
       "chat": "Chat",
       "orchestration": "Orchestration"
     },
+    "on": "On",
     "off": "Off",
     "enabledLabel": "Enabled",
     "enabled": "{{name}} is on",
@@ -37,6 +59,7 @@
     "editNamed": "Edit {{name}}",
     "delete": "Delete",
     "deleteNamed": "Delete {{name}}",
+    "moreNamed": "More actions for {{name}}",
     "deleteTitle": "Delete “{{name}}”?",
     "deleteBody": "It stops firing and its run history is removed. Chats and orchestrations it already started are kept.",
     "deleted": "Deleted {{name}}",
@@ -70,6 +93,7 @@
     "editTitle": "Edit schedule",
     "back": "Back to schedules",
     "notFound": "This schedule no longer exists",
+    "notFoundBody": "It may have been deleted, or the link is wrong.",
     "saving": "Saving…",
     "save": "Save",
     "create": "Create schedule",
@@ -161,5 +185,35 @@
         "hint": "A slot that comes due while the last run is still going waits and starts when it ends. At most one waits: a newer slot takes its place."
       }
     }
+  },
+  "cron": {
+    "and": "{{rest}} and {{last}}",
+    "range": {
+      "hour": "{{from}} to {{to}}",
+      "monthDay": "{{from}} to {{to}}",
+      "weekday": "{{from}} to {{to}}",
+      "month": "{{from}} to {{to}}"
+    },
+    "at_one": "At {{time}}",
+    "at_other": "At {{time}}",
+    "everyHourOnTheHour": "Every hour, on the hour",
+    "everyHourAt": "Every hour, at minute {{minute}}",
+    "everyMinute": "Every minute",
+    "everyMinutes": "Every {{step}} minutes",
+    "atMinutes": "At minutes {{minutes}}",
+    "atMinute": "At minute {{minute}}",
+    "hours_one": "the hours {{hours}}",
+    "hours_other": "the hours {{hours}}",
+    "ofHours": "{{every}} of {{hours}}",
+    "ofHour_one": "{{every}} of the {{time}} hour",
+    "ofHour_other": "{{every}} of the {{time}} hour",
+    "monthDays_one": "on day {{days}} of the month",
+    "monthDays_other": "on day {{days}} of the month",
+    "monthDaysRange": "on day {{days}} of the month",
+    "weekdays": "on {{days}}",
+    "weekdaysRange": "on {{days}}",
+    "months": "in {{months}}",
+    "monthsRange": "in {{months}}",
+    "eitherDay": "{{monthDays}}, or {{weekdays}}"
   }
 }

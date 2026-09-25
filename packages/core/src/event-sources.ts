@@ -9,6 +9,7 @@ import type {
   RunWaitingReason,
   VerificationStatus,
 } from '@agentry/shared';
+import { displayTitle } from '@agentry/shared';
 import { activityKey } from './chat-activity.ts';
 import type { ChatRuntime } from './chats.ts';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from './cli-facts.ts';
@@ -34,7 +35,8 @@ const TERMINAL = new Set(['completed', 'failed', 'stopped']);
 
 export const runRef = (run: ChatRuntime): RunEventRef => ({
   runId: run.id,
-  runName: run.name,
+  // Events are read by people (notifications, the feed): a generated name reads as an id
+  runName: displayTitle({ id: run.id, title: run.name, firstPrompt: run.prompt }),
   sessionId: run.id,
   orchestrationId: run.orchestrationId,
   internal: run.origin === 'internal',

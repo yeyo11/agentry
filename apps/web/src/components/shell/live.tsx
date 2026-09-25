@@ -9,6 +9,7 @@ import { liveSummary, type LiveItem, type LiveSummary } from '../../lib/shell-li
 import { ActivityTicker } from '../ActivityTicker';
 import { Menu, type MenuEntry } from '../controls/Menu';
 import { ICON } from '../icons';
+import { StatusDot } from '../motion';
 import { ProgressBar } from '../ProgressBar';
 import { Spinner } from '../Spinner';
 
@@ -16,6 +17,8 @@ import { Spinner } from '../Spinner';
 const LIVE_LIMIT = 10;
 /** Rows the sidebar shows before it says how many more there are. */
 const SIDEBAR_ROWS = 6;
+/** Past this many tasks a cell per task is too thin for the sidebar; the bar is drawn by share instead. */
+const MAX_SEGMENTS = 12;
 
 type Counts = Overview['counts'] | undefined;
 
@@ -95,19 +98,20 @@ export function useLiveEntries(live: LiveSummary): MenuEntry[] {
 }
 
 /**
- * The top bar's "⠹ 2 working · post-roadmap 11/17": there only while something runs, and a
- * menu of exactly what, each a link.
+ * The top bar's "● 3 agents working": there only while something runs or waits, and a menu of
+ * exactly what, each a link. Live work pings in cyan; a chat waiting for a person is a still dot
+ * in warn, because nothing moves until they answer.
  */
 export function LiveChip({ live }: { live: LiveSummary & { any: boolean } }) {
   const { t } = useTranslation('shell');
   const entries = useLiveEntries(live);
   if (!live.any) return null;
-  // The chats as counts, then the orchestration a person most likely launched, by name and progress
-  const orchestration = live.items.find((i): i is Extract<LiveItem, { kind: 'orchestration' }> => i.kind === 'orchestration');
+  const working = live.working > 0 || live.running > 0;
+  // Worker chats count as working, so the chats are the agents; an orchestration between two tasks
+  // has none working and is counted as itself
   const visible = [
-    ...(live.working ? [t('live.working', { count: live.working })] : []),
+    ...(live.working ? [t('live.agentsWorking', { count: live.working })] : live.running ? [t('live.running', { count: live.running })] : []),
     ...(live.waiting ? [t('live.waiting', { count: live.waiting })] : []),
-    ...(orchestration ? [`${orchestration.title} ${t('live.progress', { done: orchestration.done, total: orchestration.total })}`] : live.running ? [t('live.running', { count: live.running })] : []),
   ];
   // The visible words are the name, so what is read is what is seen; only the "Live" prefix is extra
   return (
@@ -115,8 +119,8 @@ export function LiveChip({ live }: { live: LiveSummary & { any: boolean } }) {
       entries={entries}
       label={t('live.menu')}
       trigger={
-        <button type="button" className={`live-chip ${live.working || live.running ? 'is-working' : 'is-waiting'}`}>
-          {live.working || live.running ? <Spinner /> : <span className="live-waiting-dot" aria-hidden />}
+        <button type="button" className={`live-chip ${working ? 'is-working' : 'is-waiting'}`}>
+          {working ? <StatusDot tone="active" live /> : <span className="live-waiting-dot" aria-hidden />}
           <span className="sr-only">{t('live.section')}: </span>
           <span className="live-chip-text">{visible.join(' · ')}</span>
         </button>
@@ -134,11 +138,13 @@ function LiveRow({ item }: { item: LiveItem }) {
         <span className="live-row-title">
           <Spinner />
           <span className="ellipsis">{item.title}</span>
+          <span className="live-row-count">
+            <span aria-hidden>{t('live.progress', { done: item.done, total: item.total })}</span>
+            <span className="sr-only">{t('live.progressWords', { done: item.done, total: item.total })}</span>
+          </span>
         </span>
-        <span className="live-row-meta">
-          <ProgressBar counts={item.progress} variant="blocks" />
-          <span className="mono">{t('live.progress', { done: item.done, total: item.total })}</span>
-        </span>
+        {/* Its words are the "2/6" beside the title */}
+        <ProgressBar variant="segments" size="sm" decorative maxCells={MAX_SEGMENTS} counts={item.progress} className="live-row-bar" />
       </NavLink>
     );
   return (
@@ -199,7 +205,7 @@ export function LiveSection({ live, rail }: { live: LiveSummary & { any: boolean
     <div className="live-section" role="group" aria-labelledby="live-section-title">
       <div className="live-section-head">
         <span id="live-section-title">{t('live.section')}</span>
-        <span className="live-section-count mono">
+        <span className="live-section-count">
           <span aria-hidden>{total}</span>
           <span className="sr-only">{words.join(', ')}</span>
         </span>

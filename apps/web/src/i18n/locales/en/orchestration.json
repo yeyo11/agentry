@@ -84,16 +84,27 @@
     "blockedBehindThem_other": "and {{count}} are blocked behind them",
     "decide": "Decide on the cards below.",
     "tasksUnit": "tasks",
-    "openChatBeside": "Open its chat beside the graph"
+    "openChatBeside": "Open its chat beside the graph",
+    "openChat": "Open chat",
+    "summary": {
+      "blocked": "Waiting for a decision",
+      "skipped": "Given up"
+    },
+    "taskDetails": "Details of {{name}}",
+    "box": {
+      "completed": "Completed",
+      "failed": "Failed",
+      "pending": "Not started yet",
+      "stopped": "Stopped before it finished",
+      "interrupted": "Interrupted by a restart"
+    }
   },
   "list": {
-    "sections": "Orchestrations and templates",
-    "orchestrations": "Orchestrations",
     "templates": "Templates",
     "statusLabel": "Show orchestrations by status",
     "status": {
       "all": "All",
-      "live": "Live",
+      "live": "Running",
       "completed": "Completed",
       "failed": "Failed",
       "stopped": "Stopped"
@@ -110,6 +121,16 @@
     "noMatch": "No orchestration matches",
     "showAll": "Show them all",
     "where": "stage {{stage}} · {{task}}",
-    "advanced": "Advanced options"
+    "advanced": "Advanced options",
+    "title": "Orchestrations",
+    "parallel": "{{n}} in parallel",
+    "done_one": "{{count}} done",
+    "done_other": "{{count}} done",
+    "tasksDone": "{{done}}/{{total}} tasks",
+    "stageOf": "stage {{at}} of {{of}}",
+    "seeFailures": "See failures",
+    "resume": "Resume",
+    "emptyBody": "Split an objective into tasks and run them as agents in parallel. Start a new one, or begin from a template.",
+    "noMatchBody": "Try another name, or clear the status filter."
   }
 }

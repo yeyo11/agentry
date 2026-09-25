@@ -8,10 +8,10 @@ test('Linux and Windows get a controls overlay as tall as the top bar; macOS kee
     titleBarStyle: 'hidden',
     titleBarOverlay: { ...SPLASH_TITLE_BAR, height: TITLE_BAR_HEIGHT },
   });
-  assert.equal(titleBarOptions('win32', SPLASH_TITLE_BAR).titleBarOverlay?.height, 54);
+  assert.equal(titleBarOptions('win32', SPLASH_TITLE_BAR).titleBarOverlay?.height, 52);
   const mac = titleBarOptions('darwin', SPLASH_TITLE_BAR);
   assert.equal(mac.titleBarOverlay, undefined);
-  assert.deepEqual(mac.trafficLightPosition, { x: 18, y: 19 });
+  assert.deepEqual(mac.trafficLightPosition, { x: 18, y: 18 });
 });
 
 test('only plain hex colours from the page reach the title bar', () => {

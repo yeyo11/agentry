@@ -1,4 +1,70 @@
-/* Home as a dashboard: the grid a layout is drawn on, the widget frame, and each widget's insides. */
+/*
+ * Home as a dashboard (reference: `Main` and `MobileInicio`): the hero, the strip of figures, the
+ * wide column of live work and the narrow one beside it, and each widget's insides.
+ */
+
+.dashboard .faint {
+  color: var(--text-faint);
+}
+
+/* ---------- The hero ---------- */
+
+/* The page's one halo sits behind the headline, bleeding to the edges of the page's padding */
+.home-hero {
+  align-items: flex-end;
+  margin: calc(-1 * var(--main-pad-top, 26px)) calc(-1 * var(--main-pad-x, 28px)) 0;
+  padding: var(--main-pad-top, 26px) var(--main-pad-x, 28px) 4px;
+  background: var(--glow-top) no-repeat;
+}
+
+.home-hero-text {
+  gap: 6px;
+  flex: 1 1 420px;
+}
+
+.home-hero h1 {
+  display: block;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.home-hero-summary {
+  margin: 0;
+  color: var(--fg-2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.home-hero-actions {
+  flex: none;
+}
+
+.home-hero-icon {
+  padding-inline: 9px;
+}
+
+/*
+ * On a phone the hero is the headline alone, on two lines: the tab bar's New chat button and the
+ * More sheet start things, and the figures right below say what the summary would.
+ */
+@media (max-width: 900px) {
+  .home-hero {
+    align-items: flex-start;
+  }
+  .home-hero-date,
+  .home-hero-summary,
+  .home-hero-actions > .btn:not(.home-hero-icon) {
+    display: none;
+  }
+  .home-hero h1 {
+    font-size: 30px;
+  }
+  .home-hero h1 .grad-text {
+    display: block;
+  }
+}
+
+/* ---------- The grid ---------- */
 
 /* The grid follows the dashboard's own width, not the window's: a folded sidebar is room gained. */
 .dashboard {
@@ -7,17 +73,26 @@
   min-width: 0;
 }
 
+/* On a phone the areas melt into one column, and the account's card goes to the bottom */
 .dashboard-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 14px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.dashboard-area {
+  display: contents;
 }
 
 .widget-slot {
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+
+.widget-slot[data-widget='limits'] {
+  order: 1;
 }
 
 /* A widget with nothing to say renders nothing, and its cell must not leave a gap behind */
@@ -30,58 +105,79 @@
   flex: 1;
 }
 
+/* Room under the last card, so the phone's New chat button never sits on top of it */
+@media (max-width: 900px) {
+  .shell-has-tabbar .dashboard {
+    padding-bottom: 72px;
+  }
+}
+
 @container dashboard (min-width: 600px) {
   .dashboard-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
   }
-  .widget-slot.size-s {
+  .dashboard-area {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+  .widget-slot[data-widget='limits'] {
+    order: 0;
+  }
+  /* Four figures in a row: the strip's three share the columns of the grid through a subgrid */
+  .area-top {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .area-top > .widget-slot[data-widget='kpis'] {
     grid-column: span 3;
+    display: grid;
+    grid-template-columns: subgrid;
   }
-  .widget-slot.size-m,
-  .widget-slot.size-l,
-  .widget-slot.size-full {
-    grid-column: span 6;
+  .area-top > .widget-slot[data-widget='kpis'] > * {
+    grid-column: 1 / -1;
+  }
+  .area-top .kpi-strip {
+    grid-template-columns: subgrid;
+  }
+  .area-top > .widget-slot:not([data-widget='kpis']) {
+    grid-column: span 1;
   }
 }
 
 @container dashboard (min-width: 1000px) {
   .dashboard-grid {
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) 360px;
   }
-  .widget-slot.size-s {
-    grid-column: span 4;
-  }
-  .widget-slot.size-m {
-    grid-column: span 6;
-  }
-  .widget-slot.size-l {
-    grid-column: span 8;
-  }
-  .widget-slot.size-full {
-    grid-column: span 12;
+  .area-top {
+    grid-column: 1 / -1;
   }
 }
 
 /* ---------- The frame ---------- */
 
 .widget {
-  gap: 10px;
-  padding: 14px 16px;
-  box-shadow: none;
+  gap: 12px;
+  padding: 16px 18px;
 }
 
 .widget-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   min-width: 0;
 }
 
 .widget-title {
   margin: 0;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.01em;
   white-space: nowrap;
 }
 
@@ -95,6 +191,33 @@
 .widget-actions {
   margin-left: auto;
   flex: none;
+}
+
+.widget-note {
+  margin: 0;
+}
+
+/* A card of rows: the head and the rows run edge to edge, split by hairlines */
+.now-widget,
+.rows-widget {
+  padding: 0;
+  gap: 0;
+}
+
+.now-widget > .widget-head,
+.rows-widget > .widget-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.now-widget.is-quiet > .widget-head {
+  border-bottom: 0;
+}
+
+.rows-widget > .widget-note,
+.rows-widget > .skeleton-stack,
+.now-widget > .skeleton-stack {
+  padding: 14px 18px;
 }
 
 /* Plain rows: a name on the left, mono data on the right, a hairline between them */
@@ -123,10 +246,6 @@
   min-width: 0;
 }
 
-.widget-row.live-rail {
-  padding-left: 12px;
-}
-
 .widget-link {
   color: var(--text);
   border-radius: var(--radius-sm);
@@ -143,58 +262,350 @@
   margin-inline: -6px;
 }
 
+/* Rows that are links: the whole row is the target */
+.home-rows {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+.widget:not(.rows-widget) .home-rows {
+  padding: 0;
+  margin-inline: -8px;
+}
+
+.home-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  color: var(--text);
+  transition: background var(--dur-fast);
+}
+
+.home-row:hover {
+  background: var(--bg-hover);
+  text-decoration: none;
+}
+
+.widget:not(.rows-widget) .home-row {
+  padding: 8px;
+}
+
 @media (pointer: coarse) {
   .widget-row,
-  .widget-link {
+  .widget-link,
+  .home-row {
     min-height: 44px;
   }
 }
 
-/* ---------- Now ---------- */
-
-.now-widget.has-attention {
-  border-color: color-mix(in srgb, var(--bad) 40%, var(--border));
+/* Two letters on a tile: an orchestration, a project, or a chat's symbol */
+.initials-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
-.attention-list + .now-list {
-  margin-top: 4px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
+.initials-badge.is-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
+.initials-badge.is-idle {
+  background: var(--idle-soft);
+  color: var(--idle);
+}
+
+.initials-badge.is-live {
+  background: var(--live-soft);
+  color: var(--live);
+}
+
+.initials-badge.is-neutral {
+  background: var(--bg-3);
+  color: var(--fg-2);
+}
+
+.home-ring .ring-label {
+  font-size: 9px;
+}
+
+/* ---------- The figures ---------- */
+
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.kpi {
+  gap: 6px;
+  padding: 16px 18px;
+  min-width: 0;
+}
+
+.kpi-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.kpi-label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--fg-2);
+}
+
+.kpi-head .spinner-glyph {
+  color: var(--live);
+}
+
+.kpi-value {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+/* A note like "+2 terminal chats with no cost" is worth reading whole: it wraps onto a second line
+   at a laptop's width, and only past that is it cut */
+.kpi-sub {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-size: 12px;
+  color: var(--fg-3);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.kpi-short,
+.kpi-tag,
+.limits-account,
+.limits-phone {
+  display: none;
+}
+
+.limits-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+}
+
+.limits-card .gauge-value {
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.limits-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* On a phone: three tiles that say a figure and a word, and the account's card at the bottom */
+@container dashboard (max-width: 599px) {
+  .kpi-strip {
+    gap: 8px;
+  }
+  .kpi {
+    padding: 14px;
+    gap: 4px;
+  }
+  .kpi .kpi-label,
+  .kpi-strip .kpi-sub {
+    display: none;
+  }
+  .kpi-head {
+    min-height: 16px;
+  }
+  .kpi-tag,
+  .kpi-short {
+    display: block;
+  }
+  .kpi-short {
+    font-size: 13px;
+    color: var(--fg-2);
+  }
+  .kpi-value {
+    font-size: 22px;
+  }
+  .limits-card .limits-text > .kpi-label,
+  .limits-card .kpi-sub {
+    display: none;
+  }
+  .limits-account,
+  .limits-phone {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .limits-account {
+    color: var(--fg);
+  }
+  .limits-phone {
+    font-size: 12px;
+    color: var(--fg-2);
+  }
+}
+
+/* ---------- In progress ---------- */
+
+.now-widget.has-attention .inbox-icon {
+  color: var(--idle);
+}
+
+.now-widget .attention-list {
+  padding: 4px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.now-widget .state {
+  padding: 18px 18px 22px;
+}
+
+.orch-items,
 .now-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
+}
+
+.orch-item {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 18px;
+}
+
+.orch-item + .orch-item,
+.orch-items + .now-list > .now-row:first-child,
+.now-row + .now-row {
+  border-top: 1px solid var(--line);
+}
+
+.orch-item-head {
+  display: flex;
+  align-items: center;
   gap: 10px;
+  min-width: 0;
+}
+
+.orch-item-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 12px;
+}
+
+.orch-item-name a {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.orch-item-cost {
+  flex: none;
+  font-size: 13px;
+}
+
+.orch-item-elapsed {
+  flex: none;
+}
+
+.orch-item-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  font-size: 12px;
+  color: var(--fg-2);
+}
+
+.orch-item-counts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.orch-item-counts .dot {
+  width: 6px;
+  height: 6px;
+}
+
+.orch-item-stage {
+  margin-left: auto;
+}
+
+/* What the running task is on right now: `$ command`, in a sunken line */
+.run-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+}
+
+.run-line-ticker {
+  flex: 1;
+  min-width: 0;
+}
+
+.run-line-task {
+  flex: none;
+  max-width: 35%;
+  font-size: 12px;
 }
 
 .now-row {
   display: flex;
   align-items: center;
-  gap: 8px 16px;
+  gap: 10px 12px;
   min-width: 0;
-  flex-wrap: wrap;
+  padding: 14px 18px;
 }
 
 .now-main {
-  flex: 1 1 260px;
+  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .now-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.now-title a {
   color: var(--text);
 }
 
@@ -204,66 +615,139 @@
 
 .now-meta {
   flex: none;
-  max-width: 100%;
-}
-
-/* ---------- Orchestrations ---------- */
-
-.orch-items {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.orch-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.orch-item-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.orch-item-head a {
-  color: var(--text);
-}
-
-.orch-item-cost {
-  margin-left: auto;
-}
-
-.orch-item-now {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.orch-item-task {
-  flex: none;
   max-width: 40%;
+  font-size: 12px;
+  color: var(--fg-3);
 }
 
-.orch-item-now .ticker {
+/* ---------- Pick up again ---------- */
+
+.pick-main {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pick-title {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pick-project {
+  font-size: 12px;
+  max-width: 30%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pick-cost {
+  flex: none;
+  min-width: 76px;
+  text-align: right;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.pick-when {
+  width: 48px;
+  text-align: right;
+}
+
+.pick-phone,
+.pick-chevron {
+  display: none;
+}
+
+@container dashboard (max-width: 599px) {
+  .pick-wide,
+  .pick-project {
+    display: none;
+  }
+  .pick-phone,
+  .pick-chevron {
+    display: block;
+    font-size: 12px;
+  }
+  .pick-chevron {
+    flex: none;
+    color: var(--fg-3);
+  }
+  .pick-title {
+    font-size: 14px;
+  }
+  .rows-widget .home-rows {
+    padding: 0;
+  }
+  .rows-widget .home-row {
+    border-radius: 0;
+    padding: 12px 14px;
+  }
+  .rows-widget .home-rows > li + li {
+    border-top: 1px solid var(--line);
+  }
+}
+
+/* ---------- Today's usage ---------- */
+
+.today-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.today-table th,
+.today-table td {
+  padding: 7px 0;
+  text-align: left;
+  font-weight: 400;
+}
+
+.today-table thead th {
+  padding-top: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.today-table tbody th {
+  max-width: 120px;
+  color: var(--fg);
+}
+
+.today-table .num {
+  width: 64px;
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Projects ---------- */
 
-.project-live {
-  color: var(--live);
+.project-row-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .project-waiting {
-  font-weight: 600;
+  color: var(--idle);
+}
+
+/* ---------- Schedules ---------- */
+
+.schedules-widget.is-none {
+  border-style: dashed;
+  box-shadow: none;
+  gap: 10px;
+}
+
+.schedules-create {
+  align-self: flex-start;
 }
 
 /* ---------- Memory ---------- */
@@ -353,5 +837,29 @@
   }
   .quick-start-options .status-line {
     min-height: 44px;
+  }
+}
+
+/* ---------- Phone ---------- */
+
+@container dashboard (max-width: 599px) {
+  .widget {
+    padding: 14px;
+  }
+  .now-widget > .widget-head,
+  .rows-widget > .widget-head {
+    padding: 12px 14px;
+  }
+  .orch-item,
+  .now-row {
+    padding: 14px;
+  }
+  .now-meta,
+  .orch-item-counts,
+  .orch-item-cost {
+    display: none;
+  }
+  .run-line-task {
+    display: none;
   }
 }

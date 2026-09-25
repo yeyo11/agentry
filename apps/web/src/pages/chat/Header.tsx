@@ -15,6 +15,7 @@ import type { TranscriptFind } from '../../components/TranscriptSearch';
 import { ICON, ICON_SM } from '../../components/icons';
 import { api } from '../../api';
 import { chatPill, checklistCounts, RECONNECTING_AFTER_MS } from '../../lib/chat-live';
+import { displayTitle } from '../../lib/chat-model';
 import { COMPACT, useMediaQuery } from '../../lib/media';
 import { checklistProgress } from '../../lib/observe';
 import type { InspectorTab } from './Inspector';
@@ -78,6 +79,14 @@ function ChecklistProgress({ chat, onOpen }: { chat: Chat; onOpen: () => void })
       </button>
     </Tooltip>
   );
+}
+
+/** Project · short id · model: enough to tell two chats with the same first prompt apart. */
+function headingFacts(chat: Chat): string[] {
+  const dir = chat.cwd.split(/[\\/]/).filter(Boolean).at(-1);
+  const project = chat.project?.name ?? dir;
+  const model = chat.execution?.model ?? chat.executions.at(-1)?.model ?? chat.model;
+  return [project, chat.id.slice(0, 6), model].filter((fact): fact is string => Boolean(fact));
 }
 
 export interface HeaderActions {
@@ -187,7 +196,11 @@ export const ChatHeader = memo(function ChatHeader({ chat, connected, actions }:
           <ChevronLeft {...ICON} />
         </Link>
       </Tooltip>
-      <h1 className="chat-title ellipsis">{chat.title}</h1>
+      <div className="chat-heading">
+        <h1 className="chat-title ellipsis">{displayTitle(chat)}</h1>
+        {/* Where it runs, which chat it is and on what, in the mono of ids: the title is the prompt */}
+        <span className="chat-sub ellipsis">{headingFacts(chat).join(' · ')}</span>
+      </div>
       <StatePill chat={chat} connected={connected} />
       {chat.health.level !== 'ok' && <HealthBadge health={chat.health} />}
       <ChecklistProgress chat={chat} onOpen={() => inspector.show('activity')} />
