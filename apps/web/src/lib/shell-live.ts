@@ -4,7 +4,7 @@
  * (what counts as live, in what order, how an orchestration's progress is counted) are tested
  * without a browser.
  */
-import type { ChatState, OrchestrationStatus, OrchestrationTaskStatus } from '@agentry/shared';
+import type { AccountUsage, ChatState, OrchestrationStatus, OrchestrationTaskStatus } from '@agentry/shared';
 import type { TickerActivity } from './live';
 import type { ProgressCounts } from './progress';
 
@@ -205,4 +205,19 @@ export function pickUsageWindows(windows: Record<string, { utilization: number; 
     return { name, percent: Math.max(0, Math.min(100, Math.round(win.utilization * 100))), resetsAt: win.resetsAt };
   };
   return { fiveHour: pick(/^(five|5)[_-]?h/i), sevenDay: pick(/^(seven|7)[_-]?d/i) };
+}
+
+/**
+ * The active account's windows as claude-swap read them, when it is installed: the more precise
+ * reading, and the one Home's limits tile shows, so the status bar never disagrees with it.
+ */
+export function swapUsageWindows(usage: Pick<AccountUsage, 'fiveHour' | 'sevenDay'> | null | undefined): {
+  fiveHour: UsageWindowReading | null;
+  sevenDay: UsageWindowReading | null;
+} {
+  const read = (name: string, win: AccountUsage['fiveHour']): UsageWindowReading | null =>
+    win && Number.isFinite(win.pct)
+      ? { name, percent: Math.max(0, Math.min(100, Math.round(win.pct))), resetsAt: win.resetsAt ? Math.round((Date.parse(win.resetsAt) || 0) / 1000) : 0 }
+      : null;
+  return { fiveHour: read('five_hour', usage?.fiveHour ?? null), sevenDay: read('seven_day', usage?.sevenDay ?? null) };
 }

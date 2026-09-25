@@ -64,7 +64,7 @@
     "rightNow": "Ahora mismo",
     "working": "{{n}} trabajando",
     "context": "{{percent}}% de contexto",
-    "costUnavailable": "coste no disponible",
+    "costUnavailable": "sin coste",
     "noProject": "sin proyecto",
     "nothingSpent": "Aún no has gastado nada hoy.",
     "spent": "{{cost}} gastados",

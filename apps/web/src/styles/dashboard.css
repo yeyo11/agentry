@@ -668,9 +668,11 @@
 }
 
 .pick-cost {
-  width: 76px;
+  flex: none;
+  min-width: 76px;
   text-align: right;
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .pick-when {
