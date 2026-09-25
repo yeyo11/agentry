@@ -129,7 +129,7 @@
       "silent": "Silencio"
     },
     "levelHints": {
-      "all": "Un aviso, una notificación del sistema o un push por todo lo de abajo, salvo la actividad en segundo plano.",
+      "all": "Un aviso emergente, una notificación del sistema o un push por todo lo de abajo, salvo la actividad en segundo plano.",
       "important": "Cuando un chat te necesita, algo falla o termina una orquestación. Lo demás espera en la campana.",
       "urgent": "Solo cuando un chat te espera o su salud se pone en rojo. Lo demás espera en la campana.",
       "silent": "No salta nada. Todo espera en la campana."
