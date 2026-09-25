@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T14:26:57Z
-updated_at: 2026-09-25T18:00:00Z
+updated_at: 2026-09-25T16:22:09Z
 tags:
     - plan
     - updates
@@ -280,13 +280,15 @@ found while building it.
   `POST /api/system/release/check` are documented, `stream.hello` carries `version`, and the image
   sets `AGENTRY_DISTRIBUTION=docker`.
 - **The desktop updater** (`desktop-updater`). electron-updater 6.8.9, bundled into `main.cjs`;
-  `apps/desktop/src/updater.ts` is the planned state machine, with three `unsupported` reasons
-  (`development`, `read-only`, `unknown-package`) that carry the message the UI shows.
+  `apps/desktop/src/updater.ts` is the planned state machine, with four `unsupported` reasons
+  (`development`, `read-only`, `unknown-package`, and `no-elevation` for a `.deb` with no graphical
+  password prompt on `PATH`) that carry the message the UI shows.
   `window.agentryDesktop.updates` (`state`, `onState`, `download`, `install`) is accepted only from
   the local server's page. Help → **Check for updates…** walks through dialogs, and the tray gets
   **Restart to update to X**. A restart stops the tray's monitor and the server child, installs
   silently and relaunches after the old process exits, so the new one gets the single-instance lock;
-  a failed install starts the server again. The main process passes `appimage` or `deb` to its server
+  a failed install starts the server again. The server drops `ELECTRON_RUN_AS_NODE` from its own
+  environment as it starts, so the chats and commands it runs no longer inherit it. The main process passes `appimage` or `deb` to its server
   as `AGENTRY_DISTRIBUTION`. `desktop.yml` attaches `latest-linux.yml` to the draft release with the
   packages, and electron-builder runs with `--publish never`.
 - **The reload offer** (`web-reload`). The build knows its version (`__AGENTRY_VERSION__` from the
@@ -302,7 +304,9 @@ found while building it.
   the newest release with its date and notes, when it was last checked and **Check for updates**,
   then the action for this install — Download with progress and Restart to update in the desktop
   window (asking *restart now or update when you quit* over live work), the unsupported reason and
-  the release link, the Docker or source commands with a copy button, or "use Help → Check for
+  the release link, the Docker commands (one per documented setup: `docker run`, a compose file on
+  the published image, the repository's own compose file, and Helm) or source commands with a copy
+  button, or "use Help → Check for
   updates…" for a desktop app's server seen from a browser. A page on a non-loopback host is told
   that whoever runs that server does the update. The shell's answers are parsed defensively, so an
   older or newer shell cannot break the card. A dot with an accessible label marks Settings in the
@@ -326,6 +330,16 @@ found while building it.
   Listing `*.blockmap` would have made `gh release upload` fail on the unmatched pattern. The
   generated `latest-linux.yml` does list the `.deb` as well as the AppImage, each with its SHA-512,
   so the `.deb` path needs no fallback.
+- **An AppImage relaunches through a shell, not `app.relaunch()`.** Found by the end-to-end update
+  below: on Linux `app.relaunch()` hands the restart to a helper run from Electron's own binary,
+  which inside an AppImage lives in the image's mount, and the mount goes away with the old process,
+  so the update installed and the app never came back. `appImageRelaunch()` starts `/bin/bash`
+  outside the mount, which waits for the old process to exit and runs the AppImage's real path. It
+  first closes every inherited descriptor above stderr: Chromium leaves some inheritable (the
+  DevTools socket among them), and one held open by the new instance kept the old image's FUSE
+  process and mount alive. Bash rather than sh because sh cannot close a descriptor above 9, and
+  the AppImage's `AppRun` needs bash anyway. A `.deb` still uses `app.relaunch()`: its binary is on
+  disk, not in a mount.
 
 ### What did not ship, and why
 
@@ -333,25 +347,36 @@ found while building it.
   under *Decided against, for now* in the [ROADMAP](../../ROADMAP.md)), installing without asking, a
   notification kind or push for releases, updating the Docker image from the UI, other platforms, and
   signing.
-- **A real download and install.** The in-app update has never taken a real release, because none
-  carries `latest-linux.yml` yet: the first release built with this change is the first one an
-  installed app can find, and the first in-app update is from that release to the next.
-- **No check for a graphical `pkexec` agent on a `.deb`.** Without one, electron-updater falls back
-  to plain `sudo`, which fails without a terminal; [desktop.md](../desktop.md#updating) says to
-  install the `.deb` by hand then.
+- **An update from GitHub itself.** The full cycle was run against a local feed (below), not
+  against a GitHub release, because none carries `latest-linux.yml` yet: the first release built
+  with this change is the first one an installed app can find. The provider is the only part that
+  differs; GitHub also answers range requests, so the real download can be differential where the
+  local feed fell back to a full one.
+- **The `.deb` install was not run.** It needs root through `pkexec` and a system package database
+  to change; the elevation check that decides whether to offer it is unit-tested.
 
-### Noticed and not fixed
+### Fixed before merging
 
-- **The Docker command on the card** (`docker compose pull && docker compose up -d`) is right for a
-  compose file that uses the published image, but the repository's own `docker-compose.yml` builds
-  `agentry:dev` locally and the README's quick start uses `docker run`, and that command updates
-  neither. [deploy.md](../deploy.md#updating-agentry) gives the right command for each; the card
-  should name the setup its command is for, or offer one per setup. Listed in the ROADMAP.
-- **`ELECTRON_RUN_AS_NODE=1` leaks into chats started from the desktop app**, apparently inherited
-  through the server child, so an Electron app launched from such a chat runs as plain Node. Found
-  while smoke-testing the packaged app, which needed it unset.
-- **The Spanish card names the desktop menu path in English** ("Help → Check for updates…"), because
-  the desktop menus are English-only.
+Found while building or reviewing this work, and fixed in the same pull request:
+
+- **The Docker command on the card** was right only for a compose file on the published image; the
+  repository's own `docker-compose.yml` builds `agentry:dev` and the README's quick start uses
+  `docker run`. The card now gives a command per setup, as [deploy.md](../deploy.md#updating-agentry)
+  does.
+- **`ELECTRON_RUN_AS_NODE=1` leaked into chats started from the desktop app**: the shell starts the
+  server with it, and every process the server spawned inherited it, so an Electron app launched from
+  a chat ran as plain Node. `apps/api/src/standalone.ts` deletes it at startup; Electron reads it only
+  at launch.
+- **A `.deb` with no graphical password prompt** would have downloaded the update and then failed
+  on plain `sudo` with the server already stopped. It is now `unsupported` (`no-elevation`) up
+  front, with a message that names `pkexec` and the manual route.
+- **The AppImage never came back after an update** (see *Where it differs from the plan*).
+
+### Kept as it is
+
+- **The Spanish card names the desktop menu path in English** ("Help → Check for updates…"). The
+  desktop menus are English-only, so that is the text a Spanish reader finds on screen; translating
+  it in the card would point at a menu entry that does not exist.
 
 ### How it was checked
 
@@ -373,9 +398,23 @@ found while building it.
   `xvfb-run` with a separate config folder: the bundle with electron-updater loads, the server starts
   with `AGENTRY_DISTRIBUTION=appimage`, and the AppImage's `AppRun` honours
   `APPIMAGE_EXIT_AFTER_INSTALL`, so a silent install exits instead of starting the new version twice.
-- **Not covered automatically:** the chunk-error path (the harness cannot make a chunk go missing;
-  unit tests cover the matching), `lazyPage`'s fallback rendering (no React renderer in the web unit
-  tests), and the card's desktop branch in a real Electron window.
+- **More e2e, added while fixing the above:** `reload.spec.mjs` blocks the Usage chunk through a
+  new `page.blockUrls()` (CDP `Network.setBlockedURLs`, bypassing the service worker) and expects
+  the stale page, the banner and the shell still working, which covers `lazyPage`'s fallback in a
+  real browser. `updates-desktop.spec.mjs` puts a fake `agentryDesktop.updates` in front of the real
+  card and walks Download with its progress bar, Restart, the live-work question with *Update when I
+  quit* and *Restart now* (checking what the card asked the shell for), and the unsupported message
+  with its release link. `updates.spec.mjs` checks every Docker command, and reads the stored
+  notifications instead of the bell's label, which a notification from an earlier spec could change.
+- **A real update of the packaged app.** Two AppImages, 0.17.1 and 0.17.2, built with the publish
+  provider pointed at a local HTTP feed serving the 0.17.2 `latest-linux.yml`; the 0.17.1 one
+  installed as `Agentry.AppImage` and started under Xvfb with a separate config folder, and driven
+  over CDP through the preload's `download()` and `install({})`. It downloaded and verified the
+  release, stopped its server, replaced the file (its SHA-512 then matched 0.17.2's) and came back as
+  0.17.2 about 5 s later, with only the new image mounted. The first two runs are what found the
+  relaunch and descriptor problems above. A fake `claude` on the same run recorded the environment
+  the server gave it: `ELECTRON_RUN_AS_NODE` was absent, though the server itself was started with
+  it.
 
 ## Related
 
