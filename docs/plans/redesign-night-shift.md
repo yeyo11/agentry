@@ -677,14 +677,33 @@ at once…", `processes.test.ts`) failed once under the full parallel run and pa
 timing flake unrelated to the redesign, which does not touch `packages/`. `pnpm e2e` runs once, in
 the orchestration's verification phase on the merged branch.
 
+**Follow-up pass.** A second pass on the merged branch closed what the tasks had left:
+
+- Every place that shows a chat (sidebar Live, Home, the chat page, the palette, notifications)
+  titles it by its first prompt through `displayTitle()`; `ChatRef` gained an optional
+  `firstPrompt` for that (additive, no route changes).
+- One segmented bar: `ProgressBar variant="segments"` replaces `.segbar`, `.live-segbar` and
+  `.chat-launch-bar`. Unused meter styles and account strings are gone.
+- The inspector drawer is 344 px so its tab labels fit; Home's spend note wraps; the favicon and
+  icons use the Night Shift gradient; sign-in uses the mono section label and opens without the
+  skeleton flash.
+- Orchestrations: Templates is a header button, the detail's phone `⋯` is a `Sheet` through the
+  shared `MoreActions`, phone task cards are one line, the pipeline uses the reference's words, and
+  the phone header sticks.
+- Workspace on a phone: Schedules' actions in a `⋯` sheet, Usage's table toggle in the chart card
+  and one big figure, exhausted accounts as one-line rows, rotation as its own screen, and the
+  Connectors and Projects phone headers.
+- Shell on a phone: the More sheet shows counts and problems, and `/chats` holds the project chip in
+  its header (one `.project-selector` in the DOM).
+- Schedule timetables are said in the UI language ([schedule words](../schedule-words.md)).
+- A live chat lists its workflows from the stream and the CLI's files, and a chat that is a task of
+  an orchestration links back to it. The flaky `processes.test.ts` case is deterministic now.
+
 **Left for later**
 
-- Cron descriptions are built in English in `packages/core/src/cron.ts`, so the Spanish UI shows
-  "At 03:00". Translating them needs an API change, which this plan ruled out.
-- Four segmented bars (`.segbar`, `.live-segbar`, `.chat-launch-bar`, `.progress-segbar`) look
-  alike but are separate classes. Merging them is a refactor.
-- `.meter-fill.is-grad` in `feedback.css` is unused.
 - The `quota` illustration has no state to show on yet.
+- Waiting notifications built by the server (`packages/shared/src/notifications.ts`) still use the
+  chat's stored title rather than its first prompt.
 
 ## Related
 

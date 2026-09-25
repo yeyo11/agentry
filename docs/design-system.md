@@ -436,8 +436,9 @@ Rules:
 
 **Still open**
 
-- Cron descriptions ("At 03:00") are built in English in `packages/core/src/cron.ts`. Translating
-  them needs an API change.
+- The API's schedule `description` stays English; the web says the timetable itself in the UI
+  language from the shared parser (see [schedule words](schedule-words.md)).
+
 - The observability "stuck" badge stays bad (red): stuck is a problem, not a warning.
 - `quota` is still reserved: the app has no "every account exhausted" state yet.
 
