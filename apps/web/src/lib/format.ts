@@ -81,6 +81,11 @@ export function durationBetween(start: string | number | null, end: string | num
   return formatDuration((toMs(end) ?? Date.now()) - a);
 }
 
+export function formatDate(value: string | number | null | undefined): string {
+  const ms = toMs(value);
+  return ms == null ? '—' : dateTime('date', DATE).format(ms);
+}
+
 export function formatDateTime(value: string | number | null | undefined): string {
   const ms = toMs(value);
   return ms == null ? '—' : dateTime('datetime', { ...DATE, ...TIME }).format(ms);
