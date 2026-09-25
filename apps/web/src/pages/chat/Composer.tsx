@@ -11,6 +11,7 @@ import { LAYER_ATTR } from '../../components/controls/layer';
 import { Sheet } from '../../components/controls/Sheet';
 import { Tooltip } from '../../components/controls/Tooltip';
 import { ICON_SM } from '../../components/icons';
+import { SlashMenu, useSlashMenu } from '../../components/SlashMenu';
 import { ErrorBox } from '../../components/ui';
 import { api, keys } from '../../api';
 import { NARROW, useMediaQuery } from '../../lib/media';
@@ -160,6 +161,7 @@ export function Composer({
   const box = useRef<HTMLTextAreaElement>(null);
   const working = chat.state === 'working';
   const narrow = useMediaQuery(NARROW);
+  const slash = useSlashMenu({ text, setText, commands: chat.environment?.slashCommands ?? [], skills: chat.environment?.skills, box });
 
   const submit = useMutation({
     mutationFn: (message: string) => {
@@ -231,47 +233,51 @@ export function Composer({
     <div className="composer-wrap">
       <div {...files.dropProps}>
         <AttachmentTray state={files} />
-        <form
-          className={`composer ${working ? 'live-energy is-working' : ''}`.trim()}
-          aria-label={kind === 'fork' ? t('work:sessionView.continueCopy') : t('composer.message')}
-          onSubmit={(e) => {
-            e.preventDefault();
-            send();
-          }}
-        >
-          <AttachButton state={files} compact disabled={submit.isPending} />
-          <textarea
-            aria-label={kind === 'fork' ? t('composer.firstMessage') : t('composer.message')}
-            autoFocus={kind === 'fork'}
-            onPaste={files.onPaste}
-            ref={box}
-            rows={1}
-            placeholder={placeholder}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
+        <SlashMenu state={slash}>
+          <form
+            className={`composer ${working ? 'live-energy is-working' : ''}`.trim()}
+            aria-label={kind === 'fork' ? t('work:sessionView.continueCopy') : t('composer.message')}
+            onSubmit={(e) => {
+              e.preventDefault();
+              send();
             }}
-          />
-          {stoppable && interrupt && (
-            <Tooltip content={t('view.interruptHint')}>
-              <button type="button" className="btn btn-danger composer-stop" aria-label={t('work:runView.interrupt')} disabled={interrupt.pending} onClick={interrupt.run}>
-                <Square size={12} strokeWidth={2.5} fill="currentColor" aria-hidden />
-                <span className="composer-stop-word">{t('work:runView.interrupt')}</span>
-              </button>
-            </Tooltip>
-          )}
-          {sendable && (
-            <Tooltip content={sendName}>
-              <button type="submit" className="composer-send" aria-label={sendName} disabled={empty || files.uploading || submit.isPending}>
-                <Icon {...ICON_SM} />
-              </button>
-            </Tooltip>
-          )}
-        </form>
+          >
+            <AttachButton state={files} compact disabled={submit.isPending} />
+            <textarea
+              aria-label={kind === 'fork' ? t('composer.firstMessage') : t('composer.message')}
+              autoFocus={kind === 'fork'}
+              onPaste={files.onPaste}
+              ref={box}
+              rows={1}
+              placeholder={placeholder}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              {...slash.inputProps}
+              onKeyDown={(e) => {
+                if (slash.onKeyDown(e)) return;
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+            />
+            {stoppable && interrupt && (
+              <Tooltip content={t('view.interruptHint')}>
+                <button type="button" className="btn btn-danger composer-stop" aria-label={t('work:runView.interrupt')} disabled={interrupt.pending} onClick={interrupt.run}>
+                  <Square size={12} strokeWidth={2.5} fill="currentColor" aria-hidden />
+                  <span className="composer-stop-word">{t('work:runView.interrupt')}</span>
+                </button>
+              </Tooltip>
+            )}
+            {sendable && (
+              <Tooltip content={sendName}>
+                <button type="submit" className="composer-send" aria-label={sendName} disabled={empty || files.uploading || submit.isPending}>
+                  <Icon {...ICON_SM} />
+                </button>
+              </Tooltip>
+            )}
+          </form>
+        </SlashMenu>
       </div>
       <div className="composer-foot">
         <StatusLine chat={chat} kind={kind} choices={choices} onChoices={setChoices} />

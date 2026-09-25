@@ -212,12 +212,6 @@ The rest of what is still open was decided against rather than left undone. The 
   recording the README's media, and left alone: the fix belongs to how a chat is named, not to a
   recorder.
 
-- **The Docker update command the Updates card shows** (`docker compose pull && docker compose up -d`)
-  fits a compose file that uses the published image, but the repository's own `docker-compose.yml`
-  builds `agentry:dev` locally and the README's quick start uses `docker run`. Neither of those two is
-  updated by that command; [docs/deploy.md](docs/deploy.md#updating-agentry) gives the right one for
-  each. The card should say which setup its command is for, or offer one per setup.
-
 ### Out of reach of the CLI
 
 - **Web artifacts and claude.ai chat memory** — no public API, no CLI command.

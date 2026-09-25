@@ -50,3 +50,15 @@ test('flags subagent messages and skips non-messages', () => {
   assert.equal(normalizeMessage({ type: 'user', isMeta: true, message: { content: 'x' } }), null);
   assert.equal(normalizeMessage({ type: 'user', message: { content: '' } }), null);
 });
+
+test("reads a slash command's output, which the CLI writes as a system line", () => {
+  const content = '<local-command-stdout>## Context Usage\n\n**Tokens:** 11.8k</local-command-stdout>';
+  const entry = normalizeMessage({ type: 'system', subtype: 'local_command', uuid: 'c1', timestamp: '2026-09-25T18:13:43.794Z', isSidechain: false, isMeta: false, content });
+  assert.ok(entry);
+  assert.equal(entry.role, 'user');
+  assert.equal(entry.uuid, 'c1');
+  assert.equal(entry.model, null);
+  assert.equal(entryText(entry), content);
+  assert.equal(normalizeMessage({ type: 'system', subtype: 'local_command', content: '' }), null);
+  assert.equal(normalizeMessage({ type: 'system', subtype: 'local_command', isMeta: true, content }), null);
+});

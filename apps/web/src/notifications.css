@@ -48,7 +48,8 @@
 }
 .notif-head-actions {
   display: flex;
-  gap: 6px;
+  flex: none;
+  gap: 2px;
 }
 .notif-empty {
   margin: 0;
@@ -178,6 +179,9 @@
   flex-direction: column;
   gap: 10px;
   padding: 6px 4px 10px;
+}
+/* Only the bell's popover has to fit the list under its notifications; in Settings it is the page */
+.notif-prefs .notif-prefs-body {
   max-height: 260px;
   overflow-y: auto;
 }

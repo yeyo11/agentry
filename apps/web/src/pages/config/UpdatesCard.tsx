@@ -10,7 +10,7 @@ import { Card, CopyButton, ErrorBox, Skeleton, Tag } from '../../components/ui';
 import type { DesktopUpdatesBridge } from '../../lib/desktop';
 import { formatDate, timeAgo } from '../../lib/format';
 import {
-  DOCKER_UPDATE_COMMAND,
+  DOCKER_UPDATE_WAYS,
   parseInstallAnswer,
   parseUpdateState,
   SOURCE_UPDATE_COMMAND,
@@ -109,8 +109,14 @@ function UpdateSteps({ how, remote }: { how: UpdateHow; remote: boolean }) {
       )}
       {how === 'docker' && (
         <>
-          <p className="small">{t('updates.docker')}</p>
-          <Command command={DOCKER_UPDATE_COMMAND} />
+          <p className="small">{t('updates.docker.intro')}</p>
+          {DOCKER_UPDATE_WAYS.map(({ way, command }) => (
+            <div key={way} className="stack" data-testid={`update-docker-${way}`}>
+              <p className="small">{t(`updates.docker.${way}`)}</p>
+              <Command command={command} />
+            </div>
+          ))}
+          <p className="small">{t('updates.docker.helm')}</p>
         </>
       )}
       {how === 'source' && (

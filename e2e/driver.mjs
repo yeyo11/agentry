@@ -173,6 +173,21 @@ export async function launch({ baseUrl, port = 0, shotsDir }) {
       const identifier = added.result.identifier;
       return () => send('Page.removeScriptToEvaluateOnNewDocument', { identifier });
     },
+    /**
+     * Makes every request whose URL matches one of `patterns` (`*` wildcards) fail, the way a file
+     * a deploy removed fails, and skips the service worker so its cache cannot answer instead.
+     * Returns what lifts the block, which a spec must call before it finishes.
+     */
+    async blockUrls(patterns) {
+      await send('Network.enable');
+      await send('Network.setBypassServiceWorker', { bypass: true });
+      await send('Network.setBlockedURLs', { urls: patterns });
+      return async () => {
+        await send('Network.setBlockedURLs', { urls: [] });
+        await send('Network.setBypassServiceWorker', { bypass: false });
+        await send('Network.disable');
+      };
+    },
     /** Console errors and uncaught exceptions seen so far; `takeErrors()` also clears them. */
     takeErrors: () => errors.splice(0),
     async goto(path, wait = 1200) {

@@ -120,6 +120,39 @@ export const englishNotificationText: NotificationText = {
 /** In the order the preferences list them; their labels are `components:notificationPanel.kinds`. */
 export const KINDS: NotificationKind[] = ['waiting', 'run', 'orchestration', 'conflict', 'limit', 'activity', 'health'];
 
+/**
+ * How much a notification may interrupt: a toast in the page, a system notification for a hidden
+ * tab, a push to a phone. The bell keeps every notification whatever the level; the kinds decide
+ * what is kept at all, the level what is worth breaking into someone's work for.
+ */
+export type NotificationLevel = 'all' | 'important' | 'urgent' | 'silent';
+export const LEVELS: NotificationLevel[] = ['all', 'important', 'urgent', 'silent'];
+/** A chat finishing a turn is the most frequent news and rarely worth an interruption. */
+export const DEFAULT_LEVEL: NotificationLevel = 'important';
+
+/**
+ * Whether a notification interrupts at this level. The same function decides for the page and for
+ * the push sender, so a phone is never woken for something the open page would only have kept.
+ */
+export function interrupts(notification: Pick<NotificationDraft, 'kind' | 'priority' | 'tone'>, level: NotificationLevel): boolean {
+  if (notification.priority === 'low') return false;
+  switch (level) {
+    case 'all':
+      return true;
+    case 'important':
+      return (
+        notification.priority === 'high' ||
+        notification.tone === 'bad' ||
+        notification.kind === 'orchestration' ||
+        notification.kind === 'conflict'
+      );
+    case 'urgent':
+      return notification.priority === 'high';
+    case 'silent':
+      return false;
+  }
+}
+
 const DEDUPE_MS = 60_000;
 
 /** The search param that names the prompt a chat page should bring into view. */

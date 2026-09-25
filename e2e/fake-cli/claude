@@ -137,7 +137,7 @@ emit({
   permissionMode,
   tools: ['Bash'],
   mcp_servers: [],
-  slash_commands: [],
+  slash_commands: ['compact', 'context', 'cost', 'review'],
   claude_code_version: VERSION,
   output_style: 'default',
   agents: [],

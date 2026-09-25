@@ -1,10 +1,10 @@
 import type { NewChatRequest, PermissionMode } from '@agentry/shared';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, ArrowUp, Check, FolderOpen, MessageSquare, Network, Search, X, type LucideIcon } from 'lucide-react';
 import { useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { api, useAccounts, useOverview, useProjects } from '../api';
+import { api, keys, useAccounts, useOverview, useProjects } from '../api';
 import { AttachButton, AttachmentTray, useAttachments } from '../components/Attachments';
 import { ChatToolsPicker, type ToolChoices } from '../components/ChatToolsPicker';
 import { NEW_ORCHESTRATION_PATH } from '../components/CommandPalette';
@@ -12,6 +12,7 @@ import { Combobox, Select, Switch } from '../components/controls';
 import { Tooltip } from '../components/controls/Tooltip';
 import { ICON, ICON_SM } from '../components/icons';
 import { Illustration } from '../components/illustrations';
+import { SlashMenu, useSlashMenu } from '../components/SlashMenu';
 import { useProjectScope } from '../lib/project-scope';
 import { NARROW, useMediaQuery } from '../lib/media';
 import { ErrorBox, Field, ModelCombobox, PERMISSION_MODES, Segmented, usePageTitle } from '../components/ui';
@@ -85,6 +86,10 @@ export function NewChat() {
 
   const system = overview.data?.system;
   const directory = cwd.trim() || system?.workspaceDir || t('new.wrapperWorkspace');
+  // What the CLI reported the last time a chat started in that directory: a new chat gets the same
+  const where = cwd.trim() || system?.workspaceDir || '';
+  const environment = useQuery({ queryKey: keys.environments(where), queryFn: () => api.environments(where), enabled: Boolean(where) });
+  const slash = useSlashMenu({ text: prompt, setText: setPrompt, commands: environment.data?.[0]?.slashCommands ?? [], skills: environment.data?.[0]?.skills, box });
   // The chips: where it runs, with what — the same words the chat's own chips show
   const place = known?.name ?? directory.split(/[\\/]/).filter(Boolean).at(-1) ?? directory;
   const words = [place, model.trim() || tc('newChat.defaultModel'), permissionMode || tc('newChat.defaultMode', { mode: system?.defaultPermissionMode ?? '…' })];
@@ -188,7 +193,9 @@ export function NewChat() {
       value={prompt}
       onChange={(e) => setPrompt(e.target.value)}
       onPaste={files.onPaste}
+      {...slash.inputProps}
       onKeyDown={(e) => {
+        if (slash.onKeyDown(e)) return;
         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
           e.preventDefault();
           send();
@@ -251,13 +258,15 @@ export function NewChat() {
             {chips}
             <div {...files.dropProps}>
               <AttachmentTray state={files} />
-              <form className="composer grad-border" aria-label={t('new.prompt')} onSubmit={submit}>
-                <AttachButton state={files} compact disabled={start.isPending} />
-                {textarea}
-                <button type="submit" className="composer-send" aria-label={startName} disabled={!ready || start.isPending}>
-                  <ArrowUp {...ICON_SM} />
-                </button>
-              </form>
+              <SlashMenu state={slash}>
+                <form className="composer grad-border" aria-label={t('new.prompt')} onSubmit={submit}>
+                  <AttachButton state={files} compact disabled={start.isPending} />
+                  {textarea}
+                  <button type="submit" className="composer-send" aria-label={startName} disabled={!ready || start.isPending}>
+                    <ArrowUp {...ICON_SM} />
+                  </button>
+                </form>
+              </SlashMenu>
             </div>
           </div>
         </section>
@@ -275,26 +284,28 @@ export function NewChat() {
             <div className="new-composer-wrap">
               <div {...files.dropProps}>
                 <AttachmentTray state={files} />
-                <form className="composer new-composer grad-border" aria-label={t('new.prompt')} onSubmit={submit}>
-                  {textarea}
-                  <div className="new-composer-foot">
-                    <AttachButton state={files} compact disabled={start.isPending} />
-                    {chips}
-                    <KeysHint>
-                      {tc('newChat.keys')
-                        .split(' ')
-                        .map((key) => (
-                          <kbd key={key}>{key}</kbd>
-                        ))}
-                    </KeysHint>
-                    <Tooltip content={startName}>
-                      <button type="submit" className="btn btn-primary new-start" aria-label={t('new.start')} disabled={!ready || start.isPending}>
-                        {tc('newChat.start')}
-                        <ArrowRight {...ICON_SM} />
-                      </button>
-                    </Tooltip>
-                  </div>
-                </form>
+                <SlashMenu state={slash}>
+                  <form className="composer new-composer grad-border" aria-label={t('new.prompt')} onSubmit={submit}>
+                    {textarea}
+                    <div className="new-composer-foot">
+                      <AttachButton state={files} compact disabled={start.isPending} />
+                      {chips}
+                      <KeysHint>
+                        {tc('newChat.keys')
+                          .split(' ')
+                          .map((key) => (
+                            <kbd key={key}>{key}</kbd>
+                          ))}
+                      </KeysHint>
+                      <Tooltip content={startName}>
+                        <button type="submit" className="btn btn-primary new-start" aria-label={t('new.start')} disabled={!ready || start.isPending}>
+                          {tc('newChat.start')}
+                          <ArrowRight {...ICON_SM} />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  </form>
+                </SlashMenu>
               </div>
               <ErrorBox error={start.error} title={t('new.startError')} />
               <p className="new-where">{tc('newChat.where', { dir: directory })}</p>

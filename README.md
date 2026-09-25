@@ -255,8 +255,8 @@ caches the shell only — it never answers a request under `/api`, `/docs` or `/
 **Being told while the app is closed.** Settings → Notifications has an *Also push to this device*
 switch. The browser subscribes with a VAPID key this server made for itself, and from then on a chat
 that stops for a permission prompt puts a notification on the phone even with Agentry closed; tapping
-it opens that prompt, not just the chat. The per-kind preferences above the switch decide what is
-worth waking a device for, and the list below it shows every install registered, this one marked,
+it opens that prompt, not just the chat. The per-kind preferences and the interruption level above
+the switch decide what is worth waking a device for, and the list below it shows every install registered, this one marked,
 each with **Test** and **Remove**. A window that is open and visible shows its usual toast and no
 push, so the same news never arrives twice.
 
@@ -613,7 +613,7 @@ Web Push over VAPID, signed and sent by this server: a chat that stops for a per
 | --- | --- | --- |
 | GET | `/push/key` | The VAPID public key to subscribe with, and whether push is configured at all |
 | GET | `/push/subscriptions` | The registered installs. Endpoints are truncated: a full push endpoint URL is a capability to notify that install |
-| POST | `/push/subscriptions` | Register or refresh one — body is the browser's `PushSubscription` JSON plus `kinds` (every kind when omitted) and a `label` for the list. An endpoint already registered is refreshed, keeping its `createdAt` |
+| POST | `/push/subscriptions` | Register or refresh one — body is the browser's `PushSubscription` JSON plus `kinds` (every kind when omitted), a `level` (`all`, `important`, `urgent` or `silent`; `important` when omitted) and a `label` for the list. An endpoint already registered is refreshed, keeping its `createdAt` |
 | DELETE | `/push/subscriptions` | Unregister by `endpoint` (what a browser turning the switch off knows) or by `id` (what the list shows) |
 | POST | `/push/test` | Send one test notification to an install by `endpoint` or `id`, or to every registered one. An endpoint the push service reports as gone (404/410) is deleted |
 
@@ -1021,9 +1021,13 @@ Across the app:
 - **Notifications**: a bell in the top bar collects what needs you or is worth knowing — a chat waiting
   for a permission, a question or a plan (always first, with a link to it, and settled once you
   answer), a chat or orchestration that finished or failed, an integration conflict, a rate limit or an
-  account rotation, and finished background tasks, subagents and workflows. All but those last
-  ones also pop up as a toast (questions stay until you act); browser notifications are
-  opt-in, ask for permission only when you turn them on, and appear only while the tab is hidden.
+  account rotation, and finished background tasks, subagents and workflows. The kinds decide what
+  the bell keeps; the **interruption level** decides what of it also pops up as a toast, a browser
+  notification or a push: *Everything* (all but background activity), *Important only* — the
+  default: what needs you, what failed, an orchestration that ended and a conflict —, *Only what
+  needs me* (a chat waiting for you or turned red) or *Silent*. Questions stay until you act; browser
+  notifications are opt-in, ask for permission only when you turn them on, and appear only while
+  the tab is hidden.
   A chat already waiting when the page loads is notified too, and a waiting notification opens that
   prompt, not just the chat — a plain tool permission is answered **Allow** or **Deny** from the
   panel itself, without opening it; a question, a plan or an edited-arguments request keeps the link,

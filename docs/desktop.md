@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-09-25T18:00:00Z
+updated_at: 2026-09-25T16:22:09Z
 tags:
     - desktop
     - electron
@@ -161,8 +161,10 @@ and orchestration in flight. So if chats are working, waiting for your answer (t
 still running) or orchestrations are running, the restart asks first — *2 chats are working, 1
 orchestration is running…* — and offers **Restart now**, **Update when I quit** or Cancel. *Update
 when I quit* installs the update the next time you quit Agentry, after the server has stopped. A
-restart stops the tray's monitor and the server first, installs, and starts the new version; if the
-install fails, the old server is started again.
+restart stops the tray's monitor and the server first, installs, and starts the new version (an
+AppImage through a detached shell that waits for the old process to exit, since `app.relaunch()`
+runs from the image's mount, which goes away with it); if the install fails, the old server is
+started again.
 
 **AppImage.** The update replaces the AppImage file in place. `install.sh` installs it as
 `~/.local/share/agentry/Agentry.AppImage`, a name with no version in it, so the menu entry keeps working. A copy
@@ -172,10 +174,12 @@ one.
 
 **`.deb`.** The update downloads the new `.deb` and installs it through `pkexec`, which asks for your
 password in a system dialog. The window does not respond while that dialog is up; the server is
-already stopped by then. Without a graphical `pkexec` agent, electron-updater falls back to plain
-`sudo`, which fails without a terminal: install the `.deb` from the release by hand instead.
+already stopped by then. electron-updater tries `gksudo`, `kdesudo`, `pkexec` and `beesu`, in that
+order, and falls back to plain `sudo`, which has no terminal to ask on and would fail after the
+download. So the app looks for one of the four on its `PATH` first, and when none is there it says
+so up front instead of offering a download it cannot install (`policykit-1` provides `pkexec`).
 
-**When it says it cannot update itself** (`unsupported`), it gives one of three reasons, and links
+**When it says it cannot update itself** (`unsupported`), it gives one of four reasons, and links
 the release page so you can install by hand:
 
 | Reason | Message |
@@ -183,6 +187,7 @@ the release page so you can install by hand:
 | A development build (`desktop:dev`) | Updates are off in a development build. |
 | The AppImage cannot be written | The AppImage at *path* cannot be replaced: the file or its folder is not writable. |
 | Neither an AppImage nor a `.deb` | This copy of Agentry was not installed from an AppImage or a .deb, so it cannot update itself. |
+| A `.deb` with no graphical password prompt | Installing the .deb needs a password prompt (pkexec), and none was found. Install policykit-1, or download the .deb and install it with apt. |
 
 A copy is an AppImage when its runtime sets `APPIMAGE`, and a `.deb` when `resources/package-type`
 (which electron-builder writes into the package) says `deb`, the same test electron-updater makes.
@@ -232,6 +237,10 @@ Directories that do not exist are dropped. If the UI still says **Claude Code CL
    CLAUDE_BIN=/path/to/claude ./Agentry-<version>-x86_64.AppImage
    ```
 
+   One variable does not get through: the server runs on Electron's own binary with
+   `ELECTRON_RUN_AS_NODE=1`, and it removes that from its environment as it starts, so the chats
+   and commands it runs — an Electron app among them — start as themselves rather than as Node.
+
 The same applies to the optional [claude-swap](https://github.com/realiti4/claude-swap) binary for
 multiple accounts (`CSWAP_BIN`). Any variable from the
 [environment table](../README.md#environment-variables), such as `AGENTRY_DEFAULT_PERMISSION_MODE`,
@@ -253,8 +262,10 @@ app. It does not watch for changes: rerun it after editing the UI or the API. Fo
 `pnpm dev` and the browser are faster.
 
 `pnpm --filter @agentry/desktop test` runs the shell's unit tests (the tray menu and tooltip, the
-progress fraction, the event-stream reader, the title-bar options, the updater state machine), and the root `pnpm test`
-includes them.
+progress fraction, the event-stream reader, the title-bar options, the updater state machine and
+when it can update), and the root `pnpm test` includes them. The Updates card's desktop branch is
+covered in the browser by `e2e/specs/updates-desktop.spec.mjs`, which stands a fake
+`agentryDesktop.updates` in for the preload.
 
 The web UI knows it is in the app through `window.agentryDesktop`, which the preload exposes with
 `platform`, `version`, `setTitleBarTheme({ color, symbolColor })`, `onNavigate(listener)` and

@@ -14,7 +14,7 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useId, useMemo, useState, type ComponentProps, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MODEL_ALIASES } from '@agentry/shared';
 import i18n from '../i18n';
@@ -351,8 +351,22 @@ export function Tabs<T extends string>({
 }) {
   const indicator = useIndicatorId('tabs');
   const { t: translate } = useTranslation(['components', 'common']);
+  const strip = useRef<HTMLDivElement>(null);
+  // On a phone the strip is wider than the screen: a tab chosen from a link, or the last one
+  // clicked near the edge, has to be brought into view or nothing says which page this is. Only the
+  // strip scrolls, never the page, which scrollIntoView would also move.
+  useEffect(() => {
+    const box = strip.current;
+    const active = box?.querySelector<HTMLElement>('[role=tab][aria-selected=true]');
+    if (!box || !active || box.scrollWidth <= box.clientWidth) return;
+    const tab = active.getBoundingClientRect();
+    const view = box.getBoundingClientRect();
+    if (tab.left >= view.left && tab.right <= view.right) return;
+    const left = tab.left - view.left + box.scrollLeft;
+    box.scrollTo({ left: Math.max(0, left - (box.clientWidth - tab.width) / 2) });
+  }, [value]);
   return (
-    <div className={`tabs ${inline ? 'tabs-inline' : ''}`} role="tablist" aria-label={label}>
+    <div ref={strip} className={`tabs ${inline ? 'tabs-inline' : ''}`} role="tablist" aria-label={label}>
       {tabs.map((t) => (
         <button
           key={t.id}

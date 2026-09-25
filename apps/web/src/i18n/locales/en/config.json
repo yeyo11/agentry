@@ -208,7 +208,13 @@
     "note": "Checked when you ask and once a day, never when a page loads. It reads Agentry's latest release on GitHub.",
     "copyCommand": "Copy the command",
     "remote": "This page is connected to the Agentry at {{host}}, which runs on another machine. Whoever runs it can update it:",
-    "docker": "Pull the new image and recreate the container, from the folder with the compose file:",
+    "docker": {
+      "intro": "The container cannot replace its own image. The command depends on how it was started:",
+      "run": "With docker run: pull the image, then remove the container and run the same docker run command again. The volumes keep every chat, setting and credential.",
+      "compose": "With a compose file that uses the published image (ghcr.io/yeyo11/agentry), from its folder:",
+      "checkout": "With the repository's own docker-compose.yml, which builds the image, from the checkout:",
+      "helm": "With the Helm chart: raise image.tag and run helm upgrade."
+    },
     "source": "Pull and rebuild, then restart the server:",
     "desktopApp": "Open the Agentry desktop app and choose Help → Check for updates….",
     "desktopAppRemote": "It is the Agentry desktop app: on that computer, choose Help → Check for updates….",

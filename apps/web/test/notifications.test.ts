@@ -261,7 +261,7 @@ test('a hidden tab or another page is never redundant', () => {
 
 test('saved notifications and preferences survive a round trip', () => {
   const prefs = defaultPrefs();
-  prefs.toasts = false;
+  prefs.level = 'urgent';
   prefs.kinds.activity = false;
   const { items } = apply([], [waiting(), ended('failed')], prefs);
   const restored = parseStored(serializeStored({ items, prefs }));
@@ -282,14 +282,14 @@ test('storage keeps the entries that are valid and drops the ones that are not',
   const raw = JSON.stringify({
     version: 1,
     items: [good, null, 7, { id: 'x' }, { ...good, kind: 'nonsense' }, { ...good, id: 'other', key: 'k2', read: 'yes' }],
-    prefs: { toasts: 'nope', browser: true, kinds: { run: false, waiting: 'x' } },
+    prefs: { level: 'loud', browser: true, kinds: { run: false, waiting: 'x' } },
   });
   const restored = parseStored(raw);
   assert.deepEqual(restored.items.map((n) => n.id), [good?.id, 'other']);
   // A non-boolean read flag is not trusted
   assert.equal(restored.items[1]?.read, false);
   // Unknown or malformed preferences fall back to the defaults, valid ones are kept
-  assert.equal(restored.prefs.toasts, true);
+  assert.equal(restored.prefs.level, 'important');
   assert.equal(restored.prefs.browser, true);
   assert.equal(restored.prefs.kinds.run, false);
   assert.equal(restored.prefs.kinds.waiting, true);
@@ -432,4 +432,11 @@ test("a supervisor's proposal is news that opens where it can be sent", () => {
   assert.equal(task?.orchestrationId, 'o1');
   // One proposal is one notification, however often the event is replayed
   assert.equal(apply([], [proposed(), proposed()]).items.length, 1);
+});
+
+test('preferences saved before there were levels keep meaning what they meant', () => {
+  const stored = (prefs: unknown) => parseStored(JSON.stringify({ version: 1, items: [], prefs })).prefs.level;
+  assert.equal(stored({ toasts: false, browser: false, kinds: {} }), 'silent', 'toasts turned off is silence');
+  assert.equal(stored({ toasts: true, browser: false, kinds: {} }), 'important', 'toasts on takes the new default');
+  assert.equal(stored({ level: 'all', toasts: false }), 'all', 'a level, once chosen, wins');
 });

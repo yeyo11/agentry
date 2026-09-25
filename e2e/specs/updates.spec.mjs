@@ -17,13 +17,20 @@ export default async ({ page, api, check, releases }) => {
   await page.goto('/settings?tab=account');
   await page.waitFor(`return document.querySelector(${JSON.stringify(CARD)})?.innerText.includes(${JSON.stringify(current)})`, { label: 'the card to show the version in use' });
   check(!(await page.eval(`return !!document.querySelector('.nav-dot')`)), 'no dot while no newer release is known');
-  const bellBefore = await page.eval(`return document.querySelector('.bell')?.getAttribute('aria-label') ?? null`);
 
   // ---- Check for updates ----
   await page.click(`${CARD} button`, 'Check for updates');
   await page.waitFor(`return document.querySelector(${JSON.stringify(CARD)})?.textContent.includes('Agentry 999.0.0 is available')`, { label: 'the newer release in the card' });
-  const steps = await page.text('[data-testid=update-steps-docker]');
-  check(steps.includes('docker compose pull && docker compose up -d'), `the Docker commands are offered: ${steps}`);
+  // A container cannot tell how it was started, so every documented way gets its own command
+  const ways = {
+    run: 'docker pull ghcr.io/yeyo11/agentry',
+    compose: 'docker compose pull && docker compose up -d',
+    checkout: 'git pull && docker compose up -d --build',
+  };
+  for (const [way, command] of Object.entries(ways)) {
+    const text = await page.text(`[data-testid=update-docker-${way}]`);
+    check(text.includes(command), `the ${way} way offers "${command}": ${text}`);
+  }
   check(!(await page.eval(`return !!document.querySelector(${JSON.stringify(CARD)} + ' .alert')`)), 'a page on this machine is not told to ask whoever runs the server');
   const notes = await page.eval(`return [...document.querySelectorAll(${JSON.stringify(`${CARD} a`)})].map((a) => a.href)`);
   check(notes.includes(releases.url), `the card links the release notes: ${notes.join(', ')}`);
@@ -33,8 +40,12 @@ export default async ({ page, api, check, releases }) => {
   check(dot === 'update available', `the dot says what it means to a screen reader: "${dot}"`);
   const href = await page.eval(`return document.querySelector(${JSON.stringify(SIDEBAR_SETTINGS)})?.getAttribute('href')`);
   check(href === '/settings?tab=account', `the dot leads to the Updates card: ${href}`);
-  const bellAfter = await page.eval(`return document.querySelector('.bell')?.getAttribute('aria-label') ?? null`);
-  check(bellAfter === bellBefore, `the bell stays out of it: "${bellBefore}" became "${bellAfter}"`);
+  // Read from the stored list rather than the bell's label, which a notification from an earlier
+  // spec landing now would change without this one being wrong
+  const inBell = await page.eval(
+    `return (localStorage.getItem('agentry-notifications:v1') ?? '').includes('999.0.0')`,
+  );
+  check(!inBell, 'the bell stays out of it: no notification names the release');
 
   const violations = await page.axe({ include: CARD });
   check(violations.length === 0, `the card passes axe: ${JSON.stringify(violations, null, 2)}`);

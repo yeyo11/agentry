@@ -20,7 +20,7 @@ const item = (id, patch) => ({
   ...patch,
 });
 const seed = (items) =>
-  `localStorage.setItem(${JSON.stringify(KEY)}, ${JSON.stringify(JSON.stringify({ version: 1, items, prefs: { toasts: true, browser: false, kinds: {} } }))}); return true`;
+  `localStorage.setItem(${JSON.stringify(KEY)}, ${JSON.stringify(JSON.stringify({ version: 1, items, prefs: { level: 'all', browser: false, kinds: {} } }))}); return true`;
 
 export default async ({ page, check }) => {
   await page.goto('/', 1000);
@@ -57,17 +57,17 @@ export default async ({ page, check }) => {
 
   await page.click('.bell');
   await page.waitFor(`return !!document.querySelector('.notif-panel')`, { label: 'the panel reopens' });
-  await page.click('.notif-panel .btn', 'Mark all read');
+  await page.click('.notif-panel [aria-label="Mark all read"]');
   await page.waitFor(`return !document.querySelector('.bell-badge')`, { label: 'the badge clears after mark all read' });
   const stored = await page.eval(`return JSON.parse(localStorage.getItem(${JSON.stringify(KEY)})).items.every((n) => n.read)`);
   check(stored, 'read state is persisted');
 
-  // Preferences use the themed switch and are persisted too
+  // Preferences use the themed controls and are persisted too
   await page.click('.notif-prefs .collapsible-trigger');
-  await page.click('.notif-prefs [role=switch]');
-  await page.waitFor(`return JSON.parse(localStorage.getItem(${JSON.stringify(KEY)})).prefs.toasts === false`, { label: 'the toasts preference is saved' });
+  await page.select('.notif-prefs .select-trigger', 'Silent');
+  await page.waitFor(`return JSON.parse(localStorage.getItem(${JSON.stringify(KEY)})).prefs.level === 'silent'`, { label: 'the interruption level is saved' });
 
-  await page.click('.notif-panel .btn', 'Clear');
+  await page.click('.notif-panel [aria-label="Clear"]');
   await page.waitFor(`return !document.querySelector('.notif-item') && !!document.querySelector('.notif-empty')`, { label: 'clear empties the list' });
 
   // Clicking a notification marks it read, closes the panel and goes to its link

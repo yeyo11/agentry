@@ -9069,6 +9069,10 @@
         },
         "description": "Kinds worth waking this install for; every kind when omitted"
       },
+      "level": {
+        "$ref": "#/components/schemas/NotificationLevel",
+        "description": "How much this install may be interrupted; `important` when omitted"
+      },
       "label": {
         "type": "string",
         "description": "What the Settings list calls this install, e.g. \"Pixel 8 · Chrome\". Derived from the user agent"
@@ -9108,6 +9112,16 @@
       "health"
     ]
   },
+  "NotificationLevel": {
+    "type": "string",
+    "enum": [
+      "all",
+      "important",
+      "urgent",
+      "silent"
+    ],
+    "description": "How much a notification may interrupt: a toast in the page, a system notification for a hidden tab, a push to a phone. The bell keeps every notification whatever the level; the kinds decide what is kept at all, the level what is worth breaking into someone's work for."
+  },
   "PushSubscriptionSummary": {
     "type": "object",
     "properties": {
@@ -9127,6 +9141,9 @@
           "$ref": "#/components/schemas/NotificationKind"
         }
       },
+      "level": {
+        "$ref": "#/components/schemas/NotificationLevel"
+      },
       "createdAt": {
         "type": "string"
       },
@@ -9140,6 +9157,7 @@
       "endpoint",
       "label",
       "kinds",
+      "level",
       "createdAt",
       "lastSeenAt"
     ],

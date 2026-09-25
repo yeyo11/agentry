@@ -576,6 +576,20 @@
   font-family: var(--mono);
   font-size: 11px;
 }
+/* The commands a message box offers after `/`: names in mono, as commands are everywhere else.
+   Anchored to the whole box, it would otherwise take the box's width for a list of short words */
+.slash-menu {
+  min-width: 240px;
+}
+.slash-menu-name {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+@media (pointer: coarse) {
+  .slash-menu .menu-item {
+    min-height: 44px;
+  }
+}
 .menu-item.is-destructive,
 .menu-item.is-destructive .menu-item-icon {
   color: var(--bad);
@@ -604,6 +618,19 @@
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
   animation: fade-rise var(--dur-base) var(--ease-out);
+}
+/* Opening a sheet must not restyle the whole page, which on a long list is 100 ms or more of
+   frozen main thread — on a phone, the sheet stalls and then jumps into place. Radix's modal dialog
+   does two things that would: it sets `pointer-events: none` on <body>, an inherited property, so
+   the app root is pinned while a scrim is up (the scrim covers the screen, so nothing can be
+   clicked through it anyway); and its scroll lock injects this custom property on :root, which
+   every element inherits, so it is declared here with the value the lock gives it when the body
+   has no scrollbar to make room for. */
+:root {
+  --removed-body-scroll-bar-size: 0px;
+}
+body:has(> .sheet-scrim) > #root {
+  pointer-events: auto;
 }
 .sheet {
   position: fixed;

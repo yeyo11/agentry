@@ -5,11 +5,15 @@ import { join } from 'node:path';
 // cannot read as named exports: the default import is the whole module, and the only one that works.
 import webpush from 'web-push';
 import {
+  DEFAULT_LEVEL,
+  interrupts,
   KINDS,
+  LEVELS,
   notificationsFor,
   type AgentryEvent,
   type NotificationDraft,
   type NotificationKind,
+  type NotificationLevel,
   type PushKeyInfo,
   type PushPayload,
   type PushSendResult,
@@ -119,6 +123,7 @@ export function summaryOf(record: PushSubscriptionRecord): PushSubscriptionSumma
     endpoint: truncateEndpoint(record.endpoint),
     label: record.label,
     kinds: record.kinds,
+    level: record.level,
     createdAt: record.createdAt,
     lastSeenAt: record.lastSeenAt,
   };
@@ -156,9 +161,11 @@ export function parseRegistration(input: unknown): Required<RegisterPushSubscrip
     if (unknownKind !== undefined) throw new Error(`unknown notification kind: ${String(unknownKind)}`);
   }
   const kinds = asked ? (asked as NotificationKind[]) : [...KINDS];
+  if (body.level !== undefined && !LEVELS.includes(body.level as NotificationLevel)) throw new Error(`level must be one of ${LEVELS.join(', ')}`);
+  const level = (body.level as NotificationLevel | undefined) ?? DEFAULT_LEVEL;
   if (body.label !== undefined && typeof body.label !== 'string') throw new Error('label must be a string');
   const label = (typeof body.label === 'string' ? body.label : '').trim().slice(0, MAX_LABEL);
-  return { endpoint, keys: { p256dh: p256dh.trim(), auth: auth.trim() }, kinds, label: label || 'This device' };
+  return { endpoint, keys: { p256dh: p256dh.trim(), auth: auth.trim() }, kinds, level, label: label || 'This device' };
 }
 
 function parseRef(input: unknown, what: string): { id?: string; endpoint?: string } {
@@ -235,6 +242,7 @@ export class PushService {
       p256dh: request.keys.p256dh,
       auth: request.keys.auth,
       kinds: request.kinds,
+      level: request.level,
       label: request.label,
       createdAt: now,
       lastSeenAt: now,
@@ -338,7 +346,7 @@ export class PushService {
     if (!subscriptions.length) return;
     for (const draft of drafts) {
       if (!this.claim(draft)) continue;
-      const targets = subscriptions.filter((record) => record.kinds.includes(draft.kind));
+      const targets = subscriptions.filter((record) => record.kinds.includes(draft.kind) && interrupts(draft, record.level));
       if (!targets.length) continue;
       // The bus calls this synchronously: the sending is deliberately not awaited, and every
       // failure inside it is already a log line rather than a rejection.
