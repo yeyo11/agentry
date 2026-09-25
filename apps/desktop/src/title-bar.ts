@@ -6,7 +6,7 @@
  */
 
 /** The web's top bar height (`--topbar-h` in apps/web/src/styles/tokens.css); the overlay matches it */
-export const TITLE_BAR_HEIGHT = 54;
+export const TITLE_BAR_HEIGHT = 52;
 
 export interface TitleBarTheme {
   /** Background of the controls overlay: the top bar's own background */
@@ -16,7 +16,7 @@ export interface TitleBarTheme {
 }
 
 /** The splash and error pages' colours (src/pages.ts), used until the UI says which theme it shows */
-export const SPLASH_TITLE_BAR: TitleBarTheme = { color: '#101114', symbolColor: '#e6e7ea' };
+export const SPLASH_TITLE_BAR: TitleBarTheme = { color: '#09090b', symbolColor: '#f4f4f5' };
 
 export interface TitleBarOptions {
   titleBarStyle: 'hidden';
