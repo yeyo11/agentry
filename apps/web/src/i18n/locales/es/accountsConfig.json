@@ -31,7 +31,12 @@
     },
     "watchAlso": "Vigilar también",
     "modelsPlaceholder": "Fable, Opus… o all",
-    "intervalPlaceholder": "mín. 15"
+    "intervalPlaceholder": "mín. 15",
+    "running": "en marcha",
+    "stopped": "detenida",
+    "off": "desactivada",
+    "thresholdShort": "umbral {{pct}}%",
+    "back": "Volver a Cuentas"
   },
   "configDir": {
     "title": "Directorio de configuración",
@@ -122,5 +127,11 @@
     "peak": "Máximo",
     "readings": "Lecturas",
     "lastReading": "Última lectura"
+  },
+  "row": {
+    "fiveHour": "5h",
+    "sevenDay": "7d",
+    "spent": "{{window}} agotado",
+    "used": "{{window}} {{pct}}%"
   }
 }

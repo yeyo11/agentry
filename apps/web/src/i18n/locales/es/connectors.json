@@ -39,6 +39,7 @@
   },
   "unavailable": {
     "title": "Fuera de alcance",
-    "intro": "Agentry habla con Claude Code solo a través de su CLI, así que todo aquello para lo que el CLI no tiene comando queda fuera de alcance:"
+    "intro": "Agentry habla con Claude Code solo a través de su CLI, así que todo aquello para lo que el CLI no tiene comando queda fuera de alcance:",
+    "short": "{{items}} quedan fuera del alcance de Agentry."
   }
 }

@@ -244,6 +244,10 @@
   .project-card-more {
     min-width: 44px;
   }
+  /* One button a card on a phone: opening the project is in the ⋯ sheet */
+  .project-card-open {
+    display: none;
+  }
   .project-callout {
     padding: 12px 14px;
   }
@@ -462,7 +466,8 @@
   gap: 8px;
 }
 
-.account-more {
+.account-more,
+.schedule-more {
   border: 1px solid var(--line-2);
   background: var(--bg-3);
 }
@@ -476,6 +481,68 @@
 .account-sheet-actions .btn {
   min-height: 44px;
   justify-content: flex-start;
+}
+
+/* An exhausted account on a phone: one row, its name over why it cannot work (MobileCuentas) */
+.account-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  min-width: 0;
+}
+.account-row.is-exhausted .account-avatar {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+.account-row .account-id {
+  gap: 4px;
+}
+.account-row-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.account-row .account-more {
+  width: 44px;
+  height: 44px;
+}
+
+/* Automatic rotation on a phone: a cell to its own screen */
+.rotation-cell {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 14px 16px;
+  background: var(--bg-1);
+  color: var(--fg);
+  text-decoration: none;
+}
+.rotation-cell:hover {
+  text-decoration: none;
+  background: var(--bg-3);
+}
+.rotation-cell-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.rotation-cell-title {
+  font-weight: 500;
+}
+.rotation-cell-sub {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
+}
+.rotation-cell-chevron {
+  flex: none;
+  color: var(--fg-3);
 }
 
 /* Automatic rotation: one card, its settings in a row of four, its save at the foot */
@@ -812,6 +879,19 @@
   .connector-body {
     margin-left: 0;
   }
+  .connectors-refresh {
+    width: 44px;
+    height: 44px;
+    color: var(--fg-2);
+  }
+  /* What the CLI does not list and what is out of reach, as one quiet line under the cards */
+  .connectors-footnote {
+    margin: 0;
+    padding: 0 4px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--fg-2);
+  }
 }
 
 /* ==== end Connectors ==== */
@@ -1105,10 +1185,14 @@
   .schedule-card-head {
     flex-wrap: wrap;
   }
-  /* The actions drop under the text instead of squeezing it */
+  /* The switch and the ⋯ drop under the text instead of squeezing it */
   .schedule-actions {
     flex-basis: 100%;
-    justify-content: flex-start;
+    justify-content: space-between;
+  }
+  .schedule-more {
+    width: 44px;
+    height: 44px;
   }
 }
 
@@ -1194,6 +1278,64 @@
   color: var(--fg-3);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The phone's figure (MobileUso): one big number for the metric on the chart, the other two under it */
+.usage-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin: 12px 0;
+}
+.usage-hero-value {
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.usage-hero-picks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+/* Mono like the line it sits in, dotted so a finger knows it can be pressed; 44 px tall for that finger */
+.usage-hero-pick {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline dotted var(--line-3);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.usage-hero-pick:hover {
+  color: var(--fg);
+}
+.usage-hero-sep {
+  margin: 0 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.usage-over-peak {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
+}
+.usage-table-toggle[aria-pressed='true'] {
+  border-color: var(--line-3);
+  background: var(--bg-3);
+  color: var(--fg);
 }
 
 .usage-note {

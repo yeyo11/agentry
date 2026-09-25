@@ -59,7 +59,7 @@
     "chats_other": "{{count}} chats"
   },
   "table": {
-    "show": "Show the figures as a table",
+    "view": "View table",
     "label": "Usage by period",
     "caption": "Cost, tokens and chats for each {{bucket}}",
     "period": "Period"
@@ -76,5 +76,10 @@
   "other": "Other ({{n}})",
   "noSlices": "Nothing to show in this range.",
   "looseChats": "No project",
-  "unknownModel": "Unknown model"
+  "unknownModel": "Unknown model",
+  "hero": {
+    "label": "{{metric}} · {{range}}",
+    "pick": "Chart another figure",
+    "peak": "peak {{value}} · {{period}}"
+  }
 }

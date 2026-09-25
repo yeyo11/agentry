@@ -9,6 +9,8 @@ import { ICON_SM } from '../components/icons';
 import { StatusDot } from '../components/motion';
 import { Empty, ErrorBox, PageHeader, Skeleton, StatusBadge, Tag } from '../components/ui';
 import { formatDateTime } from '../lib/format';
+import { intlLocale } from '../i18n/language';
+import { NARROW, useMediaQuery } from '../lib/media';
 import { connectorActionLabel, connectorLimitName, localized } from '../lib/server-strings';
 import { useProjectScope } from '../lib/project-scope';
 import '../insights.css';
@@ -117,6 +119,7 @@ export function Connectors() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { project } = useProjectScope();
+  const narrow = useMediaQuery(NARROW);
   // The CLI connects to every server to answer, which takes seconds: the server caches it for a
   // minute, and the button asks again on purpose
   const { data, error, isLoading, isFetching } = useQuery({ queryKey: keys.connectors, queryFn: () => api.connectors(), staleTime: 60_000 });
@@ -139,16 +142,27 @@ export function Connectors() {
   // The steps are said once: inside a card that needs them, or on their own when no card shows them
   const stepsInCard = needsAuth.length > 0;
 
+  const checked = data ? t('subtitle', { when: formatDateTime(data.checkedAt) }) : t('subtitleLoading');
+  const notListed = data && data.notListed.length > 0 ? `${t('notListed', { kinds: data.notListed.map((kind) => t(`kinds.${kind}`)).join(', ') })}${stepsInCard ? ` ${t('notListedSame')}` : ''}` : null;
+
   return (
     <div className="connectors">
+      {/* A phone keeps the header to its title, when the list was read and an icon to read it again (MobileConectores) */}
       <PageHeader
         title={t('title')}
-        subtitle={t('intro')}
+        subtitle={narrow ? <span className="mono small connectors-checked">{checked}</span> : t('intro')}
         actions={
           <>
-            <span className="mono small muted connectors-checked">{data ? t('subtitle', { when: formatDateTime(data.checkedAt) }) : t('subtitleLoading')}</span>
-            <button type="button" className="btn" onClick={() => refresh.mutate()} disabled={refresh.isPending || isFetching}>
-              <RefreshCw {...ICON_SM} /> {refresh.isPending ? t('refreshing') : t('refresh')}
+            {!narrow && <span className="mono small muted connectors-checked">{checked}</span>}
+            <button
+              type="button"
+              className={narrow ? 'icon-btn connectors-refresh' : 'btn'}
+              onClick={() => refresh.mutate()}
+              disabled={refresh.isPending || isFetching}
+              aria-label={narrow ? (refresh.isPending ? t('refreshing') : t('refresh')) : undefined}
+            >
+              <RefreshCw {...ICON_SM} />
+              {!narrow && ` ${refresh.isPending ? t('refreshing') : t('refresh')}`}
             </button>
           </>
         }
@@ -196,31 +210,36 @@ export function Connectors() {
                 <AuthorisationSteps guide={data.authorisation} />
               </section>
             )}
-            {data.notListed.length > 0 && !data.error && (
+            {notListed && !data.error && !narrow && (
               <div className="alert connectors-callout" role="note">
                 <Info size={16} strokeWidth={1.75} aria-hidden className="alert-icon" />
-                <div className="alert-body">
-                  {t('notListed', { kinds: data.notListed.map((kind) => t(`kinds.${kind}`)).join(', ') })}
-                  {stepsInCard && ` ${t('notListedSame')}`}
-                </div>
+                <div className="alert-body">{notListed}</div>
               </div>
             )}
           </div>
 
-          <aside className="connectors-side" aria-labelledby="connectors-unavailable">
-            <h2 id="connectors-unavailable" className="connectors-side-title">
-              {t('unavailable.title')}
-            </h2>
-            <p className="small muted">{t('unavailable.intro')}</p>
-            <ul className="connectors-limits">
-              {data.unavailable.map((item) => (
-                <li key={item.id} className="connectors-limit">
-                  <span className="strong">{connectorLimitName(item)}</span>
-                  <span className="muted small">{localized(item.reason)}</span>
-                </li>
-              ))}
-            </ul>
-          </aside>
+          {narrow ? (
+            // A phone says what is missing and what is out of reach in one footnote under the list
+            <p className="connectors-footnote" role="note">
+              {notListed && !data.error && `${notListed} `}
+              {t('unavailable.short', { items: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(data.unavailable.map((item) => connectorLimitName(item))) })}
+            </p>
+          ) : (
+            <aside className="connectors-side" aria-labelledby="connectors-unavailable">
+              <h2 id="connectors-unavailable" className="connectors-side-title">
+                {t('unavailable.title')}
+              </h2>
+              <p className="small muted">{t('unavailable.intro')}</p>
+              <ul className="connectors-limits">
+                {data.unavailable.map((item) => (
+                  <li key={item.id} className="connectors-limit">
+                    <span className="strong">{connectorLimitName(item)}</span>
+                    <span className="muted small">{localized(item.reason)}</span>
+                  </li>
+                ))}
+              </ul>
+            </aside>
+          )}
         </div>
       ) : null}
     </div>

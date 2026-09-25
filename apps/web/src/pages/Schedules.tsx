@@ -1,11 +1,11 @@
 import type { Schedule, ScheduleRun, ScheduleRunStatus } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clock, MessageSquare, Pencil, Play, Plus, ShieldCheck, Trash2, Workflow } from 'lucide-react';
+import { Clock, Ellipsis, MessageSquare, Pencil, Play, Plus, ShieldCheck, Trash2, Workflow } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useScheduleRuns, useSchedules } from '../api';
-import { Collapsible, Switch, Tooltip } from '../components/controls';
+import { Collapsible, Sheet, Switch, Tooltip } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
 import { ICON_SM } from '../components/icons';
 import { StatusDot } from '../components/motion';
@@ -13,6 +13,7 @@ import { useToast } from '../components/Toast';
 import { ListToolbar, type ListToolbarTab } from '../components/ListToolbar';
 import { Empty, ErrorBox, PageHeader, Skeleton, StatusBadge, Tag } from '../components/ui';
 import { formatDateTime, formatDuration, timeAgo, toMs } from '../lib/format';
+import { NARROW, useMediaQuery } from '../lib/media';
 import { matchesText, scheduleFields, scheduleView, type ScheduleView } from '../lib/lists';
 import '../insights.css';
 
@@ -130,6 +131,9 @@ function ScheduleCard({ schedule }: { schedule: Schedule }) {
   const confirm = useConfirm();
   const queryClient = useQueryClient();
   const [historyOpen, setHistoryOpen] = useState(false);
+  // On a phone the switch stays on the card and the rest goes behind a ⋯, as a sheet
+  const narrow = useMediaQuery(NARROW);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const runs = useScheduleRuns(schedule.id, historyOpen);
   const words = useQuery({
     queryKey: keys.schedulePreview(schedule.cron, schedule.timezone),
@@ -165,6 +169,20 @@ function ScheduleCard({ schedule }: { schedule: Schedule }) {
     },
     onError: (err) => toast.error(t('card.deleteFailed'), err),
   });
+
+  const askDelete = () =>
+    void confirm({
+      title: t('card.deleteTitle', { name: schedule.name }),
+      body: t('card.deleteBody'),
+      confirmLabel: t('common:actions.delete'),
+      danger: true,
+    }).then((ok) => ok && remove.mutate());
+  // The sheet closes before its action runs, so a confirmation is not stacked over it
+  const fromSheet = (action: () => void) => () => {
+    setSheetOpen(false);
+    action();
+  };
+  const editHref = `/schedules/${schedule.id}/edit`;
 
   const next = toMs(schedule.nextRunAt);
   const last = schedule.lastRunAt;
@@ -203,39 +221,49 @@ function ScheduleCard({ schedule }: { schedule: Schedule }) {
           <Switch checked={schedule.enabled} onChange={(enabled) => toggle.mutate(enabled)} disabled={toggle.isPending}>
             {t('card.enabledLabel')}
           </Switch>
-          <Tooltip content={t('card.runNowHint')}>
-            <button type="button" className="btn btn-small" disabled={runNow.isPending} onClick={() => runNow.mutate()} aria-label={t('card.runNowNamed', { name: schedule.name })}>
-              <Play {...ICON_SM} /> {t('card.runNow')}
+          {narrow ? (
+            <button type="button" className="icon-btn schedule-more" aria-label={t('card.moreNamed', { name: schedule.name })} onClick={() => setSheetOpen(true)}>
+              <Ellipsis {...ICON_SM} />
             </button>
-          </Tooltip>
-          <Tooltip content={t('card.edit')}>
-            <Link to={`/schedules/${schedule.id}/edit`} className="btn btn-small" aria-label={t('card.editNamed', { name: schedule.name })}>
-              <Pencil {...ICON_SM} />
-            </Link>
-          </Tooltip>
-          <Tooltip content={t('card.delete')}>
-            <button
-              type="button"
-              className="btn btn-small btn-danger"
-              disabled={remove.isPending}
-              aria-label={t('card.deleteNamed', { name: schedule.name })}
-              onClick={() =>
-                void confirm({
-                  title: t('card.deleteTitle', { name: schedule.name }),
-                  body: t('card.deleteBody'),
-                  confirmLabel: t('common:actions.delete'),
-                  danger: true,
-                }).then((ok) => ok && remove.mutate())
-              }
-            >
-              <Trash2 {...ICON_SM} />
-            </button>
-          </Tooltip>
+          ) : (
+            <>
+              <Tooltip content={t('card.runNowHint')}>
+                <button type="button" className="btn btn-small" disabled={runNow.isPending} onClick={() => runNow.mutate()} aria-label={t('card.runNowNamed', { name: schedule.name })}>
+                  <Play {...ICON_SM} /> {t('card.runNow')}
+                </button>
+              </Tooltip>
+              <Tooltip content={t('card.edit')}>
+                <Link to={editHref} className="btn btn-small" aria-label={t('card.editNamed', { name: schedule.name })}>
+                  <Pencil {...ICON_SM} />
+                </Link>
+              </Tooltip>
+              <Tooltip content={t('card.delete')}>
+                <button type="button" className="btn btn-small btn-danger" disabled={remove.isPending} aria-label={t('card.deleteNamed', { name: schedule.name })} onClick={askDelete}>
+                  <Trash2 {...ICON_SM} />
+                </button>
+              </Tooltip>
+            </>
+          )}
         </span>
       </div>
       <Collapsible title={t('card.history')} open={historyOpen} onOpenChange={setHistoryOpen}>
         <RunHistory runs={runs.data} loading={runs.isPending} error={runs.error} />
       </Collapsible>
+      {narrow && (
+        <Sheet open={sheetOpen} onOpenChange={setSheetOpen} title={schedule.name} side="bottom">
+          <div className="account-sheet-actions schedule-sheet-actions">
+            <button type="button" className="btn btn-block" disabled={runNow.isPending} onClick={fromSheet(() => runNow.mutate())}>
+              <Play {...ICON_SM} /> {t('card.runNow')}
+            </button>
+            <Link to={editHref} className="btn btn-block">
+              <Pencil {...ICON_SM} /> {t('card.edit')}
+            </Link>
+            <button type="button" className="btn btn-block btn-danger" disabled={remove.isPending} onClick={fromSheet(askDelete)}>
+              <Trash2 {...ICON_SM} /> {t('card.delete')}
+            </button>
+          </div>
+        </Sheet>
+      )}
     </li>
   );
 }

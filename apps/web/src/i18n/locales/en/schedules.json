@@ -59,6 +59,7 @@
     "editNamed": "Edit {{name}}",
     "delete": "Delete",
     "deleteNamed": "Delete {{name}}",
+    "moreNamed": "More actions for {{name}}",
     "deleteTitle": "Delete “{{name}}”?",
     "deleteBody": "It stops firing and its run history is removed. Chats and orchestrations it already started are kept.",
     "deleted": "Deleted {{name}}",

@@ -31,7 +31,12 @@
     },
     "watchAlso": "Watch also",
     "modelsPlaceholder": "Fable, Opus… or all",
-    "intervalPlaceholder": "min. 15"
+    "intervalPlaceholder": "min. 15",
+    "running": "running",
+    "stopped": "stopped",
+    "off": "off",
+    "thresholdShort": "threshold {{pct}}%",
+    "back": "Back to Accounts"
   },
   "configDir": {
     "title": "Config directory",
@@ -122,5 +127,11 @@
     "peak": "Peak",
     "readings": "Readings",
     "lastReading": "Last reading"
+  },
+  "row": {
+    "fiveHour": "5h",
+    "sevenDay": "7d",
+    "spent": "{{window}} exhausted",
+    "used": "{{window}} {{pct}}%"
   }
 }

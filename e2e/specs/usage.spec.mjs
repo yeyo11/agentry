@@ -1,5 +1,6 @@
 // Usage and export: cost and tokens over time, by project and by model, with a range picker, the
-// chart's figures also given as a table (a chart drawn in colour alone fails the accessibility spec),
+// chart's figures also given as a table behind a header toggle (a chart drawn in colour alone fails
+// the accessibility spec), one big figure instead of the tiles on a phone,
 // the custom range typed or picked from Agentry's own calendar, and a chat's transcript downloaded as
 // Markdown and as JSON. A chat is laid out on disk the way the CLI keeps it and removed afterwards,
 // because the chats spec counts what the sandbox holds.
@@ -85,9 +86,14 @@ export default async ({ page, api, check, dirs }) => {
     check(tile.replace(/[^\d]/g, '') === String(expected), `the tokens tile shows what the API reports (${tile} vs ${expected})`);
     check((await page.text('main')).includes('server’s time zone'), 'the page says which time zone the days are in');
 
-    // ---------- the table behind the chart ----------
-    await page.click('main .collapsible-trigger', 'Show the figures as a table', 500);
+    // ---------- the table behind the chart: a toggle in the chart's header ----------
+    const toggle = 'main .usage-over .card-head button.usage-table-toggle';
+    check((await page.eval(`return document.querySelector('${toggle}')?.getAttribute('aria-pressed')`)) === 'false', 'the table toggle starts off, and says so');
+    await page.click(toggle, 'View table', 500);
     await page.waitFor(`return document.querySelectorAll('main .usage-table tbody tr').length > 0`, { label: 'the table rows' });
+    check((await page.eval(`return document.querySelector('${toggle}').getAttribute('aria-pressed')`)) === 'true', 'the pressed toggle says the table is on');
+    check(!(await page.eval(`return !!document.querySelector('main .usage-over svg[role=img]')`)), 'the table takes the chart\'s place');
+    check(await page.eval(`const r = document.querySelector('main .usage-over [role=region]'); return !!r && r.tabIndex === 0 && r.getAttribute('aria-label') === 'Usage by period'`), 'the table is a named region a keyboard can scroll');
     check((await rows(page)) === range.points.length, `the table has one row per day (${await rows(page)} of ${range.points.length})`);
     const headers = await page.eval(`return [...document.querySelectorAll('main .usage-table thead th')].map((th) => th.textContent.trim())`);
     check(headers.join('|') === 'Period|Cost|Tokens|Chats', `the table columns (${headers.join('|')})`);
@@ -176,6 +182,18 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return !!document.querySelector('main svg[role=img]')`, { label: 'the chart on a phone' });
     const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
     check(overflow <= 1, `/usage scrolls sideways by ${overflow}px at 420px`);
+
+    // A phone has one big figure instead of the tiles; the other two under it still pick the metric
+    check(!(await page.eval(`return !!document.querySelector('main .usage-tiles')`)), 'no tiles on a phone');
+    await page.waitFor(`return document.querySelector('main .usage-hero .section-label')?.textContent === 'Cost · 30 days'`, { label: 'the hero says it is the cost of the range' });
+    const picks = await page.eval(`return [...document.querySelectorAll('main .usage-hero-picks button')].map((b) => ({ text: b.textContent.trim(), h: b.getBoundingClientRect().height }))`);
+    check(picks.length === 2 && /tokens$/.test(picks[0].text) && /chats?$/.test(picks[1].text), `the tokens and the chats are under the figure (${picks.map((p) => p.text).join(' · ')})`);
+    check(picks.every((p) => p.h >= 44), 'each of them is big enough for a finger');
+    await page.click('main .usage-hero-picks button', picks[0]?.text ?? 'tokens', 500);
+    await page.waitFor(`return document.querySelector('main .usage-hero .section-label')?.textContent === 'Tokens · 30 days'`, { label: 'the hero showing the tokens' });
+    check(/Tokens over time/.test(await page.eval(`return document.querySelector('main svg[role=img]').getAttribute('aria-label')`)), 'the chart follows the figure picked on a phone');
+    check((await page.text('main .usage-slices')).includes(shown), 'and so do the breakdowns');
+    await noViolations(page, '/usage at 420px', check);
     await page.viewport(1440, 900);
 
     // ---------- export ----------

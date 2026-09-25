@@ -39,6 +39,7 @@
   },
   "unavailable": {
     "title": "Out of reach",
-    "intro": "Agentry talks to Claude Code only through its CLI, so anything the CLI has no command for stays out of reach:"
+    "intro": "Agentry talks to Claude Code only through its CLI, so anything the CLI has no command for stays out of reach:",
+    "short": "{{items}} are out of Agentry’s reach."
   }
 }
