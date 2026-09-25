@@ -1,20 +1,43 @@
 import type { Project, ProjectCandidate } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Download, Eraser, FolderGit2, FolderPlus, GitBranch, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { Download, Ellipsis, FolderOpen, FolderPlus, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { api, keys, useProjectCandidates, useProjects } from '../api';
-import { Collapsible, Combobox } from '../components/controls';
+import { api, keys, useChats, useProjectCandidates, useProjects } from '../api';
+import { Combobox, Menu, Sheet, type MenuEntry } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
-import { ICON_SM, Monogram } from '../components/icons';
+import { ICON, ICON_SM, Monogram } from '../components/icons';
 import { ListToolbar } from '../components/ListToolbar';
+import { StatusDot } from '../components/motion';
 import { useToast } from '../components/Toast';
 import { Card, Empty, ErrorBox, Field, Loading, PageHeader, Tag } from '../components/ui';
-import { formatNumber, timeAgo } from '../lib/format';
+import { intlLocale } from '../i18n/language';
+import { formatDate, formatDateTime, formatNumber, timeAgo, toMs } from '../lib/format';
 import { matchesText, PROJECT_SORTERS, type ProjectSort } from '../lib/lists';
+import { NARROW, useMediaQuery } from '../lib/media';
+import { useProjectScope } from '../lib/project-scope';
+import '../insights.css';
 
 const PROJECT_SORTS = Object.keys(PROJECT_SORTERS) as ProjectSort[];
+
+/**
+ * How long ago, as short as a stat allows ("2 d", "5 h"): `timeAgo`'s "2 d ago" does not fit a third
+ * of a card at the stat's size. English keeps its narrow units, as lib/format does.
+ */
+function sinceShort(value: string | null): string {
+  const ms = toMs(value);
+  if (ms == null) return '—';
+  const locale = intlLocale();
+  const unit = (n: number, u: 'minute' | 'hour' | 'day') =>
+    new Intl.NumberFormat(locale, { style: 'unit', unit: u, unitDisplay: locale.startsWith('en') ? 'narrow' : 'short' }).format(n);
+  const minutes = Math.max(1, Math.floor((Date.now() - ms) / 60000));
+  if (minutes < 60) return unit(minutes, 'minute');
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return unit(hours, 'hour');
+  const days = Math.floor(hours / 24);
+  return days < 30 ? unit(days, 'day') : formatDate(ms);
+}
 
 /** What a change to the projects makes stale: the list, what is offered, and everything scoped by a project. */
 function useRefreshProjects() {
@@ -40,7 +63,7 @@ function ImportForm({ candidates, onDone }: { candidates: ProjectCandidate[]; on
     },
   });
   return (
-    <Card title={t('page.importDirectory')}>
+    <Card title={t('page.importDirectory')} className="project-form">
       <form
         className="form"
         onSubmit={(e) => {
@@ -87,7 +110,7 @@ function NewProjectForm({ onDone }: { onDone: () => void }) {
     },
   });
   return (
-    <Card title={t('work:projects.newProjectCard')}>
+    <Card title={t('work:projects.newProjectCard')} className="project-form">
       <div className="form">
         <Field label={t('work:projects.name')} hint={t('work:projects.nameHint')}>
           <input value={name} placeholder={t('work:projects.namePlaceholder')} onChange={(e) => setName(e.target.value)} />
@@ -114,6 +137,8 @@ function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; fir
   const { t } = useTranslation(['projects', 'work', 'common', 'config']);
   const refresh = useRefreshProjects();
   const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const listId = useId();
   const add = useMutation({
     mutationFn: (candidate: ProjectCandidate) => api.importProject({ path: candidate.path }),
     onSuccess: (project) => {
@@ -123,7 +148,7 @@ function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; fir
     onError: (error) => toast.error(t('importForm.failed'), error),
   });
   const list = (
-    <ul className="candidate-list">
+    <ul className="candidate-list" id={listId}>
       {candidates.map((c) => (
         <li key={c.path} className="candidate-row">
           <div className="candidate-main">
@@ -143,31 +168,128 @@ function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; fir
   );
   if (first) {
     return (
-      <Card title={t('candidates.firstTitle')}>
+      <Card title={t('candidates.firstTitle')} className="project-candidates">
         <p className="muted">{t('candidates.firstBody')}</p>
         {list}
       </Card>
     );
   }
+  // Once there are projects, the rest is a nudge rather than a list: it opens on request
   return (
-    <Collapsible className="card fold-card" title={<span className="fold-card-title">{t('candidates.others', { n: formatNumber(candidates.length) })}</span>}>
-      {list}
-    </Collapsible>
+    <section className="project-callout">
+      <div className="project-callout-head">
+        <FolderOpen {...ICON} className="project-callout-icon" />
+        <div className="project-callout-text">
+          <h2 className="project-callout-title">{t('candidates.moreTitle', { count: candidates.length, n: formatNumber(candidates.length) })}</h2>
+          <p className="project-callout-body">{t('candidates.moreBody')}</p>
+        </div>
+        <button type="button" className="btn btn-small" aria-expanded={open} aria-controls={open ? listId : undefined} onClick={() => setOpen(!open)}>
+          {open ? t('candidates.hide') : t('candidates.review')}
+        </button>
+      </div>
+      {open && list}
+    </section>
   );
 }
 
-function ProjectCard({ project }: { project: Project }) {
+/** Rename, remove and purge: a `⋯` menu on a desktop, a sheet of big buttons on a phone. */
+function ProjectActions({ project, onRename, onRemove, onPurge }: { project: Project; onRename: () => void; onRemove: () => void; onPurge: () => void }) {
+  const { t } = useTranslation(['projects']);
+  const narrow = useMediaQuery(NARROW);
+  const [open, setOpen] = useState(false);
+  const label = t('card.actionsNamed', { name: project.name });
+
+  if (narrow) {
+    // The sheet closes before the action runs, so a confirmation dialog is not stacked over it
+    const run = (action: () => void) => () => {
+      setOpen(false);
+      action();
+    };
+    return (
+      <>
+        <button type="button" className="icon-btn project-card-more" aria-label={label} onClick={() => setOpen(true)}>
+          <Ellipsis {...ICON_SM} />
+        </button>
+        <Sheet open={open} onOpenChange={setOpen} title={label} side="bottom" className="project-sheet">
+          <div className="project-sheet-actions">
+            <button type="button" className="btn" onClick={run(onRename)}>
+              <Pencil {...ICON_SM} /> {t('card.rename')}
+            </button>
+            <button type="button" className="btn" onClick={run(onRemove)}>
+              <X {...ICON_SM} /> {t('card.remove')}
+            </button>
+            <button type="button" className="btn btn-danger project-sheet-purge" onClick={run(onPurge)}>
+              <span className="project-sheet-purge-label">
+                <Trash2 {...ICON_SM} /> {t('card.purge')}
+              </span>
+              <span className="project-menu-hint">{t('card.purgeHint')}</span>
+            </button>
+          </div>
+        </Sheet>
+      </>
+    );
+  }
+
+  const entries: MenuEntry[] = [
+    { id: 'rename', label: t('card.rename'), icon: Pencil, onSelect: onRename },
+    { id: 'remove', label: t('card.remove'), icon: X, onSelect: onRemove },
+    { id: 'sep', separator: true },
+    {
+      id: 'purge',
+      label: (
+        <span className="project-menu-purge">
+          {t('card.purge')}
+          <span className="project-menu-hint">{t('card.purgeHint')}</span>
+        </span>
+      ),
+      icon: Trash2,
+      destructive: true,
+      onSelect: onPurge,
+    },
+  ];
+  return <Menu entries={entries} label={label} className="project-card-more" />;
+}
+
+function RenameForm({ initial, pending, onSave, onCancel }: { initial: string; pending: boolean; onSave: (name: string) => void; onCancel: () => void }) {
+  const { t } = useTranslation(['projects', 'common', 'config']);
+  const [value, setValue] = useState(initial);
+  const input = useRef<HTMLInputElement>(null);
+  // The menu that opened this gives focus back to its trigger as it closes; this runs after it
+  useEffect(() => {
+    const id = window.setTimeout(() => input.current?.focus(), 0);
+    return () => window.clearTimeout(id);
+  }, []);
+  return (
+    <form
+      className="rename-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (value.trim()) onSave(value.trim());
+      }}
+    >
+      <input ref={input} aria-label={t('card.nameLabel')} value={value} onChange={(e) => setValue(e.target.value)} />
+      <button type="submit" className="btn btn-small btn-primary" disabled={!value.trim() || pending}>
+        {t('config:shared.save')}
+      </button>
+      <button type="button" className="btn btn-small" onClick={onCancel}>
+        {t('common:actions.cancel')}
+      </button>
+    </form>
+  );
+}
+
+function ProjectCard({ project, active, live }: { project: Project; active: boolean; live: boolean }) {
   const { t } = useTranslation(['projects', 'work', 'common', 'config']);
   const refresh = useRefreshProjects();
   const confirm = useConfirm();
   const toast = useToast();
-  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
 
   const rename = useMutation({
     mutationFn: (name: string) => api.renameProject(project.id, name),
     onSuccess: () => {
       refresh();
-      setRenaming(null);
+      setRenaming(false);
     },
     onError: (error) => toast.error(t('card.renameFailed'), error),
   });
@@ -189,6 +311,7 @@ function ProjectCard({ project }: { project: Project }) {
   });
 
   const askRemove = async () => {
+    if (remove.isPending) return;
     const ok = await confirm({
       title: t('card.removeTitle', { name: project.name }),
       body: t('card.removeBody', { count: project.chatCount, n: formatNumber(project.chatCount) }),
@@ -197,6 +320,7 @@ function ProjectCard({ project }: { project: Project }) {
     if (ok) remove.mutate();
   };
   const askPurge = async () => {
+    if (purge.isPending) return;
     const ok = await confirm({
       title: t('card.purgeTitle', { name: project.name }),
       body: (
@@ -214,60 +338,62 @@ function ProjectCard({ project }: { project: Project }) {
     if (ok) purge.mutate();
   };
 
+  const classes = ['card', 'project-card', active ? 'is-active grad-border glow-top' : '', project.exists ? '' : 'is-warn'].filter(Boolean).join(' ');
   return (
-    <li className={`lrow project-row ${project.exists ? '' : 'is-warn'}`.trim()}>
-      <div className="lrow-head">
-        <span className="lrow-mark">
-          <Monogram name={project.name} />
-        </span>
-        <div className="lrow-main">
-          {renaming === null ? (
-            <h2 className="lrow-title">
-              {project.name}
+    <li className={classes} aria-current={active || undefined}>
+      <div className="project-card-head">
+        <Monogram name={project.name} size={40} />
+        <div className="project-card-id">
+          {renaming ? (
+            <RenameForm initial={project.name} pending={rename.isPending} onSave={(name) => rename.mutate(name)} onCancel={() => setRenaming(false)} />
+          ) : (
+            <h2 className="project-card-name">
+              <span className="ellipsis">{project.name}</span>
               {!project.exists && <Tag tone="warn">{t('work:projects.missing')}</Tag>}
             </h2>
-          ) : (
-            <form
-              className="rename-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (renaming.trim()) rename.mutate(renaming.trim());
-              }}
-            >
-              <input aria-label={t('card.nameLabel')} value={renaming} onChange={(e) => setRenaming(e.target.value)} autoFocus />
-              <button type="submit" className="btn btn-small btn-primary" disabled={!renaming.trim() || rename.isPending}>
-                {t('config:shared.save')}
-              </button>
-              <button type="button" className="btn btn-small" onClick={() => setRenaming(null)}>
-                {t('common:actions.cancel')}
-              </button>
-            </form>
           )}
-          <span className="lrow-sub">
-            <span className="mono">{project.path}</span>
-            <span>{t('card.chats', { count: project.chatCount, n: formatNumber(project.chatCount) })}</span>
-            <span>{t('work:projects.lastActivity', { ago: timeAgo(project.lastActivity) })}</span>
-            {project.worktrees.length > 0 && (
-              <span className="meta-icon">
-                <GitBranch size={12} strokeWidth={1.75} aria-hidden /> {t('work:projects.worktrees', { count: project.worktrees.length })}
-              </span>
-            )}
+          <span className="mono project-card-path ellipsis" title={project.path}>
+            {project.path}
           </span>
         </div>
-        <div className="lrow-actions">
-        <Link to={`/?project=${encodeURIComponent(project.id)}`} className="btn btn-small btn-primary" aria-label={t('card.openNamed', { name: project.name })}>
-          {t('common:actions.open')} <ArrowRight {...ICON_SM} />
-        </Link>
-        <button type="button" className="btn btn-small" onClick={() => setRenaming(project.name)} disabled={renaming !== null} aria-label={t('card.renameNamed', { name: project.name })}>
-          <Pencil {...ICON_SM} /> {t('card.rename')}
-        </button>
-        <button type="button" className="btn btn-small" onClick={() => void askRemove()} disabled={remove.isPending} aria-label={t('card.removeNamed', { name: project.name })}>
-          <Trash2 {...ICON_SM} /> {t('common:actions.remove')}
-        </button>
-        <button type="button" className="btn btn-small btn-danger" onClick={() => void askPurge()} disabled={purge.isPending} aria-label={t('card.purgeNamed', { name: project.name })}>
-          <Eraser {...ICON_SM} /> {t('card.purge')}
-        </button>
+        <ProjectActions project={project} onRename={() => setRenaming(true)} onRemove={() => void askRemove()} onPurge={() => void askPurge()} />
+      </div>
+      <dl className="project-card-stats">
+        <div className="project-stat">
+          <dt className="section-label">{t('card.stats.chats')}</dt>
+          <dd className="project-stat-value">{formatNumber(project.chatCount)}</dd>
         </div>
+        <div className="project-stat">
+          <dt className="section-label">{t('card.stats.worktrees')}</dt>
+          <dd className="project-stat-value">{formatNumber(project.worktrees.length)}</dd>
+        </div>
+        <div className="project-stat project-stat-activity">
+          <dt className="section-label">{t('card.stats.activity')}</dt>
+          {live ? (
+            <dd className="project-stat-value is-live">
+              <StatusDot tone="active" live />
+              {t('common:time.now')}
+            </dd>
+          ) : (
+            <dd className="project-stat-value is-quiet" title={project.lastActivity ? formatDateTime(project.lastActivity) : undefined}>
+              {sinceShort(project.lastActivity)}
+            </dd>
+          )}
+        </div>
+      </dl>
+      <div className="project-card-actions">
+        {project.exists ? (
+          <Link to={`/chats/new?cwd=${encodeURIComponent(project.path)}`} className="btn btn-small project-card-new" aria-label={t('worktrees.newChatIn', { name: project.name })}>
+            {t('worktrees.newChatHere')}
+          </Link>
+        ) : (
+          <button type="button" className="btn btn-small project-card-new" disabled>
+            {t('worktrees.newChatHere')}
+          </button>
+        )}
+        <Link to={`/?project=${encodeURIComponent(project.id)}`} className="btn btn-small project-card-open" aria-label={t('card.openNamed', { name: project.name })}>
+          {t('common:actions.open')}
+        </Link>
       </div>
     </li>
   );
@@ -275,9 +401,15 @@ function ProjectCard({ project }: { project: Project }) {
 
 export function Projects() {
   const { t } = useTranslation(['projects', 'work', 'common', 'config']);
+  const narrow = useMediaQuery(NARROW);
   const [adding, setAdding] = useState<'import' | 'create' | null>(null);
   const { data, error, isLoading } = useProjects();
   const projects = data ?? [];
+  // The card that stands out is the project the top bar has selected; with All projects none does
+  const { projectId: activeId } = useProjectScope();
+  // A project is live while a chat under it is working: that, and only that, gets the pinging dot
+  const working = useChats({ state: 'working', origin: ['agentry', 'external', 'orchestration'] });
+  const liveIds = new Set((working.data ?? []).flatMap((chat) => (chat.project ? [chat.project.id] : [])));
   // Candidates are always there to offer; the page decides how loudly, and only asks once it knows
   const candidates = useProjectCandidates(!isLoading);
   const offered = candidates.data ?? [];
@@ -285,23 +417,26 @@ export function Projects() {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<ProjectSort>('activity');
   const shown = projects.filter((project) => matchesText(search, [project.name, project.path])).sort(PROJECT_SORTERS[sort]);
+  const importButton = (
+    <button className="btn btn-primary" onClick={() => setAdding('import')}>
+      <FolderPlus {...ICON_SM} />
+      {t('page.importDirectory')}
+    </button>
+  );
 
   return (
     <>
       <PageHeader
         title={t('work:projects.title')}
-        subtitle={t('page.subtitle', { n: formatNumber(projects.length) })}
+        subtitle={t('page.subtitle', { count: projects.length, n: formatNumber(projects.length) })}
         actions={
           adding === null && (
             <>
               <button className="btn" onClick={() => setAdding('create')}>
-                <Plus size={14} strokeWidth={2} aria-hidden />
+                <Plus {...ICON_SM} />
                 {t('work:projects.newProject')}
               </button>
-              <button className="btn btn-primary" onClick={() => setAdding('import')}>
-                <FolderPlus size={14} strokeWidth={2} aria-hidden />
-                {t('page.importDirectory')}
-              </button>
+              {importButton}
             </>
           )
         }
@@ -313,7 +448,7 @@ export function Projects() {
         <Loading />
       ) : projects.length === 0 ? (
         offered.length === 0 && (
-          <Empty icon={FolderGit2} title={t('work:projects.empty')}>
+          <Empty illustration="projects" size={narrow ? 'sm' : undefined} title={t('work:projects.empty')} action={adding === null ? importButton : undefined}>
             {t('page.emptyHint')}
           </Empty>
         )
@@ -324,11 +459,13 @@ export function Projects() {
             sort={{ value: sort, options: PROJECT_SORTS.map((value) => ({ value, label: t(`list.sort.${value}`) })), onChange: (v) => setSort(PROJECT_SORTS.find((s) => s === v) ?? 'activity'), label: t('list.sortLabel') }}
           />
           {shown.length === 0 ? (
-            <Empty icon={FolderGit2} title={t('list.noneMatch')} />
+            <Empty illustration="no-results" size={narrow ? 'sm' : undefined} title={t('list.noneMatch')}>
+              {t('list.noneMatchHint')}
+            </Empty>
           ) : (
-            <ul className="lrows">
+            <ul className="project-grid">
               {shown.map((project) => (
-                <ProjectCard key={project.id} project={project} />
+                <ProjectCard key={project.id} project={project} active={project.id === activeId} live={liveIds.has(project.id)} />
               ))}
             </ul>
           )}
