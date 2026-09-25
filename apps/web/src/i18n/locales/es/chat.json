@@ -13,7 +13,7 @@
       "markdown": "Exportar Markdown",
       "json": "Exportar JSON"
     },
-    "fork": "Crear fork",
+    "fork": "Crear un fork",
     "deleteLive": "No se puede eliminar un chat con un proceso trabajando en él",
     "deleteHeld": "Otra cosa retiene este chat",
     "messages_one": "{{count}} mensaje",
@@ -52,7 +52,7 @@
     "placeholderResume": "Envía un mensaje: el chat se reanudará…",
     "resume": "Reanudar",
     "resuming": "Reanudando…",
-    "fork": "Crear fork",
+    "fork": "Crear un fork",
     "forking": "Creando fork…",
     "couldNotResume": "No se ha podido reanudar",
     "couldNotFork": "No se ha podido crear el fork"

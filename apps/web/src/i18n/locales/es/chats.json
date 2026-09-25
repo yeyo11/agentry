@@ -62,9 +62,9 @@
       "readOnly": "Solo lectura"
     },
     "outcome": {
-      "failed": "Fallido",
-      "stopped": "Detenido",
-      "interrupted": "Interrumpido"
+      "failed": "Fallida",
+      "stopped": "Detenida",
+      "interrupted": "Interrumpida"
     },
     "day": {
       "today": "Hoy",
