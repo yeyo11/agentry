@@ -1,11 +1,11 @@
 import type { ChangedFile, EditStep } from '@agentry/shared';
 import { useQuery } from '@tanstack/react-query';
-import { AlignJustify, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Columns2, Copy, Link2, Sparkles, TextQuote } from 'lucide-react';
+import { AlignJustify, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Columns2, Copy, Link2, Sparkle, TextQuote } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { blockStarts, diffHash, foldFull, openGap, parseUnified, type Gap, type ParsedDiff } from '../../lib/diff';
-import { formatClock, formatDateTime } from '../../lib/format';
+import { formatDateTime } from '../../lib/format';
 import type { ReviewMode } from '../../lib/review-state';
 import { Checkbox, MoreActions, type MenuEntry } from '../controls';
 import { ICON_SM } from '../icons';
@@ -13,7 +13,7 @@ import { ErrorBox, Segmented, Skeleton, Tag } from '../ui';
 import { BlockRail, useRailView } from './BlockRail';
 import { DiffView } from './DiffView';
 import { Counts } from './FileMap';
-import { reviewKey, scopeQuery, splitPath, type ReviewScope } from './review-model';
+import { hourMinute, reviewKey, scopeQuery, splitPath, type ReviewScope } from './review-model';
 import { LIVE_REFRESH_MS, type ReviewSource } from './source';
 
 // One file of the review: its header, the why line, and the diff with its block rail. It reads the
@@ -88,7 +88,7 @@ export function FileReview({
   refs?: { before?: string; after?: string };
   paneLabel?: string;
 }) {
-  const { t } = useTranslation('changes');
+  const { t, i18n } = useTranslation('changes');
   const live = source.live;
   const scoped = scopeQuery(scope);
 
@@ -240,17 +240,26 @@ export function FileReview({
 
   const why = latest && (latest.intent || latest.at) && (
     <div className="changes-why">
-      <Sparkles {...ICON_SM} className="changes-why-spark" />
+      <Sparkle {...ICON_SM} fill="currentColor" className="changes-why-spark" />
       <span className="sr-only">{t('why.label')}</span>
-      {latest.intent && (
-        <span className="changes-why-text" title={latest.intent}>
-          <q>{latest.intent}</q>
+      {phone ? (
+        // A phone has no room for a line of its own: the count follows the sentence
+        <span className="changes-why-text">
+          {latest.intent && <q>{latest.intent}</q>} <span className="changes-why-when">{t('why.latest', { count: steps?.length ?? 1 })}</span>
         </span>
+      ) : (
+        <>
+          {latest.intent && (
+            <span className="changes-why-text" title={latest.intent}>
+              <q>{latest.intent}</q>
+            </span>
+          )}
+          <span className="changes-why-when" title={latest.at ? formatDateTime(latest.at) : undefined}>
+            {t('why.latest', { count: steps?.length ?? 1 })}
+            {latest.at ? ` · ${hourMinute(latest.at, i18n.language)}` : ''}
+          </span>
+        </>
       )}
-      <span className="changes-why-when" title={latest.at ? formatDateTime(latest.at) : undefined}>
-        {t('why.latest', { count: steps?.length ?? 1 })}
-        {latest.at && !phone ? ` · ${formatClock(latest.at)}` : ''}
-      </span>
       {!phone && (
         <Link className="changes-why-link" to={stepHref(latest.id)}>
           {t('why.seeSteps')}
@@ -267,7 +276,7 @@ export function FileReview({
       <div className="changes-diff-box">
         <div className="changes-diff-scroll" ref={scrollRef} data-scroll-root>
           {tooBig && <p className="changes-diff-note">{t('blocksOnly')}</p>}
-          <div ref={contentRef}>
+          <div className="changes-diff-content" ref={contentRef}>
             <DiffView
               diff={shown}
               mode={mode}
@@ -289,6 +298,9 @@ export function FileReview({
     );
 
   const badge = file.binary ? 'binary' : file.status !== 'modified' ? file.status : null;
+  // Nothing to compare line by line (binary, too large, only renamed): no mode and no blocks to offer.
+  // While the diff loads, the controls stay, so the header does not jump
+  const textual = !shown || (!shown.binary && !shown.tooLarge && shown.hunks.length > 0);
 
   if (phone)
     return (
@@ -302,21 +314,24 @@ export function FileReview({
           <div className="changes-head-text">
             <span className="changes-phone-name">{name}</span>
             <span className="changes-phone-sub">
-              {dir && `${dir} · `}
+              {dir && <span className="changes-phone-dir">{dir}</span>}
+              {dir && <span aria-hidden>·</span>}
               <Counts additions={file.additions} deletions={file.deletions} binary={file.binary} />
             </span>
           </div>
           {seenChip}
           <MoreActions entries={menu} label={t('more.label')} />
         </header>
-        <div className="changes-phone-modes">
-          <Segmented value={mode} options={modes.map((m) => ({ value: m, label: t(`mode.${m}`) }))} onChange={onMode} label={t('mode.label')} />
-          {mode === 'reading' && marks.some((m) => m.dels > 0) && (
-            <span className="changes-phone-hint">
-              <Trans t={t} i18nKey="phone.tapPill" components={{ pill: <span className="diff-fold-pill" aria-hidden /> }} />
-            </span>
-          )}
-        </div>
+        {textual && (
+          <div className="changes-phone-modes">
+            <Segmented value={mode} options={modes.map((m) => ({ value: m, label: t(`mode.${m}`) }))} onChange={onMode} label={t('mode.label')} />
+            {mode === 'reading' && marks.some((m) => m.dels > 0) && (
+              <span className="changes-phone-hint">
+                <Trans t={t} i18nKey="phone.tapPill" components={{ pill: <span className="diff-fold-pill" aria-hidden /> }} />
+              </span>
+            )}
+          </div>
+        )}
         {why}
         {body}
         <nav className="changes-phone-bar" aria-label={t('map.label')}>
@@ -353,12 +368,16 @@ export function FileReview({
             <Tag>{t(`status.${badge}`)}</Tag>
           </span>
         )}
-        <Counts additions={file.additions} deletions={file.deletions} binary={file.binary} />
-        <span className="changes-sep" aria-hidden />
-        <span className="changes-modes">
-          <Segmented value={mode} options={modeOptions} onChange={onMode} label={t('mode.label')} />
-        </span>
-        {blocks}
+        {!file.binary && <Counts additions={file.additions} deletions={file.deletions} />}
+        {textual && (
+          <>
+            <span className="changes-sep" aria-hidden />
+            <span className="changes-modes">
+              <Segmented value={mode} options={modeOptions} onChange={onMode} label={t('mode.label')} />
+            </span>
+            {blocks}
+          </>
+        )}
         {seenChip}
         <MoreActions entries={menu} label={t('more.label')} />
       </div>

@@ -151,6 +151,13 @@ export function neighbour<T>(list: readonly T[], current: T | null, delta: 1 | -
   return list[at + delta] ?? null;
 }
 
+/** A step's time as the why line says it: hours and minutes, in the reader's language */
+export function hourMinute(iso: string | null, locale: string): string {
+  const ms = iso ? Date.parse(iso) : Number.NaN;
+  if (Number.isNaN(ms)) return '';
+  return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(ms);
+}
+
 /** Keys the review answers to */
 export type ReviewKey = 'j' | 'k' | 'n' | 'p' | 'v' | 'm' | 'o' | '[' | '/';
 const REVIEW_KEYS = new Set<string>(['j', 'k', 'n', 'p', 'v', 'm', 'o', '[', '/']);

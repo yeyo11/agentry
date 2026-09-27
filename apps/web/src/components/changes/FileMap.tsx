@@ -122,13 +122,7 @@ export function FileMap({
   return (
     <aside className="changes-map" aria-label={t('map.label')}>
       <div className="changes-map-head">
-        {onFold && (
-          <Tooltip content={t('map.fold')}>
-            <button type="button" className="icon-btn" aria-label={t('map.fold')} aria-keyshortcuts="[" onClick={onFold}>
-              <PanelLeft {...ICON_SM} />
-            </button>
-          </Tooltip>
-        )}
+        {/* Folding is `[`, and the file's ⋯ menu for a pointer: the reference keeps this row to the count */}
         <span className="section-label">{t('map.title')}</span>
         <span className="count">{total}</span>
         <span className="changes-seen-of">{t('map.seenOf', { seen: seenCount, total })}</span>

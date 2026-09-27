@@ -11,6 +11,7 @@ import { Fingerprint } from '../components/changes/Fingerprint';
 import { DiffView } from '../components/changes/DiffView';
 import {
   filesOf,
+  hourMinute,
   liveFile,
   neighbour,
   reviewKey,
@@ -30,7 +31,6 @@ import { ICON_SM } from '../components/icons';
 import { Spinner } from '../components/Spinner';
 import { Empty, ErrorBox, Skeleton, usePageTitle } from '../components/ui';
 import { parseUnified } from '../lib/diff';
-import { formatClock } from '../lib/format';
 import { NARROW, useMediaQuery } from '../lib/media';
 import {
   effectiveMode,
@@ -682,7 +682,7 @@ function StepsLens({
   note: string | null;
   phone: boolean;
 }) {
-  const { t } = useTranslation('changes');
+  const { t, i18n } = useTranslation('changes');
   if (error) return <div className="changes-pane-state"><ErrorBox error={error} /></div>;
   if (loading) return <div className="changes-pane-state"><Skeleton rows={6} height={16} /></div>;
   const list = steps ?? [];
@@ -702,7 +702,7 @@ function StepsLens({
         {list.map((s) => (
           <Link key={s.id} to={hrefOf(s.id)} replace className={`edit-step${s.id === current.id ? ' is-current' : ''}`} aria-current={s.id === current.id ? 'step' : undefined}>
             <span className="edit-step-head">
-              <span>{s.at ? formatClock(s.at) : `#${s.index}`}</span>
+              <span>{s.at ? hourMinute(s.at, i18n.language) : `#${s.index}`}</span>
               <span className="badge">{s.tool}</span>
               <span className="edit-step-path">{splitPath(s.path).name}</span>
               {s.pending && (
@@ -719,7 +719,7 @@ function StepsLens({
       </nav>
       <section className="changes-step-detail" aria-label={t('steps.stepOf', { n: current.index, total: list.length })}>
         <span className="section-label">{t('steps.stepOf', { n: current.index, total: list.length })}</span>
-        <span className="changes-path">{current.path}</span>
+        <span className="changes-meta">{current.path}</span>
         {current.intent && (
           <p className="changes-step-intent">
             <q>{current.intent}</q>

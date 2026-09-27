@@ -102,8 +102,46 @@
   white-space: nowrap;
 }
 
+/* Each segment is a link: 24 px tall to hit (WCAG 2.2 target size), 6 px drawn, the strip where
+   the reference puts it */
 .changes-head .changes-print {
-  margin-left: 42px;
+  height: 24px;
+  margin: -9px 0 -9px 42px;
+}
+
+.changes-head .changes-print-seg {
+  position: relative;
+  height: 24px;
+  opacity: 1;
+  background: none;
+  box-shadow: none;
+}
+
+.changes-head .changes-print-seg::before {
+  content: '';
+  position: absolute;
+  top: 9px;
+  right: 0;
+  left: 0;
+  height: 6px;
+  border-radius: var(--diff-rail-radius);
+  opacity: 0.5;
+  background: linear-gradient(90deg, var(--diff-add) var(--a, 50%), var(--diff-del) var(--a, 50%));
+}
+
+.changes-head .changes-print-seg:hover::before {
+  opacity: 0.8;
+}
+
+.changes-head .changes-print-seg.is-current::before {
+  opacity: 1;
+  box-shadow:
+    0 0 0 1.5px var(--bg),
+    0 0 0 2.5px var(--fg-2);
+}
+
+.changes-head .changes-print-seg.is-seen::before {
+  opacity: 0.18;
 }
 
 .changes-scope {
@@ -570,7 +608,7 @@
   background: var(--bg);
 }
 
-.changes-diff-scroll > .diff {
+.changes-diff-content {
   padding: 10px 0 24px;
 }
 
@@ -869,17 +907,43 @@
 
   .changes-phone-hint .diff-fold-pill {
     position: static;
+    margin: 0 2px;
+    transform: none;
+    vertical-align: 1px;
     pointer-events: none;
   }
 
   .changes-phone-file .changes-why {
     align-items: flex-start;
-    flex-wrap: wrap;
     padding: 8px 16px 12px;
+    font-size: 14px;
+  }
+
+  .changes-phone-file .changes-why-spark {
+    margin-top: 3px;
   }
 
   .changes-phone-file .changes-why-text {
     white-space: normal;
+  }
+
+  .changes-phone-file .changes-why-when {
+    font-family: var(--sans);
+    font-size: 13px;
+  }
+
+  .changes-phone-sub {
+    display: flex;
+    gap: 6px;
+  }
+
+  .changes-phone-dir {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .changes-phone-sub .changes-counts {
+    flex: none;
   }
 
   .changes-phone-bar {
