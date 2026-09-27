@@ -193,7 +193,7 @@
     "teamRoles_one": "{{n}} role from the template",
     "teamRoles_other": "{{n}} roles from the template",
     "noTeam": "No starting team",
-    "teamHint": "Kept with the project for when the Team module can create its agents; nothing is written to .claude/agents/ yet.",
+    "teamHint": "Offered once the project exists: each role you accept gets its agent file in .claude/agents/.",
     "create": "Create project",
     "created": "Created {{name}}",
     "keyFailed": "The project was created, but its key prefix could not be set",

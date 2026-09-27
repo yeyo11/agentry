@@ -1550,7 +1550,7 @@ export interface BoardColumnSummary {
   status: WorkItemStatus;
   /** Null when the column has no limit */
   limit: number | null;
-  /** Every item in the column, whatever the filter */
+  /** Every item in the column but its epics, whatever the filter: an epic takes no place under the limit */
   count: number;
   /** `count` is over `limit`: shown in the warn colour with a word, never a block */
   overLimit: boolean;

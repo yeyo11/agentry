@@ -11599,7 +11599,7 @@
       },
       "count": {
         "type": "number",
-        "description": "Every item in the column, whatever the filter"
+        "description": "Every item in the column but its epics, whatever the filter: an epic takes no place under the limit"
       },
       "overLimit": {
         "type": "boolean",
@@ -11860,7 +11860,7 @@
       },
       "count": {
         "type": "number",
-        "description": "Every item in the column, whatever the filter"
+        "description": "Every item in the column but its epics, whatever the filter: an epic takes no place under the limit"
       },
       "overLimit": {
         "type": "boolean",

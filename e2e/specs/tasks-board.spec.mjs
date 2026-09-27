@@ -2,6 +2,7 @@
 // are, moves by keyboard and by drag that persist across a reload, a move made through the API that
 // shows without one, filters kept in the address, selection handed to the orchestration editor, the
 // list, All projects, milestones, the empty board, and the phone's board without columns side by side.
+// An epic is on the board but in no count: not a column's, the subtitle's nor the phone's jump.
 
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -63,6 +64,11 @@ export default async ({ page, api, check, dirs }) => {
     check(blocked === `Blocked by ${blocker.key}`, `a blocked card names its blocker (${blocked})`);
     const epicCard = await page.eval(`return document.querySelector('[data-item-id="${epic.id}"] .workitem-card-epic')?.textContent`);
     check(epicCard === '0/1 tasks', `an epic's card counts its items (${epicCard})`);
+    // An epic groups work rather than being some: it is on the board but in no count
+    const todoCount = await page.eval(`return document.querySelector('.workitem-col[data-status="todo"] .workitem-col-count [aria-hidden]')?.textContent`);
+    check(todoCount === '1', `To do counts the blocker, not the epic beside it (${todoCount})`);
+    const sub = await page.text('main .workitem-head-sub');
+    check(sub.includes('5 open'), `the subtitle's open items leave the epic out (${sub})`);
     check((await page.eval(`return document.querySelectorAll('.workitem-card.live-rail, .workitem-card .spinner-ring').length`)) === 0, 'a board at rest has nothing live on it');
 
     // ---- a card opens in the panel beside the board, and the board stays ----
@@ -173,6 +179,8 @@ export default async ({ page, api, check, dirs }) => {
     made.push(empty.id);
     await page.goto(`/tasks?project=${empty.id}`, 1200);
     await page.waitFor(`return document.querySelector('.workitem-empty .state-illustrated strong')?.textContent === 'No tasks yet'`, { label: 'the empty board' });
+    const drawn = await page.eval(`return document.querySelector('.workitem-empty svg[data-illustration=board] text')?.textContent`);
+    check(drawn === `${empty.key}-1`, `the empty board draws the project's own first key (${drawn}, ${empty.key})`);
     check((await page.text('.workitem-empty .btn-primary')).trim() === 'Create the first task', 'it offers to create the first task');
 
     // ---- a phone: no horizontal board ----
@@ -184,6 +192,9 @@ export default async ({ page, api, check, dirs }) => {
     check(overflow <= 1, `nothing scrolls sideways (${overflow}px)`);
     const jumps = await page.eval(`return [...document.querySelectorAll('.workitem-jump [role=radio]')].map((b) => b.getBoundingClientRect().height)`);
     check(jumps.length === 5 && jumps.every((h) => h >= 44), `the column jump has five 44px targets (${jumps})`);
+    const jumpCounts = await page.eval(`return [...document.querySelectorAll('.workitem-jump .workitem-jump-count')].map((c) => c.textContent)`);
+    // To do holds the blocker, the first card (moved there by keyboard) and the epic
+    check(jumpCounts[1] === '2', `the column jump leaves the epic out of To do (${jumpCounts})`);
     check((await page.eval(`return document.querySelectorAll('.workitem-msection input[type=checkbox], .workitem-msection .checkbox').length`)) === 0, 'no checkbox on a phone');
     // A move through the row's sheet
     await page.click(`.workitem-mrow[data-item-id="${third.id}"] .workitem-mrow-more`, undefined, 600);

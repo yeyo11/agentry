@@ -79,6 +79,8 @@ export default async ({ page, api, check, dirs }) => {
     check(imported.status === 201, `a project with its board was imported (${imported.status})`);
     projectId = imported.body.id;
     for (const title of ['Filters in the list', 'The FAB covers the last row']) await api.post(`/projects/${projectId}/work-items`, { title });
+    // An epic is not an open item: the sheet still says two
+    await api.post(`/projects/${projectId}/work-items`, { title: 'Phone polish', type: 'epic' });
     await page.goto(`/?project=${projectId}`, 900);
     check((await page.eval(`return [...document.querySelectorAll('.tabbar-tab')].some((t) => t.getAttribute('href') === '/tasks')`)) === false, 'Tasks is not one of the four tabs');
     await page.click('.tabbar-more', undefined, 600);

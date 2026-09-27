@@ -16,6 +16,11 @@ import { Team } from './team';
 import { Welcome } from './welcome';
 
 export type IllustrationTone = 'accent' | 'warn' | 'bad' | 'live';
+
+/** What a drawing may be told: the words it draws, where it has any (the board's card key). */
+export interface DrawingProps {
+  text?: string | undefined;
+}
 export type IllustrationSize = 'sm' | 'md' | 'lg';
 
 /** Each drawing with the tone it has in the catalogue (design system §4), used when none is asked for. */
@@ -35,7 +40,7 @@ const ILLUSTRATIONS = {
   connector: [Connector, 'warn'],
   offline: [Offline, 'bad'],
   quota: [Quota, 'bad'],
-} as const satisfies Record<string, readonly [FunctionComponent, IllustrationTone]>;
+} as const satisfies Record<string, readonly [FunctionComponent<DrawingProps>, IllustrationTone]>;
 
 export type IllustrationName = keyof typeof ILLUSTRATIONS;
 
@@ -54,11 +59,14 @@ export function Illustration({
   size = 'md',
   tone,
   className,
+  text,
 }: {
   name: IllustrationName;
   size?: IllustrationSize;
   tone?: IllustrationTone;
   className?: string;
+  /** The words a drawing draws in place of its catalogue's own (the board's `AGN-1`) */
+  text?: string | undefined;
 }) {
   // useId() gives ':r1:'-style ids, which are not valid inside url(#…)
   const id = `il${useId().replace(/[^A-Za-z0-9_-]/g, '')}`;
@@ -90,7 +98,7 @@ export function Illustration({
         </mask>
       </defs>
       <rect x="0" y="0" width="240" height="160" className="f-dots" mask={`url(#${id}-fade)`} />
-      <Drawing />
+      <Drawing text={text} />
     </svg>
   );
 }

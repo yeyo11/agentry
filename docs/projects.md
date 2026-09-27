@@ -135,7 +135,9 @@ The wizard replaces the create and import dialogs of the Projects page. It has f
   workspace.
 - **The template**: the five, as radio cards.
 - **The modules**: one switch each. The template preselects them, and you can change any of them.
-- **A summary**, with the key prefix previewed from the name, and "Create project".
+- **A summary**, with the key prefix previewed from the name, and "Create project". With the Team
+  module on, it counts the template's roles and says they are offered once the project exists, each
+  one written to `.claude/agents/` when the person accepts it.
 
 It sends the existing `POST /projects` or `POST /projects/import` request, with `template` and
 `modules`.

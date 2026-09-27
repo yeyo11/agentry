@@ -1,6 +1,11 @@
 // Ported from docs/design-system/illustrations/board.svg: the drawing only. The frame, the defs
 // and the dotted backdrop are Illustration's, and every colour comes from illustrations.css.
-export function Board() {
+import type { DrawingProps } from './Illustration';
+
+/** A key longer than the reference's `AGN-1` is squeezed into the card rather than spilling out of it. */
+const FITS = 8;
+
+export function Board({ text = 'AGN-1' }: DrawingProps) {
   return (
     <>
       <rect x="34" y="32" width="52" height="102" rx="10" className="c0" />
@@ -16,7 +21,9 @@ export function Board() {
       <g className="a-float">
         <g transform="rotate(-8 64 58)">
           <rect x="34" y="42" width="64" height="34" rx="7" className="cg" />
-          <text x="42" y="56" className="txt">AGN-1</text>
+          <text x="42" y="56" className="txt" {...(text.length > FITS ? { textLength: 40, lengthAdjust: 'spacingAndGlyphs' } : {})}>
+            {text}
+          </text>
           <rect x="42" y="63" width="36" height="5" rx="2.5" className="s3" />
           <circle cx="88" cy="53" r="2.5" className="f-grad" />
         </g>

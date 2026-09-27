@@ -96,6 +96,20 @@ test('the board is redrawn with the card in its new place, counts and limits fol
   assert.equal(moveOnBoard(untouched, 'missing', { status: 'done', index: 0 }), untouched, 'a board without the card is left alone');
 });
 
+test("an epic moved on the board takes no place in either column's count, nor pushes one over its limit", () => {
+  const start = board();
+  const backlog = start.columns[0];
+  if (!backlog) throw new Error('no backlog');
+  // The server counts backlog as 2: the epic beside the two tasks is not one of them
+  backlog.items = [...backlog.items, item('e9', 'backlog', { type: 'epic' })];
+  const moved = moveOnBoard(start, 'e9', { status: 'in_progress', index: 0 });
+  const byStatus = new Map(moved.columns.map((c) => [c.status, c]));
+  assert.deepEqual(byStatus.get('in_progress')?.items.map((i) => i.id), ['e9', 'c1', 'c2'], 'the epic stays on the board');
+  assert.equal(byStatus.get('in_progress')?.count, 2);
+  assert.equal(byStatus.get('in_progress')?.overLimit, false, '2 of 2 with an epic inside is not over');
+  assert.equal(byStatus.get('backlog')?.count, 2);
+});
+
 test('the arrows carry a picked-up card along its column and across the board', () => {
   const counts = { backlog: 1, todo: 1, in_progress: 2, in_review: 0, done: 0 };
   assert.deepEqual(keyboardDrop({ status: 'backlog', index: 0 }, 'ArrowDown', counts), { status: 'backlog', index: 1 });
