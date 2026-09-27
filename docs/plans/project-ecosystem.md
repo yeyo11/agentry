@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T01:59:47.104538408Z
-updated_at: 2026-09-27T12:00:00Z
+updated_at: 2026-09-27T18:00:00Z
 tags:
     - plan
     - projects
@@ -838,6 +838,149 @@ descriptions), the ROADMAP, [status.md](../status.md), this section and the audi
 
 What 1b left open is listed at the end of [the audit](project-ecosystem-audit.md#what-stays-open).
 What is next is unchanged: the owner validates the prototypes, then orchestration 2 builds the web.
+
+### Orchestration 2: `ecosystem-board-web`
+
+The owner validated the 66 prototypes on 2026-09-27, and orchestration 2 built their web the same
+day. What it built is described in [projects.md](../projects.md#the-screens) and
+[work-items.md](../work-items.md#the-screens). The merged branch's `pnpm build` and `pnpm e2e` run in
+the verification phase, after this was written.
+
+**`web-foundation`** — as planned:
+
+- the API client for every project and work item route, with its query keys;
+- the events that invalidate what they touch;
+- `lib/work-items.ts` with its tests;
+- Tasks in the sidebar, the More sheet and the palette;
+- the `board` and `team` illustrations;
+- the light `--live` at `#0b6680`, plus the hue tokens;
+- the stub routes and the `tasks` and `workItem` namespaces.
+
+Where it went past the plan:
+
+- The API has no route by key, so `/tasks/:key` finds the item through a `q=<key>` search, keeping
+  only the exact match.
+- Run events refresh the boards too, because a failed turn ends a live card without changing the
+  item.
+- The status, type and priority marks, the key and the epic label became shared components with
+  their own stylesheet.
+- A New task FAB shows on Tasks.
+
+Where it went around the plan: the sidebar shows the total open count with All projects selected,
+as the validated prototypes draw it, where this plan said none.
+
+**`web-projects`** — as planned:
+
+- the wizard at `/projects/new`, which replaces the create and import dialogs;
+- the project page as a header over tabs that follow the modules;
+- Agentry's settings above Claude Code's in Ajustes;
+- each project card showing its key and modules.
+
+Where it went past the plan:
+
+- The wizard also creates a new directory in the workspace.
+- The Projects page's candidates open the wizard prefilled with `?path=`.
+- A phone walks the wizard step by step, without the tab bar.
+- Ajustes also removes the project.
+- An address naming a hidden tab lands on Resumen.
+
+Memoria follows the Shared memory module. So an imported project, with every module off, loses that
+tab until someone switches it on; the review kept this, as decision 6 says.
+
+**`web-board`** — as planned:
+
+- the board, the list, All projects and milestones;
+- the empty board;
+- moving cards by pointer and keyboard, with `afterId`, an optimistic update and a rollback with a
+  toast;
+- the toolbar with its filters in the address;
+- selection, with "Orquestar" handing the draft over as the contract says;
+- the phone's sectioned board, with its jump, move sheet, filter sheet and pressed selection rows.
+
+Where it went past the plan:
+
+- Keyboard shortcuts: `/` for search, `N` for New task, `J` and `K` in the list.
+- Selection says why an epic, a done item or another project's item cannot be picked.
+- On a phone the page holds the scope chip, so the top bar leaves it out on `/tasks`.
+- Milestones are a view of Tasks, not a page of their own, so their title stays Tasks.
+
+**`web-item`** — as planned:
+
+- the work item as a page and as the board's panel;
+- every field edited in place;
+- the description in the existing editor;
+- the checklist with who checked each entry and when, the whole row the control;
+- relations;
+- links with their live state;
+- changes through the chat's `SummaryView`;
+- the activity with comments;
+- "Trabajar en ella" with New chat's options, refused on an epic or in Hecho with the reason;
+- "Mover a Hecho" as a plain button;
+- New task as a dialog on a desktop and a screen on a phone.
+
+Where it went past the plan:
+
+- An item a chat is already working on offers that chat instead of a second one.
+- `/tasks/:key` hides the phone's tab bar, since the page has its own bottom bar.
+- The history, cause and link keys are typed against the English locale file.
+
+Where it went around the plan: a new task's relations are added once the item exists.
+
+**`web-links`** — as planned:
+
+- "Crear una tarea con este mensaje" in the message menu (a sheet on a phone);
+- the chat header's row naming the item;
+- the draft opened in the orchestration editor with each node's key and the external blockers as a
+  warning;
+- nodes naming their item on an orchestration's page.
+
+Where it went past the plan:
+
+- The menu item says why when the chat has no project or the Board is off.
+- A chat that an item was created from says so.
+- The inspector's Summary gains the item's card.
+
+**`web-review`** merged the four and compared 19 screens with their references. It captured them at
+1440 × 1024 and 390 × 844, dark and light, in Spanish, against an isolated server seeded with the
+data set of the prototypes. It fixed what sat between the tasks:
+
+- The board never mounted the item panel, so `?item=` did nothing.
+- A card's blocker key ran under the checklist icon.
+- A selectable card was an `<article>` with the checkbox role.
+- A project tab's breadcrumb read "Inicio".
+- On a phone:
+  - the FAB covered Save, doubled the "+" on Milestones and added a second gradient to the empty
+    board;
+  - Save sat in the middle of the settings form;
+  - the project's tabs came after a dozen widgets.
+- The tab counts were 4.4:1.
+- The Memory widget linked to a tab that did not exist.
+- The phone's New task carried a second banner.
+
+It extended `a11y.spec.mjs`, `motion.spec.mjs` and `pages.spec.mjs` over the new screens without
+loosening them.
+
+**`docs-web`** — this section, and:
+
+- [projects.md](../projects.md) and [work-items.md](../work-items.md) as built;
+- the README's feature list, UI table, shortcuts, and the board's screenshots in `docs/media/`
+  (`board.png`, `board-mobile.png`, `work-item.png`);
+- the ROADMAP;
+- [status.md](../status.md).
+
+The screenshots were taken with a one-off script against an isolated wrapper and the fake CLI, as
+`web-review` took its own. `scripts/record-media.mjs` does not record them yet.
+
+**What orchestration 2 left open**, listed in [work-items.md](../work-items.md#known-gaps):
+
+- A link's history entry names the chat by its name, not its first prompt. The fix is in core.
+- The empty board's illustration always draws `AGN-1`.
+- The phone screens keep the shell's top bar, not the prototypes' back arrow.
+- On a phone, the Projects list keeps its gradient "Nuevo proyecto" next to the FAB.
+- Resumen stays today's dashboard, as this plan says.
+
+The Team and Documents tabs and the parts of `DesktopTableroEquipo` that need a team are
+orchestration 3, and "Suggest tasks" is orchestration 4.
 
 ## Related
 
