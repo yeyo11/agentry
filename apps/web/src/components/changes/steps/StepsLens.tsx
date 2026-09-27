@@ -10,11 +10,11 @@ import { ICON_SM } from '../../icons';
 import { Spinner } from '../../Spinner';
 import { Empty, ErrorBox, Skeleton } from '../../ui';
 import { DiffView } from '../DiffView';
+import { Intent } from '../Intent';
 import { Counts } from '../FileMap';
 import { hourMinute, splitPath } from '../review-model';
 import {
   conversationHref,
-  intentParts,
   patchSpan,
   plainIntent,
   sameFileWindow,
@@ -127,17 +127,6 @@ function StepTime({ step }: { step: EditStep }) {
   return <span className="edit-step-time">{step.pending ? t('steps.now') : step.at ? hourMinute(step.at, i18n.language) : `#${step.index}`}</span>;
 }
 
-/** The intent, with what Claude put between backticks as code */
-function Intent({ text }: { text: string }) {
-  const { t } = useTranslation('changes');
-  return (
-    <>
-      {t('steps.quoteOpen')}
-      {intentParts(text).map((p, i) => (p.code ? <code key={i}>{p.text}</code> : <span key={i}>{p.text}</span>))}
-      {t('steps.quoteClose')}
-    </>
-  );
-}
 
 function StepPath({ path }: { path: string }) {
   const { dir, name } = splitPath(path);
@@ -321,7 +310,7 @@ function Patch({ step, wrap }: { step: EditStep; wrap: boolean }) {
           <span>{t('steps.asThen')}</span>
         </div>
       )}
-      <DiffView key={step.id} diff={diff} mode="unified" path={step.path} wrap={wrap} className="edit-step-diff" />
+      <DiffView key={step.id} diff={diff} mode="unified" path={step.path} wrap={wrap} trimEdges className="edit-step-diff" />
     </div>
   );
 }

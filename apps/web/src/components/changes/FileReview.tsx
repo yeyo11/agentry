@@ -13,8 +13,10 @@ import { ErrorBox, Segmented, Skeleton, Tag } from '../ui';
 import { ScrollingBlockRail } from './BlockRail';
 import { DiffView } from './DiffView';
 import { Counts } from './FileMap';
+import { Intent } from './Intent';
 import { hourMinute, reviewKey, scopeQuery, splitPath, type ReviewScope } from './review-model';
 import { LIVE_REFRESH_MS, type ReviewSource } from './source';
+import { plainIntent } from './steps/steps-model';
 
 // One file of the review: its header, the why line, and the diff with its block rail. It reads the
 // diff in the review's scope, and the whole file (`context=full`) once, when a gap is opened that the
@@ -244,13 +246,13 @@ export function FileReview({
       {phone ? (
         // A phone has no room for a line of its own: the count follows the sentence
         <span className="changes-why-text">
-          {latest.intent && <q>{latest.intent}</q>} <span className="changes-why-when">{t('why.latest', { count: steps?.length ?? 1 })}</span>
+          {latest.intent && <Intent text={latest.intent} />} <span className="changes-why-when">{t('why.latest', { count: steps?.length ?? 1 })}</span>
         </span>
       ) : (
         <>
           {latest.intent && (
-            <span className="changes-why-text" title={latest.intent}>
-              <q>{latest.intent}</q>
+            <span className="changes-why-text" title={plainIntent(latest.intent)}>
+              <Intent text={latest.intent} />
             </span>
           )}
           <span className="changes-why-when" title={latest.at ? formatDateTime(latest.at) : undefined}>
