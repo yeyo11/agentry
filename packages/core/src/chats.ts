@@ -36,6 +36,7 @@ import type { BackgroundTask, SubagentInfo, WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
 import { RunEventPublisher } from './event-sources.ts';
 import type { EventBus } from './events.ts';
+import type { RunDefaults } from './app-settings.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import { runningCommands, type ToolCall, type Trace } from './health.ts';
@@ -298,7 +299,7 @@ class LiveChat {
     readonly meta: RunMeta,
     readonly origin: ChatOrigin,
     readonly derivedFrom: ChatFork | null,
-    config: CoreConfig,
+    config: Pick<CoreConfig, 'workspaceDir' | 'defaultPermissionMode'>,
     created = false,
   ) {
     this.cwd = resolve(opts.cwd ?? config.workspaceDir);
@@ -558,6 +559,8 @@ export class ChatManager extends EventEmitter {
   uploads: UploadStore | null = null;
   /** Where changes to chats are announced; set by Core */
   bus: EventBus | null = null;
+  /** Read as each run starts, so a change in the settings applies to the next one; Core sets the layered store */
+  defaults: RunDefaults;
   /** Latest `init` snapshot per working directory */
   readonly environments = new Map<string, EffectiveEnvironment>();
 
@@ -577,6 +580,7 @@ export class ChatManager extends EventEmitter {
     private readonly db: Db,
   ) {
     super();
+    this.defaults = config;
     this.file = join(config.dataDir, 'runs.json');
     for (const env of db.loadEnvironments()) this.environments.set(env.cwd, env);
   }
@@ -876,7 +880,7 @@ export class ChatManager extends EventEmitter {
     if (!opts.prompt?.trim() && !opts.attachments?.length) throw new Error('prompt is required');
     this.admit(opts);
     const attachments = this.resolveAttachments(opts.attachments);
-    return this.begin(new LiveChat(randomUUID(), opts, meta, opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : 'agentry', null, this.config), opts.prompt, attachments);
+    return this.begin(new LiveChat(randomUUID(), opts, meta, opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : 'agentry', null, this.chatDefaults()), opts.prompt, attachments);
   }
 
   /**
@@ -894,7 +898,7 @@ export class ChatManager extends EventEmitter {
     const attachments = this.resolveAttachments(request.attachments);
     if (!chat) {
       if (!adopt) throw new Error('chat not found');
-      chat = new LiveChat(id, { prompt: request.prompt, cwd: adopt.cwd, name: adopt.name, ...(adopt.model ? { model: adopt.model } : {}) }, {}, 'external', null, this.config, true);
+      chat = new LiveChat(id, { prompt: request.prompt, cwd: adopt.cwd, name: adopt.name, ...(adopt.model ? { model: adopt.model } : {}) }, {}, 'external', null, this.chatDefaults(), true);
       chat.workingDir = adopt.cwd;
     }
     this.applyStartOptions(chat, request);
@@ -927,7 +931,7 @@ export class ChatManager extends EventEmitter {
       {},
       'agentry',
       { chatId: sourceId, at: now() },
-      this.config,
+      this.chatDefaults(),
     );
     chat.forkFrom = sourceId;
     chat.workingDir = source.cwd;
@@ -941,9 +945,15 @@ export class ChatManager extends EventEmitter {
     if (opts.account && !this.accounts?.managed) {
       throw new Error('no claude-swap account is registered: a chat cannot be pinned to one');
     }
-    if (this.activeCount() >= this.config.maxConcurrentRuns) {
-      throw new Error(`Concurrent run limit reached (${this.config.maxConcurrentRuns})`);
+    const limit = this.defaults.maxConcurrentRuns;
+    if (this.activeCount() >= limit) {
+      throw new Error(`Concurrent run limit reached (${limit})`);
     }
+  }
+
+  /** What a new chat starts from: the configured workspace, and the default mode as it stands now */
+  private chatDefaults(): Pick<CoreConfig, 'workspaceDir' | 'defaultPermissionMode'> {
+    return { workspaceDir: this.config.workspaceDir, defaultPermissionMode: this.defaults.defaultPermissionMode };
   }
 
   /** What a request chooses for the execution it starts, on top of what the chat already had. */
