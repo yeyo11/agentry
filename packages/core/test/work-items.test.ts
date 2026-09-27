@@ -588,6 +588,27 @@ test('the ids of a link must be non-empty text, refused with a 400 rather than f
   assert.equal(service.setLinkChat(link.id, 'c9').chatId, 'c9');
 });
 
+test('the worktree and branch of an item are recorded as a fact: announced, but not written into its history', () => {
+  const { service, events } = setup();
+  const item = service.create('p1', { title: 'x' });
+  const entries = service.history(item.id).length;
+  events.length = 0;
+  const placed = service.setWorktree(item.id, { worktree: '/repo/.claude/worktrees/agn-1', branch: 'task/agn-1' });
+  assert.deepEqual([placed.worktree, placed.branch], ['/repo/.claude/worktrees/agn-1', 'task/agn-1']);
+  assert.deepEqual(
+    [service.get(item.id).worktree, service.get(item.id).branch],
+    ['/repo/.claude/worktrees/agn-1', 'task/agn-1'],
+  );
+  assert.equal(service.history(item.id).length, entries);
+  assert.deepEqual(
+    events.map((e) => (e.type === 'workitem.updated' ? [e.itemId, e.changes, e.actor.kind] : e.type)),
+    [[item.id, [], 'system']],
+  );
+  const cleared = service.setWorktree(item.id, { worktree: null, branch: null });
+  assert.deepEqual([cleared.worktree, cleared.branch], [null, null]);
+  assert.throws(() => service.setWorktree('missing', { worktree: '/x', branch: 'task/x' }), refusal(404));
+});
+
 // ---------- lists, filters, search and the board ----------
 
 function seeded() {
