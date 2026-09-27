@@ -12,7 +12,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
 const argv = process.argv.slice(2);
@@ -39,6 +39,8 @@ const HEARTBEAT_MS = numberEnv('AGENTRY_FAKE_CLI_HEARTBEAT_MS', 30_000);
 const TURN_COST_USD = numberEnv('AGENTRY_FAKE_CLI_TURN_COST_USD', 0);
 /** How long the worker "thinks" between two steps: long enough for a message sent with a cancel to arrive first */
 const SETTLE_MS = 300;
+// How long a `read:` step holds its Read call open, so a page can show what is being read
+const READ_MS = numberEnv('AGENTRY_FAKE_CLI_READ_MS', 400);
 
 /** What a spec reads to know the process heard something: one JSON line per fact, when the variable names a file. */
 function log(event, fields = {}) {
@@ -225,13 +227,13 @@ function startTurn(message) {
   if (offset !== undefined) elapsedOffsetS = Number(offset);
   const steps = text
     .split('\n')
-    .map((l) => /^\s*(run|say):\s*(.+)$/.exec(l))
+    .map((l) => /^\s*(run|say|read|json):\s*(.+)$/.exec(l))
     .filter((m) => m?.[2]?.trim())
     .map((m) => ({ kind: m[1], text: m[2].trim() }));
   const commands = steps.filter((s) => s.kind === 'run').map((s) => s.text);
   // A turn that writes its own prose needs none of the fake's around it
-  const scripted = steps.some((s) => s.kind === 'say');
-  turn = { steps, current: null, startedAt: Date.now(), interrupted: false, scripted, lastSaid: '' };
+  const scripted = steps.some((s) => s.kind === 'say' || s.kind === 'json');
+  turn = { steps, current: null, startedAt: Date.now(), interrupted: false, scripted, lastSaid: '', structured: undefined };
   log('turn', { text, commands });
   if (steps.length === 0) {
     assistant([heard(text)]);
@@ -248,7 +250,36 @@ function nextStep() {
   const step = own.steps.shift();
   if (step === undefined) {
     if (!own.scripted) assistant([{ type: 'text', text: 'All done.' }]);
-    endTurn({ result: own.scripted ? own.lastSaid : 'All done.' });
+    endTurn({ result: own.scripted ? own.lastSaid : 'All done.', structured: own.structured });
+    return;
+  }
+  if (step.kind === 'json') {
+    // What `--json-schema` makes the CLI return beside its text
+    try {
+      own.structured = JSON.parse(step.text);
+    } catch {
+      own.structured = step.text;
+    }
+    setTimeout(() => turn === own && nextStep(), 0);
+    return;
+  }
+  if (step.kind === 'read') {
+    const id = `toolu_fake_${randomUUID().replaceAll('-', '').slice(0, 20)}`;
+    const filePath = resolve(process.cwd(), step.text);
+    assistant([{ type: 'tool_use', id, name: 'Read', input: { file_path: filePath } }]);
+    own.current = { id, child: null, command: null };
+    setTimeout(() => {
+      if (turn !== own) return;
+      own.current = null;
+      let content = '(file not found)';
+      try {
+        content = readFileSync(filePath, 'utf8').slice(0, 4000);
+      } catch {
+        // A path that is not there reads as the CLI says so
+      }
+      toolResult(id, content, false);
+      setTimeout(() => turn === own && nextStep(), SETTLE_MS);
+    }, READ_MS);
     return;
   }
   if (step.kind === 'say') {
@@ -299,7 +330,7 @@ function nextStep() {
   });
 }
 
-function endTurn({ result = '', error = false }) {
+function endTurn({ result = '', error = false, structured = undefined }) {
   const startedAt = turn?.startedAt ?? Date.now();
   turn = null;
   turns++;
@@ -311,6 +342,7 @@ function endTurn({ result = '', error = false }) {
     duration_ms: Date.now() - startedAt,
     num_turns: 1,
     result,
+    ...(structured === undefined ? {} : { structured_output: structured }),
     total_cost_usd: costUsd,
     usage: { input_tokens: 10, output_tokens: 10 },
   });
@@ -327,10 +359,13 @@ function control(message) {
   log('control', { subtype: request.subtype });
   if (request.subtype === 'interrupt') {
     // The command running goes down with the turn, as the CLI's does; its exit ends the turn
-    if (turn?.current) {
+    if (turn?.current?.child) {
       turn.interrupted = true;
       killTree(turn.current.child.pid);
     } else if (turn) {
+      // A Read has no process to take down: the turn ends at once
+      if (turn.current) toolResult(turn.current.id, 'The user interrupted this read.', true);
+      turn.current = null;
       endTurn({ error: true });
     }
     reply({});
@@ -355,7 +390,7 @@ function shutdown() {
   if (closing) return;
   closing = true;
   // Nothing of ours outlives us: the command running now goes first
-  if (turn?.current) killTree(turn.current.child.pid, 'SIGKILL');
+  if (turn?.current?.child) killTree(turn.current.child.pid, 'SIGKILL');
   log('exit');
   process.exit(0);
 }
@@ -378,7 +413,7 @@ createInterface({ input: process.stdin })
   .on('close', () => {
     // The CLI ends what it was doing when its input ends, and says so with a result
     if (turn) {
-      if (turn.current) killTree(turn.current.child.pid, 'SIGKILL');
+      if (turn.current?.child) killTree(turn.current.child.pid, 'SIGKILL');
       turn.current = null;
       waiting.splice(0);
       endTurn({ error: true, result: 'stdin closed' });

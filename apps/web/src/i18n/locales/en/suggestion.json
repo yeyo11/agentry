@@ -1,0 +1,46 @@
+{
+  "facts": {
+    "soFar": "{{cost}} so far",
+    "noCost": "no cost",
+    "chat": "chat {{id}}",
+    "elapsed": "Running for {{time}}"
+  },
+  "stop": "Stop",
+  "similarTo": "Similar to",
+  "count": {
+    "pending": "later",
+    "missing": "does not exist",
+    "partial": "{{n}} of {{total}}",
+    "lines_one": "{{n}} line",
+    "lines_other": "{{n}} lines",
+    "files_one": "{{n}} file",
+    "files_other": "{{n}} files",
+    "documents_one": "{{n}} document",
+    "documents_other": "{{n}} documents",
+    "chats_one": "{{n}} chat",
+    "chats_other": "{{n}} chats",
+    "commits_one": "{{n}} commit",
+    "commits_other": "{{n}} commits",
+    "items_one": "{{n}} task",
+    "items_other": "{{n}} tasks",
+    "entries_one": "{{n}} entry",
+    "entries_other": "{{n}} entries",
+    "members_one": "{{n}} member",
+    "members_other": "{{n}} members"
+  },
+  "source": {
+    "and": "and",
+    "reading": "(reading now)",
+    "file": "A file",
+    "dir": "A directory",
+    "instructions": "The project's instructions",
+    "memory": "The project's memory",
+    "journal": "The project journal",
+    "work-items": "The board",
+    "milestones": "The open milestones",
+    "team": "The team",
+    "resources": "The project's resources",
+    "chats": "The Claude Code chats in this directory",
+    "git": "The git history"
+  }
+}

@@ -47,6 +47,7 @@ import { NARROW, useMediaQuery } from './lib/media';
 import { fabFor, hidesTabBar, pageHoldsScope } from './lib/shell-live';
 import { NEW_TASK_PATH, TASKS_PATH, normalizeKey } from './lib/work-items';
 import { Home } from './pages/Home';
+import { AssistantCrumbs, assistantProjectOf } from './pages/assistant/crumbs';
 import { asProjectView } from './pages/dashboard/views';
 import { useRoleName } from './pages/team/RoleAvatar';
 
@@ -62,6 +63,7 @@ const Orchestration = lazyPage(() => import('./pages/Orchestration').then((m) =>
 const OrchestrationDetail = lazyPage(() => import('./pages/OrchestrationDetail').then((m) => m.OrchestrationDetail));
 const Projects = lazyPage(() => import('./pages/Projects').then((m) => m.Projects));
 const NewProject = lazyPage(() => import('./pages/projects/NewProject').then((m) => m.NewProject));
+const AssistantPage = lazyPage(() => import('./pages/assistant/Assistant').then((m) => m.AssistantPage));
 const TasksBoard = lazyPage(() => import('./pages/tasks/Board').then((m) => m.Board));
 const Milestones = lazyPage(() => import('./pages/tasks/Milestones').then((m) => m.Milestones));
 const WorkItemPage = lazyPage(() => import('./pages/tasks/WorkItem').then((m) => m.WorkItemPage));
@@ -237,6 +239,7 @@ function Shell() {
   // A project's page reads "Projects / <name> / <tab>", as every project tab of the reference does.
   // A tab its modules hide lands on Summary, so the crumb may name it for a moment before that
   const projectTab = pathname === '/' && project ? (asProjectView(new URLSearchParams(search).get('view')) ?? 'summary') : null;
+  const assistantProject = assistantProjectOf(pathname);
   // A work item's page adds its key to the crumb: "Tasks / AGN-12"
   const taskKey = pathname.startsWith(`${TASKS_PATH}/`) ? normalizeKey(decodeURIComponent(pathname.slice(TASKS_PATH.length + 1))) : null;
   // What else a person can start: behind "New chat ▾" in the top bar, and in the phone's More sheet
@@ -380,6 +383,8 @@ function Shell() {
                 </span>
                 {projectTab === 'team' ? <TeamCrumbs projectId={project.id} search={search} /> : <span className="crumb-page ellipsis">{t(`home:tabs.${projectTab}`)}</span>}
               </>
+            ) : assistantProject ? (
+              <AssistantCrumbs projectId={assistantProject} projectsLabel={projects.label} />
             ) : taskKey ? (
               <>
                 <Link to={TASKS_PATH} className="crumb-page muted ellipsis">
@@ -415,6 +420,7 @@ function Shell() {
               <Route path="/chats/:id" element={<ChatView />} />
               <Route path="/projects" element={<Projects />} />
               <Route path="/projects/new" element={<NewProject />} />
+              <Route path="/projects/:id/assistant" element={<AssistantPage />} />
               <Route path="/tasks" element={<TasksBoard />} />
               <Route path="/tasks/milestones" element={<Milestones />} />
               <Route path="/tasks/:key" element={<WorkItemPage />} />

@@ -10,8 +10,9 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 - **In a spec:** `export const fakeCli = true;`. `e2e/run.mjs` runs those specs after every other
   one, on a server restarted with `e2e/fake-cli` first on `PATH` (and `CLAUDE_BIN` unset), the
   sandbox's config directory and `AGENTRY_HEALTH_INTERVAL_MS=500`. The spec's context gains
-  `fakeCli: { bin, log }`, and `dirs.configDir` is always the sandbox's. Specs without the marker
-  keep the real CLI.
+  `fakeCli: { bin, log, scripts }`, and `dirs.configDir` is always the sandbox's. `scripts` is the
+  path `AGENTRY_FAKE_CLI_SCRIPTS` names: write it to script a turn whose prompt the spec does not
+  type, such as an assistant run's. Specs without the marker keep the real CLI.
 - **Elsewhere** (a recorder, a demo instance): put this directory first on `PATH` of the wrapper, or
   set `CLAUDE_BIN` to `e2e/fake-cli/claude`. `scripts/record-media.mjs` (`pnpm media`) does the
   first, and plays its chats and workers from a scripts file.
@@ -62,6 +63,12 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
   `tool_name`, `elapsed_time_seconds`), and ends with a `user` event holding the `tool_result`:
   the output (or `Exit code N` / the signal), `is_error` when it did not exit 0.
 - `say: <text>` — one assistant text block, in its place among the calls.
+- `read: <path>` — one `Read` call (`input: { file_path }`, the path resolved against the working
+  directory), held open for `AGENTRY_FAKE_CLI_READ_MS` (default 400) and answered with the file's
+  first 4000 characters, or `(file not found)`. It is what makes a page say "Reading <path>".
+- `json: <JSON on one line>` — the turn's `structured_output`, what `--json-schema` makes the CLI
+  return beside its text: an assistant run's answer. A turn with a `json:` line and no `say:` ends
+  with an empty `result` text.
 - `elapsed: <seconds>` — sets the heartbeat offset for this process from now on: a command then
   reports it has run that long, which is how a spec makes `hung-command` fire at once.
 - A turn with `run:` lines and no `say:` line starts with the text `Running N commands.` and ends
