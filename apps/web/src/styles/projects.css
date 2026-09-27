@@ -823,7 +823,8 @@
 .project-tabs .count {
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--text-faint);
+  /* On the pill's --bg-4 the faint grey reads 4.4:1; the muted one keeps the count legible */
+  color: var(--text-muted);
 }
 
 /* A phone's stand-in for the strip */

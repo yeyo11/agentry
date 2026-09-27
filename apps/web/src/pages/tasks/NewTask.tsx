@@ -116,13 +116,15 @@ function FullScreen({ title, aside, onClose, children, footer }: { title: string
   }, [onClose]);
   return createPortal(
     <div ref={panel} className="newtask-screen" role="dialog" aria-modal="true" aria-labelledby={id}>
-      <header className="newtask-screen-head">
+      {/* A div, not a header: outside a sectioning element a header is the page's banner, and the
+          shell's top bar already is that */}
+      <div className="newtask-screen-head">
         <button type="button" className="btn newtask-cancel" onClick={onClose}>
           {t('actions.cancel')}
         </button>
         <h2 id={id}>{title}</h2>
         <span className="newtask-screen-aside">{aside}</span>
-      </header>
+      </div>
       <div className="newtask-screen-body">{children}</div>
       <div className="newtask-screen-foot">{footer}</div>
     </div>,
