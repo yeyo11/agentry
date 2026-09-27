@@ -134,6 +134,8 @@ export default async ({ page, api, check, dirs }) => {
       `history.pushState({ usr: { workItemDraft: ${JSON.stringify(drafted.body)} }, key: 'e2e-draft', idx: (history.state?.idx ?? 0) + 1 }, '', '/orchestration'); dispatchEvent(new PopStateEvent('popstate', { state: history.state })); return true`,
     );
     await page.waitFor(`return document.querySelectorAll('.task-editor').length === 2`, { label: 'the editor opens on the draft, one node per task' });
+    // Each node reads its item by id, so its key lands once that request does
+    await page.waitFor(`return document.querySelectorAll('.task-editor .workitem-key-link').length === 2`, { label: "each node's item has loaded" });
     const keysShown = await page.eval(`return [...document.querySelectorAll('.task-editor .workitem-key-link')].map((a)=>a.textContent)`);
     check(JSON.stringify(keysShown) === JSON.stringify([first.key, second.key]), `each node shows its task's key (${keysShown})`);
     const note = await page.text('.orch-draft-note');
