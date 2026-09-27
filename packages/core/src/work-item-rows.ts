@@ -1,4 +1,5 @@
 import type {
+  DocumentKind,
   Milestone,
   MilestoneProgress,
   WorkItemActor,
@@ -7,12 +8,14 @@ import type {
   WorkItemComment,
   WorkItemHistoryValue,
   WorkItemLink,
+  WorkItemLinkKind,
+  WorkItemLinkRole,
   WorkItemRelation,
   WorkItemSource,
   WorkItemStatus,
   WorkItemType,
 } from '@agentry/shared';
-import { WORK_ITEM_STATUSES, workItemKey } from '@agentry/shared';
+import { DOCUMENT_KINDS, WORK_ITEM_LINK_KINDS, WORK_ITEM_LINK_ROLES, WORK_ITEM_STATUSES, workItemKey } from '@agentry/shared';
 
 /**
  * The work item tables as SQLite hands their rows back, and the conversions between those rows and
@@ -35,6 +38,10 @@ export interface ItemRow {
   rank: string;
   worktree: string | null;
   branch: string | null;
+  /** The flow's round of verification; 0 on a row written before the flow existed */
+  bounces: number;
+  /** A `WorkItemWaitReason`, or null */
+  waiting: string | null;
   created_at: string;
   updated_at: string;
   closed_at: string | null;
@@ -58,6 +65,10 @@ export interface LinkRow {
   chat_id: string | null;
   orchestration_id: string | null;
   task_id: string | null;
+  /** Set on a `document` link only, relative to the project */
+  document_path: string | null;
+  document_kind: string | null;
+  team_role: string | null;
   created_at: string;
 }
 
@@ -166,19 +177,33 @@ export function textMatches(row: ItemRow, q: string): boolean {
   return fold(row.title).includes(needle) || fold(row.description).includes(needle);
 }
 
+/**
+ * An agent is on the item now. A document never is, even one whose chat is still running: the chat
+ * has its own link, and that one says so.
+ */
 export function isLive(link: WorkItemLink): boolean {
-  return link.role === 'work' && (link.chatState === 'working' || link.taskStatus === 'running');
+  return link.kind !== 'document' && link.role === 'work' && (link.chatState === 'working' || link.taskStatus === 'running');
 }
 
+const known = <T extends string>(value: string | null, allowed: readonly T[]): T | null => ((allowed as readonly string[]).includes(value ?? '') ? (value as T) : null);
+
+/**
+ * A kind or a role this version does not know reads as the most inert one there is: a chat a newer
+ * release linked some other way is still a chat, and a role it made up plays no part here.
+ */
 export function linkOf(row: LinkRow): WorkItemLink {
+  const kind: WorkItemLinkKind = known(row.kind, WORK_ITEM_LINK_KINDS) ?? 'chat';
+  const role: WorkItemLinkRole = known(row.role, WORK_ITEM_LINK_ROLES) ?? 'reference';
   return {
     id: row.id,
     itemId: row.item_id,
-    kind: row.kind === 'orchestration' ? 'orchestration' : 'chat',
-    role: row.role === 'origin' ? 'origin' : 'work',
+    kind,
+    role,
     chatId: row.chat_id,
     orchestrationId: row.orchestration_id,
     taskId: row.task_id,
+    ...(kind === 'document' ? { documentPath: row.document_path, documentKind: known<DocumentKind>(row.document_kind, DOCUMENT_KINDS) ?? 'doc' } : {}),
+    ...(row.team_role ? { teamRole: row.team_role } : {}),
     createdAt: row.created_at,
   };
 }

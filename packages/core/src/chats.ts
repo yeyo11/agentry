@@ -92,6 +92,13 @@ const BUDGET_SUBTYPE = 'error_max_budget_usd';
 /** What starts a chat, beyond what the API takes: the housekeeping knobs the wrapper's own callers use. */
 export interface NewChat extends NewChatRequest {
   name?: string;
+  /** A CLI agent the session runs as (`--agent`): a team member's, for a run of the flow by column */
+  agent?: string;
+  /**
+   * A file defining agents for the session (`--agents`). The flow hands the member's definition this
+   * way because the item's worktree only has the agent files that were committed.
+   */
+  agentsFile?: string;
   /** Keep the process alive after each turn so more messages can be sent (default true) */
   keepAlive?: boolean;
   /** Housekeeping: no transcript is written (`--no-session-persistence`), so it cannot be resumed */
@@ -105,6 +112,18 @@ export interface NewChat extends NewChatRequest {
  */
 export interface ResolvedTools {
   toolConfig?: ChatToolConfig | null;
+}
+
+/**
+ * What one execution of a resumed chat runs with beyond the start options: the flow resumes a
+ * member's chat as its agent, asking for its structured result. `null` drops what an earlier
+ * execution set, so a chat a person continues by hand is not held to a schema it never asked for.
+ */
+export interface ExecutionExtras {
+  agent?: string | null;
+  agentsFile?: string | null;
+  jsonSchema?: unknown;
+  keepAlive?: boolean;
 }
 
 export interface RunMeta {
@@ -884,7 +903,7 @@ export class ChatManager extends EventEmitter {
    * something holds the session is checked again here, on the process table, whatever the caller
    * saw a moment ago.
    */
-  resume(id: string, request: ResumeChatRequest & ResolvedTools, adopt?: AdoptedChat): ChatRuntime {
+  resume(id: string, request: ResumeChatRequest & ResolvedTools & ExecutionExtras, adopt?: AdoptedChat): ChatRuntime {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new Error('prompt is required');
     let chat = this.chats.get(id);
     if (chat?.alive) throw new Error('the chat already has a live execution; send it a message instead');
@@ -945,8 +964,21 @@ export class ChatManager extends EventEmitter {
   }
 
   /** What a request chooses for the execution it starts, on top of what the chat already had. */
-  private applyStartOptions(chat: LiveChat, options: ChatStartOptions & ResolvedTools): void {
+  private applyStartOptions(chat: LiveChat, options: ChatStartOptions & ResolvedTools & ExecutionExtras): void {
     const { opts } = chat;
+    if (options.agent !== undefined) {
+      if (options.agent === null) delete opts.agent;
+      else opts.agent = options.agent;
+    }
+    if (options.agentsFile !== undefined) {
+      if (options.agentsFile === null) delete opts.agentsFile;
+      else opts.agentsFile = options.agentsFile;
+    }
+    if (options.jsonSchema !== undefined) {
+      if (options.jsonSchema === null) delete opts.jsonSchema;
+      else opts.jsonSchema = options.jsonSchema;
+    }
+    if (options.keepAlive !== undefined) opts.keepAlive = options.keepAlive;
     chat.setSettings({ ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}), ...(options.model ? { model: options.model } : {}) });
     for (const key of ['model', 'effort', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts', 'account'] as const) {
       if (options[key] !== undefined) Object.assign(opts, { [key]: options[key] });
@@ -1279,6 +1311,8 @@ export class ChatManager extends EventEmitter {
     } else {
       args.push('--session-id', chat.id, '--name', chat.name);
     }
+    if (opts.agentsFile) args.push('--agents', opts.agentsFile);
+    if (opts.agent) args.push('--agent', opts.agent);
     if (opts.model) args.push('--model', opts.model);
     if (opts.effort) args.push('--effort', opts.effort);
     if (opts.appendSystemPrompt) args.push('--append-system-prompt', opts.appendSystemPrompt);

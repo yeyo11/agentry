@@ -15,6 +15,8 @@ import { configRoutes } from './routes/config.ts';
 import { connectorRoutes } from './routes/connectors.ts';
 import { editorRoutes } from './routes/editor.ts';
 import { eventRoutes } from './routes/events.ts';
+import { flowRoutes } from './routes/flow.ts';
+import { journalRoutes } from './routes/journal.ts';
 import { memoryRoutes } from './routes/memory.ts';
 import { orchestrationRoutes } from './routes/orchestrations.ts';
 import { pluginRoutes } from './routes/plugins.ts';
@@ -28,6 +30,7 @@ import { teamRoutes } from './routes/team.ts';
 import { toolPresetRoutes } from './routes/tool-presets.ts';
 import { uploadRoutes } from './routes/uploads.ts';
 import { workItemRoutes } from './routes/work-items.ts';
+import { documentRoutes } from './routes/documents.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -135,6 +138,8 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(projectRoutes, { core });
       await api.register(workItemRoutes, { core });
       await api.register(teamRoutes, { core });
+      await api.register(flowRoutes, { core });
+      await api.register(documentRoutes, { core });
       await api.register(chatRoutes, { core });
       await api.register(eventRoutes, { core });
       await api.register(orchestrationRoutes, { core });
@@ -144,6 +149,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(pluginRoutes, { core });
       await api.register(connectorRoutes, { core });
       await api.register(memoryRoutes, { core });
+      await api.register(journalRoutes, { core });
       await api.register(uploadRoutes, { core });
       await api.register(scheduleRoutes, { core });
       await api.register(supervisorRoutes, { core });
