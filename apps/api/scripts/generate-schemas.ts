@@ -50,6 +50,14 @@ const ROOT_TYPES = [
   'PushKeyInfo', 'RegisterPushSubscriptionRequest', 'PushSubscriptionSummary', 'RemovePushSubscriptionRequest', 'SendTestPushRequest', 'PushSendResult', 'PushPayload',
   // Packaging
   'CliVersionInfo', 'AgentryReleaseInfo',
+  // Project ecosystem: modules and templates, work items, milestones and the board
+  'ProjectSettings', 'ProjectTemplate', 'WorkItem', 'WorkItemDetail', 'WorkItemComment', 'WorkItemHistoryEntry', 'WorkItemLink', 'WorkItemFilter',
+  'CreateWorkItemRequest', 'UpdateWorkItemRequest', 'MoveWorkItemRequest', 'MoveWorkItemResult', 'CheckAcceptanceCriterionRequest',
+  'CreateWorkItemCommentRequest', 'CreateWorkItemRelationRequest', 'CreateWorkItemLinkRequest',
+  'Milestone', 'CreateMilestoneRequest', 'UpdateMilestoneRequest', 'Board',
+  // Work items with chats and orchestrations
+  'WorkOnWorkItemRequest', 'WorkOnWorkItemResult', 'OrchestrateWorkItemsRequest', 'WorkItemOrchestrationDraft', 'CreateWorkItemFromMessageRequest',
+  'WorkItemChanges',
 ];
 
 const generator = createGenerator({

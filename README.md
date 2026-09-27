@@ -586,12 +586,55 @@ the auto-switch threshold as a reference line.
 | --- | --- | --- |
 | GET | `/projects` | The projects you imported, each with its worktrees and the number of chats under it |
 | GET | `/projects/candidates` | Directories chats have run in that are not projects yet, the busiest first: what a first start offers to import |
-| POST | `/projects/import` | `{ path, name? }` — import a directory; every chat under it is adopted, retroactively. A git worktree is refused |
-| POST | `/projects` | `{ name, gitUrl? }` — create an empty project in the workspace or clone a repository into it, and import it |
-| PATCH | `/projects/:id` | `{ name }` — rename a project |
+| GET | `/projects/templates` | The five built-in project templates: the modules each switches on, its board's work item types and column limits, and the team it offers |
+| POST | `/projects/import` | `{ path, name?, template?, modules? }` — import a directory; every chat under it is adopted, retroactively. A git worktree is refused. Without a template or modules every module is off; a directory that was a project before gets its settings back |
+| POST | `/projects` | `{ name, gitUrl?, template?, modules? }` — create an empty project in the workspace or clone a repository into it, and import it |
+| PATCH | `/projects/:id` | `{ name?, key?, modules? }` — rename a project, change its work item key prefix or the modules that are on. Switching a module off hides it and keeps its data |
+| GET | `/projects/:id/settings` | The project's settings document (modules, template, key prefix, board). Created on first read with every module off |
+| PUT | `/projects/:id/settings` | Replace the settings document whole, validated. Emits `project.updated` |
 | GET | `/projects/:id/export?format=markdown\|json` | Download every chat of the project, streamed. `markdown` (default): a header with the dates, models and the cost the CLI reported, then each chat, oldest first, as `/chats/:id/export` renders it. `json`: a `ProjectExport` |
-| DELETE | `/projects/:id` | Remove a project from Agentry. Harmless: nothing on disk changes |
+| DELETE | `/projects/:id` | Remove a project from Agentry. Harmless: nothing on disk changes, and its settings and work items are kept for when it is imported again |
 | DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible, and separate from removing the project |
+
+### Work items
+
+A project's board. Changing anything needs the project imported and its **Board** module on (409
+otherwise); what a project holds stays readable with the module off, so nothing looks lost. The
+server writes each item's history, one entry per field that changed, and every change reaches the
+event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `labels`, `assignee`
+(`person`, `none`, `role:<role>`), `epicId`, `milestoneId` and `q` (title, description and key).
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/projects/:id/work-items?status=&type=&…` | The project's work items in board order, filtered |
+| POST | `/projects/:id/work-items` | `{ title, type?, description?, status?, priority?, labels?, assignee?, epicId?, milestoneId?, acceptanceCriteria? }` — create one; it takes the next number of the project, never reused. Emits `workitem.created` |
+| GET | `/projects/:id/work-items/board?…` | The five columns, each with its limit, its real count, whether it is over the limit, and the items that pass the filter in rank order |
+| POST | `/projects/:id/work-items/orchestrate` | `{ itemIds }` — a draft orchestration to review, not launched: one node per item, `dependsOn` from `blocks` inside the selection, and the blockers left outside it. `POST /orchestrations` launches it |
+| GET | `/projects/:id/milestones` | The project's milestones, each with its progress derived from its items |
+| POST | `/projects/:id/milestones` | `{ name, description? }` — create a milestone, open, with no date. Emits `milestone.changed` |
+| GET | `/work-items?…` | Every work item of the imported projects with the Board module on: the All projects view |
+| GET | `/work-items/board?…` | The All projects board, with no column limits |
+| GET | `/work-items/:itemId` | One item with its children, links, comments and history |
+| PATCH | `/work-items/:itemId` | Change any field but the status; `acceptanceCriteria` replaces the checklist, keeping the check of entries sent with their `id`. Emits `workitem.updated` |
+| DELETE | `/work-items/:itemId` | Delete an item for good; its number is not reused. Emits `workitem.removed` |
+| POST | `/work-items/:itemId/move` | `{ status, afterId? }` — move to a column, right after `afterId` (`null` first, absent last). Over the column's limit is allowed and reported. Emits `workitem.moved` |
+| PATCH | `/work-items/:itemId/criteria/:criterionId` | `{ checked }` — check or uncheck one acceptance criterion |
+| GET | `/work-items/:itemId/comments` | The item's comments, oldest first |
+| POST | `/work-items/:itemId/comments` | `{ body }` — comment as the person |
+| POST | `/work-items/:itemId/relations` | `{ type: blocks\|blocked_by, itemId }` — relate two items of the project; the item itself (400) and a cycle of `blocks` (409) are refused |
+| DELETE | `/work-items/:itemId/relations/:otherId` | Remove the relation between two items |
+| GET | `/work-items/:itemId/links` | The chats and orchestration tasks tied to the item, with their state |
+| POST | `/work-items/:itemId/links` | `{ kind, role, chatId?, orchestrationId?, taskId? }` — tie a chat or an orchestration task to the item |
+| DELETE | `/work-items/:itemId/links/:linkId` | Untie it; the chat or orchestration is not touched |
+| GET | `/work-items/:itemId/history` | Every change to the item, oldest first, with who made it and why |
+| POST | `/work-items/:itemId/work` | "Work on it": a chat prompted with the item, in its own worktree on `task/<key>`, with the options a new chat takes. The item enters `in_progress` when a turn starts and `in_review` when one ends well |
+| GET | `/work-items/:itemId/changes` | What the item's branch changed: commits, files and what is not committed yet |
+| GET | `/work-items/:itemId/changes/diff?path=` | One file's diff on the item's branch |
+| POST | `/chats/:id/work-items` | `{ text, title?, type?, priority? }` — create a task in `backlog` from a chat's message, linked to the chat |
+| GET | `/chats/:id/work-items` | The work items a chat works on or was the origin of |
+| GET | `/milestones/:milestoneId` | One milestone with its progress |
+| PATCH | `/milestones/:milestoneId` | `{ name?, description?, state? }` — edit, close or reopen a milestone |
+| DELETE | `/milestones/:milestoneId` | Delete a milestone; its items stay, without it |
 
 ### Events
 
@@ -599,7 +642,7 @@ One Server-Sent Events stream for the whole app, so a client never has to poll.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes (`orchestration.updated` also carries `verificationStatus` while the checks run); `changes.updated` when a running task's or the integration branch's commits or uncommitted files move; `chat.activity` when what a chat's live execution is doing changes (a tool call, a block being written or thought, a prompt blocking it), at most once per chat per second; `health.changed` when a chat's health changes; `supervisor.proposed` when the supervisor answers one with a hint; `schedule.changed` (created, updated, enabled, disabled, deleted, rescheduled) and `schedule.fired` (every run row written or moved); `sessions.changed`; `system.release` once per newer Agentry release a check finds (not a notification). Opens with `stream.hello`, which carries the server's `version`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
+| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes (`orchestration.updated` also carries `verificationStatus` while the checks run); `changes.updated` when a running task's or the integration branch's commits or uncommitted files move; `chat.activity` when what a chat's live execution is doing changes (a tool call, a block being written or thought, a prompt blocking it), at most once per chat per second; `health.changed` when a chat's health changes; `supervisor.proposed` when the supervisor answers one with a hint; `schedule.changed` (created, updated, enabled, disabled, deleted, rescheduled) and `schedule.fired` (every run row written or moved); `workitem.created`, `workitem.updated` (naming the fields that changed), `workitem.moved` (with the previous column and whether the new one is over its limit) and `workitem.removed`; `milestone.changed` (created, updated, closed, reopened, deleted); `project.updated` (name, key, modules or settings); `sessions.changed`; `system.release` once per newer Agentry release a check finds (not a notification). Opens with `stream.hello`, which carries the server's `version`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
 
 ```bash
 curl -N localhost:8787/api/events
@@ -763,7 +806,7 @@ every 3 s and only while a client listens.
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/orchestrations` | List |
-| POST | `/orchestrations` | Launch. Body: `OrchestrationSpec` |
+| POST | `/orchestrations` | Launch. Body: `OrchestrationSpec`; a task naming a `workItemId` is linked to that item, which follows its status |
 | POST | `/orchestrations/plan/start` | `{ objective, cwd?, model?, maxTasks? }` → the planner chat (housekeeping), returned at once so it can be streamed at `/chats/:id/stream` |
 | GET | `/orchestrations/plans` | Plans generated but not launched; each is kept when its planner finishes |
 | GET | `/orchestrations/plans/:runId` | The draft `OrchestrationSpec` a planner chat produced (`:runId` is the planner chat's id) |

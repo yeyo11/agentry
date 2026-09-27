@@ -1198,10 +1198,41 @@
       "gitUrl": {
         "type": "string",
         "description": "Clone this repository instead of creating an empty directory"
+      },
+      "template": {
+        "$ref": "#/components/schemas/ProjectTemplateId",
+        "description": "Configures the project from a template; without one, and without `modules`, every module is off"
+      },
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        },
+        "description": "The modules to switch on; when given, it replaces the template's choice instead of adding to it"
       }
     },
     "required": [
       "name"
+    ]
+  },
+  "ProjectTemplateId": {
+    "type": "string",
+    "enum": [
+      "simple",
+      "software",
+      "library",
+      "research",
+      "custom"
+    ],
+    "description": "The built-in templates. `simple` switches nothing on and `custom` starts from everything off for the person to choose; the other three are presets. There are no user-saved templates."
+  },
+  "ProjectModule": {
+    "type": "string",
+    "enum": [
+      "board",
+      "team",
+      "documents",
+      "memory"
     ]
   },
   "TranscriptSearchResult": {
@@ -2223,6 +2254,10 @@
         "$ref": "#/components/schemas/TaskLimits",
         "description": "What this worker may spend before Agentry stops it; the graph's default when absent"
       },
+      "workItemId": {
+        "type": "string",
+        "description": "The work item this node works on, as a draft built from a selection names it. Launching links the node to the item, which then follows the node's status. Must be a work item of a project whose Board module is on, and at most one node per item."
+      },
       "status": {
         "$ref": "#/components/schemas/OrchestrationTaskStatus"
       },
@@ -2950,6 +2985,10 @@
       "limits": {
         "$ref": "#/components/schemas/TaskLimits",
         "description": "What this worker may spend before Agentry stops it; the graph's default when absent"
+      },
+      "workItemId": {
+        "type": "string",
+        "description": "The work item this node works on, as a draft built from a selection names it. Launching links the node to the item, which then follows the node's status. Must be a work item of a project whose Board module is on, and at most one node per item."
       }
     },
     "required": [
@@ -4122,6 +4161,24 @@
       },
       {
         "$ref": "#/components/schemas/SupervisorProposedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemCreatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemUpdatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemMovedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemRemovedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/MilestoneChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/ProjectUpdatedEvent"
       }
     ],
     "description": "Everything the buffered feed carries, discriminated by `type`."
@@ -6071,6 +6128,492 @@
     ],
     "description": "The supervisor answered a bad signal with a hint; the same `proposal` hangs on the chat's health."
   },
+  "WorkItemCreatedEvent": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "workitem.created"
+      },
+      "itemType": {
+        "$ref": "#/components/schemas/WorkItemType"
+      },
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "source": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemSource"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when a chat created it, from one of its messages"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "itemId",
+      "itemType",
+      "key",
+      "projectId",
+      "source",
+      "status",
+      "title",
+      "type"
+    ]
+  },
+  "WorkItemType": {
+    "type": "string",
+    "enum": [
+      "epic",
+      "story",
+      "task",
+      "bug"
+    ]
+  },
+  "WorkItemStatus": {
+    "type": "string",
+    "enum": [
+      "backlog",
+      "todo",
+      "in_progress",
+      "in_review",
+      "done"
+    ],
+    "description": "The five columns of the board, in order; fixed, not editable."
+  },
+  "WorkItemSource": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "chat",
+          "orchestration"
+        ]
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat's session id; for an orchestration task, the chat of its worker once it has one"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "kind",
+      "chatId",
+      "orchestrationId",
+      "taskId"
+    ],
+    "description": "A chat or an orchestration task, as the source of a comment, the cause of a change or the other end of a link. Flat rather than a union so it maps onto one row; the ids that do not apply are null."
+  },
+  "WorkItemUpdatedEvent": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "workitem.updated"
+      },
+      "changes": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemChange"
+        }
+      },
+      "actor": {
+        "$ref": "#/components/schemas/WorkItemActor"
+      },
+      "cause": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemCause"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "actor",
+      "at",
+      "cause",
+      "changes",
+      "id",
+      "itemId",
+      "key",
+      "projectId",
+      "title",
+      "type"
+    ],
+    "description": "An item's fields, criteria, relations, links or comments changed; its column and place did not."
+  },
+  "WorkItemChange": {
+    "type": "string",
+    "enum": [
+      "created",
+      "type",
+      "title",
+      "description",
+      "status",
+      "priority",
+      "labels",
+      "assignee",
+      "epic",
+      "milestone",
+      "criterion",
+      "relation",
+      "link",
+      "comment"
+    ],
+    "description": "What a history entry, or a `workitem.updated` event, says changed. `created` opens every history; `comment` only appears on events, since comments are their own list."
+  },
+  "WorkItemActor": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/WorkItemActorKind"
+      },
+      "role": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The team role an agent acted as, once the Team module exists"
+      }
+    },
+    "required": [
+      "kind"
+    ],
+    "description": "Who did something to a work item: made a change, wrote a comment, checked a criterion."
+  },
+  "WorkItemActorKind": {
+    "type": "string",
+    "enum": [
+      "person",
+      "agent",
+      "system"
+    ],
+    "description": "`system` is Agentry itself acting on a chat's or a node's behalf; the cause beside it says which."
+  },
+  "WorkItemCause": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "chat",
+          "orchestration"
+        ]
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat's session id; for an orchestration task, the chat of its worker once it has one"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "event": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "chatId",
+      "event",
+      "kind",
+      "orchestrationId",
+      "taskId"
+    ],
+    "description": "Why an automatic change happened: the source, and what happened there as a stable code a client translates (`chat.started`, `chat.turn-completed`, `orchestration.task.completed`…)."
+  },
+  "WorkItemMovedEvent": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "workitem.moved"
+      },
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "previousStatus": {
+        "$ref": "#/components/schemas/WorkItemStatus",
+        "description": "Equal to `status` when only its place in the column changed"
+      },
+      "overLimit": {
+        "type": "boolean",
+        "description": "The target column is over its limit after the move"
+      },
+      "actor": {
+        "$ref": "#/components/schemas/WorkItemActor"
+      },
+      "cause": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemCause"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "actor",
+      "at",
+      "cause",
+      "id",
+      "itemId",
+      "key",
+      "overLimit",
+      "previousStatus",
+      "projectId",
+      "status",
+      "title",
+      "type"
+    ],
+    "description": "An item changed column or place: a person dragged it, or it moved on its own and `cause` says why."
+  },
+  "WorkItemRemovedEvent": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "workitem.removed"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "itemId",
+      "key",
+      "projectId",
+      "title",
+      "type"
+    ]
+  },
+  "MilestoneChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "milestone.changed"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "milestoneId": {
+        "type": "string"
+      },
+      "milestoneName": {
+        "type": "string"
+      },
+      "action": {
+        "$ref": "#/components/schemas/MilestoneChangeAction"
+      }
+    },
+    "required": [
+      "action",
+      "at",
+      "id",
+      "milestoneId",
+      "milestoneName",
+      "projectId",
+      "title",
+      "type"
+    ],
+    "description": "A milestone was created, edited, closed, reopened or deleted. Its progress moving because an item did is not announced here: that item's own event already makes it stale."
+  },
+  "MilestoneChangeAction": {
+    "type": "string",
+    "enum": [
+      "created",
+      "updated",
+      "closed",
+      "reopened",
+      "deleted"
+    ]
+  },
+  "ProjectUpdatedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "project.updated"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "projectName": {
+        "type": "string"
+      },
+      "changes": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectChange"
+        }
+      },
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        },
+        "description": "The modules on after the change"
+      }
+    },
+    "required": [
+      "at",
+      "changes",
+      "id",
+      "modules",
+      "projectId",
+      "projectName",
+      "title",
+      "type"
+    ],
+    "description": "A project was renamed, its key prefix or its modules changed, or its settings document was replaced."
+  },
+  "ProjectChange": {
+    "type": "string",
+    "enum": [
+      "name",
+      "key",
+      "modules",
+      "settings"
+    ],
+    "description": "What `project.updated` says changed; `settings` is anything else in the settings document."
+  },
   "StreamHelloEvent": {
     "type": "object",
     "properties": {
@@ -7508,6 +8051,17 @@
           "string",
           "null"
         ]
+      },
+      "key": {
+        "type": "string",
+        "description": "Prefix of its work items' keys (`AGN` in `AGN-12`), from  {@link  ProjectSettings.keyPrefix } . Optional only so the core that builds a project today still types until it fills it in; a server with the project ecosystem always sends it."
+      },
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        },
+        "description": "The modules switched on, from  {@link  ProjectSettings.modules } ; always sent once the ecosystem is in"
       }
     },
     "required": [
@@ -7615,6 +8169,17 @@
       "name": {
         "type": "string",
         "description": "Defaults to the directory's name"
+      },
+      "template": {
+        "$ref": "#/components/schemas/ProjectTemplateId",
+        "description": "Configures the project from a template; without one, and without `modules`, every module is off"
+      },
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        },
+        "description": "The modules to switch on; when given, it replaces the template's choice instead of adding to it"
       }
     },
     "required": [
@@ -7627,11 +8192,20 @@
     "properties": {
       "name": {
         "type": "string"
+      },
+      "key": {
+        "type": "string",
+        "description": "New key prefix; the keys of existing work items follow, since only their number is stored"
+      },
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        },
+        "description": "The whole set of modules that are on afterwards; switching one off hides it and keeps its data"
       }
     },
-    "required": [
-      "name"
-    ]
+    "description": "Every field is optional, so a rename alone (`{ name }`) keeps working as it always has."
   },
   "ChangeSummary": {
     "type": "object",
@@ -9325,5 +9899,1671 @@
       "updateAvailable"
     ],
     "description": "Which Claude Code the wrapper runs and whether a newer one exists. The check costs a registry read, so it happens on demand or once a day, never on a page load: `checkedAt` says how old the answer is."
+  },
+  "ProjectSettings": {
+    "type": "object",
+    "properties": {
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        },
+        "description": "The modules switched on"
+      },
+      "template": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProjectTemplateId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The template the project was created from, for reference only: editing the settings never re-applies it"
+      },
+      "keyPrefix": {
+        "type": "string",
+        "description": "Prefix of the work items' keys: upper case letters and digits, starting with a letter (`WORK_ITEM_KEY_PREFIX_PATTERN`), unique among projects. Derived from the name on first read."
+      },
+      "board": {
+        "$ref": "#/components/schemas/BoardSettings"
+      },
+      "team": {
+        "$ref": "#/components/schemas/ProjectTeamSettings"
+      },
+      "flow": {
+        "$ref": "#/components/schemas/ProjectFlowSettings"
+      },
+      "documents": {
+        "$ref": "#/components/schemas/ProjectDocumentsSettings"
+      }
+    },
+    "required": [
+      "modules",
+      "template",
+      "keyPrefix",
+      "board"
+    ],
+    "description": "The settings document of a project, read and written whole (`GET`/`PUT /projects/:id/settings`). Later orchestrations add their configuration as optional fields, so a document written today stays valid."
+  },
+  "BoardSettings": {
+    "type": "object",
+    "properties": {
+      "types": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemType"
+        },
+        "description": "The types a new work item may take in this project, in the order a form offers them"
+      },
+      "columnLimits": {
+        "type": "object",
+        "properties": {
+          "backlog": {
+            "type": "number"
+          },
+          "todo": {
+            "type": "number"
+          },
+          "in_progress": {
+            "type": "number"
+          },
+          "in_review": {
+            "type": "number"
+          },
+          "done": {
+            "type": "number"
+          }
+        },
+        "description": "Work in progress limit per column. A column without an entry has none. Going over a limit is allowed and only shown as a warning: it never blocks a move."
+      }
+    },
+    "required": [
+      "types",
+      "columnLimits"
+    ],
+    "description": "How the Board module is configured. The five columns and the four types are fixed; this only picks and limits."
+  },
+  "ProjectTeamSettings": {
+    "type": "object",
+    "properties": {
+      "members": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectTeamMember"
+        }
+      }
+    },
+    "required": [
+      "members"
+    ],
+    "description": "Reserved for the Team module (orchestration 3): nothing reads it yet. A member is a CLI agent file in the project's `.claude/agents/`, so it also works from a terminal; this is the metadata Agentry keeps beside it."
+  },
+  "ProjectTeamMember": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id of the agent that plays it (`opus`, `sonnet`)"
+      },
+      "responsibility": {
+        "type": "string",
+        "description": "One line on what it answers for"
+      },
+      "agent": {
+        "type": "string",
+        "description": "Name of the agent file in the project's `.claude/agents/`, without `.md`"
+      },
+      "writes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Paths, relative to the project, the member may write; absent means no restriction of Agentry's own"
+      }
+    },
+    "required": [
+      "agent",
+      "model",
+      "responsibility",
+      "role"
+    ]
+  },
+  "ProjectFlowSettings": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "columns": {
+        "type": "object",
+        "properties": {
+          "backlog": {
+            "type": "string"
+          },
+          "todo": {
+            "type": "string"
+          },
+          "in_progress": {
+            "type": "string"
+          },
+          "in_review": {
+            "type": "string"
+          },
+          "done": {
+            "type": "string"
+          }
+        },
+        "description": "Responsible role per column, matching  {@link  ProjectTeamRole.role }"
+      },
+      "maxBounces": {
+        "type": "number",
+        "description": "Times QA may send an item back to `in_progress` before it waits for the person"
+      }
+    },
+    "required": [
+      "enabled",
+      "columns",
+      "maxBounces"
+    ],
+    "description": "Reserved for the flow by column (orchestration 3): nothing reads it yet. Each column may have a responsible role that acts when a card enters it; agents move cards, and a person approves `done`."
+  },
+  "ProjectDocumentsSettings": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "The documents folder, relative to the project (`docs`)"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "description": "Reserved for the Documents module (orchestration 3): nothing reads it yet."
+  },
+  "ProjectTemplate": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "$ref": "#/components/schemas/ProjectTemplateId"
+      },
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "modules": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectModule"
+        }
+      },
+      "board": {
+        "$ref": "#/components/schemas/BoardSettings"
+      },
+      "team": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ProjectTeamRole"
+        },
+        "description": "The starting team, offered when the Team module is switched on and there is nothing in the project to read"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "description",
+      "modules",
+      "board",
+      "team"
+    ],
+    "description": "A built-in template: configuration, not only switches. `name` and `description` are the English copy; a client that knows the `id` shows its own translation."
+  },
+  "ProjectTeamRole": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id of the agent that plays it (`opus`, `sonnet`)"
+      },
+      "responsibility": {
+        "type": "string",
+        "description": "One line on what it answers for"
+      }
+    },
+    "required": [
+      "role",
+      "model",
+      "responsibility"
+    ],
+    "description": "A role of the project's team as a template or the settings describe it. `role` is free text (`product-owner`, `developer`, `qa`…) until the Team module defines its roles."
+  },
+  "WorkItem": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Ours and stable: the key changes with the prefix, the id never does"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "number": {
+        "type": "number",
+        "description": "Never reused inside the project"
+      },
+      "key": {
+        "type": "string",
+        "description": "`<prefix>-<number>`, composed when read"
+      },
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string",
+        "description": "Markdown"
+      },
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Free text, in the order they were given"
+      },
+      "assignee": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemAssignee"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "epicId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Always null for an epic: there is one level of hierarchy"
+      },
+      "epic": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The epic, filled in when read, so a card can show its label"
+      },
+      "milestoneId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "acceptanceCriteria": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AcceptanceCriterion"
+        }
+      },
+      "relations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemRelation"
+        }
+      },
+      "rank": {
+        "type": "string",
+        "description": "Order inside its column, compared as plain strings. Opaque to clients, which move an item by naming its neighbour ( {@link  MoveWorkItemRequest } ), so the order a person drags survives."
+      },
+      "worktree": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The item's own git worktree, once something worked on it, on branch `task/<key>` in lower case"
+      },
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "activeLink": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemLink"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat or orchestration task working on it right now, filled in when read: what makes a card live. Null when nothing is."
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      },
+      "closedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When it last entered `done`; null while it is anywhere else"
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "number",
+      "key",
+      "type",
+      "title",
+      "description",
+      "status",
+      "priority",
+      "labels",
+      "assignee",
+      "epicId",
+      "milestoneId",
+      "acceptanceCriteria",
+      "relations",
+      "rank",
+      "worktree",
+      "branch",
+      "createdAt",
+      "updatedAt",
+      "closedAt"
+    ]
+  },
+  "WorkItemPriority": {
+    "type": "string",
+    "enum": [
+      "low",
+      "medium",
+      "high",
+      "urgent"
+    ],
+    "description": "Not a status: only `urgent` may be shown in a colour."
+  },
+  "WorkItemAssignee": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "person"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "role"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "role"
+        ]
+      }
+    ],
+    "description": "Who a work item is assigned to: the person, or a team role once the Team module exists. A discriminated union, so a kind added later (a named member) leaves the existing ones as they are."
+  },
+  "WorkItemRef": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType"
+      },
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      }
+    },
+    "required": [
+      "id",
+      "key",
+      "title",
+      "type",
+      "status"
+    ],
+    "description": "Another work item as a field refers to it: enough to draw its chip without fetching it."
+  },
+  "AcceptanceCriterion": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      },
+      "checked": {
+        "type": "boolean"
+      },
+      "checkedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who checked it; null while unchecked"
+      }
+    },
+    "required": [
+      "id",
+      "text",
+      "checked",
+      "checkedBy"
+    ],
+    "description": "One entry of the acceptance checklist, checked on its own. Its position is its order in the list."
+  },
+  "WorkItemRelation": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "$ref": "#/components/schemas/WorkItemRelationType"
+      },
+      "item": {
+        "$ref": "#/components/schemas/WorkItemRef"
+      }
+    },
+    "required": [
+      "type",
+      "item"
+    ]
+  },
+  "WorkItemRelationType": {
+    "type": "string",
+    "enum": [
+      "blocks",
+      "blocked_by"
+    ],
+    "description": "`blocks` and `blocked_by` only. Stored once, as `blocks`, and reported from both ends: the item that blocks shows `blocks`, the other `blocked_by`. Orchestrating a selection turns them into the graph's `dependsOn`."
+  },
+  "WorkItemLink": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "chat",
+          "orchestration"
+        ]
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat's session id; for an orchestration task, the chat of its worker once it has one"
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "id": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "role": {
+        "$ref": "#/components/schemas/WorkItemLinkRole"
+      },
+      "name": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat's title or the task's name, filled in when read; null when it is gone"
+      },
+      "chatState": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatState"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Filled in when read, for a chat"
+      },
+      "taskStatus": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/OrchestrationTaskStatus"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Filled in when read, for an orchestration task"
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "chatId",
+      "createdAt",
+      "id",
+      "itemId",
+      "kind",
+      "orchestrationId",
+      "role",
+      "taskId"
+    ],
+    "description": "A chat or an orchestration task tied to a work item. An item keeps every link, not only the last."
+  },
+  "WorkItemLinkRole": {
+    "type": "string",
+    "enum": [
+      "work",
+      "origin"
+    ],
+    "description": "The part a linked chat or orchestration task played: `work` worked on the item (\"Work on it\", or a node of an orchestration built from it), `origin` is the chat the item was created from."
+  },
+  "WorkItemDetail": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Ours and stable: the key changes with the prefix, the id never does"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "number": {
+        "type": "number",
+        "description": "Never reused inside the project"
+      },
+      "key": {
+        "type": "string",
+        "description": "`<prefix>-<number>`, composed when read"
+      },
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string",
+        "description": "Markdown"
+      },
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Free text, in the order they were given"
+      },
+      "assignee": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemAssignee"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "epicId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Always null for an epic: there is one level of hierarchy"
+      },
+      "epic": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The epic, filled in when read, so a card can show its label"
+      },
+      "milestoneId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "acceptanceCriteria": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AcceptanceCriterion"
+        }
+      },
+      "relations": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemRelation"
+        }
+      },
+      "rank": {
+        "type": "string",
+        "description": "Order inside its column, compared as plain strings. Opaque to clients, which move an item by naming its neighbour ( {@link  MoveWorkItemRequest } ), so the order a person drags survives."
+      },
+      "worktree": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The item's own git worktree, once something worked on it, on branch `task/<key>` in lower case"
+      },
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "activeLink": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemLink"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat or orchestration task working on it right now, filled in when read: what makes a card live. Null when nothing is."
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      },
+      "closedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When it last entered `done`; null while it is anywhere else"
+      },
+      "children": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemRef"
+        },
+        "description": "For an epic, the items it groups"
+      },
+      "links": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemLink"
+        }
+      },
+      "comments": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemComment"
+        },
+        "description": "Oldest first"
+      },
+      "history": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemHistoryEntry"
+        },
+        "description": "Oldest first"
+      }
+    },
+    "required": [
+      "acceptanceCriteria",
+      "assignee",
+      "branch",
+      "children",
+      "closedAt",
+      "comments",
+      "createdAt",
+      "description",
+      "epicId",
+      "history",
+      "id",
+      "key",
+      "labels",
+      "links",
+      "milestoneId",
+      "number",
+      "priority",
+      "projectId",
+      "rank",
+      "relations",
+      "status",
+      "title",
+      "type",
+      "updatedAt",
+      "worktree"
+    ],
+    "description": "One work item with what its page shows beyond the card."
+  },
+  "WorkItemComment": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "author": {
+        "$ref": "#/components/schemas/WorkItemActor"
+      },
+      "source": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemSource"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat or orchestration task an agent wrote it from; null for the person"
+      },
+      "body": {
+        "type": "string"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "itemId",
+      "author",
+      "source",
+      "body",
+      "createdAt",
+      "updatedAt"
+    ],
+    "description": "Written by the person or by an agent; Markdown, no attachments."
+  },
+  "WorkItemHistoryEntry": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "change": {
+        "$ref": "#/components/schemas/WorkItemChange"
+      },
+      "from": {
+        "$ref": "#/components/schemas/WorkItemHistoryValue",
+        "description": "Null when there was nothing before: `created`, a criterion or a relation added"
+      },
+      "to": {
+        "$ref": "#/components/schemas/WorkItemHistoryValue",
+        "description": "Null when there is nothing after: a criterion or a relation removed"
+      },
+      "actor": {
+        "$ref": "#/components/schemas/WorkItemActor"
+      },
+      "cause": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemCause"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when a chat or an orchestration made the change, rather than someone acting on the item"
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "itemId",
+      "change",
+      "from",
+      "to",
+      "actor",
+      "cause",
+      "createdAt"
+    ],
+    "description": "One change to one field. Written by the service, never by the caller: an update that changes three fields writes three entries."
+  },
+  "WorkItemHistoryValue": {
+    "anyOf": [
+      {
+        "type": "string"
+      },
+      {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemAssignee"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemHistoryRef"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemHistoryCriterion"
+      },
+      {
+        "$ref": "#/components/schemas/WorkItemRelation"
+      },
+      {
+        "type": "null"
+      }
+    ],
+    "description": "A plain value for a scalar field, the list for `labels`, and a snapshot for everything else."
+  },
+  "WorkItemHistoryRef": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "label": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "label"
+    ],
+    "description": "A referenced thing (an epic, a milestone, a link) as it was when the entry was written, so the history still reads after it is renamed or deleted. For a work item, `key` is composed when read, like every key."
+  },
+  "WorkItemHistoryCriterion": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      },
+      "checked": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "text",
+      "checked"
+    ],
+    "description": "A criterion as a history entry records it."
+  },
+  "WorkItemFilter": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string",
+        "description": "Left out for every project: the All projects view"
+      },
+      "status": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemStatus"
+        }
+      },
+      "type": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemType"
+        }
+      },
+      "priority": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemPriority"
+        }
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Items carrying any of these labels"
+      },
+      "assignee": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "`person`, `none`, or `role:<role>`"
+      },
+      "epicId": {
+        "type": "string"
+      },
+      "milestoneId": {
+        "type": "string"
+      },
+      "q": {
+        "type": "string",
+        "description": "Searched in the title and the description, and matched against the key"
+      }
+    },
+    "description": "What a list, a search or the board is narrowed to. Every field is optional; the values of a list are alternatives (any of them) and fields combine (all of them). In a query string, a list is comma separated."
+  },
+  "CreateWorkItemRequest": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType",
+        "description": "Default `task`"
+      },
+      "description": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus",
+        "description": "Default `backlog`"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority",
+        "description": "Default `medium`"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "assignee": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemAssignee"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "epicId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Must name an epic of the same project; not allowed on an epic"
+      },
+      "milestoneId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "acceptanceCriteria": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/NewAcceptanceCriterion"
+        }
+      }
+    },
+    "required": [
+      "title"
+    ]
+  },
+  "NewAcceptanceCriterion": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "description": "A new entry of the acceptance checklist: an object, so fields can join the text later."
+  },
+  "UpdateWorkItemRequest": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "assignee": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemAssignee"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "epicId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "milestoneId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "acceptanceCriteria": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AcceptanceCriterionInput"
+        },
+        "description": "Replaces the whole checklist, in this order"
+      }
+    },
+    "description": "Only the fields present change, and `null` clears a nullable one. The status and the order change through  {@link  MoveWorkItemRequest } , and one criterion is checked through  {@link  CheckAcceptanceCriterionRequest } ."
+  },
+  "AcceptanceCriterionInput": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "description": "An entry of a replaced checklist: one with an `id` keeps its check, one without is new."
+  },
+  "MoveWorkItemRequest": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "afterId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The item it goes right after in the target column; null puts it first, absent puts it last"
+      }
+    },
+    "required": [
+      "status"
+    ],
+    "description": "Moves an item to a column and a place in it. The place is named by a neighbour rather than an index, so two people reordering at once do not land items on top of each other."
+  },
+  "MoveWorkItemResult": {
+    "type": "object",
+    "properties": {
+      "item": {
+        "$ref": "#/components/schemas/WorkItem"
+      },
+      "column": {
+        "$ref": "#/components/schemas/BoardColumnSummary"
+      }
+    },
+    "required": [
+      "item",
+      "column"
+    ],
+    "description": "A move always succeeds; going over the column's limit is reported, never refused."
+  },
+  "BoardColumnSummary": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "limit": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Null when the column has no limit"
+      },
+      "count": {
+        "type": "number",
+        "description": "Every item in the column, whatever the filter"
+      },
+      "overLimit": {
+        "type": "boolean",
+        "description": "`count` is over `limit`: shown in the warn colour with a word, never a block"
+      }
+    },
+    "required": [
+      "status",
+      "limit",
+      "count",
+      "overLimit"
+    ],
+    "description": "A column without its items: what a move reports."
+  },
+  "CheckAcceptanceCriterionRequest": {
+    "type": "object",
+    "properties": {
+      "checked": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "checked"
+    ]
+  },
+  "CreateWorkItemCommentRequest": {
+    "type": "object",
+    "properties": {
+      "body": {
+        "type": "string",
+        "description": "Markdown"
+      }
+    },
+    "required": [
+      "body"
+    ]
+  },
+  "CreateWorkItemRelationRequest": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "$ref": "#/components/schemas/WorkItemRelationType"
+      },
+      "itemId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "type",
+      "itemId"
+    ],
+    "description": "Refused when it points at the item itself or closes a cycle of `blocks`."
+  },
+  "CreateWorkItemLinkRequest": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "chat",
+          "orchestration"
+        ]
+      },
+      "role": {
+        "$ref": "#/components/schemas/WorkItemLinkRole"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "orchestrationId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "taskId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "kind",
+      "role"
+    ]
+  },
+  "Milestone": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string",
+        "description": "Markdown"
+      },
+      "state": {
+        "$ref": "#/components/schemas/MilestoneState"
+      },
+      "progress": {
+        "$ref": "#/components/schemas/MilestoneProgress"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "updatedAt": {
+        "type": "string"
+      },
+      "closedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When it was last closed; null while open"
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "name",
+      "description",
+      "state",
+      "progress",
+      "createdAt",
+      "updatedAt",
+      "closedAt"
+    ],
+    "description": "A named goal (`v0.19`) with no date: open or closed, and how far its work items are."
+  },
+  "MilestoneState": {
+    "type": "string",
+    "enum": [
+      "open",
+      "closed"
+    ]
+  },
+  "MilestoneProgress": {
+    "type": "object",
+    "properties": {
+      "total": {
+        "type": "number"
+      },
+      "done": {
+        "type": "number"
+      },
+      "byStatus": {
+        "type": "object",
+        "properties": {
+          "backlog": {
+            "type": "number"
+          },
+          "todo": {
+            "type": "number"
+          },
+          "in_progress": {
+            "type": "number"
+          },
+          "in_review": {
+            "type": "number"
+          },
+          "done": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "backlog",
+          "todo",
+          "in_progress",
+          "in_review",
+          "done"
+        ]
+      }
+    },
+    "required": [
+      "total",
+      "done",
+      "byStatus"
+    ],
+    "description": "Derived from the milestone's work items, epics left out: they group work, they are not work."
+  },
+  "CreateMilestoneRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ]
+  },
+  "UpdateMilestoneRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "state": {
+        "$ref": "#/components/schemas/MilestoneState"
+      }
+    }
+  },
+  "Board": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Null for the All projects board, whose columns carry no limit"
+      },
+      "columns": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/BoardColumn"
+        },
+        "description": "Always the five columns, in  {@link  WorkItemStatus }  order"
+      }
+    },
+    "required": [
+      "projectId",
+      "columns"
+    ]
+  },
+  "BoardColumn": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "limit": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Null when the column has no limit"
+      },
+      "count": {
+        "type": "number",
+        "description": "Every item in the column, whatever the filter"
+      },
+      "overLimit": {
+        "type": "boolean",
+        "description": "`count` is over `limit`: shown in the warn colour with a word, never a block"
+      },
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItem"
+        },
+        "description": "The items that pass the filter, in rank order"
+      }
+    },
+    "required": [
+      "count",
+      "items",
+      "limit",
+      "overLimit",
+      "status"
+    ]
+  },
+  "WorkOnWorkItemRequest": {
+    "$ref": "#/components/schemas/ChatStartOptions",
+    "description": "What a chat started on a work item may be given. The prompt is built from the item (its title, description and acceptance criteria) and the directory is its worktree, so neither is taken here."
+  },
+  "ChatStartOptions": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "type": "string"
+      },
+      "effort": {
+        "type": "string"
+      },
+      "permissionMode": {
+        "$ref": "#/components/schemas/PermissionMode"
+      },
+      "appendSystemPrompt": {
+        "type": "string"
+      },
+      "allowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "disallowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "toolPreset": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it. A new chat that names neither this nor `allowedTools` takes the default preset; `null` opts out of it (and, on a resume or a fork, drops the preset the chat had)."
+      },
+      "mcp": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/McpSelection"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "MCP servers this chat starts with; absent keeps what it has, `null` goes back to what the CLI loads on its own"
+      },
+      "maxBudgetUsd": {
+        "type": "number",
+        "description": "Ceiling on what this execution may spend"
+      },
+      "permissionPrompts": {
+        "type": "string",
+        "enum": [
+          "host",
+          "none"
+        ],
+        "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
+      },
+      "account": {
+        "type": "string",
+        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one"
+      }
+    },
+    "description": "What can be chosen when a process starts on a chat, whether it is new, resumed or a fork."
+  },
+  "WorkOnWorkItemResult": {
+    "type": "object",
+    "properties": {
+      "item": {
+        "$ref": "#/components/schemas/WorkItem",
+        "description": "The item as it is once the chat started: in its worktree, and in `in_progress` unless a person had it elsewhere"
+      },
+      "chat": {
+        "$ref": "#/components/schemas/ChatSummary"
+      },
+      "link": {
+        "$ref": "#/components/schemas/WorkItemLink"
+      }
+    },
+    "required": [
+      "item",
+      "chat",
+      "link"
+    ]
+  },
+  "OrchestrateWorkItemsRequest": {
+    "type": "object",
+    "properties": {
+      "itemIds": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "itemIds"
+    ],
+    "description": "A selection of work items of one project to orchestrate, in the order they were picked."
+  },
+  "WorkItemOrchestrationDraft": {
+    "type": "object",
+    "properties": {
+      "spec": {
+        "$ref": "#/components/schemas/OrchestrationSpec"
+      },
+      "externalBlockers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemRef"
+        },
+        "description": "Items outside the selection, not done yet, that block an item of it: the graph cannot wait for them"
+      }
+    },
+    "required": [
+      "spec",
+      "externalBlockers"
+    ],
+    "description": "A graph to review, not a launched one: one node per item, each naming its item in `workItemId`, and `dependsOn` from the `blocks` relations inside the selection. `POST /orchestrations` launches it."
+  },
+  "CreateWorkItemFromMessageRequest": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "The message, which becomes the description"
+      },
+      "title": {
+        "type": "string",
+        "description": "Default: the message's first line"
+      },
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType",
+        "description": "Default `task`"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority",
+        "description": "Default `medium`"
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "description": "Creates a work item in `backlog` from a message of a chat, linked to that chat."
+  },
+  "WorkItemChanges": {
+    "type": "object",
+    "properties": {
+      "worktree": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "summary": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeSummary"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null while nothing has worked on it in a worktree, or once its branch is gone"
+      }
+    },
+    "required": [
+      "worktree",
+      "branch",
+      "summary"
+    ],
+    "description": "What the item's own branch changed, read from git the way a chat's worktree is."
   }
 }

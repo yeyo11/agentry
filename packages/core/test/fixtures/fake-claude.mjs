@@ -27,6 +27,12 @@ import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
 if (process.env.FAKE_CLAUDE_SPAWNS) appendFileSync(process.env.FAKE_CLAUDE_SPAWNS, `${process.pid} ${args.join(' ')}\n`);
+// Core lists the CLI's own sessions with this; without an answer it waits for stdin to close, and a
+// chat started through the API waits a minute for it
+if (args[0] === 'agents') {
+  process.stdout.write('[]\n');
+  process.exit(0);
+}
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const worktree = flag('--worktree');
 // Like the CLI, adopt the worktree of that name, which lives under the main checkout's top level

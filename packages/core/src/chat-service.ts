@@ -441,13 +441,17 @@ export class ChatService {
 
   // ---------- acting ----------
 
-  /** Starts a new chat. */
-  async create(request: NewChatRequest): Promise<ChatSummary> {
+  /**
+   * Starts a new chat. `onStart` hears of it in the same tick the process is spawned, before any of
+   * its output can arrive: for a caller that has to tie the chat to something before it answers.
+   */
+  async create(request: NewChatRequest, onStart?: (chat: ChatRuntime) => void): Promise<ChatSummary> {
     // `toolPreset: null` is how a request says it wants no preset, the default included
     const fallback = request.toolPreset === undefined && request.allowedTools === undefined ? this.deps.tools.presets.defaultPreset() : null;
     const picked = fallback ? { ...request, toolPreset: fallback.id } : request;
     const chosen = await this.deps.tools.resolve(picked, resolve(request.cwd ?? this.deps.config.workspaceDir), null);
     const started = this.deps.runtime.start({ ...request, ...chosen });
+    onStart?.(started);
     return this.require(started.id);
   }
 

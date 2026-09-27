@@ -10,6 +10,7 @@ import type {
   ChatSummary,
   ChatWorktree,
   ConfigFileRoot,
+  CreateProjectRequest,
   ImportProjectRequest,
   MemoryFile,
   MemoryProjectSummary,
@@ -18,17 +19,41 @@ import type {
   PermissionRequest,
   Project,
   ProjectCandidate,
+  ProjectChange,
+  ProjectModule,
+  ProjectSettings,
+  ProjectTemplate,
   ProjectWorktree,
   RunWorkflowRequest,
   SwitchResult,
   SystemInfo,
+  UpdateProjectRequest,
+  Board,
+  CreateWorkItemFromMessageRequest,
+  Milestone,
+  OrchestrateWorkItemsRequest,
+  Orchestration,
+  OrchestrationSpec,
   WorkflowDefinition,
+  WorkItem,
+  WorkItemCause,
+  WorkItemChanges,
+  WorkItemDetail,
+  WorkItemFilter,
+  WorkItemLink,
+  WorkItemOrchestrationDraft,
+  WorkOnWorkItemRequest,
+  WorkOnWorkItemResult,
+  FileDiff,
 } from '@agentry/shared';
+import { WORK_ITEM_STATUSES } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { stateFromRun } from './chat-model.ts';
+import { WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
+import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { ChatService, type Placement } from './chat-service.ts';
-import { ChatManager, type ChatRuntime } from './chats.ts';
+import { ChatManager, type ChatRuntime, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
@@ -58,7 +83,9 @@ import { MemoryStore } from './memory.ts';
 import { Orchestrator } from './orchestrator.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { byStart, EXPORTED_ORIGINS, type ProjectExportSource } from './project-export.ts';
-import { attachProject, projectCandidates, ProjectStore, type ChatPlace } from './projects.ts';
+import { parseKeyPrefix, parseModules, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from './project-settings.ts';
+import { PROJECT_TEMPLATES } from './project-templates.ts';
+import { attachProject, projectCandidates, ProjectStore, type ChatPlace, type ProjectRecord } from './projects.ts';
 import { AuthStore } from './security/auth.ts';
 import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
@@ -93,8 +120,20 @@ export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnaps
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
+export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './project-settings.ts';
+export { PROJECT_TEMPLATES } from './project-templates.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
+export {
+  WorkItemError,
+  WorkItemService,
+  type WorkItemCommentContext,
+  type WorkItemContext,
+  type WorkItemLinkState,
+  type WorkItemProject,
+  type WorkItemServiceDeps,
+} from './work-items.ts';
+export { orchestrationDraft, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt, type WorkItemAutomationDeps } from './work-links.ts';
 export { AuthStore } from './security/auth.ts';
 export { OidcVerifier, type FetchLike } from './security/oidc.ts';
 export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
@@ -165,6 +204,15 @@ export class Core {
   readonly workspace: Workspace;
   readonly locator = new Locator();
   private readonly projectStore: ProjectStore;
+  /** What each project configures, one JSON document per project id, kept when the project is removed */
+  private readonly projectSettingsStore: ProjectSettingsStore;
+  /**
+   * The work items of every project, kept in the shared database. Routes gate writes through
+   * `workItemProject` and friends first: the store itself knows nothing of modules.
+   */
+  readonly workItems: WorkItemService;
+  /** Moves items as the chats and nodes linked to them work, from the feed and the runtime's results */
+  private readonly workLinks: WorkItemAutomation;
   private readonly startedAt = Date.now();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
@@ -194,6 +242,7 @@ export class Core {
     this.cliVersion = new CliVersionWatch(config);
     this.release = new ReleaseWatch(config, { current: AGENTRY_VERSION, events: this.events });
     this.projectStore = new ProjectStore(config);
+    this.projectSettingsStore = new ProjectSettingsStore(config);
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db);
     this.runtime.permissions = this.permissions;
@@ -285,6 +334,23 @@ export class Core {
     this.explorer = new ConfigExplorer(config.configDir);
     this.plugins = new Plugins(config);
     this.memory = new MemoryStore(config);
+    this.workItems = new WorkItemService({
+      db: this.db,
+      project: (id) => {
+        const settings = this.projectSettingsStore.stored(id);
+        return settings ? { keyPrefix: settings.keyPrefix, columnLimits: settings.board.columnLimits } : null;
+      },
+      emit: (event) => this.events.emit(event),
+      linkState: (link) => this.workItemLinkState(link),
+    });
+    this.workLinks = new WorkItemAutomation({
+      items: this.workItems,
+      writable: (id) => !!this.projectStore.get(id) && !!this.projectSettingsStore.stored(id)?.modules.includes('board'),
+      orchestration: (id) => this.orchestrator.get(id),
+    });
+    this.events.observe((event) => this.workLinks.observe(event));
+    // Every result, not only a run's first: a chat worked on by hand ends many turns
+    this.runtime.on('chat-result', (chatId: string, result: RunResult) => this.workLinks.chatResult(chatId, result));
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
     // Started last of all, once the chats it may resume or start are restored, so a slot judged at
     // boot finds the runtime it launches into ready
@@ -726,10 +792,14 @@ export class Core {
       for (const name of await readdir(root).catch(() => [] as string[])) addWorktree(join(root, name));
     }
 
-    return this.projectStore.list().map((p) => ({
+    const records = this.projectStore.list();
+    const settings = new Map(await Promise.all(records.map(async (p) => [p.id, await this.projectSettingsStore.read(p, records)] as const)));
+    return records.map((p) => ({
       id: p.id,
       name: p.name,
       path: p.path,
+      key: settings.get(p.id)?.keyPrefix ?? '',
+      modules: settings.get(p.id)?.modules ?? [],
       // A worktree removed from disk is history, kept in the chats that ran there, not a place to go
       worktrees: [...(worktrees.get(p.id)?.values() ?? [])].filter((w) => existsSync(w.path)).sort((a, b) => a.path.localeCompare(b.path)),
       exists: existsSync(p.path),
@@ -750,19 +820,322 @@ export class Core {
     return projectCandidates(this.projectStore.list(), await this.chatPlaces(), (d) => this.locator.worktreeOf(d));
   }
 
+  /**
+   * Imports a directory and writes its settings from the template and modules asked for. A
+   * directory that was a project before takes its old id back, and with it its settings and work
+   * items.
+   */
   async importProject(req: ImportProjectRequest): Promise<Project> {
-    const record = await this.projectStore.add(req, (d) => this.locator.worktreeOf(d));
+    const setup = parseProjectSetup(req);
+    const active = () => new Set(this.projectStore.list().map((p) => p.id));
+    const record = await this.projectStore.add(
+      { path: req.path, ...(req.name ? { name: req.name } : {}) },
+      (d) => this.locator.worktreeOf(d),
+      (path) => this.projectSettingsStore.idForPath(path, active()),
+    );
+    await this.projectSettingsStore.create(record, setup, this.projectStore.list());
     return this.projectView(record.id);
   }
 
-  async renameProject(id: string, name: string): Promise<Project> {
-    await this.projectStore.rename(id, name);
+  /** A new directory in the workspace, imported straight away. The template is checked before the directory exists. */
+  async createProject(req: CreateProjectRequest): Promise<Project> {
+    const setup = parseProjectSetup(req);
+    const path = await this.workspace.create(req.name ?? '', req.gitUrl || undefined);
+    return this.importProject({ path, ...(setup.template ? { template: setup.template } : {}), ...(setup.modules ? { modules: setup.modules } : {}) });
+  }
+
+  /** The five built-in templates, as data a wizard draws. */
+  projectTemplates(): ProjectTemplate[] {
+    return structuredClone([...PROJECT_TEMPLATES]);
+  }
+
+  /**
+   * Renames a project, changes its key prefix or its modules. Everything is validated before
+   * anything is written, so a prefix another project holds does not leave a rename half done.
+   * Switching a module off only hides it: its data stays where it is.
+   */
+  async updateProject(id: string, req: UpdateProjectRequest): Promise<Project> {
+    const record = this.requireProject(id);
+    const body: Partial<Record<keyof UpdateProjectRequest, unknown>> = req && typeof req === 'object' ? req : {};
+    if (body.name === undefined && body.key === undefined && body.modules === undefined) throw new Error('name, key or modules is required');
+    if (body.name !== undefined && (typeof body.name !== 'string' || !body.name.trim())) throw new Error('name is required');
+    const key = body.key === undefined ? undefined : parseKeyPrefix(body.key);
+    const modules = body.modules === undefined ? undefined : parseModules(body.modules);
+
+    const active = this.projectStore.list();
+    const before = await this.projectSettingsStore.read(record, active);
+    const after: ProjectSettings = { ...before, ...(key ? { keyPrefix: key } : {}), ...(modules ? { modules } : {}) };
+    const changes: ProjectChange[] = settingsChanges(before, after);
+    if (changes.length) await this.projectSettingsStore.write(record, after, active);
+    let current = record;
+    if (typeof body.name === 'string' && body.name.trim() !== record.name) {
+      current = await this.projectStore.rename(id, body.name);
+      if (current.name !== record.name) changes.push('name');
+    }
+    this.projectUpdated(current, changes, after.modules);
     return this.projectView(id);
   }
 
-  /** Forgets a project in Agentry. What Claude Code keeps about it is `purgeProject`, and is not touched. */
+  /** The project's settings document, created on first read with every module off. */
+  async projectSettings(id: string): Promise<ProjectSettings> {
+    return this.projectSettingsStore.read(this.requireProject(id), this.projectStore.list());
+  }
+
+  /** Replaces the settings document whole, after validating it. */
+  async saveProjectSettings(id: string, input: unknown): Promise<ProjectSettings> {
+    const record = this.requireProject(id);
+    const settings = parseProjectSettings(input);
+    const active = this.projectStore.list();
+    const before = await this.projectSettingsStore.read(record, active);
+    await this.projectSettingsStore.write(record, settings, active);
+    this.projectUpdated(record, settingsChanges(before, settings), settings.modules);
+    return settings;
+  }
+
+  private requireProject(id: string): ProjectRecord {
+    const record = this.projectStore.get(id);
+    if (!record) throw new Error('project not found');
+    return record;
+  }
+
+  private projectUpdated(project: ProjectRecord, changes: ProjectChange[], modules: ProjectModule[]): void {
+    if (!changes.length) return;
+    this.events.emit({ type: 'project.updated', title: `${project.name} updated`, projectId: project.id, projectName: project.name, changes, modules });
+  }
+
+  /**
+   * Forgets a project in Agentry. What Claude Code keeps about it is `purgeProject`, and is not
+   * touched; neither are its settings document and work items, which importing it again brings back.
+   */
   removeProject(id: string): Promise<void> {
     return this.projectStore.remove(id);
+  }
+
+  // ---------- work items ----------
+  //
+  // A project whose Board module is off keeps its items, and they stay readable so nothing looks
+  // lost; what it refuses is a change. A project removed from Agentry keeps them too, for the day
+  // its directory is imported again, but it is not a place anything is created in.
+
+  /**
+   * The settings of a project its work items are read or written in. A write needs the project
+   * imported and its Board module on; a read only needs it imported.
+   */
+  async workItemProject(projectId: string, access: 'read' | 'write'): Promise<ProjectSettings> {
+    const settings = await this.projectSettings(projectId);
+    if (access === 'write' && !settings.modules.includes('board')) {
+      throw new WorkItemError("the Board module is off in this project: switch it on in the project's settings to change its work items", 409);
+    }
+    return settings;
+  }
+
+  /** The item, after the same check on the project it belongs to. Reads of a removed project's items still work. */
+  async workItemAccess(itemId: string, access: 'read' | 'write'): Promise<WorkItem> {
+    const item = this.workItems.find(itemId);
+    if (!item) throw new WorkItemError('work item not found', 404);
+    await this.ownerAccess(item.projectId, access);
+    return item;
+  }
+
+  /** The milestone, after the same check on its project. */
+  async milestoneAccess(milestoneId: string, access: 'read' | 'write'): Promise<Milestone> {
+    const milestone = this.workItems.milestone(milestoneId);
+    await this.ownerAccess(milestone.projectId, access);
+    return milestone;
+  }
+
+  private async ownerAccess(projectId: string, access: 'read' | 'write'): Promise<void> {
+    if (this.projectStore.get(projectId)) await this.workItemProject(projectId, access);
+    else if (access === 'write') throw new WorkItemError('its project is not imported: import the directory again to change it', 409);
+  }
+
+  /** The All projects list: the items of every imported project whose Board module is on. */
+  async allWorkItems(filter: Omit<WorkItemFilter, 'projectId'> = {}): Promise<WorkItem[]> {
+    const shown = await this.boardProjects();
+    return this.workItems.list(filter).filter((item) => shown.has(item.projectId));
+  }
+
+  /**
+   * The All projects board. Counted again over the projects shown, since the store's own counts
+   * take in the hidden ones: projects removed, or with their board off.
+   */
+  async allWorkItemsBoard(filter: Omit<WorkItemFilter, 'projectId'> = {}): Promise<Board> {
+    const shown = await this.boardProjects();
+    const board = this.workItems.board(null, filter);
+    const counts = new Map(WORK_ITEM_STATUSES.map((status) => [status, 0]));
+    for (const item of this.workItems.list()) if (shown.has(item.projectId)) counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
+    return {
+      projectId: null,
+      columns: board.columns.map((column) => ({
+        ...column,
+        count: counts.get(column.status) ?? 0,
+        items: column.items.filter((item) => shown.has(item.projectId)),
+      })),
+    };
+  }
+
+  private async boardProjects(): Promise<Set<string>> {
+    const records = this.projectStore.list();
+    const settings = await Promise.all(records.map(async (p) => [p.id, await this.projectSettingsStore.read(p, records)] as const));
+    return new Set(settings.filter(([, s]) => s.modules.includes('board')).map(([id]) => id));
+  }
+
+  /**
+   * What a link points at now, from what this process holds in memory: a chat it runs, a task of an
+   * orchestration it knows. A chat that is not live here reads with no name and no state.
+   */
+  private workItemLinkState(link: WorkItemLink): WorkItemLinkState | null {
+    const chat = link.chatId ? this.runtime.get(link.chatId) : null;
+    const chatState = chat ? stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }) : null;
+    if (link.kind === 'orchestration' && link.orchestrationId) {
+      const task = this.orchestrator.get(link.orchestrationId)?.tasks.find((t) => t.id === link.taskId);
+      return { name: task?.name ?? null, taskStatus: task?.status ?? null, chatState };
+    }
+    return { name: chat?.name ?? null, chatState };
+  }
+
+  /**
+   * A chat link this process does not run (a terminal chat an item was created from, say) read from
+   * the chat list, which is asynchronous and so cannot be what the store fills links with.
+   */
+  private async namedLinks(links: WorkItemLink[]): Promise<WorkItemLink[]> {
+    return Promise.all(
+      links.map(async (link) => {
+        if (link.kind !== 'chat' || !link.chatId || link.name) return link;
+        const chat = await this.chats.summaryOf(link.chatId).catch(() => null);
+        return chat ? { ...link, name: chat.title, chatState: chat.state } : link;
+      }),
+    );
+  }
+
+  /** The item's page, with every link named. */
+  async workItemDetail(itemId: string): Promise<WorkItemDetail> {
+    await this.workItemAccess(itemId, 'read');
+    const detail = this.workItems.get(itemId);
+    return { ...detail, links: await this.namedLinks(detail.links) };
+  }
+
+  async workItemLinks(itemId: string): Promise<WorkItemLink[]> {
+    await this.workItemAccess(itemId, 'read');
+    return this.namedLinks(this.workItems.links(itemId));
+  }
+
+  /**
+   * "Work on it": a chat in the project, in the item's own worktree (made the first time, found
+   * again after), prompted with the item. The chat is linked in the tick it is spawned, before any
+   * of its output can arrive, so the item follows it from its very first status.
+   */
+  async workOnItem(itemId: string, request?: WorkOnWorkItemRequest): Promise<WorkOnWorkItemResult> {
+    const item = await this.workItemAccess(itemId, 'write');
+    const record = this.requireProject(item.projectId);
+    if (item.type === 'epic') throw new WorkItemError('an epic groups work items: work on one of them instead', 400);
+    if (!existsSync(record.path)) throw new WorkItemError(`the project's directory ${record.path} is missing`, 409);
+    const busy = this.workItems.links(itemId).find((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
+    if (busy) throw new WorkItemError(`${item.key} is already being worked on${busy.name ? ` by ${busy.name}` : ''}`, 409);
+    const place = itemWorktree(record.path, item);
+    if (place && (place.worktree !== item.worktree || place.branch !== item.branch)) {
+      this.workItems.setWorktree(itemId, { worktree: place.worktree, branch: place.branch });
+    }
+    const linked: { link?: WorkItemLink } = {};
+    const chat = await this.chats.create({ ...startOptions(request), prompt: workItemPrompt(item), cwd: place?.cwd ?? record.path }, (started) => {
+      linked.link = this.workItems.link(itemId, { kind: 'chat', role: 'work', chatId: started.id });
+      this.workLinks.chatStarted(started.id);
+    });
+    if (!linked.link) throw new Error('the chat started without being linked to its work item');
+    return { item: this.workItems.find(itemId) ?? item, chat, link: linked.link };
+  }
+
+  /**
+   * The graph a selection of one project's items becomes, for the person to review: nothing is
+   * launched. The existing launch route takes it as it is and links each node to its item.
+   */
+  async orchestrateWorkItems(projectId: string, request?: OrchestrateWorkItemsRequest): Promise<WorkItemOrchestrationDraft> {
+    await this.workItemProject(projectId, 'write');
+    const record = this.requireProject(projectId);
+    const ids: unknown = request?.itemIds;
+    if (!Array.isArray(ids) || !ids.length || ids.some((id) => typeof id !== 'string')) {
+      throw new WorkItemError('itemIds must list the work items to orchestrate', 400);
+    }
+    if (new Set(ids).size !== ids.length) throw new WorkItemError('a work item is selected twice', 400);
+    const items = (ids as string[]).map((id) => {
+      const item = this.workItems.find(id);
+      if (!item || item.projectId !== projectId) throw new WorkItemError(`${id} is not a work item of this project`, 400);
+      if (item.type === 'epic') throw new WorkItemError(`${item.key} is an epic, which groups work: select its items instead`, 400);
+      if (item.status === 'done') throw new WorkItemError(`${item.key} is already done`, 400);
+      return item;
+    });
+    return orchestrationDraft(record, items, canBranch(record.path));
+  }
+
+  /**
+   * Launches a graph. A node that names a work item must name one that may be changed, and only one
+   * node per item: the item follows its node, and two nodes would pull it two ways.
+   */
+  async launchOrchestration(spec: OrchestrationSpec): Promise<Orchestration> {
+    const tasks: unknown = spec?.tasks;
+    const seen = new Set<string>();
+    for (const task of Array.isArray(tasks) ? (tasks as Array<Partial<OrchestrationSpec['tasks'][number]> | null>) : []) {
+      const itemId: unknown = task?.workItemId;
+      if (itemId === undefined) continue;
+      const label = `task '${String(task?.id)}'`;
+      if (typeof itemId !== 'string' || !itemId) throw new WorkItemError(`${label}: workItemId must name a work item`, 400);
+      if (seen.has(itemId)) throw new WorkItemError(`${label}: another node already works on that work item`, 400);
+      seen.add(itemId);
+      const item = this.workItems.find(itemId);
+      if (!item) throw new WorkItemError(`${label}: work item ${itemId} not found`, 400);
+      await this.ownerAccess(item.projectId, 'write');
+    }
+    return this.orchestrator.create(spec);
+  }
+
+  /** "Create a task from this message": an item in `backlog` of the chat's project, linked to the chat it came from. */
+  async workItemFromMessage(chatId: string, request?: CreateWorkItemFromMessageRequest): Promise<WorkItem> {
+    const text: unknown = request?.text;
+    if (typeof text !== 'string' || !text.trim()) throw new WorkItemError('text is required: the message the task is made from', 400);
+    const chat = await this.chats.summaryOf(chatId);
+    if (!chat) throw new Error('chat not found');
+    const projectId = chat.project?.id;
+    if (!projectId) throw new WorkItemError('this chat is not in an imported project, so there is no board to add the task to', 409);
+    await this.workItemProject(projectId, 'write');
+    const cause: WorkItemCause = {
+      kind: 'chat',
+      chatId,
+      orchestrationId: chat.orchestration?.id ?? null,
+      taskId: chat.orchestration?.taskId ?? null,
+      event: WORK_CAUSE.message,
+    };
+    const item = this.workItems.create(
+      projectId,
+      {
+        title: typeof request?.title === 'string' && request.title.trim() ? request.title : titleFromMessage(text),
+        description: text,
+        status: 'backlog',
+        ...(request?.type !== undefined ? { type: request.type } : {}),
+        ...(request?.priority !== undefined ? { priority: request.priority } : {}),
+      },
+      { cause },
+    );
+    this.workItems.link(item.id, { kind: 'chat', role: 'origin', chatId }, { cause });
+    return this.workItems.find(item.id) ?? item;
+  }
+
+  /** The items a chat worked on or created, for its header. Those of projects no longer imported are left out. */
+  workItemsOfChat(chatId: string): WorkItem[] {
+    const imported = new Set(this.projectStore.list().map((p) => p.id));
+    const ids = [...new Set(this.workItems.linksOfChat(chatId).map((l) => l.itemId))];
+    return ids.map((id) => this.workItems.find(id)).filter((item): item is WorkItem => !!item && imported.has(item.projectId));
+  }
+
+  /** What the item's own branch changed, read as a chat's worktree is. */
+  async workItemChanges(itemId: string): Promise<WorkItemChanges> {
+    const item = await this.workItemAccess(itemId, 'read');
+    const path = this.projectStore.get(item.projectId)?.path ?? item.worktree ?? '';
+    return { worktree: item.worktree, branch: item.branch, summary: this.changes.itemChanges(path, item) };
+  }
+
+  async workItemDiff(itemId: string, path: string): Promise<FileDiff> {
+    const item = await this.workItemAccess(itemId, 'read');
+    return this.changes.itemDiff(this.projectStore.get(item.projectId)?.path ?? item.worktree ?? '', item, path);
   }
 
   /**
