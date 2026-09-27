@@ -691,17 +691,21 @@ export class Orchestrator {
    * safe to do on a graph whose result someone may still want.
    */
   relaunch(id: string, changes: RelaunchOrchestrationRequest = {}): Orchestration {
+    return this.create(this.relaunchSpec(id, changes), { relaunchedFrom: id });
+  }
+
+  /** What a relaunch would launch, for a caller that checks it first: the original with the corrections. */
+  relaunchSpec(id: string, changes: RelaunchOrchestrationRequest = {}): OrchestrationSpec {
     const orch = this.items.get(id);
     if (!orch) throw new Error('orchestration not found');
     if (orch.status === 'running') throw new Error('the orchestration is still running: stop it first, or wait for it to finish');
     const original = this.specOf(id);
     const { tasks: replaced, ...overrides } = changes.spec ?? {};
-    const spec: OrchestrationSpec = {
+    return {
       ...original,
       ...Object.fromEntries(Object.entries(overrides).filter(([, v]) => v !== undefined)),
       tasks: changes.tasks ?? replaced ?? original.tasks,
     };
-    return this.create(spec, { relaunchedFrom: orch.id });
   }
 
   /** Saves a graph as a template, from a spec (a draft plan) or from an orchestration's own. */
@@ -709,7 +713,9 @@ export class Orchestrator {
     if (req.spec && req.fromOrchestration) throw new Error('give the graph as a spec or as an orchestration to take it from, not both');
     const spec = req.fromOrchestration ? this.specOf(req.fromOrchestration) : req.spec;
     if (!spec) throw new Error('spec or fromOrchestration is required');
-    return this.templates.save(req.name, spec, req.description);
+    // A template is new work on another objective, never the work items the graph was saved from
+    const tasks = Array.isArray(spec.tasks) ? spec.tasks.map(({ workItemId: _item, ...task }) => task) : spec.tasks;
+    return this.templates.save(req.name, { ...spec, tasks }, req.description);
   }
 
   /** Launches a template on a new objective and directory; what is given here is for this run only. */

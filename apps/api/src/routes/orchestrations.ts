@@ -109,9 +109,10 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
     core.orchestrator.hintTask(req.params.id, req.params.taskId, req.body?.text ?? ''),
   );
 
-  // The same graph with corrections, as a new orchestration that records where it came from
-  app.post<{ Params: { id: string }; Body: RelaunchOrchestrationRequest }>('/orchestrations/:id/relaunch', (req, reply) =>
-    reply.status(201).send(core.orchestrator.relaunch(req.params.id, req.body ?? {})),
+  // The same graph with corrections, as a new orchestration that records where it came from. Through
+  // core, as a launch is: its nodes still name their work items, and are checked the same way
+  app.post<{ Params: { id: string }; Body: RelaunchOrchestrationRequest }>('/orchestrations/:id/relaunch', async (req, reply) =>
+    reply.status(201).send(await core.relaunchOrchestration(req.params.id, req.body ?? {})),
   );
 
   // What a worker actually did on disk, from git and from its transcript rather than from what it says

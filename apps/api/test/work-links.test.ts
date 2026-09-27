@@ -238,6 +238,39 @@ test('a selection becomes a draft, and launching it makes each item follow its n
   }
 });
 
+test('a relaunch keeps each node on its item and is checked as a launch is; a template keeps no item', async () => {
+  const api = await createItem({ title: 'Relaunched', description: 'FAKE-WRITE again.txt server' });
+  const other = await createItem({ title: 'Other' });
+  const draft = (await app.inject({ method: 'POST', url: `/api/projects/${project.id}/work-items/orchestrate`, ...json({ itemIds: [api.id] }) })).json<WorkItemOrchestrationDraft>();
+  const first = (await app.inject({ method: 'POST', url: '/api/orchestrations', ...json({ ...draft.spec, synthesize: false }) })).json<Orchestration>();
+  await until(() => core.orchestrator.get(first.id), (o) => !!o && o.status !== 'running', 'the graph to finish');
+
+  const res = await app.inject({ method: 'POST', url: `/api/orchestrations/${first.id}/relaunch`, ...json({}) });
+  assert.equal(res.statusCode, 201, res.body);
+  const again = res.json<Orchestration>();
+  assert.equal(again.relaunchedFrom, first.id);
+  assert.equal(again.tasks[0]?.workItemId, api.id);
+  await until(() => core.orchestrator.get(again.id), (o) => !!o && o.status !== 'running', 'the relaunch to finish');
+  const graphs = (await item(api.id)).links.filter((l) => l.kind === 'orchestration').map((l) => l.orchestrationId);
+  assert.deepEqual(graphs, [first.id, again.id]);
+
+  const node = { id: 'n', name: 'n', prompt: 'p' };
+  const relaunch = (tasks: unknown[]) => app.inject({ method: 'POST', url: `/api/orchestrations/${first.id}/relaunch`, ...json({ tasks }) });
+  const before = core.orchestrator.list().length;
+  assert.equal((await relaunch([{ ...node, workItemId: 'nope' }])).statusCode, 400);
+  const twice = await relaunch([
+    { ...node, workItemId: other.id },
+    { ...node, id: 'm', workItemId: other.id },
+  ]);
+  assert.equal(twice.statusCode, 400);
+  assert.match(twice.json().error, /another node/);
+  assert.equal(core.orchestrator.list().length, before);
+
+  const saved = await app.inject({ method: 'POST', url: '/api/orchestrations/templates', ...json({ name: 'Reusable', fromOrchestration: first.id }) });
+  assert.equal(saved.statusCode, 201, saved.body);
+  assert.equal(saved.json<{ spec: { tasks: Array<{ workItemId?: string }> } }>().spec.tasks.some((t) => t.workItemId), false);
+});
+
 test('a selection or a launch naming items it may not have is refused before anything runs', async () => {
   const a = await createItem({ title: 'A' });
   const epic = await createItem({ title: 'E', type: 'epic' });

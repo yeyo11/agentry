@@ -34,6 +34,7 @@ import type {
   OrchestrateWorkItemsRequest,
   Orchestration,
   OrchestrationSpec,
+  RelaunchOrchestrationRequest,
   WorkflowDefinition,
   WorkItem,
   WorkItemCause,
@@ -1077,7 +1078,18 @@ export class Core {
    * node per item: the item follows its node, and two nodes would pull it two ways.
    */
   async launchOrchestration(spec: OrchestrationSpec): Promise<Orchestration> {
-    const tasks: unknown = spec?.tasks;
+    await this.checkWorkItemNodes(spec?.tasks);
+    return this.orchestrator.create(spec);
+  }
+
+  /** A relaunch names its items as the first launch did, and is held to the same checks. */
+  async relaunchOrchestration(id: string, changes: RelaunchOrchestrationRequest = {}): Promise<Orchestration> {
+    const spec = this.orchestrator.relaunchSpec(id, changes);
+    await this.checkWorkItemNodes(spec.tasks);
+    return this.orchestrator.create(spec, { relaunchedFrom: id });
+  }
+
+  private async checkWorkItemNodes(tasks: unknown): Promise<void> {
     const seen = new Set<string>();
     for (const task of Array.isArray(tasks) ? (tasks as Array<Partial<OrchestrationSpec['tasks'][number]> | null>) : []) {
       const itemId: unknown = task?.workItemId;
@@ -1090,7 +1102,6 @@ export class Core {
       if (!item) throw new WorkItemError(`${label}: work item ${itemId} not found`, 400);
       await this.ownerAccess(item.projectId, 'write');
     }
-    return this.orchestrator.create(spec);
   }
 
   /** "Create a task from this message": an item in `backlog` of the chat's project, linked to the chat it came from. */
