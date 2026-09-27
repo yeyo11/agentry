@@ -1,15 +1,22 @@
 import type { Project } from '@agentry/shared';
-import { Plus } from 'lucide-react';
+import { ChevronLeft, Plus } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, keys } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { useConfirm } from '../../components/Dialog';
 import { useToast } from '../../components/Toast';
-import { Card, Empty, ErrorBox, PathLabel, Skeleton, Tag } from '../../components/ui';
+import { ICON_SM } from '../../components/icons';
+import { Card, Empty, ErrorBox, PathLabel, Segmented, Skeleton, Tag } from '../../components/ui';
 import { useDirty, useLeaveGuard } from '../../lib/dirty';
 import { timeAgo } from '../../lib/format';
+import { NARROW, useMediaQuery } from '../../lib/media';
+import { InstructionsTab } from '../config/InstructionsTab';
+import { CliMemoryCard, HandedCard, PhoneCli, useCliMemory } from './memory/Cli';
+import { AddJournalDialog, Journal } from './memory/Journal';
+import { Proposals, usePendingProposalCount } from './memory/Proposals';
 
 const TYPE_TONE: Record<string, string> = { user: 'info', feedback: 'warn', project: 'idle', reference: 'ok' };
 const NAME_RE = /^[\w.-]{1,80}\.md$/;
@@ -35,7 +42,7 @@ interface Draft {
   isNew: boolean;
 }
 
-function MemoryFiles({ projectId }: { projectId: string }) {
+function MemoryFiles({ projectId, initial }: { projectId: string; initial: string | null }) {
   const { t } = useTranslation(['config', 'common']);
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -46,6 +53,15 @@ function MemoryFiles({ projectId }: { projectId: string }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [naming, setNaming] = useState<string | null>(null);
   const files = data ?? [];
+
+  // Opened from a file of the Memory tab's tree: that file is the one shown, once it has loaded
+  const [opened, setOpened] = useState(false);
+  useEffect(() => {
+    if (opened || !data) return;
+    setOpened(true);
+    const file = initial ? data.find((f) => f.name === initial) : undefined;
+    if (file) setDraft({ name: file.name, content: file.content, saved: file.content, isNew: false });
+  }, [opened, data, initial]);
   const hasIndex = files.some((f) => f.isIndex);
 
   const dirty = draft !== null && (draft.isNew || draft.content !== draft.saved);
@@ -266,8 +282,139 @@ function MemoryFiles({ projectId }: { projectId: string }) {
   );
 }
 
-/** The memory files Claude Code keeps for one project: a list and an editor. */
+
+/** The Memory tab's parts, each at `?section=`: a phone's three tabs, and the CLI's files in the editor. */
+const PHONE_SECTIONS = ['proposals', 'journal', 'cli'] as const;
+type PhoneSection = (typeof PHONE_SECTIONS)[number];
+const EDITOR = 'files';
+
+/** Links inside the tab keep the project and the view, and change only the section and the file. */
+function useSectionHref() {
+  const [params] = useSearchParams();
+  return (section: string | null, file?: string) => {
+    const next = new URLSearchParams(params);
+    if (section) next.set('section', section);
+    else next.delete('section');
+    if (file) next.set('file', file);
+    else next.delete('file');
+    return `/?${next.toString()}`;
+  };
+}
+
+/**
+ * The CLI's own files in the editor: `CLAUDE.md` (the config page's editor, scoped to the project)
+ * and the memory directory (list and editor), opened on the file the tab linked to.
+ */
+function CliEditor({ project, file }: { project: Project; file: string | null }) {
+  const { t } = useTranslation('home');
+  const href = useSectionHref();
+  return (
+    <div className="memory-editor">
+      <Link to={href(null)} className="link-btn memory-editor-back">
+        <ChevronLeft {...ICON_SM} />
+        {t('memoryTab.cli.back')}
+      </Link>
+      {file === 'CLAUDE.md' ? (
+        <InstructionsTab scope={{ projectId: project.id }} scopeKey={project.id} />
+      ) : (
+        <>
+          <MemoryFiles key={project.id} projectId={project.id} initial={file} />
+          <InstructionsTab scope={{ projectId: project.id }} scopeKey={project.id} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The Memory tab (decisions 32 and 33): what the team shares. Proposals the roles made wait for
+ * the person, one by one; the project journal records decisions and closed items; the CLI's own
+ * memory is what terminal chats read too. A phone shows the three as tabs of one screen.
+ */
 export function ProjectMemory({ project }: { project: Project }) {
-  // Keyed so a draft never carries over to another project's files
-  return <MemoryFiles key={project.id} projectId={project.id} />;
+  const { t } = useTranslation('home');
+  const narrow = useMediaQuery(NARROW);
+  const [params, setParams] = useSearchParams();
+  const href = useSectionHref();
+  const cli = useCliMemory(project.id);
+  const [adding, setAdding] = useState(false);
+  const section = params.get('section');
+  const pending = usePendingProposalCount(project.id);
+
+  if (section === EDITOR) return <CliEditor key={project.id} project={project} file={params.get('file')} />;
+
+  const editorHref = (file?: string) => href(EDITOR, file);
+  const dialog = adding && <AddJournalDialog projectId={project.id} onClose={() => setAdding(false)} />;
+
+  if (narrow) {
+    const current: PhoneSection = PHONE_SECTIONS.find((s) => s === section) ?? 'proposals';
+    return (
+      <div className="memory-phone">
+        <Segmented<PhoneSection>
+          label={t('memoryTab.sections')}
+          value={current}
+          onChange={(next) =>
+            setParams(
+              (old) => {
+                const query = new URLSearchParams(old);
+                query.set('section', next);
+                return query;
+              },
+              { replace: true },
+            )
+          }
+          options={[
+            {
+              value: 'proposals',
+              label: (
+                <>
+                  {t('memoryTab.proposals.tab')}
+                  {pending > 0 && <span className="segment-count memory-count">{pending}</span>}
+                </>
+              ),
+            },
+            { value: 'journal', label: t('memoryTab.journal.tab') },
+            { value: 'cli', label: t('memoryTab.cli.tab') },
+          ]}
+        />
+        {current === 'proposals' && <Proposals projectId={project.id} phone />}
+        {current === 'journal' && (
+          <>
+            <Journal projectId={project.id} phone />
+            <button type="button" className="btn btn-block" onClick={() => setAdding(true)}>
+              <Plus {...ICON_SM} />
+              {t('memoryTab.journal.addButton')}
+            </button>
+          </>
+        )}
+        {current === 'cli' && <PhoneCli cli={cli} editorHref={editorHref} />}
+        {dialog}
+      </div>
+    );
+  }
+
+  return (
+    <div className="memory-tab">
+      <div className="memory-intro">
+        <p className="small muted doc-fill">
+          <Trans t={t} i18nKey="memoryTab.intro" components={{ mono: <span className="mono" /> }} />
+        </p>
+        <button type="button" className="btn" onClick={() => setAdding(true)}>
+          <Plus {...ICON_SM} />
+          {t('memoryTab.journal.addButton')}
+        </button>
+      </div>
+      <div className="memory-grid">
+        <div className="memory-col">
+          <Proposals projectId={project.id} />
+          <Journal projectId={project.id} />
+        </div>
+        <div className="memory-col">
+          <CliMemoryCard cli={cli} editorHref={editorHref} />
+          <HandedCard projectId={project.id} cli={cli} />
+        </div>
+      </div>
+      {dialog}
+    </div>
+  );
 }

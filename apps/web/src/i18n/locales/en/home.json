@@ -4,6 +4,7 @@
     "board": "Board",
     "team": "Team",
     "settings": "Settings",
+    "documents": "Documents",
     "memory": "Memory",
     "resources": "Resources",
     "worktrees": "Worktrees"
@@ -224,5 +225,95 @@
     "weekly": "weekly {{pct}}%",
     "fiveHourShort": "5h {{pct}}%",
     "weeklyShort": "7d {{pct}}%"
+  },
+  "memoryTab": {
+    "intro": "What the team shares. Every agent gets it when it starts: <mono>CLAUDE.md</mono>, the project's memory and the newest entries of the journal. No role has a memory of its own.",
+    "sections": "Memory sections",
+    "target": {
+      "label": "Written to",
+      "instructions": "CLAUDE.md",
+      "memory": "memory",
+      "journal": "journal"
+    },
+    "proposals": {
+      "tab": "Proposals",
+      "title": "Proposals",
+      "waiting_one": "{{n}} waits for your approval",
+      "waiting_other": "{{n}} wait for your approval",
+      "nothingWithoutYou": "nothing is written until you approve it",
+      "nothingWithoutYouShort": "nothing is written without you",
+      "none": "No proposal is waiting. Team members propose what the team should remember when they finish a run.",
+      "approve": "Approve",
+      "approveEdited": "Approve edited",
+      "reject": "Discard",
+      "edit": "Edit",
+      "editLabel": "Text to write",
+      "more": "More actions for the proposal",
+      "from": "from",
+      "anAgent": "An agent",
+      "approved": "Approved and written",
+      "approveFailed": "Could not approve the proposal",
+      "rejected": "Proposal discarded",
+      "rejectFailed": "Could not discard the proposal"
+    },
+    "journal": {
+      "tab": "Journal",
+      "title": "Project journal",
+      "summary_one": "decisions and closed tasks · {{n}} entry",
+      "summary_other": "decisions and closed tasks · {{n}} entries",
+      "phoneIntro": "Decisions taken and tasks closed, newest first. Every agent of the team gets the newest {{n}}.",
+      "none": "The journal is empty. A task reaching Done writes its entry, and so does an approved proposal addressed to the journal.",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "more": "Show more",
+      "closed": "closed",
+      "decision": "Decision: {{text}}",
+      "memory": "Memory: “{{text}}”",
+      "approvedDone": "you approved the move to Done",
+      "closedBy": "moved to Done",
+      "agent": "An agent",
+      "byYou": "written by you",
+      "fromItem": "from {{key}}",
+      "approvedByYou": "approved by you",
+      "kind": {
+        "closed": "Task closed",
+        "decision": "Decision",
+        "memory": "Memory",
+        "note": "Note"
+      },
+      "kindLabel": "Kind of entry",
+      "delete": "Delete entry",
+      "deleteTitle": "Delete this journal entry?",
+      "deleteBody": "Agents stop receiving it. The task or proposal it came from is not touched.",
+      "deleteFailed": "Could not delete the entry",
+      "addButton": "Add to the journal",
+      "addTitle": "Add to the journal",
+      "add": "Add",
+      "addFailed": "Could not add the entry",
+      "decisionLabel": "The decision",
+      "noteLabel": "The note",
+      "addHint": "Markdown. Every agent of the team gets it with the newest entries."
+    },
+    "cli": {
+      "tab": "From the CLI",
+      "title": "CLI memory",
+      "intro": "The CLI's own: chats in a terminal read it too. Proposals you approve are written here.",
+      "openEditor": "Open in the editor",
+      "none": "none",
+      "fileCount_one": "{{n}} file",
+      "fileCount_other": "{{n}} files",
+      "claudeMd": "The repository's CLAUDE.md",
+      "noClaudeMd": "This project has no CLAUDE.md yet.",
+      "edit": "Edit",
+      "projectMemory": "Project memory",
+      "back": "Back to Memory"
+    },
+    "handed": {
+      "title": "What every agent gets",
+      "memory": "Project memory",
+      "journal_one": "Journal, newest entry",
+      "journal_other": "Journal, newest {{n}} entries",
+      "note": "Every chat of the team gets it when it starts, together with its role's file."
+    }
   }
 }
