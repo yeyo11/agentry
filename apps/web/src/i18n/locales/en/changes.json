@@ -1,0 +1,121 @@
+{
+  "title": "Changes",
+  "pageTitle": "Changes · {{name}}",
+  "back": {
+    "chat": "Back to the chat",
+    "task": "Back to the task",
+    "orchestration": "Back to the orchestration"
+  },
+  "meta": {
+    "from": "from {{base}}",
+    "detached": "detached head",
+    "commits_one": "{{count}} commit",
+    "commits_other": "{{count}} commits",
+    "files_one": "{{count}} file",
+    "files_other": "{{count}} files",
+    "counts": "{{additions}} lines added, {{deletions}} removed"
+  },
+  "live": "updates by itself",
+  "lens": {
+    "label": "What to see",
+    "result": "Result",
+    "steps": "Step by step",
+    "noWorktree": "This chat works outside a git worktree, so there is no branch to compare against: its edits are read step by step."
+  },
+  "scope": {
+    "label": "Which work",
+    "all": "All the work",
+    "commits": "Commits",
+    "uncommitted": "Not committed yet",
+    "none": "Nothing is uncommitted"
+  },
+  "copyPatch": "Copy the patch",
+  "copied": "Copied",
+  "copyFailed": "Could not copy",
+  "map": {
+    "label": "Changed files",
+    "title": "Files",
+    "seenOf": "{{seen}} of {{total}} seen",
+    "filter": "Filter files",
+    "fold": "Hide the file list",
+    "unfold": "Show the file list",
+    "noMatch": "No file matches the filter.",
+    "legendUncommitted": "not committed yet",
+    "legendLive": "Claude is editing it",
+    "blocks": "blocks",
+    "files": "files"
+  },
+  "status": {
+    "modified": "modified",
+    "added": "added",
+    "deleted": "deleted",
+    "renamed": "renamed",
+    "binary": "binary"
+  },
+  "row": {
+    "uncommitted": "Not committed yet",
+    "seen": "seen",
+    "live": "Claude is editing it now",
+    "renamedFrom": "renamed from {{path}}"
+  },
+  "mode": {
+    "label": "How to compare",
+    "reading": "Reading",
+    "unified": "Unified",
+    "split": "Side by side",
+    "readingHint": "Reading: the file as it is now, with what was removed folded",
+    "unifiedHint": "Unified: before and after interleaved",
+    "splitHint": "Side by side: before and after face to face"
+  },
+  "block": {
+    "prev": "Previous block",
+    "next": "Next block",
+    "counter": "Block {{n}} of {{total}}",
+    "none": "No change blocks"
+  },
+  "seen": "Seen",
+  "more": {
+    "label": "More file actions",
+    "copyPath": "Copy the path",
+    "copyDiff": "Copy this file's diff",
+    "keys": "Keyboard"
+  },
+  "keys": {
+    "nextBlock": "Next block",
+    "prevBlock": "Previous block",
+    "nextFile": "Next file",
+    "prevFile": "Previous file",
+    "seenNext": "Mark as seen and go to the next",
+    "mode": "Change the mode",
+    "fold": "Open or fold what the block removed",
+    "map": "Show or hide the files",
+    "filter": "Filter the files"
+  },
+  "why": {
+    "label": "Why this file changed",
+    "latest_one": "the only step",
+    "latest_other": "latest of {{count}} steps",
+    "seeSteps": "See the steps"
+  },
+  "empty": {
+    "nothing": "Nothing has changed yet",
+    "nothingBody": "No commits and no edited files. This fills in as the agent works.",
+    "scope": "Nothing in this scope",
+    "scopeBody": "Pick another part of the work in the menu above.",
+    "noSteps": "No edits yet",
+    "noStepsBody": "Every Edit and Write call of the chat shows up here with its patch."
+  },
+  "blocksOnly": "Over 5,000 lines: shown as blocks only, and the rest of the file is not asked for.",
+  "phone": {
+    "backToFiles": "Back to the files",
+    "tapPill": "tap <pill>−1</pill> to see what was removed",
+    "prevFile": "Previous file: {{name}}",
+    "nextFile": "Next file: {{name}}"
+  },
+  "steps": {
+    "label": "Edits, oldest first",
+    "pending": "in progress",
+    "stepOf": "Step {{n}} of {{total}}",
+    "noPatch": "The transcript kept no patch for this edit."
+  }
+}
