@@ -899,6 +899,7 @@ Claude Code precedence is local > project > user.
 | POST | `/config/tool-presets/restore` | Rewrite the three shipped presets as they ship; every other preset and the default are left alone |
 | PUT / DELETE | `/config/tool-presets/:id` | Create, replace or delete a preset — body `{ name, description?, allowedTools, disallowedTools? }` |
 | GET / PUT | `/settings/editor` | Where file links open (`editor.json`): `{ stored, settings: { template, diffCommand?, pathMap? } }`; the `PUT` body is the settings. A template needs a scheme and `{path}`; `javascript:`, `data:`, `vbscript:`, `file:` and `blob:` are refused |
+| GET / PUT | `/settings/app` | Settings that change without a restart (`app-settings.json`): `{ allowedHosts, maxConcurrentRuns, defaultPermissionMode, sources }`, where each source is `env`, `file` or `default`. The `PUT` body names only what changes; a setting the environment set is refused, and so is a pattern such as `*.com`. Emits `settings.changed` |
 | GET / PUT / DELETE | `/config/resources/:kind/:name?project=` | Markdown content (a script for `workflows`, whose `format` is `javascript`) — body `{ content }` |
 
 ### Config file explorer
