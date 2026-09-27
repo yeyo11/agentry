@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T07:12:38.39333137Z
-updated_at: 2026-09-27T20:00:00Z
+updated_at: 2026-09-27T21:30:00Z
 tags:
     - audit
     - plan
@@ -233,6 +233,11 @@ orchestration 3 ran, without audit agents to spare the accounts' quota.
     agents"; orchestration 3 must change that line once it creates them.
   - Already listed by `web-review`: the history names a chat by its session name rather than its
     first prompt (a change in core), and the empty board's illustration always says "AGN-1".
+
+**Closed by orchestration 4.** The owner chose option B, epics do not count, and `board-fixes`
+built it together with the other three items: the wizard's team line, the history's chat label by
+first prompt, and the empty board's own key. See the plan's
+[Outcome](project-ecosystem.md#orchestration-4-ecosystem-assistant-1).
 
 ## Related
 

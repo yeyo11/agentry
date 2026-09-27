@@ -193,15 +193,28 @@
     documents and waiting state, in both themes and sizes.
 
   See [docs/team-and-flow.md](docs/team-and-flow.md).
+- **The project assistant, suggested tasks and resources with AI** — orchestration 4, the last of the
+  project ecosystem, core and web:
+  - a run is a CLI chat in the project's directory that may only read (`dontAsk`, the read tools and
+    `git log`/`git status`/`ls`, no MCP server) and answers through `--json-schema`, on demand or when
+    a project is created, never on a schedule, one at a time per project and kind;
+  - it proposes a team, agents, skills and commands, and work items, each accepted or discarded on its
+    own, and only an accept writes: a member through the team service, a work item in Backlog with
+    its reason as the first comment, a resource saved from the editor it opens in;
+  - what it read is kept on the run; its model, time and cost show on every screen;
+  - a project with nothing to read starts no chat and is offered its template's team;
+  - the assistant's page after the wizard, "Pedir propuesta" on the empty team, "Sugerir tareas" on
+    the board, and "Sugerir" and "Crear con IA" on a project's Resources tab, in both themes and
+    sizes;
+  - the four items the audit of orchestration 2 left open, epics no longer counting against a
+    column's limit among them.
+
+  See [docs/assistant.md](docs/assistant.md). The whole ecosystem reaches `main` in one pull request
+  from `feat/project-ecosystem`, once the owner has tried it.
 
 ## Next
 
 ### Planned
-
-- **The project ecosystem, orchestration 4** ([docs/plans/project-ecosystem.md](docs/plans/project-ecosystem.md)):
-  `ecosystem-assistant`, the project assistant (including proposing a team by reading the
-  project), suggested work items, and resources with AI, all through CLI chats with
-  `--json-schema`.
 
 - **Dashboard: editable layout persisted per project; Documents and Flows widgets.** Home already
   renders any layout that passes validation, from a registry of widget types, so adding, removing,
