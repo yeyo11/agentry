@@ -21,7 +21,8 @@ RUN pnpm --filter @agentry/web build \
 
 FROM node:22-bookworm-slim
 
-# Tools Claude Code relies on when working inside projects
+# Tools Claude Code relies on when working inside projects. openssh-client is also the tunnel's
+# ssh, which this image only runs once the operator sets AGENTRY_TUNNEL=on.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git openssh-client procps ripgrep jq python3 \
  && rm -rf /var/lib/apt/lists/*
@@ -82,7 +83,9 @@ COPY --from=build --chown=node:node /app/apps/api/dist/api.mjs /app/api.mjs
 COPY --from=build --chown=node:node /app/apps/web/dist /app/web
 
 # Keeping .claude.json inside the config dir means one volume persists the whole account setup.
-# AGENTRY_DISTRIBUTION tells the UI that an update here is a new image, not something it can install.
+# AGENTRY_DISTRIBUTION tells the UI that an update here is a new image, not something it can install,
+# and keeps the tunnel off unless AGENTRY_TUNNEL=on: from inside the container it would reach the
+# server around the published port, the operator's proxy and its TLS (docs/plans/tunnel.md).
 ENV NODE_ENV=production \
     AGENTRY_PID_FILE=/tmp/agentry.pid \
     PORT=8787 \
