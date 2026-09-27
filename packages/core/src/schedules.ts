@@ -16,6 +16,7 @@ import type {
   UpdateScheduleRequest,
 } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
+import { withoutWorkItems } from '@agentry/shared';
 import { assertZone, describeCron, nextFire, nextFires, parseCron, serverZone } from './cron.ts';
 import type { EventBus } from './events.ts';
 import { validateModel, validatePermissionMode, validateSpecSettings, validateTasks } from './orchestrator.ts';
@@ -232,7 +233,7 @@ function checkedTarget(target: unknown): ScheduleTarget {
     validateTasks(t.spec.tasks);
     validateSpecSettings(t.spec);
     normalizeVerification(t.spec.verification);
-    return { kind: 'orchestration', spec: t.spec };
+    return { kind: 'orchestration', spec: withoutWorkItems(t.spec) };
   }
   throw new Error('target.kind must be "chat" or "orchestration"');
 }
@@ -649,7 +650,7 @@ export class Scheduler {
       const outcome =
         stored.target.kind === 'chat'
           ? { chatId: (await this.launcher.chat(stored.target.chat)).id }
-          : { orchestrationId: this.launcher.orchestration(stored.target.spec).id };
+          : { orchestrationId: this.launcher.orchestration(withoutWorkItems(stored.target.spec)).id };
       this.runs.finish(run.id, { status: 'started', ...outcome });
       return this.fired(stored, { ...run, ...outcome });
     } catch (error) {

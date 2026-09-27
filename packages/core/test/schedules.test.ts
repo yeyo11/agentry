@@ -181,6 +181,18 @@ test('an orchestration target records the orchestration it started', async () =>
   scheduler.close();
 });
 
+test('a scheduled graph never names work items: each firing is new work, not the items\' own', async () => {
+  const { scheduler, state } = rig();
+  const spec: OrchestrationSpec = { name: 'nightly', tasks: [{ id: 'agn-1', name: 'AGN-1', prompt: 'do it', workItemId: 'item-1' }] };
+  const { id } = await scheduler.create({ name: 'nightly', cron: '@daily', timezone: 'UTC', target: { kind: 'orchestration', spec } });
+  const stored = scheduler.get(id);
+  assert.ok(stored?.target.kind === 'orchestration');
+  assert.equal('workItemId' in (stored.target.spec.tasks[0] ?? {}), false, 'not stored');
+  await scheduler.runNow(id);
+  assert.equal('workItemId' in (state.orchestrations[0]?.tasks[0] ?? {}), false, 'not launched');
+  scheduler.close();
+});
+
 test('a target that cannot start is a failed run with its reason, and the next slot still comes', async () => {
   const { scheduler, state } = rig();
   const { id } = await scheduler.create({ ...daily, cron: '*/10 * * * *' });

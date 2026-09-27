@@ -24,6 +24,15 @@ export function cleanTask(task: OrchestrationTaskSpec): OrchestrationTaskSpec {
   };
 }
 
+/**
+ * The graph without the work items its nodes name. A schedule runs the same graph again and again,
+ * as new work each time: were its nodes still linked, every firing would take the items over, move
+ * them along the board and overwrite where their changes are.
+ */
+export function withoutWorkItems(spec: OrchestrationSpec): OrchestrationSpec {
+  return { ...spec, tasks: spec.tasks.map(({ workItemId: _item, ...task }) => task) };
+}
+
 /** What a task was launched with, to edit it and launch it again: the state's own fields (chat, result…) stay behind. */
 export function specOfTask(task: OrchestrationTaskState): OrchestrationTaskSpec {
   return {
