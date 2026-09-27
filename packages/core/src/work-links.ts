@@ -182,14 +182,14 @@ function isWorktreeOf(repo: string, path: string): boolean {
     .some((line) => line.startsWith('worktree ') && wanted.has(line.slice('worktree '.length)));
 }
 
-/** Drops git's record of a worktree whose directory is gone, so its path and branch are free again. */
+/**
+ * Drops git's record of a worktree whose directory is gone, so its path and branch are free again.
+ * Only this one: `git worktree prune` would also forget every other worktree whose directory is
+ * missing, which is not ours to decide. Called only when the directory does not exist, so there is
+ * no work in it to lose; the double force is what git asks for a locked worktree.
+ */
 function forgetWorktree(repo: string, path: string): void {
-  try {
-    git(repo, ['worktree', 'unlock', path], 10_000);
-  } catch {
-    // not locked
-  }
-  git(repo, ['worktree', 'prune'], 30_000);
+  git(repo, ['worktree', 'remove', '--force', '--force', path], 30_000);
 }
 
 // ---------- orchestrating a selection ----------
@@ -276,6 +276,13 @@ export class WorkItemAutomation {
           // Only a real transition starts a turn: the coalesced update a busy run keeps sending carries
           // no previous status, and taking it for a new turn would undo a person's move every 250 ms
           if (event.status === 'busy' && event.previousStatus !== null && event.previousStatus !== 'busy') {
+            this.turns.set(event.runId, event.at);
+            this.chatStarted(event.runId);
+          }
+          break;
+        case 'run.created':
+          // A chat spawned or adopted already busy is announced once, with no transition after it
+          if (event.status === 'busy') {
             this.turns.set(event.runId, event.at);
             this.chatStarted(event.runId);
           }

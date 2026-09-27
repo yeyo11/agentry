@@ -132,6 +132,15 @@ test("a person's move wins over the coalesced updates a busy chat keeps sending"
   assert.equal(statusOf(s, item.id), 'todo');
 });
 
+test('a chat announced already busy starts its turn: it has no transition to report', () => {
+  const s = setup();
+  const item = workedBy(s, 'chat-1');
+  s.automation.observe({ id: ++seq, at: iso(-60_000), title: '', type: 'run.created', runId: 'chat-1', runName: 'chat-1', sessionId: 'chat-1', orchestrationId: null, internal: false, status: 'busy' } as AgentryEvent);
+  assert.equal(statusOf(s, item.id), 'in_progress');
+  s.automation.chatResult('chat-1', { isError: false });
+  assert.equal(statusOf(s, item.id), 'in_review');
+});
+
 test('a person who moved the item before the turn began does not hold that turn back', () => {
   const s = setup();
   const item = workedBy(s, 'chat-1', 'backlog');
@@ -271,6 +280,18 @@ test('a worktree deleted by hand is made again on the same branch, keeping its c
   assert.deepEqual(again, first);
   assert.ok(existsSync(join(first.worktree, 'work.txt')), 'the branch came back with its commit');
   assert.equal(gitIn(first.worktree, 'branch', '--show-current'), first.branch);
+});
+
+test("recovering an item's worktree leaves git's record of every other worktree alone", () => {
+  const repo = repoWithCommit();
+  const other = join(mkdtempSync(join(tmpdir(), 'agentry-other-')), 'elsewhere');
+  gitIn(repo, 'worktree', 'add', '-q', '-b', 'elsewhere', other);
+  rmSync(other, { recursive: true, force: true });
+  const first = itemWorktree(repo, { key: 'AGN-1', worktree: null, branch: null });
+  assert.ok(first);
+  rmSync(first.worktree, { recursive: true, force: true });
+  itemWorktree(repo, { key: 'AGN-1', worktree: first.worktree, branch: first.branch });
+  assert.match(gitIn(repo, 'worktree', 'list', '--porcelain'), /elsewhere/, 'the other worktree is still known to git');
 });
 
 test("a plain directory where the item's worktree should be is refused, not worked in", () => {
