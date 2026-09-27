@@ -117,6 +117,18 @@ test('a person who moves the item while the turn runs wins over the move its end
   assert.equal(statusOf(s, item.id), 'todo');
 });
 
+test("a person's move wins over the coalesced updates a busy chat keeps sending", () => {
+  const s = setup();
+  const item = workedBy(s, 'chat-1');
+  s.automation.observe(runUpdated('chat-1', 'busy', 'starting', iso(-60_000)));
+  s.items.move(item.id, { status: 'todo' });
+  // What RunEventPublisher sends about every 250 ms while the turn runs: the same status, no previous one
+  s.automation.observe(runUpdated('chat-1', 'busy', null, iso(1_000)));
+  assert.equal(statusOf(s, item.id), 'todo');
+  s.automation.chatResult('chat-1', { isError: false });
+  assert.equal(statusOf(s, item.id), 'todo');
+});
+
 test('a person who moved the item before the turn began does not hold that turn back', () => {
   const s = setup();
   const item = workedBy(s, 'chat-1', 'backlog');

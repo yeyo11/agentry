@@ -216,7 +216,9 @@ export class WorkItemAutomation {
     try {
       switch (event.type) {
         case 'run.updated':
-          if (event.status === 'busy' && event.previousStatus !== 'busy') {
+          // Only a real transition starts a turn: the coalesced update a busy run keeps sending carries
+          // no previous status, and taking it for a new turn would undo a person's move every 250 ms
+          if (event.status === 'busy' && event.previousStatus !== null && event.previousStatus !== 'busy') {
             this.turns.set(event.runId, event.at);
             this.chatStarted(event.runId);
           }
