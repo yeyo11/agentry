@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
-import { readdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   AccountsOverview,
@@ -94,7 +95,8 @@ import { attachProject, projectCandidates, ProjectStore, type ChatPlace, type Pr
 import { AuthStore } from './security/auth.ts';
 import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
-import { TeamService } from './team.ts';
+import { readFrontmatter, TeamService } from './team.ts';
+import { FlowService, type FlowLaunch } from './flow.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
@@ -129,6 +131,7 @@ export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './project-settings.ts';
 export { PROJECT_TEMPLATES } from './project-templates.ts';
 export { agentFileContent, TeamError, TeamService, templateTeam, type TeamRunSource } from './team.ts';
+export { FLOW_CAUSE, flowPrompt, flowResultSchema, FlowService, parseResult, writeRules, type FlowChatResult, type FlowDeps, type FlowLaunch, type FlowProject } from './flow.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
 export {
@@ -232,6 +235,8 @@ export class Core {
   readonly journal: JournalService;
   /** What the team proposes to remember, written to its target only once a person approves it */
   readonly memoryProposals: MemoryProposalService;
+  /** The flow by column: a team member's run when a card enters the column its role answers for */
+  readonly flow: FlowService;
   private readonly startedAt = Date.now();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
@@ -384,6 +389,7 @@ export class Core {
         return !!record && !!this.projectSettingsStore.stored(id, record.name)?.modules.includes('board');
       },
       orchestration: (id) => this.orchestrator.get(id),
+      flowOwns: (chatId) => this.flow.ownsChat(chatId),
     });
     this.events.observe((event) => this.workLinks.observe(event));
     const itemRef = (id: string): WorkItemRef | null => {
@@ -413,8 +419,36 @@ export class Core {
       emit: (event) => this.events.emit(event),
       item: itemRef,
     });
-    // Every result, not only a run's first: a chat worked on by hand ends many turns
-    this.runtime.on('chat-result', (chatId: string, result: RunResult) => this.workLinks.chatResult(chatId, result));
+    this.flow = new FlowService({
+      db: this.db,
+      items: this.workItems,
+      project: (id) => {
+        const record = this.projectStore.get(id);
+        const settings = record ? this.projectSettingsStore.stored(id, record.name) : null;
+        return record && settings ? { path: record.path, settings } : null;
+      },
+      handoff: (id) => this.journal.handoff(id).text,
+      propose: (id, proposal, origin) => void this.memoryProposals.propose(id, proposal, origin),
+      tie: async (itemId, document, options) => {
+        await this.documents.tie(itemId, document, { ...options, requireFile: false });
+      },
+      launch: (launch, onStart) => this.launchFlowRun(launch, onStart),
+      chatBusy: (chatId) => {
+        const chat = this.runtime.get(chatId);
+        return !!chat && stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }) !== 'idle';
+      },
+      stop: (chatId) => void this.runtime.stop(chatId),
+      activity: (chatId) => this.runtime.get(chatId)?.activity ?? null,
+      emit: (event) => this.events.emit(event),
+    });
+    this.team.runs = (projectId) => this.flow.runs(projectId);
+    this.events.observe((event) => this.flow.observe(event));
+    // Every result, not only a run's first: a chat worked on by hand ends many turns. The automation
+    // hears it before the flow, which ends its run on it and so stops claiming the chat
+    this.runtime.on('chat-result', (chatId: string, result: RunResult) => {
+      this.workLinks.chatResult(chatId, result);
+      void this.flow.chatResult(chatId, result);
+    });
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
     // Started last of all, once the chats it may resume or start are restored, so a slot judged at
     // boot finds the runtime it launches into ready
@@ -446,6 +480,11 @@ export class Core {
     });
     void this.runtime.restore(this.sessions).finally(() => {
       this.orchestrator.recover();
+      try {
+        this.flow.recover();
+      } catch {
+        // Shut down before the chats came back: the database is closed, and nothing may start anyway
+      }
       this.schedules.start();
       schedulesStarted = true;
       // Every transcript is read once now rather than by whoever opens the first list, which
@@ -990,6 +1029,89 @@ export class Core {
       throw new WorkItemError("the Memory module is off in this project: switch it on in the project's settings to change its memory", 409);
     }
     return settings;
+  }
+
+  // ---------- the flow by column ----------
+
+  /** `GET /projects/:id/flow`: readable with the flow off, as a project's other modules are. */
+  projectFlow(projectId: string) {
+    this.requireProject(projectId);
+    return this.flow.projectFlow(projectId);
+  }
+
+  /**
+   * Starts a flow run's chat: in the item's own worktree, as the member's agent with its model, the
+   * journal appended to the system prompt and the result held to the run's schema. A Developer's run
+   * continues the item's work chat; if that chat cannot be continued (gone, or held elsewhere) the
+   * run starts a chat of its own rather than fail.
+   */
+  private async launchFlowRun(launch: FlowLaunch, onStart: (chatId: string) => void): Promise<void> {
+    const { item, member, run } = launch;
+    const record = this.requireProject(item.projectId);
+    if (!existsSync(record.path)) throw new Error(`the project's directory ${record.path} is missing`);
+    const agentsFile = await this.flowAgentsFile(record.path, member.agent);
+    const place = itemWorktree(record.path, item);
+    if (place && (place.worktree !== item.worktree || place.branch !== item.branch)) {
+      this.workItems.setWorktree(item.id, { worktree: place.worktree, branch: place.branch });
+    }
+    const options = {
+      model: member.model,
+      appendSystemPrompt: launch.appendSystemPrompt || undefined,
+      permissionMode: launch.permissionMode,
+      allowedTools: launch.allowedTools,
+      disallowedTools: [],
+      toolPreset: null,
+      permissionPrompts: 'none' as const,
+    };
+    const extras = { agent: member.agent, agentsFile, jsonSchema: launch.jsonSchema, keepAlive: false };
+    const link = (chatId: string): void => {
+      try {
+        this.workItems.link(item.id, { kind: 'chat', role: run.stage, chatId, teamRole: member.role }, { actor: { kind: 'agent', role: member.role } });
+      } catch {
+        // The run knows its chat, and its result still lands; only the item's list of chats misses it
+      }
+    };
+    if (launch.resumeChatId) {
+      const chatId = launch.resumeChatId;
+      // Told first: the result is matched to the run by its chat, and may not wait for the resume to return
+      onStart(chatId);
+      try {
+        await this.chats.resume(chatId, { ...options, prompt: launch.prompt }, extras);
+        link(chatId);
+        return;
+      } catch {
+        // falls through to a chat of its own
+      }
+    }
+    await this.chats.create({ ...options, ...extras, prompt: launch.prompt, cwd: place?.cwd ?? record.path }, (started) => {
+      onStart(started.id);
+      link(started.id);
+    });
+  }
+
+  /**
+   * The member's definition for `--agents`, from the agent file in the project's checkout: the item's
+   * worktree only has the agent files that were committed, and the file a person edits in Agentry is
+   * the one that should run. Named by its content, so the same definition is one file.
+   */
+  private async flowAgentsFile(projectPath: string, agent: string): Promise<string> {
+    const source = join(projectPath, '.claude', 'agents', `${agent}.md`);
+    let content: string;
+    try {
+      content = await readFile(source, 'utf8');
+    } catch {
+      throw new Error(`the agent file .claude/agents/${agent}.md is missing: write it again from the Team screen`);
+    }
+    const fields = readFrontmatter(content);
+    const prompt = content.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim();
+    const tools = fields.tools?.split(',').map((t) => t.trim()).filter(Boolean);
+    const definition = { [agent]: { description: fields.description || agent, prompt: prompt || fields.description || agent, ...(tools?.length ? { tools } : {}) } };
+    const body = `${JSON.stringify(definition, null, 2)}\n`;
+    const dir = join(this.config.dataDir, 'flow-agents');
+    await mkdir(dir, { recursive: true, mode: 0o700 });
+    const file = join(dir, `${createHash('sha256').update(body).digest('hex').slice(0, 16)}.json`);
+    await writeFile(file, body, { mode: 0o600 });
+    return file;
   }
 
   // ---------- work items ----------

@@ -38,6 +38,10 @@ export interface ItemRow {
   rank: string;
   worktree: string | null;
   branch: string | null;
+  /** The flow's round of verification; 0 on a row written before the flow existed */
+  bounces: number;
+  /** A `WorkItemWaitReason`, or null */
+  waiting: string | null;
   created_at: string;
   updated_at: string;
   closed_at: string | null;

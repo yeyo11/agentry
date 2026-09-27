@@ -32,6 +32,8 @@ import type { ProjectRecord } from './projects.ts';
 /** A limit above this is a typo, not a work in progress limit. */
 const MAX_COLUMN_LIMIT = 999;
 const MAX_BOUNCES = 20;
+/** Runs one project's flow may keep going at once; each is a paid agent run */
+const MAX_FLOW_PARALLEL = 10;
 const MAX_TEAM = 20;
 const MAX_TEXT = 500;
 const MAX_SHORT = 100;
@@ -205,14 +207,24 @@ function parseFlow(value: unknown): ProjectFlowSettings {
   const columns: ProjectFlowSettings['columns'] = {};
   for (const [column, role] of Object.entries(raw)) {
     if (!isStatus(column)) throw new Error(`unknown column ${column}; expected one of ${WORK_ITEM_STATUSES.join(', ')}`);
-    if (role === null) continue;
+    // A person approves `done`: no role answers for it, whatever the document says
+    if (role === null || column === 'done') continue;
     columns[column] = text(role, `flow.columns.${column}`, MAX_SHORT);
   }
   const { maxBounces } = value;
   if (typeof maxBounces !== 'number' || !Number.isInteger(maxBounces) || maxBounces < 0 || maxBounces > MAX_BOUNCES) {
     throw new Error(`flow.maxBounces must be a whole number from 0 to ${MAX_BOUNCES}`);
   }
-  return { enabled: value.enabled, columns, maxBounces };
+  const flow: ProjectFlowSettings = { enabled: value.enabled, columns, maxBounces };
+  // Absent reads as the default; kept absent rather than written, so the default can change later
+  const { maxParallel } = value;
+  if (maxParallel !== undefined && maxParallel !== null) {
+    if (typeof maxParallel !== 'number' || !Number.isInteger(maxParallel) || maxParallel < 1 || maxParallel > MAX_FLOW_PARALLEL) {
+      throw new Error(`flow.maxParallel must be a whole number from 1 to ${MAX_FLOW_PARALLEL}`);
+    }
+    flow.maxParallel = maxParallel;
+  }
+  return flow;
 }
 
 function parseDocuments(value: unknown): ProjectDocumentsSettings {

@@ -47,6 +47,7 @@ import {
   type WorkItemSource,
   type WorkItemStatus,
   type WorkItemType,
+  type WorkItemWaitReason,
 } from '@agentry/shared';
 import type { Db } from './db.ts';
 import { DocumentPathError, isMarkdown, pathSegments } from './document-paths.ts';
@@ -476,10 +477,15 @@ export class WorkItemService {
       if (!statusChanged && rank === before.rank) return { row: before, previous: before.status as WorkItemStatus, moved: false };
       const now = new Date().toISOString();
       const closedAt = status === 'done' ? (statusChanged ? now : before.closed_at) : null;
+      // A person moving the item answers whatever the flow waited for, and starts a new round of work
+      const newRound = statusChanged && actor.kind === 'person';
       this.sql
-        .prepare('UPDATE work_items SET status = ?, rank = ?, closed_at = ?, updated_at = ? WHERE id = ?')
-        .run(status, rank, closedAt, now, itemId);
-      if (statusChanged) this.record([{ itemId, change: 'status', from: before.status, to: status }], actor, cause, now);
+        .prepare('UPDATE work_items SET status = ?, rank = ?, closed_at = ?, updated_at = ?, bounces = ?, waiting = ? WHERE id = ?')
+        .run(status, rank, closedAt, now, newRound ? 0 : before.bounces, newRound ? null : before.waiting, itemId);
+      const entries: PendingEntry[] = [];
+      if (statusChanged) entries.push({ itemId, change: 'status', from: before.status, to: status });
+      if (newRound && before.waiting) entries.push({ itemId, change: 'waiting', from: before.waiting, to: null });
+      this.record(entries, actor, cause, now);
       return { row: this.mustRow(itemId), previous: before.status as WorkItemStatus, moved: true };
     });
     const item = this.mustHydrate(result.row);
@@ -531,6 +537,34 @@ export class WorkItemService {
       const other = this.find(otherId);
       if (other) this.emitUpdated(other, changes, actor, cause);
     }
+  }
+
+  /**
+   * What the flow by column keeps on an item: the bounces of the current round, and what it waits
+   * for from the person. A change of `waiting` is history; the count alone is not, since the
+   * comment that bounced the item already says so.
+   */
+  setFlowState(itemId: string, state: { bounces?: number; waiting?: WorkItemWaitReason | null }, ctx?: WorkItemContext): WorkItem {
+    const actor = actorFrom(ctx);
+    const cause = ctx?.cause ?? null;
+    const result = this.write(() => {
+      const before = this.mustRow(itemId);
+      const bounces = state.bounces ?? before.bounces;
+      const waiting = state.waiting === undefined ? before.waiting : state.waiting;
+      if (!Number.isInteger(bounces) || bounces < 0) throw new WorkItemError('bounces must be a whole number', 400);
+      if (bounces === before.bounces && waiting === before.waiting) return { row: before, changes: [] as WorkItemChange[] };
+      const now = new Date().toISOString();
+      this.sql.prepare('UPDATE work_items SET bounces = ?, waiting = ?, updated_at = ? WHERE id = ?').run(bounces, waiting, now, itemId);
+      const changes: WorkItemChange[] = [];
+      if (waiting !== before.waiting) {
+        this.record([{ itemId, change: 'waiting', from: before.waiting, to: waiting }], actor, cause, now);
+        changes.push('waiting');
+      }
+      return { row: this.mustRow(itemId), changes };
+    });
+    const item = this.mustHydrate(result.row);
+    this.emitUpdated(item, result.changes, actor, cause);
+    return item;
   }
 
   /** Records where the item is worked on git. Not a field anyone edits, so it writes no history. */
@@ -1339,6 +1373,8 @@ export class WorkItemService {
       worktree: row.worktree,
       branch: row.branch,
       activeLink: [...(links.get(row.id) ?? [])].reverse().find(isLive) ?? null,
+      bounces: row.bounces ?? 0,
+      waiting: row.waiting === 'approval' || row.waiting === 'bounces' ? row.waiting : null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       closedAt: row.closed_at,

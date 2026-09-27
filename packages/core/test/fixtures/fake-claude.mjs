@@ -12,6 +12,10 @@
 //                                 fault a retry cannot mend, which the resumed prompt no longer names
 //   FAKE-BUDGET                   ends the turn as the CLI does when --max-budget-usd ran out
 //
+//   FAKE-RESULT-<STAGE> <json>    with --json-schema, ends with that structured output; the stage
+//                                 (REFINE, WORK, VERIFY) is read off the schema as a flow run's
+//                                 differs by stage, so one item's description can script each role
+//
 //   FAKE_CLAUDE_SPAWNS=<file>     appends `<pid> <argv>` to <file> as it starts, so a test can count
 //                                 every process spawned, tracked or not
 //   FAKE_CLAUDE_LINGER_MS=<ms>    stays up that long after stdin closes, the way the CLI does while
@@ -103,6 +107,17 @@ lines.on('line', (line) => {
   if (failure) {
     out({ type: 'result', subtype: 'error_during_execution', is_error: true, num_turns: 1, total_cost_usd: 0.01, result: failure[1] });
     return;
+  }
+
+  const schema = flag('--json-schema');
+  if (schema) {
+    const props = JSON.parse(schema).properties ?? {};
+    const stage = props.verdict ? 'VERIFY' : props.acceptanceCriteria ? 'REFINE' : 'WORK';
+    const scripted = new RegExp(`^FAKE-RESULT-${stage} (.*)$`, 'm').exec(prompt);
+    if (scripted) {
+      out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: '', structured_output: JSON.parse(scripted[1]) });
+      return;
+    }
   }
 
   const files = readdirSync(dir).filter((f) => !f.startsWith('.')).sort();

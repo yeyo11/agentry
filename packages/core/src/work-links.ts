@@ -251,6 +251,11 @@ export interface WorkItemAutomationDeps {
   /** Whether items of the project may be changed: imported, with its Board module on */
   writable: (projectId: string) => boolean;
   orchestration: (id: string) => Orchestration | null;
+  /**
+   * A chat a run of the flow by column is running: the flow reads its result and makes the move it
+   * earned, so this automation does not move the item on that chat's turn as well
+   */
+  flowOwns?: (chatId: string) => boolean;
 }
 
 const column = (status: WorkItemStatus): number => WORK_ITEM_STATUSES.indexOf(status);
@@ -327,7 +332,7 @@ export class WorkItemAutomation {
     try {
       const since = this.turns.get(chatId);
       this.turns.delete(chatId);
-      if (result.isError) return;
+      if (result.isError || this.deps.flowOwns?.(chatId)) return;
       for (const link of this.chatLinks(chatId)) {
         this.advance(link, 'in_review', chatCause(chatId, WORK_CAUSE.turnCompleted), since ?? link.createdAt);
       }

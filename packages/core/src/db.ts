@@ -348,6 +348,37 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    ALTER TABLE work_item_links ADD COLUMN document_kind TEXT;
    ALTER TABLE work_item_links ADD COLUMN team_role TEXT;
    CREATE INDEX work_item_links_document ON work_item_links (document_path) WHERE document_path IS NOT NULL;`,
+
+  // The flow by column (orchestration 3 of docs/plans/project-ecosystem.md). An item's bounces and
+  // what it waits for are its own columns, read with the card. Each run of a team member is a row, so
+  // a queue a restart cut off is still there when the wrapper comes back; `seq` is the queue's order.
+  // At most one run per item waits in the queue: a second trigger replaces the first, which is what
+  // keeps a burst of moves from queueing a burst of paid runs.
+  `ALTER TABLE work_items ADD COLUMN bounces INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE work_items ADD COLUMN waiting TEXT;
+   CREATE TABLE flow_runs (
+     seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+     id          TEXT NOT NULL UNIQUE,
+     project_id  TEXT NOT NULL,
+     item_id     TEXT NOT NULL,
+     role        TEXT NOT NULL,
+     agent       TEXT NOT NULL,
+     model       TEXT NOT NULL,
+     stage       TEXT NOT NULL,
+     column_name TEXT NOT NULL,
+     state       TEXT NOT NULL,
+     chat_id     TEXT,
+     outcome     TEXT,
+     summary     TEXT,
+     error       TEXT,
+     queued_at   TEXT NOT NULL,
+     started_at  TEXT,
+     ended_at    TEXT
+   );
+   CREATE INDEX flow_runs_project ON flow_runs (project_id, state, seq);
+   CREATE INDEX flow_runs_item ON flow_runs (item_id, seq);
+   CREATE INDEX flow_runs_chat ON flow_runs (chat_id) WHERE chat_id IS NOT NULL;
+   CREATE UNIQUE INDEX flow_runs_queued ON flow_runs (item_id) WHERE state = 'queued';`,
 ];
 
 /**
@@ -357,6 +388,8 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
 export const WORK_ITEMS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE work_item_counters')) + 1;
 
 /** The schema version document links arrive in, found the same way. */
+/** The version that added the flow's runs, for the test that upgrades a database from the one before */
+export const FLOW_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE flow_runs')) + 1;
 export const DOCUMENT_LINKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN document_path')) + 1;
 
 /**
