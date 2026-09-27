@@ -10,8 +10,9 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 - **In a spec:** `export const fakeCli = true;`. `e2e/run.mjs` runs those specs after every other
   one, on a server restarted with `e2e/fake-cli` first on `PATH` (and `CLAUDE_BIN` unset), the
   sandbox's config directory and `AGENTRY_HEALTH_INTERVAL_MS=500`. The spec's context gains
-  `fakeCli: { bin, log }`, and `dirs.configDir` is always the sandbox's. Specs without the marker
-  keep the real CLI.
+  `fakeCli: { bin, log, scripts }`, and `dirs.configDir` is always the sandbox's. `scripts` is the
+  path `AGENTRY_FAKE_CLI_SCRIPTS` names: write it to script a turn whose prompt the spec does not
+  type, such as an assistant run's. Specs without the marker keep the real CLI.
 - **Elsewhere** (a recorder, a demo instance): put this directory first on `PATH` of the wrapper, or
   set `CLAUDE_BIN` to `e2e/fake-cli/claude`. `scripts/record-media.mjs` (`pnpm media`) does the
   first, and plays its chats and workers from a scripts file.

@@ -97,7 +97,10 @@ const env = {
 // The fake CLI's sandbox: the same directories, with the fake first on PATH. The config directory is
 // always the sandbox's, live or not, since the fake has no login to need the real one. Health is
 // checked every half second, so a signal reaches the page within a spec's patience.
-const fakeCli = { bin: join(here, 'fake-cli', 'claude'), log: join(sandbox, 'fake-cli.jsonl') };
+// `scripts` is the fake's scripts file (AGENTRY_FAKE_CLI_SCRIPTS): a spec writes it to script a turn it
+// cannot type itself, such as the prompt an assistant run is started with. The fake reads it anew on
+// every turn, and a missing file scripts nothing.
+const fakeCli = { bin: join(here, 'fake-cli', 'claude'), log: join(sandbox, 'fake-cli.jsonl'), scripts: join(sandbox, 'fake-cli-scripts.json') };
 const fakeEnv = {
   ...env,
   PATH: [join(here, 'fake-cli'), process.env.PATH].filter(Boolean).join(delimiter),
@@ -105,6 +108,7 @@ const fakeEnv = {
   CSWAP_BIN: join(sandbox, 'no-cswap'),
   AGENTRY_HEALTH_INTERVAL_MS: '500',
   AGENTRY_FAKE_CLI_LOG: fakeCli.log,
+  AGENTRY_FAKE_CLI_SCRIPTS: fakeCli.scripts,
   AGENTRY_FAKE_CLI_HEARTBEAT_MS: '500',
 };
 // Named by PATH alone, so the variable must not point anywhere else
