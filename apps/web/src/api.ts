@@ -124,7 +124,7 @@ import type {
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
 import { RUN_TAG } from './lib/chat-pages';
-import { accountsRefetchInterval } from './lib/cswap';
+import { accountsRefetchInterval, normalizeCswap } from './lib/cswap';
 import { useFallbackInterval } from './lib/feed';
 
 export const BASE = '/api';
@@ -455,14 +455,15 @@ export const api = {
     request<ConfigFileContent>('/config/files/content', { method: 'PUT', body: req }),
   deleteFile: (root: string, path: string) =>
     request<{ ok: true }>(`/config/files/content${qs({ root, path })}`, { method: 'DELETE' }),
-  accounts: (refresh = false, o?: ReadOptions) => request<AccountsOverview>(`/accounts${qs({ refresh: refresh ? '1' : '' })}`, o),
+  accounts: (refresh = false, o?: ReadOptions) =>
+    request<AccountsOverview>(`/accounts${qs({ refresh: refresh ? '1' : '' })}`, o).then((overview) => ({ ...overview, cswap: normalizeCswap(overview.cswap) })),
   switchAccount: (body: SwitchAccountRequest) => request<SwitchResult>('/accounts/switch', { method: 'POST', body }),
   addAccount: (body: AddAccountTokenRequest) => request<AccountsOverview>('/accounts/token', { method: 'POST', body }),
   removeAccount: (number: number) => request<{ ok: true }>(`/accounts/${number}`, { method: 'DELETE' }),
   /** Starts Agentry's own install of claude-swap; it goes on in the background and `accounts()` follows it */
-  installCswap: () => request<CswapInfo>('/accounts/cswap/install', { method: 'POST' }),
+  installCswap: () => request<CswapInfo>('/accounts/cswap/install', { method: 'POST' }).then(normalizeCswap),
   /** Removes the copy of claude-swap Agentry installed; the accounts are kept */
-  removeCswap: () => request<CswapInfo>('/accounts/cswap', { method: 'DELETE' }),
+  removeCswap: () => request<CswapInfo>('/accounts/cswap', { method: 'DELETE' }).then(normalizeCswap),
   accountEvents: (limit = 500, o?: ReadOptions) => request<AutoSwitchEvent[]>(`/accounts/events${qs({ limit: String(limit) })}`, o),
   setAccountEnabled: (number: number, enabled: boolean) =>
     request<{ ok: true }>(`/accounts/${number}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' }),
