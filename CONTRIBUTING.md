@@ -28,6 +28,10 @@ For the Linux desktop app in `apps/desktop`, `pnpm desktop:dev` builds the UI an
 opens Electron, and `pnpm desktop:dist` produces the AppImage and `.deb` in `apps/desktop/release/`.
 See [docs/desktop.md](docs/desktop.md).
 
+A dev server and the desktop app often run at the same time, each with its own data. A chat reaches
+the wrapper that runs it through `AGENTRY_API_URL` in its environment, never through a port it
+assumes ([docs/chat-environment.md](docs/chat-environment.md)).
+
 ## Before you open a pull request
 
 ```bash

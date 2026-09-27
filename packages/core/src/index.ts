@@ -401,13 +401,19 @@ export class Core {
   private async rotateAndResume(run: ChatRuntime): Promise<void> {
     if (!this.accounts.autoSwitch.rotateOnLimit || !this.accounts.managed) return;
     try {
-      // A project with a rotation policy moves within it; everything else uses the global rotation
+      // A pinned chat leaves its account; a project with a rotation policy moves within it; everything
+      // else uses the global rotation
       const reason = `run ${run.name} hit its rate limit`;
-      const result = (await this.accounts.rotateWithinPolicy({ account: run.account, cwd: run.cwd }, reason)) ?? (await this.accounts.rotate(reason));
+      const pinned = run.account;
+      const result = pinned
+        ? await this.accounts.rotatePinned({ account: pinned, cwd: run.cwd }, reason)
+        : ((await this.accounts.rotateWithinPolicy({ account: null, cwd: run.cwd }, reason)) ?? (await this.accounts.rotate(reason)));
       if (!result.switched) {
         this.runtime.notice(run.id, `Rate limit reached and no account with quota left${result.reason ? ` (${result.reason})` : ''}.`);
         return;
       }
+      // Kept, the pin would respawn the replay on the account that just ran out
+      if (pinned) this.runtime.unpin(run.id);
       this.forgetSystem();
       const target = result.to ?? 'another account';
       // An orchestration worker already handed its result to the orchestrator: rotating helps the

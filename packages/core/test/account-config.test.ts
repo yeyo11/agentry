@@ -199,12 +199,17 @@ const ACCOUNTS = (usage: Record<number, number>, fetchedAt = FETCHED) => ({
   })),
 });
 
-/** A `cswap` that lists whatever `list.json` holds and records how it was asked to run a chat. */
-function fakeCswap(usage: Record<number, number>) {
+/**
+ * A `cswap` that lists whatever `list.json` holds and records how it was asked to run a chat. A chat
+ * run on one of the `limited` accounts dies against its session limit, as the CLI does.
+ */
+function fakeCswap(usage: Record<number, number>, limited: number[] = []) {
   const dir = mkdtempSync(join(tmpdir(), 'agentry-cswap-'));
   const listFile = join(dir, 'list.json');
   const log = join(dir, 'launches.log');
+  const switchFile = join(dir, 'switch.json');
   writeFileSync(listFile, JSON.stringify(ACCOUNTS(usage)));
+  writeFileSync(switchFile, JSON.stringify({ switched: false, reason: 'no viable target' }));
   const bin = join(dir, 'cswap');
   writeFileSync(
     bin,
@@ -212,7 +217,10 @@ function fakeCswap(usage: Record<number, number>) {
 case "$1" in
   --version) echo "cswap 0.26.0" ;;
   list) cat "${listFile}" ;;
-  run) echo "cswap $*" >> "${log}" ;;
+  switch) echo "cswap $*" >> "${log}"; cat "${switchFile}" ;;
+  run)
+    echo "cswap $*" >> "${log}"
+    case " ${limited.join(' ')} " in *" $2 "*) echo "You've hit your session limit" >&2; exit 1 ;; esac ;;
   *) echo "unexpected: $*" >&2; exit 2 ;;
 esac
 `,
@@ -229,6 +237,7 @@ echo "claude CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR" >> "${log}"
   return {
     bin,
     claude,
+    setSwitch: (result: object) => writeFileSync(switchFile, JSON.stringify(result)),
     setUsage: (next: Record<number, number>, fetchedAt = FETCHED) => writeFileSync(listFile, JSON.stringify(ACCOUNTS(next, fetchedAt))),
     launches: () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : []),
   };
@@ -337,6 +346,36 @@ test('a chat without a project runs under the loose chats policy, and a project 
   assert.equal(cswap.launches().length, 0);
 });
 
+test('a pinned chat that hit its limit is offered the active credential, and only a pin to the active account moves it', async () => {
+  const { manager, cswap } = await managed({ 1: 100, 2: 10, 3: 10 });
+  manager.projectOf = () => null;
+
+  // Pinned to account 1 while 2 is active: the chat moves to 2 and nothing is switched
+  const moved = await manager.rotatePinned({ account: '1', cwd: '/w/a' }, 'chat hit its rate limit');
+  assert.deepEqual(moved, { switched: true, from: 'a1@example.com', to: 'a2@example.com', reason: 'pinned account exhausted' });
+  assert.equal(manager.isActive('2'), true);
+  assert.equal((await manager.overview()).events.at(-1)?.event, 'rotate');
+  assert.equal(cswap.launches().length, 0);
+
+  // Pinned to the active account: only the global rotation can help it
+  cswap.setSwitch({ switched: true, from: 'a2@example.com', to: 'a3@example.com', reason: 'switched' });
+  const rotated = await manager.rotatePinned({ account: '2', cwd: '/w/a' }, 'chat hit its rate limit');
+  assert.deepEqual(rotated, { switched: true, from: 'a2@example.com', to: 'a3@example.com', reason: 'switched' });
+  assert.match(cswap.launches()[0] ?? '', /^cswap switch --strategy best/);
+  assert.equal(manager.isActive('3'), true);
+});
+
+test('a pinned chat under a policy moves to the policy pick, and is stuck when the policy has nothing left', async () => {
+  const { manager } = await managed({ 1: 10, 2: 10, 3: 10 });
+  manager.projectOf = () => 'proj';
+  await manager.configs.createPolicy({ threshold: 90, order: [3, 1], projects: ['proj'] });
+
+  const moved = await manager.rotatePinned({ account: '1', cwd: '/w/governed' }, 'chat hit its rate limit');
+  assert.deepEqual(moved, { switched: true, from: 'a1@example.com', to: 'a3@example.com', reason: 'pinned account exhausted' });
+  const stuck = await manager.rotatePinned({ account: '3', cwd: '/w/governed' }, 'chat hit its rate limit');
+  assert.deepEqual(stuck, { switched: false, from: 'a3@example.com', to: null, reason: 'no account the policy allows has quota left' });
+});
+
 // ---------- the process a chat starts ----------
 
 test('a chat pinned to another account runs through `cswap run`, and one whose account has a config dir runs claude against it', async () => {
@@ -355,6 +394,22 @@ test('a chat pinned to another account runs through `cswap run`, and one whose a
     core.runtime.start({ prompt: 'hi', keepAlive: false, account: '3' });
     const second = await until(() => cswap.launches()[1], 'the second launch');
     assert.equal(second, `claude CLAUDE_CONFIG_DIR=${dir}`, 'cswap run would have replaced the directory with its own session profile');
+  } finally {
+    core.shutdown();
+  }
+});
+
+test('a chat pinned to an account that hit its limit is unpinned and replays its turn on the active one', async () => {
+  const cswap = fakeCswap({ 3: 100 }, [3]);
+  const config = { ...tempConfig(), cswapBin: cswap.bin, claudeBin: cswap.claude };
+  const core = new Core(config);
+  try {
+    await until(() => core.accounts.managed, 'claude-swap to be read');
+    const chat = core.runtime.start({ prompt: 'hi', keepAlive: false, account: '3' });
+    assert.match(await until(() => cswap.launches()[0], 'the pinned launch'), /^cswap run 3 /);
+    // Before the fix the replay went through `cswap run 3` again, into the same limit
+    assert.match(await until(() => cswap.launches()[1], 'the replay'), /^claude /);
+    assert.equal(core.runtime.get(chat.id)?.account, null, 'the pin is gone');
   } finally {
     core.shutdown();
   }

@@ -499,6 +499,35 @@ export class AccountManager extends EventEmitter {
     return result;
   }
 
+  /**
+   * A chat pinned by hand hit its account's limit. Rotating the shared credential cannot help it:
+   * the pin would respawn it on the same account. So the account is set aside and the chat is
+   * offered where it would run without a pin — its policy's pick, or the active credential. Only
+   * when that is the very account it was pinned to does the global rotation move the credential.
+   * The caller drops the pin when this reports a switch.
+   */
+  async rotatePinned(chat: { account: string; cwd: string }, reason: string): Promise<SwitchResult> {
+    const pinned = this.find(chat.account);
+    const from = pinned?.email ?? chat.account;
+    if (pinned) this.exhausted.set(pinned.number, Date.now() + EXHAUSTED_TTL_MS);
+    await this.list(true);
+    const governed = this.policyOf(chat.cwd) !== null;
+    const launch = this.launchFor({ account: null, cwd: chat.cwd });
+    if (governed && !launch.account) {
+      const result = { switched: false, from, to: null, reason: 'no account the policy allows has quota left' };
+      this.record({ event: 'no-switch', reason: result.reason, detail: reason });
+      return result;
+    }
+    const target = launch.account ? this.find(launch.account) : this.listCache?.value.find((a) => a.active);
+    if (target && target.number !== pinned?.number) {
+      const result = { switched: true, from, to: target.email, reason: 'pinned account exhausted' };
+      this.record({ event: 'rotate', from, to: target.email, reason: result.reason, detail: reason });
+      return result;
+    }
+    const moved = await this.rotate(reason);
+    return moved.switched ? { ...moved, from: moved.from ?? from } : moved;
+  }
+
   // ---------- config directory ----------
 
   /** Sets or clears an account's config directory; the account has to be one claude-swap manages. */
