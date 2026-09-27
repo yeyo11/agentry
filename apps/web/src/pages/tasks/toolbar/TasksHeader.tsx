@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Flag, Kanban, List, Plus, SquareCheck, X } from 'lucide-react';
+import { Check, ChevronDown, Flag, Kanban, List, Plus, Sparkle, SquareCheck, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -53,6 +53,23 @@ export function SelectButton({ on, onChange, icon = false }: { on: boolean; onCh
     <button type="button" className="btn workitem-select" aria-pressed={on} onClick={() => onChange(!on)}>
       {on ? <Check {...ICON_SM} /> : <SquareCheck {...ICON_SM} />}
       {t('actions.select')}
+    </button>
+  );
+}
+
+/** "Suggest tasks": the project assistant proposes work items; never the gradient, "New task" holds it. */
+export function SuggestButton({ onClick, icon = false }: { onClick: () => void; icon?: boolean }) {
+  const { t } = useTranslation('tasks');
+  if (icon)
+    return (
+      <button type="button" className="icon-btn workitem-suggest-icon" aria-label={t('suggest.button')} onClick={onClick}>
+        <Sparkle {...ICON_SM} />
+      </button>
+    );
+  return (
+    <button type="button" className="btn workitem-suggest" onClick={onClick}>
+      <Sparkle {...ICON_SM} />
+      {t('suggest.button')}
     </button>
   );
 }
