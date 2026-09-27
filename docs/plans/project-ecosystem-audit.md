@@ -285,6 +285,13 @@ branch as `8dd45e7` while its verification's e2e still ran.
   references. A run with a real answer was not captured: the sandbox has no credentials, and the
   accept paths are covered by the fake CLI in the unit and e2e tests.
 
+## The whole feature, checked once
+
+On 2026-09-27, after orchestration 4's verification passed (its fixer's commits merged, the ones
+that repeated orchestration 3's fixes identical and conflict-free), the feature branch at `24711ae`
+was checked as a whole, alone on the machine's e2e port range (`E2E_PORT=8811`, clean
+environment): typecheck, 1,476 unit tests, the build and all 47 e2e spec files pass.
+
 ## Related
 
 [[plans/project-ecosystem.md]] · [[design-system.md]] · [[work-items.md]] · [[projects.md]] ·
