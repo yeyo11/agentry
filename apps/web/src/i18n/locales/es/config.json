@@ -1093,6 +1093,10 @@
     },
     "footnote": "Cada dirección nueva es un sitio nuevo para el navegador: inicia sesión allí una vez. Una app instalada desde una dirección antigua sigue abriendo esa; si vuelves a activar las notificaciones en la nueva, quita el dispositivo antiguo en Notificaciones.",
     "startFailed": "No se ha podido abrir el túnel",
+    "closedHere": {
+      "title": "Túnel cerrado",
+      "body": "Esta página llegó por el túnel, así que su dirección ya no funciona. Para volver a abrirlo, usa Agentry en su propia máquina o en tu red local."
+    },
     "stopFailed": "No se ha podido cerrar el túnel",
     "saveFailed": "No se ha podido guardar el ajuste del túnel"
   },

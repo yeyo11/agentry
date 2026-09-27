@@ -1,6 +1,7 @@
 import type { AuthMode, TunnelState, TunnelStatus } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ShieldAlert, TriangleAlert } from 'lucide-react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
@@ -66,8 +67,16 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
   const confirm = useConfirm();
   const onStatus = (next: TunnelStatus) => queryClient.setQueryData(keys.tunnel, next);
 
+  // Set once this page has closed the tunnel it came through: its address is gone, so nothing it
+  // could fetch from here on would answer, and a failure is the expected end rather than an error
+  const [closedHere, setClosedHere] = useState(false);
   const start = useMutation({ mutationFn: api.startTunnel, onSuccess: onStatus, onError: (err) => toast.error(t('remote.startFailed'), err) });
-  const stop = useMutation({ mutationFn: api.stopTunnel, onSuccess: onStatus, onError: (err) => toast.error(t('remote.stopFailed'), err) });
+  const stop = useMutation({
+    // `here` rides along as the mutation's variable so both outcomes know where the request came from
+    mutationFn: (_here: boolean) => api.stopTunnel(),
+    onSuccess: (next, here) => (here ? setClosedHere(true) : onStatus(next)),
+    onError: (err, here) => (here ? setClosedHere(true) : toast.error(t('remote.stopFailed'), err)),
+  });
   const settings = useMutation({
     mutationFn: api.updateTunnelSettings,
     onSuccess: onStatus,
@@ -76,12 +85,15 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
 
   async function close() {
     // Closing the tunnel this page came through leaves it talking to an address that is gone
-    if (reachedThrough(status.url, window.location.host)) {
+    const here = reachedThrough(status.url, window.location.host);
+    if (here) {
       const ok = await confirm({ title: t('remote.stopConfirm.title'), body: t('remote.stopConfirm.body'), confirmLabel: t('remote.stop') });
       if (!ok) return;
     }
-    stop.mutate();
+    stop.mutate(here);
   }
+
+  if (closedHere) return <TunnelPanel status={status} authMode={authMode} closedHere onStart={() => {}} onStop={() => {}} />;
 
   return (
     <>
@@ -118,18 +130,33 @@ export function TunnelPanel({
   status,
   authMode,
   pending = false,
+  closedHere = false,
   onStart,
   onStop,
 }: {
   status: TunnelStatus;
   authMode: AuthMode;
   pending?: boolean;
+  /** This page closed the tunnel it came through, and nothing behind its address answers any more */
+  closedHere?: boolean;
   onStart: () => void;
   onStop: () => void;
 }) {
   const { t } = useTranslation('config');
   const { state } = status;
   const guarded = authMode !== 'none';
+
+  if (closedHere) {
+    return (
+      <Card title={t('remote.title')} actions={<Tag tone={TUNNEL_TONE.stopped}>{t('remote.states.stopped')}</Tag>}>
+        <div data-testid="tunnel-closed-here">
+          <Empty illustration="offline" size="sm" title={t('remote.closedHere.title')}>
+            {t('remote.closedHere.body')}
+          </Empty>
+        </div>
+      </Card>
+    );
+  }
 
   // Off by the deploy (AGENTRY_TUNNEL, off in the image): only whoever runs Agentry can change that,
   // so a start button would only ever answer 409

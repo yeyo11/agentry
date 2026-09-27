@@ -1093,6 +1093,10 @@
     },
     "footnote": "Each new address is a new site for the browser: sign in there once. An app installed from an old address keeps opening that one; if you turn notifications on again at the new address, remove the old device under Notifications.",
     "startFailed": "Could not open the tunnel",
+    "closedHere": {
+      "title": "Tunnel closed",
+      "body": "This page came through the tunnel, so its address no longer works. To open the tunnel again, use Agentry on its own machine or on your local network."
+    },
     "stopFailed": "Could not close the tunnel",
     "saveFailed": "Could not save the tunnel setting"
   },

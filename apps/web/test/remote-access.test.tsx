@@ -228,6 +228,14 @@ test('closing is only questioned when this page came through the tunnel', () => 
 
 // ---------- the event feed ----------
 
+test('a page that closed the tunnel it came through says the address is gone, with no button left to press', () => {
+  const html = wrap(<TunnelPanel status={status('active')} authMode="token" closedHere onStart={() => {}} onStop={() => {}} />);
+  assert.match(html, /data-testid="tunnel-closed-here"/);
+  assert.match(text(html), /Tunnel closed/);
+  assert.match(text(html), /its address no longer works/);
+  assert.doesNotMatch(html, /tunnel-stop|tunnel-start|tunnel-address/);
+});
+
 test('the tunnel and the settings are written whole from their events, and a new default reaches the overview', () => {
   const client = new QueryClient();
   const tunnel = status('active');

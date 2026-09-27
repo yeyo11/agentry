@@ -189,6 +189,9 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     if (err instanceof DOMException && err.name === 'TimeoutError') {
       throw new ApiRequestError(i18n.t('common:requestTimeout'), 408);
     }
+    // fetch rejects with a bare TypeError ("Failed to fetch", "NetworkError…") when no answer came
+    // back at all: the browser's wording, in the browser's language, and nothing a person can act on
+    if (err instanceof TypeError) throw new ApiRequestError(i18n.t('common:networkError'), 0, err.message);
     throw err;
   }
   const text = await res.text();
@@ -203,7 +206,10 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     // The guard refused the credential: every page is about to fail the same way, so the app
     // shows one sign-in screen instead of an error on each of them
     if (res.status === 401) setChallenge(err?.mode ?? 'token');
-    throw new ApiRequestError(err?.error ?? `HTTP ${res.status} ${res.statusText}`, res.status, err?.detail);
+    // No JSON error means Agentry did not write this answer (a proxy's or a tunnel's page): say so in
+    // the person's language and keep the status line as the detail
+    if (!err?.error) throw new ApiRequestError(i18n.t('common:httpError', { status: res.status }), res.status, `HTTP ${res.status} ${res.statusText}`.trim());
+    throw new ApiRequestError(err.error, res.status, err.detail);
   }
   return json as T;
 }
