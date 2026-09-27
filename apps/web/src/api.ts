@@ -50,6 +50,8 @@ import type {
   LaunchOrchestrationTemplateRequest,
   CreateProjectRequest,
   FileDiff,
+  DiffContext,
+  EditStep,
   CreateScheduleRequest,
   ExportFormat,
   ForkChatRequest,
@@ -241,6 +243,21 @@ function qs(params: Record<string, string | undefined>): string {
   return pairs.length ? `?${pairs.map(([k, v]) => `${k}=${enc(v)}`).join('&')}` : '';
 }
 
+/** Which part of a branch's work a change summary or diff is about; neither means all of it. */
+export interface ChangeScope {
+  commit?: string;
+  uncommitted?: boolean;
+}
+
+export interface DiffOptions extends ChangeScope {
+  context?: DiffContext;
+}
+
+const scopeQs = (scope: ChangeScope, extra: Record<string, string | undefined> = {}) =>
+  qs({ ...extra, commit: scope.commit, uncommitted: scope.uncommitted ? '1' : undefined });
+const diffQs = (path: string, opts: DiffOptions) =>
+  scopeQs(opts, { path, context: opts.context === undefined ? undefined : String(opts.context) });
+
 const scoped = (scope: Scope, variant?: ConfigFileVariant) =>
   qs({ project: scope.projectId, variant: scope.projectId ? variant : undefined });
 
@@ -369,14 +386,18 @@ export const api = {
   hintOrchestrationTask: (id: string, taskId: string, req: TaskHintRequest) =>
     request<Orchestration>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/hint`, { method: 'POST', body: req }),
   // What a worker changed on disk, and the plan it kept for itself (see docs: agent observability)
-  taskChanges: (id: string, taskId: string) => request<ChangeSummary>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes`),
-  taskDiff: (id: string, taskId: string, path: string) =>
-    request<FileDiff>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes/diff${qs({ path })}`),
+  taskChanges: (id: string, taskId: string, scope: ChangeScope = {}) =>
+    request<ChangeSummary>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes${scopeQs(scope)}`),
+  taskDiff: (id: string, taskId: string, path: string, opts: DiffOptions = {}) =>
+    request<FileDiff>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes/diff${diffQs(path, opts)}`),
+  taskSteps: (id: string, taskId: string) => request<EditStep[]>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/changes/steps`),
   taskChecklist: (id: string, taskId: string) => request<Checklist>(`/orchestrations/${enc(id)}/tasks/${enc(taskId)}/checklist`),
-  integrationChanges: (id: string) => request<ChangeSummary>(`/orchestrations/${enc(id)}/integration/changes`),
-  integrationDiff: (id: string, path: string) => request<FileDiff>(`/orchestrations/${enc(id)}/integration/changes/diff${qs({ path })}`),
-  chatChanges: (id: string) => request<ChatChanges>(`/chats/${enc(id)}/changes`),
-  chatDiff: (id: string, path: string) => request<FileDiff>(`/chats/${enc(id)}/changes/diff${qs({ path })}`),
+  integrationChanges: (id: string, scope: ChangeScope = {}) => request<ChangeSummary>(`/orchestrations/${enc(id)}/integration/changes${scopeQs(scope)}`),
+  integrationDiff: (id: string, path: string, opts: DiffOptions = {}) =>
+    request<FileDiff>(`/orchestrations/${enc(id)}/integration/changes/diff${diffQs(path, opts)}`),
+  chatChanges: (id: string, scope: ChangeScope = {}) => request<ChatChanges>(`/chats/${enc(id)}/changes${scopeQs(scope)}`),
+  chatDiff: (id: string, path: string, opts: DiffOptions = {}) => request<FileDiff>(`/chats/${enc(id)}/changes/diff${diffQs(path, opts)}`),
+  chatSteps: (id: string) => request<EditStep[]>(`/chats/${enc(id)}/changes/steps`),
   chatChecklist: (id: string) => request<Checklist>(`/chats/${enc(id)}/checklist`),
   hintChat: (id: string, req: HintRequest) => request<ChatSummary>(`/chats/${enc(id)}/hint`, { method: 'POST', body: req }),
   // A task's proposal goes through its task's routes, so the hint reaches it the way a task's hint does
@@ -536,6 +557,12 @@ export const keys = {
   chat: (id: string, sidechains: boolean) => ['chat', id, sidechains] as const,
   /** The pages of a chat read back from its newest one, kept across visits */
   chatEarlier: (id: string, sidechains: boolean) => ['chat', id, sidechains, RUN_TAG] as const,
+  // A chat's changes sit under its scope: `changes.updated` never names a chat, but its own events
+  // (and the panel's timer while it works) refresh everything there
+  chatChanges: (id: string, scope: ChangeScope = {}) => ['chat', id, 'changes', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
+  chatDiff: (id: string, path: string, opts: DiffOptions = {}) =>
+    ['chat', id, 'changes', 'diff', path, String(opts.context ?? ''), opts.commit ?? '', opts.uncommitted ? 'uncommitted' : ''] as const,
+  chatSteps: (id: string) => ['chat', id, 'changes', 'steps'] as const,
   usage: (range: { from?: string; to?: string }) => ['usage', range.from ?? '', range.to ?? ''] as const,
   usageSeries: (range: UsageRange, bucket: UsageBucket) => ['usage', 'series', range.from ?? '', range.to ?? '', bucket] as const,
   usageBreakdown: (range: UsageRange) => ['usage', 'breakdown', range.from ?? '', range.to ?? ''] as const,
@@ -557,6 +584,16 @@ export const keys = {
   planDrafts: ['orchestrations', 'plans'] as const,
   chatPermissions: (id: string) => ['chat', id, 'permissions'] as const,
   orchestration: (id: string) => ['orchestration', id] as const,
+  // A task's and the integration branch's changes sit under the graph, which `changes.updated` refreshes
+  taskChanges: (id: string, taskId: string, scope: ChangeScope = {}) =>
+    ['orchestration', id, 'changes', 'task', taskId, scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
+  taskDiff: (id: string, taskId: string, path: string, opts: DiffOptions = {}) =>
+    ['orchestration', id, 'changes', 'task', taskId, 'diff', path, String(opts.context ?? ''), opts.commit ?? '', opts.uncommitted ? 'uncommitted' : ''] as const,
+  taskSteps: (id: string, taskId: string) => ['orchestration', id, 'changes', 'task', taskId, 'steps'] as const,
+  integrationChanges: (id: string, scope: ChangeScope = {}) =>
+    ['orchestration', id, 'changes', 'integration', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
+  integrationDiff: (id: string, path: string, opts: DiffOptions = {}) =>
+    ['orchestration', id, 'changes', 'integration', 'diff', path, String(opts.context ?? ''), opts.commit ?? '', opts.uncommitted ? 'uncommitted' : ''] as const,
   settings: (scope: Scope, variant: ConfigFileVariant) =>
     ['config', 'settings', scope.projectId ?? 'user', variant] as const,
   instructions: (scope: Scope, variant: ConfigFileVariant) =>

@@ -22,7 +22,9 @@ export function gitRaw(cwd: string, args: string[], opts: { timeout?: number; ma
       ...(opts.maxBuffer ? { maxBuffer: opts.maxBuffer } : {}),
     });
   } catch (err) {
-    const e = err as { stderr?: string; stdout?: string; message: string };
+    const e = err as { stderr?: string; stdout?: string; message: string; code?: string };
+    // Output past `maxBuffer` is not git's failure: say so plainly, and keep the code a caller checks
+    if (e.code === 'ENOBUFS') throw Object.assign(new Error(`git ${args.find((a) => !a.startsWith('-')) ?? args[0]}: output too large`), { code: e.code });
     const detail = `${e.stderr ?? ''}\n${e.stdout ?? ''}`.trim() || e.message;
     // A leading global option (`--literal-pathspecs`) is not what failed
     throw new Error(`git ${args.find((a) => !a.startsWith('-')) ?? args[0]}: ${detail.split('\n').slice(0, 6).join('\n')}`);
@@ -240,14 +242,18 @@ export function diffFiles(dir: string, from: string, to?: string): ChangedFile[]
   const status = gitRaw(dir, ['diff', '-M', '--name-status', '-z', ...range], { timeout: 60_000, maxBuffer: DIFF_LIMIT }).split('\0');
   const numstat = gitRaw(dir, ['diff', '-M', '--numstat', '-z', ...range], { timeout: 60_000, maxBuffer: DIFF_LIMIT }).split('\0');
 
-  const counts = new Map<string, { additions: number; deletions: number }>();
+  const counts = new Map<string, { additions: number; deletions: number; binary?: boolean }>();
   for (let i = 0; i < numstat.length; i++) {
     const m = /^(\d+|-)\t(\d+|-)\t([\s\S]*)$/.exec(numstat[i] ?? '');
     if (!m) continue;
     // A rename lists the old and the new path as the next two entries, and leaves this one empty
     const path = m[3] === '' ? (numstat[(i += 2)] ?? '') : (m[3] as string);
     // `-` is what git prints for a binary file
-    counts.set(path, { additions: m[1] === '-' ? 0 : Number(m[1]), deletions: m[2] === '-' ? 0 : Number(m[2]) });
+    counts.set(path, {
+      additions: m[1] === '-' ? 0 : Number(m[1]),
+      deletions: m[2] === '-' ? 0 : Number(m[2]),
+      ...(m[1] === '-' && m[2] === '-' ? { binary: true } : {}),
+    });
   }
 
   const files: ChangedFile[] = [];
@@ -258,11 +264,13 @@ export function diffFiles(dir: string, from: string, to?: string): ChangedFile[]
     const previousPath = renamed ? status[++i] : undefined;
     const path = status[++i];
     if (path === undefined) break;
+    const { binary, ...count } = counts.get(path) ?? { additions: 0, deletions: 0 };
     files.push({
       path,
       status: NAME_STATUS[letter] ?? 'modified',
-      ...(counts.get(path) ?? { additions: 0, deletions: 0 }),
+      ...count,
       ...(previousPath !== undefined ? { previousPath } : {}),
+      ...(binary ? { binary } : {}),
     });
   }
   return files;
@@ -275,35 +283,110 @@ export function untrackedPaths(dir: string): string[] {
     .filter(Boolean);
 }
 
-/** Lines in a text file; 0 for a binary one or one too large to be worth reading. */
-function countLines(file: string): number {
+/** Lines in a buffer, a last line without its newline included. */
+function linesIn(buf: Buffer): number {
+  if (buf.length === 0) return 0;
+  let lines = 0;
+  for (const byte of buf) if (byte === 10) lines++;
+  return buf[buf.length - 1] === 10 ? lines : lines + 1;
+}
+
+/** The first `limit` bytes of a file; null when it cannot be read. */
+function readHead(file: string, limit: number): Buffer | null {
   try {
-    const size = statSync(file).size;
-    if (size === 0 || size > COUNT_LIMIT) return 0;
+    const size = Math.min(statSync(file).size, limit);
     const fd = openSync(file, 'r');
     try {
       const buf = Buffer.alloc(size);
       readSync(fd, buf, 0, size, 0);
-      if (buf.subarray(0, 8000).includes(0)) return 0;
-      let lines = 0;
-      for (const byte of buf) if (byte === 10) lines++;
-      return buf[size - 1] === 10 ? lines : lines + 1;
+      return buf;
     } finally {
       closeSync(fd);
     }
   } catch {
-    return 0;
+    return null;
   }
+}
+
+/**
+ * Lines in a file nobody added yet, and whether it is binary (git's own test: a NUL in the first
+ * 8000 bytes). A file too large to be worth reading is left uncounted.
+ */
+function textStats(file: string): { lines: number; binary: boolean } {
+  const buf = readHead(file, COUNT_LIMIT + 1);
+  if (!buf) return { lines: 0, binary: false };
+  if (buf.subarray(0, 8000).includes(0)) return { lines: 0, binary: true };
+  return { lines: buf.length > COUNT_LIMIT ? 0 : linesIn(buf), binary: false };
+}
+
+/**
+ * What differs between `from` and the working tree: tracked changes, staged or not, and the files
+ * nobody added yet, counted by reading them.
+ */
+export function workingFiles(dir: string, from: string): ChangedFile[] {
+  const tracked = diffFiles(dir, from);
+  const known = new Set(tracked.map((f) => f.path));
+  const created = untrackedPaths(dir)
+    .filter((path) => !known.has(path))
+    .map((path): ChangedFile => {
+      const { lines, binary } = textStats(join(dir, path));
+      return { path, status: 'added', additions: lines, deletions: 0, ...(binary ? { binary } : {}) };
+    });
+  return [...tracked, ...created];
 }
 
 /** What the worker has not committed: tracked changes, staged or not, and the files it created. */
 export function uncommittedFiles(dir: string): ChangedFile[] {
-  const tracked = diffFiles(dir, 'HEAD');
-  const known = new Set(tracked.map((f) => f.path));
-  const created = untrackedPaths(dir)
-    .filter((path) => !known.has(path))
-    .map((path): ChangedFile => ({ path, status: 'added', additions: countLines(join(dir, path)), deletions: 0 }));
-  return [...tracked, ...created];
+  return workingFiles(dir, 'HEAD');
+}
+
+/**
+ * Lines of `path` at `ref`, or in the working tree of `dir` when `ref` is left out: 0 when it is
+ * not there, Infinity when it is too large to read.
+ */
+export function lineCount(dir: string, ref: string | undefined, path: string): number {
+  if (ref === undefined) {
+    const buf = readHead(join(dir, path), DIFF_LIMIT + 1);
+    if (!buf) return 0;
+    return buf.length > DIFF_LIMIT ? Infinity : linesIn(buf);
+  }
+  try {
+    return linesIn(Buffer.from(gitRaw(dir, ['cat-file', '-p', `${ref}:${path}`], { timeout: 30_000, maxBuffer: DIFF_LIMIT })));
+  } catch (err) {
+    return (err as { code?: string }).code === 'ENOBUFS' ? Infinity : 0;
+  }
+}
+
+/** Whether `ancestor` is `descendant` or one of the commits it grew from. */
+export function isAncestor(dir: string, ancestor: string, descendant: string): boolean {
+  try {
+    git(dir, ['merge-base', '--is-ancestor', ancestor, descendant], 30_000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The full hash of the commit `sha` names, or null when it names none. Only hex reaches git, so a
+ * query parameter is never read as an option or a ref expression.
+ */
+export function resolveCommit(dir: string, sha: string): string | null {
+  if (!/^[0-9a-f]{4,64}$/i.test(sha)) return null;
+  try {
+    return git(dir, ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`], 10_000) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** What a commit is measured against: its first parent, or the empty tree for a root commit. */
+export function parentOf(dir: string, commit: string): string {
+  try {
+    return git(dir, ['rev-parse', '--verify', '--quiet', `${commit}^`], 10_000);
+  } catch {
+    return git(dir, ['hash-object', '-t', 'tree', '/dev/null'], 10_000);
+  }
 }
 
 /**
@@ -321,14 +404,15 @@ function capped(out: string): string {
 }
 
 /**
- * The unified diff of `paths` between `from` and `to` (the working tree when it is left out). A
- * renamed file is asked for by both names, or git shows the new one as created from nothing.
- * `--literal-pathspecs` so a file called `*.ts` is that file and not a pattern.
+ * The unified diff of `paths` between `from` and `to` (the working tree when it is left out), with
+ * `unified` lines of context. A renamed file is asked for by both names, or git shows the new one
+ * as created from nothing. `--literal-pathspecs` so a file called `*.ts` is that file and not a
+ * pattern.
  */
-export function fileDiff(dir: string, from: string, to: string | undefined, paths: string[]): string {
+export function fileDiff(dir: string, from: string, to: string | undefined, paths: string[], unified = 3): string {
   try {
     return capped(
-      gitRaw(dir, ['--literal-pathspecs', 'diff', '-M', '--no-ext-diff', '--no-color', from, ...(to ? [to] : []), '--', ...paths], {
+      gitRaw(dir, ['--literal-pathspecs', 'diff', '-M', '--no-ext-diff', '--no-color', `--unified=${unified}`, from, ...(to ? [to] : []), '--', ...paths], {
         timeout: 60_000,
         maxBuffer: DIFF_LIMIT * 2,
       }),

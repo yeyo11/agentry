@@ -20,6 +20,7 @@ import {
 import { toChatTask } from './chat-branches.ts';
 import { AGENT_FOLD, AGENT_ID_RE, WORKFLOW_RUN_ID_RE, agentRead, emptyAgentRead } from './agents.ts';
 import type { BackgroundTask, SubagentInfo, TranscriptPage, TranscriptSummary, WorkflowRun } from './cli-facts.ts';
+import { EDIT_STEPS_FOLD, type EditStepsState } from './edit-steps.ts';
 import { JsonlCache, type JsonlFold } from './jsonl-cache.ts';
 import type { CoreConfig } from './paths.ts';
 import { toolCallsOf, type ToolCall } from './tool-calls.ts';
@@ -310,6 +311,8 @@ const TOOL_ENTRIES_FOLD: JsonlFold<TranscriptEntry[]> = {
 
 /** Transcripts whose tool calls are kept: each holds whole entries, and only a chat being looked at needs them. */
 const TOOL_ENTRIES_FILES = 8;
+/** Transcripts whose edits are kept, patches included: only a chat under review needs them */
+const EDIT_STEPS_FILES = 8;
 /** Agent transcripts kept whole, for the panels following one */
 const AGENT_FILES = 32;
 /** Project directories listed at once, and transcripts opened at once, when every session is read */
@@ -353,6 +356,7 @@ export class SessionStore {
   private readonly cwdCache = new Map<string, string | null>();
   private readonly activities = new JsonlCache(ACTIVITY_FOLD);
   private readonly toolEntries = new JsonlCache(TOOL_ENTRIES_FOLD, TOOL_ENTRIES_FILES);
+  private readonly editStepFolds = new JsonlCache(EDIT_STEPS_FOLD, EDIT_STEPS_FILES);
   private readonly agentFiles = new JsonlCache(AGENT_FOLD, AGENT_FILES);
   private readonly workflowMemo = new WorkflowMemo();
   /**
@@ -502,6 +506,7 @@ export class SessionStore {
     for (const [id, at] of [...this.files]) if (drop(at.file)) this.files.delete(id);
     this.activities.forget(drop);
     this.toolEntries.forget(drop);
+    this.editStepFolds.forget(drop);
     this.agentFiles.forget(drop);
     this.workflowMemo.forget(drop);
   }
@@ -794,6 +799,7 @@ export class SessionStore {
     const gone = (file: string) => file === found.file || file.startsWith(`${base}${sep}`);
     this.activities.forget(gone);
     this.toolEntries.forget(gone);
+    this.editStepFolds.forget(gone);
     this.agentFiles.forget(gone);
     this.workflowMemo.forget(gone);
   }
@@ -856,6 +862,17 @@ export class SessionStore {
     if (!found) return null;
     const entries = await this.toolEntries.read(found.file);
     return entries ? toolCallsOf(entries, names) : null;
+  }
+
+  /**
+   * What a transcript says about its edits: each writing call with its patch and the sentence
+   * before it. Null when there is no such session. Read once, streaming; after that, only what the
+   * transcript appended.
+   */
+  async editSteps(sessionId: string): Promise<EditStepsState | null> {
+    const found = await this.findFile(sessionId);
+    if (!found) return null;
+    return this.editStepFolds.read(found.file);
   }
 
   /**

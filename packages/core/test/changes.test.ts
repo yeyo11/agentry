@@ -4,9 +4,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import type { Orchestration, OrchestrationTaskState, TranscriptEntry } from '@agentry/shared';
+import type { ChangedFile, Orchestration, OrchestrationTaskState, TranscriptEntry } from '@agentry/shared';
 import { ChangeWatcher } from '../src/change-watcher.ts';
-import { Changes } from '../src/changes.ts';
+import { Changes, parseChangeScope, parseDiffContext } from '../src/changes.ts';
 import { EventBus } from '../src/events.ts';
 import {
   addWorktree,
@@ -18,6 +18,7 @@ import {
   fileDiff,
   headCommit,
   mergeBase,
+  parentOf,
   pathInside,
   probeChanges,
   removeWorktree,
@@ -329,4 +330,130 @@ test('the probe changes when a commit lands and when uncommitted work moves, and
   assert.equal(dirty.dirty, 1);
   assert.notEqual(dirty.fingerprint, first.fingerprint);
   rmSync(join(path, 'keep.txt'));
+});
+
+// ---------- context, scopes and binaries ----------
+
+const numbered = (n: number, change = -1) => `${Array.from({ length: n }, (_, i) => (i === change ? 'changed' : `line ${i + 1}`)).join('\n')}\n`;
+/** Unchanged lines a diff carries */
+const contextLines = (diff: string) => diff.split('\n').filter((l) => l.startsWith(' ')).length;
+
+test('a diff takes its context, clamped, or the whole file unless the file is too long', () => {
+  const { repo, base } = repoWithFiles();
+  const path = workerBranch(repo, base);
+  writeFileSync(join(path, 'long.txt'), numbered(40));
+  writeFileSync(join(path, 'huge.txt'), numbered(20_001));
+  commitAll(path, 'long');
+  const { changes } = service(repo, base, path, {}, { baseCommit: headCommit(path) });
+  writeFileSync(join(path, 'long.txt'), numbered(40, 19));
+
+  const three = changes.taskDiff('o1', 't1', 'long.txt');
+  assert.equal(three.full, false);
+  assert.equal(contextLines(three.diff), 6);
+  assert.equal(contextLines(changes.taskDiff('o1', 't1', 'long.txt', { context: 0 }).diff), 0);
+  assert.equal(contextLines(changes.taskDiff('o1', 't1', 'long.txt', { context: 9999 }).diff), 39);
+  const whole = changes.taskDiff('o1', 't1', 'long.txt', { context: 'full' });
+  assert.equal(whole.full, true);
+  assert.equal(contextLines(whole.diff), 39);
+  // A new file is whole anyway, and says so when asked for all of it
+  writeFileSync(join(path, 'fresh.txt'), 'x\n');
+  assert.equal(changes.taskDiff('o1', 't1', 'fresh.txt', { context: 'full' }).full, true);
+
+  writeFileSync(join(path, 'huge.txt'), numbered(20_001, 10_000));
+  const huge = changes.taskDiff('o1', 't1', 'huge.txt', { context: 'full' });
+  assert.equal(huge.full, false);
+  assert.equal(contextLines(huge.diff), 6);
+});
+
+test('the context and scope of a request: anything unparseable is the default, and both scopes at once are refused', () => {
+  assert.equal(parseDiffContext(undefined), 3);
+  assert.equal(parseDiffContext('full'), 'full');
+  assert.equal(parseDiffContext('10'), 10);
+  assert.equal(parseDiffContext('900'), 500);
+  for (const bad of ['-2', 'abc', '1.5', '']) assert.equal(parseDiffContext(bad), 3, bad);
+  assert.deepEqual(parseChangeScope({}), {});
+  assert.deepEqual(parseChangeScope({ commit: 'abc123', uncommitted: '0' }), { commit: 'abc123' });
+  assert.deepEqual(parseChangeScope({ uncommitted: '1' }), { uncommitted: true });
+  assert.throws(() => parseChangeScope({ commit: 'abc123', uncommitted: '1' }), /together/);
+});
+
+test('working lists every file that differs from the base, committed or not, untracked included', () => {
+  const { repo, base } = repoWithFiles();
+  const path = workerBranch(repo, base);
+  writeFileSync(join(path, 'README.md'), 'project\nmore\nand more\n');
+  writeFileSync(join(path, 'keep.txt'), `keep.txt\n${TEXT}seven\n`);
+  writeFileSync(join(path, 'draft.txt'), 'a\nb\nc\n');
+  const summary = service(repo, base, path).changes.taskChanges('o1', 't1');
+
+  const counts = (files: ChangedFile[] | undefined) => (files ?? []).map((f) => [f.path, f.additions, f.deletions]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  assert.deepEqual(counts(summary.working), [
+    ['draft.txt', 3, 0],
+    ['gone.txt', 0, 7],
+    ['keep.txt', 1, 0],
+    ['moved.txt', 0, 0],
+    ['new dir/my file.txt', 2, 0],
+    ['README.md', 2, 0],
+  ]);
+  // What the commits did, and what is not committed, stay as they were
+  assert.equal(summary.files.length, 4);
+  assert.deepEqual(summary.uncommitted.map((f) => f.path).sort(), ['README.md', 'draft.txt', 'keep.txt']);
+});
+
+test('a commit or the uncommitted work alone, and a commit from anywhere else refused', () => {
+  const { repo, base, git: inRepo } = repoWithFiles();
+  const path = workerBranch(repo, base);
+  const first = headCommit(path);
+  writeFileSync(join(path, 'second.txt'), 'two\n');
+  writeFileSync(join(path, 'README.md'), 'project\nmore\nagain\n');
+  commitAll(path, 'second');
+  writeFileSync(join(path, 'wip.txt'), 'wip\n');
+  const { changes } = service(repo, base, path);
+
+  const one = changes.taskChanges('o1', 't1', { commit: first.slice(0, 10) });
+  assert.deepEqual(one.files.map((f) => f.path).sort(), ['README.md', 'gone.txt', 'moved.txt', 'new dir/my file.txt']);
+  assert.equal(one.working, undefined);
+  assert.equal(one.commits.length, 2);
+  const readme = changes.taskDiff('o1', 't1', 'README.md', { commit: first });
+  assert.match(readme.diff, /^\+more$/m);
+  assert.doesNotMatch(readme.diff, /again/);
+  assert.throws(() => changes.taskDiff('o1', 't1', 'second.txt', { commit: first }), /not found among the changes/);
+
+  const loose = changes.taskChanges('o1', 't1', { uncommitted: true });
+  assert.deepEqual(loose.files.map((f) => f.path), ['wip.txt']);
+  assert.match(changes.taskDiff('o1', 't1', 'wip.txt', { uncommitted: true }).diff, /^\+wip$/m);
+  // Committed already: nothing left to show in this scope
+  assert.throws(() => changes.taskDiff('o1', 't1', 'second.txt', { uncommitted: true }), /not found among the changes/);
+
+  // The base itself, a commit the main checkout made since, and things that are no commit hash
+  writeFileSync(join(repo, 'elsewhere.txt'), 'x\n');
+  inRepo('add', 'elsewhere.txt');
+  inRepo('commit', '-q', '-m', 'on main');
+  for (const foreign of [base, headCommit(repo), 'deadbeef', 'HEAD~1', '--all']) {
+    assert.throws(() => changes.taskChanges('o1', 't1', { commit: foreign }), /not on this branch/, foreign);
+    assert.throws(() => changes.taskDiff('o1', 't1', 'README.md', { commit: foreign }), /not on this branch/, foreign);
+  }
+});
+
+test('a root commit is measured against the empty tree', () => {
+  const { repo, base } = repoWithFiles();
+  const empty = parentOf(repo, base);
+  assert.match(empty, /^[0-9a-f]{40,64}$/);
+  assert.match(fileDiff(repo, empty, base, ['README.md']), /^\+project$/m);
+  assert.deepEqual(diffFiles(repo, empty, base).map((f) => f.status), ['added', 'added', 'added', 'added']);
+});
+
+test('a binary file is marked, committed or not, and its diff is the line git prints', () => {
+  const { repo, base } = repoWithFiles();
+  const path = workerBranch(repo, base);
+  writeFileSync(join(path, 'logo.bin'), Buffer.from([0, 1, 2, 0, 255]));
+  commitAll(path, 'logo');
+  writeFileSync(join(path, 'loose.bin'), Buffer.from([0, 0, 7]));
+  const { changes } = service(repo, base, path);
+  const summary = changes.taskChanges('o1', 't1');
+
+  assert.deepEqual(summary.files.find((f) => f.path === 'logo.bin'), { path: 'logo.bin', status: 'added', additions: 0, deletions: 0, binary: true });
+  assert.deepEqual(summary.uncommitted.find((f) => f.path === 'loose.bin'), { path: 'loose.bin', status: 'added', additions: 0, deletions: 0, binary: true });
+  // A text file carries no flag at all, so today's clients see what they saw
+  assert.equal('binary' in (summary.files.find((f) => f.path === 'README.md') ?? {}), false);
+  assert.match(changes.taskDiff('o1', 't1', 'logo.bin').diff, /^Binary files .* differ$/m);
 });
