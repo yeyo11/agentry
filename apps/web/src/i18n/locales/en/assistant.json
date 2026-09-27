@@ -1,5 +1,6 @@
 {
   "title": "Project assistant",
+  "crumb": "Assistant",
   "back": "Back to the project",
   "subtitle": {
     "running": "reads the repository and proposes the team, the resources and the first tasks. Nothing is written until you accept it.",
@@ -76,7 +77,8 @@
   "section": {
     "team": "Team",
     "resources": "Resources",
-    "tasks": "First tasks"
+    "tasks": "First tasks",
+    "tasksShort": "Tasks"
   },
   "team": {
     "accepted": "{{accepted}} of {{total}} accepted",

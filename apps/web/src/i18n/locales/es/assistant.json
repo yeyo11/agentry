@@ -1,5 +1,6 @@
 {
   "title": "Asistente de proyecto",
+  "crumb": "Asistente",
   "back": "Volver al proyecto",
   "subtitle": {
     "running": "lee el repositorio y te propone el equipo, los recursos y las primeras tareas. Nada se escribe hasta que lo aceptes.",
@@ -76,7 +77,8 @@
   "section": {
     "team": "Equipo",
     "resources": "Recursos",
-    "tasks": "Primeras tareas"
+    "tasks": "Primeras tareas",
+    "tasksShort": "Tareas"
   },
   "team": {
     "accepted": "{{accepted}} de {{total}} aceptados",
