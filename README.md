@@ -596,13 +596,47 @@ the auto-switch threshold as a reference line.
 | DELETE | `/projects/:id` | Remove a project from Agentry. Harmless: nothing on disk changes, and its settings and work items are kept for when it is imported again |
 | DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible, and separate from removing the project |
 
+### Work items
+
+A project's board. Changing anything needs the project imported and its **Board** module on (409
+otherwise); what a project holds stays readable with the module off, so nothing looks lost. The
+server writes each item's history, one entry per field that changed, and every change reaches the
+event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `labels`, `assignee`
+(`person`, `none`, `role:<role>`), `epicId`, `milestoneId` and `q` (title, description and key).
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/projects/:id/work-items?status=&type=&…` | The project's work items in board order, filtered |
+| POST | `/projects/:id/work-items` | `{ title, type?, description?, status?, priority?, labels?, assignee?, epicId?, milestoneId?, acceptanceCriteria? }` — create one; it takes the next number of the project, never reused. Emits `workitem.created` |
+| GET | `/projects/:id/work-items/board?…` | The five columns, each with its limit, its real count, whether it is over the limit, and the items that pass the filter in rank order |
+| GET | `/projects/:id/milestones` | The project's milestones, each with its progress derived from its items |
+| POST | `/projects/:id/milestones` | `{ name, description? }` — create a milestone, open, with no date. Emits `milestone.changed` |
+| GET | `/work-items?…` | Every work item of the imported projects with the Board module on: the All projects view |
+| GET | `/work-items/board?…` | The All projects board, with no column limits |
+| GET | `/work-items/:itemId` | One item with its children, links, comments and history |
+| PATCH | `/work-items/:itemId` | Change any field but the status; `acceptanceCriteria` replaces the checklist, keeping the check of entries sent with their `id`. Emits `workitem.updated` |
+| DELETE | `/work-items/:itemId` | Delete an item for good; its number is not reused. Emits `workitem.removed` |
+| POST | `/work-items/:itemId/move` | `{ status, afterId? }` — move to a column, right after `afterId` (`null` first, absent last). Over the column's limit is allowed and reported. Emits `workitem.moved` |
+| PATCH | `/work-items/:itemId/criteria/:criterionId` | `{ checked }` — check or uncheck one acceptance criterion |
+| GET | `/work-items/:itemId/comments` | The item's comments, oldest first |
+| POST | `/work-items/:itemId/comments` | `{ body }` — comment as the person |
+| POST | `/work-items/:itemId/relations` | `{ type: blocks\|blocked_by, itemId }` — relate two items of the project; the item itself (400) and a cycle of `blocks` (409) are refused |
+| DELETE | `/work-items/:itemId/relations/:otherId` | Remove the relation between two items |
+| GET | `/work-items/:itemId/links` | The chats and orchestration tasks tied to the item, with their state |
+| POST | `/work-items/:itemId/links` | `{ kind, role, chatId?, orchestrationId?, taskId? }` — tie a chat or an orchestration task to the item |
+| DELETE | `/work-items/:itemId/links/:linkId` | Untie it; the chat or orchestration is not touched |
+| GET | `/work-items/:itemId/history` | Every change to the item, oldest first, with who made it and why |
+| GET | `/milestones/:milestoneId` | One milestone with its progress |
+| PATCH | `/milestones/:milestoneId` | `{ name?, description?, state? }` — edit, close or reopen a milestone |
+| DELETE | `/milestones/:milestoneId` | Delete a milestone; its items stay, without it |
+
 ### Events
 
 One Server-Sent Events stream for the whole app, so a client never has to poll.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes (`orchestration.updated` also carries `verificationStatus` while the checks run); `changes.updated` when a running task's or the integration branch's commits or uncommitted files move; `chat.activity` when what a chat's live execution is doing changes (a tool call, a block being written or thought, a prompt blocking it), at most once per chat per second; `health.changed` when a chat's health changes; `supervisor.proposed` when the supervisor answers one with a hint; `schedule.changed` (created, updated, enabled, disabled, deleted, rescheduled) and `schedule.fired` (every run row written or moved); `sessions.changed`; `system.release` once per newer Agentry release a check finds (not a notification). Opens with `stream.hello`, which carries the server's `version`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
+| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes (`orchestration.updated` also carries `verificationStatus` while the checks run); `changes.updated` when a running task's or the integration branch's commits or uncommitted files move; `chat.activity` when what a chat's live execution is doing changes (a tool call, a block being written or thought, a prompt blocking it), at most once per chat per second; `health.changed` when a chat's health changes; `supervisor.proposed` when the supervisor answers one with a hint; `schedule.changed` (created, updated, enabled, disabled, deleted, rescheduled) and `schedule.fired` (every run row written or moved); `workitem.created`, `workitem.updated` (naming the fields that changed), `workitem.moved` (with the previous column and whether the new one is over its limit) and `workitem.removed`; `milestone.changed` (created, updated, closed, reopened, deleted); `project.updated` (name, key, modules or settings); `sessions.changed`; `system.release` once per newer Agentry release a check finds (not a notification). Opens with `stream.hello`, which carries the server's `version`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
 
 ```bash
 curl -N localhost:8787/api/events

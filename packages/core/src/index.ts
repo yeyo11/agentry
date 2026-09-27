@@ -28,11 +28,18 @@ import type {
   SwitchResult,
   SystemInfo,
   UpdateProjectRequest,
+  Board,
+  Milestone,
   WorkflowDefinition,
+  WorkItem,
+  WorkItemFilter,
+  WorkItemLink,
 } from '@agentry/shared';
+import { WORK_ITEM_STATUSES } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { stateFromRun } from './chat-model.ts';
+import { WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
 import { ChatService, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatRuntime } from './chats.ts';
 import { Connectors } from './connectors.ts';
@@ -186,6 +193,11 @@ export class Core {
   private readonly projectStore: ProjectStore;
   /** What each project configures, one JSON document per project id, kept when the project is removed */
   private readonly projectSettingsStore: ProjectSettingsStore;
+  /**
+   * The work items of every project, kept in the shared database. Routes gate writes through
+   * `workItemProject` and friends first: the store itself knows nothing of modules.
+   */
+  readonly workItems: WorkItemService;
   private readonly startedAt = Date.now();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
@@ -307,6 +319,15 @@ export class Core {
     this.explorer = new ConfigExplorer(config.configDir);
     this.plugins = new Plugins(config);
     this.memory = new MemoryStore(config);
+    this.workItems = new WorkItemService({
+      db: this.db,
+      project: (id) => {
+        const settings = this.projectSettingsStore.stored(id);
+        return settings ? { keyPrefix: settings.keyPrefix, columnLimits: settings.board.columnLimits } : null;
+      },
+      emit: (event) => this.events.emit(event),
+      linkState: (link) => this.workItemLinkState(link),
+    });
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
     // Started last of all, once the chats it may resume or start are restored, so a slot judged at
     // boot finds the runtime it launches into ready
@@ -865,6 +886,89 @@ export class Core {
    */
   removeProject(id: string): Promise<void> {
     return this.projectStore.remove(id);
+  }
+
+  // ---------- work items ----------
+  //
+  // A project whose Board module is off keeps its items, and they stay readable so nothing looks
+  // lost; what it refuses is a change. A project removed from Agentry keeps them too, for the day
+  // its directory is imported again, but it is not a place anything is created in.
+
+  /**
+   * The settings of a project its work items are read or written in. A write needs the project
+   * imported and its Board module on; a read only needs it imported.
+   */
+  async workItemProject(projectId: string, access: 'read' | 'write'): Promise<ProjectSettings> {
+    const settings = await this.projectSettings(projectId);
+    if (access === 'write' && !settings.modules.includes('board')) {
+      throw new WorkItemError("the Board module is off in this project: switch it on in the project's settings to change its work items", 409);
+    }
+    return settings;
+  }
+
+  /** The item, after the same check on the project it belongs to. Reads of a removed project's items still work. */
+  async workItemAccess(itemId: string, access: 'read' | 'write'): Promise<WorkItem> {
+    const item = this.workItems.find(itemId);
+    if (!item) throw new WorkItemError('work item not found', 404);
+    await this.ownerAccess(item.projectId, access);
+    return item;
+  }
+
+  /** The milestone, after the same check on its project. */
+  async milestoneAccess(milestoneId: string, access: 'read' | 'write'): Promise<Milestone> {
+    const milestone = this.workItems.milestone(milestoneId);
+    await this.ownerAccess(milestone.projectId, access);
+    return milestone;
+  }
+
+  private async ownerAccess(projectId: string, access: 'read' | 'write'): Promise<void> {
+    if (this.projectStore.get(projectId)) await this.workItemProject(projectId, access);
+    else if (access === 'write') throw new WorkItemError('its project is not imported: import the directory again to change it', 409);
+  }
+
+  /** The All projects list: the items of every imported project whose Board module is on. */
+  async allWorkItems(filter: Omit<WorkItemFilter, 'projectId'> = {}): Promise<WorkItem[]> {
+    const shown = await this.boardProjects();
+    return this.workItems.list(filter).filter((item) => shown.has(item.projectId));
+  }
+
+  /**
+   * The All projects board. Counted again over the projects shown, since the store's own counts
+   * take in the hidden ones: projects removed, or with their board off.
+   */
+  async allWorkItemsBoard(filter: Omit<WorkItemFilter, 'projectId'> = {}): Promise<Board> {
+    const shown = await this.boardProjects();
+    const board = this.workItems.board(null, filter);
+    const counts = new Map(WORK_ITEM_STATUSES.map((status) => [status, 0]));
+    for (const item of this.workItems.list()) if (shown.has(item.projectId)) counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
+    return {
+      projectId: null,
+      columns: board.columns.map((column) => ({
+        ...column,
+        count: counts.get(column.status) ?? 0,
+        items: column.items.filter((item) => shown.has(item.projectId)),
+      })),
+    };
+  }
+
+  private async boardProjects(): Promise<Set<string>> {
+    const records = this.projectStore.list();
+    const settings = await Promise.all(records.map(async (p) => [p.id, await this.projectSettingsStore.read(p, records)] as const));
+    return new Set(settings.filter(([, s]) => s.modules.includes('board')).map(([id]) => id));
+  }
+
+  /**
+   * What a link points at now, from what this process holds in memory: a chat it runs, a task of an
+   * orchestration it knows. A chat that is not live here reads with no name and no state.
+   */
+  private workItemLinkState(link: WorkItemLink): WorkItemLinkState | null {
+    const chat = link.chatId ? this.runtime.get(link.chatId) : null;
+    const chatState = chat ? stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }) : null;
+    if (link.kind === 'orchestration' && link.orchestrationId) {
+      const task = this.orchestrator.get(link.orchestrationId)?.tasks.find((t) => t.id === link.taskId);
+      return { name: task?.name ?? null, taskStatus: task?.status ?? null, chatState };
+    }
+    return { name: chat?.name ?? null, chatState };
   }
 
   /**
