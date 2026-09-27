@@ -47,6 +47,7 @@ import { NARROW, useMediaQuery } from './lib/media';
 import { fabFor, hidesTabBar, pageHoldsScope } from './lib/shell-live';
 import { NEW_TASK_PATH, TASKS_PATH, normalizeKey } from './lib/work-items';
 import { Home } from './pages/Home';
+import { asProjectView } from './pages/dashboard/views';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
 const Accounts = lazyPage(() => import('./pages/Accounts').then((m) => m.Accounts));
@@ -103,8 +104,8 @@ export function App() {
 function Shell() {
   const navigate = useNavigate();
   const { project, settled } = useProjectScope();
-  const { pathname } = useLocation();
-  const { t } = useTranslation(['components', 'connectors', 'shell']);
+  const { pathname, search } = useLocation();
+  const { t } = useTranslation(['components', 'connectors', 'shell', 'home']);
   // The same queries the Home usage widgets read, so the status bar never fetches its own
   const now = useUsageNow();
   const overview = now.overview;
@@ -206,6 +207,9 @@ function Shell() {
   const newChat = () => navigate(project?.exists ? `/chats/new?cwd=${encodeURIComponent(project.path)}` : '/chats/new');
   const newOrchestration = () => navigate(NEW_ORCHESTRATION_PATH);
   const newTask = () => navigate(NEW_TASK_PATH);
+  // A project's page reads "Projects / <name> / <tab>", as every project tab of the reference does.
+  // A tab its modules hide lands on Summary, so the crumb may name it for a moment before that
+  const projectTab = pathname === '/' && project ? (asProjectView(new URLSearchParams(search).get('view')) ?? 'summary') : null;
   // A work item's page adds its key to the crumb: "Tasks / AGN-12"
   const taskKey = pathname.startsWith(`${TASKS_PATH}/`) ? normalizeKey(decodeURIComponent(pathname.slice(TASKS_PATH.length + 1))) : null;
   // What else a person can start: behind "New chat ▾" in the top bar, and in the phone's More sheet
@@ -231,7 +235,7 @@ function Shell() {
   // one is in the DOM
   const phone = useMediaQuery(NARROW);
   const scopeInPage = phone && pageHoldsScope(pathname);
-  const fab = fabFor(pathname) !== null;
+  const fab = fabFor(pathname, search) !== null;
 
   // In the icon rail the labels are hidden, so they move into tooltips
   const railTip = (label: string) => (collapsed ? label : undefined);
@@ -335,7 +339,21 @@ function Shell() {
             <span className="crumb-sep" aria-hidden>
               /
             </span>
-            {taskKey ? (
+            {projectTab && project ? (
+              <>
+                <Link to="/projects" className="crumb-page muted ellipsis">
+                  {projects.label}
+                </Link>
+                <span className="crumb-sep" aria-hidden>
+                  /
+                </span>
+                <span className="crumb-page muted ellipsis">{project.name}</span>
+                <span className="crumb-sep" aria-hidden>
+                  /
+                </span>
+                <span className="crumb-page ellipsis">{t(`home:tabs.${projectTab}`)}</span>
+              </>
+            ) : taskKey ? (
               <>
                 <Link to={TASKS_PATH} className="crumb-page muted ellipsis">
                   {current?.label}
@@ -409,7 +427,7 @@ function Shell() {
 
       {tabBar && (
         <>
-          <Fab pathname={pathname} onNewChat={newChat} onNewOrchestration={newOrchestration} onNewTask={newTask} />
+          <Fab pathname={pathname} search={search} onNewChat={newChat} onNewOrchestration={newOrchestration} onNewTask={newTask} />
           <TabBar
             pathname={pathname}
             tabs={[home, chats, orchestrations]}

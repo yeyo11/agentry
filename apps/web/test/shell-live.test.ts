@@ -118,17 +118,22 @@ test('chat ids in links are encoded', () => {
 
 test('the tab bar steps aside on a chat and on an orchestration, not on their lists or on New chat', () => {
   // A new chat is that page too: the box sits at the bottom of the window, where the bar would be
-  for (const path of ['/chats/abc', '/chats/abc/', '/chats/new', '/orchestration/o1', '/projects/new']) assert.equal(hidesTabBar(path), true, path);
-  for (const path of ['/', '/chats', '/orchestration', '/settings', '/projects']) assert.equal(hidesTabBar(path), false, path);
+  for (const path of ['/chats/abc', '/chats/abc/', '/chats/new', '/orchestration/o1', '/projects/new', '/tasks/AGN-12', '/tasks/AGN-12/']) assert.equal(hidesTabBar(path), true, path);
+  for (const path of ['/', '/chats', '/orchestration', '/settings', '/projects', '/tasks', '/tasks/milestones']) assert.equal(hidesTabBar(path), false, path);
 });
 
 test('the phone FAB follows the page: words on Home, an icon on the lists, none where the tab bar steps aside', () => {
   assert.deepEqual(fabFor('/'), { action: 'chat', labelled: true });
   for (const path of ['/chats', '/chats/', '/projects']) assert.deepEqual(fabFor(path), { action: 'chat', labelled: false }, path);
   assert.deepEqual(fabFor('/orchestration'), { action: 'orchestration', labelled: false });
-  // Tasks starts a new task, on the board and the milestones; a work item's page has its own actions
-  for (const path of ['/tasks', '/tasks/', '/tasks/milestones']) assert.deepEqual(fabFor(path), { action: 'task', labelled: false }, path);
-  for (const path of ['/chats/abc', '/chats/new', '/orchestration/o1', '/tasks/AGN-12', '/projects/new', '/settings', '/accounts', '/usage', '/nowhere']) {
+  // Tasks starts a new task on the board and the list; a work item's page has its own actions, and
+  // the milestones start a milestone from their header
+  for (const path of ['/tasks', '/tasks/']) assert.deepEqual(fabFor(path), { action: 'task', labelled: false }, path);
+  assert.deepEqual(fabFor('/tasks', '?view=list'), { action: 'task', labelled: false });
+  // A project's tab is a page of its own, whose settings end in a Save the button would cover
+  assert.deepEqual(fabFor('/', '?project=p1'), { action: 'chat', labelled: true });
+  for (const search of ['?view=settings', '?project=p1&view=board']) assert.equal(fabFor('/', search), null, search);
+  for (const path of ['/tasks/milestones', '/chats/abc', '/chats/new', '/orchestration/o1', '/tasks/AGN-12', '/projects/new', '/settings', '/accounts', '/usage', '/nowhere']) {
     assert.equal(fabFor(path), null, path);
   }
 });

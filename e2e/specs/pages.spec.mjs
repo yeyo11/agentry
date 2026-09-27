@@ -2,15 +2,34 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Every page renders in both themes and at phone width without console errors.
-const PAGES = ['/', '/chats', '/chats/new', '/projects', '/orchestration', '/accounts', '/connectors', '/settings', '/settings?tab=settings', '/settings?tab=mcp', '/settings?tab=files', '/settings?tab=memory', '/settings?tab=plugins'];
-// The project page is a dashboard, with a full view for each of its own things
-const PROJECT_TABS = ['', '?view=settings', '?view=memory', '?view=resources', '?view=worktrees'];
+const PAGES = [
+  '/',
+  '/chats',
+  '/chats/new',
+  '/projects',
+  '/projects/new',
+  '/tasks',
+  '/tasks?view=list',
+  '/tasks/milestones',
+  '/orchestration',
+  '/accounts',
+  '/connectors',
+  '/settings',
+  '/settings?tab=settings',
+  '/settings?tab=mcp',
+  '/settings?tab=files',
+  '/settings?tab=memory',
+  '/settings?tab=plugins',
+];
+// The project page is a dashboard, with a full view for each of its own things. Board and Memory
+// exist only while their modules are on, so the project is imported with every module on
+const PROJECT_TABS = ['', '?view=board', '?view=settings', '?view=memory', '?view=resources', '?view=worktrees'];
 
 export default async ({ page, api, check, dirs }) => {
   // A project to open: pages under it need one imported
   const dir = join(dirs.workspaceDir, 'e2e-pages');
   mkdirSync(dir, { recursive: true });
-  const imported = await api.post('/projects/import', { path: dir, name: 'e2e-pages' });
+  const imported = await api.post('/projects/import', { path: dir, name: 'e2e-pages', template: 'software' });
   check(imported.status === 201, `the project was imported (${imported.status})`);
   const projectPages = PROJECT_TABS.map((tab) => `/${tab || '?'}${tab ? '&' : ''}project=${imported.body.id}`);
 
@@ -21,6 +40,9 @@ export default async ({ page, api, check, dirs }) => {
       await page.goto(path, 900);
       const main = await page.waitFor(`return document.querySelector('main')?.innerText.trim().length > 20`, { label: `${path} content` });
       check(main, `${path} rendered (${theme})`);
+      // A tab its modules hide would land on the dashboard and pass for rendered
+      const view = new URLSearchParams(path.split('?')[1] ?? '').get('view');
+      if (view) check(await page.eval(`return new URLSearchParams(location.search).get('view') === ${JSON.stringify(view)}`), `${path} stayed on its tab`);
       check((await page.eval('return document.documentElement.dataset.theme')) === theme, `${theme} theme applied on ${path}`);
     }
     const bg = await page.eval('return getComputedStyle(document.body).backgroundColor');

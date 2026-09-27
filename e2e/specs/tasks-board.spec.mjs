@@ -65,6 +65,14 @@ export default async ({ page, api, check, dirs }) => {
     check(epicCard === '0/1 tasks', `an epic's card counts its items (${epicCard})`);
     check((await page.eval(`return document.querySelectorAll('.workitem-card.live-rail, .workitem-card .spinner-ring').length`)) === 0, 'a board at rest has nothing live on it');
 
+    // ---- a card opens in the panel beside the board, and the board stays ----
+    await page.click(`[data-item-id="${second.id}"] .workitem-key`, undefined, 800);
+    await page.waitFor(`return location.pathname === '/tasks' && new URLSearchParams(location.search).get('item') === ${JSON.stringify(second.key)}`, { label: 'the card opens its panel' });
+    await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText.includes('Second card')`, { label: 'the panel shows the item' });
+    check(await page.eval(`return document.querySelectorAll('.workitem-col').length === 5`), 'the board stays under the panel');
+    await page.key('Escape');
+    await page.waitFor(`return !document.querySelector('[role=dialog]') && !location.search.includes('item=')`, { label: 'Escape closes the panel' });
+
     // ---- moving by keyboard: Space picks it up, the arrows carry it, Space drops it ----
     await page.focus(`[data-item-id="${first.id}"]`);
     await page.press(' ');

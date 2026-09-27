@@ -28,6 +28,12 @@ export function MemoryWidget({ project, title, id }: WidgetProps) {
   if (!project) return null;
   const text = instructions.data?.exists ? excerpt(instructions.data.content) : '';
   const files = memory.data?.length ?? 0;
+  const filesRow = (
+    <>
+      <span>{t('widgets.memory.files')}</span>
+      <span className="mono small muted">{memory.isLoading ? '…' : formatNumber(files)}</span>
+    </>
+  );
   return (
     <WidgetCard
       id={id}
@@ -48,10 +54,14 @@ export function MemoryWidget({ project, title, id }: WidgetProps) {
       ) : (
         <p className="muted small">{t('widgets.memory.noInstructions')}</p>
       )}
-      <Link to="/?view=memory" className="widget-row widget-link">
-        <span>{t('widgets.memory.files')}</span>
-        <span className="mono small muted">{memory.isLoading ? '…' : formatNumber(files)}</span>
-      </Link>
+      {/* The Memory tab exists only while its module is on: without it the row counts, and leads nowhere */}
+      {project.modules.includes('memory') ? (
+        <Link to="/?view=memory" className="widget-row widget-link">
+          {filesRow}
+        </Link>
+      ) : (
+        <div className="widget-row">{filesRow}</div>
+      )}
     </WidgetCard>
   );
 }

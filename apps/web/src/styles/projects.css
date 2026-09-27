@@ -823,7 +823,8 @@
 .project-tabs .count {
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--text-faint);
+  /* On the pill's --bg-4 the faint grey reads 4.4:1; the muted one keeps the count legible */
+  color: var(--text-muted);
 }
 
 /* A phone's stand-in for the strip */
@@ -1044,7 +1045,18 @@
   min-height: 44px;
 }
 
-/* A phone saves right under the switches, in the flow: the tab bar and the FAB own the bottom edge */
+/* A phone saves from a bar that stays at the bottom while the form is in view, as MobileProyectoAjustes
+   draws it: no FAB shares that edge on a project's tab (fabFor) */
+.project-general-foot {
+  position: sticky;
+  /* Down to the tab bar, past the page's bottom padding (the shell's rule for a sticky edge) */
+  bottom: var(--stick-bottom);
+  z-index: 2;
+  padding: 10px 0;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+}
+
 .project-general-foot .project-general-actions > .btn {
   flex: 1;
 }

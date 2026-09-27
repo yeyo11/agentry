@@ -85,7 +85,9 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return ${pageHeading} === 'Tasks' && document.querySelector('main [role=radiogroup] [role=radio][aria-checked=true]')?.textContent.trim() === 'Milestones'`, { label: 'the milestones page' });
     const key = created[0].key;
     await page.goto(`/tasks/${key.toLowerCase()}`, 900);
-    await page.waitFor(`return ${pageHeading} === '${key}'`, { label: `a work item's page, by its key in any case (${key})` });
+    await page.waitFor(`return ${pageHeading} === 'First task' && document.querySelector('main .workitem-key.boxed')?.textContent.trim() === '${key}'`, {
+      label: `a work item's page, by its key in any case (${key})`,
+    });
     const crumbs = await page.eval(`return [...document.querySelectorAll('.topbar .crumb-page')].map((c) => c.textContent.trim())`);
     check(JSON.stringify(crumbs) === JSON.stringify(['Tasks', key]), `the crumb reads Tasks / ${key} (${JSON.stringify(crumbs)})`);
     await page.goto('/projects/new', 900);

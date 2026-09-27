@@ -144,7 +144,7 @@ export function WorkItemCard({
   const why = selection?.blocked ? t(`select.why.${selection.blocked}`) : undefined;
   const a11y = selection
     ? { role: 'checkbox', 'aria-checked': selection.selected, 'aria-disabled': selection.blocked ? true : undefined, 'aria-description': why }
-    : { 'aria-roledescription': t('card.roledescription'), 'aria-description': t('card.hint') };
+    : { role: 'article', 'aria-roledescription': t('card.roledescription'), 'aria-description': t('card.hint') };
 
   let meta: ReactNode = null;
   // An epic's card counts its items instead; on All projects it still names its project
@@ -181,8 +181,10 @@ export function WorkItemCard({
       </div>
     );
 
+  // A div with the role, not an <article>: while selecting, the card is a checkbox, and an article
+  // may not take that role
   return (
-    <article
+    <div
       className={classes}
       data-item-id={item.id}
       data-status={item.status}
@@ -237,6 +239,6 @@ export function WorkItemCard({
           {assignee}
         </div>
       )}
-    </article>
+    </div>
   );
 }

@@ -1,5 +1,215 @@
 {
+  "page": {
+    "notFound": "Ninguna tarea tiene la clave {{key}}",
+    "notFoundBody": "Puede que se haya eliminado o que haya cambiado el prefijo de clave de su proyecto. El tablero muestra todas las tareas que hay."
+  },
+  "props": {
+    "label": "Propiedades de la tarea"
+  },
+  "fields": {
+    "title": "Título",
+    "description": "Descripción",
+    "status": "Estado",
+    "statusIs": "Estado: {{status}}",
+    "priority": "Prioridad",
+    "priorityIs": "Prioridad: {{priority}}",
+    "type": "Tipo",
+    "typeIs": "Tipo: {{type}}",
+    "assignee": "Responsable",
+    "assigneeIs": "Responsable: {{assignee}}",
+    "noAssignee": "Sin responsable",
+    "epic": "Épica",
+    "epicIs": "Épica: {{epic}}",
+    "noEpic": "Sin épica",
+    "epicUnderEpic": "Está en una épica, y una épica no puede estar en otra",
+    "children": "Tareas",
+    "childrenCount_one": "{{count}} tarea",
+    "childrenCount_other": "{{count}} tareas",
+    "milestone": "Hito",
+    "milestoneIs": "Hito: {{milestone}}",
+    "noMilestone": "Sin hito",
+    "labels": "Etiquetas",
+    "addLabel": "Añadir una etiqueta",
+    "removeLabel": "Quitar la etiqueta {{label}}",
+    "labelPlaceholder": "etiqueta",
+    "created": "Creada",
+    "createdBy": "{{when}} · {{who}}"
+  },
+  "actor": {
+    "agent": "Agente",
+    "agentBadge": "agente",
+    "system": "automático",
+    "person": "la persona"
+  },
+  "person": {
+    "you": "tú"
+  },
+  "description": {
+    "empty": "Todavía sin descripción.",
+    "placeholder": "Qué hay que hacer y por qué, en Markdown",
+    "markdown": "Markdown"
+  },
+  "criteria": {
+    "title": "Criterios de aceptación",
+    "progress": "{{done}} de {{total}} marcados",
+    "add": "Añadir criterio",
+    "edit": "Editar los criterios",
+    "none": "Todavía sin criterios de aceptación.",
+    "nth": "Criterio {{n}}",
+    "removeNth": "Quitar el criterio {{n}}",
+    "byChat": "chat {{chat}}"
+  },
+  "relations": {
+    "title": "Relaciones",
+    "add": "Relacionar",
+    "addTitle": "Relacionar con otra tarea",
+    "kind": "Cómo se relacionan",
+    "blocks": "Bloquea",
+    "blockedBy": "Bloqueada por",
+    "search": "Buscar por clave o título",
+    "searching": "Buscando…",
+    "noMatch": "Ninguna tarea coincide.",
+    "results": "Tareas con las que relacionarla",
+    "remove": "Quitar la relación con {{key}}",
+    "none": "No bloquea nada, y nada la bloquea."
+  },
+  "links": {
+    "title": "Chats y orquestaciones",
+    "none": "Todavía no ha trabajado en ella ningún chat ni orquestación."
+  },
+  "link": {
+    "chat": "chat {{id}}",
+    "node": "nodo del grafo",
+    "document": "documento",
+    "unnamed": "Chat {{id}}",
+    "origin": "la creó",
+    "moved": "la llevó a {{to}}",
+    "noMove": "no movió la tarea",
+    "noCost": "sin coste"
+  },
+  "changes": {
+    "title": "Cambios en su worktree",
+    "none": "Todavía no ha trabajado nadie en ella en un worktree. «Trabajar en ella» crea uno, en su propia rama.",
+    "nothingYet": "Su rama todavía no tiene cambios.",
+    "detached": "sin rama",
+    "from": "desde {{base}}",
+    "counts": "{{additions}} líneas añadidas, {{deletions}} quitadas",
+    "viewDiff": "Ver el diff",
+    "note": "Lo que cambió en el worktree de la tarea. Nada se fusiona ni abre una pull request solo:"
+  },
+  "activity": {
+    "title": "Actividad",
+    "filter": "Mostrar",
+    "all": "Todo",
+    "comments": "Comentarios",
+    "history": "Historial",
+    "none": "Todavía no ha pasado nada.",
+    "noComments": "Todavía sin comentarios.",
+    "write": "Escribir un comentario",
+    "placeholder": "Escribir un comentario",
+    "send": "Enviar"
+  },
+  "history": {
+    "created": "Creada",
+    "status": "Pasó de {{from}} a",
+    "type": "Tipo cambiado a",
+    "title": "Renombrada a",
+    "description": "Descripción editada",
+    "priority": "Prioridad cambiada a",
+    "labels": "Etiquetas cambiadas a",
+    "labelsCleared": "Etiquetas quitadas",
+    "unassigned": "Responsable quitado",
+    "assignedRole": "Asignada a",
+    "assignedPerson": "Asignada a",
+    "epic": "Añadida a la épica",
+    "epicRemoved": "Sacada de la épica",
+    "milestone": "Añadida al hito",
+    "milestoneRemoved": "Sacada del hito",
+    "criterionAdded": "Criterio añadido:",
+    "criterionRemoved": "Criterio quitado:",
+    "criterionChecked": "Criterio marcado:",
+    "criterionUnchecked": "Criterio desmarcado:",
+    "criterionEdited": "Criterio editado:",
+    "blocks": "Ahora bloquea",
+    "blockedBy": "Ahora bloqueada por",
+    "unblocks": "Ya no bloquea",
+    "unblockedBy": "Ya no bloqueada por",
+    "relation": "Relaciones cambiadas",
+    "linked": "Enlazada con",
+    "unlinked": "Desenlazada de",
+    "waitingApproval": "Espera tu aprobación para pasar a Hecho",
+    "waitingBounces": "Te espera: la han devuelto demasiadas veces",
+    "waitingEnded": "Ya no espera",
+    "comment": "Comentario"
+  },
+  "cause": {
+    "chatStarted": "empezó el chat {{chat}}",
+    "turnCompleted": "el turno del chat terminó bien",
+    "message": "desde un mensaje del chat {{chat}}",
+    "taskStarted": "empezó el nodo del grafo",
+    "taskCompleted": "terminó el nodo del grafo",
+    "other": "lo hizo un chat o una orquestación"
+  },
+  "sections": {
+    "label": "Secciones",
+    "detail": "Detalle",
+    "activity": "Actividad",
+    "changes": "Cambios"
+  },
+  "actions": {
+    "workOn": "Trabajar en ella",
+    "openChat": "Abrir su chat",
+    "moveToDone": "Mover a Hecho",
+    "copyLink": "Copiar el enlace",
+    "copied": "Enlace copiado",
+    "more": "Más acciones",
+    "openPage": "Abrir como página",
+    "delete": "Eliminar la tarea",
+    "back": "Volver al tablero",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "editTitle": "Renombrar la tarea",
+    "editDescription": "Editar la descripción"
+  },
+  "delete": {
+    "title": "¿Eliminar {{key}}?",
+    "body": "Se eliminan también su historial, sus comentarios y sus enlaces. Su número no se da nunca a otra tarea."
+  },
+  "workOn": {
+    "title": "Trabajar en {{key}}",
+    "intro": "Empieza un chat en el worktree propio de la tarea, en la rama {{branch}}, con su descripción y sus criterios de aceptación como prompt. La tarea pasa a En curso cuando empieza, y a En revisión cuando su turno termina bien.",
+    "start": "Empezar el chat",
+    "starting": "Empezando…",
+    "failed": "No se pudo empezar el chat",
+    "blocked": {
+      "epic": "Una épica agrupa trabajo y no se trabaja en ella: trabaja en una de sus tareas.",
+      "done": "La tarea está en Hecho, y nada de lo que haga un agente la saca de ahí. Muévela atrás para volver a trabajar en ella."
+    }
+  },
+  "errors": {
+    "save": "No se pudo guardar el cambio",
+    "move": "No se pudo mover la tarea",
+    "relate": "No se pudo añadir la relación",
+    "comment": "No se pudo enviar el comentario",
+    "create": "No se pudo crear la tarea",
+    "delete": "No se pudo eliminar la tarea"
+  },
   "newTask": {
-    "title": "Nueva tarea"
+    "title": "Nueva tarea",
+    "into": "{{project}} · {{prefix}}",
+    "project": "Proyecto",
+    "pickProject": "Elegir el proyecto",
+    "titlePlaceholder": "Qué hay que hacer",
+    "descriptionPlaceholder": "Por qué y cómo, en Markdown",
+    "column": "Columna",
+    "relations": "Relaciones",
+    "noRelations": "Ninguna",
+    "labelsPlaceholder": "Añadir…",
+    "another": "Crear otra",
+    "create": "Crear tarea",
+    "creating": "Creando…",
+    "created": "{{key}} creada",
+    "open": "Abrir",
+    "noBoard": "Ningún proyecto tiene activado el módulo Tablero. Actívalo en los ajustes de un proyecto para crear tareas."
   }
 }

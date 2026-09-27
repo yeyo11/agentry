@@ -159,6 +159,8 @@ export function hidesTabBar(pathname: string): boolean {
   if (/^\/chats\/[^/]+\/?$/.test(pathname)) return true;
   // The new project wizard walks its steps with a bar of its own at the bottom, as a new chat does
   if (/^\/projects\/new\/?$/.test(pathname)) return true;
+  // A work item's page on a phone ends in its own bar ("Work on it", or the comment box)
+  if (/^\/tasks\/[^/]+\/?$/.test(pathname) && !/^\/tasks\/milestones\/?$/.test(pathname)) return true;
   return /^\/orchestration\/[^/]+\/?$/.test(pathname);
 }
 
@@ -173,15 +175,18 @@ export interface FabPlan {
  * keep only the icon so it covers less of them, and Orchestrations starts one of its own. Where
  * the tab bar steps aside the page has its own footer, so the button does too; on the other pages
  * a floating button would only cover a form or a table that has nothing to do with starting a chat.
+ * A project's tab (`/?view=`) is one of those: its settings end in a Save the button sat on. The
+ * milestones start a milestone from their header, so a New task button there would be a second,
+ * different "+" (MobileHitos draws none).
  */
-export function fabFor(pathname: string): FabPlan | null {
+export function fabFor(pathname: string, search = ''): FabPlan | null {
   if (hidesTabBar(pathname)) return null;
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
-  if (path === '/') return { action: 'chat', labelled: true };
+  if (path === '/') return new URLSearchParams(search).has('view') ? null : { action: 'chat', labelled: true };
   if (path === '/chats' || path === '/projects') return { action: 'chat', labelled: false };
   if (path === '/orchestration') return { action: 'orchestration', labelled: false };
-  // Tasks starts a task of its own: the board, the list and the milestones, not a work item's page
-  if (path === '/tasks' || path === '/tasks/milestones') return { action: 'task', labelled: false };
+  // Tasks starts a task of its own on the board and the list, not on a work item's page
+  if (path === '/tasks') return { action: 'task', labelled: false };
   return null;
 }
 
