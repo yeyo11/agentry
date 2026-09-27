@@ -251,8 +251,6 @@ export function ProjectGeneral({ project }: { project: Project }) {
           <div className="card settings-cells project-module-cells">{moduleCards}</div>
           {offNote}
         </section>
-        {error}
-        <div className="project-general-foot">{actions}</div>
         {modules.includes('board') && (
           <>
             <button type="button" className="settings-cell project-limits-cell" onClick={() => setLimitsOpen(true)}>
@@ -273,6 +271,8 @@ export function ProjectGeneral({ project }: { project: Project }) {
           <p className="small muted">{t('general.removeBody')}</p>
           {removeButton}
         </section>
+        {error}
+        <div className="project-general-foot">{actions}</div>
       </div>
     );
   }

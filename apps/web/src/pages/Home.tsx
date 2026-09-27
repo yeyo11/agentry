@@ -195,7 +195,7 @@ function TabBody({ project, tab }: { project: Project; tab: ProjectViewId }) {
 /**
  * A project's page: its header and a tab strip, Resumen (the dashboard) first. A tab exists only
  * while its module is on, so an address that names a hidden one lands on Resumen. On a phone the
- * strip is a card of cells on Resumen, and each tab is a screen of its own.
+ * strip is a card of cells above Resumen's widgets, and each tab is a screen of its own.
  */
 function ProjectPage({ project }: { project: Project }) {
   const { t } = useTranslation('home');
@@ -243,8 +243,10 @@ function ProjectPage({ project }: { project: Project }) {
       <>
         <PhoneHead project={project} />
         <MissingAlert project={project} />
-        <ProjectDashboard project={project} />
+        {/* The cells are how a phone reaches the board and the settings: under the whole dashboard
+            they sat a dozen widgets down, where the reference has them near the top */}
         <PhoneTabCells views={views} counts={counts} />
+        <ProjectDashboard project={project} />
       </>
     );
   }

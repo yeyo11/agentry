@@ -976,6 +976,12 @@ a.statusbar-item:focus-visible {
     display: none;
   }
 
+  /* An empty board's "Create the first task" is that action already, and the one gradient button
+     there (MobileTableroVacio draws no FAB) */
+  .shell-has-fab:has(.workitem-empty-new) .fab {
+    display: none;
+  }
+
   .tabbar {
     position: fixed;
     inset: auto 0 0;

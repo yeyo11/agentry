@@ -15,6 +15,7 @@ import { boardItems, epicProgress, notSelectable } from './board/model';
 import { PhoneBoard } from './board/PhoneBoard';
 import { PhoneSelectionFoot, SelectionBar, SelectionNote } from './board/SelectionBar';
 import { List } from './List';
+import { itemPanelSearch, WorkItemPanelHost } from './item/Panel';
 import { NewTask } from './NewTask';
 import { useFacets } from './toolbar/facets';
 import { ActiveFilterChips, FacetChips, FilterSheetButton, SearchField } from './toolbar/Filters';
@@ -109,7 +110,9 @@ export function Board() {
     return () => window.removeEventListener('keydown', onKey);
   }, [phone, openNew, scope.boardOff]);
 
-  const onOpen = (item: WorkItem) => navigate(taskPath(item.key));
+  // A desktop reads a card in the panel beside the board, so the board stays where it was; a phone has
+  // no room beside it and opens the item's page
+  const onOpen = (item: WorkItem) => (phone ? navigate(taskPath(item.key)) : setParams(itemPanelSearch(item.key, params)));
   const moreTo = `${TASKS_PATH}?${filtersToSearch({ ...filters.filters, status: ['done'] }, new URLSearchParams({ [VIEW_PARAM]: 'list' })).toString()}`;
 
   // ---- what the header says ----
@@ -192,7 +195,7 @@ export function Board() {
           size={phone ? 'md' : 'lg'}
           title={t('empty.title')}
           action={
-            <button type="button" className="btn btn-primary" onClick={() => openNew(null)}>
+            <button type="button" className="btn btn-primary workitem-empty-new" onClick={() => openNew(null)}>
               <Plus {...ICON_SM} />
               {t('empty.action')}
             </button>
@@ -307,6 +310,8 @@ export function Board() {
 
       {selecting && phone && <SelectionNote selected={selectedItems} />}
       {selecting && (phone ? <PhoneSelectionFoot projectId={selectionProject} selected={selectedItems} /> : <SelectionBar projectId={selectionProject} selected={selectedItems} onCancel={stopSelecting} />)}
+
+      <WorkItemPanelHost />
 
       {creating && (
         <NewTask

@@ -9,17 +9,19 @@ import { fabFor } from '../../lib/shell-live';
  */
 export function Fab({
   pathname,
+  search,
   onNewChat,
   onNewOrchestration,
   onNewTask,
 }: {
   pathname: string;
+  search: string;
   onNewChat: () => void;
   onNewOrchestration: () => void;
   onNewTask: () => void;
 }) {
   const { t } = useTranslation(['components', 'shell']);
-  const plan = fabFor(pathname);
+  const plan = fabFor(pathname, search);
   if (!plan) return null;
   const { label, onClick } = {
     chat: { label: t('components:shell.newChat'), onClick: onNewChat },

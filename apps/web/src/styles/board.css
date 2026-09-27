@@ -472,6 +472,9 @@
 }
 
 .workitem-fact {
+  /* A fact never gives way to the spacer beside it (`.grow` asks for 200 px): squeezed, the blocker's
+     key ran under the checklist's icon */
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 4px;
