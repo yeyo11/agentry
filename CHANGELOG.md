@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.21.1](https://github.com/yeyo11/agentry/compare/v0.21.0...v0.21.1) (2026-09-27)
+
+
+### Bug fixes
+
+* **web:** show pushes on iOS and test pushes while the app is open ([#111](https://github.com/yeyo11/agentry/issues/111)) ([9a087b6](https://github.com/yeyo11/agentry/commit/9a087b6289c499b43db7780d4be9620d9c49e345))
+
 ## [0.21.0](https://github.com/yeyo11/agentry/compare/v0.20.0...v0.21.0) (2026-09-27)
 
 
