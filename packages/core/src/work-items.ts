@@ -845,7 +845,12 @@ export class WorkItemService {
       this.sql.exec('COMMIT');
       return out;
     } catch (err) {
-      this.sql.exec('ROLLBACK');
+      try {
+        this.sql.exec('ROLLBACK');
+      } catch {
+        // SQLite already ended the transaction (a failed COMMIT, or one it rolled back itself); what
+        // the caller needs is the error that got us here, not "no transaction is active"
+      }
       throw err;
     }
   }

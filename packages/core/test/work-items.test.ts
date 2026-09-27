@@ -741,6 +741,30 @@ test('a listener that throws does not undo the change nor reach the caller', () 
   db.close();
 });
 
+test('a ROLLBACK that fails does not hide the error that caused it, and the store stays usable', () => {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  const db = new Db(config);
+  let sabotage = false;
+  const service = new WorkItemService({
+    db,
+    project: () => ({ keyPrefix: 'AGN', columnLimits: {} }),
+    // Runs inside the link's transaction: ends it early, so the store's own ROLLBACK finds none
+    linkState: () => {
+      if (!sabotage) return null;
+      db.connection.exec('ROLLBACK');
+      throw new Error('the original failure');
+    },
+  });
+  const item = service.create('p1', { title: 'x' });
+  sabotage = true;
+  assert.throws(() => service.link(item.id, { kind: 'chat', role: 'work', chatId: 'c1' }), /the original failure/);
+  sabotage = false;
+  assert.deepEqual(service.links(item.id), []);
+  assert.equal(service.update(item.id, { title: 'y' }).title, 'y');
+  db.close();
+});
+
 // ---------- persistence ----------
 
 test('the migration applies on top of a database at the previous version and keeps what it held', () => {
