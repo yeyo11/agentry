@@ -644,9 +644,9 @@ event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `l
 | POST | `/work-items/:itemId/comments` | `{ body }` — comment as the person |
 | POST | `/work-items/:itemId/relations` | `{ type: blocks\|blocked_by, itemId }` — relate two items of the project; the item itself (400) and a cycle of `blocks` (409) are refused |
 | DELETE | `/work-items/:itemId/relations/:otherId` | Remove the relation between two items |
-| GET | `/work-items/:itemId/links` | The chats and orchestration tasks tied to the item, with their state |
-| POST | `/work-items/:itemId/links` | `{ kind, role, chatId?, orchestrationId?, taskId? }` — tie a chat or an orchestration task to the item |
-| DELETE | `/work-items/:itemId/links/:linkId` | Untie it; the chat or orchestration is not touched |
+| GET | `/work-items/:itemId/links` | The chats, orchestration tasks and documents tied to the item, with their state |
+| POST | `/work-items/:itemId/links` | `{ kind, role, chatId?, orchestrationId?, taskId?, documentPath? }` — tie a chat, an orchestration task or a document of the documents folder to the item |
+| DELETE | `/work-items/:itemId/links/:linkId` | Untie it; the chat, orchestration or file is not touched |
 | GET | `/work-items/:itemId/history` | Every change to the item, oldest first, with who made it and why |
 | POST | `/work-items/:itemId/work` | "Work on it": a chat prompted with the item, in its own worktree on `task/<key>` (made again if it was deleted by hand), with the options a new chat takes, each checked for its type (400). The item enters `in_progress` when a turn starts and `in_review` when one ends well. An epic is refused (400), and so are an item in `done`, one already being worked on and a plain directory where its worktree goes (409) |
 | GET | `/work-items/:itemId/changes` | What the item's branch changed: commits, files and what is not committed yet. The branch is the last chat's or orchestration node's that worked on the item |
@@ -656,6 +656,22 @@ event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `l
 | GET | `/milestones/:milestoneId` | One milestone with its progress |
 | PATCH | `/milestones/:milestoneId` | `{ name?, description?, state? }` — edit, close or reopen a milestone |
 | DELETE | `/milestones/:milestoneId` | Delete a milestone; its items stay, without it |
+
+### Documents
+
+A project's documents folder, `documents.path` in its settings (`docs` by default): its Markdown
+files, and the work items each is tied to. A `path` is relative to the project and `/`-separated,
+and is refused (400) when it is absolute, climbs with `..`, has a hidden part, is not Markdown, or
+lies outside the folder, symbolic links included. Changing anything needs the **Documents** module
+on (409 otherwise); reading does not.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/projects/:id/documents` | The folder's tree, directories first, each file with its title, size, time and ties |
+| GET | `/projects/:id/documents/file?path=` | One file's content and ties |
+| PUT | `/projects/:id/documents/file?path=` | `{ content, baseUpdatedAt? }` — create or replace a file; a file changed since `baseUpdatedAt` is refused (409). Emits `document.changed` |
+| DELETE | `/projects/:id/documents/file?path=` | Delete a file and untie it from every item. Emits `document.changed` |
+| POST | `/work-items/:itemId/documents` | `{ path, kind? }` — tie a file on disk to the item, role `reference`. Emits `document.changed` and `workitem.updated` |
 
 ### Events
 
