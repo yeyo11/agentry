@@ -406,7 +406,99 @@ could do it:
 
 ## Answer: notifications after a domain change
 
-To be written by `push-current-url`.
+**Yes, on Chrome (desktop and Android) it can: a push sent after the address changed opens the new
+address. On iOS it is built the same way but could not be verified**, for lack of a device. Answered
+by `push-current-url` on 2026-09-27.
+
+### What happened before
+
+`notificationclick` in `apps/web/public/sw.js` resolved `href` (a path such as
+`/chats/<id>?prompt=<id>`) against `self.location.origin`, which is the origin the worker was
+installed from. A phone that installed Agentry on `https://a….lhr.life` therefore opened
+`https://a….lhr.life/chats/…` for every notification, including ones sent long after that address
+stopped answering.
+
+### The evidence
+
+1. **The subscription survives the change.** A push subscription belongs to the service worker
+   registration it was made from, not to the server that uses it. The
+   [Push API](https://w3c.github.io/push-api/) deactivates one only when "its associated service
+   worker registration is unregistered" or it expires, and the push service delivers by endpoint
+   ([RFC 8030](https://www.rfc-editor.org/rfc/rfc8030)), with the VAPID key as the only binding to the
+   server. Nothing in the protocol looks at the origin, so the server keeps reaching the phone and the
+   phone keeps running the *old* origin's worker. When that worker checks for an update and gets a
+   network error or a page with the wrong MIME type, the
+   [Service Workers](https://w3c.github.io/ServiceWorker/) Update algorithm rejects the update and
+   removes the registration only "if newestWorker is null". An installed worker is not null, so it
+   stays.
+2. **`clients.openWindow` accepts another origin.** The spec's steps parse the URL, refuse only
+   `about:blank` and calls without transient activation, and open the URL in a new top-level browsing
+   context. When that context's storage key is not the worker's, the promise "resolve[s] with null".
+   So the URL is opened, and the worker just gets no client for it.
+   [MDN](https://developer.mozilla.org/en-US/docs/Web/API/Clients/openWindow) agrees ("resolves to
+   a WindowClient … if the URL is from the same origin … or a null value otherwise") and notes that
+   Chrome for Android may open it in an installed app whose scope covers it. `WindowClient.navigate`
+   has the same shape: it navigates a controlled window across origins and resolves with null.
+3. **A run in real Chrome.** Chrome 152, headless, with a scratch profile. Two HTTPS servers on
+   `127.0.0.1` played the old and the new address, `https://0a1b….lhr.life` and
+   `https://9f8e….lhr.life`, through `--host-resolver-rules` and a self-signed certificate, so
+   nothing left the machine and Agentry was not involved. The built `sw.js` was served from both.
+   - The page installed on the old address, and then the old server was shut down.
+   - `ServiceWorker.deliverPushMessage` delivered a payload carrying the new address to the old
+     registration. The old worker showed the notification, and its `data` held the new URL.
+   - The old address's shell still painted from the worker's cache, controlled, with its server
+     gone.
+   - With that window open, the click's own code, `openUrl(destination(data))`, navigated it to
+     `https://9f8e….lhr.life/chats/run1?prompt=p1`.
+   - One thing could not be exercised: tapping a notification. CDP has no way to do it, and outside a
+     tap `openWindow` is refused with `InvalidAccessError: Not allowed to open a window`, which is
+     the spec's activation rule. That branch rests on the spec and MDN (point 2) and on the unit
+     tests.
+4. **iOS** (Web Push only reaches Home Screen apps, from 16.4). Tapping a notification launches
+   the app on its start URL. Reports say that `openWindow` then does not navigate to the path it was
+   given, while `client.navigate` on the window that was launched does
+   ([Apple forums 733604](https://developer.apple.com/forums/thread/733604),
+   [WebKit 252544](https://bugs.webkit.org/show_bug.cgi?id=252544): that window is inert for a
+   moment, [WebKit 259212](https://bugs.webkit.org/show_bug.cgi?id=259212)). No source says what a
+   standalone app does with a URL on *another* origin, and no iPhone was available to try. The likely
+   outcome is Safari's in-app browser, as for any link out of the app's scope. **This is not
+   verified.**
+
+### What was built
+
+- `PushPayload.url` (`packages/shared/src/types.ts`): the notification's path as an absolute URL
+  on the tunnel's current address, or null while no tunnel is active.
+  - `PushService` follows `tunnel.changed` on the bus, so nothing has to be wired to it. The address
+    counts only while the state is `active`; while reconnecting, `url` is null.
+  - The test notification carries it too.
+  - `absoluteOn` only builds `https` URLs from rooted paths, so `//host` or an absolute `href` never
+    becomes a URL on another site.
+- The worker follows `url` only when **both** its own origin and `url` are tunnel addresses
+  (`*.lhr.life`, `TUNNEL_SUFFIX` in `sw.js`), `url` is `https`, and it is on a different origin.
+  - A phone installed on the LAN or at the desk keeps opening its own origin while a tunnel happens
+    to be open, rather than being sent through the provider.
+  - A test in core checks that the suffix matches what `parseTunnelUrl` produces.
+- For another origin, the worker navigates the first open window (the iOS path, and what the Chrome
+  run confirmed). With no window, or one it may not navigate, it calls `openWindow`. It never hands a
+  cross-origin URL to the old page's router, which can only route within its own origin.
+
+### What it cannot do, and what the person still sees
+
+- **The new address is a new origin**, so the browser keeps its storage apart from the old one. It
+  has no token in `localStorage` yet, so the person signs in again there once. It has no worker, no
+  installed app and no push subscription of its own either.
+- **Duplicates.** If the person enables notifications again on the new address, the phone holds two
+  subscriptions, one per origin. It then receives each push twice until the old one is removed in
+  Settings → Notifications. Tags only collapse within one origin. The server cannot tell that two
+  endpoints are the same phone.
+- **The old worker's `pushsubscriptionchange`** posts to its own origin, which no longer answers, so
+  a rotation on an old install is lost until the person opens the current address.
+- **The address in a push is the one current when it was sent.** The push service keeps a message
+  for up to an hour while the phone is offline, and a change in that window makes the address stale.
+  It is null when no tunnel was active at the time.
+- **The notification does not say that the address changed.** The worker has no translations, and
+  the payload's words are the server's, which already say what happened. Once opened, the new address
+  explains itself.
 
 ## Answer: the tunnel in Docker
 
