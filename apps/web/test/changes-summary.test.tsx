@@ -141,6 +141,15 @@ test('the summary draws the totals, the files, the latest step and the way into 
   assert.doesNotMatch(html, /role="dialog"|vscode:|in the editor/i);
 });
 
+test('beside a page that has its own primary actions the way in is not a gradient', () => {
+  // A task panel and the integration card: relaunching and the pull request hold the gradient there
+  const html = render(<ChangesSummary summary={SUMMARY} steps={null} base="/orchestration/o1/changes" lead={false} />);
+  assert.match(html, /<a class="btn btn-block changes-review-link" href="\/orchestration\/o1\/changes"[^>]*>Review the changes/);
+  assert.doesNotMatch(html, /btn-primary/);
+  const stepsOnly = render(<ChangesSummary summary={null} steps={[step(1, 'notes.md', { created: true, additions: 4, deletions: 0 })]} base="/orchestration/o1/tasks/t1/changes" lead={false} />);
+  assert.doesNotMatch(stepsOnly, /btn-primary/);
+});
+
 test('a chat outside git opens its review on Step by step', () => {
   const html = render(<ChangesSummary summary={null} steps={[step(1, 'notes.md', { created: true, additions: 4, deletions: 0 })]} base="/chats/c1/changes" />);
   assert.match(html, /not work in a git checkout/);

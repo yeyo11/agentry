@@ -113,11 +113,11 @@ function LatestStep({ step, to }: { step: EditStep; to: string }) {
   );
 }
 
-function StepsLink({ count, to, primary }: { count: number; to: string; primary: boolean }) {
+function StepsLink({ count, to, primary, lead = true }: { count: number; to: string; primary: boolean; lead?: boolean }) {
   const { t } = useTranslation('observe');
   if (primary) {
     return (
-      <Link to={to} className="btn btn-primary btn-block changes-review-link">
+      <Link to={to} className={`btn ${lead ? 'btn-primary ' : ''}btn-block changes-review-link`}>
         {t('changes.reviewSteps', { count })}
         <ArrowRight {...ICON_SM} />
       </Link>
@@ -142,10 +142,16 @@ export interface ChangesSummaryProps {
   /** The review screen of this source */
   base: string;
   title?: string;
+  /**
+   * Whether "Review the changes" is the zone's one gradient action. The inspector's it is; a task
+   * panel and the integration card sit on a page whose primary actions are relaunching and the
+   * pull request, and the gradient is spent on at most two surfaces per screen.
+   */
+  lead?: boolean;
 }
 
 /** The totals, the files, the latest step and the way into the review. */
-export function ChangesSummary({ summary, steps, touched = [], activity = null, base, title }: ChangesSummaryProps) {
+export function ChangesSummary({ summary, steps, touched = [], activity = null, base, title, lead = true }: ChangesSummaryProps) {
   const { t } = useTranslation('observe');
   const heading = title ?? t('changes.title');
   const latest = steps?.at(-1) ?? null;
@@ -172,7 +178,7 @@ export function ChangesSummary({ summary, steps, touched = [], activity = null, 
           <FileRows rows={rows.slice(0, FILE_ROWS)} more={rows.length - FILE_ROWS} live={live} label={t('changes.files')} to={() => stepsTo} />
         )}
         {latest && <LatestStep step={latest} to={reviewLink(base, { lens: 'steps', step: latest.id })} />}
-        {steps && steps.length > 0 && <StepsLink count={steps.length} to={stepsTo} primary />}
+        {steps && steps.length > 0 && <StepsLink count={steps.length} to={stepsTo} primary lead={lead} />}
       </section>
     );
   }
@@ -210,7 +216,7 @@ export function ChangesSummary({ summary, steps, touched = [], activity = null, 
       {latest && <LatestStep step={latest} to={reviewLink(base, { lens: 'steps', step: latest.id })} />}
       {(files.length > 0 || (steps?.length ?? 0) > 0) && (
         <div className="obs-changes-actions">
-          <Link to={base} className="btn btn-primary btn-block changes-review-link">
+          <Link to={base} className={`btn ${lead ? 'btn-primary ' : ''}btn-block changes-review-link`}>
             {t('changes.review')}
             <ArrowRight {...ICON_SM} />
           </Link>
@@ -261,14 +267,14 @@ export function TaskChangesSummary({ orch, task }: { orch: Orchestration; task: 
     return (
       <div className="stack-tight">
         <p className="muted small">{t('changes.noWorktree')}</p>
-        {steps.data && steps.data.length > 0 && <ChangesSummary summary={null} steps={steps.data} activity={live ? task.activity : null} base={base} />}
+        {steps.data && steps.data.length > 0 && <ChangesSummary summary={null} steps={steps.data} activity={live ? task.activity : null} base={base} lead={false} />}
       </div>
     );
   }
   if (changes.isLoading) return <Loading />;
   if (changes.error) return <ErrorBox error={changes.error} />;
   if (!changes.data) return null;
-  return <ChangesSummary summary={changes.data} steps={steps.data ?? null} activity={live ? task.activity : null} base={base} />;
+  return <ChangesSummary summary={changes.data} steps={steps.data ?? null} activity={live ? task.activity : null} base={base} lead={false} />;
 }
 
 /** The branch that merges every task's work. It has no transcript of its own, so no steps. */
@@ -285,5 +291,5 @@ export function IntegrationChangesSummary({ orch, title }: { orch: Orchestration
   if (changes.isLoading) return <Loading />;
   if (changes.error) return <ErrorBox error={changes.error} />;
   if (!changes.data) return null;
-  return <ChangesSummary summary={changes.data} steps={null} base={reviewPath.integration(orch.id)} title={title} />;
+  return <ChangesSummary summary={changes.data} steps={null} base={reviewPath.integration(orch.id)} title={title} lead={false} />;
 }
