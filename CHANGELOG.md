@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.20.0](https://github.com/yeyo11/agentry/compare/v0.19.0...v0.20.0) (2026-09-27)
+
+
+### Features
+
+* install a pinned claude-swap from the app for multiple accounts ([#104](https://github.com/yeyo11/agentry/issues/104)) ([815d9bd](https://github.com/yeyo11/agentry/commit/815d9bdfd70c235fe015705716dd4a4f6d71c81c))
+
 ## [0.19.0](https://github.com/yeyo11/agentry/compare/v0.18.0...v0.19.0) (2026-09-25)
 
 
