@@ -62,6 +62,7 @@ const Orchestration = lazyPage(() => import('./pages/Orchestration').then((m) =>
 const OrchestrationDetail = lazyPage(() => import('./pages/OrchestrationDetail').then((m) => m.OrchestrationDetail));
 const Projects = lazyPage(() => import('./pages/Projects').then((m) => m.Projects));
 const NewProject = lazyPage(() => import('./pages/projects/NewProject').then((m) => m.NewProject));
+const AssistantPage = lazyPage(() => import('./pages/assistant/Assistant').then((m) => m.AssistantPage));
 const TasksBoard = lazyPage(() => import('./pages/tasks/Board').then((m) => m.Board));
 const Milestones = lazyPage(() => import('./pages/tasks/Milestones').then((m) => m.Milestones));
 const WorkItemPage = lazyPage(() => import('./pages/tasks/WorkItem').then((m) => m.WorkItemPage));
@@ -415,6 +416,7 @@ function Shell() {
               <Route path="/chats/:id" element={<ChatView />} />
               <Route path="/projects" element={<Projects />} />
               <Route path="/projects/new" element={<NewProject />} />
+              <Route path="/projects/:id/assistant" element={<AssistantPage />} />
               <Route path="/tasks" element={<TasksBoard />} />
               <Route path="/tasks/milestones" element={<Milestones />} />
               <Route path="/tasks/:key" element={<WorkItemPage />} />

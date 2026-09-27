@@ -1,0 +1,134 @@
+{
+  "title": "Asistente de proyecto",
+  "back": "Volver al proyecto",
+  "subtitle": {
+    "running": "lee el repositorio y te propone el equipo, los recursos y las primeras tareas. Nada se escribe hasta que lo aceptes.",
+    "done": "acepta o descarta cada propuesta. Nada se escribe hasta que la aceptes.",
+    "empty": "un directorio vacío. Nada se escribe hasta que lo aceptes.",
+    "none": "lee el proyecto y te propone el equipo, los recursos y las primeras tareas, una a una."
+  },
+  "skip": "Omitir por ahora",
+  "goToProject": "Ir al proyecto",
+  "suggestAgain": "Volver a sugerir",
+  "more": "Más acciones",
+  "live": {
+    "title": "Leyendo el repositorio",
+    "region": "Sugerencia en curso",
+    "read": "Lo que ha leído",
+    "found": "Lo que ha encontrado",
+    "after": "Después de leer",
+    "note": "Es un chat del CLI con <code>--json-schema</code>: su coste cuenta en Uso y en la barra de estado, como el de cualquier chat. Si no hubiera nada que leer, te ofrecería el equipo de la plantilla.",
+    "notePhone": "Nada se escribe hasta que lo aceptes. El coste cuenta en Uso, como el de cualquier chat.",
+    "stopFailed": "No se ha podido detener el asistente"
+  },
+  "waiting": "en espera",
+  "wait": {
+    "team": "Propondrá los roles que necesita {{name}}",
+    "resources": "Agentes, skills y comandos para este repositorio",
+    "tasks": "Lo que falta, con el porqué de cada una"
+  },
+  "done": {
+    "region": "Sugerencia completada",
+    "proposals_one": "{{n}} propuesta",
+    "proposals_other": "{{n}} propuestas",
+    "after": "después de leer {{what}}",
+    "afterPhone": "de {{what}}",
+    "files_one": "{{n}} archivo",
+    "files_other": "{{n}} archivos",
+    "chats_one": "{{n}} chat",
+    "chats_other": "{{n}} chats",
+    "and": "y",
+    "nothingRead": "el proyecto",
+    "seeRead": "Ver lo que ha leído",
+    "hideRead": "Ocultar lo que ha leído",
+    "readTitle": "Lo que ha leído"
+  },
+  "failed": {
+    "title": "No ha podido terminar",
+    "stopped": "Detenido",
+    "stoppedBody": "Lo has detenido antes de que respondiera: no ha propuesto nada.",
+    "retry": "Volver a sugerir"
+  },
+  "empty": {
+    "region": "Nada que leer",
+    "title": "Nada que leer",
+    "body": "en <mono>{{path}}</mono>: ni archivos, ni chats, ni historial de git. No se ha lanzado ningún chat.",
+    "bodyPhone": "<mono>{{path}}</mono> está vacío: sin archivos, sin chats y sin historial de git. No se ha lanzado ningún chat, así que no hay coste.",
+    "titlePhone": "No hay nada que leer",
+    "templateTeam": "Equipo de la plantilla",
+    "teamNote": "Con nada que leer, te ofrece el equipo de la plantilla. Acepta cada rol por separado.",
+    "tasksIntro": "Sin código que leer, el asistente necesita saber qué vas a construir. Cuéntalo en una frase y te propone las primeras tareas, cada una con su porqué.",
+    "tasksIntroPhone": "Cuéntame qué vas a construir y te propongo las primeras tareas. También puedes crearlas tú.",
+    "describe": "Qué vas a construir",
+    "describePlaceholder": "Qué vas a construir…",
+    "describePlaceholderPhone": "Una app de notas con etiquetas y búsqueda…",
+    "propose": "Proponer tareas",
+    "proposeHint": "Abre un chat del CLI con <mono>--json-schema</mono>; su coste cuenta en Uso, como el de cualquier chat.",
+    "resourcesLater": "Cuando haya código, pídelos desde la pestaña Recursos con «Sugerir»",
+    "noProposals": "sin propuestas"
+  },
+  "none": {
+    "title": "El asistente aún no ha leído este proyecto",
+    "body": "Abre un chat del CLI que solo lee el proyecto y te propone un equipo, recursos y las primeras tareas. Aceptas cada propuesta por separado; nada se escribe antes.",
+    "start": "Pedir propuesta"
+  },
+  "startFailed": "No se ha podido iniciar el asistente",
+  "section": {
+    "team": "Equipo",
+    "resources": "Recursos",
+    "tasks": "Primeras tareas"
+  },
+  "team": {
+    "accepted": "{{accepted}} de {{total}} aceptados",
+    "acceptedPhone": "{{accepted}} de {{total}} aceptados · uno a uno",
+    "fromTemplate": "de {{name}}",
+    "theTemplate": "el de {{name}}",
+    "outside": "fuera de la plantilla",
+    "writes": "escribe:",
+    "writesNothing": "nada, solo tareas",
+    "added": "añadido",
+    "addedWhere": "añadido · .claude/agents/"
+  },
+  "resources": {
+    "saved": "{{accepted}} de {{total}} guardados",
+    "reviewed": "se revisan en el editor",
+    "savedDone": "guardada",
+    "review": "Revisar",
+    "reviewNamed": "Revisar {{name}}",
+    "kind": {
+      "agents": "Agente",
+      "skills": "Skill",
+      "commands": "Comando"
+    },
+    "scope": {
+      "project": "proyecto",
+      "user": "usuario"
+    }
+  },
+  "tasks": {
+    "accepted": "{{accepted}} de {{total}} aceptadas · a Backlog",
+    "toBacklog": "a Backlog",
+    "created": "creada",
+    "gone": "creada, ya borrada"
+  },
+  "proposal": {
+    "accept": "Aceptar",
+    "acceptNamed": "Aceptar {{name}}",
+    "discard": "Descartar",
+    "discardNamed": "Descartar {{name}}",
+    "discarded": "Descartada",
+    "undo": "Deshacer",
+    "undoNamed": "Recuperar {{name}}",
+    "failed": "No se ha podido hacer"
+  },
+  "wizard": {
+    "propose": "Proponer equipo, recursos y tareas",
+    "proposeHint": "Al crearlo, el asistente lee el proyecto y te propone el equipo, los recursos y las primeras tareas. Aceptas cada propuesta por separado; nada se escribe antes.",
+    "startFailed": "El proyecto se ha creado, pero el asistente no ha podido empezar"
+  },
+  "teamEmpty": {
+    "propose": "Pedir propuesta",
+    "body": "Cada miembro es un agente del CLI en <code>.claude/agents/</code>, con su rol, su modelo y lo que puede escribir, así que también trabaja desde la terminal. El asistente lee el proyecto y te propone un equipo; tú lo aceptas miembro a miembro.",
+    "foot": "Proponer abre un chat del CLI que solo lee el proyecto"
+  }
+}

@@ -6,13 +6,14 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useProjectCandidates, useProjects, useProjectTemplates } from '../../api';
-import { Combobox } from '../../components/controls';
+import { Combobox, Switch } from '../../components/controls';
 import { ICON, ICON_SM, Monogram, WorkItemKey, WorkItemTypeIcon } from '../../components/icons';
 import { useToast } from '../../components/Toast';
 import { ErrorBox, Segmented, usePageTitle } from '../../components/ui';
 import { formatNumber } from '../../lib/format';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { columnMeta } from '../../lib/work-items';
+import { assistantPath, proposesByDefault } from '../assistant/model';
 import { deriveKeyPrefix, limitedColumns, normalizePrefix, prefixProblem, PROJECT_MODULES, sortModules, TEMPLATE_ORDER, toggleModule } from './model';
 import { ModuleCard, ModulesOffNote, TemplateCard } from './parts';
 
@@ -35,6 +36,8 @@ interface Draft {
   prefix: string | null;
   template: ProjectTemplateId;
   modules: ProjectModule[];
+  /** Hand the new project to the assistant, which proposes its team, resources and first tasks */
+  propose: boolean;
 }
 
 /** Everything the wizard's screens read from one draft, worked out once. */
@@ -225,6 +228,19 @@ function Summary({ draft, wizard, onChange }: { draft: Draft; wizard: Wizard; on
   );
 }
 
+/** Whether the new project goes to the assistant, which proposes its team, resources and first tasks. */
+function ProposeSwitch({ draft, set }: { draft: Draft; set: (patch: Partial<Draft>) => void }) {
+  const { t } = useTranslation('assistant');
+  return (
+    <Switch checked={draft.propose} onChange={(propose) => set({ propose })} className="check wizard-propose">
+      <span className="wizard-propose-text">
+        <span className="wizard-propose-title">{t('wizard.propose')}</span>
+        <span className="small muted">{t('wizard.proposeHint')}</span>
+      </span>
+    </Switch>
+  );
+}
+
 /** A numbered heading of the desktop wizard: the four parts are one page there, in order. */
 function Section({ n, title, hint, aside, children }: { n: number; title: string; hint?: string; aside?: ReactNode; children: ReactNode }) {
   return (
@@ -247,7 +263,7 @@ function Section({ n, title, hint, aside, children }: { n: number; title: string
  * `?path=` opens it on a directory to import, as the Projects page's candidates do.
  */
 export function NewProject() {
-  const { t } = useTranslation(['projects', 'work', 'common']);
+  const { t } = useTranslation(['projects', 'work', 'common', 'assistant']);
   usePageTitle(t('work:projects.newProject'));
   const narrow = useMediaQuery(NARROW);
   const navigate = useNavigate();
@@ -265,11 +281,12 @@ export function NewProject() {
     template: 'software',
     // Until the templates arrive, the software template's modules: everything
     modules: [...PROJECT_MODULES],
+    propose: proposesByDefault('software'),
   }));
   const [step, setStep] = useState<Step>('origin');
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
   const wizard = useWizard(draft, templates, projects);
-  const choose = (id: ProjectTemplateId) => set({ template: id, modules: sortModules(templates?.find((tpl) => tpl.id === id)?.modules ?? []) });
+  const choose = (id: ProjectTemplateId) => set({ template: id, modules: sortModules(templates?.find((tpl) => tpl.id === id)?.modules ?? []), propose: proposesByDefault(id) });
 
   const create = useMutation({
     mutationFn: async () => {
@@ -290,12 +307,24 @@ export function NewProject() {
       }
       return project;
     },
-    onSuccess: (project) => {
+    onSuccess: async (project) => {
       void queryClient.invalidateQueries({ queryKey: keys.projects });
       void queryClient.invalidateQueries({ queryKey: keys.chats });
       void queryClient.invalidateQueries({ queryKey: keys.overview });
       toast.success(t('wizard.created', { name: project.name }));
-      navigate(`/?project=${encodeURIComponent(project.id)}`);
+      if (!draft.propose) {
+        navigate(`/?project=${encodeURIComponent(project.id)}`);
+        return;
+      }
+      // The project exists whatever the assistant does: a run that cannot start still leads to its
+      // page, which offers to ask again
+      try {
+        const run = await api.startAssistantRun(project.id, { kind: 'project' });
+        queryClient.setQueryData(keys.assistantRun(run.id), run);
+      } catch (error) {
+        toast.error(t('assistant:wizard.startFailed'), error);
+      }
+      navigate(assistantPath(project.id));
     },
   });
 
@@ -362,6 +391,7 @@ export function NewProject() {
               <div className="card wizard-summary">
                 <Summary draft={draft} wizard={wizard} onChange={() => setStep('origin')} />
               </div>
+              <ProposeSwitch draft={draft} set={set} />
               {error}
             </>
           )}
@@ -428,6 +458,7 @@ export function NewProject() {
             <h2>{t('wizard.steps.summary')}</h2>
           </div>
           <Summary draft={draft} wizard={wizard} />
+          <ProposeSwitch draft={draft} set={set} />
           {error}
           <div className="wizard-summary-actions">
             {createButton}

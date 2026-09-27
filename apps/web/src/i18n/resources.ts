@@ -1,5 +1,6 @@
 // Every namespace of both languages, bundled: the UI never waits on a request to show its text.
 import enAccountsConfig from './locales/en/accountsConfig.json';
+import enAssistant from './locales/en/assistant.json';
 import enChat from './locales/en/chat.json';
 import enChats from './locales/en/chats.json';
 import enCommon from './locales/en/common.json';
@@ -24,6 +25,7 @@ import enUsage from './locales/en/usage.json';
 import enWork from './locales/en/work.json';
 import enWorkItem from './locales/en/workItem.json';
 import esAccountsConfig from './locales/es/accountsConfig.json';
+import esAssistant from './locales/es/assistant.json';
 import esChat from './locales/es/chat.json';
 import esChats from './locales/es/chats.json';
 import esCommon from './locales/es/common.json';
@@ -52,6 +54,7 @@ export const defaultNS = 'common';
 
 export const en = {
   common: enCommon,
+  assistant: enAssistant,
   components: enComponents,
   primitives: enPrimitives,
   config: enConfig,
@@ -84,6 +87,7 @@ type Shape<T> = { [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
 
 export const es = {
   common: esCommon,
+  assistant: esAssistant,
   components: esComponents,
   primitives: esPrimitives,
   config: esConfig,
