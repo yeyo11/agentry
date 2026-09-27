@@ -8,6 +8,7 @@ import { ICON_SM, WorkItemStatusIcon } from '../../../components/icons';
 import { columnMeta } from '../../../lib/work-items';
 import type { LiveSources } from './LiveLine';
 import { DONE_SHOWN, isSamePlace, keyboardDrop, type Drop, type NotSelectable } from './model';
+import { ColumnRole } from './team';
 import { useMoveWorkItem } from './useMoveWorkItem';
 import { WorkItemCard } from './WorkItemCard';
 
@@ -209,6 +210,7 @@ export function BoardColumns({
                 <span className="sr-only">{limit !== null ? t('column.countLimit', { count: column.count, limit }) : t('column.count', { count: column.count })}</span>
               </span>
               <span className="grow" />
+              {!projectNames && <ColumnRole status={status} />}
               {onNewTask && (
                 <button type="button" className="icon-btn workitem-col-add" aria-label={t('actions.newTaskIn', { column: label(status) })} onClick={() => onNewTask(status)}>
                   <Plus {...ICON_SM} />
