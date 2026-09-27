@@ -1049,7 +1049,8 @@
    draws it: no FAB shares that edge on a project's tab (fabFor) */
 .project-general-foot {
   position: sticky;
-  bottom: 0;
+  /* Down to the tab bar, past the page's bottom padding (the shell's rule for a sticky edge) */
+  bottom: var(--stick-bottom);
   z-index: 2;
   padding: 10px 0;
   background: var(--bg);
