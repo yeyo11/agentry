@@ -1,22 +1,24 @@
 import type { Project, ProjectCandidate } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Download, Ellipsis, FolderOpen, FolderPlus, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Download, Ellipsis, FolderOpen, FolderPlus, Pencil, Trash2, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useChats, useProjectCandidates, useProjects } from '../api';
-import { Combobox, Menu, Sheet, type MenuEntry } from '../components/controls';
+import { Menu, Sheet, type MenuEntry } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
-import { ICON, ICON_SM, Monogram } from '../components/icons';
+import { ICON, ICON_SM, Monogram, WorkItemKey } from '../components/icons';
 import { ListToolbar } from '../components/ListToolbar';
 import { StatusDot } from '../components/motion';
 import { useToast } from '../components/Toast';
-import { Card, Empty, ErrorBox, Field, Loading, PageHeader, Tag } from '../components/ui';
+import { Card, Empty, ErrorBox, Loading, PageHeader, Tag } from '../components/ui';
 import { intlLocale } from '../i18n/language';
 import { formatDate, formatDateTime, formatNumber, timeAgo, toMs } from '../lib/format';
 import { matchesText, PROJECT_SORTERS, type ProjectSort } from '../lib/lists';
 import { NARROW, useMediaQuery } from '../lib/media';
 import { useProjectScope } from '../lib/project-scope';
+import { NEW_PROJECT_PATH } from '../lib/work-items';
+import { ModuleMarks } from './projects/parts';
 import '../insights.css';
 
 const PROJECT_SORTS = Object.keys(PROJECT_SORTERS) as ProjectSort[];
@@ -50,103 +52,11 @@ function useRefreshProjects() {
   };
 }
 
-function ImportForm({ candidates, onDone }: { candidates: ProjectCandidate[]; onDone: () => void }) {
-  const { t } = useTranslation(['projects', 'work', 'common', 'config']);
-  const refresh = useRefreshProjects();
-  const [path, setPath] = useState('');
-  const [name, setName] = useState('');
-  const add = useMutation({
-    mutationFn: () => api.importProject({ path: path.trim(), ...(name.trim() ? { name: name.trim() } : {}) }),
-    onSuccess: () => {
-      refresh();
-      onDone();
-    },
-  });
-  return (
-    <Card title={t('page.importDirectory')} className="project-form">
-      <form
-        className="form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          add.mutate();
-        }}
-      >
-        <Field label={t('importForm.directory')} hint={t('importForm.directoryHint')}>
-          <Combobox
-            aria-label={t('importForm.directory')}
-            placeholder="/home/you/code/my-project"
-            value={path}
-            onChange={setPath}
-            options={candidates.map((c) => ({ value: c.path, label: c.name, hint: t('importForm.candidateHint', { count: c.chatCount, n: formatNumber(c.chatCount), path: c.path }) }))}
-          />
-        </Field>
-        <Field label={t('importForm.nameOptional')} hint={t('importForm.nameOptionalHint')}>
-          <input value={name} placeholder={t('work:projects.namePlaceholder')} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <ErrorBox error={add.error} title={t('importForm.failed')} />
-        <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={!path.trim() || add.isPending}>
-            {add.isPending ? t('importForm.importing') : t('importForm.import')}
-          </button>
-          <button type="button" className="btn" onClick={onDone}>
-            {t('common:actions.cancel')}
-          </button>
-        </div>
-      </form>
-    </Card>
-  );
-}
-
-function NewProjectForm({ onDone }: { onDone: () => void }) {
-  const { t } = useTranslation(['projects', 'work', 'common', 'config']);
-  const refresh = useRefreshProjects();
-  const [name, setName] = useState('');
-  const [gitUrl, setGitUrl] = useState('');
-  const create = useMutation({
-    mutationFn: () => api.createProject({ name: name.trim(), gitUrl: gitUrl.trim() || undefined }),
-    onSuccess: () => {
-      refresh();
-      onDone();
-    },
-  });
-  return (
-    <Card title={t('work:projects.newProjectCard')} className="project-form">
-      <div className="form">
-        <Field label={t('work:projects.name')} hint={t('work:projects.nameHint')}>
-          <input value={name} placeholder={t('work:projects.namePlaceholder')} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <Field label={t('work:projects.gitUrl')} hint={t('work:projects.gitUrlHint')}>
-          <input value={gitUrl} placeholder="https://github.com/owner/repo.git" onChange={(e) => setGitUrl(e.target.value)} />
-        </Field>
-        <ErrorBox error={create.error} title={t('work:projects.createFailed')} />
-        <div className="form-actions">
-          <button className="btn btn-primary" disabled={!name.trim() || create.isPending} onClick={() => create.mutate()}>
-            {create.isPending ? (gitUrl.trim() ? t('work:projects.cloning') : t('work:projects.creating')) : t('work:projects.create')}
-          </button>
-          <button className="btn" onClick={onDone}>
-            {t('common:actions.cancel')}
-          </button>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
 /** The directories with the most chats: what a first start offers instead of an empty screen. */
 function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; first: boolean }) {
   const { t } = useTranslation(['projects', 'work', 'common', 'config']);
-  const refresh = useRefreshProjects();
-  const toast = useToast();
   const [open, setOpen] = useState(false);
   const listId = useId();
-  const add = useMutation({
-    mutationFn: (candidate: ProjectCandidate) => api.importProject({ path: candidate.path }),
-    onSuccess: (project) => {
-      refresh();
-      toast.success(t('candidates.imported', { name: project.name }), t('candidates.adopted', { count: project.chatCount, n: formatNumber(project.chatCount) }));
-    },
-    onError: (error) => toast.error(t('importForm.failed'), error),
-  });
   const list = (
     <ul className="candidate-list" id={listId}>
       {candidates.map((c) => (
@@ -159,9 +69,9 @@ function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; fir
               {c.lastActivity ? t('candidates.last', { ago: timeAgo(c.lastActivity) }) : ''}
             </span>
           </div>
-          <button type="button" className="btn btn-small" disabled={add.isPending} onClick={() => add.mutate(c)} aria-label={t('candidates.importNamed', { name: c.name })}>
+          <Link to={`${NEW_PROJECT_PATH}?path=${encodeURIComponent(c.path)}`} className="btn btn-small" aria-label={t('candidates.importNamed', { name: c.name })}>
             <Download {...ICON_SM} /> {t('importForm.import')}
-          </button>
+          </Link>
         </li>
       ))}
     </ul>
@@ -355,12 +265,14 @@ function ProjectCard({ project, active, live }: { project: Project; active: bool
           ) : (
             <h2 className="project-card-name">
               <span className="ellipsis">{project.name}</span>
+              <WorkItemKey value={project.key} boxed />
               {!project.exists && <Tag tone="warn">{t('work:projects.missing')}</Tag>}
             </h2>
           )}
           <span className="mono project-card-path ellipsis" title={project.path}>
             {project.path}
           </span>
+          <ModuleMarks modules={project.modules} className="project-card-modules" />
         </div>
         <ProjectActions project={project} onRename={() => setRenaming(true)} onRemove={() => void askRemove()} onPurge={() => void askPurge()} />
       </div>
@@ -411,7 +323,6 @@ const PHONE_TOOLBAR_FROM = 5;
 export function Projects() {
   const { t } = useTranslation(['projects', 'work', 'common', 'config']);
   const narrow = useMediaQuery(NARROW);
-  const [adding, setAdding] = useState<'import' | 'create' | null>(null);
   const { data, error, isLoading } = useProjects();
   const projects = data ?? [];
   // The card that stands out is the project the top bar has selected; with All projects none does
@@ -426,11 +337,11 @@ export function Projects() {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<ProjectSort>('activity');
   const shown = projects.filter((project) => matchesText(search, [project.name, project.path])).sort(PROJECT_SORTERS[sort]);
-  const importButton = (primary: boolean) => (
-    <button className={primary ? 'btn btn-primary' : 'btn'} onClick={() => setAdding('import')}>
+  const newButton = (primary: boolean) => (
+    <Link to={NEW_PROJECT_PATH} className={primary ? 'btn btn-primary' : 'btn'}>
       <FolderPlus {...ICON_SM} />
-      {t('page.importDirectory')}
-    </button>
+      {t('work:projects.newProject')}
+    </Link>
   );
   // One primary per zone: while the empty state offers the import, the header's copy steps back
   const emptyShown = first && offered.length === 0;
@@ -441,26 +352,14 @@ export function Projects() {
         title={t('work:projects.title')}
         // A phone's header is its title and its actions (MobileProyectos); the count is the cards themselves
         subtitle={narrow ? undefined : t('page.subtitle', { count: projects.length, n: formatNumber(projects.length) })}
-        actions={
-          adding === null && (
-            <>
-              <button className="btn" onClick={() => setAdding('create')}>
-                <Plus {...ICON_SM} />
-                {t('work:projects.newProject')}
-              </button>
-              {importButton(!emptyShown)}
-            </>
-          )
-        }
+        actions={newButton(!emptyShown)}
       />
-      {adding === 'import' && <ImportForm candidates={offered} onDone={() => setAdding(null)} />}
-      {adding === 'create' && <NewProjectForm onDone={() => setAdding(null)} />}
       <ErrorBox error={error} />
       {isLoading ? (
         <Loading />
       ) : projects.length === 0 ? (
         offered.length === 0 && (
-          <Empty illustration="projects" size={narrow ? 'sm' : undefined} title={t('work:projects.empty')} action={adding === null ? importButton(true) : undefined}>
+          <Empty illustration="projects" size={narrow ? 'sm' : undefined} title={t('work:projects.empty')} action={newButton(true)}>
             {t('page.emptyHint')}
           </Empty>
         )

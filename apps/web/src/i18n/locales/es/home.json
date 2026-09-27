@@ -1,5 +1,7 @@
 {
   "tabs": {
+    "summary": "Resumen",
+    "board": "Tablero",
     "settings": "Ajustes",
     "memory": "Memoria",
     "resources": "Recursos",

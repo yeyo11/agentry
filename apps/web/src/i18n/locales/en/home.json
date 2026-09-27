@@ -1,5 +1,7 @@
 {
   "tabs": {
+    "summary": "Overview",
+    "board": "Board",
     "settings": "Settings",
     "memory": "Memory",
     "resources": "Resources",

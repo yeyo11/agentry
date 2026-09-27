@@ -118,7 +118,7 @@ test('chat ids in links are encoded', () => {
 
 test('the tab bar steps aside on a chat and on an orchestration, not on their lists or on New chat', () => {
   // A new chat is that page too: the box sits at the bottom of the window, where the bar would be
-  for (const path of ['/chats/abc', '/chats/abc/', '/chats/new', '/orchestration/o1']) assert.equal(hidesTabBar(path), true, path);
+  for (const path of ['/chats/abc', '/chats/abc/', '/chats/new', '/orchestration/o1', '/projects/new']) assert.equal(hidesTabBar(path), true, path);
   for (const path of ['/', '/chats', '/orchestration', '/settings', '/projects']) assert.equal(hidesTabBar(path), false, path);
 });
 

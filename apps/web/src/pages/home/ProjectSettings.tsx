@@ -9,13 +9,17 @@ import { FilesTab } from '../config/FilesTab';
 import { InstructionsTab } from '../config/InstructionsTab';
 import { McpTab } from '../config/McpTab';
 import { SettingsTab } from '../config/SettingsTab';
+import { ProjectGeneral } from './ProjectGeneral';
 
 // The ids double as the dirty keys the tabs register, which is what marks a section as unsaved
 const SECTIONS = ['instructions', 'settings', 'mcp', 'files'] as const;
 
 type SectionId = (typeof SECTIONS)[number];
 
-/** The Claude Code configuration that lives in the project: CLAUDE.md, settings, MCP servers and files. */
+/**
+ * A project's settings: Agentry's own first (name, key prefix, modules, board limits), then the
+ * Claude Code configuration that lives in the project: CLAUDE.md, settings, MCP servers and files.
+ */
 export function ProjectSettings({ project }: { project: Project }) {
   const { t } = useTranslation(['projects', 'config']);
   const [params, setParams] = useSearchParams();
@@ -42,6 +46,13 @@ export function ProjectSettings({ project }: { project: Project }) {
 
   return (
     <>
+      <ProjectGeneral project={project} />
+
+      <div className="project-cli-head">
+        <h2>{t('settings.cliTitle')}</h2>
+        <span className="small muted">{t('settings.cliHint')}</span>
+      </div>
+
       <Collapsible
         className="card fold-card"
         title={
