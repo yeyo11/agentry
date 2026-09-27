@@ -1,13 +1,13 @@
 ---
 created_at: 2026-09-27T10:34:29.651906091Z
-updated_at: 2026-09-27T10:35:09.641387596Z
+updated_at: 2026-09-27T18:00:00Z
 tags:
     - plan
     - tunnel
     - remote-access
     - security
     - settings
-    - launched
+    - built
 ---
 # Plan: reaching Agentry through a tunnel
 
@@ -16,8 +16,11 @@ reverse proxy, an account or anything new to install. Agentry opens a tunnel thr
 [localhost.run](https://localhost.run) with the system's own `ssh`, shows the public HTTPS address
 and a QR code, and closes it again, all from the settings page.
 
-Status: **orchestration `tunnel` launched on 2026-09-27** from `feat/tunnel`. The measurements below
-were taken the same day.
+Status: **built on 2026-09-27** by the orchestration `tunnel` from `feat/tunnel`, as one pull
+request. Every task delivered, and both open questions are answered below. The merged branch's e2e
+verification runs in the orchestration. The measurements below were taken the same day. What each
+task delivered is under [Outcome](#outcome), and the feature itself is documented in
+[tunnel.md](../tunnel.md) and [layered-settings.md](../layered-settings.md).
 
 ## Why
 
@@ -585,8 +588,64 @@ Changed outside `packaging`'s ownership, because the answer needed them:
 
 ## Outcome
 
-To be written by the `docs` task.
+Built on 2026-09-27 by the seven tasks of the orchestration, each on its own branch, merged into
+`docs` in dependency order. Typecheck and the unit suite pass on the merge (shared 14, desktop 42,
+core 540, web 529, api 115). The e2e suite, with the new `remote-access.spec.mjs`, runs once in the
+orchestration's verification. The feature is documented in [tunnel.md](../tunnel.md) and
+[layered-settings.md](../layered-settings.md).
+
+- **`types`.** The contract as planned, plus three choices past the text:
+  - `TunnelStatus.reason` is a `Localized`, so the web translates failures by `code`.
+  - `TunnelStatus` carries `settings`, because no `GET` route for the tunnel settings was planned.
+  - `AppSettings.allowedHosts` is only the configured part. A test also says that neither new event
+    ever becomes a notification, so an address never reaches a lock screen or a push service.
+- **`settings-layers`.** `AppSettingsStore` and `RuntimeHosts` on `Core`, `GET` and
+  `PUT /api/settings/app`, and a `backoffKey` in `security.ts`. All four "done when" conditions have a
+  test. Beyond the plan:
+  - Small edits to `chats.ts` and `orchestrator.ts`, which no task owned, so the next run reads the
+    store.
+  - An empty `AGENTRY_MAX_CONCURRENT_RUNS` or `AGENTRY_DEFAULT_PERMISSION_MODE` now counts as unset.
+    Before, an empty run limit meant a wrapper that could start no run.
+  - A header registered with a runtime host is read at its last hop, because earlier hops are the
+    client's to forge.
+- **`tunnel-core`.** `TunnelManager`, the four routes under a new "Remote access" tag, the fake
+  `ssh`, and the three findings above. The answer to the header question was "there is none", so the
+  tunnel is registered without `clientIpHeader`, and all its traffic shares one backoff bucket, apart
+  from loopback. It also went past the ownership table in three small places (`paths.ts`, `auth.ts`'s
+  `beforeUnguarded`, `server.ts`), listed above. The manual run reached `active` in 2.3 s and stopped
+  cleanly.
+- **`push-current-url`.** Open question 1 is answered **yes, on Chrome; built but not verified on
+  iOS**. `PushPayload.url` carries the current tunnel address, and the worker follows it only from one
+  `*.lhr.life` origin to another. Its limits (sign in again, duplicates, a stale address, a lost
+  renewal) are in the answer above and in [tunnel.md](../tunnel.md#the-address-changes).
+- **`packaging`.** Open question 2 is answered **off in Docker unless the operator turns it on**:
+  `AGENTRY_TUNNEL` in Compose's `.env`, and `tunnel.enabled` in the chart. It also added
+  `TunnelStatus.enabled` and the `tunnel.disabled` refusal, both outside its ownership, and
+  `openssh-client` to the `.deb`. A real image build confirmed the `409`.
+- **`web`.** Settings → Remote access (state word and colour, address with copy, an in-house QR code
+  for versions 1 to 10 with two new tokens, the auth warning, the no-ssh state, "start with Agentry",
+  and a footnote about new addresses), and the three layered settings as two cards in Security. Both
+  events write their caches directly. The e2e spec is written, not run, and `a11y.spec.mjs` covers
+  the new tab.
+- **`docs`.** It finished the merges and wrote [tunnel.md](../tunnel.md) and
+  [layered-settings.md](../layered-settings.md). It added the Docker section and the Helm value to
+  [deploy.md](../deploy.md) and the phone section and data paths to [desktop.md](../desktop.md), and
+  updated the README (features, On a phone, the environment table, Securing it, Deploying, Known
+  limitations), `SECURITY.md` and [status.md](../status.md). Two gaps showed up only once `packaging`
+  and `web` met:
+  - The merged tree did not typecheck: `enabled` was missing from the `TunnelStatus` literals of
+    `push.test.ts` and `remote-access.test.tsx`.
+  - The tab did not know `enabled`: in the Docker image it offered a start button that could only
+    answer `409`, and `tunnel.disabled` had no translation.
+
+  The tab now says that the deploy turned the tunnel off and names `AGENTRY_TUNNEL=on`, in `en` and
+  `es`, with a unit test. The e2e fake status carries `enabled: true`. The README's `GET /tunnel` row
+  gained `enabled`.
+
+Left for later, as the plan already said: moving the event streams to `fetch`, so the token leaves
+the URL, and a fixed domain. Also left: suggesting, from Settings → Notifications, removal of a
+device registered on an old tunnel address.
 
 ## Related
 
-[[deploy.md]] · [[desktop.md]] · [[plans/mobile.md]] · [[security-model]] · [[layered-settings]]
+[[deploy.md]] · [[desktop.md]] · [[plans/mobile.md]] · [[tunnel.md]] · [[layered-settings.md]] · [[security-model]]
