@@ -835,6 +835,94 @@ As in orchestration 2: every new screen next to its reference and against each o
 motion specs extended; then `docs/projects.md`, `docs/work-items.md`, a new `docs/team-and-flow.md`,
 README, status and this plan's Outcome.
 
+## Orchestration 4: `ecosystem-assistant`
+
+The project assistant, suggested work items and resources with AI (decisions 35 to 37), plus what
+the audit of orchestration 2 left open. It starts from `feat/project-ecosystem` with orchestration 3
+merged and is merged back into it. Screens, validated on 2026-09-27: `DesktopAsistente`,
+`DesktopAsistentePropuestas`, `DesktopAsistenteVacio`, `DesktopSugerirTareas`,
+`DesktopSugerirTareasEnCurso`, `DesktopRecursos`, `DesktopRecursoPropuesta`,
+`DesktopRecursoCrearIA`, and their `Mobile*` screens (`MobileAsistenteEquipo` and
+`MobileAsistenteRecursos` included).
+
+### Decisions taken for this orchestration
+
+Written by the planner on 2026-09-27; the owner can reopen them.
+
+- **Epics do not count** as open work items nor against a column's limit (the owner's audit of
+  orchestration 2, option B). They stay on the board, with their progress.
+- **An assistant run is a chat through the CLI** in the project's directory, read-only: the read
+  tools only (`Read`, `Grep`, `Glob`, `LS`, and `Bash` limited to `git log`/`git status`/`ls`),
+  with `--json-schema` for its answer. It never writes a file; everything it proposes is written
+  by Agentry when the person accepts it. Model `sonnet` by default, editable per run.
+- **What a run reads**: the repository, the project's `CLAUDE.md` and memory, its journal, its
+  existing work items (so it does not propose them again), its team and its resources. What it
+  read is kept on the run and shown ("Ver lo que ha leído").
+- **Three kinds of run**: `project` (after creating a project, or on demand from the project page:
+  team, resources and first work items), `work-items` ("Sugerir tareas" on the board), `resources`
+  ("Sugerir" on the resources tab, or "Crear con IA" from a description for one resource).
+- **Every proposal is accepted or discarded on its own** (decision 36). A discarded one can be
+  restored. Accepting a team member adds it through the team service (its agent file included);
+  accepting a work item creates it in `backlog` with its type, priority, criteria and the reason
+  as its first comment; accepting a resource opens it in the existing editor, not yet saved, and it
+  is saved only when the person saves it.
+- **One run at a time per project and kind**; a new one supersedes the finished one's pending
+  proposals only when the person asks for it ("Volver a sugerir"). The run's model, duration and
+  cost show on it.
+- **The wizard** goes to the project assistant after creating a project, when the person leaves
+  "Proponer equipo, recursos y tareas" on (on by default for every template but Simple). The empty
+  Team screen gains "Pedir propuesta".
+
+### Routes
+
+| Method | Route |
+|---|---|
+| POST | `/projects/:id/assistant/runs` (`{ kind, model?, description?, resourceKind? }`) |
+| GET | `/projects/:id/assistant/runs?kind=` (latest first) |
+| GET | `/assistant/runs/:runId` (with its proposals) |
+| POST | `/assistant/runs/:runId/stop` |
+| POST | `/assistant/proposals/:proposalId/accept` (optional edits), `/discard`, `/restore` |
+
+Events: `assistant.run` (started, ended, failed) and `assistant.proposal` (accepted, discarded,
+restored).
+
+### File ownership
+
+| Task | Owns |
+|---|---|
+| `board-fixes` | the epic counting in `packages/core/src/work-items*.ts` and `apps/web/src/lib/work-items.ts`, the history's chat label (`linkLabel`: a chat named by its first prompt), the empty board's illustration key, the wizard summary's team line, their tests |
+| `assistant-types` | `packages/shared/src/types.ts`, the generated schemas, `apps/web/src/api.ts` and `lib/events.ts` for the assistant |
+| `assistant-core` | new `packages/core/src/assistant.ts` (and siblings), a migration, new `apps/api/src/routes/assistant.ts`, their tests |
+| `web-assistant` | new `apps/web/src/pages/assistant/**`, the wizard's hand-off in `pages/projects/**`, "Pedir propuesta" in `pages/team/**`, new `styles/assistant.css`, `locales/*/assistant.json`, `e2e/specs/assistant*.spec.mjs` |
+| `web-suggest` | "Sugerir tareas" in `pages/tasks/**`, the resources tab (`pages/config/ResourcesTab.tsx`, `pages/home/ProjectResources.tsx`), `locales/*/tasks.json` and `config.json` for these, `e2e/specs/suggest*.spec.mjs` |
+| `web-review-4`, `docs-4` | as in orchestration 3 |
+
+### `board-fixes`
+
+The four items the audit of orchestration 2 left open, each with a test that fails without it.
+
+### `assistant-types` (runs with `board-fixes`)
+
+Runs, their kind, status, model, cost, duration and what they read; proposals of three kinds (team
+member, resource with kind and content, work item with type, priority, criteria and reason) and
+their status; the events; the web client and query keys. Nothing existing changes shape.
+
+### `assistant-core` (depends on `assistant-types`)
+
+As the decisions say. Tests with the fake CLI: a run that proposes, one that fails, one stopped; each
+accept path through the real services; discard and restore; one run at a time; nothing written
+before an accept; the restart of a run cut in the middle.
+
+### `web-assistant` and `web-suggest` (both depend on `assistant-core`)
+
+Their screens as the references draw them, both themes, both sizes. A run in progress is the only
+thing that moves; a finished one is still.
+
+### `web-review-4` (depends on both) and `docs-4` (depends on `web-review-4`)
+
+As in orchestration 3; `docs-4` also writes `docs/assistant.md` and closes this plan's Outcome and
+`docs/status.md` for the whole ecosystem.
+
 ## Verification
 
 Once the graph is integrated: `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm e2e`, with a fixer.
