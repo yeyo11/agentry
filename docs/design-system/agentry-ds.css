@@ -784,5 +784,107 @@
    ========================================================================== */
 
 /* ---------- 17. Asistente y sugerencias (proto-ai) ---------- */
+/* The project assistant, the suggested tasks and the resources with AI (docs/plans/project-ecosystem.md,
+   decisions 35 to 38). Every suggestion is a CLI chat run with --json-schema, so a run always says
+   its model, its time, its cost and the chat it ran in. A run in progress is live: the braille
+   spinner, the shimmering verb, the energy border on its one surface and the caret of the text it
+   writes. A finished run and every proposal it left stand still. Classes start with ai- (a run) and
+   sug- (a proposal). */
+
+/* The assistant's mark: a sparkle on a neutral tile, like .agent-mark. It turns cyan only while the
+   run works; the gradient stays on the actions. */
+.ai-mark { flex-shrink: 0; width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--r); background: var(--bg-3); border: 1px solid var(--line-2); color: var(--fg-2); }
+.ai-mark .ico { width: 16px; height: 16px; }
+.ai-mark.sm { width: 24px; height: 24px; border-radius: var(--r-sm); }
+.ai-mark.sm .ico { width: 13px; height: 13px; }
+.ai-run.live .ai-mark { background: var(--live-soft); border-color: transparent; color: var(--live); }
+
+/* A suggestion run: what the assistant is doing now (.live, which takes the screen's energy border)
+   or what it did, and what it cost. */
+.ai-run { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; border-radius: var(--r-xl); border: 1px solid var(--line); background: var(--bg-2); box-shadow: var(--shadow); }
+.ai-run-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ai-run-title { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.ai-run-now { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13px; }
+.ai-run-now .mono { font-size: 12px; color: var(--fg-2); }
+/* A finished run folds into one line: a neutral check, what it produced, and its facts. */
+.ai-run.done { flex-direction: row; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--r-lg); box-shadow: none; }
+/* Model, time, cost and the chat it ran in. The cost is the one fact in --fg-2: it is what the owner
+   asked to see on every run. */
+.ai-facts { display: flex; align-items: center; flex-wrap: wrap; row-gap: 2px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.ai-facts > * + *::before { content: '·'; margin: 0 7px; color: var(--fg-3); }
+.ai-facts a::before { display: inline-block; }
+.ai-facts .cost { color: var(--fg-2); font-weight: 500; }
+.ai-facts a { color: var(--fg-2); text-decoration: underline; text-decoration-color: var(--line-3); text-underline-offset: 2px; }
+
+/* What the run read: one line per source, the one being read with the braille spinner. */
+.ai-steps { display: flex; flex-direction: column; }
+.ai-step { display: flex; align-items: center; gap: 10px; min-height: 30px; font-size: 13px; color: var(--fg-2); }
+.ai-step > .ico, .ai-step > .spin-braille { width: 14px; height: 14px; flex-shrink: 0; color: var(--fg-3); text-align: center; }
+.ai-step .path { font-family: var(--mono); font-size: 12px; color: var(--fg); }
+.ai-step .n { margin-left: auto; flex-shrink: 0; font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.ai-step.now { color: var(--fg); }
+.ai-step.now > .spin-braille { color: var(--live); }
+.ai-step.todo { color: var(--fg-3); }
+/* What it has found so far, as neutral mono tags. */
+.ai-found { display: flex; flex-wrap: wrap; gap: 5px; }
+
+/* A section that waits for the reading to finish: dashed and still, like .wi-col-slot. Only the
+   section being written shimmers (.skeleton). */
+.sug-wait { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; margin: 12px 14px; border-radius: var(--r-lg); border: 1px dashed var(--line-2); color: var(--fg-3); font-size: 12.5px; }
+.sug-wait .ico { width: 14px; height: 14px; }
+
+/* A proposal: what the assistant suggests and why, accepted or discarded on its own. Nothing is
+   written until the person accepts it. */
+.sug-row { position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.sug-row:last-child { border-bottom: 0; }
+.sug-row > .checkbox { margin-top: 2px; }
+.sug-row > .proj, .sug-row > .link-ico { margin-top: 1px; }
+.sug-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.sug-title { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13.5px; font-weight: 500; line-height: 1.38; }
+.sug-title .mono { font-size: 13px; }
+.sug-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--fg-3); }
+.sug-meta .mono { font-size: 11px; }
+/* The reason is the assistant's own words, so it reads as a quote under the title. */
+.sug-reason { margin: 0; padding-left: 10px; box-shadow: inset 2px 0 0 var(--line-2); font-size: 12.5px; line-height: 1.5; color: var(--fg-2); }
+.sug-acts { flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+/* Accepted: the proposal became a real thing, and says which (PAG-1, the path it was saved to). */
+.sug-done { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--fg-2); white-space: nowrap; }
+/* Discarded: struck through and quiet, with "Deshacer" until the run is closed. */
+.sug-row.discarded .sug-title { color: var(--fg-3); text-decoration: line-through; text-decoration-color: var(--line-3); }
+.sug-row.discarded .sug-reason, .sug-row.discarded .sug-meta { display: none; }
+/* A proposal that looks like an item the project already has says so, and starts unselected. */
+.sug-like { display: inline-flex; align-items: center; gap: 5px; color: var(--fg-2); }
+/* The phone has no checkboxes: each proposal carries a pressed-or-not "Incluir" button, the accent
+   ring when included, as .tpl-card.on. */
+.sug-pick[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.sug-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-bottom: 1px solid var(--line); }
+.sug-card:last-child { border-bottom: 0; }
+.sug-card .sug-acts > .btn { flex: 1 1 0; }
+
+/* The resource editor as the app draws it (CodeEditor over CodeMirror): gutter and text in mono,
+   syntax kept neutral so no status colour means "key" or "string". One grid row per line, so a line
+   that wraps on a phone keeps its number on its first visual line, as CodeMirror's lineWrapping. */
+.code-ed { display: grid; grid-template-columns: auto minmax(0, 1fr); align-content: start; min-height: 0; overflow: hidden; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-1); font-family: var(--mono); font-size: 12.5px; line-height: 1.7; }
+.code-ed .ln { padding: 0 10px 0 14px; border-right: 1px solid var(--line); color: var(--fg-3); text-align: right; font-variant-numeric: tabular-nums; user-select: none; }
+.code-ed .tx { min-width: 0; padding: 0 16px; color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.code-ed > :nth-child(-n+2) { padding-top: 12px; }
+.code-ed > :nth-last-child(-n+2) { padding-bottom: 12px; }
+.ai-run-head > .ai-run-now { flex: 1 1 auto; }
+.code-ed .tk-p { color: var(--fg-3); }
+.code-ed .tk-k { color: var(--fg-2); }
+.code-ed .tk-h { font-weight: 600; }
+.code-ed .tk-c { color: var(--fg-3); }
+/* A proposal opened in the editor before it exists on disk: the editor's meta line says where it
+   will be written, and the badge says it is not saved yet. */
+.editor-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.editor-meta .path { font-family: var(--mono); font-size: 12px; color: var(--fg-3); }
+
+/* The master list of the resources tab, as the app's .master-item, with the proposals on top. */
+.res-item { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 9px 12px; border-radius: var(--r); cursor: pointer; transition: background var(--dur-fast); }
+.res-item:hover { background: var(--bg-3); }
+.res-item.sel { background: var(--bg-3); box-shadow: inset 2px 0 0 var(--accent); }
+.res-item .name { display: flex; align-items: center; gap: 7px; min-width: 0; font-family: var(--mono); font-size: 12.5px; font-weight: 500; }
+.res-item .desc { font-size: 12px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 
 /* ---------- end of 17 ---------- */
