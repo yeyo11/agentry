@@ -3,6 +3,9 @@ import { useEffect } from 'react';
 import type {
   AgentryEvent,
   AgentryEventType,
+  AssistantProposalEvent,
+  AssistantRun,
+  AssistantRunDetail,
   ChatActivityEvent,
   ChatDetail,
   ChatState,
@@ -105,6 +108,8 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'memory.proposal': true,
   'document.changed': true,
   'flow.run': true,
+  'assistant.run': true,
+  'assistant.proposal': true,
 };
 
 type Target = readonly [QueryKey, number];
@@ -177,6 +182,16 @@ function approvedTarget(event: MemoryProposalEvent): Target[] {
     case 'journal':
       return [[keys.journal(event.projectId), NOW]];
   }
+}
+
+/**
+ * What an accepted proposal wrote that has no event of its own: a saved resource, in the list of its
+ * kind and scope. An item and a member announce themselves (`workitem.created`, `team.changed`).
+ */
+function savedResource(event: AssistantProposalEvent): Target[] {
+  if (event.action !== 'accepted' || !event.resource) return [];
+  const scope = event.resource.scope === 'project' ? { projectId: event.projectId } : {};
+  return [[keys.resources(scope, event.resource.kind), NOW]];
 }
 
 /** The cached queries an event makes stale, and how soon each should be refetched. */
@@ -308,6 +323,16 @@ export function targetsFor(event: AgentryEvent): Target[] {
         [keys.workItemLists(event.projectId), NOW],
         [keys.workItem(event.itemId), NOW],
       ];
+    case 'assistant.run':
+      return [
+        [keys.assistantRunsOf(event.projectId), NOW],
+        [keys.assistantRun(event.runId), NOW],
+        // "Suggest again" set the previous run's pending proposals aside
+        ...(event.supersedes ? ([[keys.assistantRun(event.supersedes), NOW]] as Target[]) : []),
+      ];
+    case 'assistant.proposal':
+      // The lists carry each run's counts by status ("2 of 6 accepted")
+      return [[keys.assistantRun(event.runId), NOW], [keys.assistantRunsOf(event.projectId), NOW], ...savedResource(event)];
   }
 }
 
@@ -342,6 +367,12 @@ export function patchActivity(client: QueryClient, event: ChatActivityEvent): vo
   client.setQueriesData<ProjectFlow>({ queryKey: ['flow'] }, (flow) =>
     flow?.running.some((run) => run.chatId === chatId) ? { ...flow, running: patchRuns(flow.running) } : flow,
   );
+  // A running assistant shows its chat's line ("Reading src/webhooks/stripe.ts")
+  const patchAssistant = <R extends AssistantRun>(run: R): R => (run.chatId === chatId ? { ...run, activity } : run);
+  client.setQueriesData<AssistantRun[]>({ queryKey: ['assistant', 'runs'] }, (runs) =>
+    runs?.some((run) => run.chatId === chatId) ? runs.map(patchAssistant) : runs,
+  );
+  client.setQueriesData<AssistantRunDetail>({ queryKey: keys.assistantRunEach }, (run) => (run?.chatId === chatId ? patchAssistant(run) : run));
   if (!event.orchestrationId || !event.taskId) return;
   const patchGraph = (orch: Orchestration): Orchestration =>
     orch.id === event.orchestrationId ? { ...orch, tasks: orch.tasks.map((task) => (task.id === event.taskId ? { ...task, activity } : task)) } : orch;
