@@ -13,6 +13,7 @@ import type {
   RunUpdatedEvent,
   StreamHelloEvent,
   StreamResyncEvent,
+  WorkItemChange,
 } from '@agentry/shared';
 import { keys } from '../api';
 import { withToken } from './auth';
@@ -127,22 +128,46 @@ const activity = (delay: number): Target[] => [
   ...detail(delay),
 ];
 
+// Where a work item shows besides its own page: every board and list of its project and of All
+// projects (the sidebar's count reads the unfiltered board), the chats' lists of their items, and the
+// milestones whose progress counts it
+const workItemViews = (projectId: string): Target[] => [
+  [keys.workItemBoards(projectId), NOW],
+  [keys.workItemBoards(null), NOW],
+  [keys.workItemLists(projectId), NOW],
+  [keys.workItemLists(null), NOW],
+  [keys.chatWorkItemsAll, NOW],
+  [keys.milestones(projectId), NOW],
+  [keys.milestoneEach, NOW],
+];
+
+/** What another item's page shows of this one: its chip (key, title, type) and the relation itself. */
+const REF_CHANGES: ReadonlySet<WorkItemChange> = new Set(['title', 'type', 'epic', 'relation']);
+
+// A card is live while the chat or node on it runs, which the item's own events do not announce when
+// a turn fails or stops: the boards and an open item read again when a run changes state. Only the
+// mounted ones are fetched, and at the pace of the lists
+const liveCards: Target[] = [
+  [keys.workItems, LISTS],
+  [keys.workItemDetails, LISTS],
+];
+
 /** The cached queries an event makes stale, and how soon each should be refetched. */
 export function targetsFor(event: AgentryEvent): Target[] {
   switch (event.type) {
     // A run is an execution of a chat, and its id is the chat's: what it changes is that chat
     case 'run.created':
-      return [[keys.chats, LISTS], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW]];
+      return [[keys.chats, LISTS], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW], ...liveCards];
     case 'run.updated':
       // Only a status change moves counts elsewhere. The rest is a chat's own numbers, which
       // `patchRun` writes into the rows: the lists are read again only when that moved the state
       return event.previousStatus === null
         ? transcriptOf(event.runId)
-        : [[keys.chats, LISTS], [keys.chatScope(event.runId), NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW]];
+        : [[keys.chats, LISTS], [keys.chatScope(event.runId), NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW], ...liveCards];
     case 'run.ended':
       return [
         [keys.chats, LISTS], [['chat', event.runId], NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['usage'], OVERVIEW],
-        [['environments'], NOW], ...activity(OVERVIEW),
+        [['environments'], NOW], ...activity(OVERVIEW), ...liveCards,
       ];
     case 'run.removed':
       return [[keys.chats, LISTS], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['usage'], OVERVIEW]];
@@ -174,7 +199,7 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'orchestration.removed':
       return [[keys.orchestrations, NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW]];
     case 'orchestration.task':
-      return [[keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW], [keys.chats, LISTS]];
+      return [[keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW], [keys.chats, LISTS], ...liveCards];
     case 'changes.updated':
       // Whatever the board reads about this graph's branches sits under its key, changes included
       return [[keys.orchestration(event.orchestrationId), NOW]];
@@ -203,14 +228,35 @@ export function targetsFor(event: AgentryEvent): Target[] {
       // Reading it back costs nothing: the server answers from release.json, not from GitHub
       return [[keys.release, NOW]];
     case 'project.updated':
-      return [[keys.projects, NOW], [keys.overview, OVERVIEW]];
+      return [
+        [keys.projects, NOW], [keys.overview, OVERVIEW], [keys.projectSettings(event.projectId), NOW],
+        // Keys are composed with the prefix when read, so every one of the project's is renamed
+        ...(event.changes.includes('key') ? [...workItemViews(event.projectId), [keys.workItemDetails, NOW], [keys.workItemKeys, NOW]] as Target[] : []),
+        // Column limits live in the settings; a module switched on or off changes what is counted
+        ...(event.changes.includes('settings') || event.changes.includes('modules')
+          ? ([[keys.workItemBoards(event.projectId), NOW], [keys.workItemBoards(null), NOW]] as Target[])
+          : []),
+      ];
     case 'workitem.created':
+      // An epic's page lists its children, so an item created in one is news to it
+      return [...workItemViews(event.projectId), [keys.workItemDetails, NOW]];
     case 'workitem.updated':
+      return [
+        ...workItemViews(event.projectId),
+        // Other pages carry this item as a chip (an epic, a relation), and a relation changes both ends
+        event.changes.some((change) => REF_CHANGES.has(change)) ? [keys.workItemDetails, NOW] : [keys.workItem(event.itemId), NOW],
+      ];
     case 'workitem.moved':
+      // The status is on every chip that names the item, and the milestones count it
+      return [...workItemViews(event.projectId), [keys.workItemDetails, NOW]];
     case 'workitem.removed':
+      return [...workItemViews(event.projectId), [keys.workItemDetails, NOW], [keys.workItemKeys, NOW]];
     case 'milestone.changed':
-      // No screen reads work items yet; the board wires its queries here when it is built
-      return [];
+      return [
+        [keys.milestones(event.projectId), NOW], [keys.milestoneEach, NOW],
+        // Deleting one takes it off its items, which the cards and pages show
+        ...(event.action === 'deleted' ? [...workItemViews(event.projectId), [keys.workItemDetails, NOW]] as Target[] : []),
+      ];
   }
 }
 

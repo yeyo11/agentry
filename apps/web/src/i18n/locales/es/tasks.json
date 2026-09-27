@@ -1,0 +1,33 @@
+{
+  "title": "Tareas",
+  "views": {
+    "board": "Tablero",
+    "list": "Lista",
+    "milestones": "Hitos"
+  },
+  "status": {
+    "backlog": "Backlog",
+    "todo": "Por hacer",
+    "in_progress": "En curso",
+    "in_review": "En revisión",
+    "done": "Hecho"
+  },
+  "type": {
+    "epic": "Épica",
+    "story": "Historia",
+    "task": "Tarea",
+    "bug": "Bug"
+  },
+  "priority": {
+    "low": "Baja",
+    "medium": "Media",
+    "high": "Alta",
+    "urgent": "Urgente"
+  },
+  "priorityMark": {
+    "low": "Prioridad baja",
+    "medium": "Prioridad media",
+    "high": "Prioridad alta",
+    "urgent": "Prioridad urgente"
+  }
+}

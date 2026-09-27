@@ -15,11 +15,15 @@
 @import './styles/primitives.css';
 @import './styles/feedback.css';
 @import './styles/illustrations.css';
+@import './styles/work-item-marks.css';
 @import './styles/lists.css';
 @import './styles/transcript.css';
 @import './styles/chat.css';
 @import './styles/orchestration.css';
 @import './styles/dashboard.css';
+@import './styles/projects.css';
+@import './styles/board.css';
+@import './styles/work-item.css';
 @import './styles/editors.css';
 @import './styles/overlays.css';
 @import './styles/motion.css';

@@ -39,7 +39,18 @@
   },
   "nav": {
     "work": "Work",
-    "space": "Space"
+    "space": "Space",
+    "tasks": "Tasks",
+    "open_one": "open",
+    "open_other": "open"
+  },
+  "tasks": {
+    "openCount_one": "{{n}} open",
+    "openCount_other": "{{n}} open",
+    "newTask": "New task",
+    "newTaskIn": "Add a task to the board of {{name}}",
+    "newTaskHint": "Add a task to a project's board",
+    "goToHint": "The board of the selected project, or of every project"
   },
   "statusbar": {
     "label": "Status bar",

@@ -1,0 +1,33 @@
+{
+  "title": "Tasks",
+  "views": {
+    "board": "Board",
+    "list": "List",
+    "milestones": "Milestones"
+  },
+  "status": {
+    "backlog": "Backlog",
+    "todo": "To do",
+    "in_progress": "In progress",
+    "in_review": "In review",
+    "done": "Done"
+  },
+  "type": {
+    "epic": "Epic",
+    "story": "Story",
+    "task": "Task",
+    "bug": "Bug"
+  },
+  "priority": {
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "urgent": "Urgent"
+  },
+  "priorityMark": {
+    "low": "Low priority",
+    "medium": "Medium priority",
+    "high": "High priority",
+    "urgent": "Urgent priority"
+  }
+}

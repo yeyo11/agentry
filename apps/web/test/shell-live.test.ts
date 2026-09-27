@@ -126,7 +126,11 @@ test('the phone FAB follows the page: words on Home, an icon on the lists, none 
   assert.deepEqual(fabFor('/'), { action: 'chat', labelled: true });
   for (const path of ['/chats', '/chats/', '/projects']) assert.deepEqual(fabFor(path), { action: 'chat', labelled: false }, path);
   assert.deepEqual(fabFor('/orchestration'), { action: 'orchestration', labelled: false });
-  for (const path of ['/chats/abc', '/chats/new', '/orchestration/o1', '/settings', '/accounts', '/usage', '/nowhere']) assert.equal(fabFor(path), null, path);
+  // Tasks starts a new task, on the board and the milestones; a work item's page has its own actions
+  for (const path of ['/tasks', '/tasks/', '/tasks/milestones']) assert.deepEqual(fabFor(path), { action: 'task', labelled: false }, path);
+  for (const path of ['/chats/abc', '/chats/new', '/orchestration/o1', '/tasks/AGN-12', '/projects/new', '/settings', '/accounts', '/usage', '/nowhere']) {
+    assert.equal(fabFor(path), null, path);
+  }
 });
 
 test('the status bar reads the account-wide 5 h and 7 d windows, never a per-model one', () => {
@@ -177,6 +181,12 @@ test('the More sheet says a problem before a count, and nothing it does not know
   // Before the account list is read, the overview's total; a day with no cost is said, not left blank
   assert.deepEqual(moreNotes({ accounts: { total: 2 } })['/accounts'], { kind: 'count', value: 2 });
   assert.deepEqual(moreNotes({ todayCost: null })['/usage'], { kind: 'cost', value: null });
+});
+
+test('Tasks in the More sheet says its open items with the word, and nothing where there is no board', () => {
+  assert.deepEqual(moreNotes({ tasks: 15 })['/tasks'], { kind: 'open', value: 15 });
+  assert.deepEqual(moreNotes({ tasks: 0 })['/tasks'], { kind: 'open', value: 0 });
+  assert.equal(moreNotes({ tasks: undefined })['/tasks'], undefined);
 });
 
 test('only the chat list holds the project scope in its own header', () => {

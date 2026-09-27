@@ -67,6 +67,8 @@ function CellNote({ note }: { note: MoreNote | undefined }) {
       return <span className="more-cell-note">{note.value === null ? t('statusbar.todayNone') : t('statusbar.today', { cost: formatCost(note.value) })}</span>;
     case 'count':
       return <span className="more-cell-note">{formatNumber(note.value)}</span>;
+    case 'open':
+      return <span className="more-cell-note">{t('tasks.openCount', { count: note.value, n: formatNumber(note.value) })}</span>;
   }
 }
 

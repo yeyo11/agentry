@@ -115,11 +115,38 @@ import type {
   TaskHintRequest,
   TranscriptSearchResult,
   UsageReport,
+  Board,
+  CreateMilestoneRequest,
+  CreateWorkItemCommentRequest,
+  CreateWorkItemFromMessageRequest,
+  CreateWorkItemLinkRequest,
+  CreateWorkItemRelationRequest,
+  CreateWorkItemRequest,
+  Milestone,
+  MoveWorkItemRequest,
+  MoveWorkItemResult,
+  OrchestrateWorkItemsRequest,
+  ProjectSettings,
+  ProjectTemplate,
+  UpdateMilestoneRequest,
+  UpdateProjectRequest,
+  UpdateWorkItemRequest,
+  WorkItem,
+  WorkItemChanges,
+  WorkItemComment,
+  WorkItemDetail,
+  WorkItemFilter,
+  WorkItemHistoryEntry,
+  WorkItemLink,
+  WorkItemOrchestrationDraft,
+  WorkOnWorkItemRequest,
+  WorkOnWorkItemResult,
 } from '@agentry/shared';
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
 import { RUN_TAG } from './lib/chat-pages';
 import { useFallbackInterval } from './lib/feed';
+import { filterKey, normalizeKey, openCount } from './lib/work-items';
 
 export const BASE = '/api';
 
@@ -229,6 +256,34 @@ function qs(params: Record<string, string | undefined>): string {
   return pairs.length ? `?${pairs.map(([k, v]) => `${k}=${enc(v)}`).join('&')}` : '';
 }
 
+/** A work item filter as the routes read it: every list comma separated. */
+const workItemQuery = (filter: Omit<WorkItemFilter, 'projectId'>) =>
+  qs({
+    status: filter.status?.join(','),
+    type: filter.type?.join(','),
+    priority: filter.priority?.join(','),
+    labels: filter.labels?.join(','),
+    assignee: filter.assignee?.join(','),
+    epicId: filter.epicId,
+    milestoneId: filter.milestoneId,
+    q: filter.q?.trim() || undefined,
+  });
+
+/** A project's collection, or every project's (the All projects view) for `null`. */
+const workItemsOf = (projectId: string | null) => (projectId ? `/projects/${enc(projectId)}/work-items` : '/work-items');
+
+/**
+ * The item behind a key. There is no route by key, but a search for one matches it exactly (the
+ * API parses a key in `q`), so this asks every project and keeps the one whose key it is: a title
+ * that happens to contain the key does not count. Null when there is none.
+ */
+async function workItemByKey(key: string, o: ReadOptions = {}): Promise<WorkItem | null> {
+  const wanted = normalizeKey(key);
+  if (!wanted) return null;
+  const found = await request<WorkItem[]>(`/work-items${qs({ q: wanted })}`, o);
+  return found.find((item) => item.key.toUpperCase() === wanted) ?? null;
+}
+
 const scoped = (scope: Scope, variant?: ConfigFileVariant) =>
   qs({ project: scope.projectId, variant: scope.projectId ? variant : undefined });
 
@@ -249,6 +304,13 @@ export const api = {
   importProject: (req: ImportProjectRequest) => request<Project>('/projects/import', { method: 'POST', body: req }),
   createProject: (req: CreateProjectRequest) => request<Project>('/projects', { method: 'POST', body: req }),
   renameProject: (id: string, name: string) => request<Project>(`/projects/${enc(id)}`, { method: 'PATCH', body: { name } }),
+  /** Name, key prefix and modules; only the fields present change */
+  updateProject: (id: string, req: UpdateProjectRequest) => request<Project>(`/projects/${enc(id)}`, { method: 'PATCH', body: req }),
+  projectTemplates: (o: ReadOptions = {}) => request<ProjectTemplate[]>('/projects/templates', o),
+  projectSettings: (id: string, o?: ReadOptions) => request<ProjectSettings>(`/projects/${enc(id)}/settings`, o),
+  /** The whole document: read it, change it, write it back */
+  putProjectSettings: (id: string, settings: ProjectSettings) =>
+    request<ProjectSettings>(`/projects/${enc(id)}/settings`, { method: 'PUT', body: settings }),
   removeProject: (id: string) => request<{ ok: true }>(`/projects/${enc(id)}`, { method: 'DELETE' }),
   purgeProject: (id: string) => request<{ detail: string }>(`/projects/${enc(id)}/state`, { method: 'DELETE' }),
   chats: (filter: ChatFilter = {}, o?: ReadOptions) =>
@@ -485,6 +547,55 @@ export const api = {
     request<CliTextResult>(`/plugins/marketplaces/${enc(name)}`, { method: 'DELETE' }),
   updateMarketplaces: (name?: string) =>
     request<CliTextResult>('/plugins/marketplaces/update', { method: 'POST', body: name ? { name } : {} }),
+  // ---- work items (docs/work-items.md). `projectId` null is every project: the All projects view
+  workItems: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, o?: ReadOptions) =>
+    request<WorkItem[]>(`${workItemsOf(projectId)}${workItemQuery(filter)}`, o),
+  workItemBoard: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, o?: ReadOptions) =>
+    request<Board>(`${workItemsOf(projectId)}/board${workItemQuery(filter)}`, o),
+  workItemByKey,
+  workItem: (itemId: string, o?: ReadOptions) => request<WorkItemDetail>(`/work-items/${enc(itemId)}`, o),
+  createWorkItem: (projectId: string, req: CreateWorkItemRequest) =>
+    request<WorkItem>(`/projects/${enc(projectId)}/work-items`, { method: 'POST', body: req }),
+  updateWorkItem: (itemId: string, req: UpdateWorkItemRequest) => request<WorkItem>(`/work-items/${enc(itemId)}`, { method: 'PATCH', body: req }),
+  deleteWorkItem: (itemId: string) => request<{ ok: true }>(`/work-items/${enc(itemId)}`, { method: 'DELETE' }),
+  /** `afterId` names the neighbour it lands after: null puts it first in the column, absent last */
+  moveWorkItem: (itemId: string, req: MoveWorkItemRequest) =>
+    request<MoveWorkItemResult>(`/work-items/${enc(itemId)}/move`, { method: 'POST', body: req }),
+  checkCriterion: (itemId: string, criterionId: string, checked: boolean) =>
+    request<WorkItem>(`/work-items/${enc(itemId)}/criteria/${enc(criterionId)}`, { method: 'PATCH', body: { checked } }),
+  workItemComments: (itemId: string, o?: ReadOptions) => request<WorkItemComment[]>(`/work-items/${enc(itemId)}/comments`, o),
+  addWorkItemComment: (itemId: string, req: CreateWorkItemCommentRequest) =>
+    request<WorkItemComment>(`/work-items/${enc(itemId)}/comments`, { method: 'POST', body: req }),
+  addWorkItemRelation: (itemId: string, req: CreateWorkItemRelationRequest) =>
+    request<WorkItem>(`/work-items/${enc(itemId)}/relations`, { method: 'POST', body: req }),
+  removeWorkItemRelation: (itemId: string, otherId: string) =>
+    request<WorkItem>(`/work-items/${enc(itemId)}/relations/${enc(otherId)}`, { method: 'DELETE' }),
+  workItemLinks: (itemId: string, o?: ReadOptions) => request<WorkItemLink[]>(`/work-items/${enc(itemId)}/links`, o),
+  addWorkItemLink: (itemId: string, req: CreateWorkItemLinkRequest) =>
+    request<WorkItemLink>(`/work-items/${enc(itemId)}/links`, { method: 'POST', body: req }),
+  removeWorkItemLink: (itemId: string, linkId: string) =>
+    request<{ ok: true }>(`/work-items/${enc(itemId)}/links/${enc(linkId)}`, { method: 'DELETE' }),
+  workItemHistory: (itemId: string, o?: ReadOptions) => request<WorkItemHistoryEntry[]>(`/work-items/${enc(itemId)}/history`, o),
+  /** "Work on it": a chat in the item's own worktree, prompted with the item; the page opens `chat.id` */
+  workOnWorkItem: (itemId: string, req: WorkOnWorkItemRequest = {}) =>
+    request<WorkOnWorkItemResult>(`/work-items/${enc(itemId)}/work`, { method: 'POST', body: req }),
+  workItemChanges: (itemId: string, o?: ReadOptions) => request<WorkItemChanges>(`/work-items/${enc(itemId)}/changes`, o),
+  workItemDiff: (itemId: string, path: string) => request<FileDiff>(`/work-items/${enc(itemId)}/changes/diff${qs({ path })}`),
+  /** A draft for the orchestration editor to review, not a launched graph: `createOrchestration` launches it */
+  orchestrateWorkItems: (projectId: string, req: OrchestrateWorkItemsRequest) =>
+    request<WorkItemOrchestrationDraft>(`/projects/${enc(projectId)}/work-items/orchestrate`, { method: 'POST', body: req }),
+  /** "Create a task from this message": in Backlog, linked to the chat */
+  workItemFromMessage: (chatId: string, req: CreateWorkItemFromMessageRequest) =>
+    request<WorkItem>(`/chats/${enc(chatId)}/work-items`, { method: 'POST', body: req }),
+  /** The items a chat is linked to, whatever part it played */
+  chatWorkItems: (chatId: string, o?: ReadOptions) => request<WorkItem[]>(`/chats/${enc(chatId)}/work-items`, o),
+  milestones: (projectId: string, o?: ReadOptions) => request<Milestone[]>(`/projects/${enc(projectId)}/milestones`, o),
+  milestone: (milestoneId: string, o?: ReadOptions) => request<Milestone>(`/milestones/${enc(milestoneId)}`, o),
+  createMilestone: (projectId: string, req: CreateMilestoneRequest) =>
+    request<Milestone>(`/projects/${enc(projectId)}/milestones`, { method: 'POST', body: req }),
+  updateMilestone: (milestoneId: string, req: UpdateMilestoneRequest) =>
+    request<Milestone>(`/milestones/${enc(milestoneId)}`, { method: 'PATCH', body: req }),
+  deleteMilestone: (milestoneId: string) => request<{ ok: true }>(`/milestones/${enc(milestoneId)}`, { method: 'DELETE' }),
   /** The VAPID public key to subscribe against; the server makes its keypair when this is first asked */
   pushKey: () => request<PushKeyInfo>('/push/key'),
   pushSubscriptions: () => request<PushSubscriptionSummary[]>('/push/subscriptions'),
@@ -557,6 +668,40 @@ export const keys = {
   securityAuth: ['security', 'auth'] as const,
   audit: (page: AuditFilter & { from?: number }) =>
     ['security', 'audit', page.from ?? 0, page.path ?? '', page.method ?? '', page.status ?? ''] as const,
+  // ---- the project ecosystem. Every work item read sits under `workItems` or `workItemDetails`, and
+  // milestones under `milestonesAll`, so the event feed (lib/events.ts) reaches exactly the ones an
+  // event touches by prefix.
+  projectTemplates: ['project-templates'] as const,
+  // Not under `projects`: the run events refresh that prefix all the time, and a settings form must
+  // not be read back from under the person editing it
+  projectSettings: (projectId: string) => ['project-settings', projectId] as const,
+  workItems: ['work-items'] as const,
+  /** Every board of a project whatever its filter, or of All projects for `null` */
+  workItemBoards: (projectId: string | null) => ['work-items', 'board', projectId ?? 'all'] as const,
+  workItemBoard: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}) =>
+    ['work-items', 'board', projectId ?? 'all', filterKey(filter)] as const,
+  /** Every list of a project whatever its filter, or of All projects for `null` */
+  workItemLists: (projectId: string | null) => ['work-items', 'list', projectId ?? 'all'] as const,
+  workItemList: (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}) =>
+    ['work-items', 'list', projectId ?? 'all', filterKey(filter)] as const,
+  /** Which item each key names: stale once an item is removed or a project's prefix changes */
+  workItemKeys: ['work-items', 'key'] as const,
+  workItemByKey: (key: string) => ['work-items', 'key', normalizeKey(key) ?? key] as const,
+  chatWorkItemsAll: ['work-items', 'chat'] as const,
+  chatWorkItems: (chatId: string) => ['work-items', 'chat', chatId] as const,
+  /** Prefix of every item's page and of what is read for it */
+  workItemDetails: ['work-item'] as const,
+  workItem: (itemId: string) => ['work-item', itemId] as const,
+  workItemComments: (itemId: string) => ['work-item', itemId, 'comments'] as const,
+  workItemHistory: (itemId: string) => ['work-item', itemId, 'history'] as const,
+  workItemLinks: (itemId: string) => ['work-item', itemId, 'links'] as const,
+  workItemChanges: (itemId: string) => ['work-item', itemId, 'changes'] as const,
+  workItemDiff: (itemId: string, path: string) => ['work-item', itemId, 'changes', 'diff', path] as const,
+  milestonesAll: ['milestones'] as const,
+  /** Prefix of every milestone read alone */
+  milestoneEach: ['milestones', 'one'] as const,
+  milestones: (projectId: string) => ['milestones', projectId] as const,
+  milestone: (milestoneId: string) => ['milestones', 'one', milestoneId] as const,
   pushSubscriptions: ['push', 'subscriptions'] as const,
   availablePlugins: (q: string) => ['plugins', 'available', q] as const,
   pluginDetails: (plugin: string) => ['plugins', 'details', plugin] as const,
@@ -657,3 +802,94 @@ export const useOrchestration = (id: string) => {
     },
   });
 };
+
+// ---------- the project ecosystem ----------
+//
+// Kept fresh by `workitem.*`, `milestone.changed` and `project.updated` (lib/events.ts), and by the
+// run events for what makes a card live. A page that edits passes what it changed through the
+// mutation's answer and lets the event refetch the rest.
+
+/** The five built-in templates; they never change while the server runs. */
+export const useProjectTemplates = () =>
+  useQuery({ queryKey: keys.projectTemplates, queryFn: ({ signal }) => api.projectTemplates({ signal }), staleTime: Infinity });
+
+export const useProjectSettings = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.projectSettings(projectId ?? ''),
+    queryFn: ({ signal }) => api.projectSettings(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+  });
+
+/** How a board is read everywhere, so the sidebar's count and the page share one cache entry. */
+export const workItemBoardQuery = (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}) => ({
+  queryKey: keys.workItemBoard(projectId, filter),
+  queryFn: ({ signal }: { signal: AbortSignal }) => api.workItemBoard(projectId, filter, { signal }),
+});
+
+/** A project's board, or every project's for `null`. A new filter keeps the cards on screen until its answer arrives. */
+export const useWorkItemBoard = (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, enabled = true) =>
+  useQuery({ ...workItemBoardQuery(projectId, filter), refetchInterval: useFallbackInterval(), enabled, placeholderData: keepPreviousData });
+
+export const useWorkItemList = (projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, enabled = true) =>
+  useQuery({
+    queryKey: keys.workItemList(projectId, filter),
+    queryFn: ({ signal }) => api.workItems(projectId, filter, { signal }),
+    refetchInterval: useFallbackInterval(),
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+
+/** The item a key names (`/tasks/:key`); `data` is null when no project has it. */
+export const useWorkItemByKey = (key: string) =>
+  useQuery({ queryKey: keys.workItemByKey(key), queryFn: ({ signal }) => api.workItemByKey(key, { signal }) });
+
+/** One item's page: its fields, children, links, comments and history. */
+export const useWorkItem = (itemId: string | null) =>
+  useQuery({
+    queryKey: keys.workItem(itemId ?? ''),
+    queryFn: ({ signal }) => api.workItem(itemId ?? '', { signal }),
+    enabled: itemId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/** What the item's own branch changed; read while its Changes are shown. */
+export const useWorkItemChanges = (itemId: string | null, enabled = true) =>
+  useQuery({
+    queryKey: keys.workItemChanges(itemId ?? ''),
+    queryFn: ({ signal }) => api.workItemChanges(itemId ?? '', { signal }),
+    enabled: enabled && itemId !== null,
+  });
+
+export const useMilestones = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.milestones(projectId ?? ''),
+    queryFn: ({ signal }) => api.milestones(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/** The work items a chat is linked to: the header of a chat that works on one names it. */
+export const useChatWorkItems = (chatId: string | null) =>
+  useQuery({
+    queryKey: keys.chatWorkItems(chatId ?? ''),
+    queryFn: ({ signal }) => api.chatWorkItems(chatId ?? '', { signal }),
+    enabled: chatId !== null,
+  });
+
+/**
+ * Whether the scope has a board to count: a project with its Board module on, or All projects.
+ * A project whose board is switched off keeps its items but shows no count for them.
+ */
+export const scopeHasBoard = (project: Pick<Project, 'modules'> | null): boolean => project === null || project.modules.includes('board');
+
+/**
+ * The open items of the top bar's scope, as the sidebar and the More sheet show beside Tasks: the
+ * selected project's, or every project's with All projects. Read from the unfiltered board, the
+ * very entry Tasks opens on. Undefined while unknown and where there is no board.
+ */
+export function useOpenTaskCount(project: Project | null, settled: boolean): number | undefined {
+  const counted = settled && scopeHasBoard(project);
+  const board = useWorkItemBoard(project?.id ?? null, {}, counted);
+  // The previous scope's board stands in while the new one loads: its figure would be wrong
+  return counted && !board.isPlaceholderData ? openCount(board.data) : undefined;
+}

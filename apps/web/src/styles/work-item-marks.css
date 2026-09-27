@@ -1,0 +1,179 @@
+/* ==========================================================================
+   Work item marks: what the board, the list, a work item's page and a chat
+   that works on one all draw the same way (components/icons.tsx). The screens'
+   own layouts are in board.css and work-item.css. Reference: `.wi-key`,
+   `.wi-type`, `.wi-prio`, `.wi-epic`, `.wi-label` and `.wi-status` in
+   docs/design-system/agentry-ds.css §15.
+   ========================================================================== */
+
+/* AGN-12: mono, tabular, never wrapped */
+.workitem-key {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.workitem-key.boxed {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--line);
+  background: var(--bg-3);
+  color: var(--fg-2);
+}
+
+/* Types by shape, all neutral */
+.workitem-type {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--fg-3);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.workitem-type.lg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Priority is not a status: three neutral bars, and urgent the only mark with a colour, the accent,
+   which no status uses. Its word is in aria-label and title. */
+.priority-mark {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1.5px;
+  width: 14px;
+  height: 12px;
+}
+
+.priority-mark > i {
+  display: block;
+  width: 3px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-4);
+}
+
+.priority-mark > i:nth-child(1) {
+  height: 5px;
+}
+
+.priority-mark > i:nth-child(2) {
+  height: 8px;
+}
+
+.priority-mark > i:nth-child(3) {
+  height: 11px;
+}
+
+.priority-mark.p-low > i:nth-child(1),
+.priority-mark.p-medium > i:nth-child(-n + 2),
+.priority-mark.p-high > i {
+  background: var(--fg-2);
+}
+
+.priority-mark.p-urgent {
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.priority-mark.p-urgent::before {
+  content: '!';
+}
+
+.priority-mark.p-urgent > i {
+  display: none;
+}
+
+/* An epic is neutral, with its own hue only on the diamond (tokens.css works out --hue-mark), so a
+   board of one epic does not turn the brand's colour */
+.workitem-epic {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  height: 20px;
+  line-height: 20px;
+  padding: 0 7px 0 6px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-3);
+  color: var(--fg-2);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workitem-epic::before {
+  content: '';
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: 1px;
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  border-radius: var(--radius-xs);
+  background: var(--hue-mark);
+}
+
+/* A free label */
+.workitem-label {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--line-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+/* A column is told by shape, never by colour, except Done, which is ok and always named */
+.workitem-status {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--fg-3);
+  stroke-width: 1.8;
+}
+
+.workitem-status .fill {
+  fill: var(--fg-3);
+  stroke: none;
+}
+
+.workitem-status.s-done {
+  stroke: var(--ok);
+}
+
+.workitem-status.s-done .fill {
+  fill: var(--ok);
+}
+
+.workitem-status .tick {
+  fill: none;
+  stroke: var(--bg-2);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
