@@ -1,0 +1,447 @@
+/* The diff comparator (docs/design-system.md §5; §15 of agentry-ds.css under the app's names).
+   Three rules keep it quiet: only what changed carries colour (muted syntax, dimmed context), what
+   was removed folds into a pill in Reading, and a changed line gets one 3 px rail instead of a
+   flooded row. Rows are 20 px, so the numbers line up. */
+.diff {
+  --diff-num: 54px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 20px;
+  color: var(--fg);
+  background: var(--bg);
+  font-variant-ligatures: none;
+}
+
+.diff-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--diff-num) var(--diff-rail-w) minmax(0, 1fr);
+  min-height: 20px;
+}
+
+.diff-num {
+  padding-right: 16px;
+  text-align: right;
+  color: var(--fg-3);
+  opacity: 0.65;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.diff-line-rail {
+  border-radius: var(--diff-rail-radius);
+}
+
+.diff-code {
+  padding-left: 18px;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.diff-sign {
+  color: var(--fg-3);
+  user-select: none;
+  text-align: center;
+}
+
+.diff-row.is-add .diff-line-rail,
+.diff-row.is-mod .diff-line-rail {
+  background: var(--diff-add);
+}
+
+.diff-row.is-del .diff-line-rail {
+  background: var(--diff-del);
+}
+
+.diff-row.is-add .diff-num,
+.diff-row.is-mod .diff-num {
+  color: var(--diff-add);
+  opacity: 1;
+}
+
+.diff-row.is-del .diff-num {
+  color: var(--diff-del);
+  opacity: 1;
+}
+
+.diff-row.is-del .diff-code {
+  background: var(--diff-del-bg);
+}
+
+.diff-row.is-del .diff-code > span {
+  opacity: 0.78;
+}
+
+/* One mark per changed phrase, spanning its syntax runs */
+.diff-word {
+  border-radius: var(--diff-mark-radius);
+  padding: 1px 0;
+}
+
+.diff-row.is-add .diff-word,
+.diff-row.is-mod .diff-word,
+.diff-cell.is-add .diff-word {
+  background: var(--diff-add-word);
+  box-shadow: 0 0 0 1px var(--diff-add-word);
+}
+
+.diff-row.is-del .diff-word,
+.diff-cell.is-del .diff-word {
+  background: var(--diff-del-word);
+  box-shadow: 0 0 0 1px var(--diff-del-word);
+}
+
+/* Reading: the file as it is now; context is dimmed so what is new stands out on its own */
+.diff-read .diff-row.is-ctx .diff-code {
+  opacity: 0.58;
+}
+
+/* Unified: a very low row tint, and the sign in its own column */
+.diff-uni .diff-row {
+  grid-template-columns: 42px 42px var(--diff-rail-w) 16px minmax(0, 1fr);
+}
+
+.diff-uni .diff-num {
+  padding-right: 8px;
+}
+
+.diff-uni .diff-code {
+  padding-left: 4px;
+}
+
+.diff-uni .diff-row.is-add {
+  background: var(--diff-add-bg);
+}
+
+.diff-uni .diff-row.is-del {
+  background: var(--diff-del-bg);
+}
+
+.diff-uni .diff-row.is-del .diff-code {
+  background: none;
+}
+
+.diff-uni .diff-row.is-ctx .diff-code {
+  opacity: 0.8;
+}
+
+/* The pill for what was removed, on the rail of the block's first new line */
+.diff-fold-pill {
+  position: absolute;
+  left: calc(var(--diff-num) + 1.5px);
+  top: 3px;
+  transform: translateX(-50%);
+  z-index: 1;
+  height: 14px;
+  padding: 0 4px;
+  border: 0;
+  margin: 0;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--diff-del);
+  background: var(--bg-2);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--diff-del) 38%, transparent);
+  cursor: pointer;
+}
+
+.diff-fold-pill:hover,
+.diff-fold-pill[aria-expanded='true'] {
+  background: var(--diff-del-bg);
+  box-shadow: 0 0 0 1px var(--diff-del);
+}
+
+.diff-fold-pill:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+/* Removed lines nothing replaced: a dashed seam between the lines they sat between */
+.diff-seam {
+  position: relative;
+  height: 12px;
+  margin-left: calc(var(--diff-num) + var(--diff-rail-w));
+}
+
+.diff-seam::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 24px;
+  top: 5px;
+  border-top: 1px dashed color-mix(in srgb, var(--diff-del) 45%, transparent);
+}
+
+.diff-seam .diff-fold-pill {
+  left: -1.5px;
+  top: -1px;
+}
+
+/* Unchanged lines left out between hunks: one row, with the function the next hunk is in */
+.diff-gap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 12px 0 calc(var(--diff-num) + 17px);
+  margin: 4px 0;
+  background: var(--bg-1);
+  border-block: 1px solid var(--line);
+  color: var(--fg-3);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.diff-gap-where {
+  color: var(--fg-2);
+}
+
+.diff-gap .btn {
+  height: 22px;
+  min-height: 22px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  margin-left: auto;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.diff-gap .btn:hover:not(:disabled) {
+  background: var(--bg-3);
+}
+
+/* Side by side: paired lines face each other; the shorter side's padding is hatched */
+.diff-split .diff-row {
+  grid-template-columns: 40px var(--diff-rail-w) 14px minmax(0, 1fr) 1px 40px var(--diff-rail-w) 14px minmax(0, 1fr);
+}
+
+.diff-split .diff-num {
+  padding-right: 8px;
+}
+
+.diff-split .diff-code {
+  padding-left: 2px;
+}
+
+.diff-split-seam {
+  background: var(--line-2);
+}
+
+.diff-split-head {
+  height: 28px;
+  align-items: center;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  color: var(--fg-3);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6px;
+}
+
+.diff-split-head > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.diff-split-head .diff-split-ref {
+  font-family: var(--mono);
+}
+
+.diff-cell.is-del {
+  background: var(--diff-del-bg);
+}
+
+.diff-cell.is-add {
+  background: var(--diff-add-bg);
+}
+
+.diff-cell.is-pad {
+  background: repeating-linear-gradient(135deg, var(--line) 0 1px, transparent 1px 7px);
+}
+
+.diff-code.diff-cell.is-ctx {
+  opacity: 0.8;
+}
+
+.diff-line-rail.is-add {
+  background: var(--diff-add);
+}
+
+.diff-line-rail.is-del {
+  background: var(--diff-del);
+}
+
+.diff-num.is-add {
+  color: var(--diff-add);
+  opacity: 1;
+}
+
+.diff-num.is-del {
+  color: var(--diff-del);
+  opacity: 1;
+}
+
+/* Muted syntax: code inside the comparator only */
+.diff .sx-kw {
+  color: var(--sx-kw);
+}
+
+.diff .sx-str {
+  color: var(--sx-str);
+}
+
+.diff .sx-num {
+  color: var(--sx-num);
+}
+
+.diff .sx-type {
+  color: var(--sx-type);
+}
+
+.diff .sx-fn {
+  color: var(--sx-fn);
+  font-weight: 500;
+}
+
+.diff .sx-com {
+  color: var(--sx-com);
+}
+
+/* What the diff cannot draw: binary, too large, cut, nothing but a rename */
+.diff-note {
+  padding: 10px 16px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--fg-2);
+}
+
+.diff-note.is-cut {
+  border-top: 1px dashed var(--line-2);
+  color: var(--fg-3);
+}
+
+/* The block rail: the whole file to scale, a mark per block, the viewport as a box */
+.diff-rail {
+  position: relative;
+  width: 14px;
+  flex-shrink: 0;
+  background: var(--bg-1);
+  border-left: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.diff-rail-view {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  border-radius: var(--diff-mark-radius);
+  background: var(--bg-3);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+.diff-rail-tick {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  min-height: 3px;
+  border-radius: var(--diff-rail-radius);
+  background: var(--diff-add);
+}
+
+.diff-rail-tick.is-del {
+  background: var(--diff-del);
+}
+
+.diff-rail-tick.is-mod {
+  background: linear-gradient(90deg, var(--diff-del) 50%, var(--diff-add) 50%);
+}
+
+.diff-rail-tick.is-current {
+  left: 2px;
+  right: 2px;
+  box-shadow:
+    0 0 0 1.5px var(--bg-1),
+    0 0 0 2.5px var(--fg-2);
+}
+
+/* The change fingerprint: each file as wide as its churn, added then removed */
+.changes-print {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+}
+
+.changes-print-seg {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: var(--diff-rail-radius);
+  opacity: 0.5;
+  background: linear-gradient(90deg, var(--diff-add) var(--a, 50%), var(--diff-del) var(--a, 50%));
+}
+
+.changes-print-seg:hover {
+  opacity: 0.8;
+}
+
+.changes-print-seg.is-current {
+  opacity: 1;
+  box-shadow:
+    0 0 0 1.5px var(--bg),
+    0 0 0 2.5px var(--fg-2);
+}
+
+.changes-print-seg.is-seen {
+  opacity: 0.18;
+}
+
+.changes-print-seg:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* A phone wraps the code to the width: nobody reads a diff by scrolling it sideways with a thumb */
+.diff-wrap {
+  --diff-num: 40px;
+  font-size: 12px;
+  line-height: 19px;
+}
+
+.diff-wrap .diff-row {
+  min-height: 19px;
+}
+
+.diff-wrap .diff-code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding-left: 10px;
+}
+
+.diff-wrap .diff-num {
+  font-size: 11px;
+}
+
+.diff-wrap.diff-uni .diff-row {
+  grid-template-columns: 30px 30px var(--diff-rail-w) 14px minmax(0, 1fr);
+}
+
+.diff-wrap.diff-uni .diff-num {
+  padding-right: 6px;
+}
+
+.diff-wrap .diff-gap {
+  padding-left: calc(var(--diff-num) + 10px);
+}
+
+.diff-wrap .diff-gap-in {
+  display: none;
+}

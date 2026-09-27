@@ -474,5 +474,27 @@
   "slashMenu": {
     "label": "Comandos",
     "skill": "skill"
+  },
+  "diff": {
+    "lineUnchanged": "línea {{n}}",
+    "lineAdded": "línea {{n}} añadida",
+    "lineChanged": "línea {{n}} cambiada",
+    "lineRemoved": "línea {{n}} quitada",
+    "removed_one": "{{count}} línea quitada",
+    "removed_other": "{{count}} líneas quitadas",
+    "unchanged_one": "{{count}} línea sin cambios",
+    "unchanged_other": "{{count}} líneas sin cambios",
+    "inWhere": "· en <where>{{where}}</where>",
+    "show": "Mostrar",
+    "before": "Antes",
+    "after": "Después",
+    "binary": "Archivo binario: no hay texto que comparar.",
+    "tooLarge": "Este diff es demasiado grande para mostrarlo.",
+    "truncated": "El diff se corta aquí: el resto es demasiado largo para mostrarlo.",
+    "onlyRenamed": "Solo se ha renombrado: no ha cambiado ninguna línea.",
+    "noChanges": "No ha cambiado ninguna línea.",
+    "fingerprint": "Huella del cambio: cada archivo ocupa lo que cambió",
+    "fingerprintFile": "{{path}}: {{additions}} añadidas, {{deletions}} quitadas",
+    "fingerprintFileSeen": "{{path}}: {{additions}} añadidas, {{deletions}} quitadas, visto"
   }
 }
