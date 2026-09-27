@@ -29,14 +29,12 @@ import {
   type UpdateWorkItemRequest,
   type WorkItem,
   type WorkItemActor,
-  type WorkItemAssignee,
   type WorkItemCause,
   type WorkItemChange,
   type WorkItemComment,
   type WorkItemDetail,
   type WorkItemFilter,
   type WorkItemHistoryEntry,
-  type WorkItemHistoryValue,
   type WorkItemLink,
   type WorkItemPriority,
   type WorkItemRef,
@@ -48,6 +46,34 @@ import {
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
 import { RANK_REBALANCE_LENGTH, rankBetween, spreadRanks } from './work-item-rank.ts';
+import {
+  actorOf,
+  assigneeOf,
+  commentOf,
+  emptyProgress,
+  emptySource,
+  fold,
+  inList,
+  isLive,
+  linkOf,
+  milestoneOf,
+  readValue,
+  sourceOf,
+  statusIndex,
+  textMatches,
+  type CommentRow,
+  type CriterionRow,
+  type HistoryRow,
+  type ItemRow,
+  type LinkRow,
+  type MilestoneRow,
+  type PendingEntry,
+  type StoredHistoryValue,
+  type StoredItemRef,
+} from './work-item-rows.ts';
+import { CRITERIA_MAX, WorkItemError, actorFrom, assignee, commentBody, criterionText, labels, milestoneName, oneOf, optionalId, text, title } from './work-item-validation.ts';
+
+export { WorkItemError } from './work-item-validation.ts';
 
 /**
  * The work items of every project: the store behind the board, with no HTTP in it.
@@ -64,16 +90,6 @@ import { RANK_REBALANCE_LENGTH, rankBetween, spreadRanks } from './work-item-ran
  * transaction: it takes the write lock before reading the counter or the neighbours' ranks, so two
  * processes cannot read the same last number or the same gap and both write into it.
  */
-
-/** A refusal the caller can show as it is; `statusCode` is what the API answers with. */
-export class WorkItemError extends Error {
-  constructor(
-    message: string,
-    readonly statusCode: 400 | 404 | 409,
-  ) {
-    super(message);
-  }
-}
 
 /** What the store needs to know about a project, from its settings document. */
 export interface WorkItemProject {
@@ -113,18 +129,11 @@ export interface WorkItemCommentContext extends WorkItemContext {
   source?: WorkItemSource | null;
 }
 
-const PERSON: WorkItemActor = { kind: 'person', role: null };
 /** Agentry recording a fact about an item (its worktree, a link's chat), not anyone editing it */
 const SYSTEM: WorkItemActor = { kind: 'system', role: null };
 
 /** The prefix a key is composed with when the project's settings cannot be read at all. */
 const FALLBACK_PREFIX = 'ITEM';
-
-const TITLE_MAX = 500;
-const LABEL_MAX = 64;
-const LABELS_MAX = 20;
-const CRITERIA_MAX = 100;
-const ROLE_MAX = 64;
 
 const COLUMN_NAMES: Record<WorkItemStatus, string> = {
   backlog: 'Backlog',
@@ -133,190 +142,6 @@ const COLUMN_NAMES: Record<WorkItemStatus, string> = {
   in_review: 'In review',
   done: 'Done',
 };
-
-// ---------- rows ----------
-
-interface ItemRow {
-  id: string;
-  project_id: string;
-  number: number;
-  type: string;
-  title: string;
-  description: string;
-  status: string;
-  priority: string;
-  assignee_kind: string | null;
-  assignee_role: string | null;
-  epic_id: string | null;
-  milestone_id: string | null;
-  rank: string;
-  worktree: string | null;
-  branch: string | null;
-  created_at: string;
-  updated_at: string;
-  closed_at: string | null;
-}
-
-interface CriterionRow {
-  id: string;
-  item_id: string;
-  position: number;
-  text: string;
-  checked: number;
-  checked_by_kind: string | null;
-  checked_by_role: string | null;
-}
-
-interface LinkRow {
-  id: string;
-  item_id: string;
-  kind: string;
-  role: string;
-  chat_id: string | null;
-  orchestration_id: string | null;
-  task_id: string | null;
-  created_at: string;
-}
-
-interface MilestoneRow {
-  id: string;
-  project_id: string;
-  name: string;
-  description: string;
-  state: string;
-  created_at: string;
-  updated_at: string;
-  closed_at: string | null;
-}
-
-interface HistoryRow {
-  id: string;
-  item_id: string;
-  change: string;
-  from_value: string | null;
-  to_value: string | null;
-  actor_kind: string;
-  actor_role: string | null;
-  cause_kind: string | null;
-  cause_event: string | null;
-  cause_chat_id: string | null;
-  cause_orchestration_id: string | null;
-  cause_task_id: string | null;
-  created_at: string;
-}
-
-interface CommentRow {
-  id: string;
-  item_id: string;
-  author_kind: string;
-  author_role: string | null;
-  source_kind: string | null;
-  source_chat_id: string | null;
-  source_orchestration_id: string | null;
-  source_task_id: string | null;
-  body: string;
-  created_at: string;
-  updated_at: string;
-}
-
-/**
- * A history value as it is stored. A work item is kept by its number, not its key, so the entry
- * reads with the project's current prefix like every other key.
- */
-type StoredItemRef = { id: string; number: number; title: string; type: WorkItemType; status: WorkItemStatus };
-type StoredHistoryValue =
-  | string
-  | string[]
-  | WorkItemAssignee
-  | { id: string; label: string; number?: number }
-  | { id: string; text: string; checked: boolean }
-  | { type: WorkItemRelation['type']; item: StoredItemRef }
-  | null;
-
-interface PendingEntry {
-  itemId: string;
-  change: WorkItemChange;
-  from: StoredHistoryValue;
-  to: StoredHistoryValue;
-}
-
-/** A list bound as one parameter: `IN (SELECT value FROM json_each(?))` has no limit on its length. */
-const inList = (values: readonly string[]): string => JSON.stringify(values);
-
-const statusIndex = (status: string): number => WORK_ITEM_STATUSES.indexOf(status as WorkItemStatus);
-
-function actorOf(kind: string | null, role: string | null): WorkItemActor {
-  const k = kind === 'agent' || kind === 'system' ? kind : 'person';
-  return { kind: k, role: role ?? null };
-}
-
-function sourceOf(kind: string | null, chatId: string | null, orchestrationId: string | null, taskId: string | null): WorkItemSource | null {
-  if (kind !== 'chat' && kind !== 'orchestration') return null;
-  return { kind, chatId, orchestrationId, taskId };
-}
-
-function assigneeOf(row: ItemRow): WorkItemAssignee | null {
-  if (row.assignee_kind === 'person') return { kind: 'person' };
-  if (row.assignee_kind === 'role' && row.assignee_role) return { kind: 'role', role: row.assignee_role };
-  return null;
-}
-
-// ---------- validation ----------
-
-function oneOf<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
-  if (typeof value !== 'string' || !allowed.includes(value as T)) throw new WorkItemError(`${field} must be one of ${allowed.join(', ')}`, 400);
-  return value as T;
-}
-
-function title(value: unknown): string {
-  if (typeof value !== 'string' || !value.trim()) throw new WorkItemError('title is required', 400);
-  const t = value.trim();
-  if (t.length > TITLE_MAX) throw new WorkItemError(`title is longer than ${String(TITLE_MAX)} characters`, 400);
-  return t;
-}
-
-function text(value: unknown, field: string): string {
-  if (typeof value !== 'string') throw new WorkItemError(`${field} must be text`, 400);
-  return value;
-}
-
-/** Trimmed, blanks dropped, and a label repeated in another case kept once, as first written. */
-function labels(value: unknown): string[] {
-  if (!Array.isArray(value)) throw new WorkItemError('labels must be a list', 400);
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of value) {
-    if (typeof raw !== 'string') throw new WorkItemError('a label must be text', 400);
-    const label = raw.trim();
-    if (!label) continue;
-    if (label.length > LABEL_MAX) throw new WorkItemError(`a label is longer than ${String(LABEL_MAX)} characters`, 400);
-    if (seen.has(label.toLowerCase())) continue;
-    seen.add(label.toLowerCase());
-    out.push(label);
-  }
-  if (out.length > LABELS_MAX) throw new WorkItemError(`an item carries at most ${String(LABELS_MAX)} labels`, 400);
-  return out;
-}
-
-function assignee(value: unknown): WorkItemAssignee | null {
-  if (value === null) return null;
-  if (typeof value === 'object' && value !== null) {
-    const v = value as { kind?: unknown; role?: unknown };
-    if (v.kind === 'person') return { kind: 'person' };
-    if (v.kind === 'role' && typeof v.role === 'string' && v.role.trim() && v.role.trim().length <= ROLE_MAX) return { kind: 'role', role: v.role.trim() };
-  }
-  throw new WorkItemError('assignee must be the person or a role', 400);
-}
-
-function criterionText(value: unknown): string {
-  if (typeof value !== 'string' || !value.trim()) throw new WorkItemError('an acceptance criterion needs its text', 400);
-  return value.trim();
-}
-
-function actorFrom(ctx: WorkItemContext | undefined): WorkItemActor {
-  const actor = ctx?.actor ?? PERSON;
-  return { kind: actor.kind, role: actor.role ?? null };
-}
 
 // ---------- the service ----------
 
@@ -405,6 +230,7 @@ export class WorkItemService {
 
   /** Oldest first. */
   comments(itemId: string): WorkItemComment[] {
+    if (!this.row(itemId)) throw new WorkItemError('work item not found', 404);
     const rows = this.sql.prepare('SELECT * FROM work_item_comments WHERE item_id = ? ORDER BY created_at, rowid').all(itemId) as unknown as CommentRow[];
     return rows.map(commentOf);
   }
@@ -575,14 +401,22 @@ export class WorkItemService {
           entries.push({ itemId, change: 'milestone', from: this.milestoneSnapshot(before.milestone_id), to: this.milestoneSnapshot(next) });
         }
       }
-      if (input.acceptanceCriteria !== undefined) entries.push(...this.replaceCriteria(itemId, input.acceptanceCriteria));
+      // A new order alone rewrites the checklist without an entry, and still counts as a change
+      let reordered = false;
+      if (input.acceptanceCriteria !== undefined) {
+        const criteria = this.replaceCriteria(itemId, input.acceptanceCriteria);
+        entries.push(...criteria.entries);
+        reordered = criteria.rewritten;
+      }
 
-      if (!entries.length) return { row: before, changes: [] as WorkItemChange[], prefix };
+      if (!entries.length && !reordered) return { row: before, changes: [] as WorkItemChange[], prefix };
       const now = new Date().toISOString();
       set('updated_at', now);
       this.sql.prepare(`UPDATE work_items SET ${sets.join(', ')} WHERE id = ?`).run(...params, itemId);
       this.record(entries, actor, cause, now);
-      return { row: this.mustRow(itemId), changes: unique(entries.map((e) => e.change)), prefix };
+      const changes: WorkItemChange[] = entries.map((e) => e.change);
+      if (reordered) changes.push('criterion');
+      return { row: this.mustRow(itemId), changes: unique(changes), prefix };
     });
     const item = this.mustHydrate(result.row);
     if (result.changes.length) this.emitUpdated(item, result.changes, actor, cause);
@@ -736,7 +570,7 @@ export class WorkItemService {
 
   /** Comments are their own list, not history; the event still says one arrived. */
   comment(itemId: string, input: CreateWorkItemCommentRequest, ctx?: WorkItemCommentContext): WorkItemComment {
-    if (typeof input.body !== 'string' || !input.body.trim()) throw new WorkItemError('a comment needs a body', 400);
+    const body = commentBody(input.body);
     const actor = actorFrom(ctx);
     const source = ctx?.source ?? null;
     const comment = this.write(() => {
@@ -758,7 +592,7 @@ export class WorkItemService {
           source?.chatId ?? null,
           source?.orchestrationId ?? null,
           source?.taskId ?? null,
-          input.body,
+          body,
           now,
           now,
         );
@@ -853,9 +687,9 @@ export class WorkItemService {
   link(itemId: string, input: CreateWorkItemLinkRequest, ctx?: WorkItemContext): WorkItemLink {
     const kind = oneOf(input.kind, ['chat', 'orchestration'] as const, 'kind');
     const role = oneOf(input.role, ['work', 'origin'] as const, 'role');
-    const chatId = input.chatId ?? null;
-    const orchestrationId = input.orchestrationId ?? null;
-    const taskId = input.taskId ?? null;
+    const chatId = optionalId(input.chatId, 'chatId');
+    const orchestrationId = optionalId(input.orchestrationId, 'orchestrationId');
+    const taskId = optionalId(input.taskId, 'taskId');
     if (kind === 'chat' && !chatId) throw new WorkItemError('a chat link needs chatId', 400);
     if (kind === 'orchestration' && (!orchestrationId || !taskId)) throw new WorkItemError('an orchestration link needs orchestrationId and taskId', 400);
     const actor = actorFrom(ctx);
@@ -890,6 +724,7 @@ export class WorkItemService {
 
   /** Once an orchestration task's worker starts, its link learns the chat it runs in. */
   setLinkChat(linkId: string, chatId: string): WorkItemLink {
+    if (optionalId(chatId, 'chatId') === null) throw new WorkItemError('chatId must be a non-empty string', 400);
     const row = this.write(() => {
       const link = this.sql.prepare('SELECT * FROM work_item_links WHERE id = ?').get(linkId) as LinkRow | undefined;
       if (!link) throw new WorkItemError('link not found', 404);
@@ -1011,7 +846,12 @@ export class WorkItemService {
       this.sql.exec('COMMIT');
       return out;
     } catch (err) {
-      this.sql.exec('ROLLBACK');
+      try {
+        this.sql.exec('ROLLBACK');
+      } catch {
+        // SQLite already ended the transaction (a failed COMMIT, or one it rolled back itself); what
+        // the caller needs is the error that got us here, not "no transaction is active"
+      }
       throw err;
     }
   }
@@ -1113,9 +953,10 @@ export class WorkItemService {
 
   /**
    * Replaces the checklist. An entry with an id keeps its check; one without is new. History says
-   * which were added, removed or reworded; a new order alone is not a change worth an entry.
+   * which were added, removed or reworded; a new order alone is not a change worth an entry, but
+   * `rewritten` says the rows changed, so the caller still bumps the item and announces it.
    */
-  private replaceCriteria(itemId: string, input: readonly AcceptanceCriterionInput[]): PendingEntry[] {
+  private replaceCriteria(itemId: string, input: readonly AcceptanceCriterionInput[]): { entries: PendingEntry[]; rewritten: boolean } {
     if (!Array.isArray(input)) throw new WorkItemError('acceptanceCriteria must be a list', 400);
     if (input.length > CRITERIA_MAX) throw new WorkItemError(`an item holds at most ${String(CRITERIA_MAX)} acceptance criteria`, 400);
     const current = this.sql.prepare('SELECT * FROM work_item_criteria WHERE item_id = ? ORDER BY position').all(itemId) as unknown as CriterionRow[];
@@ -1142,15 +983,13 @@ export class WorkItemService {
       if (!kept.has(c.id)) entries.push({ itemId, change: 'criterion', from: { id: c.id, text: c.text, checked: Boolean(c.checked) }, to: null });
     }
     const orderChanged = next.some((c, i) => c.existing?.position !== i) || current.length !== next.length;
-    if (!entries.length && !orderChanged) return [];
+    if (!entries.length && !orderChanged) return { entries, rewritten: false };
     this.sql.prepare('DELETE FROM work_item_criteria WHERE item_id = ?').run(itemId);
     const insert = this.sql.prepare(
       'INSERT INTO work_item_criteria (id, item_id, position, text, checked, checked_by_kind, checked_by_role) VALUES (?, ?, ?, ?, ?, ?, ?)',
     );
     next.forEach((c, i) => insert.run(c.id, itemId, i, c.text, c.existing?.checked ?? 0, c.existing?.checked_by_kind ?? null, c.existing?.checked_by_role ?? null));
-    // A reorder alone still rewrites the rows, so the item says it changed even without an entry
-    if (!entries.length) this.sql.prepare('UPDATE work_items SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), itemId);
-    return entries;
+    return { entries, rewritten: true };
   }
 
   private record(entries: readonly PendingEntry[], actor: WorkItemActor, cause: WorkItemCause | null, at: string): void {
@@ -1193,13 +1032,15 @@ export class WorkItemService {
 
   /**
    * A rank between two neighbours of a column. Should it come out long, or should the neighbours
-   * leave no room (a tie a hand-edited row could leave), the column is spread out again first,
-   * inside the same transaction, and the rank is taken from the fresh spacing.
+   * leave no room (a tie or a malformed rank a hand-edited row could leave), the column is spread
+   * out again first, inside the same transaction, and the rank is taken from the fresh spacing.
    */
   private rankInColumn(projectId: string, status: WorkItemStatus, itemId: string, before: string | null, after: string | null): string {
-    if (before === null || after === null || before < after) {
+    try {
       const rank = rankBetween(before, after);
       if (rank.length <= RANK_REBALANCE_LENGTH) return rank;
+    } catch {
+      // no room between these two: the respread below makes some
     }
     const others = this.sql
       .prepare('SELECT id, rank FROM work_items WHERE project_id = ? AND status = ? AND id != ? ORDER BY rank, id')
@@ -1259,10 +1100,6 @@ export class WorkItemService {
     within('w.status', filter.status);
     within('w.type', filter.type);
     within('w.priority', filter.priority);
-    if (filter.labels?.length) {
-      where.push('EXISTS (SELECT 1 FROM work_item_labels l WHERE l.item_id = w.id AND lower(l.label) IN (SELECT lower(value) FROM json_each(?)))');
-      params.push(inList(filter.labels));
-    }
     if (filter.assignee?.length) {
       const alternatives: string[] = [];
       for (const a of filter.assignee) {
@@ -1283,21 +1120,21 @@ export class WorkItemService {
       where.push('w.milestone_id = ?');
       params.push(filter.milestoneId);
     }
-    const q = filter.q?.trim();
-    const key = q ? parseWorkItemKey(q) : null;
-    if (q) {
-      // Ids and paths hold `_` and `%`, which LIKE would read as wildcards
-      const pattern = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
-      const byKey = key ? ' OR w.number = ?' : '';
-      where.push(`(w.title LIKE ? ESCAPE '\\' OR w.description LIKE ? ESCAPE '\\'${byKey})`);
-      params.push(pattern, pattern);
-      if (key) params.push(key.number);
-    }
-    const rows = this.sql
+    let rows = this.sql
       .prepare(`SELECT w.* FROM work_items w ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY w.project_id, w.rank, w.id`)
       .all(...params) as unknown as ItemRow[];
-    const out = key && q ? rows.filter((r) => textMatches(r, q) || this.prefixOf(r.project_id) === key.prefix) : rows;
-    return out.sort((a, b) => statusIndex(a.status) - statusIndex(b.status));
+    // Text is matched here rather than in SQL, whose case folding stops at ASCII
+    if (filter.labels?.length) {
+      const wanted = new Set(filter.labels.map(fold));
+      const labelMap = this.labelsOf(rows.map((r) => r.id));
+      rows = rows.filter((r) => (labelMap.get(r.id) ?? []).some((label) => wanted.has(fold(label))));
+    }
+    const q = filter.q?.trim();
+    if (q) {
+      const key = parseWorkItemKey(q);
+      rows = rows.filter((r) => textMatches(r, q) || (key !== null && r.number === key.number && this.prefixOf(r.project_id) === key.prefix));
+    }
+    return rows.sort((a, b) => statusIndex(a.status) - statusIndex(b.status));
   }
 
   private counts(projectId: string | null): Map<string, number> {
@@ -1454,95 +1291,10 @@ function unique<T>(values: readonly T[]): T[] {
   return [...new Set(values)];
 }
 
-function emptySource(): WorkItemSource {
-  return { kind: 'chat', chatId: null, orchestrationId: null, taskId: null };
-}
-
 function sourcePart(cause: WorkItemCause): WorkItemSource {
   return { kind: cause.kind, chatId: cause.chatId, orchestrationId: cause.orchestrationId, taskId: cause.taskId };
 }
 
 function eventRef(item: WorkItem): { projectId: string; itemId: string; key: string } {
   return { projectId: item.projectId, itemId: item.id, key: item.key };
-}
-
-function emptyProgress(): MilestoneProgress {
-  return { total: 0, done: 0, byStatus: { backlog: 0, todo: 0, in_progress: 0, in_review: 0, done: 0 } };
-}
-
-function milestoneName(value: unknown): string {
-  if (typeof value !== 'string' || !value.trim()) throw new WorkItemError('a milestone needs a name', 400);
-  if (value.trim().length > TITLE_MAX) throw new WorkItemError(`a milestone name is longer than ${String(TITLE_MAX)} characters`, 400);
-  return value.trim();
-}
-
-function textMatches(row: ItemRow, q: string): boolean {
-  const needle = q.toLowerCase();
-  return row.title.toLowerCase().includes(needle) || row.description.toLowerCase().includes(needle);
-}
-
-function isLive(link: WorkItemLink): boolean {
-  return link.role === 'work' && (link.chatState === 'working' || link.taskStatus === 'running');
-}
-
-function linkOf(row: LinkRow): WorkItemLink {
-  return {
-    id: row.id,
-    itemId: row.item_id,
-    kind: row.kind === 'orchestration' ? 'orchestration' : 'chat',
-    role: row.role === 'origin' ? 'origin' : 'work',
-    chatId: row.chat_id,
-    orchestrationId: row.orchestration_id,
-    taskId: row.task_id,
-    createdAt: row.created_at,
-  };
-}
-
-function commentOf(row: CommentRow): WorkItemComment {
-  return {
-    id: row.id,
-    itemId: row.item_id,
-    author: actorOf(row.author_kind, row.author_role),
-    source: sourceOf(row.source_kind, row.source_chat_id, row.source_orchestration_id, row.source_task_id),
-    body: row.body,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function milestoneOf(row: MilestoneRow, progress: MilestoneProgress): Milestone {
-  return {
-    id: row.id,
-    projectId: row.project_id,
-    name: row.name,
-    description: row.description,
-    state: row.state === 'closed' ? 'closed' : 'open',
-    progress,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    closedAt: row.closed_at,
-  };
-}
-
-/** A stored history value back as the contract has it: numbers become keys with today's prefix. */
-function readValue(raw: string | null, prefix: string): WorkItemHistoryValue {
-  if (raw === null) return null;
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (value === null || typeof value === 'string') return value;
-  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
-  if (typeof value !== 'object') return null;
-  const v = value as Record<string, unknown>;
-  if (typeof v.item === 'object' && v.item !== null && (v.type === 'blocks' || v.type === 'blocked_by')) {
-    const item = v.item as StoredItemRef;
-    return { type: v.type, item: { id: item.id, key: workItemKey(prefix, item.number), title: item.title, type: item.type, status: item.status } };
-  }
-  if (typeof v.id === 'string' && typeof v.label === 'string') {
-    return typeof v.number === 'number' ? { id: v.id, label: v.label, key: workItemKey(prefix, v.number) } : { id: v.id, label: v.label };
-  }
-  return value as WorkItemHistoryValue;
 }
