@@ -21,10 +21,13 @@ import { join } from 'node:path';
 export const fakeCli = true;
 export const timeout = 180_000;
 
-/** Every loop under `root` that is still running: an element or its ::before/::after, shown, repeating. */
+/**
+ * Every loop in `root`, itself included, that is still running: an element or its ::before/::after,
+ * shown, repeating. The energy border is the run card's own ::before, so the root has to count.
+ */
 const loops = (root = 'body') => `
   const found = [];
-  for (const el of document.querySelectorAll('${root} *')) {
+  for (const el of [...document.querySelectorAll('${root}'), ...document.querySelectorAll('${root} *')]) {
     if (el.getClientRects().length === 0) continue;
     for (const pseudo of [null, '::before', '::after']) {
       const s = getComputedStyle(el, pseudo);
