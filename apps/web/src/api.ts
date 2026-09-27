@@ -9,12 +9,16 @@ import type {
   ApiError,
   AuditFilter,
   AuditPage,
+  AppSettings,
   AuthConfig,
   AuthMode,
   AuthStatus,
   AuthTokenResult,
   SetAuthTokenRequest,
   UpdateAuthConfigRequest,
+  UpdateAppSettingsRequest,
+  TunnelStatus,
+  UpdateTunnelSettingsRequest,
   AuthVerification,
   AutoSwitchEvent,
   AutoSwitchSettings,
@@ -465,6 +469,13 @@ export const api = {
   /** The only answer that ever carries the token; it cannot be read back afterwards. */
   setSecurityToken: (body: SetAuthTokenRequest = {}) => request<AuthTokenResult>('/security/token', { method: 'POST', body }),
   clearSecurityToken: () => request<AuthConfig>('/security/token', { method: 'DELETE' }),
+  /** The settings that change at runtime; a key the environment set is refused, so send only what changed */
+  appSettings: (o: ReadOptions = {}) => request<AppSettings>('/settings/app', o),
+  updateAppSettings: (body: UpdateAppSettingsRequest) => request<AppSettings>('/settings/app', { method: 'PUT', body }),
+  tunnel: (o: ReadOptions = {}) => request<TunnelStatus>('/tunnel', o),
+  updateTunnelSettings: (body: UpdateTunnelSettingsRequest) => request<TunnelStatus>('/tunnel/settings', { method: 'PUT', body }),
+  startTunnel: () => request<TunnelStatus>('/tunnel/start', { method: 'POST' }),
+  stopTunnel: () => request<TunnelStatus>('/tunnel/stop', { method: 'POST' }),
   audit: (page: AuditFilter & { limit?: number; from?: number } = {}) =>
     request<AuditPage>(`/audit${qs({ limit: num(page.limit), from: num(page.from), path: page.path, method: page.method, status: page.status })}`),
   setAccountConfig: (number: number, body: UpdateAccountConfigRequest) =>
@@ -564,6 +575,9 @@ export const keys = {
   audit: (page: AuditFilter & { from?: number }) =>
     ['security', 'audit', page.from ?? 0, page.path ?? '', page.method ?? '', page.status ?? ''] as const,
   pushSubscriptions: ['push', 'subscriptions'] as const,
+  // Both are written whole from their events (lib/events.ts), never refetched for them
+  appSettings: ['settings', 'app'] as const,
+  tunnel: ['tunnel'] as const,
   availablePlugins: (q: string) => ['plugins', 'available', q] as const,
   pluginDetails: (plugin: string) => ['plugins', 'details', plugin] as const,
 };

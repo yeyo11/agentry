@@ -20,6 +20,7 @@ import { InstructionsTab } from './config/InstructionsTab';
 import { McpTab } from './config/McpTab';
 import { NotificationsTab } from './config/NotificationsTab';
 import { PluginsTab } from './config/PluginsTab';
+import { RemoteAccessTab } from './config/RemoteAccessTab';
 import { ResourcesTab } from './config/ResourcesTab';
 import { SecurityTab } from './config/SecurityTab';
 import { SettingsTab } from './config/SettingsTab';
@@ -50,12 +51,13 @@ const TAB_LABELS = {
   install: 'config:config.tabs.install',
   supervisor: 'observe:supervisor.tab',
   security: 'config:config.tabs.security',
+  remote: 'config:config.tabs.remote',
 } as const;
 
 type TabId = keyof typeof TAB_LABELS;
 
 /**
- * Twenty tabs read as four questions: how Agentry itself behaves, what Claude Code is told, what it
+ * Twenty-one tabs read as four questions: how Agentry itself behaves, what Claude Code is told, what it
  * is extended with, and the machine it runs on. The `?tab=` ids are the old flat ones, so every
  * deep link (the palette, the update dot, the docs) still lands where it did.
  */
@@ -63,7 +65,7 @@ const GROUPS: ReadonlyArray<{ id: 'agentry' | 'claude' | 'extensions' | 'system'
   { id: 'agentry', tabs: ['appearance', 'notifications', 'editor', 'account'] },
   { id: 'claude', tabs: ['instructions', 'settings', 'memory', 'rules', 'output-styles'] },
   { id: 'extensions', tabs: ['mcp', 'plugins', 'skills', 'agents', 'commands', 'workflows', 'tools'] },
-  { id: 'system', tabs: ['files', 'install', 'supervisor', 'security'] },
+  { id: 'system', tabs: ['files', 'install', 'supervisor', 'security', 'remote'] },
 ];
 
 const TAB_ORDER: TabId[] = GROUPS.flatMap((group) => group.tabs);
@@ -167,6 +169,7 @@ function TabContent({ tab }: { tab: TabId }) {
       {tab === 'install' && <InstallTab />}
       {tab === 'supervisor' && <SupervisorTab />}
       {tab === 'security' && <SecurityTab />}
+      {tab === 'remote' && <RemoteAccessTab />}
     </>
   );
 }
