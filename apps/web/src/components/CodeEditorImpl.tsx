@@ -81,11 +81,12 @@ export default function CodeEditorImpl({
       ),
     ];
     if (wrap) list.push(EditorView.lineWrapping);
-    // Every editor is a textbox that needs a name, and a read-only one has to stay a tab stop or its
-    // long content cannot be scrolled from the keyboard
-    list.push(EditorView.contentAttributes.of({ 'aria-label': ariaLabel ?? 'Editor', ...(readOnly ? { tabindex: '0' } : {}) }));
+    // Every editor is a textbox that needs a name, and a tab stop said out loud: a read-only one would
+    // otherwise drop out of the tab order, and checkers don't count contenteditable as focusable, so
+    // a long file would read as a scroll area the keyboard can't reach
+    list.push(EditorView.contentAttributes.of({ 'aria-label': ariaLabel ?? 'Editor', tabindex: '0' }));
     return list;
-  }, [language, wrap, ariaLabel, readOnly]);
+  }, [language, wrap, ariaLabel]);
 
   return (
     <div className={`code-editor ${invalid ? 'is-invalid' : ''} ${readOnly ? 'is-readonly' : ''}`}>

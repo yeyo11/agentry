@@ -48,7 +48,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`const q = new URLSearchParams(location.search); return location.pathname === '/' && q.get('view') === 'documents' && q.get('doc') === 'docs/specs/board.md'`, {
       label: 'the Documents tab, on that document',
     });
-    await page.waitFor(`return !!document.querySelector('.doc-view h1')`, { label: 'the document renders' });
+    await page.waitFor(`return !!document.querySelector('.doc-view .md-h1')`, { label: 'the document renders' });
 
     // ---- QA passed it: it waits for the person's approval ----
     await page.goto(`/tasks/${seeded.templates.key}?project=${projectId}`, 1500);
