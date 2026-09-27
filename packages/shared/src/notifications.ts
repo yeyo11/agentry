@@ -156,6 +156,13 @@ export function interrupts(notification: Pick<NotificationDraft, 'kind' | 'prior
 
 const DEDUPE_MS = 60_000;
 
+/**
+ * The key a test push starts with. The service worker reads it (as a literal: it has no bundle) to
+ * show a test even while the page is in front — the page asked for it and has no toast of its own
+ * to show, since a test never goes through the event bus.
+ */
+export const TEST_PUSH_KEY_PREFIX = 'push:test:';
+
 /** The search param that names the prompt a chat page should bring into view. */
 export const PROMPT_PARAM = 'prompt';
 

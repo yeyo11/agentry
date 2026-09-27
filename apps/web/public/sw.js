@@ -89,10 +89,17 @@ self.addEventListener('fetch', (event) => {
 // translations — so the words it shows come from the payload the server signed, and what it cannot
 // get from there it reads out of the small state the page left in a cache of its own.
 //
-// The rule that keeps this from being noise: while a window of ours is visible, the page is already
+// The rule that keeps this from being noise: while a window of ours is focused, the page is already
 // showing the toast for this very notification, and the worker shows nothing. Chrome's
-// `userVisibleOnly` bargain is satisfied by exactly that condition — a visible page of the origin
-// is the notification.
+// `userVisibleOnly` bargain is satisfied by exactly that condition — a page in front of the person
+// is the notification. Focused, not merely visible: a backgrounded iOS app can still report
+// `visible`, and a push swallowed on its word is a notification nobody ever sees.
+//
+// Two pushes are always shown. A test, because the page that asked for it has no toast to show — a
+// test never goes through the event bus. And anything that came through Apple's push service:
+// WebKit counts a push that shows nothing as a silent push and revokes the subscription after a
+// few, so a device that is in front of its person still gets the notification rather than losing
+// every future one.
 
 /** Written by the page (see src/lib/push-model.ts); the two names are asserted equal in the tests. */
 const PUSH_STATE_CACHE = 'agentry-push';
@@ -102,6 +109,12 @@ const PUSH_STATE_KEY = '/__agentry-push-state';
 const HANDOFF_MS = 600;
 
 const PUSH_ICON = '/icons/icon-192.png';
+
+/** The key a test push starts with: `TEST_PUSH_KEY_PREFIX` in @agentry/shared, asserted equal in the tests. */
+const TEST_PUSH_KEY_PREFIX = 'push:test:';
+
+/** Pushes through this service are held to WebKit's rule that every push shows a notification. */
+const APPLE_PUSH_HOST = /(^|\.)push\.apple\.com$/;
 
 /**
  * The names localhost.run hands out for free (packages/core/src/tunnel.ts; the tests assert the two
@@ -135,8 +148,10 @@ async function notify(data) {
     // A push that is not our JSON is still a push: it is shown with the fallback words below
   }
 
-  const open = await windows();
-  if (open.some((client) => client.visibilityState === 'visible')) return;
+  if (!(await mustShow(payload))) {
+    const open = await windows();
+    if (open.some((client) => client.focused && client.visibilityState === 'visible')) return;
+  }
 
   const state = await pushState();
   const fallback = state && state.fallback ? state.fallback : null;
@@ -152,6 +167,16 @@ async function notify(data) {
     timestamp: Number.isNaN(at) ? Date.now() : at,
     data: { href: (payload && payload.href) || '/', url: (payload && payload.url) || null, key: (payload && payload.key) || '' },
   });
+}
+
+async function mustShow(payload) {
+  if (payload && typeof payload.key === 'string' && payload.key.startsWith(TEST_PUSH_KEY_PREFIX)) return true;
+  try {
+    const subscription = await self.registration.pushManager.getSubscription();
+    return Boolean(subscription && APPLE_PUSH_HOST.test(new URL(subscription.endpoint).hostname));
+  } catch {
+    return false;
+  }
 }
 
 self.addEventListener('notificationclick', (event) => {

@@ -262,8 +262,10 @@ switch. The browser subscribes with a VAPID key this server made for itself, and
 that stops for a permission prompt puts a notification on the phone even with Agentry closed; tapping
 it opens that prompt, not just the chat. The per-kind preferences and the interruption level above
 the switch decide what is worth waking a device for, and the list below it shows every install registered, this one marked,
-each with **Test** and **Remove**. A window that is open and visible shows its usual toast and no
-push, so the same news never arrives twice.
+each with **Test** and **Remove**. A window that is open and focused shows its usual toast and no
+push, so the same news never arrives twice. A test push, and every push on an iPhone or iPad, is
+shown even then: a test has no toast of its own, and iOS revokes a subscription whose pushes show
+nothing.
 
 Push needs a **secure origin**: `https://…` or `localhost`. On `http://192.168.1.10:8787` — how most
 people run Agentry on a LAN — the browser has no service worker at all, so there is no push and no
@@ -1090,8 +1092,8 @@ Across the app:
   to its side panel, and a finished workflow to the agent that ended it.
   **Web Push** carries the same news to a device whose Agentry is closed: Settings → Notifications
   registers this install with the server, which decides what is worth sending with the same function
-  the browser runs on the same event. A visible window shows its toast and no push, so nothing
-  arrives twice. It needs a secure origin, and on iPhone an installed app — see
+  the browser runs on the same event. A focused window shows its toast and no push, so nothing
+  arrives twice (except on iOS, which must show every push). It needs a secure origin, and on iPhone an installed app — see
   [On a phone](#on-a-phone).
 - **Execution detail**: a subagent, a background task or a workflow agent opens in a side panel — prompt,
   type, status, duration, tokens, the full transcript, the result and, for a subagent, the tasks it
