@@ -105,6 +105,15 @@ export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './proj
 export { PROJECT_TEMPLATES } from './project-templates.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
+export {
+  WorkItemError,
+  WorkItemService,
+  type WorkItemCommentContext,
+  type WorkItemContext,
+  type WorkItemLinkState,
+  type WorkItemProject,
+  type WorkItemServiceDeps,
+} from './work-items.ts';
 export { AuthStore } from './security/auth.ts';
 export { OidcVerifier, type FetchLike } from './security/oidc.ts';
 export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
