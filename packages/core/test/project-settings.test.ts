@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import type { AgentryEvent, ProjectSettings } from '@agentry/shared';
 import { PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN } from '@agentry/shared';
 import { Core } from '../src/index.ts';
-import { deriveKeyPrefix, parseProjectSettings, parseProjectSetup, settingsChanges } from '../src/project-settings.ts';
+import { deriveKeyPrefix, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from '../src/project-settings.ts';
 import { PROJECT_TEMPLATES, projectTemplate } from '../src/project-templates.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -333,4 +333,124 @@ test('a project imported again whose key was taken meanwhile gets a new one, and
     assert.equal(again.key, 'AGN2');
     assert.deepEqual(again.modules, ['memory']);
   });
+});
+
+test('reading a document that does not parse answers defaults and leaves the file as the person wrote it', async () => {
+  await withCore(async (core, config) => {
+    const { id } = await core.importProject({ path: dir(), name: 'Agentry', template: 'software' });
+    const file = join(config.dataDir, 'project-settings', `${id}.json`);
+    // One typo in a hand edit: a doubled comma
+    const typo = readFileSync(file, 'utf8').replace('"board",', '"board",,');
+    writeFileSync(file, typo);
+
+    const [project] = await core.projects();
+    assert.deepEqual([project?.key, project?.modules], ['AGN', []]);
+    const settings = await core.projectSettings(id);
+    assert.deepEqual(settings.modules, []);
+    assert.equal(settings.keyPrefix, 'AGN');
+    // Neither read replaced the modules, limits and prefix the typo made unreadable
+    assert.equal(readFileSync(file, 'utf8'), typo);
+
+    // Fixing the typo brings everything back
+    writeFileSync(file, typo.replace('"board",,', '"board",'));
+    assert.deepEqual((await core.projectSettings(id)).board.columnLimits, { in_progress: 3, in_review: 2 });
+  });
+});
+
+test('reading a document whose prefix does not validate answers a derived one and leaves the file alone', async () => {
+  await withCore(async (core, config) => {
+    const { id } = await core.importProject({ path: dir(), name: 'Agentry', template: 'software' });
+    const file = join(config.dataDir, 'project-settings', `${id}.json`);
+    const doc = JSON.parse(readFileSync(file, 'utf8'));
+    doc.settings.keyPrefix = 'agn-1';
+    const edited = JSON.stringify(doc);
+    writeFileSync(file, edited);
+
+    const settings = await core.projectSettings(id);
+    assert.equal(settings.keyPrefix, 'AGN');
+    // What still validates is kept in the answer
+    assert.deepEqual(settings.modules, ['board', 'team', 'documents', 'memory']);
+    await core.projects();
+    assert.equal(readFileSync(file, 'utf8'), edited);
+  });
+});
+
+test('a document whose prefix another project now holds is given a new one, and only the prefix is rewritten', async () => {
+  await withCore(async (core, config) => {
+    const a = await core.importProject({ path: dir(), name: 'Shop' });
+    const b = await core.importProject({ path: dir(), name: 'Other', template: 'software' });
+    const file = join(config.dataDir, 'project-settings', `${b.id}.json`);
+    const doc = JSON.parse(readFileSync(file, 'utf8'));
+    // A hand edit that takes a's prefix, beside a field a newer version wrote
+    doc.settings.keyPrefix = a.key;
+    doc.settings.later = { kept: true };
+    writeFileSync(file, JSON.stringify(doc));
+
+    const keys = (await core.projects()).map((p) => p.key);
+    assert.deepEqual(keys, ['SHP', 'OTH']);
+    const written = JSON.parse(readFileSync(file, 'utf8'));
+    assert.equal(written.settings.keyPrefix, 'OTH');
+    assert.deepEqual(written.settings.later, { kept: true });
+    assert.deepEqual(written.settings.modules, ['board', 'team', 'documents', 'memory']);
+  });
+});
+
+test('a project imported again with other modules emits project.updated and records the template it named', async () => {
+  await withCore(async (core) => {
+    const events: AgentryEvent[] = [];
+    core.events.subscribe((e) => events.push(e));
+    const path = dir();
+    const first = await core.importProject({ path, name: 'Agentry', template: 'software' });
+    await core.removeProject(first.id);
+    assert.equal(events.filter((e) => e.type === 'project.updated').length, 0);
+
+    const again = await core.importProject({ path, template: 'library' });
+    assert.deepEqual(again.modules, ['board', 'documents', 'memory']);
+    const settings = await core.projectSettings(first.id);
+    assert.equal(settings.template, 'library');
+    // Recording the template does not re-apply it: the limits stay those of the document
+    assert.deepEqual(settings.board.columnLimits, { in_progress: 3, in_review: 2 });
+    const updates = events.flatMap((e) => (e.type === 'project.updated' ? [[e.projectId, e.changes, e.modules]] : []));
+    assert.deepEqual(updates, [[first.id, ['modules', 'settings'], ['board', 'documents', 'memory']]]);
+
+    // Imported again as it was, nothing changed and nothing is emitted
+    await core.removeProject(first.id);
+    await core.importProject({ path, template: 'library' });
+    assert.equal(events.filter((e) => e.type === 'project.updated').length, 1);
+  });
+});
+
+test('a project imported again keeps on disk what a hand edit broke, for the person to fix', async () => {
+  await withCore(async (core, config) => {
+    const path = dir();
+    const first = await core.importProject({ path, name: 'Agentry', template: 'software' });
+    await core.removeProject(first.id);
+    const file = join(config.dataDir, 'project-settings', `${first.id}.json`);
+    const doc = JSON.parse(readFileSync(file, 'utf8'));
+    doc.settings.board.columnLimits.todo = -1;
+    writeFileSync(file, JSON.stringify(doc));
+
+    await core.importProject({ path, modules: ['board'] });
+    const written = JSON.parse(readFileSync(file, 'utf8'));
+    assert.deepEqual(written.settings.modules, ['board']);
+    assert.deepEqual(written.settings.board.columnLimits, { in_progress: 3, in_review: 2, todo: -1 });
+  });
+});
+
+test('listing the projects reads each settings document once', async () => {
+  const config = tempConfig();
+  let reads = 0;
+  class Counting extends ProjectSettingsStore {
+    protected override readDoc(projectId: string) {
+      reads += 1;
+      return super.readDoc(projectId);
+    }
+  }
+  const store = new Counting(config);
+  const records = ['Alpha', 'Beta', 'Gamma', 'Delta'].map((name, i) => ({ id: `p${i}`, name, path: dir() }));
+  for (const record of records) await store.create(record, { template: 'software', modules: null }, records);
+  reads = 0;
+  const settings = await store.readAll(records);
+  assert.deepEqual([...settings.values()].map((s) => s.keyPrefix), ['ALP', 'BTE', 'GMM', 'DLT']);
+  assert.equal(reads, records.length);
 });
