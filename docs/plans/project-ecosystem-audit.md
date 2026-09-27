@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T07:12:38.39333137Z
-updated_at: 2026-09-27T07:12:38.39333137Z
+updated_at: 2026-09-27T12:00:00Z
 tags:
     - audit
     - plan
@@ -17,8 +17,11 @@ An audit of what the `ecosystem-foundation` orchestration delivered, against
 (`agentry/ecosystem-foundation-3fd41f07`, commit `ba77298`) by five reviewers in parallel, one per
 area, with the main findings checked again by hand in the code.
 
-Status: **findings open**. They are fixed by the `ecosystem-fixes` orchestration before
-orchestration 2 starts.
+Status: **fixed by `ecosystem-fixes` (orchestration 1b) on 2026-09-27**, except what is listed under
+[What stays open](#what-stays-open). Each finding below is marked **closed** or **open**, with the
+task that closed it. `pnpm typecheck` and `pnpm test` pass on the fixes' branches; `pnpm build` and
+`pnpm e2e` run in 1b's verification phase, on the merged branch, which is why the tag
+`verification-pending` stays until they have.
 
 ## Where the work lands
 
@@ -51,47 +54,63 @@ commit, `CHANGELOG.md` untouched.
 
 ## Bugs to fix in the code
 
-1. **A person's move does not win while the agent works.** `work-links.ts` reads
-   `status === 'busy' && previousStatus !== 'busy'` as a turn starting, but the coalesced
+1. **Closed** (`fix-links`). **A person's move does not win while the agent works.** `work-links.ts`
+   reads `status === 'busy' && previousStatus !== 'busy'` as a turn starting, but the coalesced
    `run.updated` the publisher emits about every 250 ms carries `previousStatus: null`. An item
    dragged back to `todo` returns to `in_progress` at once. Require a real transition, and test it
    with a null previous status.
-2. **Reading a broken settings document overwrites it with defaults.** `ProjectSettingsStore.read`
-   writes when the file does not parse, so one typo in a hand edit loses the modules, the limits and
-   the key prefix on the next `GET /projects`. Answer with defaults in memory and leave the file.
-3. **A relaunched orchestration loses the link to its work items.** `specOfTask` in
-   `packages/shared/src/orchestration.ts` does not copy `workItemId`, and the relaunch route skips the
-   checks of `launchOrchestration`.
-4. **An item worked by an orchestration node shows no changes.** Only "Work on it" records the
-   worktree and the branch on the item, so decision 20 is met for chats and not for nodes.
-5. **"Work on it" after the worktree was deleted by hand fails for good**, because the worktree is
-   locked; and a plain directory at that path is taken for the worktree.
-6. Smaller: link ids are not validated (a 500); "Work on it" accepts an item in `done` while
-   "Orchestrate" refuses it; a link write that throws leaves a chat running unlinked; start options
-   are copied without type checks; search folds case for ASCII only, so `sesión` does not find
-   `SESIÓN`; reordering acceptance criteria emits no event; appending to a column grows ranks fast
-   enough to respread the column every 117 creates; an actor of unknown kind is read back as the
-   person; `comments()` answers an empty list for a missing item; a failed `ROLLBACK` hides the
-   original error.
-7. Contract: make `Project.key` and `Project.modules` required; decide `WorkItemSource.kind` and
-   `WorkItemLinkRole` for documents and for the flow before the web is built on exhaustive switches;
-   emit `project.updated` on a re-import that changes modules.
+2. **Closed** (`fix-settings`). **Reading a broken settings document overwrites it with defaults.**
+   `ProjectSettingsStore.read` writes when the file does not parse, so one typo in a hand edit loses
+   the modules, the limits and the key prefix on the next `GET /projects`. Answer with defaults in
+   memory and leave the file.
+3. **Closed** (`fix-links`). **A relaunched orchestration loses the link to its work items.**
+   `specOfTask` in `packages/shared/src/orchestration.ts` does not copy `workItemId`, and the
+   relaunch route skips the checks of `launchOrchestration`. A saved template now drops the items
+   too. Schedules still skip the node checks: see [What stays open](#what-stays-open).
+4. **Closed** (`fix-links`). **An item worked by an orchestration node shows no changes.** Only
+   "Work on it" records the worktree and the branch on the item, so decision 20 is met for chats and
+   not for nodes.
+5. **Closed** (`fix-links`). **"Work on it" after the worktree was deleted by hand fails for good**,
+   because the worktree is locked; and a plain directory at that path is taken for the worktree.
+6. **Closed.** Smaller:
+   - `fix-store`: link ids are not validated (a 500); search folds case for ASCII only, so `sesión`
+     does not find `SESIÓN`; reordering acceptance criteria emits no event; appending to a column
+     grows ranks fast enough to respread the column every 117 creates; an actor of unknown kind is
+     read back as the person; `comments()` answers an empty list for a missing item; a failed
+     `ROLLBACK` hides the original error.
+   - `fix-links`: "Work on it" accepts an item in `done` while "Orchestrate" refuses it; a link
+     write that throws leaves a chat running unlinked; start options are copied without type checks.
+7. **Closed** (`fix-settings`). Contract: make `Project.key` and `Project.modules` required; decide
+   `WorkItemSource.kind` and `WorkItemLinkRole` for documents and for the flow before the web is
+   built on exhaustive switches; emit `project.updated` on a re-import that changes modules.
+
+Found next to them and fixed: the first test of `apps/api/test/work-links.test.ts` took 22 s
+because the fake CLI never answered `--version` (now 1.6 s); `work-items.ts` was split into the
+service, its rows and its validation; the migration test no longer assumes its migration is the last.
 
 ## Design system and plan rules broken in the prototypes
 
-1. **Raw colours in the new CSS**: `#fff` on the switch, the checkbox and the radio, which are not
-   the gradient, and `hsl()` on the epic mark and the role avatar. They need an `--on-accent` token
-   and a hue token.
-2. **"Aceptar las 3 que quedan"** on the assistant's proposals accepts in bulk, against decision 36.
-3. **Tasks is not in the More sheet** (`MobileMas`) and the standalone `Sidebar` has no Tasks entry,
-   though every board screen on the phone leads back there.
-4. **Touch targets under 44 px** on the phone: segmented controls (36 and 40 px), the column jump
-   (38 px), chips, and three controls that are not controls at all (the flow switch, the checklist
-   rows, the row naming the work item in a chat).
-5. **Always-visible checkboxes** on the phone's acceptance checklist.
-6. **Relations are missing on the phone**: the work item and the new task form have none.
+1. **Closed** (`proto-fix-system`). **Raw colours in the new CSS**: `#fff` on the switch, the
+   checkbox and the radio, which are not the gradient, and `hsl()` on the epic mark and the role
+   avatar. They need an `--on-accent` token and a hue token. `lint.py` now finds nothing in 69 files.
+2. **Closed** (`proto-fix-desktop`, `proto-fix-phone`). **"Aceptar las 3 que quedan"** on the
+   assistant's proposals accepts in bulk, against decision 36.
+3. **Closed** (`proto-fix-system`). **Tasks is not in the More sheet** (`MobileMas`) and the
+   standalone `Sidebar` has no Tasks entry, though every board screen on the phone leads back there.
+4. **Closed** (`proto-fix-system`, `proto-fix-phone`). **Touch targets under 44 px** on the phone:
+   segmented controls (36 and 40 px), the column jump (38 px), chips, and three controls that are
+   not controls at all (the flow switch, the checklist rows, the row naming the work item in a chat).
+   `check.mjs` finds nothing on the 39 phone screens.
+5. **Closed** (`proto-fix-phone`). **Always-visible checkboxes** on the phone's acceptance
+   checklist. The whole row is the control, and the design system records the checklist as the one
+   place a check mark is always visible.
+6. **Closed** (`proto-fix-phone`). **Relations are missing on the phone**: the work item and the new
+   task form have none.
 
 ## What the prototypes leave undrawn
+
+**Closed** (`proto-fix-desktop`, `proto-fix-phone`): all 18 states are drawn, 4 on the desktop and
+14 on the phone, and listed in the index.
 
 On the phone: steps 1 and 4 of the project wizard; selection with "Orchestrate"; the filter sheet;
 the Activity and Changes tabs of a work item; the Journal and CLI tabs of Memory; the Team and
@@ -100,20 +119,61 @@ run, the assistant on an empty project, and the Tasks view with All projects sel
 
 ## What differs between screens
 
-- The figures: 15 open against columns that add to 14, 38 in total against 27, five roles in the
-  wizard against four in `project-templates.ts`.
-- Four breadcrumb schemes on the project's tabs, and two page title sizes on the phone.
-- Text that carries the meaning is truncated: list titles, the four flow descriptions, "hidden,
-  23 documents kept", the live line on a card with a role avatar.
-- A hover toolbar covers the message the chat screen is about; the FAB covers rows on two lists.
-- Copy outside the glossary: "Seleccionando", "terminado", "espera por ti", "Hacer fork".
-- `design-system.md` says 16 illustrations; there are 15.
+- **Closed.** The figures: 15 open against columns that add to 14, 38 in total against 27, five
+  roles in the wizard against four in `project-templates.ts`. One data set now: 27 items, 15 open and
+  12 done, four template roles.
+- **Closed.** Four breadcrumb schemes on the project's tabs, and two page title sizes on the phone.
+  Now `Proyectos / <project> / <tab>`, and every phone title is 24 px.
+- **Mostly closed.** Text that carries the meaning is truncated: list titles, the four flow
+  descriptions, "hidden, 23 documents kept", the live line on a card with a role avatar. Four small
+  truncations on the desktop stay open.
+- **Closed.** A hover toolbar covers the message the chat screen is about; the FAB covers rows on
+  two lists.
+- **Closed.** Copy outside the glossary: "Seleccionando", "terminado", "espera por ti", "Hacer fork".
+- **Closed.** `design-system.md` says 16 illustrations; there are 15.
 
 ## What the orchestration itself got wrong
 
 Two tasks, `work-links` and `proto-index`, ended without a final report and with commit subjects
-that are not Conventional Commits. The generators of the prototypes were left in `/tmp` and are not
-in the repository. The plan's Outcome does not mention the undrawn phone states.
+that are not Conventional Commits. **Open, and cannot change**: those commits are history; the
+squash-merged pull request gets its own message. The generators of the prototypes were left in
+`/tmp` and are not in the repository. **Closed** (`proto-fix-system`): they are in
+`docs/design-system/reference/tools/` and rebuild their screens byte for byte. The plan's Outcome does
+not mention the undrawn phone states. **Closed** (`docs-fixes`).
+
+## What stays open
+
+Left by orchestration 1b, each with the reason, for the owner or the orchestration named.
+
+In the code:
+
+- **Schedules skip the node checks.** A schedule filled from `specOfOrchestration` carries each
+  node's `workItemId`, and the scheduler launches through `orchestrator.create`, not core's checks,
+  so a scheduled graph links to those items. The scheduler was outside 1b's files; stripping
+  `workItemId` there, as templates now do, is the likely answer.
+- **Live links for the new roles.** `isLive` in `work-item-rows.ts` counts only `work` links, and
+  nothing writes `refine` or `verify` yet. Orchestration 3 updates it when it does.
+- A generic error thrown while "Work on it" creates its chat reaches the client as a 400, not a
+  500: the API's shared error handler, left as it is.
+
+In the prototypes:
+
+- **Off-scale sizes in the shared base classes**: `.btn-sm` and `.chip` at 12.5 px, `.badge` and
+  `.count-pill` at 10.5, the sidebar's nav items at 13.5, the KPI figure at 28. They sit in sections
+  5 to 13, used by all 104 screens and by the app already built, so changing them is the owner's
+  call.
+- **Small truncations on the desktop**: the sidebar's live rows, resource descriptions in the
+  editor's side list, one long file name in a work item's changes, the epic select in the new task
+  form.
+- **`team.svg`**: the "+" touches the QA slot, and the dashed slots are faint in light.
+- **`MobileDocumentos`** says "Ligados a tareas 6" and draws 4 rows, with no "more" link.
+- **The bounce** ("rebote 1 de 3") is drawn on no phone screen any more.
+- **Light `--live`** is `#0b6680` in the reference, for contrast on its tint, while the app's
+  `tokens.css` still has `#0e7490`. Orchestration 2 takes the darker value.
+- **Below the fold**: "Sin hito" on `MobileHitos` sits below the fold of a scrolled list, and desktop
+  Hitos and Asistente leave empty space under their lists.
+
+In the checks: `pnpm build` and `pnpm e2e` on the merged branch, in 1b's verification phase.
 
 ## Related
 

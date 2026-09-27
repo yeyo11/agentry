@@ -635,8 +635,8 @@ event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `l
 | POST | `/work-items/:itemId/links` | `{ kind, role, chatId?, orchestrationId?, taskId? }` — tie a chat or an orchestration task to the item |
 | DELETE | `/work-items/:itemId/links/:linkId` | Untie it; the chat or orchestration is not touched |
 | GET | `/work-items/:itemId/history` | Every change to the item, oldest first, with who made it and why |
-| POST | `/work-items/:itemId/work` | "Work on it": a chat prompted with the item, in its own worktree on `task/<key>`, with the options a new chat takes. The item enters `in_progress` when a turn starts and `in_review` when one ends well |
-| GET | `/work-items/:itemId/changes` | What the item's branch changed: commits, files and what is not committed yet |
+| POST | `/work-items/:itemId/work` | "Work on it": a chat prompted with the item, in its own worktree on `task/<key>` (made again if it was deleted by hand), with the options a new chat takes, each checked for its type (400). The item enters `in_progress` when a turn starts and `in_review` when one ends well. An epic is refused (400), and so are an item in `done`, one already being worked on and a plain directory where its worktree goes (409) |
+| GET | `/work-items/:itemId/changes` | What the item's branch changed: commits, files and what is not committed yet. The branch is the last chat's or orchestration node's that worked on the item |
 | GET | `/work-items/:itemId/changes/diff?path=` | One file's diff on the item's branch |
 | POST | `/chats/:id/work-items` | `{ text, title?, type?, priority? }` — create a task in `backlog` from a chat's message, linked to the chat |
 | GET | `/chats/:id/work-items` | The work items a chat works on or was the origin of |
@@ -829,9 +829,9 @@ every 3 s and only while a client listens.
 | POST | `/orchestrations/:id/tasks/:taskId/hint` | `{ text }` — a nudge for a worker whose task is still running; a finished task takes none (fork its chat) |
 | POST | `/orchestrations/:id/tasks/:taskId/supervisor/:proposalId/send` | Send the supervisor's proposal for a worker through the task hint route and mark it `sent`. What the supervisor cost is already on the graph's `costUsd` |
 | POST | `/orchestrations/:id/tasks/:taskId/supervisor/:proposalId/dismiss` | Mark the proposal `dismissed` |
-| POST | `/orchestrations/:id/relaunch` | `{ spec?, tasks? }` — the same graph with corrections (`spec` overrides settings, `tasks` replaces the list) as a new orchestration that records `relaunchedFrom`; the original is left as it was |
+| POST | `/orchestrations/:id/relaunch` | `{ spec?, tasks? }` — the same graph with corrections (`spec` overrides settings, `tasks` replaces the list) as a new orchestration that records `relaunchedFrom`; the original is left as it was. Each node keeps its `workItemId`, checked as a launch checks it |
 | GET | `/orchestrations/templates` | Saved graphs, by name (a JSON file in the data directory) |
-| POST | `/orchestrations/templates` | `{ name, description?, spec? , fromOrchestration? }` — save a draft plan or an orchestration's graph as a template |
+| POST | `/orchestrations/templates` | `{ name, description?, spec? , fromOrchestration? }` — save a draft plan or an orchestration's graph as a template; its nodes' work items are left out |
 | GET | `/orchestrations/templates/:templateId` | One template |
 | PATCH | `/orchestrations/templates/:templateId` | `{ name?, description?, spec? }` |
 | DELETE | `/orchestrations/templates/:templateId` | Delete a template; orchestrations launched from it are unaffected |

@@ -157,7 +157,9 @@
   across several wrapper processes. "Work on it" runs a chat on an item in its own worktree, a
   selection becomes a draft orchestration with its dependencies, a chat's message becomes a task,
   and the item follows that work, forward only and never over a person's move. The screens are
-  static prototypes in `docs/design-system/reference/`, waiting for the owner's validation. See
+  static prototypes in `docs/design-system/reference/` (66 of them, with the states an audit found
+  missing), waiting for the owner's validation; the fixes of that audit are in, in orchestration 1b.
+  See
   [docs/projects.md](docs/projects.md), [docs/work-items.md](docs/work-items.md) and
   [docs/plans/project-ecosystem.md](docs/plans/project-ecosystem.md).
 

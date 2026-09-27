@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T01:59:47.104538408Z
-updated_at: 2026-09-27T06:00:00Z
+updated_at: 2026-09-27T12:00:00Z
 tags:
     - plan
     - projects
@@ -23,8 +23,9 @@ CONTRIBUTING.md and [docs/design-system.md](../design-system.md). Where a task p
 disagree, the plan wins; where the plan and the design system disagree on a visual detail, the
 design system wins.
 
-Status: **orchestration 1 (`ecosystem-foundation`) built on 2026-09-27**, see [Outcome](#outcome).
-Orchestrations 2 to 4 are described here and get their task sections before each is launched.
+Status: **orchestration 1 (`ecosystem-foundation`) built on 2026-09-27, and fixed by orchestration
+1b (`ecosystem-fixes`) the same day** after [its audit](project-ecosystem-audit.md), see
+[Outcome](#outcome). The prototypes wait for the owner's validation. Orchestrations 2 to 4 are described here and get their task sections before each is launched.
 
 ## Why
 
@@ -588,6 +589,74 @@ fourteen new screens and the illustrations sheet, and §2 completed. Its commit,
 list (its REST tables were already complete from the API tasks), the ROADMAP (a Done entry and
 orchestrations 2 to 4 under Next), [status.md](../status.md) and this section.
 
+**What orchestration 1 left undrawn**, which this section did not say at first: on the phone, steps
+1 and 4 of the project wizard, selection with "Orquestar", the filter sheet, a work item's Activity
+and Changes tabs, the Journal and CLI tabs of Memory, the assistant's Team and Resources proposals,
+and the document editor; on both sizes, suggestions while they run, the assistant on an empty
+project, and Tasks with All projects selected. The phone also lacked relations on the work item and
+the new task form. Two tasks, `work-links` and `proto-index`, ended without a final report, and the
+prototypes' generators were left in `/tmp`.
+
+### Orchestration 1b: `ecosystem-fixes`
+
+[The audit](project-ecosystem-audit.md) of orchestration 1 found five bugs, a contract still open and
+prototypes that disagreed with each other. Orchestration 1b fixed them on 2026-09-27, each code bug
+first reproduced by a test that failed without its fix. The audit marks each finding closed or
+open.
+
+**`fix-settings`** — a settings read never writes over a document it cannot use: it answers the
+parts that validate, in memory, and leaves the file (a test asserts it is unchanged). `Project.key`
+and `Project.modules` are required. The value lists are built with `valuesOf`, checked against their
+unions both ways. The unions a web switch is exhaustive over are settled for orchestration 3:
+`WorkItemLinkKind` gains `document` (with `documentPath`), `WorkItemLinkRole` is `origin`, `refine`,
+`work`, `verify` and `reference`, following the fixed columns, and `WorkItemSourceKind` stays `chat`
+and `orchestration`; a work item gains the optional `bounces` and `waiting` for decisions 29 and 30.
+A re-import that changes modules emits `project.updated` and records its template; listing reads
+each document once; the Board off and on is tested through the API. Nothing under `apps/web/src`
+changed; one web test's project fixture gained the two required fields.
+
+**`fix-store`** — `work-items.ts` split into the service, `work-item-rows.ts` and
+`work-item-validation.ts`, as it was, before the fixes. Then: search folds case in every language;
+reordering criteria emits `workitem.updated` and returns its `updatedAt`; appending to a column adds
+a rank character every sixty cards instead of six, and `rankBetween` refuses an answer outside its
+bounds so the column is respread; the actor is validated and an unknown stored kind reads as
+`system`; `comments()` answers 404 for a missing item and a comment is capped at 50,000 characters;
+a failed `ROLLBACK` no longer hides the original error; link ids are validated; the migration test no
+longer assumes its migration is the last (`migrate(db, until)`).
+
+**`fix-links`** — a turn starts only on a real transition into `busy`, tested with the coalesced
+`run.updated` as the publisher sends it; a relaunch keeps `workItemId` and is checked as a launch
+(`core.relaunchOrchestration`), while a saved template drops the items; a node records its worktree
+and branch on its item, whose changes are then read from there; a worktree deleted by hand is
+recovered on its branch and a plain directory at its path is refused (409); "Work on it" refuses a
+`done` item (409), type-checks its start options (400) and stops its chat if the link cannot be
+written. The first API test took 22 s because the fake CLI never answered `--version`; it now does,
+and the test takes 1.6 s.
+
+**`proto-fix-system`** — the generators are in `docs/design-system/reference/tools/`, with `lint.py`
+(tokens only) and `check.mjs` (contrast in both themes, touch targets on the phone). `--on-accent`
+and the `--hue-*` tokens replace `#fff` and `hsl()`; phone controls reach 44 px from the stylesheet;
+one selected-row accent (`--sel-bg`, `--sel-mark`); sections 15 to 17 on the type scale; Tasks is in
+`Sidebar.html` and in the More sheet. Went past it: light `--live` is `#0b6680` in the reference, for
+contrast on its tint; the app's `tokens.css` still has `#0e7490`, for orchestration 2 to take.
+
+**`proto-fix-desktop` and `proto-fix-phone`** — one data set (27 work items, 15 open and 12 done;
+`pagos-api` empty), one breadcrumb (`Proyectos / <project> / <tab>`), 24 px phone titles, the four
+template roles, no bulk accept, relations on the phone, the checklist row as its own control,
+nothing meaningful cut, nothing under the FAB or a toolbar, and the glossary's copy. They drew the 18
+missing states (4 desktop, 14 phone), so the ecosystem has 66 screens: 27 desktop and 39 phone.
+
+**`proto-fix-review`** — moved the rules the two screen tasks had left in their pages into
+`agentry-ds.css`, aligned where the two sizes told different stories, and brought the index, the
+manifest and [design-system.md](../design-system.md) up to date (15 illustrations, the new tokens,
+the checklist exception). `lint.py` finds nothing in 69 files and `check.mjs` nothing on the 66
+screens, in both themes.
+
+**`docs-fixes`** — [projects.md](../projects.md), [work-items.md](../work-items.md), the README's
+rows for "Work on it", an item's changes, the relaunch and templates (and the same two OpenAPI
+descriptions), the ROADMAP, [status.md](../status.md), this section and the audit's status.
+
+What 1b left open is listed at the end of [the audit](project-ecosystem-audit.md#what-stays-open).
 What is next is unchanged: the owner validates the prototypes, then orchestration 2 builds the web.
 
 ## Related
