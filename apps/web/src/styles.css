@@ -22,12 +22,12 @@
 @import './styles/orchestration.css';
 @import './styles/dashboard.css';
 @import './styles/projects.css';
+@import './styles/assistant.css';
 @import './styles/board.css';
 @import './styles/work-item.css';
 @import './styles/team.css';
 @import './styles/suggestion.css';
 @import './styles/documents.css';
-@import './styles/assistant.css';
 @import './styles/editors.css';
 @import './styles/overlays.css';
 @import './styles/motion.css';
