@@ -676,3 +676,9 @@
   display: flex;
   margin-top: 3px;
 }
+
+/* An included proposal reads in the accent, as the reference's .sug-pick: the shared rule's
+   --accent-text is white in both themes and vanishes on the light accent-soft */
+.suggest-body .suggestion-pick[aria-pressed='true'] {
+  color: var(--accent);
+}
