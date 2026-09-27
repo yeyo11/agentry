@@ -6,18 +6,22 @@ import { Link } from 'react-router-dom';
 import { EpicLabel, Monogram, PriorityMark, WorkItemKey, WorkItemTypeIcon } from '../../../components/icons';
 import { Spinner } from '../../../components/Spinner';
 import { taskPath, workItemLiveState } from '../../../lib/work-items';
+import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import { LiveLine, type LiveSources } from './LiveLine';
 import { openBlockers, type NotSelectable } from './model';
+import { BounceFact, WaitingNote } from './team';
 
 const FACT = { size: 12, strokeWidth: 1.75, 'aria-hidden': true } as const;
 
-/** Who an item is assigned to, as a monogram: the person, or a team role once the Team module exists. */
+/** Who an item is assigned to: the person as a round monogram, a team role as its squircle. */
 export function Assignee({ item }: { item: Pick<WorkItem, 'assignee'> }) {
   const { t } = useTranslation('tasks');
+  const roleName = useRoleName();
   const who = item.assignee;
   if (!who) return null;
-  const name = who.kind === 'person' ? t('toolbar.person') : who.role;
-  const said = who.kind === 'person' ? t('card.assignedToYou') : t('card.assignedTo', { role: who.role });
+  if (who.kind === 'role') return <RoleAvatar role={who.role} size="sm" label={t('card.assignedTo', { role: roleName(who.role) })} />;
+  const name = t('toolbar.person');
+  const said = t('card.assignedToYou');
   return (
     <span className="workitem-assignee" role="img" aria-label={said} title={said}>
       <Monogram name={name} size={20} />
@@ -26,7 +30,7 @@ export function Assignee({ item }: { item: Pick<WorkItem, 'assignee'> }) {
 }
 
 /** The checklist's progress and what the item waits for: the facts under a card or a row. */
-export function CardFacts({ item, short = false }: { item: Pick<WorkItem, 'acceptanceCriteria' | 'relations'>; short?: boolean }) {
+export function CardFacts({ item, short = false }: { item: Pick<WorkItem, 'acceptanceCriteria' | 'relations' | 'bounces'>; short?: boolean }) {
   const { t } = useTranslation('tasks');
   const blockers = openBlockers(item);
   const total = item.acceptanceCriteria.length;
@@ -34,6 +38,7 @@ export function CardFacts({ item, short = false }: { item: Pick<WorkItem, 'accep
   const keys = blockers.map((blocker) => blocker.key).join(', ');
   return (
     <>
+      <BounceFact item={item} />
       {blockers.length > 0 && (
         <span className="workitem-fact is-blocked" title={t('card.blockedBy', { keys })}>
           <Ban {...FACT} />
@@ -116,7 +121,7 @@ export function WorkItemCard({
   const state = workItemLiveState(item);
   const working = state === 'working';
   const facts = <CardFacts item={item} />;
-  const hasFacts = openBlockers(item).length > 0 || item.acceptanceCriteria.length > 0;
+  const hasFacts = openBlockers(item).length > 0 || item.acceptanceCriteria.length > 0 || (item.bounces ?? 0) > 0;
   const assignee = item.assignee ? <Assignee item={item} /> : null;
   const classes = [
     'workitem-card',
@@ -232,6 +237,7 @@ export function WorkItemCard({
       {meta}
       {item.type === 'epic' && <EpicProgress progress={epic} />}
       <LiveLine item={item} sources={live} />
+      <WaitingNote item={item} />
       {hasFacts && (
         <div className="workitem-card-foot">
           {facts}

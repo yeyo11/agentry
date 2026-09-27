@@ -26,6 +26,8 @@
  *    - `tasks`: the Tasks board, list and milestones (pages/tasks/Board, List, Milestones), and the
  *      words every work item screen shares: columns, types and priorities (lib/work-items.ts)
  *    - `workItem`: one work item's page and the New task form (pages/tasks/WorkItem, NewTask, item/*)
+ *    - `team`: the Team tab of a project (pages/team/*): members, one member, the flow by column,
+ *      and what a board worked by a team adds to its cards (pages/tasks/board/team.tsx)
  *    - `schedules`: the Schedules page and its form (pages/Schedules, pages/schedules/*)
  *    - `usage`: the Usage page (pages/Usage)
  *    - `work`: what is left of the pages the chats redesign removed (Dashboard, Agents, Sessions…)

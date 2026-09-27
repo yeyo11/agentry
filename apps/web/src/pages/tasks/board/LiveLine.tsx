@@ -8,6 +8,8 @@ import { Spinner } from '../../../components/Spinner';
 import { useFallbackInterval } from '../../../lib/feed';
 import { chatActivity, orchestrationProgress } from '../../../lib/shell-live';
 import { workItemLiveState } from '../../../lib/work-items';
+import { RoleAvatar } from '../../team/RoleAvatar';
+import { useRunRole } from './team';
 
 /** The same list the shell's Live section reads, so a board adds no request of its own. */
 const LIVE_LIMIT = 10;
@@ -41,9 +43,12 @@ export function useLiveSources(items: readonly Pick<WorkItem, 'activeLink'>[]): 
  * in its graph with the graph's segmented bar. A card whose chat waits for the person says so in
  * the idle tone and stands still. Nothing for an item at rest.
  */
-export function LiveLine({ item, sources, className = '' }: { item: Pick<WorkItem, 'activeLink'>; sources: LiveSources; className?: string }) {
+export function LiveLine({ item, sources, className = '' }: { item: Pick<WorkItem, 'id' | 'activeLink'>; sources: LiveSources; className?: string }) {
   const { t } = useTranslation('tasks');
   const state = workItemLiveState(item);
+  // A team member at work says which one, beside its verb
+  const role = useRunRole(item);
+  const who = role ? <RoleAvatar role={role} size="sm" /> : null;
   const link = item.activeLink;
   if (!state || !link) return null;
 
@@ -72,13 +77,15 @@ export function LiveLine({ item, sources, className = '' }: { item: Pick<WorkIte
   const activity = chatActivity(sources.chats.find((chat) => chat.id === link.chatId) ?? {});
   if (activity)
     return (
-      <div className={`workitem-card-live has-ticker ${className}`.trim()}>
+      <div className={['workitem-card-live has-ticker', who ? 'has-role' : '', className].filter(Boolean).join(' ')}>
+        {who}
         <ActivityTicker activity={activity} className="workitem-live-ticker" />
       </div>
     );
   return (
     <div className={`workitem-card-live ${className}`.trim()}>
       <Spinner className="workitem-live-spin" />
+      {who}
       <span className="workitem-live-verb">{t('card.working')}</span>
     </div>
   );

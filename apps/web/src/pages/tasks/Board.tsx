@@ -11,6 +11,7 @@ import { NARROW, useMediaQuery } from '../../lib/media';
 import { boardColumns, filtersToSearch, NEW_TASK_PARAM, openCount, taskPath, TASKS_PATH, VIEW_PARAM, viewFromSearch } from '../../lib/work-items';
 import { BoardColumns, type BoardSelection } from './board/BoardColumns';
 import { useLiveSources } from './board/LiveLine';
+import { BoardTeamProvider, FlowButton, useBoardTeamData } from './board/team';
 import { boardItems, epicProgress, notSelectable } from './board/model';
 import { PhoneBoard } from './board/PhoneBoard';
 import { PhoneSelectionFoot, SelectionBar, SelectionNote } from './board/SelectionBar';
@@ -58,6 +59,8 @@ export function Board() {
   const shownItems = useMemo(() => columns.flatMap((column) => column.items), [columns]);
   const epics = useMemo(() => epicProgress(allItems), [allItems]);
   const live = useLiveSources(shownItems);
+  // A project worked by a team: its columns' roles, the runs on its cards, and the way to its flow
+  const team = useBoardTeamData(scope.allProjects || scope.boardOff ? null : scope.project);
   const facets = useFacets({ allProjects: scope.allProjects, projects: scope.boardProjects, items: allItems, milestones: milestones.milestones });
 
   // ---- selection, for "Orchestrate" ----
@@ -291,6 +294,7 @@ export function Board() {
             subtitle={subtitle}
             actions={
               <>
+                {team && scope.project && <FlowButton team={team} projectId={scope.project.id} />}
                 {canSelect && <SelectButton on={selecting} onChange={(on) => (on ? setSelecting(true) : stopSelecting())} />}
                 {!scope.boardOff && newTask}
               </>
@@ -306,7 +310,7 @@ export function Board() {
         </>
       )}
 
-      {body}
+      <BoardTeamProvider value={team}>{body}</BoardTeamProvider>
 
       {selecting && phone && <SelectionNote selected={selectedItems} />}
       {selecting && (phone ? <PhoneSelectionFoot projectId={selectionProject} selected={selectedItems} /> : <SelectionBar projectId={selectionProject} selected={selectedItems} onCancel={stopSelecting} />)}

@@ -13,6 +13,7 @@ import { columnMeta, taskPath, workItemLiveState } from '../../../lib/work-items
 import type { BoardSelection } from './BoardColumns';
 import { LiveLine, type LiveSources } from './LiveLine';
 import { DONE_SHOWN, neighbourStatus } from './model';
+import { ColumnRole, WaitingNote } from './team';
 import { useMoveWorkItem } from './useMoveWorkItem';
 import { Assignee, CardFacts, EpicProgress } from './WorkItemCard';
 
@@ -141,6 +142,12 @@ export function PhoneBoard({
                   {t('column.overShort')}
                 </span>
               )}
+              {!allProjects && (
+                <>
+                  <span className="grow" />
+                  <ColumnRole status={status} named={status !== 'done'} />
+                </>
+              )}
             </div>
             {shown.length > 0 ? (
               <div className={`card workitem-mcard ${over ? 'is-over' : ''}`.trim()}>
@@ -162,6 +169,7 @@ export function PhoneBoard({
                       </Link>
                       <RowMeta item={item} project={projectNames?.get(item.projectId)} epic={epics.get(item.id)} />
                       <LiveLine item={item} sources={live} className="is-row" />
+                      <WaitingNote item={item} />
                     </div>
                   ),
                 )}
@@ -197,7 +205,7 @@ function RowMeta({ item, project, epic }: { item: WorkItem; project?: string | u
         <EpicProgress progress={epic} compact />
       </>
     );
-  const facts = item.acceptanceCriteria.length > 0 || item.relations.some((r) => r.type === 'blocked_by' && r.item.status !== 'done');
+  const facts = item.acceptanceCriteria.length > 0 || (item.bounces ?? 0) > 0 || item.relations.some((r) => r.type === 'blocked_by' && r.item.status !== 'done');
   if (!project && !item.epic && item.labels.length === 0 && !facts) return null;
   return (
     <div className="workitem-mrow-meta">

@@ -45,8 +45,9 @@ test('the limits read in board order', () => {
 
 test('a tab exists only while its module is on', () => {
   assert.deepEqual(projectViews([]), ['resources', 'worktrees', 'settings']);
-  assert.deepEqual(projectViews(['board', 'team', 'documents', 'memory']), ['board', 'memory', 'resources', 'worktrees', 'settings']);
+  assert.deepEqual(projectViews(['board', 'team', 'documents', 'memory']), ['board', 'team', 'memory', 'resources', 'worktrees', 'settings']);
   assert.deepEqual(projectViews(['memory']), ['memory', 'resources', 'worktrees', 'settings']);
+  assert.deepEqual(projectViews(['team']), ['team', 'resources', 'worktrees', 'settings']);
   assert.equal(asProjectView('board'), 'board');
-  assert.equal(asProjectView('team'), null);
+  assert.equal(asProjectView('team'), 'team');
 });

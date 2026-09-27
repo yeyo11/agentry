@@ -1,9 +1,9 @@
 import type { Project } from '@agentry/shared';
-import { BookText, ChevronLeft, ChevronRight, FolderX, GitFork, LayoutDashboard, MessageCircle, Package, Plus, SlidersHorizontal, SquareKanban, type LucideIcon } from 'lucide-react';
+import { BookText, ChevronLeft, ChevronRight, FolderX, GitFork, LayoutDashboard, MessageCircle, Package, Plus, SlidersHorizontal, SquareKanban, Users, type LucideIcon } from 'lucide-react';
 import { lazy, Suspense, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
-import { useOpenTaskCount, useProjectSettings } from '../api';
+import { useOpenTaskCount, useProjectSettings, useTeam } from '../api';
 import { ICON, ICON_SM, Monogram, WorkItemKey } from '../components/icons';
 import { Skeleton, TabPanel, Tabs, usePageTitle, useTabGroup } from '../components/ui';
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
@@ -23,12 +23,14 @@ const ProjectResources = lazy(() => import('./home/ProjectResources').then((m) =
 const ProjectWorktrees = lazy(() => import('./home/ProjectWorktrees').then((m) => ({ default: m.ProjectWorktrees })));
 // The Tasks board itself: it reads the selected project, which on this page is the one shown
 const ProjectBoard = lazy(() => import('./tasks/Board').then((m) => ({ default: m.Board })));
+const ProjectTeam = lazy(() => import('./team/Team').then((m) => ({ default: m.ProjectTeam })));
 
 type TabId = 'summary' | ProjectViewId;
 
 const TAB_ICON: Record<TabId, LucideIcon> = {
   summary: LayoutDashboard,
   board: SquareKanban,
+  team: Users,
   memory: BookText,
   resources: Package,
   worktrees: GitFork,
@@ -49,10 +51,11 @@ function MissingAlert({ project }: { project: Project }) {
   );
 }
 
-/** The figure each tab carries, neutral: open tasks on the board, the worktrees. */
+/** The figure each tab carries, neutral: open tasks on the board, the team's members, the worktrees. */
 function useTabCounts(project: Project): Partial<Record<TabId, number>> {
   const open = useOpenTaskCount(project, true);
-  return { board: open, worktrees: project.worktrees.length || undefined };
+  const team = useTeam(project.modules.includes('team') ? project.id : null).data;
+  return { board: open, team: team?.members.length || undefined, worktrees: project.worktrees.length || undefined };
 }
 
 /**
@@ -184,6 +187,7 @@ function TabBody({ project, tab }: { project: Project; tab: ProjectViewId }) {
   return (
     <Suspense fallback={<Skeleton rows={4} height={18} />}>
       {tab === 'board' && <ProjectBoard />}
+      {tab === 'team' && <ProjectTeam project={project} />}
       {tab === 'settings' && <ProjectSettings project={project} />}
       {tab === 'memory' && <ProjectMemory project={project} />}
       {tab === 'resources' && <ProjectResources project={project} />}
@@ -233,7 +237,8 @@ function ProjectPage({ project }: { project: Project }) {
   if (narrow) {
     return view ? (
       <>
-        <PhoneViewHead project={project} view={view} onBack={() => open('summary')} />
+        {/* Team heads its own screens: the tab, a member, each with what it holds */}
+        {view !== 'team' && <PhoneViewHead project={project} view={view} onBack={() => open('summary')} />}
         <MissingAlert project={project} />
         <div className="tab-panel">
           <TabBody project={project} tab={view} />
