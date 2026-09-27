@@ -84,13 +84,13 @@ export default async ({ page, check }) => {
       const cut = await page.eval(`return [...document.querySelectorAll('.tabbar-label')].filter((l) => l.scrollWidth > l.clientWidth + 1).map((l) => l.textContent)`);
       check(cut.length === 0, `[390px ${path}] no tab label is truncated (${cut.join(', ')})`);
     }
-    // The FAB: New chat in words on Home, an icon on the lists, New orchestration on its page, none on Settings
+    // The FAB: the same round icon everywhere, named New chat, New orchestration on its page, none on Settings
     const fab = async (path) => {
       await page.goto(path, 900);
       return page.eval(`const f = document.querySelector('.fab'); if (!f || !f.getClientRects().length) return null; const r = f.getBoundingClientRect(), t = document.querySelector('.tabbar').getBoundingClientRect(); return { text: f.innerText.trim(), name: f.getAttribute('aria-label') ?? f.innerText.trim(), above: t.top - r.bottom, height: r.height, width: r.width, right: innerWidth - r.right }`);
     };
     const home = await fab('/');
-    check(home?.text === 'New chat', `[390px /] the FAB says New chat (${home?.text})`);
+    check(home?.text === '' && home?.name === 'New chat', `[390px /] the FAB is an icon named New chat (${JSON.stringify(home)})`);
     check(home !== null && home.above >= 8 && home.height >= 44 && home.width >= 44 && home.right >= 8, `[390px /] the FAB sits above the tab bar, inside the screen, 44px or larger (${JSON.stringify(home)})`);
     const list = await fab('/chats');
     check(list?.text === '' && list?.name === 'New chat', `[390px /chats] the FAB is an icon named New chat (${JSON.stringify(list)})`);

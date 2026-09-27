@@ -97,8 +97,15 @@ export default async ({ page, api, check }) => {
   await page.waitFor(`return document.querySelector('main').innerText.includes('1 of 3 chats')`, { label: 'search narrows the list' });
   check(!(await page.text('main')).includes('Fix the login bug'), 'non-matching chats are hidden');
 
-  await page.click('.link-btn', 'Reset filters', 800);
+  // The list is kept until it is reset: leaving and coming back to a bare /chats finds the search again
+  await page.waitFor(`return location.search.includes('q=dark')`, { label: 'search in the URL' });
+  await page.goto('/schedules', 600);
+  await page.goto('/chats', 1200);
+  await page.waitFor(`return location.search.includes('q=dark') && document.querySelector('main').innerText.includes('1 of 3 chats')`, { label: 'the search comes back on a later visit' });
+
+  await page.click('.list-toolbar-chips .link-btn', 'Reset', 800);
   await page.waitFor(`return document.querySelectorAll('.crow').length === 3`, { label: 'reset brings every chat back' });
+  check((await page.eval(`return Object.keys(localStorage).filter((k) => k.startsWith('agentry:filters:chats:')).length`)) === 0, 'reset forgets what was stored');
 
   // The sort Select is a themed listbox: picking an option updates the URL and the order
   await page.select('[aria-label="Sort by"]', 'Recently started');

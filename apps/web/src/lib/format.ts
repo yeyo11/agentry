@@ -103,6 +103,20 @@ export function formatCost(usd: number | null | undefined): string {
   ).format(usd || 0);
 }
 
+/**
+ * A cost where only a few characters fit (a phone's figure tile): whole dollars, the language's
+ * short form past a thousand ($1.3K, 1,3 mil US$), and cents only under a dollar, where they are
+ * the whole figure.
+ */
+export function formatCostShort(usd: number | null | undefined): string {
+  const value = usd || 0;
+  if (value > 0 && value < 1) return formatCost(value);
+  const digits = value < 1000 ? 0 : 1;
+  return cached(`usd-short:${digits}`, (l) =>
+    new Intl.NumberFormat(l, { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: digits }),
+  ).format(value);
+}
+
 /** A plain number in the active language: 1,500 in English, 1.500 in Spanish. */
 export function formatNumber(value: number, options?: Intl.NumberFormatOptions): string {
   return cached(`number:${JSON.stringify(options ?? {})}`, (l) => new Intl.NumberFormat(l, options)).format(value);

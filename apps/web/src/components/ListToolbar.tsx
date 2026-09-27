@@ -32,6 +32,9 @@ export interface ListFilterChip {
  * What the filters are is the caller's business — it passes the facet sections as children — and so
  * is where the state lives, usually the URL.
  *
+ * Lists keep their state until it is reset (`lib/list-params.ts`), so Reset shows whenever the list is
+ * `active` — searched, sorted or on another tab too — and not only while a filter chip is on.
+ *
  * On a narrow screen it is two rows: the search with one button that opens the filters and the sort
  * in a sheet, and under them the tabs as a strip of chips that scrolls sideways.
  */
@@ -42,6 +45,7 @@ export function ListToolbar<T extends string>({
   sort,
   chips = [],
   onReset,
+  active = false,
   actions,
   className = '',
 }: {
@@ -53,6 +57,8 @@ export function ListToolbar<T extends string>({
   sort?: { value: string; options: ReadonlyArray<{ value: string; label: string }>; onChange: (value: string) => void; label?: string };
   chips?: ReadonlyArray<ListFilterChip>;
   onReset?: () => void;
+  /** Anything differs from the list's defaults, chips or not: what makes Reset worth offering */
+  active?: boolean;
   /** Page actions that belong on the same line, at the end */
   actions?: ReactNode;
   className?: string;
@@ -156,7 +162,7 @@ export function ListToolbar<T extends string>({
         {actions && <div className="list-toolbar-actions">{actions}</div>}
       </div>
       {narrow && tabStrip && <div className="list-toolbar-strip">{tabStrip}</div>}
-      {chips.length > 0 && (
+      {(chips.length > 0 || (active && onReset)) && (
         <div className="list-toolbar-chips" aria-label={t('toolbar.activeFilters')} role="group">
           {chips.map((chip) => (
             <button key={chip.id} type="button" className="filter-chip" onClick={chip.onRemove} aria-label={t('toolbar.removeFilter', { filter: chip.label })}>

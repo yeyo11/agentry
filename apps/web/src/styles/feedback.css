@@ -24,6 +24,15 @@
   text-transform: uppercase;
   white-space: nowrap;
   color: var(--tone);
+  /* A badge is a word or two; should one ever be longer than its column it ends in an ellipsis
+     rather than running out of the card */
+  max-width: 100%;
+}
+
+.badge-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .badge > svg,

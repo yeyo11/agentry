@@ -4,7 +4,7 @@ import test from 'node:test';
 // Formatting follows navigator.languages; pin it so the result does not depend on the machine.
 Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });
 const { setLanguage } = await import('../src/i18n/index.ts');
-const { formatBytes, formatCost, formatDateTime, formatDuration, formatNumber, timeAgo, timeUntil } = await import('../src/lib/format.ts');
+const { formatBytes, formatCost, formatCostShort, formatDateTime, formatDuration, formatNumber, timeAgo, timeUntil } = await import('../src/lib/format.ts');
 
 const SEC = 1000;
 const MIN = 60 * SEC;
@@ -59,6 +59,21 @@ test('Spanish output', () => {
     // The cached formatter follows the language like the one `toLocaleString` builds each time
     const at = Date.UTC(2026, 8, 19, 14, 3, 0);
     assert.equal(formatDateTime(at), new Date(at).toLocaleString('es-ES'));
+  } finally {
+    setLanguage('en');
+  }
+});
+
+test('a short cost keeps whole dollars, and the language’s short form past a thousand', () => {
+  setLanguage('en');
+  assert.equal(formatCostShort(286.95), '$287');
+  assert.equal(formatCostShort(1286.95), '$1.3K');
+  assert.equal(formatCostShort(0.42), '$0.42');
+  assert.equal(formatCostShort(0), '$0');
+  setLanguage('es');
+  try {
+    assert.equal(formatCostShort(286.95), '287\u00a0US$');
+    assert.equal(formatCostShort(1286.95), '1,3\u00a0mil\u00a0US$');
   } finally {
     setLanguage('en');
   }

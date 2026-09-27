@@ -1,27 +1,77 @@
 import { Plus } from 'lucide-react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fabFor } from '../../lib/shell-live';
 
+/** Scrolled less than this is a finger resting on the list, not a direction */
+const SCROLL_SLACK_PX = 8;
+/** Near the top the button always shows: there is nothing under it yet */
+const TOP_PX = 48;
+
+/**
+ * Whether the button steps aside: while the page scrolls down it goes, and it comes back as soon as
+ * the page scrolls up or reaches the top, as floating buttons do on iOS and Android. That is what
+ * lets the page keep no room for it at its end — at the end the reader has scrolled down, so the
+ * button is already out of the way.
+ */
+export function useHideOnScroll(scroller: RefObject<HTMLElement | null>, resetKey: string): boolean {
+  const [hidden, setHidden] = useState(false);
+  const last = useRef(0);
+  useEffect(() => {
+    setHidden(false);
+    const element = scroller.current;
+    if (!element) return;
+    last.current = element.scrollTop;
+    const onScroll = () => {
+      const top = element.scrollTop;
+      const delta = top - last.current;
+      if (top <= TOP_PX) setHidden(false);
+      else if (delta > SCROLL_SLACK_PX) setHidden(true);
+      else if (delta < -SCROLL_SLACK_PX) setHidden(false);
+      else return;
+      last.current = top;
+    };
+    element.addEventListener('scroll', onScroll, { passive: true });
+    return () => element.removeEventListener('scroll', onScroll);
+  }, [scroller, resetKey]);
+  return hidden;
+}
+
 /**
  * The phone's floating "start something" button, in the brand gradient above the tab bar. What it
- * starts and whether it has room for its words depend on the page (`fabFor`); where there is
- * nothing to start from here, it is not there.
+ * starts depends on the page (`fabFor`); where there is nothing to start from here, it is not
+ * there. Always the icon alone, so its name is said for it.
  */
-export function Fab({ pathname, onNewChat, onNewOrchestration }: { pathname: string; onNewChat: () => void; onNewOrchestration: () => void }) {
+export function Fab({
+  pathname,
+  scroller,
+  onNewChat,
+  onNewOrchestration,
+}: {
+  pathname: string;
+  /** The page's scroll container, whose direction hides and shows the button */
+  scroller: RefObject<HTMLElement | null>;
+  onNewChat: () => void;
+  onNewOrchestration: () => void;
+}) {
   const { t } = useTranslation(['components', 'shell']);
   const plan = fabFor(pathname);
+  const hidden = useHideOnScroll(scroller, pathname);
+  const [focused, setFocused] = useState(false);
   if (!plan) return null;
   const label = plan.action === 'chat' ? t('components:shell.newChat') : t('shell:topbar.newOrchestration');
+  // A keyboard that reaches it brings it back: a control is never focused while out of sight
+  const away = hidden && !focused;
   return (
     <button
       type="button"
-      className={`fab ${plan.labelled ? 'fab-labelled' : ''}`.trim()}
-      // The words are the name when they show; the icon alone needs them said
-      aria-label={plan.labelled ? undefined : label}
+      className={`fab ${away ? 'is-away' : ''}`.trim()}
+      aria-label={label}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       onClick={plan.action === 'chat' ? onNewChat : onNewOrchestration}
     >
       <Plus size={22} strokeWidth={2.2} aria-hidden />
-      {plan.labelled && <span>{label}</span>}
     </button>
   );
 }

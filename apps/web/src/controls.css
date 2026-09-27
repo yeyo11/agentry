@@ -9,7 +9,7 @@
   gap: 8px;
   width: 100%;
   min-width: 0;
-  min-height: 36px;
+  min-height: var(--control-h);
   padding: 6px 10px 6px 12px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);

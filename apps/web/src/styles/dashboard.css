@@ -105,13 +105,6 @@
   flex: 1;
 }
 
-/* Room under the last card, so the phone's New chat button never sits on top of it */
-@media (max-width: 900px) {
-  .shell-has-tabbar .dashboard {
-    padding-bottom: 72px;
-  }
-}
-
 @container dashboard (min-width: 600px) {
   .dashboard-grid {
     display: grid;
@@ -385,6 +378,15 @@
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--fg);
+  /* Never past the tile's edge, whatever the figure and the language make of it */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kpi-value-short {
+  display: none;
 }
 
 /* A note like "+2 terminal chats with no cost" is worth reading whole: it wraps onto a second line
@@ -452,6 +454,12 @@
   }
   .kpi-value {
     font-size: 22px;
+  }
+  .kpi-value-full {
+    display: none;
+  }
+  .kpi-value-short {
+    display: inline;
   }
   .limits-card .limits-text > .kpi-label,
   .limits-card .kpi-sub {

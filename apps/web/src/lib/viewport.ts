@@ -7,6 +7,10 @@
  * covers is measured and the shell (styles/shell.css) takes it off its own height. Without that the
  * app is laid out behind the keyboard and the browser scrolls the window to reveal the field, which
  * takes the top bar off screen and leaves nothing that can be scrolled back.
+ *
+ * While it is up, `data-keyboard="open"` on `<html>` says so: the keyboard then covers the home
+ * indicator, the tab bar and the FAB, and the room the page keeps for them would only push the
+ * focused field that far above the keyboard.
  */
 import { useEffect } from 'react';
 
@@ -26,8 +30,13 @@ export function useKeyboardInset(): void {
       const inset = covered >= KEYBOARD_MIN_PX ? covered : 0;
       if (inset !== last) {
         last = inset;
-        if (inset) root.style.setProperty('--keyboard-inset', `${inset}px`);
-        else root.style.removeProperty('--keyboard-inset');
+        if (inset) {
+          root.style.setProperty('--keyboard-inset', `${inset}px`);
+          root.dataset.keyboard = 'open';
+        } else {
+          root.style.removeProperty('--keyboard-inset');
+          delete root.dataset.keyboard;
+        }
       }
       // Once the layout ends above the keyboard, a window the browser scrolled to reveal the field
       // has nothing left to reveal: put it back, or the top bar stays off screen for good. Only
@@ -43,6 +52,7 @@ export function useKeyboardInset(): void {
       viewport.removeEventListener('resize', update);
       viewport.removeEventListener('scroll', update);
       root.style.removeProperty('--keyboard-inset');
+      delete root.dataset.keyboard;
     };
   }, []);
 }

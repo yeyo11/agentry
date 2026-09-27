@@ -15,7 +15,6 @@ import { usageTone } from '../components/motion';
 import { Spinner } from '../components/Spinner';
 import { useToast } from '../components/Toast';
 import { Card, Empty, ErrorBox, PageHeader, Skeleton } from '../components/ui';
-import { ProjectSelector } from '../components/ProjectSelector';
 import {
   ALL_ORIGINS,
   contextShare,
@@ -46,6 +45,7 @@ import { formatDateTime, formatNumber, timeAgo } from '../lib/format';
 import { useListKeys } from '../lib/list-keys';
 import { COARSE, COMPACT, NARROW, useMediaQuery } from '../lib/media';
 import { useMinute } from '../lib/minute';
+import { useListParams } from '../lib/list-params';
 import { ALL_PROJECTS, useProjectScope } from '../lib/project-scope';
 import i18n from '../i18n';
 
@@ -58,6 +58,8 @@ import i18n from '../i18n';
 const PAGE = 100;
 const STATES: readonly ChatState[] = ['working', 'waiting', 'idle'];
 const SORTS = Object.keys(SORT_LABEL) as ChatSort[];
+/** What the list keeps until it is reset; `project` is the top bar's, not the list's */
+const LIST_PARAMS = ['q', 'state', 'sort', 'origin', 'projects', 'models', 'workers', 'internal'] as const;
 /** Browsers let a page start a burst of downloads when they come a little apart. */
 const DOWNLOAD_GAP_MS = 250;
 
@@ -388,10 +390,7 @@ function exportMarkdown(chats: ChatSummary[]) {
 export function Chats() {
   const { t } = useTranslation(['chats', 'chat']);
   const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
-  const [search, setSearch] = useState('');
-  // Typing stays instant; the filtering of a few thousand rows follows when the browser has time
-  const deferredSearch = useDeferredValue(search);
+  const [address] = useSearchParams();
   const [shown, setShown] = useState(PAGE);
   // The row's id, not its position: a list re-sorted by a live update must not move the cursor to
   // another chat under the person's Enter or x
@@ -402,9 +401,22 @@ export function Chats() {
   const minute = useMinute();
   const coarse = useMediaQuery(COARSE);
   const compact = useMediaQuery(COMPACT);
-  // On a phone the scope is a chip in this header and the top bar leaves its own out (`pageHoldsScope`)
-  const phone = useMediaQuery(NARROW);
 
+  // The project chosen in the top bar, as every page it scopes reads it. A `?project=` link is what
+  // the scope reads first; `loose`, the chats under no project, is a link the top bar has no entry for.
+  const { projectId, settled } = useProjectScope();
+  // Read for its failure only: without projects the scope never settles, and the list is read unscoped
+  const projectsFailed = useProjects(false).isError;
+  const linked = address.get('project');
+  // Each project keeps its own filters; until the scope is known there is no telling whose to read
+  const { params, patch: patchParams, reset: resetParams } = useListParams(
+    'chats',
+    LIST_PARAMS,
+    linked === 'loose' ? 'loose' : settled || projectsFailed ? (projectId ?? ALL_PROJECTS) : null,
+  );
+  const search = params.get('q') ?? '';
+  // Typing stays instant; the filtering of a few thousand rows follows when the browser has time
+  const deferredSearch = useDeferredValue(search);
   const state = STATES.find((s) => s === params.get('state')) ?? null;
   const sort = SORTS.find((s) => s === params.get('sort')) ?? 'activity';
   const workers = params.get('workers') === '1';
@@ -418,12 +430,6 @@ export function Chats() {
   const modelsParam = params.get('models');
   const projects = useMemo(() => listParam(projectsParam), [projectsParam]);
   const models = useMemo(() => listParam(modelsParam), [modelsParam]);
-  // The project chosen in the top bar, as every page it scopes reads it. A `?project=` link is what
-  // the scope reads first; `loose`, the chats under no project, is a link the top bar has no entry for.
-  const { projectId, settled } = useProjectScope();
-  // Read for its failure only: without projects the scope never settles, and the list is read unscoped
-  const projectsFailed = useProjects(false).isError;
-  const linked = params.get('project');
   // A chosen project is kept even while a refresh of the projects fails, so the list never widens
   // to every project behind the person's back
   const project: string | null | undefined =
@@ -444,12 +450,7 @@ export function Chats() {
   });
 
   const patch = (changes: Record<string, string | null>) => {
-    const next = new URLSearchParams(params);
-    for (const [key, value] of Object.entries(changes)) {
-      if (value === null || value === '') next.delete(key);
-      else next.set(key, value);
-    }
-    setParams(next, { replace: true });
+    patchParams(changes);
     setShown(PAGE);
     setCursor(null);
   };
@@ -500,10 +501,9 @@ export function Chats() {
   const filtersActive = Boolean(search.trim()) || state !== null || chips.length > 0 || sort !== 'activity';
 
   const reset = () => {
-    setSearch('');
     setShown(PAGE);
     setCursor(null);
-    setParams(linked ? { project: linked } : {}, { replace: true });
+    resetParams();
   };
 
   // ---------- selection and keyboard ----------
@@ -591,18 +591,13 @@ export function Chats() {
             )}
           </span>
         }
-        actions={phone ? <ProjectSelector chip /> : undefined}
       />
 
       <ListToolbar
         className="chats-toolbar"
         search={{
           value: search,
-          onChange: (value) => {
-            setSearch(value);
-            setShown(PAGE);
-            setCursor(null);
-          },
+          onChange: (value) => patch({ q: value }),
           placeholder: t('list.searchPlaceholder'),
           label: t('list.searchLabel'),
           shortcut: '/',
@@ -636,13 +631,7 @@ export function Chats() {
         }}
         chips={chips}
         onReset={reset}
-        actions={
-          filtersActive && chips.length === 0 && visible.length > 0 ? (
-            <button type="button" className="link-btn" onClick={reset}>
-              {t('list.resetFilters')}
-            </button>
-          ) : undefined
-        }
+        active={filtersActive}
       />
 
       <ErrorBox error={chats.error} />

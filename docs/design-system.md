@@ -102,6 +102,11 @@ icon.
 - Radii: `--radius-xs 4` · `--radius-sm 6` · `--radius 8` (controls) · `--radius-lg 12` ·
   `--radius-xl 16` (cards) · pill 999.
 - Spacing is in multiples of 4. Page padding is 28 × 32; card padding is 18; gaps are 8, 12, 16 or 22.
+- Control height: `--control-h 36` for fields, selects, comboboxes, buttons, segmented groups and
+  the list search, and `--control-h-sm 30` for small buttons and icon buttons in dense places. Under
+  `(pointer: coarse)` both are 44, the touch target. A small button inside a row of controls
+  (`.list-toolbar-row`, `.filter-bar`, `.toolbar`, `.search-box`) takes `--control-h`, so nothing
+  in a row stands out of line. Set heights with these tokens, never with a padding and a font size.
 - Fonts: `--sans` Geist and `--mono` Geist Mono, from `@fontsource-variable/geist` and
   `@fontsource-variable/geist-mono`. They replace Inter and JetBrains Mono.
 - Type scale:
@@ -167,7 +172,7 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.spin-braille` · `.spin-ring` · `.spin-dots` · `.shimmer` · `.skeleton` · `.caret` | `Spinner`, `.ticker*`, `.skeleton`, `.caret` | see §3 |
 | `.empty-state` + `Illustration` | `Empty` (`components/ui.tsx`), and the new `components/illustrations/` | see §4 |
 | `.avatar` (initials) | `.monogram` | a soft tint of the name's hue with letters in that hue; the gradient only on the active one |
-| `.fab` | `.fab`, `.fab-labelled` (components/shell/Fab.tsx) | a page's own button for the same action carries `.page-action-fab` and hides wherever the FAB shows |
+| `.fab` | `.fab` (components/shell/Fab.tsx), the round "+" alone on every page, named by `aria-label` | a page's own button for the same action carries `.page-action-fab` and hides wherever the FAB shows |
 
 These keep their behaviour and take the new styling: the controls in
 `apps/web/src/components/controls`, and the primitives in `components/ui.tsx` and
