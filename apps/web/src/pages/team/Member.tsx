@@ -228,7 +228,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
       </Link>
       {!phone && <RoleAvatar role={member.role} size="lg" />}
       <div className="member-page-title">
-        <h2>{name}</h2>
+        <h1>{name}</h1>
         <span className="member-file">{member.file.path}</span>
       </div>
       {!phone && (
@@ -376,7 +376,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
         {member.file.state !== 'missing' && (
           <section className="member-file-section">
             <div className="member-file-head">
-              <h3>{t('member.file')}</h3>
+              <h2>{t('member.file')}</h2>
               <span className="field-hint">{t('member.fileHint')}</span>
             </div>
             {editor}

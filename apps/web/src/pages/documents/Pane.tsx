@@ -240,6 +240,8 @@ export function DocumentPane({
     if (mode === 'edit') {
       return (
         <div className="doc-phone-edit">
+          {/* The editor fills the screen, so the file it holds names the page */}
+          <h1 className="sr-only">{data.path}</h1>
           <div className="doc-phone-edit-head">
             <button type="button" className="link-btn doc-phone-cancel" onClick={onCancel}>
               {t('documents:phone.cancel')}

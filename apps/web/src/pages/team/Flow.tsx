@@ -122,7 +122,7 @@ export function FlowEditor({ project, team, flow: saved, switcher }: { project: 
     <section className="card flow-auto" aria-labelledby="flow-auto-title">
       <div className="flow-auto-head">
         <div className="flow-auto-text">
-          <h3 id="flow-auto-title">{t('flow.auto')}</h3>
+          <h2 id="flow-auto-title">{t('flow.auto')}</h2>
           <p>{phone ? t('flow.autoBodyShort') : t('flow.autoBody')}</p>
         </div>
         {toggle}
@@ -172,14 +172,14 @@ export function FlowEditor({ project, team, flow: saved, switcher }: { project: 
     <section className="card flow-rows" aria-labelledby="flow-rows-title">
       {!phone && (
         <div className="flow-rows-head">
-          <h3 id="flow-rows-title">{t('flow.whoTitle')}</h3>
+          <h2 id="flow-rows-title">{t('flow.whoTitle')}</h2>
           <span className="team-muted">{t('flow.whoHint')}</span>
         </div>
       )}
       {phone && (
-        <h3 id="flow-rows-title" className="sr-only">
+        <h2 id="flow-rows-title" className="sr-only">
           {t('flow.whoTitle')}
-        </h3>
+        </h2>
       )}
       {[...FLOW_COLUMNS, 'done' as const].map((status) => {
         const { does, then } = words(status);
@@ -219,7 +219,7 @@ export function FlowEditor({ project, team, flow: saved, switcher }: { project: 
     <section className="card flow-bounces" aria-labelledby="flow-bounces-title">
       <div className="flow-bounces-head">
         <div className="flow-auto-text">
-          <h3 id="flow-bounces-title">{t('flow.bouncesTitle')}</h3>
+          <h2 id="flow-bounces-title">{t('flow.bouncesTitle')}</h2>
           <p>{phone ? t('flow.bouncesBodyShort') : t('flow.bouncesBody')}</p>
         </div>
         {phone && <NumberInput value={flow.maxBounces} min={0} max={MAX_BOUNCES} onChange={(value) => edit({ ...flow, maxBounces: value ?? 0 })} aria-label={t('flow.bouncesMax')} />}
@@ -249,7 +249,7 @@ export function FlowEditor({ project, team, flow: saved, switcher }: { project: 
 
   const modelCard = !phone && team.members.length > 0 && (
     <section className="card flow-models" aria-labelledby="flow-models-title">
-      <h3 id="flow-models-title">{t('flow.modelsTitle')}</h3>
+      <h2 id="flow-models-title">{t('flow.modelsTitle')}</h2>
       <ul className="flow-model-rows">
         {team.members.map((member) => {
           const value = models[member.agent] ?? member.model;

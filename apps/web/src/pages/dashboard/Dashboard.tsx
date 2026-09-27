@@ -30,7 +30,13 @@ function Slot({ widget, project }: { widget: LayoutWidget; project: Project | nu
       <WidgetBoundary fallback={(error) => <ErrorBox error={error} title={t('dashboard.widgetFailed', { title })} />}>
         <Suspense
           fallback={
-            <section className="card widget" aria-busy="true" aria-label={title}>
+            // A widget still loading already names itself, so the page's outline doesn't change under a reader
+            <section className="card widget" aria-busy="true" aria-labelledby={`widget-${widget.id}-title`}>
+              <div className="widget-head">
+                <h2 id={`widget-${widget.id}-title`} className="widget-title">
+                  {title}
+                </h2>
+              </div>
               <Skeleton rows={3} height={16} />
             </section>
           }
