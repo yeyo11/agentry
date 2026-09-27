@@ -337,7 +337,7 @@ function Shell() {
             </span>
             {taskKey ? (
               <>
-                <Link to={TASKS_PATH} className="crumb-page ellipsis">
+                <Link to={TASKS_PATH} className="crumb-page muted ellipsis">
                   {current?.label}
                 </Link>
                 <span className="crumb-sep" aria-hidden>
