@@ -1,0 +1,684 @@
+/* ==========================================================================
+   Suggest tasks and the resources with AI (docs/design-system.md §2, "Assistant, suggestions
+   and resources with AI"; references SugerirTareas, SugerirTareasEnCurso, Recursos,
+   RecursoPropuesta, RecursoCrearIA). The run and its proposals are drawn by suggestion.css;
+   this sheet lays them out in the board's dialog and in a project's Resources tab.
+   ========================================================================== */
+
+/* ---------- Suggest tasks: a dialog on a desktop, a full screen on a phone ---------- */
+
+.dialog-head h2:has(> .suggest-dialog-title) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.suggest-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.suggest-dialog-title > .mono {
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.suggest-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  color: var(--fg);
+}
+
+.suggest-body.is-phone {
+  padding-top: 8px;
+}
+
+.suggest-focus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.suggest-focus-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.suggest-focus-field input {
+  width: 100%;
+}
+
+.suggest-again {
+  flex-shrink: 0;
+}
+
+.suggest-body .suggestion-wait {
+  margin: 0;
+  min-height: 130px;
+}
+
+.suggest-body .suggestion-run.is-live .suggestion-steps {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.suggest-line {
+  background: var(--bg-1);
+}
+
+.suggest-line > svg {
+  flex-shrink: 0;
+  color: var(--fg-3);
+}
+
+.suggest-line-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.suggest-line-text b {
+  font-weight: 600;
+}
+
+.suggest-line.is-failed > svg {
+  color: var(--bad);
+}
+
+.suggest-list {
+  padding: 0;
+  overflow: hidden;
+  box-shadow: none;
+}
+
+/* The checkbox aligns with the title's first line; a decided row keeps its place empty */
+.suggest-check {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.suggest-check-slot {
+  flex-shrink: 0;
+  width: 16px;
+}
+
+.suggestion-row .suggest-discard {
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+
+.suggestion-row:hover .suggest-discard,
+.suggestion-row:focus-within .suggest-discard {
+  opacity: 1;
+}
+
+.suggestion-done a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+}
+
+.suggestion-card.is-discarded .suggestion-title {
+  color: var(--fg-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--line-3);
+}
+
+.suggestion-card.is-accepted .suggestion-reason,
+.suggestion-card.is-discarded .suggestion-meta {
+  display: none;
+}
+
+.suggest-count {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.suggest-count b {
+  font-weight: 600;
+}
+
+.suggest-mfoot {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 10px;
+}
+
+.suggest-mfoot > .btn {
+  min-height: 48px;
+  font-size: 15px;
+}
+
+.suggest-mfoot > .btn-primary {
+  flex: 1 1 auto;
+}
+
+/* A phone has no hover: its rows show every action, and a proposal's buttons are 44 px targets */
+.suggest-body.is-phone .suggestion-acts > .btn {
+  min-height: 44px;
+}
+
+.suggest-body.is-phone .suggest-discard {
+  flex: 0 0 auto;
+}
+
+.suggest-body.is-phone .suggest-focus-field input {
+  min-height: 44px;
+  font-size: 16px;
+}
+
+.suggest-body.is-phone .suggest-again {
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+}
+
+.suggest-body.is-phone .suggest-line {
+  gap: 6px 10px;
+}
+
+.suggest-body.is-phone .suggest-line .suggestion-facts {
+  flex-basis: 100%;
+}
+
+@media (hover: none) {
+  .suggestion-row .suggest-discard {
+    opacity: 1;
+  }
+}
+
+/* "Suggest tasks" in the board's header: a plain button, "New task" keeps the gradient */
+.workitem-suggest-icon {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* ---------- A project's Resources tab ---------- */
+
+.resources-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.resources-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.resources-sections {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.resources-seg-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.resources-other.is-on {
+  color: var(--fg);
+  background: var(--bg-3);
+}
+
+.resources-where {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resources-ai-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.resources-toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* The overview: what the assistant proposed beside what the project has */
+.resources-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.resources-overview.has-card {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+}
+
+.resources-proposals {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.resources-proposals-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.resources-proposals-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.resources-proposals-title h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.resources-proposals-facts {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.resources-proposals-loading,
+.resources-proposals-note {
+  margin: 0;
+  padding: 14px;
+  color: var(--fg-2);
+  font-size: 13px;
+}
+
+.resources-proposals-hint {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+}
+
+/* A kind's icon on a neutral tile, before a proposal's name */
+.resource-kind-tile {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: 1px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--bg-1);
+  color: var(--fg-2);
+}
+
+.resource-proposal-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--fg-2);
+}
+
+/* On a phone a pending proposal is one target that opens it */
+.resource-proposal.is-button {
+  width: 100%;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.resource-proposal.is-button:last-of-type {
+  border-bottom: 0;
+}
+
+.resource-proposal-chevron {
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--fg-3);
+}
+
+.resources-run {
+  min-width: 0;
+}
+
+.resources-list {
+  padding: 0;
+  gap: 0;
+}
+
+.resources-list-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 14px 18px 6px;
+}
+
+.resources-list-head h2 {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.resources-groups {
+  display: flex;
+  flex-direction: column;
+  padding: 0 6px 8px;
+}
+
+.resources-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.resources-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 12px 4px;
+  color: var(--fg-3);
+}
+
+.resources-group-empty {
+  margin: 0;
+  padding: 6px 12px;
+  color: var(--fg-3);
+  font-size: 12px;
+}
+
+.resource-item {
+  width: 100%;
+  padding: 9px 12px;
+}
+
+.resource-item-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.resource-item-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resources-more,
+.resources-team-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.resources-more {
+  color: var(--accent);
+}
+
+.resources-team-note {
+  padding-top: 2px;
+  color: var(--fg-3);
+  text-decoration: none;
+}
+
+.resources-team-note:hover {
+  color: var(--fg-2);
+}
+
+/* The editor: the list on the left, proposals on top, and the file on the right */
+.resources-editor {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.resources-master {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 4px 0;
+  border-right: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.resources-master .master-new {
+  margin: 8px 12px 0;
+}
+
+.resources-detail {
+  min-width: 0;
+  padding: 16px 18px;
+}
+
+.resources-missing {
+  margin: 0;
+  color: var(--fg-2);
+  font-size: 13px;
+}
+
+.resource-proposal-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.resource-proposal-editor .editor-meta .path {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.resource-scope-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Why it was proposed: the assistant's words, beside its mark, and the run's facts */
+.resource-proposal-why {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.resource-proposal-why-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.resource-proposal-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.resources-back {
+  align-self: flex-start;
+  min-height: 44px;
+}
+
+/* ---------- Create with AI ---------- */
+
+.create-ai-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  color: var(--fg);
+}
+
+.create-ai-pickers {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.create-ai-pickers .segmented {
+  width: 100%;
+}
+
+.create-ai-description {
+  width: 100%;
+  min-height: 80px;
+  resize: vertical;
+}
+
+.create-ai-live {
+  gap: 10px;
+  background: var(--bg-1);
+  box-shadow: none;
+}
+
+.create-ai-now {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.create-ai-live .suggestion-wait {
+  margin: 0;
+  min-height: 120px;
+}
+
+.create-ai-result {
+  flex-direction: column;
+  align-items: stretch;
+  background: var(--bg-1);
+}
+
+.create-ai-result.is-failed {
+  flex-direction: row;
+  align-items: center;
+}
+
+.create-ai-result-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.create-ai-file {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Phone ---------- */
+
+.resources-page.is-phone .resources-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.resources-page.is-phone .resources-sections {
+  grid-column: 1 / -1;
+}
+
+.resources-page.is-phone .resources-sections .segmented {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.resources-page.is-phone .resources-sections .segment {
+  flex: 1 1 auto;
+  min-height: 44px;
+  padding-inline: 6px;
+  font-size: 14px;
+}
+
+.resources-page.is-phone .resources-ai-actions > .btn {
+  flex: 1 1 0;
+  min-height: 44px;
+  justify-content: center;
+  font-size: 15px;
+}
+
+.resources-page.is-phone .resources-new {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.resources-page.is-phone .resource-item,
+.resources-page.is-phone .resources-more,
+.resources-page.is-phone .resources-team-note {
+  min-height: 44px;
+}
+
+.create-ai-body.is-phone {
+  padding-top: 8px;
+}
+
+.create-ai-body.is-phone .create-ai-pickers {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.create-ai-body.is-phone textarea {
+  font-size: 16px;
+}
+
+@media (max-width: 1100px) {
+  .resources-overview.has-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .resources-editor {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+}
+
+.resource-item-badge {
+  display: flex;
+  margin-top: 3px;
+}
+
+/* An included proposal reads in the accent, as the reference's .sug-pick: the shared rule's
+   --accent-text is white in both themes and vanishes on the light accent-soft */
+.suggest-body .suggestion-pick[aria-pressed='true'] {
+  color: var(--accent);
+}

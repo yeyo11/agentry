@@ -2,12 +2,10 @@ import type { WorkItem, WorkItemAssignee, WorkItemPriority, WorkItemRef, WorkIte
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, FileText, Plus, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ComponentPropsWithRef, type FormEvent, type ReactElement, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys, useProjectSettings, useProjects } from '../../api';
 import { Checkbox, Select } from '../../components/controls';
-import { hasOpenLayer } from '../../components/controls/layer';
 import { Dialog } from '../../components/Dialog';
 import { ICON_SM, PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIcon } from '../../components/icons';
 import { useToast } from '../../components/Toast';
@@ -32,6 +30,7 @@ import { addLabel, cleanCriteria } from './item/model';
 import { Picker } from './item/Picker';
 import { LabelsEditor } from './item/Properties';
 import { RelationDialog, RelationRow } from './item/Relations';
+import { FullScreen } from './FullScreen';
 
 export interface NewTaskProps {
   /** The project the task goes into; with All projects, the form asks for one */
@@ -89,47 +88,6 @@ function Cell({ label, children, ...rest }: { label: string; children: ReactNode
       <span className="newtask-cell-value">{children}</span>
       <ChevronRight {...ICON_SM} className="newtask-cell-chevron" />
     </button>
-  );
-}
-
-/**
- * The phone's full screen: "Cancel · New task · key" on top, the form, and "Create task" at the
- * bottom. Escape closes it and focus returns where it was, as a dialog does.
- */
-function FullScreen({ title, aside, onClose, children, footer }: { title: string; aside: ReactNode; onClose: () => void; children: ReactNode; footer: ReactNode }) {
-  const { t } = useTranslation('workItem');
-  const id = useId();
-  const panel = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    panel.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !hasOpenLayer()) {
-        event.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', onKey, true);
-    return () => {
-      document.removeEventListener('keydown', onKey, true);
-      previous?.focus?.();
-    };
-  }, [onClose]);
-  return createPortal(
-    <div ref={panel} className="newtask-screen" role="dialog" aria-modal="true" aria-labelledby={id}>
-      {/* A div, not a header: outside a sectioning element a header is the page's banner, and the
-          shell's top bar already is that */}
-      <div className="newtask-screen-head">
-        <button type="button" className="btn newtask-cancel" onClick={onClose}>
-          {t('actions.cancel')}
-        </button>
-        <h2 id={id}>{title}</h2>
-        <span className="newtask-screen-aside">{aside}</span>
-      </div>
-      <div className="newtask-screen-body">{children}</div>
-      <div className="newtask-screen-foot">{footer}</div>
-    </div>,
-    document.body,
   );
 }
 
