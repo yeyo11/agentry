@@ -71,7 +71,7 @@ import {
   type StoredHistoryValue,
   type StoredItemRef,
 } from './work-item-rows.ts';
-import { CRITERIA_MAX, WorkItemError, actorFrom, assignee, commentBody, criterionText, labels, milestoneName, oneOf, text, title } from './work-item-validation.ts';
+import { CRITERIA_MAX, WorkItemError, actorFrom, assignee, commentBody, criterionText, labels, milestoneName, oneOf, optionalId, text, title } from './work-item-validation.ts';
 
 export { WorkItemError } from './work-item-validation.ts';
 
@@ -687,9 +687,9 @@ export class WorkItemService {
   link(itemId: string, input: CreateWorkItemLinkRequest, ctx?: WorkItemContext): WorkItemLink {
     const kind = oneOf(input.kind, ['chat', 'orchestration'] as const, 'kind');
     const role = oneOf(input.role, ['work', 'origin'] as const, 'role');
-    const chatId = input.chatId ?? null;
-    const orchestrationId = input.orchestrationId ?? null;
-    const taskId = input.taskId ?? null;
+    const chatId = optionalId(input.chatId, 'chatId');
+    const orchestrationId = optionalId(input.orchestrationId, 'orchestrationId');
+    const taskId = optionalId(input.taskId, 'taskId');
     if (kind === 'chat' && !chatId) throw new WorkItemError('a chat link needs chatId', 400);
     if (kind === 'orchestration' && (!orchestrationId || !taskId)) throw new WorkItemError('an orchestration link needs orchestrationId and taskId', 400);
     const actor = actorFrom(ctx);
@@ -724,6 +724,7 @@ export class WorkItemService {
 
   /** Once an orchestration task's worker starts, its link learns the chat it runs in. */
   setLinkChat(linkId: string, chatId: string): WorkItemLink {
+    if (optionalId(chatId, 'chatId') === null) throw new WorkItemError('chatId must be a non-empty string', 400);
     const row = this.write(() => {
       const link = this.sql.prepare('SELECT * FROM work_item_links WHERE id = ?').get(linkId) as LinkRow | undefined;
       if (!link) throw new WorkItemError('link not found', 404);

@@ -85,6 +85,13 @@ function isActorKind(value: unknown): value is WorkItemActorKind {
  * Checked like any input, though only code passes it: the kind is stored as text and read back by
  * whoever asks "did the person move this?", so a kind nobody knows must never reach a row.
  */
+/** An id a caller hands in: absent is null, anything present must be non-empty text. */
+export function optionalId(value: unknown, field: string): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string' || !value.trim()) throw new WorkItemError(`${field} must be a non-empty string`, 400);
+  return value;
+}
+
 export function commentBody(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) throw new WorkItemError('a comment needs a body', 400);
   if (value.length > COMMENT_MAX) throw new WorkItemError(`a comment is longer than ${String(COMMENT_MAX)} characters`, 400);

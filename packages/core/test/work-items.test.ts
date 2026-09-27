@@ -570,6 +570,24 @@ test('an item keeps every link, a repeated link is the one already there, and a 
   assert.equal(service.links(item.id).length, 3);
 });
 
+test('the ids of a link must be non-empty text, refused with a 400 rather than failing in SQLite', () => {
+  const { service } = setup();
+  const item = service.create('p1', { title: 'x' });
+  const bad = (value: unknown) => value as string;
+  for (const chatId of [bad({}), bad(42), bad(['c1']), '', '   ']) {
+    assert.throws(() => service.link(item.id, { kind: 'chat', role: 'work', chatId }), refusal(400), JSON.stringify(chatId));
+  }
+  assert.throws(() => service.link(item.id, { kind: 'orchestration', role: 'work', orchestrationId: bad({}), taskId: 't1' }), refusal(400));
+  assert.throws(() => service.link(item.id, { kind: 'orchestration', role: 'work', orchestrationId: 'o1', taskId: bad(7) }), refusal(400));
+  assert.throws(() => service.link(item.id, { kind: 'orchestration', role: 'work', orchestrationId: 'o1', taskId: 't1', chatId: bad(true) }), refusal(400));
+  assert.deepEqual(service.links(item.id), []);
+
+  const link = service.link(item.id, { kind: 'orchestration', role: 'work', orchestrationId: 'o1', taskId: 't1' });
+  assert.throws(() => service.setLinkChat(link.id, bad(null)), refusal(400));
+  assert.throws(() => service.setLinkChat(link.id, ''), refusal(400));
+  assert.equal(service.setLinkChat(link.id, 'c9').chatId, 'c9');
+});
+
 // ---------- lists, filters, search and the board ----------
 
 function seeded() {
