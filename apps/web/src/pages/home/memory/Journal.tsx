@@ -9,11 +9,11 @@ import { useConfirm, Dialog } from '../../../components/Dialog';
 import { ICON_SM, Monogram } from '../../../components/icons';
 import { useToast } from '../../../components/Toast';
 import { ErrorBox, Segmented, Skeleton } from '../../../components/ui';
-import { formatClock, formatDate, formatDateTime, formatNumber, timeAgo } from '../../../lib/format';
+import { formatDate, formatDateTime, formatNumber, timeAgo } from '../../../lib/format';
 import { taskPath } from '../../../lib/work-items';
 import { usePersonName } from '../../tasks/item/hooks';
 import { RoleAvatar, useRoleName } from '../../documents/RoleTag';
-import { dayGroups } from './model';
+import { dayGroups, hourMinute } from './model';
 
 const KIND_ICON: Record<JournalEntryKind, LucideIcon> = { closed: Check, decision: GitCommitVertical, memory: BookText, note: StickyNote };
 
@@ -100,18 +100,19 @@ function Author({ entry, person }: { entry: JournalEntry; person: string }) {
  * day. The newest of it is handed to every flow run; the header says how much.
  */
 export function Journal({ projectId, phone = false }: { projectId: string; phone?: boolean }) {
-  const { t } = useTranslation('home');
+  const { t, i18n } = useTranslation('home');
   const [limit, setLimit] = useState(PAGE);
   const journal = useJournal(projectId, { limit });
   const cause = useCause();
   const person = usePersonName();
   const page = journal.data;
-  const groups = dayGroups(page?.entries ?? [], new Date());
+  // Newest first by when it happened: an entry written late about an earlier day still sorts by its day
+  const groups = dayGroups([...(page?.entries ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)), new Date());
   const say = t as unknown as Say;
   const dayLabel = (day: string) => (day === 'today' ? t('memoryTab.journal.today') : day === 'yesterday' ? t('memoryTab.journal.yesterday') : formatDate(day));
 
   const more = page?.nextBefore && (
-    <button type="button" className="btn btn-ghost btn-small journal-more" disabled={journal.isFetching} onClick={() => setLimit((n) => Math.min(n + PAGE * 2, 200))}>
+    <button type="button" className="btn doc-quiet btn-small journal-more" disabled={journal.isFetching} onClick={() => setLimit((n) => Math.min(n + PAGE * 2, 200))}>
       {t('memoryTab.journal.more')}
     </button>
   );
@@ -139,9 +140,9 @@ export function Journal({ projectId, phone = false }: { projectId: string; phone
                     {say(`memoryTab.journal.kind.${entry.kind}`)}
                   </span>
                   {entry.item && <span className="workitem-key">{entry.item.key}</span>}
-                  <span className="grow" />
+                  <span className="doc-fill" />
                   <time className="mono small muted tnum" dateTime={entry.createdAt} title={formatDateTime(entry.createdAt)}>
-                    {formatClock(entry.createdAt)}
+                    {hourMinute(entry.createdAt, i18n.language)}
                   </time>
                 </div>
                 <p className="journal-card-text">{entry.text}</p>
@@ -202,7 +203,7 @@ export function Journal({ projectId, phone = false }: { projectId: string; phone
     <section className="card memory-card" aria-labelledby="memory-journal-title">
       <div className="card-head">
         <h2 id="memory-journal-title">{t('memoryTab.journal.title')}</h2>
-        <span className="grow" />
+        <span className="doc-fill" />
         <span className="mono small muted">{t('memoryTab.journal.summary', { count: total, n: formatNumber(total) })}</span>
       </div>
       {body}

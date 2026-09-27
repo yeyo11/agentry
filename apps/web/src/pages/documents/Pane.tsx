@@ -45,7 +45,7 @@ export function DocumentOrigin({ tie }: { tie: DocumentTie }) {
       <Link to={taskPath(tie.item.key)} className="workitem-key boxed workitem-key-link" title={tie.item.title}>
         {tie.item.key}
       </Link>
-      <span className="grow" />
+      <span className="doc-fill" />
       <span className="mono small muted">
         {tie.chatId ? (
           <>
@@ -64,7 +64,7 @@ export function DocumentOrigin({ tie }: { tie: DocumentTie }) {
 /** The rendered document, at reading width. */
 export function DocumentView({ content }: { content: string }) {
   return (
-    <article className="doc-view">
+    <article className="doc-view rich md">
       <Suspense fallback={<div className="doc-plain">{content}</div>}>
         <Markdown text={content} />
       </Suspense>
@@ -92,6 +92,7 @@ export function DocumentPane({
   mode,
   onMode,
   onClosed,
+  onCancel,
   phone = false,
 }: {
   project: Project;
@@ -100,6 +101,8 @@ export function DocumentPane({
   onMode: (mode: PaneMode) => void;
   /** The file was deleted */
   onClosed: () => void;
+  /** A phone's "Cancel": back to the document, leaving the edit */
+  onCancel?: () => void;
   phone?: boolean;
 }) {
   const { t } = useTranslation(['documents', 'common']);
@@ -228,7 +231,7 @@ export function DocumentPane({
     </button>
   );
   const discardButton = (
-    <button type="button" className={phone ? 'btn' : 'btn btn-ghost'} disabled={!dirty} onClick={discard}>
+    <button type="button" className={phone ? 'btn' : 'btn doc-quiet'} disabled={!dirty} onClick={discard}>
       {t('pane.discard')}
     </button>
   );
@@ -238,10 +241,15 @@ export function DocumentPane({
       return (
         <div className="doc-phone-edit">
           <div className="doc-phone-edit-head">
-            <span className="mono small muted ellipsis" title={data.path}>
-              {data.path}
+            <button type="button" className="link-btn doc-phone-cancel" onClick={onCancel}>
+              {t('documents:phone.cancel')}
+            </button>
+            <span className="doc-phone-edit-where">
+              <span className="mono small muted ellipsis" title={data.path}>
+                {data.path}
+              </span>
+              {dirty && <Tag tone="warn">{t('pane.unsaved')}</Tag>}
             </span>
-            {dirty && <Tag tone="warn">{t('pane.unsaved')}</Tag>}
           </div>
           <PhoneEditTabs draft={draft} editor={editor} />
           {conflictBox}
@@ -294,7 +302,7 @@ export function DocumentPane({
         <div className="doc-pane-foot">
           <span className="small muted">{t('pane.markdown')}</span>
           <kbd className="kbd">{t('pane.saveKey')}</kbd>
-          <span className="grow" />
+          <span className="doc-fill" />
           {dirty && <Tag tone="warn">{t('pane.unsaved')}</Tag>}
           {discardButton}
           {saveButton}

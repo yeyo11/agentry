@@ -67,7 +67,7 @@ export function WaitingState({ item, actions }: { item: WorkItemDetail; actions:
     </button>
   );
   const back = (
-    <button type="button" className="btn btn-ghost btn-small workitem-send-back" disabled={moving} onClick={() => actions.move.mutate('in_progress')}>
+    <button type="button" className="btn doc-quiet btn-small workitem-send-back" disabled={moving} onClick={() => actions.move.mutate('in_progress')}>
       <Undo2 {...ICON_SM} />
       {t('waiting.sendBack')}
     </button>

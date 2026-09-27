@@ -20,7 +20,7 @@ export function documentHref(projectId: string, path: string): string {
   return `/?${query.toString()}`;
 }
 
-function DocumentRow({ link, projectId }: { link: WorkItemLink; projectId: string }) {
+function DocumentRow({ link, projectId, title }: { link: WorkItemLink; projectId: string; title: string | null }) {
   const { t } = useTranslation('documents');
   const roleName = useRoleName();
   const path = link.documentPath ?? '';
@@ -30,7 +30,7 @@ function DocumentRow({ link, projectId }: { link: WorkItemLink; projectId: strin
       <Link to={documentHref(projectId, path)} className="doc-row workitem-doc">
         <DocumentKindTag kind={link.documentKind ?? 'doc'} />
         <span className="doc-row-main">
-          <span className="doc-row-title">{link.name ?? baseName(path)}</span>
+          <span className="doc-row-title">{title ?? link.name ?? baseName(path)}</span>
           <span className="doc-row-meta">
             <span className="mono ellipsis">{path}</span>
             <span>{who}</span>
@@ -102,17 +102,20 @@ export function ItemDocuments({ item }: { item: WorkItemDetail }) {
   const { projects } = useProjectScope();
   const [tying, setTying] = useState(false);
   const links = documentLinks(item.links);
+  // The folder's tree names each file by its first heading, which the link does not carry
+  const docs = useDocuments(links.length > 0 ? item.projectId : null);
+  const titles = useMemo(() => new Map(filesOf(docs.data?.tree ?? []).map((file) => [file.path, file.title ?? null])), [docs.data]);
   const moduleOn = projects.find((p) => p.id === item.projectId)?.modules.includes('documents') ?? false;
   if (!moduleOn && links.length === 0) return null;
   return (
     <section className="workitem-section workitem-docs" aria-labelledby={`docs-${item.id}`}>
       <div className="workitem-section-head">
-        <h2 id={`docs-${item.id}`} className="section-label grow">
+        <h2 id={`docs-${item.id}`} className="section-label doc-fill">
           {t('item.title')}
         </h2>
         <span className="count">{links.length}</span>
         {moduleOn && (
-          <button type="button" className="link-btn small" onClick={() => setTying(true)}>
+          <button type="button" className="btn btn-small workitem-add" onClick={() => setTying(true)}>
             <Link2 {...ICON_SM} />
             {t('item.tie')}
           </button>
@@ -123,7 +126,7 @@ export function ItemDocuments({ item }: { item: WorkItemDetail }) {
       ) : (
         <ul className="doc-rows card">
           {links.map((link) => (
-            <DocumentRow key={link.id} link={link} projectId={item.projectId} />
+            <DocumentRow key={link.id} link={link} projectId={item.projectId} title={titles.get(link.documentPath ?? '') ?? null} />
           ))}
         </ul>
       )}

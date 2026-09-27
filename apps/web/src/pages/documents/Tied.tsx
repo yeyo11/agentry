@@ -61,7 +61,7 @@ export function TiedList({
     return (
       <section className="doc-phone-section" aria-labelledby="doc-tied-title">
         <div className="doc-phone-label">
-          <h2 id="doc-tied-title" className="section-label grow">
+          <h2 id="doc-tied-title" className="section-label doc-fill">
             {t('tied.title')}
           </h2>
           <span className="mono small muted tnum">{formatNumber(docs.length)}</span>
@@ -209,8 +209,8 @@ export function NewDocumentDialog({
               <div className="doc-new-item">
                 <WorkItemStatusIcon status={item.status} />
                 <WorkItemKey value={item.key} />
-                <span className="grow ellipsis">{item.title}</span>
-                <button type="button" className="btn btn-ghost btn-small" onClick={() => setItem(null)}>
+                <span className="doc-fill ellipsis">{item.title}</span>
+                <button type="button" className="btn doc-quiet btn-small" onClick={() => setItem(null)}>
                   {t('new.changeItem')}
                 </button>
               </div>

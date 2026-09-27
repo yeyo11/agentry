@@ -37,7 +37,7 @@ export function TargetLine({ target }: { target: MemoryProposalTarget }) {
 /** Proposal text is Markdown the agent wrote: an inline `code` is common, a heading is not. */
 function ProposalText({ text }: { text: string }) {
   return (
-    <div className="memory-proposal-text">
+    <div className="memory-proposal-text md">
       <Suspense fallback={<p>{text}</p>}>
         <Markdown text={text} />
       </Suspense>
@@ -110,7 +110,7 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
         onKeyDown={(event) => event.key === 'Escape' && setEditing(null)}
       />
       <div className="memory-proposal-actions">
-        <button type="button" className="btn btn-ghost btn-small" onClick={() => setEditing(null)}>
+        <button type="button" className="btn doc-quiet btn-small" onClick={() => setEditing(null)}>
           {t('common:actions.cancel')}
         </button>
         <button type="submit" className="btn btn-small" disabled={busy || !editing.trim()}>
@@ -134,10 +134,10 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
               <Check {...ICON_SM} />
               {t('memoryTab.proposals.approve')}
             </button>
-            <button type="button" className="btn btn-ghost memory-reject" disabled={busy} onClick={() => reject.mutate()}>
+            <button type="button" className="btn doc-quiet memory-reject" disabled={busy} onClick={() => reject.mutate()}>
               {t('memoryTab.proposals.reject')}
             </button>
-            <span className="grow" />
+            <span className="doc-fill" />
             <MoreActions
               label={t('memoryTab.proposals.more')}
               entries={[{ id: 'edit', label: t('memoryTab.proposals.edit'), icon: Pencil, onSelect: () => setEditing(proposal.text) }]}
@@ -157,11 +157,11 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
         {meta}
         {editing === null && (
           <div className="memory-proposal-actions">
-            <button type="button" className="btn btn-ghost btn-small memory-reject" disabled={busy} onClick={() => reject.mutate()}>
+            <button type="button" className="btn doc-quiet btn-small memory-reject" disabled={busy} onClick={() => reject.mutate()}>
               <X {...ICON_SM} />
               {t('memoryTab.proposals.reject')}
             </button>
-            <button type="button" className="btn btn-ghost btn-small memory-edit" disabled={busy} onClick={() => setEditing(proposal.text)}>
+            <button type="button" className="btn doc-quiet btn-small memory-edit" disabled={busy} onClick={() => setEditing(proposal.text)}>
               <Pencil {...ICON_SM} />
               {t('memoryTab.proposals.edit')}
             </button>
@@ -227,7 +227,7 @@ export function Proposals({ projectId, phone = false }: { projectId: string; pho
       <div className="card-head">
         <h2 id="memory-proposals-title">{t('memoryTab.proposals.title')}</h2>
         {list.length > 0 && <WaitingBadge count={list.length} />}
-        <span className="grow" />
+        <span className="doc-fill" />
         <span className="small muted">{t('memoryTab.proposals.nothingWithoutYou')}</span>
       </div>
       {body}

@@ -104,19 +104,19 @@ export function HandedCard({ projectId, cli }: { projectId: string; cli: CliMemo
       <ul className="memory-handed">
         <li>
           <FileText {...ICON} className="tree-icon" />
-          <span className="grow">CLAUDE.md</span>
+          <span className="doc-fill">CLAUDE.md</span>
           <span className="mono small muted tnum">{cli.claudeMd ? formatBytes(cli.claudeMdBytes) : t('memoryTab.cli.none')}</span>
         </li>
         <li>
           <BookText {...ICON} className="tree-icon" />
-          <span className="grow">{t('memoryTab.handed.memory')}</span>
+          <span className="doc-fill">{t('memoryTab.handed.memory')}</span>
           <span className="mono small muted tnum">
             {t('memoryTab.cli.fileCount', { count: cli.files.length, n: formatNumber(cli.files.length) })} · {formatBytes(cli.filesBytes)}
           </span>
         </li>
         <li>
           <GitCommitVertical {...ICON} className="tree-icon" />
-          <span className="grow">{t('memoryTab.handed.journal', { count: handed?.entries ?? 0, n: formatNumber(handed?.entries ?? 0) })}</span>
+          <span className="doc-fill">{t('memoryTab.handed.journal', { count: handed?.entries ?? 0, n: formatNumber(handed?.entries ?? 0) })}</span>
           <span className="mono small muted tnum">{formatBytes(handed?.bytes ?? 0)}</span>
         </li>
       </ul>
@@ -133,7 +133,7 @@ export function PhoneCli({ cli, editorHref }: { cli: CliMemory; editorHref: (fil
     <>
       <p className="small muted memory-phone-intro">{t('memoryTab.cli.intro')}</p>
       <div className="memory-phone-label">
-        <span className="section-label grow">{t('memoryTab.cli.claudeMd')}</span>
+        <span className="section-label doc-fill">{t('memoryTab.cli.claudeMd')}</span>
         {cli.claudeMd && <span className="mono small muted tnum">{formatBytes(cli.claudeMdBytes)}</span>}
         <Link to={editorHref('CLAUDE.md')} className="btn">
           <Pencil {...ICON_SM} />
@@ -146,7 +146,7 @@ export function PhoneCli({ cli, editorHref }: { cli: CliMemory; editorHref: (fil
         <p className="small muted memory-none">{t('memoryTab.cli.noClaudeMd')}</p>
       )}
       <div className="memory-phone-label">
-        <span className="section-label grow">{t('memoryTab.cli.projectMemory')}</span>
+        <span className="section-label doc-fill">{t('memoryTab.cli.projectMemory')}</span>
         <span className="mono small muted tnum">{t('memoryTab.cli.fileCount', { count: cli.files.length, n: formatNumber(cli.files.length) })}</span>
       </div>
       <ul className="card doc-cells">

@@ -122,7 +122,7 @@
   },
   "item": {
     "title": "Documents",
-    "tie": "Tie a document",
+    "tie": "Tie",
     "tieTitle": "Tie a document to {{key}}",
     "tieFailed": "Could not tie the document",
     "search": "Search the documents folder",

@@ -12,7 +12,7 @@ import {
   tiedDocuments,
   titleOf,
 } from '../src/pages/documents/model.ts';
-import { byteSize, dayGroups, localDay, memoryDir, sortMemoryFiles } from '../src/pages/home/memory/model.ts';
+import { byteSize, dayGroups, hourMinute, localDay, memoryDir, sortMemoryFiles } from '../src/pages/home/memory/model.ts';
 
 // The Documents tab and the Memory tab do their sums in these two models: the tree, the list of
 // documents tied to tasks, where a new document goes, and the journal's days.
@@ -150,6 +150,8 @@ test('the journal groups by the local day: today, yesterday, then each date', ()
     ],
   );
   assert.equal(localDay(new Date(2026, 0, 5)), '2026-01-05');
+  assert.equal(hourMinute(new Date(2026, 8, 27, 9, 5, 42).toISOString(), 'es'), '09:05');
+  assert.equal(hourMinute('not a date', 'es'), '');
 });
 
 test('memory sizes are bytes on disk, and the index reads first', () => {

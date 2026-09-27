@@ -29,6 +29,12 @@ export function dayGroups<T extends Pick<JournalEntry, 'createdAt'>>(entries: re
   return groups;
 }
 
+/** `12:40`: a time of day without its seconds, in `locale`, for a list already grouped by day. */
+export function hourMinute(value: string, locale: string): string {
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? '' : new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(ms);
+}
+
 /** The size of a text as written to disk, in UTF-8 bytes. */
 export const byteSize = (text: string): number => new TextEncoder().encode(text).length;
 

@@ -181,7 +181,7 @@ function DesktopDocuments({ project, tree, root, fileCount, tied, address, onNew
           )}
         </div>
         <div className="doc-tree-foot">
-          <span className="mono small muted grow">{root}/</span>
+          <span className="mono small muted doc-fill">{root}/</span>
           <Link to={settingsHref(params)} className="link-btn small">
             {t('tree.change')}
           </Link>
@@ -234,7 +234,7 @@ function PhoneDocuments({ project, tree, root, fileCount, tied, address }: Layou
     const heading = tie ? t(`kinds.${tie.kind}.name`) : (file?.title ?? baseName(address.path));
     return (
       <div className="doc-phone">
-        {address.mode === 'view' ? (
+        {address.mode === 'view' && (
           <header className="doc-phone-head">
             <button type="button" className="icon-btn" aria-label={t('phone.back')} onClick={() => address.go({ doc: null, mode: 'view' })}>
               <ChevronLeft {...ICON} />
@@ -244,12 +244,6 @@ function PhoneDocuments({ project, tree, root, fileCount, tied, address }: Layou
               <span className="mono small muted ellipsis">{address.path}</span>
             </div>
           </header>
-        ) : (
-          <header className="doc-phone-head">
-            <button type="button" className="btn btn-ghost" onClick={() => address.go({ mode: 'view' })}>
-              {t('phone.cancel')}
-            </button>
-          </header>
         )}
         <DocumentPane
           key={address.path}
@@ -258,6 +252,7 @@ function PhoneDocuments({ project, tree, root, fileCount, tied, address }: Layou
           mode={address.mode}
           onMode={(mode) => address.go({ mode }, mode === 'view')}
           onClosed={() => address.go({ doc: null, mode: 'view' }, false)}
+          onCancel={() => address.go({ mode: 'view' })}
           phone
         />
       </div>
@@ -285,7 +280,7 @@ function PhoneDocuments({ project, tree, root, fileCount, tied, address }: Layou
               <ChevronLeft {...ICON_SM} />
             </button>
           )}
-          <h2 id="doc-folder-title" className="section-label grow">
+          <h2 id="doc-folder-title" className="section-label doc-fill">
             {q ? t('phone.results') : `${here ?? root}/`}
           </h2>
           <span className="mono small muted tnum">{formatNumber(q ? rows.length : count)}</span>

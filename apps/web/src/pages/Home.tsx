@@ -259,7 +259,8 @@ function ProjectPage({ project }: { project: Project }) {
   if (narrow) {
     return view ? (
       <>
-        <PhoneViewHead project={project} view={view} onBack={() => open('summary')} />
+        {/* A document open on a phone heads its own screen, with its way back to the list */}
+        {!(view === 'documents' && params.has('doc')) && <PhoneViewHead project={project} view={view} onBack={() => open('summary')} />}
         <MissingAlert project={project} />
         <div className="tab-panel">
           <TabBody project={project} tab={view} />

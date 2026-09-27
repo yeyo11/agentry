@@ -63,12 +63,13 @@
 
 /* ---------- Documents: tree · document · tied list ---------- */
 
+/* The three columns reach down to the status bar, as the reference draws them */
 .doc-layout {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr) 300px;
   gap: 16px;
   align-items: stretch;
-  min-height: 0;
+  min-height: max(560px, calc(100dvh - 260px));
 }
 
 .doc-layout > .card {
@@ -271,30 +272,56 @@
   color: var(--fg);
 }
 
-.doc-view h1 {
-  margin: 0 0 12px;
+.doc-view.md > h1 {
+  margin: 0 0 4px;
   font-size: 24px;
   line-height: 1.25;
   font-weight: 600;
   letter-spacing: -0.025em;
 }
 
-.doc-view h2 {
-  margin: 20px 0 8px;
+.doc-view.md > h2 {
+  margin-top: 18px;
   font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-.doc-view p,
-.doc-view ul,
-.doc-view ol {
+.doc-view.md p,
+.doc-view.md ul,
+.doc-view.md ol {
   color: var(--fg-2);
 }
 
-.doc-view strong {
+.doc-view.md strong {
   color: var(--fg);
   font-weight: 600;
+}
+
+/* The reference's ghost button: a secondary action beside the zone's own ("Descartar", "Editar"),
+   drawn like the work item's section actions (`.btn.workitem-add`) */
+.btn.doc-quiet {
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  color: var(--fg-2);
+}
+
+.btn.doc-quiet:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+.doc-aside {
+  align-self: start;
+}
+
+/* A spacer that takes what is left of a row. `.grow` (base.css) starts at 200 px, which wraps a
+   short row such as a card head onto a second line */
+.doc-fill {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .doc-plain {
@@ -560,17 +587,38 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
+  min-width: 0;
+  min-height: 48px;
+}
+
+.doc-phone-cancel {
+  flex: none;
+  min-height: 44px;
+  font-size: 16px;
+  color: var(--fg-2);
+}
+
+.doc-phone-edit-where {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
   min-width: 0;
 }
 
-/* The one action of the screen, above the tab bar, where a thumb finds it */
+.doc-phone-edit-where > .mono {
+  max-width: 100%;
+}
+
+/* The one action of the screen, above the tab bar, where a thumb finds it; its band is opaque so
+   the text scrolling under it never shows through the gap */
 .doc-phone-foot {
   position: sticky;
-  bottom: calc(var(--tabbar-h) + 8px);
+  bottom: var(--tabbar-h);
   display: flex;
   gap: 10px;
-  padding-top: 8px;
+  padding: 8px 0;
   background: var(--bg);
 }
 
@@ -810,6 +858,10 @@
   font-size: 13px;
 }
 
+.memory-handed .tnum {
+  white-space: nowrap;
+}
+
 .memory-handed + .memory-card-note {
   padding-bottom: 16px;
 }
@@ -847,11 +899,13 @@
   min-width: 0;
 }
 
-.memory-phone .segmented {
+.memory-phone .segmented,
+.doc-phone-edit .segmented {
   width: 100%;
 }
 
-.memory-phone .segment {
+.memory-phone .segment,
+.doc-phone-edit .segment {
   flex: 1;
   min-height: 44px;
 }

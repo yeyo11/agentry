@@ -396,7 +396,7 @@ export function ProjectMemory({ project }: { project: Project }) {
   return (
     <div className="memory-tab">
       <div className="memory-intro">
-        <p className="small muted grow">
+        <p className="small muted doc-fill">
           <Trans t={t} i18nKey="memoryTab.intro" components={{ mono: <span className="mono" /> }} />
         </p>
         <button type="button" className="btn" onClick={() => setAdding(true)}>
