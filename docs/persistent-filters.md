@@ -43,6 +43,7 @@ Views of a page are not filters and are not kept: `tab=templates`, `new`, `view`
   whenever the list is `active` (searched, sorted or on another tab), not only while a chip is on.
 - Until the top bar's scope is settled the hook neither restores nor stores, so a remembered
   project's filters are not replaced by All projects' while the projects load.
+- A list with nothing in it at all keeps its toolbar in place but disabled; Reset stays usable.
 
 ## Decisions
 
@@ -53,9 +54,11 @@ Views of a page are not filters and are not kept: `tab=templates`, `new`, `view`
   promised: filtered in the client with `inProject` on the orchestration's `cwd` and the schedule
   target's `cwd`. A schedule with no `cwd` runs in the wrapper's directory and shows only under All
   projects.
+- **The project selector lives in the top bar on every page and screen**; the phone's Chats header
+  no longer carries its own chip.
 - **Projects on a phone** hides its toolbar below five projects; a kept search is ignored then,
   so no card is hidden behind a toolbar that is not there.
 
 ## Related
 
-[[plans/ui-redesign.md]] · [[design-system.md]]
+[[plans/ui-redesign.md]] · [[design-system.md]] · [[phone-layout.md]]
