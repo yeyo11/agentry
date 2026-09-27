@@ -39,7 +39,7 @@ export default async ({ page, api, check, dirs }) => {
     const offer = await page.eval(`return [...document.querySelectorAll('.team-template-chip')].map((c) => c.textContent)`);
     check(offer.length === 4 && offer[0].includes('Product Owner') && offer[0].includes('opus'), `the template's four roles with their models (${offer})`);
     check(await page.eval(`return !!document.querySelector('.team-empty svg[aria-hidden]')`), 'the empty state has its illustration');
-    await page.click('.team-empty .btn-primary', "Use the template's", 1500);
+    await page.click('.team-empty .team-empty-template', "Use the template's", 1500);
     await page.waitFor(`return document.querySelectorAll('.member-card[data-agent]').length === 4`, { label: 'four member cards' });
     const cards = await page.eval(
       `return [...document.querySelectorAll('.member-card[data-agent]')].map((c) => ({ agent: c.dataset.agent, name: c.querySelector('.member-name')?.textContent, file: c.querySelector('.member-file')?.textContent, avatar: c.querySelector('.role-avatar')?.textContent, now: c.querySelector('.member-now')?.textContent }))`,

@@ -439,6 +439,32 @@ test('a move over the column limit succeeds and says so, in the result, the even
   assert.equal(column?.overLimit, true);
 });
 
+test('an epic stays on the board but counts neither as an open item nor against a column limit', () => {
+  const { service } = setup({ limits: { in_progress: 1 } });
+  const epic = service.create('p1', { title: 'Checkout', type: 'epic', status: 'in_progress' });
+  const task = service.create('p1', { title: 'Pay', epicId: epic.id });
+  service.create('p2', { title: 'Elsewhere', type: 'epic' });
+
+  // The task fills the one place: the epic beside it does not make it 2 of 1
+  const moved = service.move(task.id, { status: 'in_progress' });
+  assert.deepEqual(moved.column, { status: 'in_progress', limit: 1, count: 1, overLimit: false });
+  const column = service.board('p1').columns.find((c) => c.status === 'in_progress');
+  assert.deepEqual(column?.items.map((i) => i.id), [epic.id, task.id]);
+  assert.equal(column?.count, 1);
+  assert.equal(column?.overLimit, false);
+
+  // Moving the epic itself leaves the counts where they were, in its project and across all of them
+  assert.equal(service.move(epic.id, { status: 'todo' }).column.count, 0);
+  assert.deepEqual(
+    service.board('p1').columns.map((c) => c.count),
+    [0, 0, 1, 0, 0],
+  );
+  assert.deepEqual(
+    service.board(null).columns.map((c) => c.count),
+    [0, 0, 1, 0, 0],
+  );
+});
+
 // ---------- relations ----------
 
 test('a relation is stored once and read from both ends', () => {
@@ -684,7 +710,8 @@ test('the board holds the five columns in order; a filter narrows the items but 
     ['backlog', 'todo', 'in_progress', 'in_review', 'done'],
   );
   const backlog = board.columns[0];
-  assert.equal(backlog?.count, 3);
+  // The bug and the story; the epic they share is on the board but not in the count
+  assert.equal(backlog?.count, 2);
   assert.deepEqual(
     backlog?.items.map((i) => i.id),
     [bug.id],
@@ -697,7 +724,7 @@ test('the board holds the five columns in order; a filter narrows the items but 
   // All projects: every project's items, and no limits
   const all = service.board(null);
   assert.equal(all.projectId, null);
-  assert.equal(all.columns[0]?.count, 4);
+  assert.equal(all.columns[0]?.count, 3);
   assert.ok(all.columns.every((c) => c.limit === null && !c.overLimit));
   assert.deepEqual(
     all.columns[0]?.items.map((i) => i.key),

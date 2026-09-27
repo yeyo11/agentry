@@ -60,8 +60,11 @@ export default async ({ page, api, check, dirs }) => {
     }
     const moved = await api.post(`/work-items/${created[2].id}/move`, { status: 'done' });
     check(moved.status === 200, `a task was moved to Done (${moved.status})`);
+    // An epic groups the two open tasks: it is not a third
+    const epic = await api.post(`/projects/${projectId}/work-items`, { title: 'The epic', type: 'epic' });
+    check(epic.status === 201, `an epic was created (${epic.status})`);
     await page.goto(`/?project=${projectId}`, 1200);
-    await page.waitFor(`return ${tasksCount} === '2'`, { label: 'Tasks counts the two open items of the project, not the one done' });
+    await page.waitFor(`return ${tasksCount} === '2'`, { label: 'Tasks counts the two open items of the project, not the one done nor the epic' });
     const said = await page.text('#sidebar a.nav-link[href="/tasks"] .nav-count .sr-only');
     check(said.trim() === 'open', `the count is said with its word (${said})`);
     // A task created elsewhere (an agent, another tab) shows without a reload

@@ -7,6 +7,7 @@
  */
 import type { Board, BoardColumn, WorkItem, WorkItemRef, WorkItemStatus } from '@agentry/shared';
 import { WORK_ITEM_STATUSES } from '@agentry/shared';
+import { countsInColumn } from '../../../lib/work-items';
 
 /**
  * Done keeps growing, and what is finished matters least on a board: it shows its first few cards
@@ -54,9 +55,10 @@ export function moveOnBoard<T extends Pick<Board, 'columns'>>(board: T, itemId: 
   const columns = board.columns.map((column): BoardColumn => {
     let items = column.items.filter((item) => item.id !== itemId);
     let count = column.count;
-    if (column.status === from && from !== drop.status) count -= 1;
+    const crosses = from !== drop.status && countsInColumn(moving);
+    if (column.status === from && crosses) count -= 1;
     if (column.status === drop.status) {
-      if (from !== drop.status) count += 1;
+      if (crosses) count += 1;
       const at = Math.max(0, Math.min(drop.index, items.length));
       items = [...items.slice(0, at), moved, ...items.slice(at)];
     }

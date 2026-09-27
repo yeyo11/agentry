@@ -14,6 +14,7 @@ import {
   parseWorkItemKey,
   type Board,
   type BoardColumn,
+  type Project,
   type WorkItem,
   type WorkItemFilter,
   type WorkItemPriority,
@@ -33,6 +34,14 @@ export const NEW_PROJECT_PATH = '/projects/new';
  */
 export const NEW_TASK_PARAM = 'new';
 export const NEW_TASK_PATH = `${TASKS_PATH}?${NEW_TASK_PARAM}=1`;
+
+/**
+ * The key the empty board's illustration draws on its card: the project's own first one (`SHOP-1`),
+ * so the drawing shows what the first task will be called. Undefined keeps the catalogue's `AGN-1`.
+ */
+export function firstKey(project: Pick<Project, 'key'> | null | undefined): string | undefined {
+  return project?.key ? `${project.key}-1` : undefined;
+}
 
 /** A work item's page, by its key: `/tasks/AGN-12`. */
 export function taskPath(key: string): string {
@@ -249,7 +258,13 @@ export function groupByStatus<T extends Pick<WorkItem, 'status'>>(items: readonl
 }
 
 /**
- * The items not in Done, from the columns' real counts, which a filter does not narrow: the figure
+ * Whether an item takes a place in its column's count and limit. An epic groups the work rather than
+ * being some, so the server leaves it out of the counts, and a card moved before it answers must too.
+ */
+export const countsInColumn = (item: Pick<WorkItem, 'type'>): boolean => item.type !== 'epic';
+
+/**
+ * The items not in Done (epics aside, as in every count), from the columns' real counts, which a filter does not narrow: the figure
  * beside Tasks in the sidebar and the More sheet.
  */
 export function openCount(board: Pick<Board, 'columns'> | undefined): number | undefined {

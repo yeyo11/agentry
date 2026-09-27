@@ -4194,6 +4194,12 @@
       },
       {
         "$ref": "#/components/schemas/FlowRunEvent"
+      },
+      {
+        "$ref": "#/components/schemas/AssistantRunEvent"
+      },
+      {
+        "$ref": "#/components/schemas/AssistantProposalEvent"
       }
     ],
     "description": "Everything the buffered feed carries, discriminated by `type`."
@@ -7017,6 +7023,222 @@
       "cancelled"
     ],
     "description": "How a run ended: `passed`, it finished well (and for QA, the item held); `rejected`, QA's verdict failed the item; `failed`, the chat failed or its result was unreadable; `cancelled`, a person's move or the flow being switched off made it moot before it started."
+  },
+  "AssistantRunEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "assistant.run"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/AssistantRunKind"
+      },
+      "action": {
+        "$ref": "#/components/schemas/AssistantRunAction"
+      },
+      "status": {
+        "$ref": "#/components/schemas/AssistantRunStatus"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set once its chat started; null for a run with nothing to read"
+      },
+      "supersedes": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The run whose pending proposals this one superseded when it started, which reads again"
+      }
+    },
+    "required": [
+      "action",
+      "at",
+      "chatId",
+      "id",
+      "kind",
+      "projectId",
+      "runId",
+      "status",
+      "supersedes",
+      "title",
+      "type"
+    ],
+    "description": "An assistant run started, read something, ended or failed."
+  },
+  "AssistantRunKind": {
+    "type": "string",
+    "enum": [
+      "project",
+      "work-items",
+      "resources"
+    ],
+    "description": "`project`: team, resources and first work items, after creating a project or on demand from its page. `work-items`: \"Suggest tasks\" on the board. `resources`: \"Suggest\" on the Resources tab, or \"Create with AI\" for one resource from a description."
+  },
+  "AssistantRunAction": {
+    "type": "string",
+    "enum": [
+      "started",
+      "read",
+      "ended",
+      "failed"
+    ],
+    "description": "`started` and `failed` as they say; `ended` a run that completed or was stopped (its `status` says which); `read` a running one's  {@link  AssistantRun.sources }  or cost changed, at most every few seconds, so \"what it has read\" fills in without polling."
+  },
+  "AssistantRunStatus": {
+    "type": "string",
+    "enum": [
+      "running",
+      "completed",
+      "failed",
+      "stopped"
+    ],
+    "description": "`running` has its chat, or is about to; `completed` answered and its proposals are served; `failed` ended without a readable answer (the chat failed, the result did not match the schema, or a restart cut it and it could not be started again); `stopped` a person stopped it. A finished run never runs again: \"Suggest again\" is a new run."
+  },
+  "AssistantProposalEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "assistant.proposal"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "proposalId": {
+        "type": "string"
+      },
+      "proposalKind": {
+        "$ref": "#/components/schemas/AssistantProposalKind"
+      },
+      "action": {
+        "$ref": "#/components/schemas/AssistantProposalAction"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For an accepted work item, the item it created"
+      },
+      "agent": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For an accepted team member, its agent file name"
+      },
+      "resource": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "$ref": "#/components/schemas/AssistantResourceKind"
+              },
+              "name": {
+                "type": "string"
+              },
+              "scope": {
+                "$ref": "#/components/schemas/ConfigScopeKind"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "scope"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "For an accepted resource, where it was saved"
+      }
+    },
+    "required": [
+      "action",
+      "agent",
+      "at",
+      "id",
+      "itemId",
+      "projectId",
+      "proposalId",
+      "proposalKind",
+      "resource",
+      "runId",
+      "title",
+      "type"
+    ],
+    "description": "A proposal was accepted, discarded or restored. What an accept wrote announces itself too where it has an event (`workitem.created`, `team.changed`); a saved resource has none, so this names it."
+  },
+  "AssistantProposalKind": {
+    "type": "string",
+    "enum": [
+      "team-member",
+      "resource",
+      "work-item"
+    ]
+  },
+  "AssistantProposalAction": {
+    "type": "string",
+    "enum": [
+      "accepted",
+      "discarded",
+      "restored"
+    ]
+  },
+  "AssistantResourceKind": {
+    "type": "string",
+    "enum": [
+      "agents",
+      "skills",
+      "commands"
+    ],
+    "description": "The resources an assistant proposes or creates: the ones a project's `.claude/` holds as Markdown."
+  },
+  "ConfigScopeKind": {
+    "type": "string",
+    "enum": [
+      "user",
+      "project"
+    ],
+    "description": "Every /config route takes an optional `?project=<projectId>`: absent means the user scope (the Claude config dir), present means that project's own files."
   },
   "StreamHelloEvent": {
     "type": "object",
@@ -11599,7 +11821,7 @@
       },
       "count": {
         "type": "number",
-        "description": "Every item in the column, whatever the filter"
+        "description": "Every item in the column but its epics, whatever the filter: an epic takes no place under the limit"
       },
       "overLimit": {
         "type": "boolean",
@@ -11860,7 +12082,7 @@
       },
       "count": {
         "type": "number",
-        "description": "Every item in the column, whatever the filter"
+        "description": "Every item in the column but its epics, whatever the filter: an epic takes no place under the limit"
       },
       "overLimit": {
         "type": "boolean",
@@ -13046,5 +13268,1056 @@
       "path"
     ],
     "description": "`POST /work-items/:itemId/documents`: ties a document of the project to an item by hand, role `reference`."
+  },
+  "AssistantRun": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/AssistantRunKind"
+      },
+      "status": {
+        "$ref": "#/components/schemas/AssistantRunStatus"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id the chat ran with; `sonnet` unless the request chose another"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "What the person described: the one resource \"Create with AI\" builds, or what an empty project is for"
+      },
+      "resourceKind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AssistantResourceKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "For a `resources` run from a description, the kind of the one resource it builds; null otherwise"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat it runs in, which counts in Usage like any other. Null while starting, and for a run with nothing to read ( {@link  AssistantRun.empty } ), which starts no chat."
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What the chat is doing now, filled in when read while it runs"
+      },
+      "empty": {
+        "type": "boolean",
+        "description": "The project had nothing to read: no files, no chats, no git history. No chat was started; a `project` run offers the template's team, and asks for a description to propose work items."
+      },
+      "template": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProjectTemplateId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The template whose team it offered as the starting point; null when it proposed none"
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AssistantSource"
+        },
+        "description": "What it read, in the order it read it; entries still `pending` while it runs"
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AssistantFinding"
+        },
+        "description": "For a `project` run; empty for the others and until the answer comes"
+      },
+      "counts": {
+        "type": "object",
+        "properties": {
+          "team-member": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
+          },
+          "resource": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
+          },
+          "work-item": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
+          }
+        },
+        "required": [
+          "team-member",
+          "resource",
+          "work-item"
+        ],
+        "description": "Proposals by kind; a kind the run does not propose counts zero"
+      },
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The chat's cost so far, then its total; null when the CLI reported none (or no chat was started)"
+      },
+      "durationMs": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "From start to end; null while it runs"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Localized"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why it failed; null unless `failed`"
+      },
+      "supersedes": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The finished run of the same kind whose pending proposals this one superseded (\"Suggest again\")"
+      },
+      "supersededBy": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The run that superseded this one's pending proposals; null while none has"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "kind",
+      "status",
+      "model",
+      "description",
+      "resourceKind",
+      "chatId",
+      "empty",
+      "template",
+      "sources",
+      "findings",
+      "counts",
+      "costUsd",
+      "durationMs",
+      "error",
+      "supersedes",
+      "supersededBy",
+      "startedAt",
+      "endedAt"
+    ],
+    "description": "An assistant run as `GET /projects/:id/assistant/runs` lists it; `GET /assistant/runs/:runId` adds its proposals."
+  },
+  "AssistantSource": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/AssistantSourceKind"
+      },
+      "path": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Relative to the project, `/`-separated, a directory ending in `/` (`docs/`); null for what is not a path"
+      },
+      "state": {
+        "$ref": "#/components/schemas/AssistantSourceState"
+      },
+      "count": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "total": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "For `partial`, how many there were"
+      },
+      "unit": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AssistantSourceUnit"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "names": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "A few names a client may list beside it: the open milestones (`v0.20`), the files of a group"
+      }
+    },
+    "required": [
+      "kind",
+      "path",
+      "state",
+      "count",
+      "total",
+      "unit",
+      "names"
+    ],
+    "description": "One entry of what a run read (\"See what it read\"): kept on the run, filled in from the chat's tool calls and from what Agentry handed it (its journal, its work items, its team, its resources)."
+  },
+  "AssistantSourceKind": {
+    "type": "string",
+    "enum": [
+      "file",
+      "dir",
+      "instructions",
+      "memory",
+      "journal",
+      "work-items",
+      "milestones",
+      "team",
+      "resources",
+      "chats",
+      "git"
+    ],
+    "description": "What an entry of \"what it read\" is: the project's files (`file`, `dir`), the CLI's `instructions` (`CLAUDE.md`) and `memory`, Agentry's `journal`, `work-items` and `milestones` (so it does not propose them again), the `team`, the `resources`, the CLI's `chats` in the directory and the `git` history."
+  },
+  "AssistantSourceState": {
+    "type": "string",
+    "enum": [
+      "pending",
+      "reading",
+      "read",
+      "partial",
+      "missing"
+    ],
+    "description": "`pending`: it will read it later (\"after\"); `reading`: now; `read`: all of it; `partial`: some of it (`count` of `total`); `missing`: it looked and there is none (`CLAUDE.md` does not exist)."
+  },
+  "AssistantSourceUnit": {
+    "type": "string",
+    "enum": [
+      "lines",
+      "files",
+      "documents",
+      "chats",
+      "commits",
+      "items",
+      "entries",
+      "members"
+    ],
+    "description": "What `count` and `total` count, which a client words (\"142 lines\", \"23 chats\", \"14 of 20\")."
+  },
+  "AssistantFinding": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "stack",
+          "gap"
+        ]
+      },
+      "label": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "kind",
+      "label"
+    ],
+    "description": "Something a `project` run found, shown as a tag (\"TypeScript\", \"Fastify\"): `stack` is what the project uses, `gap` is what it lacks (\"no CI\")."
+  },
+  "AssistantProposalCount": {
+    "type": "object",
+    "properties": {
+      "total": {
+        "type": "number"
+      },
+      "pending": {
+        "type": "number"
+      },
+      "accepted": {
+        "type": "number"
+      },
+      "discarded": {
+        "type": "number"
+      },
+      "superseded": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "total",
+      "pending",
+      "accepted",
+      "discarded",
+      "superseded"
+    ],
+    "description": "How many proposals of a kind a run made, by status: \"2 of 6 accepted\", \"3 to review\"."
+  },
+  "AssistantRunDetail": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/AssistantRunKind"
+      },
+      "status": {
+        "$ref": "#/components/schemas/AssistantRunStatus"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id the chat ran with; `sonnet` unless the request chose another"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "What the person described: the one resource \"Create with AI\" builds, or what an empty project is for"
+      },
+      "resourceKind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AssistantResourceKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "For a `resources` run from a description, the kind of the one resource it builds; null otherwise"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat it runs in, which counts in Usage like any other. Null while starting, and for a run with nothing to read ( {@link  AssistantRun.empty } ), which starts no chat."
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What the chat is doing now, filled in when read while it runs"
+      },
+      "empty": {
+        "type": "boolean",
+        "description": "The project had nothing to read: no files, no chats, no git history. No chat was started; a `project` run offers the template's team, and asks for a description to propose work items."
+      },
+      "template": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProjectTemplateId"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The template whose team it offered as the starting point; null when it proposed none"
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AssistantSource"
+        },
+        "description": "What it read, in the order it read it; entries still `pending` while it runs"
+      },
+      "findings": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AssistantFinding"
+        },
+        "description": "For a `project` run; empty for the others and until the answer comes"
+      },
+      "counts": {
+        "type": "object",
+        "properties": {
+          "team-member": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
+          },
+          "resource": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
+          },
+          "work-item": {
+            "$ref": "#/components/schemas/AssistantProposalCount"
+          }
+        },
+        "required": [
+          "team-member",
+          "resource",
+          "work-item"
+        ],
+        "description": "Proposals by kind; a kind the run does not propose counts zero"
+      },
+      "costUsd": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The chat's cost so far, then its total; null when the CLI reported none (or no chat was started)"
+      },
+      "durationMs": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "From start to end; null while it runs"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Localized"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why it failed; null unless `failed`"
+      },
+      "supersedes": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The finished run of the same kind whose pending proposals this one superseded (\"Suggest again\")"
+      },
+      "supersededBy": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The run that superseded this one's pending proposals; null while none has"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "proposals": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AssistantProposal"
+        },
+        "description": "Every proposal it made, whatever its status, by kind then in the order it proposed them"
+      }
+    },
+    "required": [
+      "chatId",
+      "costUsd",
+      "counts",
+      "description",
+      "durationMs",
+      "empty",
+      "endedAt",
+      "error",
+      "findings",
+      "id",
+      "kind",
+      "model",
+      "projectId",
+      "proposals",
+      "resourceKind",
+      "sources",
+      "startedAt",
+      "status",
+      "supersededBy",
+      "supersedes",
+      "template"
+    ],
+    "description": "`GET /assistant/runs/:runId`, and what starting or stopping one answers."
+  },
+  "AssistantProposal": {
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/AssistantTeamMemberProposal"
+      },
+      {
+        "$ref": "#/components/schemas/AssistantResourceProposal"
+      },
+      {
+        "$ref": "#/components/schemas/AssistantWorkItemProposal"
+      }
+    ],
+    "description": "One proposal of a run, accepted or discarded on its own (decision 36)."
+  },
+  "AssistantTeamMemberProposal": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/AssistantProposalStatus"
+      },
+      "reason": {
+        "type": "string",
+        "description": "Why it proposes it, one or two sentences; for a work item, its first comment once accepted"
+      },
+      "position": {
+        "type": "number",
+        "description": "Its place among the run's proposals of the same kind"
+      },
+      "decidedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who accepted or discarded it last; null while pending (and again once restored)"
+      },
+      "decidedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "const": "team-member"
+      },
+      "member": {
+        "$ref": "#/components/schemas/ProposedTeamMember"
+      },
+      "acceptedAgent": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The member as added, by agent file name, once accepted; null otherwise"
+      }
+    },
+    "required": [
+      "acceptedAgent",
+      "createdAt",
+      "decidedAt",
+      "decidedBy",
+      "id",
+      "kind",
+      "member",
+      "position",
+      "projectId",
+      "reason",
+      "runId",
+      "status"
+    ],
+    "description": "Accepting it adds the member through the team service, agent file included."
+  },
+  "AssistantProposalStatus": {
+    "type": "string",
+    "enum": [
+      "pending",
+      "accepted",
+      "discarded",
+      "superseded"
+    ],
+    "description": "`pending` waits for the person; `superseded` was pending when the person asked to suggest again."
+  },
+  "ProposedTeamMember": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id of the agent that plays it (`opus`, `sonnet`)"
+      },
+      "responsibility": {
+        "type": "string",
+        "description": "One line on what it answers for"
+      },
+      "agent": {
+        "type": "string",
+        "description": "Name of the agent file it would write in `.claude/agents/`, without `.md`"
+      },
+      "writes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Paths or globs it may write; empty means nothing but work items (\"writes: nothing, only tasks\")"
+      },
+      "fromTemplate": {
+        "type": "boolean",
+        "description": "One of the template's roles; false for one the project needs beyond it (\"outside the template\")"
+      },
+      "description": {
+        "type": "string",
+        "description": "The agent file's `description`, what the CLI picks it by"
+      },
+      "instructions": {
+        "type": "string",
+        "description": "The agent file's body; empty lets the team service write its starting one"
+      }
+    },
+    "required": [
+      "agent",
+      "description",
+      "fromTemplate",
+      "instructions",
+      "model",
+      "responsibility",
+      "role",
+      "writes"
+    ],
+    "description": "A role of the team the assistant proposes, as the member it would add."
+  },
+  "AssistantResourceProposal": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/AssistantProposalStatus"
+      },
+      "reason": {
+        "type": "string",
+        "description": "Why it proposes it, one or two sentences; for a work item, its first comment once accepted"
+      },
+      "position": {
+        "type": "number",
+        "description": "Its place among the run's proposals of the same kind"
+      },
+      "decidedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who accepted or discarded it last; null while pending (and again once restored)"
+      },
+      "decidedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "const": "resource"
+      },
+      "resource": {
+        "$ref": "#/components/schemas/ProposedResource"
+      },
+      "saved": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "scope": {
+                "$ref": "#/components/schemas/ConfigScopeKind"
+              },
+              "name": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "scope",
+              "name",
+              "path"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Where it was saved, once accepted: its scope and its path there; null otherwise"
+      }
+    },
+    "required": [
+      "createdAt",
+      "decidedAt",
+      "decidedBy",
+      "id",
+      "kind",
+      "position",
+      "projectId",
+      "reason",
+      "resource",
+      "runId",
+      "saved",
+      "status"
+    ],
+    "description": "Accepting it is saving it: the editor opens the proposal unsaved, and its save is the accept, with what the person edited ( {@link  AcceptAssistantProposalRequest.resource } )."
+  },
+  "ProposedResource": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/AssistantResourceKind"
+      },
+      "name": {
+        "type": "string",
+        "description": "File or directory name, without extension; a command's without its `/`"
+      },
+      "description": {
+        "type": "string",
+        "description": "One line, as its frontmatter says it"
+      },
+      "content": {
+        "type": "string",
+        "description": "The whole file, frontmatter included (a skill's `SKILL.md`)"
+      },
+      "scope": {
+        "$ref": "#/components/schemas/ConfigScopeKind",
+        "description": "Where it is meant to go: the project by default (decision 37)"
+      },
+      "path": {
+        "type": "string",
+        "description": "Where it would be saved, relative to its scope's root: the project (`.claude/agents/x.md`, a skill's directory `.claude/skills/x/`), or the Claude config dir for `user` (`agents/x.md`)"
+      }
+    },
+    "required": [
+      "kind",
+      "name",
+      "description",
+      "content",
+      "scope",
+      "path"
+    ],
+    "description": "A resource the assistant proposes: a whole file, opened in the editor before anything is saved."
+  },
+  "AssistantWorkItemProposal": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/AssistantProposalStatus"
+      },
+      "reason": {
+        "type": "string",
+        "description": "Why it proposes it, one or two sentences; for a work item, its first comment once accepted"
+      },
+      "position": {
+        "type": "number",
+        "description": "Its place among the run's proposals of the same kind"
+      },
+      "decidedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who accepted or discarded it last; null while pending (and again once restored)"
+      },
+      "decidedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "const": "work-item"
+      },
+      "workItem": {
+        "$ref": "#/components/schemas/ProposedWorkItem"
+      },
+      "created": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The item it created, once accepted (\"created · PAG-1\"); null otherwise, or once it is gone"
+      }
+    },
+    "required": [
+      "created",
+      "createdAt",
+      "decidedAt",
+      "decidedBy",
+      "id",
+      "kind",
+      "position",
+      "projectId",
+      "reason",
+      "runId",
+      "status",
+      "workItem"
+    ],
+    "description": "Accepting it creates the item in `backlog`, with the reason as its first comment."
+  },
+  "ProposedWorkItem": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string",
+        "description": "Markdown"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority"
+      },
+      "labels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "acceptanceCriteria": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/NewAcceptanceCriterion"
+        }
+      },
+      "epicId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "An existing epic of the project it belongs to"
+      },
+      "epic": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Filled in when read; null without one or once it is gone"
+      },
+      "similarTo": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "An existing item it resembles (\"Similar to AGN-45\"), filled in when read; such a proposal starts unselected where a client offers a selection"
+      }
+    },
+    "required": [
+      "type",
+      "title",
+      "description",
+      "priority",
+      "labels",
+      "acceptanceCriteria",
+      "epicId",
+      "epic",
+      "similarTo"
+    ],
+    "description": "A work item the assistant proposes, created in `backlog` when accepted."
+  },
+  "StartAssistantRunRequest": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/AssistantRunKind"
+      },
+      "model": {
+        "type": "string",
+        "description": "Default `sonnet` (`DEFAULT_ASSISTANT_MODEL`)"
+      },
+      "description": {
+        "type": "string",
+        "description": "For a `resources` run, the one resource to build (\"Create with AI\"), with `resourceKind`; for a `project` or `work-items` run, what the project is for when there is nothing to read"
+      },
+      "resourceKind": {
+        "$ref": "#/components/schemas/AssistantResourceKind",
+        "description": "Required with a `resources` run's `description`"
+      },
+      "supersede": {
+        "type": "boolean",
+        "description": "Mark the pending proposals of the latest finished run of this kind `superseded`. Default false"
+      }
+    },
+    "required": [
+      "kind"
+    ],
+    "description": "`POST /projects/:id/assistant/runs`. One run at a time per project and kind: a second one while one runs is refused with 409. A new run leaves the previous one's pending proposals as they are, unless `supersede` says to set them aside (\"Suggest again\")."
+  },
+  "AcceptAssistantProposalRequest": {
+    "type": "object",
+    "properties": {
+      "member": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "Name of the agent file it would write in `.claude/agents/`, without `.md`"
+          },
+          "writes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Paths or globs it may write; empty means nothing but work items (\"writes: nothing, only tasks\")"
+          },
+          "description": {
+            "type": "string",
+            "description": "The agent file's `description`, what the CLI picks it by"
+          },
+          "instructions": {
+            "type": "string",
+            "description": "The agent file's body; empty lets the team service write its starting one"
+          },
+          "role": {},
+          "model": {},
+          "responsibility": {}
+        }
+      },
+      "resource": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ConfigScopeKind"
+          }
+        },
+        "description": "The editor's save: the name, content and scope the person left"
+      },
+      "workItem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/WorkItemType"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "description": "Markdown"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/WorkItemPriority"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "acceptanceCriteria": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NewAcceptanceCriterion"
+            }
+          },
+          "epicId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An existing epic of the project it belongs to"
+          }
+        }
+      }
+    },
+    "description": "`POST /assistant/proposals/:proposalId/accept`, with what the person changed before accepting; only the part that matches the proposal's kind is read, and a field left out keeps the proposed value. Accepting a proposal that is not `pending` is refused with 409."
   }
 }

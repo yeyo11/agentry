@@ -157,6 +157,12 @@ import type {
   TeamMember,
   TieDocumentRequest,
   WriteDocumentRequest,
+  AcceptAssistantProposalRequest,
+  AssistantProposal,
+  AssistantRun,
+  AssistantRunDetail,
+  AssistantRunKind,
+  StartAssistantRunRequest,
 } from '@agentry/shared';
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
@@ -651,6 +657,22 @@ export const api = {
     request<{ ok: true }>(`/projects/${enc(projectId)}/documents/file${qs({ path })}`, { method: 'DELETE' }),
   tieDocument: (itemId: string, req: TieDocumentRequest) =>
     request<WorkItemLink>(`/work-items/${enc(itemId)}/documents`, { method: 'POST', body: req }),
+  // ---- the project assistant (docs/plans/project-ecosystem.md, orchestration 4)
+  /** Refused with 409 while a run of the same kind runs in the project */
+  startAssistantRun: (projectId: string, req: StartAssistantRunRequest) =>
+    request<AssistantRunDetail>(`/projects/${enc(projectId)}/assistant/runs`, { method: 'POST', body: req }),
+  /** Latest first; every kind when `kind` is left out */
+  assistantRuns: (projectId: string, kind?: AssistantRunKind, o?: ReadOptions) =>
+    request<AssistantRun[]>(`/projects/${enc(projectId)}/assistant/runs${qs({ kind })}`, o),
+  assistantRun: (runId: string, o?: ReadOptions) => request<AssistantRunDetail>(`/assistant/runs/${enc(runId)}`, o),
+  stopAssistantRun: (runId: string) => request<AssistantRunDetail>(`/assistant/runs/${enc(runId)}/stop`, { method: 'POST' }),
+  /** For a resource, this is the editor's save: pass what the person left in `resource` */
+  acceptAssistantProposal: (proposalId: string, req: AcceptAssistantProposalRequest = {}) =>
+    request<AssistantProposal>(`/assistant/proposals/${enc(proposalId)}/accept`, { method: 'POST', body: req }),
+  discardAssistantProposal: (proposalId: string) =>
+    request<AssistantProposal>(`/assistant/proposals/${enc(proposalId)}/discard`, { method: 'POST' }),
+  restoreAssistantProposal: (proposalId: string) =>
+    request<AssistantProposal>(`/assistant/proposals/${enc(proposalId)}/restore`, { method: 'POST' }),
   /** The VAPID public key to subscribe against; the server makes its keypair when this is first asked */
   pushKey: () => request<PushKeyInfo>('/push/key'),
   pushSubscriptions: () => request<PushSubscriptionSummary[]>('/push/subscriptions'),
@@ -771,6 +793,13 @@ export const keys = {
   documentsOf: (projectId: string) => ['documents', projectId] as const,
   documentTree: (projectId: string) => ['documents', projectId, 'tree'] as const,
   documentFile: (projectId: string, path: string) => ['documents', projectId, 'file', path] as const,
+  // ---- the project assistant. A project's lists under one prefix, so a run of any kind reaches the
+  // filtered lists too; a run's detail under another, since its events name the run
+  assistantRunsOf: (projectId: string) => ['assistant', 'runs', projectId] as const,
+  assistantRuns: (projectId: string, kind?: AssistantRunKind) => ['assistant', 'runs', projectId, kind ?? 'all'] as const,
+  /** Every run's detail */
+  assistantRunEach: ['assistant', 'run'] as const,
+  assistantRun: (runId: string) => ['assistant', 'run', runId] as const,
   pushSubscriptions: ['push', 'subscriptions'] as const,
   availablePlugins: (q: string) => ['plugins', 'available', q] as const,
   pluginDetails: (plugin: string) => ['plugins', 'details', plugin] as const,
@@ -1002,6 +1031,29 @@ export const useDocumentFile = (projectId: string | null, path: string | null) =
     queryKey: keys.documentFile(projectId ?? '', path ?? ''),
     queryFn: ({ signal }) => api.documentFile(projectId ?? '', path ?? '', { signal }),
     enabled: projectId !== null && path !== null,
+  });
+
+// ---------- the project assistant ----------
+//
+// Kept fresh by `assistant.run` (its `read` action fills in what a running one read) and
+// `assistant.proposal` (lib/events.ts); a running one's live line is patched in place by
+// `chat.activity`.
+
+/** Latest first; every kind when `kind` is left out. The latest of a kind is the one its screen shows. */
+export const useAssistantRuns = (projectId: string | null, kind?: AssistantRunKind) =>
+  useQuery({
+    queryKey: keys.assistantRuns(projectId ?? '', kind),
+    queryFn: ({ signal }) => api.assistantRuns(projectId ?? '', kind, { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useAssistantRun = (runId: string | null) =>
+  useQuery({
+    queryKey: keys.assistantRun(runId ?? ''),
+    queryFn: ({ signal }) => api.assistantRun(runId ?? '', { signal }),
+    enabled: runId !== null,
+    refetchInterval: useFallbackInterval(),
   });
 
 /**

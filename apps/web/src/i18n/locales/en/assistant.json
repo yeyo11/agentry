@@ -1,0 +1,136 @@
+{
+  "title": "Project assistant",
+  "crumb": "Assistant",
+  "back": "Back to the project",
+  "subtitle": {
+    "running": "reads the repository and proposes the team, the resources and the first tasks. Nothing is written until you accept it.",
+    "done": "accept or discard each proposal. Nothing is written until you accept it.",
+    "empty": "an empty directory. Nothing is written until you accept it.",
+    "none": "reads the project and proposes the team, the resources and the first tasks, one by one."
+  },
+  "skip": "Skip for now",
+  "goToProject": "Go to the project",
+  "suggestAgain": "Suggest again",
+  "more": "More actions",
+  "live": {
+    "title": "Reading the repository",
+    "region": "Suggestion in progress",
+    "read": "What it has read",
+    "found": "What it has found",
+    "after": "After reading",
+    "note": "It is a CLI chat with <code>--json-schema</code>: its cost counts in Usage and in the status bar, like any chat's. If there were nothing to read, it would offer the template's team.",
+    "notePhone": "Nothing is written until you accept it. The cost counts in Usage, like any chat's.",
+    "stopFailed": "Could not stop the assistant"
+  },
+  "waiting": "waiting",
+  "wait": {
+    "team": "It will propose the roles {{name}} needs",
+    "resources": "Agents, skills and commands for this repository",
+    "tasks": "What is missing, with the why of each one"
+  },
+  "done": {
+    "region": "Suggestion completed",
+    "proposals_one": "{{n}} proposal",
+    "proposals_other": "{{n}} proposals",
+    "after": "after reading {{what}}",
+    "afterPhone": "from {{what}}",
+    "files_one": "{{n}} file",
+    "files_other": "{{n}} files",
+    "chats_one": "{{n}} chat",
+    "chats_other": "{{n}} chats",
+    "and": "and",
+    "nothingRead": "the project",
+    "seeRead": "See what it has read",
+    "hideRead": "Hide what it has read",
+    "readTitle": "What it has read"
+  },
+  "failed": {
+    "title": "It could not finish",
+    "stopped": "Stopped",
+    "stoppedBody": "You stopped it before it answered: it proposed nothing.",
+    "retry": "Suggest again"
+  },
+  "empty": {
+    "region": "Nothing to read",
+    "title": "Nothing to read",
+    "body": "in <mono>{{path}}</mono>: no files, no chats, no git history. No chat was started.",
+    "bodyPhone": "<mono>{{path}}</mono> is empty: no files, no chats and no git history. No chat was started, so there is no cost.",
+    "titlePhone": "There is nothing to read",
+    "templateTeam": "The template's team",
+    "teamNote": "With nothing to read, it offers the template's team. Accept each role on its own.",
+    "tasksIntro": "With no code to read, the assistant needs to know what you will build. Say it in one sentence and it proposes the first tasks, each one with its why.",
+    "tasksIntroPhone": "Tell me what you will build and I will propose the first tasks. You can also create them yourself.",
+    "describe": "What you will build",
+    "describePlaceholder": "What you will build…",
+    "describePlaceholderPhone": "A notes app with labels and search…",
+    "propose": "Propose tasks",
+    "proposeHint": "Opens a CLI chat with <mono>--json-schema</mono>; its cost counts in Usage, like any chat's.",
+    "resourcesLater": "Once there is code, ask for them from the Resources tab with “Suggest”",
+    "noProposals": "no proposals"
+  },
+  "none": {
+    "title": "The assistant has not read this project yet",
+    "body": "It opens a CLI chat that only reads the project, and proposes a team, resources and first tasks. You accept each proposal on its own; nothing is written before.",
+    "start": "Ask for a proposal"
+  },
+  "startFailed": "Could not start the assistant",
+  "section": {
+    "team": "Team",
+    "resources": "Resources",
+    "tasks": "First tasks",
+    "tasksShort": "Tasks"
+  },
+  "team": {
+    "accepted": "{{accepted}} of {{total}} accepted",
+    "acceptedPhone": "{{accepted}} of {{total}} accepted · one by one",
+    "fromTemplate": "from {{name}}",
+    "theTemplate": "the {{name}} one",
+    "outside": "outside the template",
+    "writes": "writes:",
+    "writesNothing": "nothing, only tasks",
+    "added": "added",
+    "addedWhere": "added · .claude/agents/"
+  },
+  "resources": {
+    "saved": "{{accepted}} of {{total}} saved",
+    "reviewed": "reviewed in the editor",
+    "savedDone": "saved",
+    "review": "Review",
+    "reviewNamed": "Review {{name}}",
+    "kind": {
+      "agents": "Agent",
+      "skills": "Skill",
+      "commands": "Command"
+    },
+    "scope": {
+      "project": "project",
+      "user": "user"
+    }
+  },
+  "tasks": {
+    "accepted": "{{accepted}} of {{total}} accepted · to Backlog",
+    "toBacklog": "to Backlog",
+    "created": "created",
+    "gone": "created, since deleted"
+  },
+  "proposal": {
+    "accept": "Accept",
+    "acceptNamed": "Accept {{name}}",
+    "discard": "Discard",
+    "discardNamed": "Discard {{name}}",
+    "discarded": "Discarded",
+    "undo": "Undo",
+    "undoNamed": "Restore {{name}}",
+    "failed": "Could not do it"
+  },
+  "wizard": {
+    "propose": "Propose team, resources and tasks",
+    "proposeHint": "Once it exists, the assistant reads the project and proposes the team, the resources and the first tasks. You accept each proposal on its own; nothing is written before.",
+    "startFailed": "The project was created, but the assistant could not start"
+  },
+  "teamEmpty": {
+    "propose": "Ask for a proposal",
+    "body": "Each member is a CLI agent in <code>.claude/agents/</code>, with its role, its model and what it may write, so it also works from the terminal. The assistant reads the project and proposes a team; you accept it member by member.",
+    "foot": "Proposing opens a CLI chat that only reads the project"
+  }
+}

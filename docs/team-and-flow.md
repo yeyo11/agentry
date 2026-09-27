@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T20:00:00Z
-updated_at: 2026-09-27T20:00:00Z
+updated_at: 2026-09-27T21:30:00Z
 tags:
     - team
     - flow
@@ -72,8 +72,9 @@ offers.
 
 ### The starting team
 
-Proposing a team by reading the project is the assistant's job, in orchestration 4. Here the empty
-Team screen offers the **template's team** and "Add a member". `POST /projects/:id/team/from-template`
+Proposing a team by reading the project is the assistant's job ([assistant.md](assistant.md)). Since
+orchestration 4 the empty Team screen's primary action is "Pedir propuesta", which starts a `project`
+run and opens the assistant's page; beside it stay the **template's team** and "Add a member". `POST /projects/:id/team/from-template`
 adds the roles the person accepts. A project without a template (imported before modules existed),
 or whose template has no team (Simple), is offered the Custom template's team, which is the software
 one: switching Team on means wanting a team.
@@ -433,8 +434,8 @@ page with full-width actions.
   file saved through the resources route does not emit `team.changed`.
 - **The template's responsibilities are English**, written by core into the metadata and the agent
   file, so they show in English in the Spanish interface.
-- **Not built yet**: "Pedir propuesta" (asking the assistant for a team) is orchestration 4, and the
-  team activity's "Ver todo" has no route to go to.
+- **Not built yet**: the team activity's "Ver todo" has no route to go to. ("Pedir propuesta" came
+  with the assistant in orchestration 4.)
 - **Small differences from the references**, left by the review:
   - the model picker shows "sonnet", not "sonnet · Sonnet 5";
   - "Ahora y antes" has no task count;
@@ -446,4 +447,4 @@ page with full-width actions.
 
 ## Related
 
-[[projects.md]] · [[work-items.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[work-items.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

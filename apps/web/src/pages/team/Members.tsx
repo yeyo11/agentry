@@ -1,15 +1,16 @@
 import type { ProjectTeamRole, Team, TeamMember, WorkItemStatus } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, FileWarning, Pencil, Plus, UserMinus } from 'lucide-react';
+import { ChevronRight, FileWarning, Pencil, Plus, Sparkle, UserMinus } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, keys } from '../../api';
+import { api, ApiRequestError, keys } from '../../api';
 import { MoreActions } from '../../components/controls';
 import { useConfirm } from '../../components/Dialog';
 import { ICON_SM, WorkItemStatusIcon } from '../../components/icons';
 import { useToast } from '../../components/Toast';
 import { Empty } from '../../components/ui';
 import { columnMeta } from '../../lib/work-items';
+import { assistantPath } from '../assistant/model';
 import { MemberNow } from './parts';
 import { ModelTag, RoleAvatar, useRoleName } from './RoleAvatar';
 
@@ -179,10 +180,25 @@ export function MemberCells({ team, memberHref }: { team: Team; memberHref: (age
  * member by hand; the roles it brings are listed under it.
  */
 export function TeamEmpty({ projectId, roles, templateName, phone, onAdd }: { projectId: string; roles: ProjectTeamRole[]; templateName: string | null; phone: boolean; onAdd: () => void }) {
-  const { t } = useTranslation('team');
+  const { t } = useTranslation(['team', 'assistant']);
   const roleName = useRoleName();
   const toast = useToast();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // "Ask for a proposal": the assistant reads the project and proposes the team on its own page
+  const propose = useMutation({
+    mutationFn: () => api.startAssistantRun(projectId, { kind: 'project' }),
+    onSuccess: (run) => {
+      queryClient.setQueryData(keys.assistantRun(run.id), run);
+      void queryClient.invalidateQueries({ queryKey: keys.assistantRunsOf(projectId) });
+      navigate(assistantPath(projectId));
+    },
+    onError: (error) => {
+      // One is already reading the project: its page is where the proposal will be
+      if (error instanceof ApiRequestError && error.status === 409) navigate(assistantPath(projectId));
+      else toast.error(t('assistant:startFailed'), error);
+    },
+  });
   const apply = useMutation({
     mutationFn: () => api.teamFromTemplate(projectId),
     onSuccess: (team) => {
@@ -215,20 +231,24 @@ export function TeamEmpty({ projectId, roles, templateName, phone, onAdd }: { pr
           title={t('empty.title')}
           action={
             <div className="team-empty-actions">
-              <button type="button" className="btn btn-primary" disabled={apply.isPending || roles.length === 0} onClick={() => apply.mutate()}>
+              <button type="button" className="btn btn-primary team-empty-propose" disabled={propose.isPending} onClick={() => propose.mutate()}>
+                <Sparkle {...ICON_SM} />
+                {t('assistant:teamEmpty.propose')}
+              </button>
+              <button type="button" className="btn team-empty-template" disabled={apply.isPending || roles.length === 0} onClick={() => apply.mutate()}>
                 {t('empty.useTemplate')}
               </button>
-              <button type="button" className="btn" onClick={onAdd}>
+              <button type="button" className="btn btn-quiet" onClick={onAdd}>
                 <Plus {...ICON_SM} />
                 {t('add.title')}
               </button>
             </div>
           }
         >
-          <Trans t={t} i18nKey={phone ? 'empty.bodyShort' : 'empty.body'} components={{ code: <code /> }} />
+          {phone ? <Trans t={t} i18nKey="empty.bodyShort" components={{ code: <code /> }} /> : <Trans t={t} i18nKey="assistant:teamEmpty.body" components={{ code: <code /> }} />}
         </Empty>
         {!phone && roles.length > 0 && list}
-        {!phone && <p className="team-empty-foot">{t('empty.foot')}</p>}
+        {!phone && <p className="team-empty-foot">{t('assistant:teamEmpty.foot')}</p>}
       </section>
       {phone && roles.length > 0 && list}
     </>

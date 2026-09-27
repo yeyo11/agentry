@@ -1258,18 +1258,22 @@ export class WorkItemService {
     return rows.sort((a, b) => statusIndex(a.status) - statusIndex(b.status));
   }
 
+  /**
+   * A column's count leaves epics out: an epic groups the work rather than being some, so it is
+   * neither an open item nor a place taken under the column's limit. It stays on the board.
+   */
   private counts(projectId: string | null): Map<string, number> {
     const rows = (
       projectId
-        ? this.sql.prepare('SELECT status, COUNT(*) AS n FROM work_items WHERE project_id = ? GROUP BY status').all(projectId)
-        : this.sql.prepare('SELECT status, COUNT(*) AS n FROM work_items GROUP BY status').all()
+        ? this.sql.prepare("SELECT status, COUNT(*) AS n FROM work_items WHERE project_id = ? AND type != 'epic' GROUP BY status").all(projectId)
+        : this.sql.prepare("SELECT status, COUNT(*) AS n FROM work_items WHERE type != 'epic' GROUP BY status").all()
     ) as Array<{ status: string; n: number }>;
     return new Map(rows.map((r) => [r.status, r.n]));
   }
 
   private columnSummary(projectId: string, status: WorkItemStatus): BoardColumnSummary {
     const limit = this.deps.project(projectId)?.columnLimits[status] ?? null;
-    const row = this.sql.prepare('SELECT COUNT(*) AS n FROM work_items WHERE project_id = ? AND status = ?').get(projectId, status) as { n: number };
+    const row = this.sql.prepare("SELECT COUNT(*) AS n FROM work_items WHERE project_id = ? AND status = ? AND type != 'epic'").get(projectId, status) as { n: number };
     return summary(status, limit, row.n);
   }
 
@@ -1406,6 +1410,17 @@ export class WorkItemService {
 }
 
 // ---------- helpers ----------
+
+/**
+ * What a chat link is called, in the history and on the item: the chat's first prompt, as the chat
+ * list titles it, rather than the session name the CLI was started with (`shop-1a2b3c`), which
+ * tells nobody which chat it was. A prompt that is only a synthetic message keeps the session name.
+ */
+export function chatLinkName(chat: { prompt: string; name: string }): string {
+  const text = chat.prompt.trim();
+  if (!text || text.startsWith('<')) return chat.name;
+  return text.split('\n')[0]?.trim().slice(0, 100) || chat.name;
+}
 
 function summary(status: WorkItemStatus, limit: number | null, count: number): BoardColumnSummary {
   return { status, limit, count, overLimit: limit !== null && count > limit };

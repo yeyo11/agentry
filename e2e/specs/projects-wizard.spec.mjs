@@ -31,6 +31,8 @@ export default async ({ page, api, check, dirs }) => {
       'Professional software is the template chosen to start with',
     );
     check((await page.eval(`return document.querySelectorAll('main .module-grid .module-card.is-on').length`)) === 4, 'it switches every module on');
+    const team = await page.text('main .wizard-summary .summary-team');
+    check(team.includes('.claude/agents/') && !/\byet\b/.test(team), `the summary says the roles become agent files once accepted (${team})`);
 
     await page.fill('main input[aria-label="Directory"]', dir);
     await page.fill('main .wizard-name input', 'e2e-wizard');

@@ -1,0 +1,420 @@
+/*
+ * The project assistant's page (pages/assistant): the references `DesktopAsistente`,
+ * `DesktopAsistentePropuestas`, `DesktopAsistenteVacio` and their `Mobile*` screens. The run and its
+ * proposals are drawn by styles/suggestion.css; this lays them out.
+ */
+
+.assistant-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---- the head: back, the project's monogram, the title, and the zone's actions ---- */
+
+.assistant-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: nowrap;
+}
+
+.assistant-head .monogram {
+  flex: none;
+  border-radius: var(--radius-lg);
+  font-size: 13px;
+}
+
+.assistant-back {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  justify-content: center;
+}
+
+.assistant-head .page-header-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.assistant-subtitle {
+  font-size: 13px;
+  line-height: 1.45;
+  max-width: 720px;
+}
+
+.assistant-head-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- the two columns: the run or the first tasks, and the other sections beside ---- */
+
+.assistant-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.assistant-grid.is-running {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.assistant-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.assistant-grid.is-running .assistant-side {
+  gap: 12px;
+}
+
+.assistant-card {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.assistant-card-head {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.assistant-card-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.assistant-card-head .grow {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-card-head > .small:last-child {
+  flex: none;
+  white-space: nowrap;
+}
+
+.assistant-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assistant-callout,
+.assistant-card-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+.assistant-callout {
+  padding: 14px 16px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+}
+
+.assistant-card-callout {
+  margin: 12px 14px 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-3);
+}
+
+.assistant-callout svg,
+.assistant-card-callout svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* ---- a finished run's line, and what it read when asked ---- */
+
+.assistant-done-lead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.assistant-done-text b {
+  font-weight: 600;
+}
+
+.assistant-ended > svg {
+  flex: none;
+}
+
+.assistant-read {
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.assistant-resource-lead {
+  flex: none;
+  margin-top: 1px;
+}
+
+.assistant-resource-desc {
+  line-height: 1.45;
+}
+
+.assistant-resource-path {
+  overflow-wrap: anywhere;
+}
+
+/* ---- an empty project: the description that asks for its first tasks ---- */
+
+.assistant-describe {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px 18px;
+}
+
+.assistant-describe p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.assistant-describe-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 72px;
+}
+
+.assistant-describe-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.assistant-none {
+  padding: 32px 24px;
+}
+
+/* ---- phone ---- */
+
+.assistant-page.is-phone {
+  gap: 14px;
+}
+
+.assistant-head-phone {
+  align-items: flex-start;
+}
+
+.assistant-head-phone .project-head-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.assistant-page.is-phone .suggestion-run.is-done {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius-xl);
+}
+
+.assistant-page.is-phone .suggestion-run.is-done .suggestion-facts {
+  padding-left: 36px;
+}
+
+.assistant-page.is-phone .suggestion-run.is-done.assistant-empty-line {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.assistant-empty-line.is-phone .assistant-done-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.assistant-page.is-phone .assistant-card-callout {
+  margin: 12px 12px 0;
+}
+
+.assistant-tabs .segmented {
+  width: 100%;
+}
+
+.assistant-tabs .segmented > * {
+  flex: 1 1 0;
+  min-height: 44px;
+}
+
+.assistant-tabs .count {
+  margin-left: 6px;
+}
+
+.assistant-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.assistant-waiting {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assistant-waiting-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+  color: var(--fg-2);
+}
+
+.assistant-waiting-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.assistant-waiting-row:last-child {
+  border-bottom: 0;
+}
+
+.assistant-member-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.assistant-member-card .suggestion-acts,
+.suggestion-card .suggestion-acts {
+  justify-content: flex-end;
+}
+
+.suggestion-card > .suggestion-reason {
+  margin-left: 0;
+}
+
+.assistant-member-compact .suggestion-acts .btn {
+  min-height: 44px;
+}
+
+.assistant-discard-icon {
+  width: 44px;
+  height: 44px;
+  justify-content: center;
+  align-items: center;
+}
+
+.assistant-foot {
+  /* The page hides the tab bar, as the wizard it follows does: the page scrolls under this bar */
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 25;
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+/* The last proposal scrolls out from under the footer */
+.assistant-page.is-phone:has(.assistant-foot) {
+  padding-bottom: 76px;
+}
+
+.assistant-foot > * {
+  flex: 1 1 0;
+}
+
+.assistant-page.is-phone .assistant-describe-input {
+  font-size: 16px;
+}
+
+.assistant-page.is-phone .assistant-describe-foot > .btn {
+  flex: 1 1 auto;
+  min-height: 44px;
+}
+
+@media (max-width: 1100px) {
+  .assistant-grid,
+  .assistant-grid.is-running {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- the wizard's hand-off: "Propose team, resources and tasks" beside "Create project" ---- */
+
+.wizard-propose {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.wizard-propose .switch {
+  flex: none;
+  margin-top: 2px;
+}
+
+.wizard-propose-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  line-height: 1.45;
+}
+
+.wizard-propose-title {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.wizard-phone .wizard-propose {
+  padding: 0 4px;
+  border-top: 0;
+}
+
+.wizard-phone .wizard-propose-title {
+  font-size: 15px;
+}
+
+.wizard-phone .wizard-propose-text .small {
+  font-size: 14px;
+}

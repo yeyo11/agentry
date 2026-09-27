@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-09-27T20:00:00Z
+updated_at: 2026-09-27T21:30:00Z
 tags:
     - work-items
     - board
@@ -63,6 +63,14 @@ over a limit is allowed: the move succeeds and reports it, and the board shows t
 colour with a word. The store does not refuse a type the board does not offer; that list is for the
 screens to draw.
 
+**Epics do not count** (decided with the owner after the audit of orchestration 2, option B). An
+epic groups work rather than being some, so a column's `count` leaves its epics out, and so does
+every figure read from it: the open items beside Tasks in the sidebar and the More sheet, the
+board's subtitle, the Board tab and the Overview's note on the project page, the column headers and
+the phone's column jump. An epic never takes a place under a column's limit, and moving one never
+puts a column over it. Epics stay on the board with their progress; the board redraws a moved epic
+without touching the counts (`countsInColumn` in `apps/web/src/lib/work-items.ts`).
+
 ### Keys
 
 Only an item's **number** is stored. It comes from a per-project counter that is never decremented,
@@ -116,7 +124,8 @@ in JavaScript on text folded through upper case and back, so `sesión` finds `SE
 actor (`person`, `agent` or `system`) and, when a chat or an orchestration did it, the cause (the
 chat, the orchestration and task, and a stable event code a client translates). References in the
 history (an epic, a milestone, a related item, a link) are snapshots, items by number, so an entry
-still reads after a rename, a delete or a new prefix.
+still reads after a rename, a delete or a new prefix. A chat link is named by the chat's first prompt,
+as the chat list titles it (`chatLinkName`), not by the session name the CLI was started with.
 
 **Several wrapper processes share the database**, so every write runs in `BEGIN IMMEDIATE`: it takes
 the write lock before reading the counter or the neighbours' ranks. A deferred transaction would get
@@ -472,9 +481,11 @@ members and draw a role as its squircle avatar with its translated name, where a
 monogram. A task also shows the documents tied to it and its waiting panel, with "Aprobar y pasar a
 Hecho" and "Volver a En curso". See [team-and-flow.md](team-and-flow.md#the-screens).
 
-## Not built yet
+## Suggested tasks
 
-- Suggested work items are orchestration 4, and the web has no "Suggest tasks" button until then.
+Orchestration 4 added "Sugerir tareas" to the board (`?suggest=1`): a `work-items` run of the project
+assistant reads the project and proposes work items, each created in Backlog on its own, with its
+reason as its first comment, and nothing written before. See [assistant.md](assistant.md).
 
 ## Known gaps
 
@@ -490,13 +501,13 @@ Left open by the fixes of 1b, each for its owner to decide:
 - A generic error thrown while "Work on it" creates its chat reaches the client as a 400, not a
   500: that is the API's shared error handler.
 
-Left open by the web of orchestration 2 (its `web-review` report):
+Left open by the web of orchestration 2 (its `web-review` report). The history's chat label and the
+empty board's key were fixed by `board-fixes` in orchestration 4: the history names a chat by its
+first prompt, and the empty board's illustration draws the project's own first key (`SHOP-1`).
 
-- **A link in the history names the chat by its name**, not its first prompt ("Linked with
-  task-agn-12-…"). Core stores the chat's name when the link is made (`linkLabel` in
-  `packages/core/src/work-items.ts`). The glossary says a chat is named by its first prompt, so this
-  needs a change in core.
-- **The empty board's illustration always draws "AGN-1"**, not the project's own key.
+- **A chat the process does not run is still named by its id in the history** ("chat 1a2b…"), such
+  as the terminal chat a task was created from: the label is written when the link is made, and the
+  chat list that knows its title is read asynchronously.
 - **Phone headers**: Tasks and the other phone screens keep the app's top bar, not the prototypes'
   back arrow. That is how the shell works on every screen.
 - **No route by key.** `/tasks/:key` resolves through a search. A `GET` by key would save a request
@@ -504,4 +515,4 @@ Left open by the web of orchestration 2 (its `web-review` report):
 
 ## Related
 
-[[projects.md]] · [[team-and-flow.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

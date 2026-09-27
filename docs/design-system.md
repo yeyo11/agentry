@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-09-27T12:00:00Z
+updated_at: 2026-09-27T21:30:00Z
 tags:
     - design-system
     - web
@@ -324,7 +324,9 @@ The project assistant, "Suggest tasks" and the resources with AI (decisions 35 t
 `Recursos`, `RecursoPropuesta` and `RecursoCrearIA`, desktop and phone, plus `AsistenteVacio` (a
 project with nothing to read: no run, no cost, the template's roles offered one by one) and
 `SugerirTareasEnCurso` (a suggestion while it runs). The phone draws the Team and Resources
-proposals as `AsistenteEquipo` and `AsistenteRecursos`. Orchestration 4 builds them.
+proposals as `AsistenteEquipo` and `AsistenteRecursos`. Orchestration 4 built them: the shared
+parts are `components/assistant/run.tsx` with `styles/suggestion.css`, and the screens are described
+in [assistant.md](assistant.md#the-screens).
 
 Every suggestion is a CLI chat run with `--json-schema`, so **a run always shows its model, its
 time, its cost and the chat it ran in** (`.ai-facts`). The same cost also counts in Usage and in the

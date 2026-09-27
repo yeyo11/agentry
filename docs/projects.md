@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-09-27T20:00:00Z
+updated_at: 2026-09-27T21:30:00Z
 tags:
     - projects
     - modules
@@ -135,10 +135,18 @@ The wizard replaces the create and import dialogs of the Projects page. It has f
   workspace.
 - **The template**: the five, as radio cards.
 - **The modules**: one switch each. The template preselects them, and you can change any of them.
-- **A summary**, with the key prefix previewed from the name, and "Create project".
+- **A summary**, with the key prefix previewed from the name, and "Create project". With the Team
+  module on, it counts the template's roles and says they are offered once the project exists, each
+  one written to `.claude/agents/` when the person accepts it.
 
 It sends the existing `POST /projects` or `POST /projects/import` request, with `template` and
 `modules`.
+
+**"Proponer equipo, recursos y tareas"** (orchestration 4) is a switch in the summary, on by default
+for every template but Simple. With it on, creating the project starts a `project` run of the
+assistant and leads to its page, `/projects/:id/assistant`, where the team, resources and first
+tasks it proposes are accepted one by one. With it off, the wizard leads to the project page as
+before. See [assistant.md](assistant.md).
 
 On a desktop the four parts are on one page. On a phone they are steps, and the tab bar is hidden
 (`hidesTabBar` in `lib/shell-live.ts`). When the Projects page offers a directory to import, it opens
@@ -165,7 +173,8 @@ The project page (`/`, with a project selected) is a header over a strip of tabs
   - Equipo (`team`);
   - Documentos (`documents`);
   - Memoria (`memory`);
-  - Recursos (`resources`);
+  - Recursos (`resources`), where "Sugerir" and "Crear con IA" propose agents, skills and commands
+    that open in the editor unsaved ([assistant.md](assistant.md#resources-with-ai-the-projects-resources-tab));
   - Worktrees;
   - Ajustes (`settings`).
 
@@ -236,4 +245,4 @@ composed when read, so a new prefix renames every key at once, history included.
 
 ## Related
 
-[[work-items.md]] · [[team-and-flow.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[work-items.md]] · [[assistant.md]] · [[team-and-flow.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

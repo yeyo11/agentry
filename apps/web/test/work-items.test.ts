@@ -8,9 +8,11 @@ import {
   WORK_ITEM_TYPE_META,
   apiFilter,
   boardColumns,
+  countsInColumn,
   filterKey,
   filtersFromSearch,
   filtersToSearch,
+  firstKey,
   groupByStatus,
   hasFilters,
   inProjects,
@@ -164,4 +166,12 @@ test('an item is live only while its chat works or its node runs; a waiting chat
   assert.equal(workItemLiveState({ activeLink: link({ kind: 'orchestration', taskStatus: 'completed' }) }), null);
   assert.equal(isLive({ activeLink: link({ chatState: 'waiting' }) }), false);
   assert.equal(isLive({ activeLink: link({ chatState: 'working' }) }), true);
+});
+
+test('an epic takes no place in a column, and the empty board names the project\'s first key', () => {
+  assert.equal(countsInColumn({ type: 'epic' }), false);
+  assert.ok((['story', 'task', 'bug'] as const).every((type) => countsInColumn({ type })));
+  assert.equal(firstKey({ key: 'SHOP' }), 'SHOP-1');
+  assert.equal(firstKey(null), undefined);
+  assert.equal(firstKey({ key: '' }), undefined);
 });

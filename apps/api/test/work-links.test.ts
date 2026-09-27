@@ -131,6 +131,11 @@ test('working on an item starts a chat in its own worktree, and the item follows
       ['in_review', 'system', 'chat.turn-completed', started.chat.id],
     ],
   );
+  // The history names the chat by its first prompt, as the chat list does, not by its session name
+  assert.deepEqual(
+    reviewed.history.filter((e) => e.change === 'link').map((e) => (e.to && typeof e.to === 'object' && 'label' in e.to ? e.to.label : null)),
+    [`${bug.key}: Cart loses items`],
+  );
   const moved = events.filter((e): e is Extract<AgentryEvent, { type: 'workitem.moved' }> => e.type === 'workitem.moved' && e.itemId === bug.id);
   assert.deepEqual(moved.map((e) => [e.status, e.cause?.event]), [['in_progress', 'chat.started'], ['in_review', 'chat.turn-completed']]);
 

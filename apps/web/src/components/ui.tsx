@@ -141,6 +141,7 @@ export function Empty({
   action,
   icon: Icon = Inbox,
   illustration,
+  illustrationText,
   tone,
   size,
 }: {
@@ -149,13 +150,15 @@ export function Empty({
   action?: ReactNode;
   icon?: LucideIcon;
   illustration?: IllustrationName;
+  /** Words the illustration draws for this screen, such as the project's own first key */
+  illustrationText?: string | undefined;
   tone?: IllustrationTone;
   size?: IllustrationSize;
 }) {
   return (
     <div className={illustration ? 'state state-empty state-illustrated' : 'state state-empty'}>
       {illustration ? (
-        <Illustration name={illustration} tone={tone} size={size} />
+        <Illustration name={illustration} tone={tone} size={size} text={illustrationText} />
       ) : (
         <span className="state-icon" aria-hidden>
           <Icon size={20} strokeWidth={1.75} />

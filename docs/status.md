@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-09-27T20:00:00Z
+updated_at: 2026-09-27T21:30:00Z
 tags:
     - status
     - project-state
@@ -21,9 +21,9 @@ change gets in.
 | Version | **0.19.0**, the same across all five packages |
 | Released | 2026-09-25, by release-please from the commit messages |
 | Runtime | Node >= 22, pnpm workspace |
-| Source | 572 tracked `.ts`/`.tsx` files on the `ecosystem-team` branch; the API contract is 3,855 lines of `packages/shared/src/types.ts` |
-| REST | 22 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 142 unit and integration test files, plus 45 browser specs under `e2e/specs/` |
+| Source | 596 tracked `.ts`/`.tsx` files on the `ecosystem-assistant` branch; the API contract is 4,176 lines of `packages/shared/src/types.ts` |
+| REST | 23 route files, documented as OpenAPI 3.1 and served at `/docs` |
+| Tests | 149 unit and integration test files, plus 47 browser specs under `e2e/specs/` |
 | CI | `ci.yml` (typecheck, tests, advisories, OpenAPI drift, e2e, image smoke test), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape is unchanged: `packages/shared` holds the types every other package imports,
@@ -38,7 +38,7 @@ duration written anywhere else.
 
 ## What is built
 
-The ROADMAP's [Done](../ROADMAP.md#done) section lists 30 areas and is the accurate inventory. The
+The ROADMAP's [Done](../ROADMAP.md#done) section lists 33 areas and is the accurate inventory. The
 spine of it: chats and projects modelled as Agentry's own objects over the CLI's stream-json;
 orchestration with a task DAG, parallel workers and a verification phase on the integration branch;
 observability that reconstructs what an agent did from git and the transcript; several accounts
@@ -46,43 +46,46 @@ rotated before they run out; schedules; configuration and MCP servers per scope;
 chat; authentication as none, bearer token or OIDC; a progressive web app with push for phones; a
 Linux desktop app; and a Docker image with a Kubernetes manifest.
 
-The newest piece is the **project ecosystem**, now with its board and its team, server side and
-screens. Projects are created in a wizard from a template, and switch modules on and off in their
-settings ([projects.md](projects.md)). The Board module gives them a Tasks board, a list,
+The newest piece is the **project ecosystem**, now complete, server side and screens: its board,
+its team and its assistant. Projects are created in a wizard from a template, and switch modules on
+and off in their settings ([projects.md](projects.md)). The Board module gives them a Tasks board, a list,
 milestones and work items that chats and orchestrations work on and move
 ([work-items.md](work-items.md)). The Team module gives them a team of agents, each a CLI agent
 file, and a flow by column in which a card entering a column starts its role's run. Shared memory
 adds a journal and memory proposals the person approves, and Documents the repository's documents
-folder with documents tied to tasks ([team-and-flow.md](team-and-flow.md)).
+folder with documents tied to tasks ([team-and-flow.md](team-and-flow.md)). The **project
+assistant** reads a project through a read-only CLI chat and proposes a team, resources and first
+tasks. You accept or discard each proposal on its own, and only an accept writes anything. It runs
+after the wizard, from the empty team, from the board ("Sugerir tareas") and from the Resources
+tab ("Sugerir", "Crear con IA") ([assistant.md](assistant.md)).
 
 ## What is open
 
-- **The rest of the project ecosystem.** Orchestration 1 built the contract, the store, the API and
-  the links with chats and orchestrations, and prototyped every new screen in
-  `docs/design-system/reference/`. [Its audit](plans/project-ecosystem-audit.md) found five bugs in
-  the links and the settings, a contract still open, and prototypes that disagreed with each other
-  and left 18 states undrawn; orchestration 1b (`ecosystem-fixes`) fixed them, and the prototypes are
-  now 66 screens (27 desktop, 39 phone), dark and light. What 1b left open is listed in the audit.
-  The owner validated the prototypes on 2026-09-27, and orchestration 2 (`ecosystem-board-web`)
-  built their web:
-  - the project wizard, tabs and settings;
-  - the Tasks board, list, All projects and milestones;
-  - a work item and New task;
-  - the links in chats and orchestrations.
+- **The project ecosystem, waiting for the owner.** All four orchestrations are built, on
+  `feat/project-ecosystem`, which reaches `main` in one pull request once the owner has tried the
+  whole feature:
+  - **1** (`ecosystem-foundation`, fixed by 1b after [its audit](plans/project-ecosystem-audit.md)):
+    the contract, the store, the API, the links with chats and orchestrations, and 66 prototype
+    screens, which the owner validated;
+  - **2** (`ecosystem-board-web`): the wizard, the project tabs, the board, the list and a work item;
+  - **3** (`ecosystem-team`): the team, the flow by column, the journal and memory proposals, and
+    documents;
+  - **4** (`ecosystem-assistant`): the assistant, suggested tasks and resources with AI, and the four
+    items the audit of orchestration 2 had left for the owner.
 
-  What it left is in [work-items.md](work-items.md#known-gaps). Orchestration 3 (`ecosystem-team`)
-  then built the team, the flow by column, the journal and memory proposals, and documents, core and
-  web. Its `pnpm build` and `pnpm e2e` run in its verification phase, on the merged branch, and what
-  it left is in [team-and-flow.md](team-and-flow.md#known-gaps). The one gap that shows on the board:
-  a card being refined or verified by a team member is not drawn live. Still to come: 4, the
-  assistant. Every orchestration of the ecosystem lands
-  in `feat/project-ecosystem`, which reaches `main` in one pull request once the owner has tried the
-  whole feature. See the plan's [Outcome](plans/project-ecosystem.md#outcome).
+  Each orchestration's `pnpm build` and `pnpm e2e` run in its verification phase, on the merged
+  branch. What stays open is listed per area:
+  - [work-items.md](work-items.md#known-gaps);
+  - [team-and-flow.md](team-and-flow.md#known-gaps). The one gap that shows on the board is there:
+    a card being refined or verified by a team member is not drawn live;
+  - [assistant.md](assistant.md#known-gaps): an assistant chat is titled by its prompt, and once a
+    project has a team nothing on its page links to the assistant.
+
+  See the plan's [Outcome](plans/project-ecosystem.md#the-ecosystem-as-a-whole).
 - **The editable dashboard.** Home renders any layout that validates, from a registry of widget
   types, but the layout is not editable or persisted per project, and the Documents and Flows
   widgets do not exist. Left out of the redesign deliberately — see
-  [the UI redesign plan](plans/ui-redesign.md#not-in-this-orchestration). It is listed under [Next](../ROADMAP.md#next)
-  with the ecosystem's remaining orchestrations.
+  [the UI redesign plan](plans/ui-redesign.md#not-in-this-orchestration). It is listed under [Next](../ROADMAP.md#next).
 - **Two plans whose final verification never ran.** [`plans/roadmap-completion.md`](plans/roadmap-completion.md)
   and [`plans/post-roadmap.md`](plans/post-roadmap.md) are both marked *built; final verification
   pending*. The code landed; the closing pass over it did not.
@@ -106,7 +109,7 @@ folder with documents tied to tasks ([team-and-flow.md](team-and-flow.md)).
 | [`plans/spanish-copy.md`](plans/spanish-copy.md) | Landed (#94) — see [Outcome](plans/spanish-copy.md#outcome) |
 | [`plans/app-updates.md`](plans/app-updates.md) | Landed (#95) — see [Outcome](plans/app-updates.md#outcome) |
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Landed (#101) — see [Outcome](plans/redesign-night-shift.md#outcome) |
-| [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | Orchestrations 1 (server side and prototypes, fixed by 1b after [its audit](plans/project-ecosystem-audit.md)), 2 (the board's web) and 3 (the team, the flow, memory and documents) of 4 built; 3 awaits its verification on the merged branch — see [Outcome](plans/project-ecosystem.md#outcome) |
+| [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | All four orchestrations built: 1 (server side and prototypes, fixed by 1b after [its audit](plans/project-ecosystem-audit.md)), 2 (the board's web), 3 (the team, the flow, memory and documents) and 4 (the assistant). 4 awaits its verification on the merged branch, then the owner's trial and one pull request to `main` — see [Outcome](plans/project-ecosystem.md#outcome) |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.
@@ -119,9 +122,9 @@ pnpm test
 pnpm build && pnpm e2e
 ```
 
-`pnpm typecheck` and `pnpm test` pass on the `ecosystem-team` branch, after its review and its
-documentation. They were run on 2026-09-27, with 1,416 tests across the five packages and none
-failing; its review ran `pnpm build` too. `pnpm e2e` runs in that orchestration's verification
+`pnpm typecheck` and `pnpm test` pass on the `ecosystem-assistant` branch, after its review and its
+documentation. They were run on 2026-09-27, with 1,476 tests across the five packages and none
+failing. `pnpm e2e` runs in that orchestration's verification
 phase, on the merged branch. The last full e2e run on `main` (`d6269c4`) had three
 specs that failed in the full suite and passed alone: see the plan's
 [Before launching](plans/redesign-night-shift.md#before-launching). The browser suite runs headless Chrome over CDP against an isolated
@@ -154,4 +157,4 @@ possible to keep honest.
 [[plans/post-roadmap.md]] · [[plans/ui-redesign.md]] · [[plans/agent-observability.md]] ·
 [[plans/agents-redesign.md]] · [[plans/mobile.md]] · [[plans/spanish-copy.md]] ·
 [[plans/app-updates.md]] · [[plans/redesign-night-shift.md]] · [[design-system.md]] ·
-[[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]]
+[[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[assistant.md]]
