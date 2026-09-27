@@ -33,6 +33,16 @@ if (args[0] === 'agents') {
   process.stdout.write('[]\n');
   process.exit(0);
 }
+// The same for what building the API asks first: unanswered, each waits out the 20 s timeout of
+// `execCli`, which a test file with the API in its `before` paid on its first test
+if (args[0] === '--version') {
+  process.stdout.write('2.1.0 (Claude Code)\n');
+  process.exit(0);
+}
+if (args[0] === 'auth') {
+  process.stdout.write('{"loggedIn":false}\n');
+  process.exit(0);
+}
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const worktree = flag('--worktree');
 // Like the CLI, adopt the worktree of that name, which lives under the main checkout's top level
