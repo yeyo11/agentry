@@ -980,6 +980,22 @@ loaded into every session of that project.
 | PUT | `/memory/:project/:name` | Create or overwrite `name.md` — body `{ content }` |
 | DELETE | `/memory/:project/:name` | Delete a memory file |
 
+### Project journal and memory proposals
+
+A project's journal is Agentry's record of decisions taken and items closed, handed to every flow run
+(the newest entries, up to 16 KiB). Team members propose what the team should remember; nothing is
+written to `CLAUDE.md`, the CLI's memory or the journal until a person approves it. Changes need the
+project's Memory module on.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/projects/:id/journal?limit=&before=` | The journal, newest first, paged, with what a flow run is handed |
+| POST | `/projects/:id/journal` | Write a decision or a note by hand — body `{ text, kind?, itemId?, documentPath? }` |
+| DELETE | `/journal/:entryId` | Delete a journal entry |
+| GET | `/projects/:id/memory/proposals?status=` | The team's memory proposals, newest first, by status |
+| POST | `/memory-proposals/:proposalId/approve` | Approve a proposal, optionally with edited `text`, and write it to its target |
+| POST | `/memory-proposals/:proposalId/reject` | Reject a proposal, with an optional `reason`; nothing is written |
+
 ### Plugins
 
 Delegated to `claude plugin`; actions return the CLI output as `{ ok, output }` and can take a while.

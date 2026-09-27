@@ -15,6 +15,7 @@ import { configRoutes } from './routes/config.ts';
 import { connectorRoutes } from './routes/connectors.ts';
 import { editorRoutes } from './routes/editor.ts';
 import { eventRoutes } from './routes/events.ts';
+import { journalRoutes } from './routes/journal.ts';
 import { memoryRoutes } from './routes/memory.ts';
 import { orchestrationRoutes } from './routes/orchestrations.ts';
 import { pluginRoutes } from './routes/plugins.ts';
@@ -142,6 +143,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(pluginRoutes, { core });
       await api.register(connectorRoutes, { core });
       await api.register(memoryRoutes, { core });
+      await api.register(journalRoutes, { core });
       await api.register(uploadRoutes, { core });
       await api.register(scheduleRoutes, { core });
       await api.register(supervisorRoutes, { core });
