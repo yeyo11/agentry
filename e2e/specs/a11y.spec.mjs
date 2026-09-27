@@ -243,7 +243,9 @@ export default async ({ page, api, check, dirs }) => {
     // The phone's navigation is the tab bar: the sidebar is out of the tab order, "More" is a sheet
     // that takes focus when open and gives it back to its button on Escape
     await page.viewport(420, 900);
-    await settle(page, '/chats');
+    // All projects, where the seeded chat is: the project visited above holds none, and an empty
+    // chat list offers New chat itself, so it has no FAB (FabStandIn)
+    await settle(page, '/chats?project=all');
     const sidebarShown = await page.eval(`return document.querySelector('#sidebar').getClientRects().length > 0`);
     if (sidebarShown) problems.push('[420px] the sidebar is still shown next to the tab bar');
     const tabs = await page.eval(`return [...document.querySelectorAll('.tabbar a')].map((a) => a.getAttribute('href'))`);
