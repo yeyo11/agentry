@@ -37,6 +37,7 @@ import type {
   RelaunchOrchestrationRequest,
   WorkflowDefinition,
   WorkItem,
+  WorkItemRef,
   WorkItemCause,
   WorkItemChanges,
   WorkItemDetail,
@@ -81,6 +82,8 @@ import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
 import { Plugins } from './plugins.ts';
 import { UploadStore } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
+import { JournalService } from './journal.ts';
+import { MemoryProposalService } from './memory-proposals.ts';
 import { Orchestrator } from './orchestrator.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { byStart, EXPORTED_ORIGINS, type ProjectExportSource } from './project-export.ts';
@@ -141,6 +144,8 @@ export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './secur
 export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
 export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
 export { EventBus, type AgentryEventInput, type Replay } from './events.ts';
+export { JOURNAL_HANDOFF_BYTES, JournalService, type JournalHandoff, type JournalWrite } from './journal.ts';
+export { MemoryProposalService, type ProposalOrigin } from './memory-proposals.ts';
 export { idOfEndpoint, parseRegistration, payloadOf, PushService, truncateEndpoint, type PushTransport } from './push.ts';
 export {
   DEFAULT_SUPERVISOR,
@@ -214,6 +219,10 @@ export class Core {
   readonly workItems: WorkItemService;
   /** Moves items as the chats and nodes linked to them work, from the feed and the runtime's results */
   private readonly workLinks: WorkItemAutomation;
+  /** Each project's journal: decisions, closed items and approved memory, handed to every flow run */
+  readonly journal: JournalService;
+  /** What the team proposes to remember, written to its target only once a person approves it */
+  readonly memoryProposals: MemoryProposalService;
   private readonly startedAt = Date.now();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
@@ -353,6 +362,33 @@ export class Core {
       orchestration: (id) => this.orchestrator.get(id),
     });
     this.events.observe((event) => this.workLinks.observe(event));
+    const itemRef = (id: string): WorkItemRef | null => {
+      const item = this.workItems.find(id);
+      return item ? { id: item.id, key: item.key, title: item.title, type: item.type, status: item.status } : null;
+    };
+    this.journal = new JournalService({
+      db: this.db,
+      emit: (event) => this.events.emit(event),
+      item: itemRef,
+      sources: (id) =>
+        this.workItems
+          .links(id)
+          .filter((l) => l.kind === 'chat' || l.kind === 'orchestration')
+          .map((l) => ({ kind: l.kind === 'orchestration' ? 'orchestration' : 'chat', chatId: l.chatId, orchestrationId: l.orchestrationId, taskId: l.taskId })),
+    });
+    // Every process hears its own moves only, so an item closed here is journalled here, once
+    this.events.observe((event) => this.journal.observe(event));
+    this.memoryProposals = new MemoryProposalService({
+      db: this.db,
+      journal: this.journal,
+      memory: this.memory,
+      project: (id) => {
+        const record = this.projectStore.get(id);
+        return record ? { path: record.path, memoryKey: encodeProjectId(record.path) } : null;
+      },
+      emit: (event) => this.events.emit(event),
+      item: itemRef,
+    });
     // Every result, not only a run's first: a chat worked on by hand ends many turns
     this.runtime.on('chat-result', (chatId: string, result: RunResult) => this.workLinks.chatResult(chatId, result));
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
@@ -915,6 +951,21 @@ export class Core {
    */
   removeProject(id: string): Promise<void> {
     return this.projectStore.remove(id);
+  }
+
+  // ---------- journal and memory proposals ----------
+
+  /**
+   * The settings of a project whose journal or memory proposals are read or decided. Both need the
+   * project imported; a change also needs its Memory module on. With the module off everything
+   * stays, only hidden (decision 4).
+   */
+  async memoryProject(projectId: string, access: 'read' | 'write'): Promise<ProjectSettings> {
+    const settings = await this.projectSettings(projectId);
+    if (access === 'write' && !settings.modules.includes('memory')) {
+      throw new WorkItemError("the Memory module is off in this project: switch it on in the project's settings to change its memory", 409);
+    }
+    return settings;
   }
 
   // ---------- work items ----------

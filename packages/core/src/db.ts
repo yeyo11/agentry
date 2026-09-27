@@ -287,6 +287,58 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    CREATE INDEX work_item_links_item ON work_item_links (item_id, created_at);
    CREATE INDEX work_item_links_chat ON work_item_links (chat_id);
    CREATE INDEX work_item_links_task ON work_item_links (orchestration_id, task_id);`,
+
+  // A project's journal and the memory its team proposes (orchestration 3 of
+  // docs/plans/project-ecosystem.md). Rows, because both accumulate and several processes write
+  // them: a closed item, an approval and a note typed by hand can land at once. `seq` orders the
+  // journal and pages it, since two entries can share a timestamp. A `closed` entry is written once
+  // per item, which the partial index holds even against two processes closing it together. No
+  // reference to the work items: the journal keeps what happened after the item is deleted.
+  `CREATE TABLE journal_entries (
+     seq                     INTEGER PRIMARY KEY AUTOINCREMENT,
+     id                      TEXT NOT NULL UNIQUE,
+     project_id              TEXT NOT NULL,
+     kind                    TEXT NOT NULL,
+     text                    TEXT NOT NULL,
+     item_id                 TEXT,
+     author_kind             TEXT NOT NULL,
+     author_role             TEXT,
+     approved_by_kind        TEXT,
+     approved_by_role        TEXT,
+     proposal_id             TEXT,
+     document_path           TEXT,
+     sources                 TEXT NOT NULL DEFAULT '[]',
+     created_at              TEXT NOT NULL
+   );
+   CREATE INDEX journal_entries_project ON journal_entries (project_id, seq);
+   CREATE UNIQUE INDEX journal_entries_closed ON journal_entries (item_id) WHERE kind = 'closed';
+   CREATE TABLE memory_proposals (
+     seq                     INTEGER PRIMARY KEY AUTOINCREMENT,
+     id                      TEXT NOT NULL UNIQUE,
+     project_id              TEXT NOT NULL,
+     target_kind             TEXT NOT NULL,
+     target_file             TEXT,
+     target_section          TEXT,
+     text                    TEXT NOT NULL,
+     reason                  TEXT NOT NULL,
+     status                  TEXT NOT NULL,
+     proposed_by_kind        TEXT NOT NULL,
+     proposed_by_role        TEXT,
+     source_kind             TEXT,
+     source_chat_id          TEXT,
+     source_orchestration_id TEXT,
+     source_task_id          TEXT,
+     flow_run_id             TEXT,
+     item_id                 TEXT,
+     approved_text           TEXT,
+     decided_by_kind         TEXT,
+     decided_by_role         TEXT,
+     decided_at              TEXT,
+     reject_reason           TEXT,
+     journal_entry_id        TEXT REFERENCES journal_entries (id) ON DELETE SET NULL,
+     created_at              TEXT NOT NULL
+   );
+   CREATE INDEX memory_proposals_project ON memory_proposals (project_id, status, seq);`,
 ];
 
 /**

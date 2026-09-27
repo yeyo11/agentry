@@ -15,6 +15,12 @@ function frontmatterField(content: string, field: string): string | null {
   return match?.[1]?.trim().replace(/^["']|["']$/g, '') ?? null;
 }
 
+/** A description as frontmatter and the index hold it: the first line, short enough to scan. */
+function oneLine(value: string): string {
+  const first = value.trim().split('\n')[0]?.trim() ?? '';
+  return first.length > 150 ? `${first.slice(0, 149)}…` : first;
+}
+
 /**
  * Claude Code's persistent memory: markdown files in <configDir>/projects/<projectId>/memory,
  * one fact per file plus the MEMORY.md index that is loaded into every session of that project.
@@ -64,6 +70,33 @@ export class MemoryStore {
     const saved = await this.get(projectId, name);
     if (!saved) throw new Error('memory file was not persisted');
     return saved;
+  }
+
+  /** A name `save` and `append` take: letters, digits, `_ . -` and a `.md` extension. */
+  static isFileName(name: string): boolean {
+    return NAME_RE.test(name);
+  }
+
+  /**
+   * Adds `text` to a memory file, as an approved memory proposal does: at the end of the file when it
+   * exists, else in a new one with the frontmatter the CLI's memory files carry, indexed in
+   * `MEMORY.md` so a session finds it. The index itself is never the target: it only points at facts.
+   */
+  async append(projectId: string, name: string, text: string, description: string): Promise<{ file: MemoryFile; created: boolean }> {
+    if (name === INDEX) throw new Error(`${INDEX} is the index of the memory, not a memory file`);
+    const existing = await this.get(projectId, name);
+    const body = text.trim();
+    if (existing) {
+      const file = await this.save(projectId, name, `${existing.content.trimEnd()}\n\n${body}\n`);
+      return { file, created: false };
+    }
+    const slug = name.replace(/\.md$/, '');
+    const line = oneLine(description) || oneLine(body) || slug;
+    const file = await this.save(projectId, name, `---\nname: ${slug}\ndescription: ${line}\nmetadata:\n  type: project\n---\n\n${body}\n`);
+    const index = await this.get(projectId, INDEX);
+    const entry = `- [${slug}](${name}) — ${line}`;
+    await this.save(projectId, INDEX, index ? `${index.content.trimEnd()}\n${entry}\n` : `${entry}\n`);
+    return { file, created: true };
   }
 
   async remove(projectId: string, name: string): Promise<void> {
