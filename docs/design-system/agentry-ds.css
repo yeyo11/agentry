@@ -35,6 +35,14 @@
   --bad: #f87b7f;   --bad-soft: rgba(248, 123, 127, 0.13);
   --info: #6cb6ff;  --info-soft: rgba(108, 182, 255, 0.12);
   --idle: #a78bfa;  --idle-soft: rgba(167, 139, 250, 0.13);
+  /* Ink on a solid accent fill (a checked switch, checkbox or radio), as the app's --on-accent. The
+     gradient keeps its #fff. */
+  --on-accent: var(--bg);
+  /* A selected row: one fill and one accent mark for every list, tree and master column */
+  --sel-bg: var(--bg-3);
+  --sel-mark: inset 2px 0 0 var(--accent);
+  /* The smallest target a finger gets on a phone */
+  --touch: 44px;
   /* forma */
   --r-xs: 4px; --r-sm: 6px; --r: 8px; --r-lg: 12px; --r-xl: 16px; --r-full: 999px;
   --shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
@@ -68,7 +76,8 @@
   --grad-border: linear-gradient(135deg, rgba(179, 90, 54, 0.8), rgba(168, 64, 106, 0.35) 45%, rgba(20, 16, 10, 0.08) 75%);
   --grad-text: linear-gradient(92deg, #a4502f 0%, #a8406a 100%);
   --glow: radial-gradient(60% 120% at 50% 0%, rgba(179, 90, 54, 0.1), transparent 70%);
-  --live: #0e7490;  --live-soft: rgba(14, 116, 144, 0.1);
+  /* Darker than the app's #0e7490: that one reads 4.2:1 on its own soft tint over --bg-1 */
+  --live: #0b6680;  --live-soft: rgba(11, 102, 128, 0.1);
   --ok: #166534;    --ok-soft: rgba(21, 128, 61, 0.1);
   --warn: #854d0e;  --warn-soft: rgba(161, 98, 7, 0.11);
   --bad: #b91c1c;   --bad-soft: rgba(185, 28, 28, 0.09);
@@ -76,6 +85,17 @@
   --idle: #6d28d9;  --idle-soft: rgba(109, 40, 217, 0.09);
   --shadow: 0 1px 2px rgba(20, 16, 10, 0.06), 0 8px 24px -14px rgba(20, 16, 10, 0.18);
   --shadow-pop: 0 18px 48px -12px rgba(20, 16, 10, 0.22), 0 0 0 1px var(--line-2);
+  --on-accent: var(--bg);
+}
+
+/* Colours worked out per element from its --hue (a project, an epic, a role), as the app's tokens.css
+   does for .monogram. Custom properties resolve where they are declared, so these sit on the elements
+   that carry --hue, not on the theme. Every other rule reads the result, never hsl() itself. */
+.proj.monogram, .wi-epic, .role-av {
+  --hue-base: hsl(var(--hue, 20) 70% 55%);
+  --hue-fill: hsl(var(--hue, 20) 70% 55% / 0.14);
+  --hue-ink: color-mix(in oklab, var(--hue-base), var(--fg) 50%);
+  --hue-mark: color-mix(in oklab, var(--hue-base), var(--fg) 25%);
 }
 
 /* ---------- 2. Base ---------- */
@@ -144,6 +164,8 @@
 .btn-icon.btn-sm { width: 30px; }
 .btn-icon.btn-lg { width: 44px; }
 .btn[disabled] { opacity: 0.45; pointer-events: none; }
+/* A toggle button that is on (a view filter, "Seleccionar"): the chosen segment's fill, not the accent */
+.btn[aria-pressed="true"] { background: var(--bg-4); border-color: var(--line-3); color: var(--fg); }
 .kbd { font-family: var(--mono); font-size: 11px; line-height: 1; padding: 3px 5px; border-radius: var(--r-xs); border: 1px solid var(--line-2); border-bottom-width: 2px; color: var(--fg-2); background: var(--bg-2); }
 
 /* ---------- 6. Campos ---------- */
@@ -162,7 +184,9 @@
 .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-full); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg-2); font-size: 12.5px; white-space: nowrap; cursor: pointer; }
 .chip:hover { color: var(--fg); border-color: var(--line-3); }
 .chip.on { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
-.chip .n { font-family: var(--mono); font-size: 11px; opacity: 0.7; }
+/* The count is --fg-3, not a dimmed --fg-2: at 70 % opacity it fell to 4.1:1 on a chip, 3.6:1 in light */
+.chip .n { font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.chip.on .n { color: inherit; }
 .badge { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: var(--r-xs); font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; background: var(--bg-3); color: var(--fg-2); border: 1px solid var(--line); }
 .b-live { background: var(--live-soft); color: var(--live); border-color: transparent; }
 .b-ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
@@ -182,6 +206,8 @@
 .seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--r); background: var(--bg-1); border: 1px solid var(--line); }
 .seg > * { height: 28px; padding: 0 11px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--fg-2); font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .seg > .on { background: var(--bg-4); color: var(--fg); font-weight: 500; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 1px 2px rgba(0, 0, 0, 0.3); }
+/* --fg-3 on --bg-4 is 4.4:1: a count on a chosen segment or a pressed button reads in --fg-2 */
+.seg > .on .count, .btn[aria-pressed="true"] .count, .seg > .on .fg-3 { color: var(--fg-2); }
 .tabs { display: flex; gap: 18px; border-bottom: 1px solid var(--line); }
 .tab { position: relative; height: 38px; display: inline-flex; align-items: center; gap: 6px; color: var(--fg-2); font-size: 13px; background: none; border: 0; padding: 0; cursor: pointer; }
 .tab.on { color: var(--fg); font-weight: 500; }
@@ -241,16 +267,18 @@
 .segbar > i.live::after { content: ''; position: absolute; inset: 0; width: var(--p, 40%); background: var(--live); border-radius: inherit; box-shadow: 0 0 10px var(--live); }
 .ring { --p: 40; --c: var(--accent); width: 36px; height: 36px; border-radius: 50%; display: inline-grid; place-items: center; flex-shrink: 0;
   background: radial-gradient(closest-side, var(--bg-2) 76%, transparent 78% 100%), conic-gradient(var(--c) calc(var(--p) * 1%), var(--bg-4) 0); font-family: var(--mono); font-size: 10px; font-weight: 500; color: var(--fg-2); }
-.ring-grad { background: radial-gradient(closest-side, var(--bg-2) 76%, transparent 78% 100%), conic-gradient(from 0deg, #ec8a66, #e0668f calc(var(--p) * 1%), var(--bg-4) 0); }
+.ring-grad { background: radial-gradient(closest-side, var(--bg-2) 76%, transparent 78% 100%), conic-gradient(from 0deg, var(--accent), var(--accent-2) calc(var(--p) * 1%), var(--bg-4) 0); }
 .table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .th { font-family: var(--mono); font-size: 10.5px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-3); }
 .list-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--r); transition: background var(--dur-fast); cursor: pointer; }
 .list-row:hover { background: var(--bg-3); }
-.list-row.sel { background: var(--bg-3); box-shadow: inset 2px 0 0 var(--accent); }
+/* The one selected-row look, for every list, tree and master column. A card or a tile that is chosen
+   takes the accent ring instead (.wi-card.sel, .tpl-card.on); both use the accent and nothing else. */
+.list-row.sel, .wi-row.sel, .wi-mrow.sel, .tree-row.on, .doc-row.sel, .res-item.sel { background: var(--sel-bg); box-shadow: var(--sel-mark); }
 .avatar { width: 28px; height: 28px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11.5px; font-weight: 600; color: #fff; background: var(--grad); flex-shrink: 0; }
 .proj { width: 28px; height: 28px; border-radius: var(--r-sm); display: inline-grid; place-items: center; font-family: var(--mono); font-size: 11px; font-weight: 600; flex-shrink: 0; }
 /* Initials badge (the app's .monogram): a soft tint of the name's hue, letters mixed with --fg so they hold 4.5:1 in both themes. Set --hue on the element; the active one takes --grad and #fff */
-.proj.monogram { background: hsl(var(--hue) 70% 55% / 0.14); color: color-mix(in oklab, hsl(var(--hue) 70% 55%), var(--fg) 50%); }
+.proj.monogram { background: var(--hue-fill); color: var(--hue-ink); }
 .proj.monogram.on { background: var(--grad); color: #fff; }
 
 /* ---------- 11. Vivo: spinners y movimiento ---------- */
@@ -259,7 +287,7 @@
 .spin-ring { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; display: inline-block;
   background: conic-gradient(from 0deg, transparent 0 25%, var(--live)); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
   animation: spin 0.9s linear infinite; }
-.spin-ring.grad { background: conic-gradient(from 0deg, transparent 0 20%, #ec8a66, #e0668f); }
+.spin-ring.grad { background: conic-gradient(from 0deg, transparent 0 20%, var(--accent), var(--accent-2)); }
 .spin-dots { display: inline-flex; gap: 3px; align-items: center; }
 .spin-dots > i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; display: block; animation: bounce-dot 1.1s ease-in-out infinite; }
 .spin-dots > i:nth-child(2) { animation-delay: 0.14s; } .spin-dots > i:nth-child(3) { animation-delay: 0.28s; }
@@ -310,7 +338,7 @@
 .m-head { flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 10px 8px 6px 16px; min-height: 60px; }
 .m-body { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
 .tabbar { flex-shrink: 0; height: 84px; padding: 8px 10px 26px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: color-mix(in srgb, var(--bg-1) 88%, transparent); backdrop-filter: blur(16px); border-top: 1px solid var(--line); }
-.tab-m { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10.5px; color: var(--fg-3); position: relative; }
+.tab-m { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 11px; color: var(--fg-3); position: relative; }
 .tab-m .pill { width: 56px; height: 30px; border-radius: var(--r-full); display: grid; place-items: center; transition: background var(--dur); }
 .tab-m.on { color: var(--fg); font-weight: 500; }
 .tab-m.on .pill { background: var(--bg-4); }
@@ -322,6 +350,18 @@
 .sheet .grab { width: 38px; height: 5px; border-radius: 5px; background: var(--line-3); margin: 0 auto 12px; }
 .cell { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 14px; border-bottom: 1px solid var(--line); }
 .cell:last-child { border-bottom: 0; }
+/* Phone targets: whatever a finger presses is at least --touch high. min-height wins over an inline
+   height, so a screen that still sets 32 or 36 px gets the full target anyway. */
+.m-screen .seg > *, .m-screen .chip, .m-screen .btn, .m-screen .part-of { min-height: var(--touch); }
+.m-screen .btn-icon { min-width: var(--touch); }
+.m-screen .seg > * { font-size: 14px; }
+.m-screen .chip { padding: 0 12px; font-size: 13px; }
+.m-screen .stepper { min-height: calc(var(--touch) + 2px); align-items: stretch; }
+.m-screen .stepper > button { min-width: var(--touch); height: auto; }
+.m-screen .stepper > output { height: auto; }
+/* Inputs at 16 px, or the phone zooms in on focus; the input fills its field, so all of it is the target */
+.m-screen .field { min-height: var(--touch); }
+.m-screen .field input, .m-screen .field textarea { align-self: stretch; font-size: 16px; }
 
 /* ---------- 14. Ilustraciones ----------
    Set propio en SVG (viewBox 240×160). Todo el color sale de tokens mediante clases, nunca de
@@ -398,21 +438,21 @@
    .spin-ring from §11, and a card at rest stands still. */
 
 /* Toggle controls the app already has (components/controls/Toggle: .switch, .checkbox). Drawn here
-   so the prototypes stop mocking them with native inputs. Checked takes the rose, as in the app; the
-   #fff on it is the app's --on-accent. */
+   so the prototypes stop mocking them with native inputs. Checked takes the rose, as in the app, and
+   what sits on it is --on-accent, the page colour, as the app's controls.css draws it. */
 .switch { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; width: 34px; height: 20px; padding: 2px; border-radius: var(--r-full); border: 1px solid var(--line-2); background: var(--bg-4); cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast); }
 .switch::after { content: ''; width: 14px; height: 14px; border-radius: var(--r-full); background: var(--fg-2); transition: transform var(--dur) var(--ease-out), background var(--dur-fast); }
 .switch.on { background: var(--accent-2); border-color: var(--accent-2); }
-.switch.on::after { background: #fff; transform: translateX(14px); }
+.switch.on::after { background: var(--on-accent); transform: translateX(14px); }
 .switch-lg { width: 44px; height: 26px; padding: 3px; }
 .switch-lg::after { width: 18px; height: 18px; }
 .switch-lg.on::after { transform: translateX(18px); }
-.checkbox { flex-shrink: 0; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: var(--r-xs); border: 1.5px solid var(--line-3); background: var(--bg-2); color: #fff; }
+.checkbox { flex-shrink: 0; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: var(--r-xs); border: 1.5px solid var(--line-3); background: var(--bg-2); color: var(--on-accent); }
 .checkbox.on { background: var(--accent-2); border-color: var(--accent-2); }
 .checkbox.on::after { content: ''; width: 8px; height: 4px; border: solid currentColor; border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
 .radio { flex-shrink: 0; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line-3); background: var(--bg-2); }
 .radio.on { border-color: var(--accent-2); background: var(--accent-2); }
-.radio.on::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+.radio.on::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--on-accent); }
 
 /* Dialog over a page (the app's .dialog, .dialog-head, .dialog-body, .dialog-foot). */
 .scrim { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(3px); }
@@ -437,7 +477,7 @@
 .module-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .module-name { font-size: 14px; font-weight: 600; }
 .module-card:not(.on) .module-name { color: var(--fg-2); }
-.module-desc { font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.module-desc { font-size: 13px; line-height: 1.45; color: var(--fg-2); }
 .module-note { display: inline-flex; align-items: center; gap: 6px; margin-top: 3px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
 .module-note .ico { width: 12px; height: 12px; }
 .module-card > .switch { margin-top: 6px; }
@@ -450,7 +490,7 @@
 .tpl-card > .radio { position: absolute; top: 14px; right: 14px; }
 .tpl-ico { width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--r); background: var(--bg-3); color: var(--fg-2); }
 .tpl-card.on .tpl-ico { background: var(--accent-soft); color: var(--accent); }
-.tpl-name { font-size: 13.5px; font-weight: 600; }
+.tpl-name { font-size: 14px; font-weight: 600; }
 .tpl-desc { font-size: 12px; line-height: 1.45; color: var(--fg-2); }
 .tpl-mods { display: flex; gap: 4px; margin-top: auto; }
 .tpl-mod { width: 22px; height: 22px; display: grid; place-items: center; border-radius: var(--r-xs); border: 1px dashed var(--line-2); color: var(--fg-3); }
@@ -463,7 +503,7 @@
 .step::before { content: ''; height: 3px; border-radius: var(--r-full); background: var(--bg-4); }
 .step.done::before { background: var(--fg-3); }
 .step.on::before { background: var(--fg); }
-.step-name { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--fg-3); }
+.step-name { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--fg-3); }
 .step-name .n { font-family: var(--mono); font-size: 11px; }
 .step.on .step-name { color: var(--fg); font-weight: 500; }
 .step.done .step-name { color: var(--fg-2); }
@@ -472,7 +512,7 @@
 .proj-head { display: flex; align-items: center; gap: 14px; }
 .proj-head .proj { width: 44px; height: 44px; border-radius: var(--r-lg); font-size: 14px; }
 .proj-tabs { gap: 22px; }
-.proj-tabs .tab { height: 42px; font-size: 13.5px; }
+.proj-tabs .tab { height: 42px; font-size: 14px; }
 .proj-tabs .tab .ico { color: var(--fg-3); }
 .proj-tabs .tab.on .ico { color: var(--fg); }
 .proj-tabs .tab .count { margin-left: 1px; }
@@ -494,10 +534,10 @@
 
 /* Epic label: neutral, with the epic's own hue only on its diamond (from --hue, like .proj.monogram),
    so a board full of one epic does not turn the colour of the brand. Free labels, assignee. */
-.wi-epic { display: inline-block; min-width: 0; max-width: 100%; height: 20px; line-height: 20px; padding: 0 7px 0 6px; border-radius: var(--r-xs); background: var(--bg-3); color: var(--fg-2); font-size: 11.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wi-epic::before { content: ''; display: inline-block; margin-right: 6px; vertical-align: 1px; width: 6px; height: 6px; transform: rotate(45deg); border-radius: var(--r-xs); background: color-mix(in oklab, hsl(var(--hue, 20) 70% 55%), var(--fg) 25%); }
-.wi-label { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border-radius: var(--r-xs); border: 1px solid var(--line-2); font-family: var(--mono); font-size: 10.5px; color: var(--fg-3); white-space: nowrap; }
-.wi-assignee { width: 20px; height: 20px; font-size: 9.5px; border-radius: 50%; }
+.wi-epic { display: inline-block; min-width: 0; max-width: 100%; height: 20px; line-height: 20px; padding: 0 7px 0 6px; border-radius: var(--r-xs); background: var(--bg-3); color: var(--fg-2); font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wi-epic::before { content: ''; display: inline-block; margin-right: 6px; vertical-align: 1px; width: 6px; height: 6px; transform: rotate(45deg); border-radius: var(--r-xs); background: var(--hue-mark); }
+.wi-label { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border-radius: var(--r-xs); border: 1px solid var(--line-2); font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; }
+.wi-assignee { width: 20px; height: 20px; font-size: 11px; border-radius: 50%; }
 .wi-assignee.none { background: transparent; border: 1.5px dashed var(--line-3); }
 
 /* Column glyphs: a column is told by shape, never by colour, except done, which is ok and named. */
@@ -526,7 +566,7 @@
 .wi-card { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 11px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-2); box-shadow: var(--shadow); cursor: grab; transition: border-color var(--dur-fast), transform var(--dur) var(--ease-out); }
 .wi-card:hover { border-color: var(--line-3); }
 .wi-card-top { display: flex; align-items: center; gap: 7px; min-height: 16px; }
-.wi-card-title { margin: 0; font-size: 13.5px; font-weight: 500; line-height: 1.38; letter-spacing: -0.005em; color: var(--fg); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wi-card-title { margin: 0; font-size: 13px; font-weight: 500; line-height: 1.38; letter-spacing: -0.005em; color: var(--fg); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .wi-card-meta { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .wi-card-meta > .wi-label { flex-shrink: 0; }
 .wi-card-foot { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
@@ -550,7 +590,7 @@
 /* Rows of the list view (and of the board on a phone). */
 .wi-group { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-bottom: 1px solid var(--line); background: var(--bg-1); }
 .wi-group .t-label { color: var(--fg-2); }
-.wi-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 13.5px; transition: background var(--dur-fast); cursor: pointer; }
+.wi-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 14px; transition: background var(--dur-fast); cursor: pointer; }
 .wi-row:hover { background: var(--bg-3); }
 .wi-row .wi-key { width: 52px; flex-shrink: 0; }
 .wi-row.rail-live::before { top: 8px; bottom: 8px; }
@@ -558,7 +598,7 @@
 .wi-row.done .wi-row-title { color: var(--fg-2); }
 /* Phone: a column jump control (glyph and count; the chosen one says its name) and two-line rows. */
 .wi-jump { display: flex; width: 100%; }
-.wi-jump > * { flex: 1 1 auto; justify-content: center; height: 38px; padding: 0 6px; font-family: var(--mono); font-size: 12px; }
+.wi-jump > * { flex: 1 1 auto; justify-content: center; height: var(--touch); padding: 0 6px; font-family: var(--mono); font-size: 12px; }
 .wi-jump > .on { flex: 2.4 1 auto; font-family: var(--sans); font-size: 13px; }
 .wi-jump > .over, .wi-jump > .over .wi-status { color: var(--warn); stroke: var(--warn); }
 .wi-mrow { position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 64px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
@@ -580,9 +620,14 @@
 .prop-row { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 4px 0; border-top: 1px solid var(--line); font-size: 13px; }
 .prop-row > .k { width: 92px; flex-shrink: 0; color: var(--fg-3); }
 .prop-row > .v { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.ac-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 13.5px; line-height: 1.45; }
+.ac-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.45; }
 .ac-row:last-child { border-bottom: 0; }
 .ac-row > .checkbox { margin-top: 2px; }
+/* The checklist is the one place a check mark is always visible, a phone included: the whole row is
+   the control (a label or a button with role="checkbox"), and the box only shows its state. */
+.ac-row:is(label, button) { width: 100%; margin: 0; border-width: 0 0 1px; border-style: solid; border-color: var(--line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background var(--dur-fast); }
+.ac-row:is(label, button):hover { background: var(--bg-3); }
+.m-screen .ac-row { min-height: var(--touch); padding: 12px 14px; }
 .ac-text { flex: 1 1 auto; min-width: 0; }
 .ac-row.on .ac-text { color: var(--fg-2); }
 .ac-by { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; }
@@ -607,7 +652,7 @@
 /* Activity: comments (the person's and an agent's) interleaved with the automatic history. */
 .activity { position: relative; display: flex; flex-direction: column; gap: 14px; }
 .activity::before { content: ''; position: absolute; left: 13.5px; top: 8px; bottom: 8px; width: 1px; background: var(--line); }
-.hist { position: relative; display: flex; align-items: center; gap: 10px; min-height: 24px; font-size: 12.5px; color: var(--fg-2); }
+.hist { position: relative; display: flex; align-items: center; gap: 10px; min-height: 24px; font-size: 13px; color: var(--fg-2); }
 .hist-ico { flex-shrink: 0; width: 28px; display: grid; place-items: center; }
 .hist-ico > span { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: var(--bg-3); border: 1px solid var(--line); color: var(--fg-3); }
 .hist-ico .ico { width: 11px; height: 11px; }
@@ -616,8 +661,8 @@
 .hist time, .comment-head time { margin-left: auto; flex-shrink: 0; font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
 .comment { position: relative; display: flex; align-items: flex-start; gap: 10px; }
 .comment > .avatar, .comment > .agent-mark { width: 28px; height: 28px; }
-.comment-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5px; padding: 10px 12px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-2); font-size: 13.5px; line-height: 1.55; }
-.comment-head { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.comment-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5px; padding: 10px 12px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-2); font-size: 14px; line-height: 1.55; }
+.comment-head { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .comment-head b { font-weight: 600; }
 .comment.agent .comment-body { background: var(--bg-1); }
 /* An agent's mark: the terminal prompt on a neutral tile. The gradient stays on the person's own
@@ -649,9 +694,10 @@
 /* Role avatar: a neutral squircle with the role's initials in mono, and the role's own --hue only
    on a small diamond in its corner, as the epic label does. The gradient stays on the person's own
    active avatar. */
-.role-av { position: relative; flex-shrink: 0; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--bg-3); border: 1px solid var(--line-2); font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--fg-2); }
-.role-av::after { content: ''; position: absolute; right: -2px; bottom: -2px; width: 7px; height: 7px; transform: rotate(45deg); border-radius: var(--r-xs); border: 1.5px solid var(--bg-2); background: color-mix(in oklab, hsl(var(--hue, 20) 70% 55%), var(--fg) 25%); }
-.role-av.sm { width: 20px; height: 20px; border-radius: var(--r-xs); font-size: 8.5px; }
+.role-av { position: relative; flex-shrink: 0; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--bg-3); border: 1px solid var(--line-2); font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.02em; color: var(--fg-2); }
+.role-av::after { content: ''; position: absolute; right: -2px; bottom: -2px; width: 7px; height: 7px; transform: rotate(45deg); border-radius: var(--r-xs); border: 1.5px solid var(--bg-2); background: var(--hue-mark); }
+/* A three-letter role (DEV) keeps 11 px text: the small tile grows sideways instead of shrinking it */
+.role-av.sm { width: auto; min-width: 22px; height: 22px; padding: 0 3px; border-radius: var(--r-xs); font-size: 11px; letter-spacing: 0; }
 .role-av.sm::after { width: 5px; height: 5px; border-width: 1px; right: -1.5px; bottom: -1.5px; }
 .role-av.lg { width: 44px; height: 44px; border-radius: var(--r); font-size: 13px; }
 .role-av.lg::after { width: 9px; height: 9px; }
@@ -674,7 +720,7 @@
 .member-desc { margin: 0; font-size: 13px; line-height: 1.5; color: var(--fg-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .member-facts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--fg-3); }
 /* What the member is doing now: the live line (shape of .wi-card-live) or, at rest, its last work. */
-.member-now { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 32px; padding: 6px 10px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg); font-size: 12.5px; color: var(--fg-3); }
+.member-now { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 32px; padding: 6px 10px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg); font-size: 12px; color: var(--fg-3); }
 .member-now .wi-key { flex-shrink: 0; }
 
 /* Flow strip: the five columns in order, each with the role that acts when a card enters it, and
@@ -727,10 +773,10 @@
 .tree { display: flex; flex-direction: column; padding: 6px; }
 .tree-row { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 8px 0 calc(8px + var(--depth, 0) * 16px); border-radius: var(--r-sm); font-size: 13px; color: var(--fg-2); white-space: nowrap; cursor: pointer; }
 .tree-row:hover { background: var(--bg-3); color: var(--fg); }
-.tree-row.on { background: var(--bg-3); color: var(--fg); font-weight: 500; box-shadow: inset 2px 0 0 var(--accent); }
+.tree-row.on { color: var(--fg); font-weight: 500; }
 .tree-row .ico { width: 14px; height: 14px; color: var(--fg-3); }
 .tree-row .name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.tree-row .tree-size { font-family: var(--mono); font-size: 10.5px; color: var(--fg-3); }
+.tree-row .tree-size { font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
 .tree-row .dir { color: var(--fg); }
 
 /* The existing code editor (the app's .code-editor, CodeMirror) framed with its bar: the path and
@@ -753,13 +799,12 @@
 .doc-view strong { color: var(--fg); font-weight: 600; }
 .doc-view code { font-size: 0.86em; }
 /* Where a generated document came from: the role, the work item, the chat. */
-.doc-origin { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-radius: var(--r); background: var(--bg-1); border: 1px solid var(--line); font-size: 12.5px; color: var(--fg-2); }
+.doc-origin { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-radius: var(--r); background: var(--bg-1); border: 1px solid var(--line); font-size: 12px; color: var(--fg-2); }
 /* A document tied to a work item: kind, title, the item's key and the role that wrote it. */
 .doc-row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; transition: background var(--dur-fast); cursor: pointer; }
 .doc-row:last-child { border-bottom: 0; }
 .doc-row:hover { background: var(--bg-3); }
-.doc-row.sel { background: var(--bg-3); box-shadow: inset 2px 0 0 var(--accent); }
-.doc-kind { flex-shrink: 0; width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--bg-3); color: var(--fg-2); font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.02em; }
+.doc-kind { flex-shrink: 0; min-width: 28px; height: 28px; padding: 0 4px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--bg-3); color: var(--fg-2); font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0; }
 
 /* ---------- end of 16 ---------- */
 
@@ -824,7 +869,7 @@
 
 /* A section that waits for the reading to finish: dashed and still, like .wi-col-slot. Only the
    section being written shimmers (.skeleton). */
-.sug-wait { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; margin: 12px 14px; border-radius: var(--r-lg); border: 1px dashed var(--line-2); color: var(--fg-3); font-size: 12.5px; }
+.sug-wait { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; margin: 12px 14px; border-radius: var(--r-lg); border: 1px dashed var(--line-2); color: var(--fg-3); font-size: 12px; }
 .sug-wait .ico { width: 14px; height: 14px; }
 
 /* A proposal: what the assistant suggests and why, accepted or discarded on its own. Nothing is
@@ -834,12 +879,12 @@
 .sug-row > .checkbox { margin-top: 2px; }
 .sug-row > .proj, .sug-row > .link-ico { margin-top: 1px; }
 .sug-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.sug-title { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13.5px; font-weight: 500; line-height: 1.38; }
+.sug-title { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 14px; font-weight: 500; line-height: 1.38; }
 .sug-title .mono { font-size: 13px; }
 .sug-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--fg-3); }
 .sug-meta .mono { font-size: 11px; }
 /* The reason is the assistant's own words, so it reads as a quote under the title. */
-.sug-reason { margin: 0; padding-left: 10px; box-shadow: inset 2px 0 0 var(--line-2); font-size: 12.5px; line-height: 1.5; color: var(--fg-2); }
+.sug-reason { margin: 0; padding-left: 10px; box-shadow: inset 2px 0 0 var(--line-2); font-size: 13px; line-height: 1.5; color: var(--fg-2); }
 .sug-acts { flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
 /* Accepted: the proposal became a real thing, and says which (PAG-1, the path it was saved to). */
 .sug-done { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--fg-2); white-space: nowrap; }
@@ -858,7 +903,7 @@
 /* The resource editor as the app draws it (CodeEditor over CodeMirror): gutter and text in mono,
    syntax kept neutral so no status colour means "key" or "string". One grid row per line, so a line
    that wraps on a phone keeps its number on its first visual line, as CodeMirror's lineWrapping. */
-.code-ed { display: grid; grid-template-columns: auto minmax(0, 1fr); align-content: start; min-height: 0; overflow: hidden; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-1); font-family: var(--mono); font-size: 12.5px; line-height: 1.7; }
+.code-ed { display: grid; grid-template-columns: auto minmax(0, 1fr); align-content: start; min-height: 0; overflow: hidden; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-1); font-family: var(--mono); font-size: 13px; line-height: 1.7; }
 .code-ed .ln { padding: 0 10px 0 14px; border-right: 1px solid var(--line); color: var(--fg-3); text-align: right; font-variant-numeric: tabular-nums; user-select: none; }
 .code-ed .tx { min-width: 0; padding: 0 16px; color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; }
 .code-ed > :nth-child(-n+2) { padding-top: 12px; }
@@ -876,8 +921,7 @@
 /* The master list of the resources tab, as the app's .master-item, with the proposals on top. */
 .res-item { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 9px 12px; border-radius: var(--r); cursor: pointer; transition: background var(--dur-fast); }
 .res-item:hover { background: var(--bg-3); }
-.res-item.sel { background: var(--bg-3); box-shadow: inset 2px 0 0 var(--accent); }
-.res-item .name { display: flex; align-items: center; gap: 7px; min-width: 0; font-family: var(--mono); font-size: 12.5px; font-weight: 500; }
+.res-item .name { display: flex; align-items: center; gap: 7px; min-width: 0; font-family: var(--mono); font-size: 13px; font-weight: 500; }
 .res-item .desc { font-size: 12px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 
