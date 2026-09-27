@@ -3,6 +3,13 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.22.0](https://github.com/yeyo11/agentry/compare/v0.21.1...v0.22.0) (2026-09-27)
+
+
+### Features
+
+* **web:** lists keep their filters until reset, and phone layout polish ([#113](https://github.com/yeyo11/agentry/issues/113)) ([71d693b](https://github.com/yeyo11/agentry/commit/71d693b5dfd812323949ca903432425e6073486b))
+
 ## [0.21.1](https://github.com/yeyo11/agentry/compare/v0.21.0...v0.21.1) (2026-09-27)
 
 
