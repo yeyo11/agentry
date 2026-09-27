@@ -521,6 +521,15 @@ next start, audited with actor `env` (see [Securing it](#securing-it)).
 | DELETE | `/security/token` | Remove it; refused while the mode is `token` |
 | GET | `/audit?limit=&from=&path=&method=&status=` | Mutating requests, newest first: when, actor (token id, OIDC subject, `local`, or `env` for a token reset from the environment), method, path, status and a one-line summary from the route. `path` matches anywhere and literally, `method` exactly, `status` a code (`404`) or a class (`4xx`). `limit` and `from` must be non-negative integers, or the answer is a `400` saying so. Bodies are never recorded |
 
+### Remote access
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/tunnel` | `{ state, url, since, reason, sshAvailable, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed` |
+| PUT | `/tunnel/settings` | `{ startWithAgentry }`, off by default. Emits `tunnel.changed` |
+| POST | `/tunnel/start` | Opens the tunnel through localhost.run; `409` while the auth mode is `none`. The address shows, and its exact host joins the allowlist, once `/api/health` answers through it |
+| POST | `/tunnel/stop` | Takes the host off the allowlist and ends `ssh`; turning the auth mode to `none` does it first |
+
 ### Accounts (multi-account)
 
 Several Claude accounts through [claude-swap](https://github.com/realiti4/claude-swap) (`cswap`),
