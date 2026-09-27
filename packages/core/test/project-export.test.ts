@@ -3,7 +3,7 @@ import test from 'node:test';
 import type { Chat, ChatExport, ChatSummary, Project, ProjectExport, TranscriptEntry } from '@agentry/shared';
 import { byStart, projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from '../src/project-export.ts';
 
-const project: Project = { id: '9f1c2d3e-0000-4000-8000-000000000000', name: 'Billing API', path: '/work/billing', worktrees: [], exists: true, chatCount: 3, lastActivity: null };
+const project: Project = { id: '9f1c2d3e-0000-4000-8000-000000000000', name: 'Billing API', path: '/work/billing', key: 'BA', modules: [], worktrees: [], exists: true, chatCount: 3, lastActivity: null };
 const tokens = (n: number) => ({ input: n, output: n, cacheRead: 0, cacheCreation: 0, total: 2 * n });
 
 const chatFor = (id: string, over: Partial<Chat> = {}): Chat =>

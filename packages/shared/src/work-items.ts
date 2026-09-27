@@ -1,20 +1,62 @@
-import type { ProjectModule, ProjectTemplateId, WorkItemPriority, WorkItemStatus, WorkItemType } from './types.ts';
+import type {
+  MilestoneState,
+  ProjectChange,
+  ProjectModule,
+  ProjectTemplateId,
+  WorkItemActorKind,
+  WorkItemLinkKind,
+  WorkItemLinkRole,
+  WorkItemPriority,
+  WorkItemRelationType,
+  WorkItemSourceKind,
+  WorkItemStatus,
+  WorkItemType,
+  WorkItemWaitReason,
+} from './types.ts';
 
-// The fixed orders of the project ecosystem, in one place so the core, the API's validation and the
-// web never disagree on which columns exist or in which order they are drawn. `satisfies` keeps
-// each list in step with its union: a member added to one and not the other fails the type check.
+// The fixed orders and value lists of the project ecosystem, in one place so the core, the API's
+// validation and the web never disagree on which columns exist or in which order they are drawn.
 
-export const PROJECT_MODULES = ['board', 'team', 'documents', 'memory'] as const satisfies readonly ProjectModule[];
+/**
+ * A list of every member of `Union`, checked both ways: a value the union lacks does not compile,
+ * and neither does a list that leaves a member out. `satisfies readonly Union[]` alone only catches
+ * the first, which let a member added to a union go missing from every screen and validator that
+ * reads the list.
+ */
+export function valuesOf<Union>() {
+  return <const List extends readonly Union[]>(
+    list: List & ([Exclude<Union, List[number]>] extends [never] ? unknown : { missing: Exclude<Union, List[number]> }),
+  ): List => list;
+}
 
-export const PROJECT_TEMPLATE_IDS = ['simple', 'software', 'library', 'research', 'custom'] as const satisfies readonly ProjectTemplateId[];
+export const PROJECT_MODULES = valuesOf<ProjectModule>()(['board', 'team', 'documents', 'memory']);
+
+export const PROJECT_TEMPLATE_IDS = valuesOf<ProjectTemplateId>()(['simple', 'software', 'library', 'research', 'custom']);
+
+export const PROJECT_CHANGES = valuesOf<ProjectChange>()(['name', 'key', 'modules', 'settings']);
 
 /** The board's columns, left to right */
-export const WORK_ITEM_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review', 'done'] as const satisfies readonly WorkItemStatus[];
+export const WORK_ITEM_STATUSES = valuesOf<WorkItemStatus>()(['backlog', 'todo', 'in_progress', 'in_review', 'done']);
 
-export const WORK_ITEM_TYPES = ['epic', 'story', 'task', 'bug'] as const satisfies readonly WorkItemType[];
+export const WORK_ITEM_TYPES = valuesOf<WorkItemType>()(['epic', 'story', 'task', 'bug']);
 
 /** Lowest first */
-export const WORK_ITEM_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const satisfies readonly WorkItemPriority[];
+export const WORK_ITEM_PRIORITIES = valuesOf<WorkItemPriority>()(['low', 'medium', 'high', 'urgent']);
+
+export const WORK_ITEM_ACTOR_KINDS = valuesOf<WorkItemActorKind>()(['person', 'agent', 'system']);
+
+export const WORK_ITEM_SOURCE_KINDS = valuesOf<WorkItemSourceKind>()(['chat', 'orchestration']);
+
+export const WORK_ITEM_LINK_KINDS = valuesOf<WorkItemLinkKind>()(['chat', 'orchestration', 'document']);
+
+/** In the order of an item's life: where it came from, then the columns it goes through */
+export const WORK_ITEM_LINK_ROLES = valuesOf<WorkItemLinkRole>()(['origin', 'refine', 'work', 'verify', 'reference']);
+
+export const WORK_ITEM_RELATION_TYPES = valuesOf<WorkItemRelationType>()(['blocks', 'blocked_by']);
+
+export const WORK_ITEM_WAIT_REASONS = valuesOf<WorkItemWaitReason>()(['approval', 'bounces']);
+
+export const MILESTONE_STATES = valuesOf<MilestoneState>()(['open', 'closed']);
 
 /**
  * A key prefix: upper case letters and digits, starting with a letter, two to ten characters. The
