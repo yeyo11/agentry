@@ -1035,6 +1035,9 @@ export class Core {
     const item = await this.workItemAccess(itemId, 'write');
     const record = this.requireProject(item.projectId);
     if (item.type === 'epic') throw new WorkItemError('an epic groups work items: work on one of them instead', 400);
+    // As "Orchestrate" refuses it: nothing an agent does may take an item out of done
+    if (item.status === 'done') throw new WorkItemError(`${item.key} is already done: move it back first to work on it again`, 409);
+    const options = startOptions(request);
     if (!existsSync(record.path)) throw new WorkItemError(`the project's directory ${record.path} is missing`, 409);
     const busy = this.workItems.links(itemId).find((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
     if (busy) throw new WorkItemError(`${item.key} is already being worked on${busy.name ? ` by ${busy.name}` : ''}`, 409);
@@ -1043,8 +1046,14 @@ export class Core {
       this.workItems.setWorktree(itemId, { worktree: place.worktree, branch: place.branch });
     }
     const linked: { link?: WorkItemLink } = {};
-    const chat = await this.chats.create({ ...startOptions(request), prompt: workItemPrompt(item), cwd: place?.cwd ?? record.path }, (started) => {
-      linked.link = this.workItems.link(itemId, { kind: 'chat', role: 'work', chatId: started.id });
+    const chat = await this.chats.create({ ...options, prompt: workItemPrompt(item), cwd: place?.cwd ?? record.path }, (started) => {
+      try {
+        linked.link = this.workItems.link(itemId, { kind: 'chat', role: 'work', chatId: started.id });
+      } catch (err) {
+        // A chat nobody can find from its item would work unseen: it goes with the failed request
+        this.runtime.stop(started.id);
+        throw err;
+      }
       this.workLinks.chatStarted(started.id);
     });
     if (!linked.link) throw new Error('the chat started without being linked to its work item');

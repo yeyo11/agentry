@@ -173,6 +173,55 @@ test('a failed turn leaves the item in progress, and a chat still working refuse
   assert.equal((await item(hanging.id)).status, 'in_progress');
 });
 
+test('an item in done is not worked on, and start options of the wrong type are refused before a chat starts', async () => {
+  const chats = () => core.runtime.list().length;
+  const before = chats();
+  const done = await createItem({ title: 'Shipped', status: 'done' });
+  const refused = await app.inject({ method: 'POST', url: `/api/work-items/${done.id}/work`, ...json({}) });
+  assert.equal(refused.statusCode, 409);
+  assert.match(refused.json().error, /already done/);
+
+  const open = await createItem({ title: 'Open' });
+  for (const body of [
+    { model: 42 },
+    { allowedTools: 'Bash' },
+    { disallowedTools: [1] },
+    { permissionMode: 'anything' },
+    { toolPreset: 7 },
+    { mcp: { servers: 'all' } },
+    { maxBudgetUsd: '5' },
+    { maxBudgetUsd: -1 },
+    { permissionPrompts: 'yes' },
+    { account: {} },
+  ]) {
+    const res = await app.inject({ method: 'POST', url: `/api/work-items/${open.id}/work`, ...json(body) });
+    assert.equal(res.statusCode, 400, `${JSON.stringify(body)}: ${res.body}`);
+  }
+  assert.equal(chats(), before);
+  assert.equal((await item(open.id)).status, 'backlog');
+});
+
+test('a chat whose link to its item could not be written is stopped, not left working unseen', async () => {
+  const target = await createItem({ title: 'Unlinked', description: 'FAKE-HANG' });
+  const before = new Set(core.runtime.list().map((c) => c.id));
+  const link = core.workItems.link.bind(core.workItems);
+  core.workItems.link = () => {
+    throw new Error('disk full');
+  };
+  try {
+    const res = await app.inject({ method: 'POST', url: `/api/work-items/${target.id}/work`, ...json({}) });
+    assert.ok(res.statusCode >= 400, res.body);
+    assert.match(res.json().error, /disk full/);
+  } finally {
+    core.workItems.link = link;
+  }
+  const started = core.runtime.list().filter((c) => !before.has(c.id));
+  assert.equal(started.length, 1);
+  const chatId = started[0]?.id ?? '';
+  await turnOver(chatId);
+  assert.equal(core.runtime.get(chatId)?.status, 'stopped');
+});
+
 test('an epic is not worked on directly, and a project with its board off refuses', async () => {
   const epic = await createItem({ title: 'Checkout', type: 'epic' });
   assert.equal((await app.inject({ method: 'POST', url: `/api/work-items/${epic.id}/work`, ...json({}) })).statusCode, 400);

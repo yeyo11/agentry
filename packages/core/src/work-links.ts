@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import {
+  PERMISSION_MODES,
   WORK_ITEM_STATUSES,
   workItemBranch,
   type AgentryEvent,
@@ -77,21 +78,50 @@ export function titleFromMessage(text: string): string {
  * so a body that also names them does not get to send the chat somewhere else.
  */
 export function startOptions(request: ChatStartOptions | undefined): ChatStartOptions {
-  const r: ChatStartOptions = request && typeof request === 'object' ? request : {};
-  return {
-    ...(r.model !== undefined ? { model: r.model } : {}),
-    ...(r.effort !== undefined ? { effort: r.effort } : {}),
-    ...(r.permissionMode !== undefined ? { permissionMode: r.permissionMode } : {}),
-    ...(r.appendSystemPrompt !== undefined ? { appendSystemPrompt: r.appendSystemPrompt } : {}),
-    ...(r.allowedTools !== undefined ? { allowedTools: r.allowedTools } : {}),
-    ...(r.disallowedTools !== undefined ? { disallowedTools: r.disallowedTools } : {}),
-    ...(r.toolPreset !== undefined ? { toolPreset: r.toolPreset } : {}),
-    ...(r.mcp !== undefined ? { mcp: r.mcp } : {}),
-    ...(r.maxBudgetUsd !== undefined ? { maxBudgetUsd: r.maxBudgetUsd } : {}),
-    ...(r.permissionPrompts !== undefined ? { permissionPrompts: r.permissionPrompts } : {}),
-    ...(r.account !== undefined ? { account: r.account } : {}),
-  };
+  // Read as unknown: a body is whatever was sent, and a number where a string goes used to reach the
+  // CLI's argument list and come back as a 500
+  const r: Record<string, unknown> = request && typeof request === 'object' && !Array.isArray(request) ? { ...request } : {};
+  const options: ChatStartOptions = {};
+  for (const key of ['model', 'effort', 'appendSystemPrompt', 'account'] as const) {
+    const value = r[key];
+    if (value === undefined) continue;
+    if (typeof value !== 'string') throw new WorkItemError(`${key} must be a string`, 400);
+    options[key] = value;
+  }
+  for (const key of ['allowedTools', 'disallowedTools'] as const) {
+    const value = r[key];
+    if (value === undefined) continue;
+    if (!isStrings(value)) throw new WorkItemError(`${key} must be a list of tool names`, 400);
+    options[key] = value;
+  }
+  const { permissionMode, toolPreset, mcp, maxBudgetUsd, permissionPrompts } = r;
+  if (permissionMode !== undefined) {
+    const mode = PERMISSION_MODES.find((m) => m === permissionMode);
+    if (!mode) throw new WorkItemError(`permissionMode must be one of ${PERMISSION_MODES.join(', ')}`, 400);
+    options.permissionMode = mode;
+  }
+  if (toolPreset !== undefined) {
+    if (toolPreset !== null && typeof toolPreset !== 'string') throw new WorkItemError('toolPreset must be the id of a tool preset, or null', 400);
+    options.toolPreset = toolPreset;
+  }
+  if (mcp !== undefined) {
+    const servers: unknown = mcp && typeof mcp === 'object' ? (mcp as { servers?: unknown }).servers : undefined;
+    if (mcp !== null && !isStrings(servers)) throw new WorkItemError('mcp must name its servers in a list, or be null', 400);
+    // Only the names: the config file is the one Agentry writes for them
+    options.mcp = mcp === null ? null : { servers: servers as string[] };
+  }
+  if (maxBudgetUsd !== undefined) {
+    if (typeof maxBudgetUsd !== 'number' || !Number.isFinite(maxBudgetUsd) || maxBudgetUsd <= 0) throw new WorkItemError('maxBudgetUsd must be a positive number', 400);
+    options.maxBudgetUsd = maxBudgetUsd;
+  }
+  if (permissionPrompts !== undefined) {
+    if (permissionPrompts !== 'host' && permissionPrompts !== 'none') throw new WorkItemError("permissionPrompts must be 'host' or 'none'", 400);
+    options.permissionPrompts = permissionPrompts;
+  }
+  return options;
 }
+
+const isStrings = (value: unknown): value is string[] => Array.isArray(value) && value.every((v) => typeof v === 'string');
 
 // ---------- where it works ----------
 
@@ -273,8 +303,12 @@ export class WorkItemAutomation {
    * links the chat, since the chat's first status can reach the feed before the link exists.
    */
   chatStarted(chatId: string): void {
-    for (const link of this.chatLinks(chatId)) {
-      this.advance(link, 'in_progress', chatCause(chatId, WORK_CAUSE.chatStarted), this.turns.get(chatId) ?? link.createdAt);
+    try {
+      for (const link of this.chatLinks(chatId)) {
+        this.advance(link, 'in_progress', chatCause(chatId, WORK_CAUSE.chatStarted), this.turns.get(chatId) ?? link.createdAt);
+      }
+    } catch {
+      // see the class comment: the chat is linked and running, and the next turn moves the item
     }
   }
 
