@@ -3,6 +3,18 @@
 This file is maintained by [release-please](https://github.com/googleapis/release-please) from the
 commit messages. Do not edit it by hand.
 
+## [0.21.0](https://github.com/yeyo11/agentry/compare/v0.20.0...v0.21.0) (2026-09-27)
+
+
+### Features
+
+* **core:** tell every chat which wrapper runs it ([#107](https://github.com/yeyo11/agentry/issues/107)) ([3bd4c04](https://github.com/yeyo11/agentry/commit/3bd4c04ce2384d6b6bab61a6b7287fbd08777744))
+
+
+### Bug fixes
+
+* **core:** move a pinned chat off the account that hit its limit ([#106](https://github.com/yeyo11/agentry/issues/106)) ([2614ef1](https://github.com/yeyo11/agentry/commit/2614ef1eee6ee0a36ca3f8a757e6f044fb673248))
+
 ## [0.20.0](https://github.com/yeyo11/agentry/compare/v0.19.0...v0.20.0) (2026-09-27)
 
 
