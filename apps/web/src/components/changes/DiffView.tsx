@@ -7,6 +7,7 @@ import {
   readingRows,
   splitRows,
   unifiedRows,
+  withoutEdgeGaps,
   type DiffLine,
   type DiffRow,
   type Gap,
@@ -58,6 +59,8 @@ export interface DiffViewProps {
   refs?: { before?: string; after?: string };
   /** Syntax worked out beforehand; by default the view reads it itself, after the first paint */
   syntax?: DiffSyntax | null;
+  /** Leave out the gaps before the first hunk and after the last (a patch shown on its own) */
+  trimEdges?: boolean;
   /** The element that scrolls the diff, for the rows of a long one; the nearest scroll root otherwise */
   scrollRef?: RefObject<HTMLElement | null>;
   className?: string;
@@ -75,6 +78,7 @@ export function DiffView({
   hunks,
   refs,
   syntax: given,
+  trimEdges = false,
   scrollRef,
   className,
 }: DiffViewProps) {
@@ -91,10 +95,10 @@ export function DiffView({
       });
   };
   const syntax = useSyntax(diff, path ? languageOfPath(path) : null, given);
-  const rows = useMemo(
-    () => (mode === 'split' ? splitRows(diff, { hunks }) : mode === 'unified' ? unifiedRows(diff, { hunks }) : readingRows(diff, open, { hunks })),
-    [diff, mode, open, hunks],
-  );
+  const rows = useMemo(() => {
+    const all = mode === 'split' ? splitRows(diff, { hunks }) : mode === 'unified' ? unifiedRows(diff, { hunks }) : readingRows(diff, open, { hunks });
+    return trimEdges ? withoutEdgeGaps<DiffRow | SplitRow>(all) : all;
+  }, [diff, mode, open, hunks, trimEdges]);
   const host = useRef<HTMLDivElement>(null);
   const cls = ['diff', MODE_CLASS[mode], wrap ? 'diff-wrap' : '', className ?? ''].filter(Boolean).join(' ');
 

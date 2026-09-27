@@ -13,6 +13,7 @@ import {
   statsOf,
   unifiedRows,
   whereOf,
+  withoutEdgeGaps,
   type DiffRow,
   type GapRow,
   type SplitRow,
@@ -278,4 +279,16 @@ test('foldFull leaves runs of 8 lines or fewer whole, and splits hunks between f
     [null, 3, null],
   );
   assert.equal(folded.hunks[1]!.section, 'x5');
+});
+
+test('a patch on its own drops the gaps at its ends and keeps the ones between its hunks', () => {
+  // Two hunks far into a file: a gap before the first, one between them, one after the last
+  const patch = parseUnified('@@ -58,3 +58,3 @@\n a\n-b\n+B\n c\n@@ -215,3 +215,3 @@\n d\n-e\n+E\n f\n');
+  const rows = unifiedRows(patch);
+  const trimmed = withoutEdgeGaps(rows);
+  assert.notEqual(rows[0]!.type, 'line', 'the patch starts with a gap');
+  assert.equal(trimmed[0]!.type, 'line');
+  assert.equal(trimmed.at(-1)!.type, 'line');
+  assert.equal(trimmed.filter((r) => r.type === 'gap').length, 1, 'the gap between the hunks stays');
+  assert.equal(withoutEdgeGaps(trimmed), trimmed, 'nothing to trim hands the rows back');
 });
