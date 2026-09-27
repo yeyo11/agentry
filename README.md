@@ -648,6 +648,25 @@ is none, and never overwrites one a person wrote or edited: that member is repor
 | DELETE | `/projects/:id/team/:agent` | Take a member off the team; its agent file stays |
 | GET | `/projects/:id/flow` | The flow by column's runs going and queued, each with its item, role, stage and chat; `enabled` and the per-project cap `maxParallel` |
 
+### Assistant
+
+The project assistant. A run is a read-only Claude Code chat in the project's directory (`Read`,
+`Grep`, `Glob`, and `Bash` only for `git log`, `git status` and `ls`, in `dontAsk`) that answers
+through `--json-schema`. It proposes a team, resources and work items, and writes nothing: each
+proposal is accepted or discarded on its own, and only an accept writes, through the team, the
+resources or the board. One run at a time per project and kind (409 otherwise). Runs emit
+`assistant.run`, decisions `assistant.proposal`.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| POST | `/projects/:id/assistant/runs` | `{ kind, model?, description?, resourceKind?, supersede? }` — start a `project`, `work-items` or `resources` run (`sonnet` by default). A project with nothing to read and no description starts no chat and is offered its template's team |
+| GET | `/projects/:id/assistant/runs` | `?kind=` — the runs, latest first, with what each read, found and proposed |
+| GET | `/assistant/runs/:runId` | A run with every proposal it made |
+| POST | `/assistant/runs/:runId/stop` | Stop a running run; it proposes nothing |
+| POST | `/assistant/proposals/:proposalId/accept` | `{ member?, resource?, workItem? }` — write the proposal with the person's edits: a member through the team, a resource saved at its scope, a work item created in Backlog with its reason as first comment |
+| POST | `/assistant/proposals/:proposalId/discard` | Discard a pending proposal; nothing is written |
+| POST | `/assistant/proposals/:proposalId/restore` | Restore a discarded proposal |
+
 ### Work items
 
 A project's board. Changing anything needs the project imported and its **Board** module on (409

@@ -379,6 +379,55 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    CREATE INDEX flow_runs_item ON flow_runs (item_id, seq);
    CREATE INDEX flow_runs_chat ON flow_runs (chat_id) WHERE chat_id IS NOT NULL;
    CREATE UNIQUE INDEX flow_runs_queued ON flow_runs (item_id) WHERE state = 'queued';`,
+  // The project assistant (orchestration 4): each run a read-only chat, each proposal a row decided on
+  // its own. What a run laid out to read and what it read are kept apart, so the list can be drawn
+  // at any moment. One running run per project and kind, held by the index rather than by a check
+  // two processes could both pass.
+  `CREATE TABLE assistant_runs (
+     seq           INTEGER PRIMARY KEY AUTOINCREMENT,
+     id            TEXT NOT NULL UNIQUE,
+     project_id    TEXT NOT NULL,
+     kind          TEXT NOT NULL,
+     status        TEXT NOT NULL,
+     model         TEXT NOT NULL,
+     description   TEXT,
+     resource_kind TEXT,
+     chat_id       TEXT,
+     empty         INTEGER NOT NULL DEFAULT 0,
+     template      TEXT,
+     proposes      TEXT NOT NULL,
+     base_sources  TEXT NOT NULL,
+     reads         TEXT NOT NULL,
+     findings      TEXT NOT NULL DEFAULT '[]',
+     summary       TEXT,
+     cost_usd      REAL,
+     error         TEXT,
+     supersedes    TEXT,
+     superseded_by TEXT,
+     restarts      INTEGER NOT NULL DEFAULT 0,
+     started_at    TEXT NOT NULL,
+     ended_at      TEXT
+   );
+   CREATE INDEX assistant_runs_project ON assistant_runs (project_id, kind, seq);
+   CREATE INDEX assistant_runs_chat ON assistant_runs (chat_id) WHERE chat_id IS NOT NULL;
+   CREATE UNIQUE INDEX assistant_runs_running ON assistant_runs (project_id, kind) WHERE status = 'running';
+   CREATE TABLE assistant_proposals (
+     seq              INTEGER PRIMARY KEY AUTOINCREMENT,
+     id               TEXT NOT NULL UNIQUE,
+     run_id           TEXT NOT NULL,
+     project_id       TEXT NOT NULL,
+     kind             TEXT NOT NULL,
+     status           TEXT NOT NULL,
+     position         INTEGER NOT NULL,
+     reason           TEXT NOT NULL,
+     payload          TEXT NOT NULL,
+     outcome          TEXT,
+     decided_by_kind  TEXT,
+     decided_by_role  TEXT,
+     decided_at       TEXT,
+     created_at       TEXT NOT NULL
+   );
+   CREATE INDEX assistant_proposals_run ON assistant_proposals (run_id, kind, position);`,
 ];
 
 /**
@@ -391,6 +440,8 @@ export const WORK_ITEMS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m ==
 /** The version that added the flow's runs, for the test that upgrades a database from the one before */
 export const FLOW_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE flow_runs')) + 1;
 export const DOCUMENT_LINKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN document_path')) + 1;
+/** The version that added the assistant's runs and proposals, found the same way */
+export const ASSISTANT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE assistant_runs')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
