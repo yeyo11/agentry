@@ -7,7 +7,7 @@ import { api, keys } from '../../api';
 import { ICON_SM } from '../icons';
 import { Card, StatusBadge } from '../ui';
 import { ActivityLine, useChatTail } from './Activity';
-import { ChangesView, ChatChangesView, type ChangeSource } from './Changes';
+import { ChatChangesSummary, IntegrationChangesSummary, TaskChangesSummary } from './Changes';
 import { ChecklistView } from './Checklist';
 import { HealthBadge, HealthPanel, isStepIn } from './Health';
 
@@ -36,13 +36,6 @@ export function TaskWork({ orch, task, onClose }: { orch: Orchestration; task: O
   const entries = useChatTail(chatId, live);
   // Under the graph's key: `changes.updated` refreshes the graph, and everything read for it with it
   const base = keys.orchestration(orch.id);
-  const source: ChangeSource = {
-    queryKey: [...base, 'changes', task.id],
-    diff: (path) => api.taskDiff(orch.id, task.id, path),
-    dir: task.worktree ?? null,
-    compare: orch.cwd,
-    live,
-  };
   const started = task.status !== 'pending' && task.status !== 'blocked';
 
   return (
@@ -90,13 +83,9 @@ export function TaskWork({ orch, task, onClose }: { orch: Orchestration; task: O
               <ChecklistView queryKey={[...base, 'checklist', task.id]} load={() => api.taskChecklist(orch.id, task.id)} live={live} />
             </Section>
           )}
-          <Section title={t('observe:changes.title')}>
-            {orch.worktree && task.branch ? (
-              <ChangesView source={source} load={() => api.taskChanges(orch.id, task.id)} inline />
-            ) : (
-              <p className="muted small">{t('observe:changes.noWorktree')}</p>
-            )}
-          </Section>
+          <section className="obs-section">
+            <TaskChangesSummary orch={orch} task={task} />
+          </section>
         </div>
       )}
     </Card>
@@ -107,16 +96,7 @@ export function TaskWork({ orch, task, onClose }: { orch: Orchestration; task: O
 
 /** What the branch that merges every task's work holds, next to the pull request that would publish it. */
 export function IntegrationChanges({ orch }: { orch: Orchestration }) {
-  const integration = orch.integration;
-  if (!integration) return null;
-  const source: ChangeSource = {
-    queryKey: [...keys.orchestration(orch.id), 'changes', 'integration'],
-    diff: (path) => api.integrationDiff(orch.id, path),
-    dir: integration.worktree,
-    compare: orch.cwd,
-    live: integration.status === 'merging' || integration.status === 'resolving',
-  };
-  return <ChangesView source={source} load={() => api.integrationChanges(orch.id)} inline />;
+  return <IntegrationChangesSummary orch={orch} />;
 }
 
 // ---------- a chat ----------
@@ -144,17 +124,9 @@ export function ChatActivityCard({ chat, entries }: { chat: Chat; entries: Trans
   );
 }
 
-/** The git summary of a chat in a worktree, or the files its own calls wrote when there is none. */
+/** What a chat changed, and the way into its review. */
 export function ChatChangesCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation('observe');
-  const source: ChangeSource = {
-    queryKey: ['chat', chat.id, 'changes'],
-    diff: (path) => api.chatDiff(chat.id, path),
-    dir: chat.worktree?.path ?? null,
-    // The main checkout is not part of what a chat knows about itself
-    compare: null,
-    live: Boolean(chat.execution),
-  };
   return (
     <Card
       title={
@@ -163,7 +135,7 @@ export function ChatChangesCard({ chat }: { chat: Chat }) {
         </span>
       }
     >
-      <ChatChangesView source={source} load={() => api.chatChanges(chat.id)} />
+      <ChatChangesSummary chat={chat} />
     </Card>
   );
 }

@@ -1,6 +1,6 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, GitFork, Hourglass, Lock, MessageSquare, TriangleAlert, Undo2, X } from 'lucide-react';
-import type { Chat } from '@agentry/shared';
+import type { Chat, EditStep } from '@agentry/shared';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { useDeleteChat } from '../components/ChatDelete';
 import { PermissionPrompts } from '../components/PermissionPrompts';
 import { ICON, ICON_SM } from '../components/icons';
 import { AnimatePresence, motion } from '../components/motion';
-import { endsWithAssistant, StreamingEntry, Transcript, type SubagentLink, type WorkflowLaunches } from '../components/Transcript';
+import { endsWithAssistant, StreamingEntry, Transcript, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '../components/Transcript';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind } from '../components/TranscriptSearch';
 import { Empty, ErrorBox, Loading, PageHeader, Skeleton, usePageTitle } from '../components/ui';
 import { api, ApiRequestError, keys } from '../api';
@@ -135,6 +135,24 @@ export function ChatView() {
     [workflowList, showInspector],
   );
 
+  // The steps give the edit chips their counts. They are read once the conversation has painted,
+  // never in its way, and again whenever a call comes back: an edit's result is what makes a step
+  const [painted, setPainted] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setPainted(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  const steps = useQuery({ queryKey: keys.chatSteps(id), queryFn: () => api.chatSteps(id), enabled: painted && Boolean(chat) });
+  const answered = Boolean(last && last.role === 'user' && last.blocks.length > 0 && last.blocks.every((b) => b.type === 'tool_result'));
+  useEffect(() => {
+    if (answered) void queryClient.invalidateQueries({ queryKey: keys.chatSteps(id), exact: true });
+  }, [answered, lastKey, id, queryClient]);
+  const stepList = steps.data;
+  const edits = useMemo<TranscriptEdits>(
+    () => ({ chatId: id, steps: stepList ? new Map<string, EditStep>(stepList.map((step) => [step.id, step])) : null }),
+    [id, stepList],
+  );
+
   const { open: findOpen, show: findShow, close: findClose } = find;
   const actions = useMemo<HeaderActions>(
     () => ({
@@ -242,6 +260,7 @@ export function ChatView() {
                 working={stepCurrent}
                 subagents={subagents}
                 workflows={workflows}
+                edits={edits}
               />
             )}
             {/* Pinned under the transcript: a chat waiting on a decision is stuck until it gets one */}
