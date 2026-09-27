@@ -2384,6 +2384,13 @@ export interface PushPayload {
   body: string;
   /** Path to open, e.g. `/chats/<id>?prompt=<id>`; null when there is nothing but the app to open */
   href: string | null;
+  /**
+   * The same place as `href`, as an absolute URL on the tunnel's public address at the moment the
+   * push was sent; null while no tunnel is active. The free address changes, and an install made on
+   * an old one still receives its pushes, so its worker opens this instead of its own dead origin
+   * (docs/plans/tunnel.md, "Answer: notifications after a domain change")
+   */
+  url: string | null;
   at: string;
   priority: NotificationPriority;
   runId: string | null;
