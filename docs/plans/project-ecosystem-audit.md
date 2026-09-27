@@ -147,7 +147,7 @@ Left by orchestration 1b, each with the reason, for the owner or the orchestrati
 
 In the code:
 
-- **Schedules skip the node checks.** A schedule filled from `specOfOrchestration` carries each
+- **Closed after 1b** (see the second audit). **Schedules skip the node checks.** A schedule filled from `specOfOrchestration` carries each
   node's `workItemId`, and the scheduler launches through `orchestrator.create`, not core's checks,
   so a scheduled graph links to those items. The scheduler was outside 1b's files; stripping
   `workItemId` there, as templates now do, is the likely answer.
@@ -174,6 +174,34 @@ In the prototypes:
   Hitos and Asistente leave empty space under their lists.
 
 In the checks: `pnpm build` and `pnpm e2e` on the merged branch, in 1b's verification phase.
+
+## Second audit, after orchestration 1b
+
+Run on 2026-09-27 on the merged branch (`ce572e6`), before orchestration 2. The verification of 1b
+passed in full: install, typecheck, 1,260 tests, build and all 36 e2e specs.
+
+- **Code.** Every finding above was confirmed fixed, each with a test that fails without the fix.
+  The migrations are untouched, the store split changed no behaviour, and no commit carries an AI
+  attribution trailer. Three new findings and one old bug were fixed on `feat/project-ecosystem`
+  right after, each with a test that fails without it:
+  - **A scheduled graph took over work items** (the first item of "What stays open"): the schedule
+    drops each node's `workItemId` when it is stored and again when it fires (`withoutWorkItems`).
+  - **A chat announced already busy never moved its item to `in_progress`**, since `run.created` was
+    not read as a turn start once the coalesced updates stopped counting.
+  - **Recovering an item's worktree pruned every missing worktree of the repository**; it now
+    removes only its own.
+  - **Opening the database failed with "database is locked"** when another process held a lock:
+    `busy_timeout` was set after the switch to WAL. It predates the feature and was what made the
+    work items' concurrency test flaky.
+- **Prototypes.** The 66 new screens pass `tools/lint.py` (no raw value; the 63 left are in seven
+  phone screens from before the feature) and `tools/check.mjs` (contrast in both themes and 44 px
+  targets on the phone) with no finding. The board, the work item, the assistant's proposals and
+  the More sheet were looked at in both themes. The last copy outside the glossary, the flow
+  stepper's "Uno menos / Uno más", became "Reducir / Aumentar".
+- **Still open for later**, none blocking orchestration 2: relaunching a graph whose item was
+  deleted answers 400 instead of dropping the link; a node's worktree recorded on an item can make
+  "Work on it" refuse when the graph ran in another repository; the Orchestrations badge reads 2 on
+  the More sheet and 1 elsewhere; and the prototype items listed above.
 
 ## Related
 
