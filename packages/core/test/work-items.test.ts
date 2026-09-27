@@ -272,6 +272,34 @@ test('a criterion is checked on its own, with who checked it, and a replaced lis
   assert.throws(() => service.checkCriterion(item.id, 'missing', { checked: true }), refusal(404));
 });
 
+test('reordering the criteria alone is announced and returns the new updatedAt, without a history entry', async () => {
+  const { service, events } = setup();
+  const item = service.create('p1', { title: 'x', acceptanceCriteria: [{ text: 'a' }, { text: 'b' }] });
+  const [a, b] = item.acceptanceCriteria;
+  assert.ok(a && b);
+  const entries = service.history(item.id).length;
+  events.length = 0;
+  await new Promise((resolve) => setTimeout(resolve, 5));
+
+  const reordered = service.update(item.id, { acceptanceCriteria: [{ id: b.id, text: 'b' }, { id: a.id, text: 'a' }] });
+  assert.deepEqual(
+    reordered.acceptanceCriteria.map((c) => c.text),
+    ['b', 'a'],
+  );
+  assert.ok(reordered.updatedAt > item.updatedAt, 'the result carries the new updatedAt');
+  assert.equal(reordered.updatedAt, service.get(item.id).updatedAt);
+  assert.deepEqual(
+    events.map((e) => [e.type, 'changes' in e ? e.changes : null]),
+    [['workitem.updated', ['criterion']]],
+  );
+  assert.equal(service.history(item.id).length, entries);
+
+  // The same order again is no change at all
+  events.length = 0;
+  service.update(item.id, { acceptanceCriteria: [{ id: b.id, text: 'b' }, { id: a.id, text: 'a' }] });
+  assert.deepEqual(events, []);
+});
+
 // ---------- moves and ranks ----------
 
 test('moves keep the order a person gives, first, last and after a neighbour', () => {

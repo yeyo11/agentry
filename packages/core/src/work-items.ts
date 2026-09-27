@@ -400,14 +400,22 @@ export class WorkItemService {
           entries.push({ itemId, change: 'milestone', from: this.milestoneSnapshot(before.milestone_id), to: this.milestoneSnapshot(next) });
         }
       }
-      if (input.acceptanceCriteria !== undefined) entries.push(...this.replaceCriteria(itemId, input.acceptanceCriteria));
+      // A new order alone rewrites the checklist without an entry, and still counts as a change
+      let reordered = false;
+      if (input.acceptanceCriteria !== undefined) {
+        const criteria = this.replaceCriteria(itemId, input.acceptanceCriteria);
+        entries.push(...criteria.entries);
+        reordered = criteria.rewritten;
+      }
 
-      if (!entries.length) return { row: before, changes: [] as WorkItemChange[], prefix };
+      if (!entries.length && !reordered) return { row: before, changes: [] as WorkItemChange[], prefix };
       const now = new Date().toISOString();
       set('updated_at', now);
       this.sql.prepare(`UPDATE work_items SET ${sets.join(', ')} WHERE id = ?`).run(...params, itemId);
       this.record(entries, actor, cause, now);
-      return { row: this.mustRow(itemId), changes: unique(entries.map((e) => e.change)), prefix };
+      const changes: WorkItemChange[] = entries.map((e) => e.change);
+      if (reordered) changes.push('criterion');
+      return { row: this.mustRow(itemId), changes: unique(changes), prefix };
     });
     const item = this.mustHydrate(result.row);
     if (result.changes.length) this.emitUpdated(item, result.changes, actor, cause);
@@ -938,9 +946,10 @@ export class WorkItemService {
 
   /**
    * Replaces the checklist. An entry with an id keeps its check; one without is new. History says
-   * which were added, removed or reworded; a new order alone is not a change worth an entry.
+   * which were added, removed or reworded; a new order alone is not a change worth an entry, but
+   * `rewritten` says the rows changed, so the caller still bumps the item and announces it.
    */
-  private replaceCriteria(itemId: string, input: readonly AcceptanceCriterionInput[]): PendingEntry[] {
+  private replaceCriteria(itemId: string, input: readonly AcceptanceCriterionInput[]): { entries: PendingEntry[]; rewritten: boolean } {
     if (!Array.isArray(input)) throw new WorkItemError('acceptanceCriteria must be a list', 400);
     if (input.length > CRITERIA_MAX) throw new WorkItemError(`an item holds at most ${String(CRITERIA_MAX)} acceptance criteria`, 400);
     const current = this.sql.prepare('SELECT * FROM work_item_criteria WHERE item_id = ? ORDER BY position').all(itemId) as unknown as CriterionRow[];
@@ -967,15 +976,13 @@ export class WorkItemService {
       if (!kept.has(c.id)) entries.push({ itemId, change: 'criterion', from: { id: c.id, text: c.text, checked: Boolean(c.checked) }, to: null });
     }
     const orderChanged = next.some((c, i) => c.existing?.position !== i) || current.length !== next.length;
-    if (!entries.length && !orderChanged) return [];
+    if (!entries.length && !orderChanged) return { entries, rewritten: false };
     this.sql.prepare('DELETE FROM work_item_criteria WHERE item_id = ?').run(itemId);
     const insert = this.sql.prepare(
       'INSERT INTO work_item_criteria (id, item_id, position, text, checked, checked_by_kind, checked_by_role) VALUES (?, ?, ?, ?, ?, ?, ?)',
     );
     next.forEach((c, i) => insert.run(c.id, itemId, i, c.text, c.existing?.checked ?? 0, c.existing?.checked_by_kind ?? null, c.existing?.checked_by_role ?? null));
-    // A reorder alone still rewrites the rows, so the item says it changed even without an entry
-    if (!entries.length) this.sql.prepare('UPDATE work_items SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), itemId);
-    return entries;
+    return { entries, rewritten: true };
   }
 
   private record(entries: readonly PendingEntry[], actor: WorkItemActor, cause: WorkItemCause | null, at: string): void {
