@@ -7,6 +7,25 @@ import type { CswapInfo } from '@agentry/shared';
  * - `installing` / `failed`: Agentry's own install, under way or broken;
  * - `unavailable`: none, and Agentry does not install it here (Docker, `CSWAP_BIN`, or turned off).
  */
+/**
+ * The server's report with every field the page reads in place. A server older than the page (a
+ * wrapper not restarted after an update, or a dev server on another branch) sends no `managed` and
+ * no `pinned`: read as "Agentry does not install it here", the page shows what it can instead of
+ * failing on the first property it reads.
+ */
+export function normalizeCswap(cswap: Partial<CswapInfo> & Pick<CswapInfo, 'installed'>): CswapInfo {
+  return {
+    ...cswap,
+    installed: cswap.installed,
+    version: cswap.version ?? null,
+    path: cswap.path ?? null,
+    source: cswap.source ?? null,
+    compatible: cswap.compatible ?? true,
+    pinned: cswap.pinned ?? '',
+    managed: cswap.managed ?? { available: false, state: 'absent', version: null },
+  };
+}
+
 export type CswapView = 'ready' | 'offer' | 'installing' | 'failed' | 'unavailable';
 
 export function cswapView(cswap: CswapInfo): CswapView {

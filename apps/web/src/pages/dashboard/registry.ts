@@ -75,10 +75,11 @@ export const widgetDefinition = (type: string): WidgetDefinition | undefined => 
 
 /*
  * The order a person reads in: what is live, then what to pick up, then the project's own things.
- * Orchestrations are part of "In progress" now, so their own widget is only for a stored layout.
+ * Orchestrations are part of "In progress" now, so their own widget is only for a stored layout;
+ * so is Quick start, since the header's New chat and the phone's FAB already start a chat here.
  */
 const DEFAULT_TYPES: Record<DashboardScope, readonly WidgetType[]> = {
-  project: ['now', 'quickStart', 'pickUp', 'export', 'kpis', 'limits', 'today', 'schedules', 'memory', 'worktrees', 'resources'],
+  project: ['now', 'pickUp', 'export', 'kpis', 'limits', 'today', 'schedules', 'memory', 'worktrees', 'resources'],
   global: ['now', 'pickUp', 'kpis', 'limits', 'today', 'projects', 'schedules'],
 };
 

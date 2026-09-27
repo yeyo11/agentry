@@ -50,9 +50,9 @@ export function UpdatesCard() {
               {info.publishedAt && <span className="muted"> · {t('updates.published', { date: formatDate(info.publishedAt) })}</span>}{' '}
               {info.latest &&
                 (info.updateAvailable ? (
-                  <Tag tone="warn">{t('updates.available', { latest: info.latest })}</Tag>
+                  <Tag tone="warn">{t('updates.availableTag')}</Tag>
                 ) : (
-                  <Tag tone="ok">{t('updates.upToDate')}</Tag>
+                  <Tag tone="ok">{t('updates.upToDateTag')}</Tag>
                 ))}
               {info.url && (
                 <>

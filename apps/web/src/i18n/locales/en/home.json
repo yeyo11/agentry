@@ -211,7 +211,7 @@
     "waitingSome": "permissions, questions or decisions",
     "spend": "Today's spend",
     "today": "Today",
-    "spent": "spent",
+    "spent": "USD spent",
     "withoutCost_one": "+{{n}} terminal chat with no cost",
     "withoutCost_other": "+{{n}} terminal chats with no cost",
     "everyProject": "across every project",

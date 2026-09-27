@@ -42,8 +42,7 @@ import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
-import { NARROW, useMediaQuery } from './lib/media';
-import { fabFor, hidesTabBar, pageHoldsScope } from './lib/shell-live';
+import { fabFor, hidesTabBar } from './lib/shell-live';
 import { Home } from './pages/Home';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
@@ -214,11 +213,6 @@ function Shell() {
   );
 
   const tabBar = !hidesTabBar(pathname);
-  // On a phone the Chats header carries the scope, as a chip beside its title; a second selector
-  // up here would be two controls for one choice. Decided here, not hidden in CSS, so that exactly
-  // one is in the DOM
-  const phone = useMediaQuery(NARROW);
-  const scopeInPage = phone && pageHoldsScope(pathname);
   const fab = fabFor(pathname) !== null;
 
   // In the icon rail the labels are hidden, so they move into tooltips
@@ -319,7 +313,7 @@ function Shell() {
           </NavLink>
           {/* The scope is the crumb's root: every page below it is about that project */}
           <div className="crumbs">
-            {!scopeInPage && <ProjectSelector />}
+            <ProjectSelector />
             <span className="crumb-sep" aria-hidden>
               /
             </span>
@@ -381,7 +375,7 @@ function Shell() {
 
       {tabBar && (
         <>
-          <Fab pathname={pathname} onNewChat={newChat} onNewOrchestration={newOrchestration} />
+          <Fab pathname={pathname} scroller={mainRef} onNewChat={newChat} onNewOrchestration={newOrchestration} />
           <TabBar
             pathname={pathname}
             tabs={[home, chats, orchestrations]}

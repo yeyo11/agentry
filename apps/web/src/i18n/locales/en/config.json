@@ -193,8 +193,6 @@
     "checked": "Last checked {{when}}",
     "check": "Check for updates",
     "checking": "Checking…",
-    "upToDate": "Claude Code is up to date.",
-    "updateAvailable": "Claude Code {{latest}} is available.",
     "updateHow": "Agentry does not update the CLI inside a running container, so a restart always gives the same version. Rebuild the image with CLAUDE_CODE_VERSION={{latest}} (Docker Compose: set it in .env and run docker compose build), or pull a newer Agentry image. On a plain install, run claude update.",
     "checkFailed": "Could not check for updates",
     "note": "Checked when you ask and once a day, never when a page loads. It reads the npm registry, not claude.ai."
@@ -205,8 +203,6 @@
     "latest": "Newest release",
     "never": "not checked yet",
     "published": "published {{date}}",
-    "available": "Agentry {{latest}} is available.",
-    "upToDate": "Agentry is up to date.",
     "notes": "Release notes",
     "checked": "Last checked {{when}}",
     "check": "Check for updates",
@@ -245,7 +241,9 @@
       "waiting_other": "{{count}} chats are waiting for an answer",
       "running_one": "{{count}} orchestration is running",
       "running_other": "{{count}} orchestrations are running"
-    }
+    },
+    "availableTag": "Update available",
+    "upToDateTag": "Up to date"
   },
   "account": {
     "tokenSource": {

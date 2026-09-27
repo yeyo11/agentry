@@ -32,6 +32,13 @@ export interface ListFilterChip {
  * What the filters are is the caller's business — it passes the facet sections as children — and so
  * is where the state lives, usually the URL.
  *
+ * `disabled` is a list with nothing in it at all: the bar keeps its place, so the screen does not
+ * change shape when the first item arrives, but nothing in it can be used. Reset stays usable, so a
+ * kept filter can always be cleared.
+ *
+ * Lists keep their state until it is reset (`lib/list-params.ts`), so Reset shows whenever the list is
+ * `active` — searched, sorted or on another tab too — and not only while a filter chip is on.
+ *
  * On a narrow screen it is two rows: the search with one button that opens the filters and the sort
  * in a sheet, and under them the tabs as a strip of chips that scrolls sideways.
  */
@@ -42,6 +49,8 @@ export function ListToolbar<T extends string>({
   sort,
   chips = [],
   onReset,
+  active = false,
+  disabled = false,
   actions,
   className = '',
 }: {
@@ -53,6 +62,10 @@ export function ListToolbar<T extends string>({
   sort?: { value: string; options: ReadonlyArray<{ value: string; label: string }>; onChange: (value: string) => void; label?: string };
   chips?: ReadonlyArray<ListFilterChip>;
   onReset?: () => void;
+  /** Anything differs from the list's defaults, chips or not: what makes Reset worth offering */
+  active?: boolean;
+  /** The list is empty, not filtered empty: every control shows, dimmed and inert */
+  disabled?: boolean;
   /** Page actions that belong on the same line, at the end */
   actions?: ReactNode;
   className?: string;
@@ -65,7 +78,13 @@ export function ListToolbar<T extends string>({
   // The same button either way: a popover's trigger clones its props onto it, and the sheet's copy
   // opens the sheet itself, so neither ends up as a click handler on something that is not a button.
   const filterButton = (onClick?: () => void) => (
-    <button type="button" className={`btn btn-small list-toolbar-filters ${filters && filters.count > 0 ? 'is-on' : ''}`.trim()} aria-label={filterName} onClick={onClick}>
+    <button
+      type="button"
+      className={`btn btn-small list-toolbar-filters ${filters && filters.count > 0 ? 'is-on' : ''}`.trim()}
+      aria-label={filterName}
+      disabled={disabled}
+      onClick={onClick}
+    >
       <ListFilter {...ICON_SM} />
       <span>{t('toolbar.filters')}</span>
       {filters && filters.count > 0 && (
@@ -82,6 +101,7 @@ export function ListToolbar<T extends string>({
       onChange={sort.onChange}
       options={sort.options.map((option) => ({ value: option.value, label: option.label }))}
       aria-label={sort.label ?? t('toolbar.sort')}
+      disabled={disabled}
       className="list-toolbar-sort"
     />
   );
@@ -93,6 +113,7 @@ export function ListToolbar<T extends string>({
       value={tabs.value}
       label={tabs.label}
       onChange={tabs.onChange}
+      disabled={disabled}
       options={tabs.options.map((tab) => ({
         value: tab.id,
         ...(tab.title ? { title: tab.title } : {}),
@@ -112,12 +133,13 @@ export function ListToolbar<T extends string>({
       <div className="list-toolbar-row">
         {!narrow && tabStrip}
         {search && (
-          <label className="list-toolbar-search">
+          <label className={`list-toolbar-search ${disabled ? 'is-disabled' : ''}`.trim()}>
             <Search {...ICON_SM} aria-hidden />
             <input
               type="search"
               value={search.value}
               placeholder={search.placeholder ?? t('toolbar.search')}
+              disabled={disabled}
               aria-label={search.label ?? t('toolbar.searchLabel')}
               onChange={(event) => search.onChange(event.target.value)}
             />
@@ -156,7 +178,7 @@ export function ListToolbar<T extends string>({
         {actions && <div className="list-toolbar-actions">{actions}</div>}
       </div>
       {narrow && tabStrip && <div className="list-toolbar-strip">{tabStrip}</div>}
-      {chips.length > 0 && (
+      {(chips.length > 0 || (active && onReset)) && (
         <div className="list-toolbar-chips" aria-label={t('toolbar.activeFilters')} role="group">
           {chips.map((chip) => (
             <button key={chip.id} type="button" className="filter-chip" onClick={chip.onRemove} aria-label={t('toolbar.removeFilter', { filter: chip.label })}>

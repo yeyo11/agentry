@@ -112,7 +112,7 @@ test('the default layouts: what the plan asks for, each widget in its scope, and
   const global = defaultLayout('global');
   assert.deepEqual(
     project.widgets.map((w) => w.type).sort(),
-    ['export', 'kpis', 'limits', 'memory', 'now', 'pickUp', 'quickStart', 'resources', 'schedules', 'today', 'worktrees'].sort(),
+    ['export', 'kpis', 'limits', 'memory', 'now', 'pickUp', 'resources', 'schedules', 'today', 'worktrees'].sort(),
   );
   // Orchestrations are part of "In progress": their own widget would show them twice
   assert.deepEqual(global.widgets.map((w) => w.type).sort(), ['kpis', 'limits', 'now', 'pickUp', 'projects', 'schedules', 'today'].sort());

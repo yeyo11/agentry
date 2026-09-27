@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { desktopClasses } from '../src/lib/desktop.ts';
-import { chatActivity, fabFor, hidesTabBar, liveSummary, moreNotes, orchestrationProgress, pageHoldsScope, pickUsageWindows, swapUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
+import { chatActivity, fabFor, hidesTabBar, liveSummary, moreNotes, orchestrationProgress, pickUsageWindows, swapUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
 
 // The shell is where a person sees at a glance what is alive. What it lists has to be in the order
 // that needs them most, never twice, and a shape it does not expect must not break a row.
@@ -123,9 +123,8 @@ test('the tab bar steps aside on a chat and on an orchestration, not on their li
 });
 
 test('the phone FAB follows the page: words on Home, an icon on the lists, none where the tab bar steps aside', () => {
-  assert.deepEqual(fabFor('/'), { action: 'chat', labelled: true });
-  for (const path of ['/chats', '/chats/', '/projects']) assert.deepEqual(fabFor(path), { action: 'chat', labelled: false }, path);
-  assert.deepEqual(fabFor('/orchestration'), { action: 'orchestration', labelled: false });
+  for (const path of ['/', '/chats', '/chats/', '/projects']) assert.deepEqual(fabFor(path), { action: 'chat' }, path);
+  assert.deepEqual(fabFor('/orchestration'), { action: 'orchestration' });
   for (const path of ['/chats/abc', '/chats/new', '/orchestration/o1', '/settings', '/accounts', '/usage', '/nowhere']) assert.equal(fabFor(path), null, path);
 });
 
@@ -177,10 +176,4 @@ test('the More sheet says a problem before a count, and nothing it does not know
   // Before the account list is read, the overview's total; a day with no cost is said, not left blank
   assert.deepEqual(moreNotes({ accounts: { total: 2 } })['/accounts'], { kind: 'count', value: 2 });
   assert.deepEqual(moreNotes({ todayCost: null })['/usage'], { kind: 'cost', value: null });
-});
-
-test('only the chat list holds the project scope in its own header', () => {
-  assert.equal(pageHoldsScope('/chats'), true);
-  assert.equal(pageHoldsScope('/chats/'), true);
-  for (const path of ['/', '/chats/new', '/chats/abc', '/orchestration', '/projects']) assert.equal(pageHoldsScope(path), false, path);
 });

@@ -378,6 +378,11 @@
   padding: 4px 0 18px;
 }
 
+/* Right on the keyboard, the room kept under the composer is only a gap above it */
+:root[data-keyboard='open'] .composer-wrap {
+  padding-bottom: 8px;
+}
+
 .composer {
   display: flex;
   gap: 8px;

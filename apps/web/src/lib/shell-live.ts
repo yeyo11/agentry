@@ -160,24 +160,22 @@ export function hidesTabBar(pathname: string): boolean {
   return /^\/orchestration\/[^/]+\/?$/.test(pathname);
 }
 
-/** What the phone's floating button starts on a page, and whether it has room for its words. */
+/** What the phone's floating button starts on a page. */
 export interface FabPlan {
   action: 'chat' | 'orchestration';
-  labelled: boolean;
 }
 
 /**
- * The phone's one "start something" button. It follows the page: Home says it in words, the lists
- * keep only the icon so it covers less of them, and Orchestrations starts one of its own. Where
+ * The phone's one "start something" button: the same round "+" on every page that has it, so it
+ * reads as one control, starting a chat or, on Orchestrations, one of those. Where
  * the tab bar steps aside the page has its own footer, so the button does too; on the other pages
  * a floating button would only cover a form or a table that has nothing to do with starting a chat.
  */
 export function fabFor(pathname: string): FabPlan | null {
   if (hidesTabBar(pathname)) return null;
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
-  if (path === '/') return { action: 'chat', labelled: true };
-  if (path === '/chats' || path === '/projects') return { action: 'chat', labelled: false };
-  if (path === '/orchestration') return { action: 'orchestration', labelled: false };
+  if (path === '/' || path === '/chats' || path === '/projects') return { action: 'chat' };
+  if (path === '/orchestration') return { action: 'orchestration' };
   return null;
 }
 
@@ -260,13 +258,4 @@ export function moreNotes(input: MoreNotesInput): Record<string, MoreNote> {
     notes['/connectors'] = pending ? { kind: 'pending', value: pending } : { kind: 'count', value: total };
   }
   return notes;
-}
-
-/**
- * The pages that carry the project scope in their own header on a phone, as the reference draws
- * them. There the top bar leaves its selector out, so the page never has two of them.
- */
-export function pageHoldsScope(pathname: string): boolean {
-  const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
-  return path === '/chats';
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CswapInfo, CswapManagedInfo } from '@agentry/shared';
-import { accountsRefetchInterval, cswapInstalling, cswapRemovable, cswapView } from '../src/lib/cswap.ts';
+import { accountsRefetchInterval, cswapInstalling, cswapRemovable, cswapView, normalizeCswap } from '../src/lib/cswap.ts';
 
 const managed = (over: Partial<CswapManagedInfo> = {}): CswapManagedInfo => ({ available: true, state: 'absent', version: null, ...over });
 const missing = (over: Partial<CswapManagedInfo> = {}): CswapInfo => ({
@@ -51,4 +51,13 @@ test('only Agentry’s own copy, in use and settled, can be removed from the pag
   assert.equal(cswapRemovable(running('path', { state: 'installed', version: '0.26.0' })), false);
   assert.equal(cswapRemovable(running('managed', { available: false, state: 'installed' })), false);
   assert.equal(cswapRemovable(running('managed', { state: 'installing' })), false);
+});
+
+test('a server older than the page, with no managed copy reported, still reads', () => {
+  const old = normalizeCswap({ installed: true, version: '0.26.0', path: 'cswap' });
+  assert.deepEqual(old.managed, { available: false, state: 'absent', version: null });
+  assert.equal(cswapView(old), 'ready');
+  assert.equal(cswapInstalling(old), false);
+  assert.equal(cswapRemovable(old), false);
+  assert.equal(cswapView(normalizeCswap({ installed: false })), 'unavailable');
 });

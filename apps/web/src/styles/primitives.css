@@ -81,7 +81,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 36px;
+  min-height: var(--control-h);
   padding: 5px 14px;
   border-radius: var(--radius);
   border: 1px solid var(--border-strong);
@@ -155,11 +155,16 @@
 }
 
 .btn-small {
-  min-height: 30px;
+  min-height: var(--control-h-sm);
   padding: 2px 10px;
   font-size: 12.5px;
   border-radius: var(--radius-sm);
   gap: 6px;
+}
+
+/* Beside a field or a select a small button would be the one control out of line */
+:is(.list-toolbar-row, .filter-bar, .toolbar, .search-box) > .btn-small {
+  min-height: var(--control-h);
 }
 
 .btn-block {
@@ -176,8 +181,8 @@
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -233,6 +238,12 @@ textarea {
   width: 100%;
   min-width: 0;
   transition: border-color var(--dur-fast), box-shadow var(--dur-base), background var(--dur-fast);
+}
+
+/* A one-line field is a control of its row: its height is the token's, not its padding's and its font's */
+input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'], [type='hidden']) {
+  min-height: var(--control-h);
+  padding-block: 0;
 }
 
 input::placeholder,
@@ -477,14 +488,24 @@ input.is-invalid {
   font: inherit;
   font-size: 12.5px;
   font-weight: 450;
-  min-height: 28px;
+  /* The group's padding and border make up the rest, so the group is as tall as a control */
+  min-height: calc(var(--control-h) - 8px);
   padding: 4px 11px;
   cursor: pointer;
   white-space: nowrap;
   transition: color var(--dur-fast);
 }
 
-.segment:hover {
+/* Nothing to choose between yet: the group stays in place, dimmed like a disabled control */
+.segmented.is-disabled {
+  opacity: 0.55;
+}
+
+.segment:disabled {
+  cursor: not-allowed;
+}
+
+.segment:hover:not(:disabled) {
   color: var(--text);
 }
 
@@ -1114,7 +1135,7 @@ button.step:hover {
   gap: 6px;
   flex: 1 1 200px;
   min-width: 0;
-  min-height: 36px;
+  min-height: var(--control-h);
   padding: 0 12px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
@@ -1123,7 +1144,16 @@ button.step:hover {
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
 
-.list-toolbar-search:hover {
+.list-toolbar-search.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.list-toolbar-search.is-disabled input {
+  cursor: not-allowed;
+}
+
+.list-toolbar-search:hover:not(.is-disabled) {
   border-color: var(--line-3);
 }
 
@@ -1132,9 +1162,11 @@ button.step:hover {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* The label is the control; the field inside it only fills it */
 .list-toolbar-search input {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   border: 0;
   padding: 6px 0;
   background: none;
@@ -1224,7 +1256,6 @@ button.step:hover {
 
 /* A finger needs a target it can hit; a pointer does not need the room. */
 @media (pointer: coarse) {
-  .list-toolbar-search input,
   .filter-chip,
   .step {
     min-height: 44px;

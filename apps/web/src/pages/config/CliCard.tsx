@@ -50,7 +50,7 @@ export function CliCard() {
           <dd>
             {shown.latest ?? t('cli.never')}{' '}
             {shown.latest &&
-              (shown.updateAvailable ? <Tag tone="warn">{t('cli.updateAvailable', { latest: shown.latest })}</Tag> : <Tag tone="ok">{t('cli.upToDate')}</Tag>)}
+              (shown.updateAvailable ? <Tag tone="warn">{t('updates.availableTag')}</Tag> : <Tag tone="ok">{t('updates.upToDateTag')}</Tag>)}
           </dd>
         </dl>
       )}

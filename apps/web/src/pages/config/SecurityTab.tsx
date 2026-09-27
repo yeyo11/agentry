@@ -11,6 +11,7 @@ import { useToast } from '../../components/Toast';
 import { Card, CopyButton, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '../../components/ui';
 import { getToken, setChallenge, setToken } from '../../lib/auth';
 import { formatDateTime, formatNumber } from '../../lib/format';
+import { GLOBAL_SCOPE, useListParams } from '../../lib/list-params';
 import { reveal, useRevealedToken } from '../../lib/revealed-token';
 import { AppSettingsCards } from './AppSettingsCards';
 
@@ -339,17 +340,21 @@ function outcome(status: number): { tone: 'ok' | 'warn' | 'bad'; key: 'ok' | 'un
   return { tone: 'bad', key: 'failed' };
 }
 
+/** What the audit's filters keep until they are cleared, as typed */
+const AUDIT_PARAMS = ['path', 'method', 'status'] as const;
+
 function AuditCard() {
   const { t } = useTranslation(['config', 'common']);
-  const [filter, setFilter] = useState('');
-  const [path, setPath] = useState('');
-  const [method, setMethod] = useState<AuditMethod>('');
-  const [statusText, setStatusText] = useState('');
-  const [status, setStatus] = useState('');
-  const [from, setFrom] = useState(0);
-
+  const { params, patch, reset } = useListParams('audit', AUDIT_PARAMS, GLOBAL_SCOPE);
+  const filter = params.get('path') ?? '';
+  const method = AUDIT_METHODS.find((m) => m === params.get('method')) ?? '';
+  const statusText = params.get('status') ?? '';
   const statusTyped = statusText.trim();
   const statusInvalid = statusTyped !== '' && !STATUS_FILTER.test(statusTyped);
+  // What the request asks for trails the fields by a pause in typing, but starts where they were left
+  const [path, setPath] = useState(() => filter.trim());
+  const [status, setStatus] = useState(() => (statusInvalid ? '' : statusTyped.toLowerCase()));
+  const [from, setFrom] = useState(0);
 
   // One request per pause in typing, not per keystroke
   useEffect(() => {
@@ -395,7 +400,7 @@ function AuditCard() {
             placeholder={t('config:security.audit.filterPlaceholder')}
             aria-label={t('config:security.audit.filterLabel')}
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e) => patch({ path: e.target.value })}
           />
         </div>
         <Select
@@ -403,7 +408,7 @@ function AuditCard() {
           value={method}
           options={methodOptions}
           onChange={(next) => {
-            setMethod(next);
+            patch({ method: next });
             setFrom(0);
           }}
         />
@@ -413,17 +418,13 @@ function AuditCard() {
           className={`audit-status ${statusInvalid ? 'is-invalid' : ''}`}
           value={statusText}
           options={AUDIT_CLASSES.map((value) => ({ value, hint: t(`config:security.audit.statusClass.${value}`) }))}
-          onChange={setStatusText}
+          onChange={(next) => patch({ status: next })}
         />
         {(filter !== '' || method !== '' || statusText !== '') && (
           <button
             type="button"
             className="btn btn-small"
-            onClick={() => {
-              setFilter('');
-              setMethod('');
-              setStatusText('');
-            }}
+            onClick={reset}
           >
             {t('config:security.audit.clearFilters')}
           </button>

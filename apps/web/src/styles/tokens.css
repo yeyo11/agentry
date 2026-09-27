@@ -140,6 +140,10 @@
   --rail-w: 2px;
   /* The phone's bottom tab bar, without the safe-area inset under it */
   --tabbar-h: 56px;
+  /* Every control of a row shares one height, so a field, a select, a button and a segmented
+     group side by side line up. The small one is for dense places; a finger gets 44 for both. */
+  --control-h: 36px;
+  --control-h-sm: 30px;
 
   /* Type */
   --mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -160,6 +164,13 @@
 
   /* Lets height:auto animate where the browser supports it */
   interpolate-size: allow-keywords;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --control-h: 44px;
+    --control-h-sm: 44px;
+  }
 }
 
 /*

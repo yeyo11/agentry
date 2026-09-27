@@ -243,14 +243,16 @@ export default async ({ page, api, check, dirs }) => {
     // The phone's navigation is the tab bar: the sidebar is out of the tab order, "More" is a sheet
     // that takes focus when open and gives it back to its button on Escape
     await page.viewport(420, 900);
-    await settle(page, '/chats');
+    // All projects, where the seeded chat is: the project visited above holds none, and an empty
+    // chat list offers New chat itself, so it has no FAB (FabStandIn)
+    await settle(page, '/chats?project=all');
     const sidebarShown = await page.eval(`return document.querySelector('#sidebar').getClientRects().length > 0`);
     if (sidebarShown) problems.push('[420px] the sidebar is still shown next to the tab bar');
     const tabs = await page.eval(`return [...document.querySelectorAll('.tabbar a')].map((a) => a.getAttribute('href'))`);
     for (const href of ['/', '/chats', '/orchestration']) if (!tabs.includes(href)) problems.push(`[420px] the tab bar has no ${href} tab`);
-    // The Chats header carries the project scope on a phone, and the top bar leaves its own out: one selector, never two
+    // The project scope lives in the top bar on every page and screen: one selector, never two
     const scopes = await page.eval(`return [...document.querySelectorAll('.project-selector')].map((s) => s.closest('.topbar') ? 'topbar' : s.closest('main .page-header') ? 'header' : 'elsewhere')`);
-    if (scopes.join() !== 'header') problems.push(`[420px] /chats should have one project selector, in its header (found: ${scopes.join(', ') || 'none'})`);
+    if (scopes.join() !== 'topbar') problems.push(`[420px] /chats should have one project selector, in the top bar (found: ${scopes.join(', ') || 'none'})`);
     // New chat is the FAB on a phone: an icon on the list, so its name has to be said, and a real button
     const fab = await page.eval(`const f = document.querySelector('.fab'); return f ? { tag: f.tagName, name: f.getAttribute('aria-label'), size: Math.min(f.offsetWidth, f.offsetHeight) } : null`);
     if (!fab) problems.push('[420px] there is no New chat FAB on the chat list');

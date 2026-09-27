@@ -142,6 +142,11 @@ export default async ({ page, api, check, dirs }) => {
     check(await page.eval(`return !!document.querySelector('main .orch-list [role=progressbar][aria-label*="tasks done"]')`), 'a row carries its progress, named in words');
     await page.goto('/orchestration?q=no-such-graph-anywhere', 1200);
     check((await page.text('main')).includes('No orchestration matches'), 'a search that finds nothing says so');
+    // The search is kept until it is reset, so a bare /orchestration would still find nothing
+    await page.goto('/orchestration', 1200);
+    check((await page.text('main')).includes('No orchestration matches'), 'the search is kept on a later visit');
+    await page.click('main .state-empty button', 'Show them all', 600);
+    await page.waitFor(`return !location.search.includes('q=')`, { label: 'Show all resets the search' });
 
     // ---------- launch the template ----------
     // Templates are a button in the page's header, with their count, not a card above the list

@@ -37,6 +37,8 @@
   --idle: #a78bfa;  --idle-soft: rgba(167, 139, 250, 0.13);
   /* forma */
   --r-xs: 4px; --r-sm: 6px; --r: 8px; --r-lg: 12px; --r-xl: 16px; --r-full: 999px;
+  /* One height for every control of a row (field, select, button, segmented); 44 under a finger */
+  --control-h: 36px; --control-h-sm: 30px;
   --shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
   --shadow-pop: 0 18px 48px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--line-2);
   /* tipo */
@@ -122,7 +124,7 @@
 /* ---------- 5. Botones ---------- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  height: 36px; padding: 0 14px; border-radius: var(--r);
+  height: var(--control-h); padding: 0 14px; border-radius: var(--r);
   font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer;
   border: 1px solid var(--line-2); background: var(--bg-3); color: var(--fg);
   transition: background var(--dur-fast), border-color var(--dur-fast), transform var(--dur-fast) var(--ease-out), box-shadow var(--dur);
@@ -138,7 +140,7 @@
 .btn-ghost:hover { background: var(--bg-3); color: var(--fg); border-color: transparent; }
 .btn-danger { background: var(--bad-soft); border-color: transparent; color: var(--bad); }
 .btn-danger:hover { background: var(--bad-soft); border-color: var(--bad); }
-.btn-sm { height: 30px; padding: 0 10px; font-size: 12.5px; border-radius: var(--r-sm); }
+.btn-sm { height: var(--control-h-sm); padding: 0 10px; font-size: 12.5px; border-radius: var(--r-sm); }
 .btn-lg { height: 44px; padding: 0 18px; font-size: 14.5px; border-radius: var(--r-lg); }
 .btn-icon { width: 36px; padding: 0; }
 .btn-icon.btn-sm { width: 30px; }
@@ -148,7 +150,7 @@
 
 /* ---------- 6. Campos ---------- */
 .field {
-  display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px;
+  display: flex; align-items: center; gap: 8px; height: var(--control-h); padding: 0 12px;
   border-radius: var(--r); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg-3);
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
@@ -156,7 +158,7 @@
 .field input, .field textarea, .field select { flex: 1 1 auto; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--fg); font-size: 13.5px; resize: none; padding: 0; }
 .field input::placeholder, .field textarea::placeholder { color: var(--fg-3); }
 .field-lg { height: 44px; border-radius: var(--r-lg); }
-.select { appearance: none; height: 36px; padding: 0 32px 0 12px; border-radius: var(--r); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg); font-size: 13.5px; }
+.select { appearance: none; height: var(--control-h); padding: 0 32px 0 12px; border-radius: var(--r); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg); font-size: 13.5px; }
 
 /* ---------- 7. Chips, badges, puntos ---------- */
 .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-full); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg-2); font-size: 12.5px; white-space: nowrap; cursor: pointer; }
@@ -395,3 +397,7 @@
 .il .f-accent { fill: var(--accent); }
 .il .glyph { font-family: var(--mono); font-size: 17px; font-weight: 600; fill: url(#il-grad); }
 .il .glyph-white { font-family: var(--mono); font-size: 15px; font-weight: 600; fill: #fff; }
+
+@media (pointer: coarse) {
+  :root { --control-h: 44px; --control-h-sm: 44px; }
+}

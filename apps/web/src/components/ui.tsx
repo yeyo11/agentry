@@ -102,7 +102,7 @@ export function StatusBadge({ status, title }: { status: string; title?: string 
   return (
     <span className={`badge badge-${tone}`} title={title}>
       <StatusIcon icon={icon} />
-      {statusText(status)}
+      <span className="badge-text">{statusText(status)}</span>
     </span>
   );
 }
@@ -115,7 +115,7 @@ export function Tag({ children, tone = 'muted' }: { children: ReactNode; tone?: 
   return (
     <span className={`badge badge-${tone}`}>
       {Icon && <Icon size={12} strokeWidth={2} aria-hidden />}
-      {children}
+      <span className="badge-text">{children}</span>
     </span>
   );
 }
@@ -252,15 +252,17 @@ export function Segmented<T extends string>({
   options,
   onChange,
   label,
+  disabled = false,
 }: {
   value: T;
   options: ReadonlyArray<{ value: T; label: ReactNode; title?: string }>;
   onChange: (value: T) => void;
   label: string;
+  disabled?: boolean;
 }) {
   const indicator = useIndicatorId('segment');
   return (
-    <div className="segmented" role="radiogroup" aria-label={label}>
+    <div className={`segmented ${disabled ? 'is-disabled' : ''}`.trim()} role="radiogroup" aria-label={label} aria-disabled={disabled || undefined}>
       {options.map((option) => (
         <Tooltip key={option.value} content={option.title}>
           <button
@@ -268,6 +270,7 @@ export function Segmented<T extends string>({
             role="radio"
             aria-checked={option.value === value}
             tabIndex={option.value === value ? 0 : -1}
+            disabled={disabled}
             className={`segment ${option.value === value ? 'segment-on' : ''}`}
             onClick={() => option.value !== value && onChange(option.value)}
             onKeyDown={(event) => {
