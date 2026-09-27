@@ -234,6 +234,30 @@ orchestration 3 ran, without audit agents to spare the accounts' quota.
   - Already listed by `web-review`: the history names a chat by its session name rather than its
     first prompt (a change in core), and the empty board's illustration always says "AGN-1".
 
+## Audit of orchestration 3, the team, the flow, the memory and the documents
+
+Run on 2026-09-27 over `51170a3..2fe9a92` (104 files outside `docs/`), while orchestration 4 ran.
+
+- **Checks.** Its verification passed after its fixer's two commits (a valid heading outline on the
+  new screens; the documents and memory specs matched to the markup they check). Every task
+  finished on its first attempt; the integrator resolved the overlaps in `core/src/index.ts`,
+  `api/src/app.ts`, `openapi/routes.ts`, `Home.tsx`, `views.ts` and `styles.css`.
+- **Rules.** No native control, no `any`, `@ts-ignore` or `console.log`, no raw colour outside
+  `tokens.css`, no SDK or HTTP call to Anthropic; every commit a Conventional Commit with no AI
+  attribution.
+- **The flow as decided.** A run goes through `claude --agent <member> --model <model>
+  --append-system-prompt <journal> --json-schema <result>`; what a member may write is enforced
+  with `--permission-mode dontAsk` and an allow-list of tools (stricter than a deny-list); at most
+  `flow.maxParallel` runs per project, 2 by default; driven by events, with no timer. The automatic
+  flow is **off** until the person switches it on.
+- **Screens**, captured from the built app on a seeded project (team from the template, journal
+  entries, documents tied to an item): Team, Flow, Memory and Documents follow their references,
+  with the tab strip showing Team and Documents only while their modules are on.
+- **Noted in passing**: "Usar el de la plantilla" writes the members' agent files into the
+  project's own `.claude/agents/`, as decision 26 asks. Trying it on a real project creates those
+  files there; the owner keeps the four created on `claude-wrapper` during the trial untracked
+  until the end.
+
 ## Related
 
 [[plans/project-ecosystem.md]] · [[design-system.md]] · [[work-items.md]] · [[projects.md]] ·
