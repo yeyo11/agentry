@@ -335,14 +335,17 @@
   white-space: nowrap;
 }
 
-.suggestion-row.is-discarded .suggestion-title {
+/* A discarded proposal keeps only its struck title and Undo, as a row or as a phone's card */
+.suggestion-row.is-discarded .suggestion-title,
+.suggestion-card.is-discarded .suggestion-title {
   color: var(--fg-3);
   text-decoration: line-through;
-  text-decoration-color: var(--line-3);
 }
 
 .suggestion-row.is-discarded .suggestion-reason,
-.suggestion-row.is-discarded .suggestion-meta {
+.suggestion-row.is-discarded .suggestion-meta,
+.suggestion-card.is-discarded .suggestion-reason,
+.suggestion-card.is-discarded .suggestion-meta {
   display: none;
 }
 
@@ -353,11 +356,13 @@
   color: var(--fg-2);
 }
 
-/* A phone never shows checkboxes: "Include" / "Included", with the accent ring when included */
+/* A phone never shows checkboxes: "Include" / "Included", with the accent ring when included.
+   The text is the accent itself: --accent-text is white in both themes and vanishes on the light
+   accent-soft */
 .suggestion-pick[aria-pressed='true'] {
   border-color: var(--accent);
   background: var(--accent-soft);
-  color: var(--accent-text);
+  color: var(--accent);
 }
 
 .suggestion-card {

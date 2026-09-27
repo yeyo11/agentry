@@ -122,17 +122,6 @@
   color: inherit;
 }
 
-.suggestion-card.is-discarded .suggestion-title {
-  color: var(--fg-3);
-  text-decoration: line-through;
-  text-decoration-color: var(--line-3);
-}
-
-.suggestion-card.is-accepted .suggestion-reason,
-.suggestion-card.is-discarded .suggestion-meta {
-  display: none;
-}
-
 .suggest-count {
   font-size: 13px;
   white-space: nowrap;
@@ -525,6 +514,34 @@
   line-height: 1.5;
 }
 
+/* A phone creates or discards from the foot of the screen, as MobileRecursoPropuesta draws it: an
+   open proposal hides the tab bar (hidesTabBar), so the bar goes down to the page's edge */
+.resource-proposal-editor.is-phone .resource-proposal-actions {
+  position: sticky;
+  bottom: var(--stick-bottom);
+  z-index: 2;
+  flex-wrap: nowrap;
+  margin: 0 -16px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.resource-proposal-editor.is-phone .resource-proposal-actions > .btn {
+  flex: 1 1 0;
+  min-height: 44px;
+  justify-content: center;
+}
+
+.resource-proposal-editor.is-phone .resource-proposal-hint {
+  display: none;
+}
+
+/* Discard at the left, the thumb's primary at the right */
+.resource-proposal-editor.is-phone .resource-proposal-actions > .btn-primary {
+  order: 1;
+}
+
 .resource-proposal-hint {
   display: inline-flex;
   align-items: center;
@@ -675,10 +692,4 @@
 .resource-item-badge {
   display: flex;
   margin-top: 3px;
-}
-
-/* An included proposal reads in the accent, as the reference's .sug-pick: the shared rule's
-   --accent-text is white in both themes and vanishes on the light accent-soft */
-.suggest-body .suggestion-pick[aria-pressed='true'] {
-  color: var(--accent);
 }
