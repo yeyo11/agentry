@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Nuevo proyecto, origen (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<div class="app m-screen " data-theme="dark">
+<header class="row" style="flex-shrink: 0; padding: 8px 4px 4px; gap: 4px">
+<a href="MobileProyectos.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Cerrar"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></a>
+<span class="col grow" style="gap: 1px"><span style="font-weight: 600; font-size: 17px">Nuevo proyecto</span><span class="mono t-xs fg-3">paso 1 de 4 · pagos-api</span></span>
+</header>
+<div style="padding: 4px 16px 6px"><div class="steps" aria-label="Pasos"><div class="step on" aria-current="step"><span class="step-name"><span class="n">1</span>Origen</span></div><div class="step"><span class="step-name"><span class="n">2</span>Plantilla</span></div><div class="step"><span class="step-name"><span class="n">3</span>Módulos</span></div><div class="step"><span class="step-name"><span class="n">4</span>Resumen</span></div></div></div>
+<div class="m-body stack" style="gap: 14px; padding-top: 10px">
+<h2 class="t-h2">Origen</h2>
+<div class="form-row"><span class="t-label">Nombre</span><label class="field field-lg"><input value="pagos-api" aria-label="Nombre" style="font-size: 16px"></label></div>
+<div class="form-row"><span class="t-label">Directorio</span>
+<div class="seg" role="radiogroup" aria-label="Origen del directorio" style="display: flex"><button type="button" role="radio" aria-checked="true" class="on" style="flex: 1 1 0; justify-content: center"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Local</button><button type="button" role="radio" aria-checked="false" style="flex: 1 1 0; justify-content: center"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 12h5M16 12h5"></path></svg>URL de git</button></div>
+<label class="field field-lg mono"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><input value="~/Proyectos/pagos-api" aria-label="Directorio" style="font-size: 16px"></label>
+<button type="button" class="btn btn-lg"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Elegir un directorio</button>
+</div>
+<div class="callout" style="padding: 12px"><svg class="ico fg-3" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span>El directorio ya tiene <span class="mono">23</span> chats de Claude Code: quedan agrupados en el proyecto.</span></div>
+<div class="form-row"><span class="t-label">Prefijo de clave</span><label class="field field-lg mono"><input value="PAG" aria-label="Prefijo de clave" style="font-size: 16px"></label>
+<span class="form-hint">Sale del nombre. Las tareas se llamarán <span class="mono fg-2">PAG-1</span>, <span class="mono fg-2">PAG-2</span>… y el número nunca se repite.</span></div>
+</div>
+<div class="m-foot"><a href="MobileProyectos.html" class="btn btn-lg" style="flex: 0 0 auto">Cancelar</a><a href="MobileNuevoProyecto.html" class="btn btn-primary btn-lg">Siguiente</a></div>
+</div>
+<script>t()</script>
+</body></html>
