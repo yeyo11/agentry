@@ -20,8 +20,9 @@ def filters(applied=None):
 
 
 def head(sub, on='board', primary=True, select=False, title='Tareas'):
-  sel = ('<button type="button" class="btn" aria-pressed="true" style="background: var(--bg-4); border-color: var(--line-3)">' + ico('check') + 'Seleccionando</button>') if select else ('<button type="button" class="btn">' + ico('tasks') + 'Seleccionar</button>')
-  new = f'<a href="DesktopNuevaTarea.html" class="btn{" btn-primary" if primary else ""}">{ico("plus")}Nueva tarea</a>'
+  # Selection mode is the same button, pressed; while it is on, Orquestar is the zone's primary action
+  sel = ('<button type="button" class="btn" aria-pressed="true">' + ico('check') + 'Seleccionar</button>') if select else ('<button type="button" class="btn">' + ico('tasks') + 'Seleccionar</button>')
+  new = f'<a href="DesktopNuevaTarea.html" class="btn{" btn-primary" if primary and not select else ""}">{ico("plus")}Nueva tarea</a>' 
   return f'''<div class="page-head" style="align-items: center">
 <div class="row" style="gap: 16px"><div class="col" style="gap: 4px"><h1 class="t-h1">{title}</h1><p class="fg-2 t-sm" style="margin: 0">{sub}</p></div></div>
 <div class="row" style="gap: 8px">{view_seg(on)}<span style="width: 8px"></span>{sel if on != 'ms' else ''}{new}</div>
@@ -36,10 +37,20 @@ def toolbar(applied=None, q=''):
 </div>'''
 
 
+# The order a person gave the cards by dragging (their rank). In curso is taller than the page, and
+# its last card shows cut at the column's edge, which is how a column that scrolls reads.
+RANK = ['AGN-12', 'AGN-28', 'AGN-30', 'AGN-35', 'AGN-31']
+
+
+def epics_first(keys):
+  # An epic groups the column's work, so it leads it
+  return sorted(keys, key=lambda k: (W[k]['t'] != 'epic', RANK.index(k) if k in RANK else 0))
+
+
 def board_desktop():
   selected = ('AGN-36', 'AGN-33')
-  cols = ''.join(col(s, by_col(s), sel_mode=True, selected=selected) for s, _ in COLS)
-  main = f'''<main class="page" style="gap: 16px; position: relative">
+  cols = ''.join(col(s, epics_first(by_col(s)), sel_mode=True, selected=selected) for s, _ in COLS)
+  main = f'''<main class="page selecting" style="gap: 16px; position: relative">
 {head('claude-wrapper · 15 abiertas · clave <span class="mono">AGN</span>', select=True)}
 {toolbar()}
 <div class="wi-board">{cols}</div>
@@ -51,7 +62,7 @@ def board_desktop():
 <a href="DesktopOrquestacion.html" class="btn btn-primary btn-sm">{ico('orch', 'ico ico-sm')}Orquestar</a>
 </div>
 </main>'''
-  write('DesktopTablero.html', desktop('Tablero', 'tasks', '<span style="font-weight: 500">Tareas</span>', main))
+  write('DesktopTablero.html', desktop('Tablero', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, css=CARD_CSS))
 
 
 def mhead(title, sub=None, back=None, right=''):

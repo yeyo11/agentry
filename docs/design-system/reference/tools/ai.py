@@ -115,13 +115,13 @@ def assistant_live_desktop():
 <div class="callout">{ico('info', 'ico fg-3')}<span>Es un chat del CLI con <code>--json-schema</code>: su coste cuenta en Uso y en la barra de estado, como el de cualquier chat. Si no hubiera nada que leer, te ofrecería el equipo de la plantilla.</span></div>
 </div>'''
   main = f'''<main class="page" style="gap: 20px">
-{assist_head('pagos-api · lee el repositorio y te propone el equipo, los recursos y las primeras tareas. Nada se escribe hasta que lo aceptes.', '<a href="DesktopProyecto.html" class="btn btn-ghost">Omitir por ahora</a>')}
+{assist_head('pagos-api · lee el repositorio y te propone el equipo, los recursos y las primeras tareas. Nada se escribe hasta que lo aceptes.', '<a href="DesktopProyecto.html" class="btn btn-ghost">Omitir por ahora</a><button type="button" class="btn btn-primary" disabled>' + ico('right') + 'Ir al proyecto</button>')}
 <div style="display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px; align-items: start">
 {run}
 {right}
 </div>
 </main>'''
-  crumb = '<a href="DesktopProyectos.html" class="fg-2">Proyectos</a><span class="fg-3">/</span><span style="font-weight: 500">Asistente</span>'
+  crumb = pcrumb('pagos-api', ('Asistente', ''))
   html = desktop('Asistente de proyecto', 'projects', crumb, main, project='pagos-api', live=ASSIST_LIVE, agents=3, running=3)
   write('DesktopAsistente.html', html)
 
@@ -190,7 +190,7 @@ def team_row(x):
   if x['st'] == 'accepted':
     acts = f'<span class="sug-done">{ico("check", "ico ico-sm")}añadido</span>'
   else:
-    acts = f'<button type="button" class="btn btn-ghost btn-sm btn-icon" aria-label="Descartar {x["role"]}">{ico("x", "ico ico-sm")}</button><button type="button" class="btn btn-sm" aria-label="Aceptar {x["role"]}">{ico("check", "ico ico-sm")}Aceptar</button>'
+    acts = accept_btns(what=x['role'])
   tag = '<span class="badge">fuera de la plantilla</span>' if x.get('extra') else ''
   return f'''<div class="sug-row{" accepted" if x["st"] == "accepted" else ""}" style="align-items: center; padding: 10px 14px">
 <span class="role-av" style="--hue: {x['hue']}" role="img" aria-label="{x['role']}" title="{x['role']}">{x['ab']}</span>
@@ -219,7 +219,7 @@ def res_row(x, href='DesktopRecursoPropuesta.html', compact=False):
   if x['st'] == 'accepted':
     acts = f'<span class="sug-done">{ico("check", "ico ico-sm")}guardada</span>'
   else:
-    acts = f'<button type="button" class="btn btn-ghost btn-sm btn-icon" aria-label="Descartar {x["name"]}">{ico("x", "ico ico-sm")}</button><a href="{href}" class="btn btn-sm">{ico("edit", "ico ico-sm")}Revisar</a>'
+    acts = f'<button type="button" class="btn btn-ghost btn-sm" aria-label="Descartar {x["name"]}">{ico("x", "ico ico-sm")}Descartar</button><a href="{href}" class="btn btn-sm">{ico("edit", "ico ico-sm")}Revisar</a>'
   where = x.get('saved') or ('.claude/' + ('agents/' + x['name'] + '.md' if x['k'] == 'agent' else ('commands/' + x['name'][1:] + '.md' if x['k'] == 'command' else 'skills/' + x['name'] + '/')))
   reason = f'<p class="sug-reason">{x["why"]}</p>' if x.get('why') else ''
   if compact:
@@ -234,9 +234,9 @@ def res_row(x, href='DesktopRecursoPropuesta.html', compact=False):
 
 
 def assistant_done_desktop():
-  run = f'''<section class="ai-run done" aria-label="Sugerencia terminada">{mark(True)}<span class="t-sm"><b style="font-weight: 600">14 propuestas</b> <span class="fg-2">después de leer 61 archivos, 23 chats y <span class="mono">docs/</span></span></span><span class="grow"></span>{facts(f('Sonnet 5'), f('1 min 12 s'), f('0,08 US$', 'cost'), chat_link('4e1f09'))}<button type="button" class="btn btn-ghost btn-sm">Ver lo que ha leído</button></section>'''
+  run = f'''<section class="ai-run done" aria-label="Sugerencia completada">{mark(True)}<span class="t-sm"><b style="font-weight: 600">14 propuestas</b> <span class="fg-2">después de leer 61 archivos, 23 chats y <span class="mono">docs/</span></span></span><span class="grow"></span>{facts(f('Sonnet 5'), f('1 min 12 s'), f('0,08 US$', 'cost'), chat_link('4e1f09'))}<button type="button" class="btn btn-ghost btn-sm">Ver lo que ha leído</button></section>'''
   tasks = f'''<section class="card grad-border" aria-label="Primeras tareas">
-<div class="card-head">{ico('tasks', 'ico fg-3')}<h2 class="t-h2" style="white-space: nowrap">Primeras tareas</h2><span class="mono t-xs fg-3 grow">2 de 6 aceptadas · a Backlog</span><button type="button" class="btn btn-ghost btn-sm">Aceptar las 3 que quedan</button></div>
+<div class="card-head">{ico('tasks', 'ico fg-3')}<h2 class="t-h2" style="white-space: nowrap">Primeras tareas</h2><span class="mono t-xs fg-3 grow">2 de 6 aceptadas · a Backlog</span></div>
 {''.join(task_row(x) for x in TASKS)}
 </section>'''
   team = f'''<section class="card" aria-label="Equipo">
@@ -255,7 +255,7 @@ def assistant_done_desktop():
 <div class="col" style="gap: 14px">{team}{res}</div>
 </div>
 </main>'''
-  crumb = '<a href="DesktopProyectos.html" class="fg-2">Proyectos</a><span class="fg-3">/</span><span style="font-weight: 500">Asistente</span>'
+  crumb = pcrumb('pagos-api', ('Asistente', ''))
   write('DesktopAsistentePropuestas.html', desktop('Propuestas del asistente', 'projects', crumb, main, project='pagos-api'))
 
 
@@ -309,7 +309,7 @@ def assistant_done_mobile():
   order = [TASKS[2], TASKS[0], TASKS[3], TASKS[4]]
   inner = f'''{mhead_proj('Asistente de proyecto', 'MobileNuevoProyecto.html', '<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">' + ico('more', 'ico ico-lg', 'stroke-width: 3') + '</button>')}
 <div class="m-body stack" style="gap: 12px">
-<section class="ai-run done" aria-label="Sugerencia terminada" style="flex-direction: column; align-items: stretch; gap: 6px"><span class="row t-sm" style="gap: 10px">{mark(True)}<span><b style="font-weight: 600">14 propuestas</b> <span class="fg-2">de 61 archivos y 23 chats</span></span></span>{facts(f('Sonnet 5'), f('1 min 12 s'), f('0,08 US$', 'cost'), f('chat 4e1f09'))}</section>
+<section class="ai-run done" aria-label="Sugerencia completada" style="flex-direction: column; align-items: stretch; gap: 6px"><span class="row t-sm" style="gap: 10px">{mark(True)}<span><b style="font-weight: 600">14 propuestas</b> <span class="fg-2">de 61 archivos y 23 chats</span></span></span>{facts(f('Sonnet 5'), f('1 min 12 s'), f('0,08 US$', 'cost'), f('chat 4e1f09'))}</section>
 {seg}
 <div class="row" style="padding: 0 4px; gap: 8px"><span class="t-label grow">2 de 6 aceptadas · a Backlog</span></div>
 <div class="card grad-border" style="overflow: hidden">{''.join(msug_task(x) for x in order)}</div>
@@ -345,8 +345,8 @@ def sugg_row(x):
 
 def suggest_desktop():
   cols = ''.join(col(s, by_col(s)) for s, _ in COLS)
-  hd = board_head('claude-wrapper · 15 abiertas · clave <span class="mono">AGN</span>')
-  hd = hd.replace('<a href="DesktopNuevaTarea.html"', '<button type="button" class="btn" aria-pressed="true" style="background: var(--bg-4); border-color: var(--line-3)">' + ico('sparkle') + 'Sugerir tareas</button><a href="DesktopNuevaTarea.html"')
+  hd = board_head('claude-wrapper · 15 abiertas · clave <span class="mono">AGN</span>', primary=False)
+  hd = hd.replace('<a href="DesktopNuevaTarea.html"', '<button type="button" class="btn" aria-pressed="true">' + ico('sparkle') + 'Sugerir tareas</button><a href="DesktopNuevaTarea.html"')
   main = f'''<main class="page" style="gap: 16px; position: relative">
 {hd}
 {board_toolbar()}
@@ -354,17 +354,17 @@ def suggest_desktop():
 </main>'''
   dialog = f'''<div class="scrim">
 <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="st-title" style="width: 780px; max-height: calc(100% - 48px)">
-<div class="dialog-head">{mark(True)}<h2 id="st-title" class="t-h2 grow" style="font-size: 16px">Sugerir tareas</h2><span class="mono t-xs fg-3">claude-wrapper · se crean en Backlog</span><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">{ico('x')}</button></div>
+<div class="dialog-head">{mark(True)}<h2 id="st-title" class="t-h2 grow">Sugerir tareas</h2><span class="mono t-xs fg-3">claude-wrapper · se crean en Backlog</span><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">{ico('x')}</button></div>
 <div class="dialog-body" style="gap: 14px">
 <div class="row" style="gap: 8px"><label class="field grow">{ico('search')}<input value="lo que falta para cerrar v0.20" aria-label="Qué buscar (opcional)"></label><button type="button" class="btn">{ico('refresh')}Volver a sugerir</button></div>
-<section class="ai-run done" aria-label="Sugerencia terminada" style="background: var(--bg-1)">{ico('check', 'ico fg-3')}<span class="t-sm"><b style="font-weight: 600">6 propuestas</b> <span class="fg-2">del tablero, <span class="mono">docs/plans/</span> y los últimos 20 commits</span></span><span class="grow"></span>{facts(f('Sonnet 5'), f('48 s'), f('0,06 US$', 'cost'), chat_link('7c2e1a'))}</section>
+<section class="ai-run done" aria-label="Sugerencia completada" style="background: var(--bg-1)">{ico('check', 'ico fg-3')}<span class="t-sm"><b style="font-weight: 600">6 propuestas</b> <span class="fg-2">del tablero, <span class="mono">docs/plans/</span> y los últimos 20 commits</span></span><span class="grow"></span>{facts(f('Sonnet 5'), f('48 s'), f('0,06 US$', 'cost'), chat_link('7c2e1a'))}</section>
 <div class="card" style="overflow: hidden; box-shadow: none">{''.join(sugg_row(x) for x in SUGG)}</div>
 <span class="form-hint" style="margin-top: -4px">Las parecidas a una tarea que ya existe empiezan sin marcar.</span>
 </div>
 <div class="dialog-foot"><span class="t-sm" style="white-space: nowrap"><b class="t-num">3</b> <span class="fg-2">de 6 seleccionadas</span></span><span class="grow"></span><button type="button" class="btn btn-ghost">Cancelar</button><button type="button" class="btn btn-primary">{ico('plus')}Crear las seleccionadas</button></div>
 </div>
 </div>'''
-  write('DesktopSugerirTareas.html', desktop('Sugerir tareas', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, overlay=f'<div style="position: absolute; inset: 0; z-index: 30">{dialog}</div>'))
+  write('DesktopSugerirTareas.html', desktop('Sugerir tareas', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, overlay=f'<div style="position: absolute; inset: 0; z-index: 30">{dialog}</div>', css=CARD_CSS))
 
 
 def msugg_card(x):
@@ -381,7 +381,7 @@ def suggest_mobile():
 </header>
 <div class="m-body stack" style="gap: 12px">
 <div class="row" style="gap: 8px"><label class="field field-lg grow">{ico('search', 'ico ico-lg')}<input value="lo que falta para v0.20" aria-label="Qué buscar (opcional)" style="font-size: 16px"></label><button type="button" class="btn btn-lg btn-icon" aria-label="Volver a sugerir">{ico('refresh', 'ico ico-lg')}</button></div>
-<section class="ai-run done" aria-label="Sugerencia terminada" style="flex-direction: column; align-items: stretch; gap: 6px"><span class="row t-sm" style="gap: 8px">{ico('check', 'ico fg-3')}<span><b style="font-weight: 600">6 propuestas</b> <span class="fg-2">· se crean en Backlog</span></span></span>{facts(f('Sonnet 5'), f('48 s'), f('0,06 US$', 'cost'), f('chat 7c2e1a'))}</section>
+<section class="ai-run done" aria-label="Sugerencia completada" style="flex-direction: column; align-items: stretch; gap: 6px"><span class="row t-sm" style="gap: 8px">{ico('check', 'ico fg-3')}<span><b style="font-weight: 600">6 propuestas</b> <span class="fg-2">· se crean en Backlog</span></span></span>{facts(f('Sonnet 5'), f('48 s'), f('0,06 US$', 'cost'), f('chat 7c2e1a'))}</section>
 <div class="card" style="overflow: hidden">{''.join(msugg_card(x) for x in [SUGG[0], SUGG[1], SUGG[3], SUGG[2]])}</div>
 </div>
 <div class="m-foot"><button type="button" class="btn btn-primary btn-lg">{ico('plus', 'ico ico-lg')}Crear las seleccionadas (3)</button></div>'''
@@ -402,8 +402,8 @@ RPROP = [
 ]
 
 EXIST = {
-  'agent': [('code-reviewer', 'Revisa el diff con las reglas de CONTRIBUTING.md', 'hace 3 d'), ('e2e-fixer', 'Arregla un spec de e2e que falla, sin tocar el producto', 'hace 6 d'),
-            ('kb-writer', 'Escribe el documento de una decisión en docs/', 'hace 2 sem'), ('ds-checker', 'Compara una pantalla con su referencia', 'hace 3 sem'), ('release-notes', 'Resume un rango de commits', 'hace 1 mes')],
+  'agent': [('i18n-parity', 'Compara las claves de en y es y lee cada frase contra GLOSSARY.md', 'hace 2 min'), ('code-reviewer', 'Revisa el diff con las reglas de CONTRIBUTING.md', 'hace 3 d'), ('e2e-fixer', 'Arregla un spec de e2e que falla, sin tocar el producto', 'hace 6 d'),
+            ('kb-writer', 'Escribe el documento de una decisión en docs/', 'hace 2 sem'), ('ds-checker', 'Compara una pantalla con su referencia', 'hace 3 sem')],
   'skill': [('night-shift', 'El sistema de diseño, sus tokens y sus reglas', 'hace 2 d'), ('cli-surfaces', 'Qué partes del CLI puede usar Agentry', 'hace 1 sem'),
             ('sqlite-migrations', 'Cómo añadir una migración', 'hace 2 sem'), ('pando', 'Buscar en la base de conocimiento', 'hace 1 mes')],
   'command': [('/checks', 'typecheck, test y build', 'hace 1 d'), ('/kb-sync', 'Reindexa docs/', 'hace 5 d'), ('/release', 'Prepara la release', 'hace 3 sem')],
@@ -425,6 +425,11 @@ def exist_list(limit=None):
     out.append(f'<div class="row" style="padding: 12px 12px 4px; gap: 6px">{ico(icon, "ico ico-sm fg-3")}<span class="t-label grow">{plural.capitalize()}</span><span class="mono t-xs fg-3">{len(EXIST[k])}</span></div>')
     for n, d, t in items:
       out.append(f'<a href="#" class="res-item"><span class="name">{n}<span class="grow"></span><span class="mono t-xs fg-3" style="font-weight: 400">{t}</span></span><span class="desc">{d}</span></a>')
+    rest = len(EXIST[k]) - len(items)
+    if rest:
+      out.append(f'<a href="#" class="row t-xs c-accent" style="padding: 6px 12px; gap: 6px">{ico("down", "ico ico-sm")}{rest} más</a>')
+    if k == 'agent':
+      out.append(f'<a href="DesktopEquipo.html" class="row t-xs fg-3" style="padding: 2px 12px 6px; gap: 6px">{ico("team", "ico ico-sm")}Los 5 miembros del equipo también son agentes: están en Equipo</a>')
   return ''.join(out)
 
 
@@ -441,7 +446,7 @@ def resources_main():
 </section>'''
   exist = f'''<section class="card" aria-label="En el proyecto">
 <div class="card-head"><h2 class="t-h2 grow">En el proyecto</h2><span class="mono t-xs fg-3">.claude/ · 12</span></div>
-<div class="col" style="gap: 0; padding: 0 6px 8px">{exist_list(3)}</div>
+<div class="col" style="gap: 0; padding: 0 6px 8px">{exist_list(2)}</div>
 </section>'''
   return f'''<main class="page" style="gap: 18px">
 {proj_head(False)}
@@ -455,7 +460,7 @@ def resources_main():
 
 
 def resources_desktop():
-  crumb = '<a href="DesktopProyectos.html" class="fg-2">Proyectos</a><span class="fg-3">/</span><a href="DesktopProyecto.html" class="fg-2">claude-wrapper</a><span class="fg-3">/</span><span style="font-weight: 500">Recursos</span>'
+  crumb = pcrumb('claude-wrapper', ('Recursos', ''))
   write('DesktopRecursos.html', desktop('Recursos', 'projects', crumb, resources_main()))
 
 
@@ -494,7 +499,7 @@ def proposal_desktop():
   master.append(f'<div class="row" style="padding: 10px 12px 4px; gap: 6px">{ico("sparkle", "ico ico-sm fg-3")}<span class="t-label grow">Propuestas</span><span class="mono t-xs fg-3">3</span></div>')
   for i, x in enumerate(RPROP[:3]):
     icon, word, _ = KIND[x['k']]
-    tag = f'<span class="row" style="margin-top: 3px"><span class="badge b-warn">{ico("warn", "ico", "width: 11px; height: 11px")}nuevo · sin guardar</span></span>' if i == 0 else ''
+    tag = f'<span class="row" style="margin-top: 3px"><span class="badge b-warn">{ico("warn", "ico", "width: 11px; height: 11px")}aún sin guardar</span></span>' if i == 0 else ''
     master.append(f'<a href="#" class="res-item{" sel" if i == 0 else ""}"{" aria-current=\"true\"" if i == 0 else ""}><span class="name">{ico(icon, "ico ico-sm fg-3")}<span class="ellipsis">{x["name"]}</span><span class="grow"></span><span class="mono t-xs fg-3" style="font-weight: 400">{word.lower()}</span></span><span class="desc">{x["desc"]}</span>{tag}</a>')
   master.append(exist_list(2))
   meta = f'''<div class="editor-meta"><span style="font-weight: 600; font-size: 15px" class="mono">migration-reviewer</span><span class="badge">Agente</span><span class="badge b-warn">{ico('warn', 'ico', 'width: 11px; height: 11px')}aún sin guardar</span><span class="path grow">se guardará en .claude/agents/migration-reviewer.md</span>
@@ -514,7 +519,7 @@ def proposal_desktop():
 {detail}
 </section>
 </main>'''
-  crumb = '<a href="DesktopProyectos.html" class="fg-2">Proyectos</a><span class="fg-3">/</span><a href="DesktopProyecto.html" class="fg-2">claude-wrapper</a><span class="fg-3">/</span><a href="DesktopRecursos.html" class="fg-2">Recursos</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">migration-reviewer</span>'
+  crumb = pcrumb('claude-wrapper', ('Recursos', 'DesktopRecursos.html'), ('<span class="mono">migration-reviewer</span>', ''))
   write('DesktopRecursoPropuesta.html', desktop('Propuesta en el editor', 'projects', crumb, main))
 
 
@@ -559,7 +564,7 @@ def create_ai_run(mobile=False):
 def create_ai_desktop():
   dialog = f'''<div class="scrim">
 <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="ca-title" style="width: 700px">
-<div class="dialog-head">{mark(True)}<h2 id="ca-title" class="t-h2 grow" style="font-size: 16px">Crear con IA</h2><span class="mono t-xs fg-3">claude-wrapper</span><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">{ico('x')}</button></div>
+<div class="dialog-head">{mark(True)}<h2 id="ca-title" class="t-h2 grow">Crear con IA</h2><span class="mono t-xs fg-3">claude-wrapper</span><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">{ico('x')}</button></div>
 <div class="dialog-body" style="gap: 14px">
 {create_ai_form()}
 {create_ai_run()}
@@ -567,7 +572,7 @@ def create_ai_desktop():
 <div class="dialog-foot"><span class="form-hint grow">Se abre en el editor para que lo revises antes de guardarlo.</span><button type="button" class="btn">{ico('x', 'ico ico-sm')}Detener</button><button type="button" class="btn btn-primary" disabled>Abrir en el editor</button></div>
 </div>
 </div>'''
-  crumb = '<a href="DesktopProyectos.html" class="fg-2">Proyectos</a><span class="fg-3">/</span><a href="DesktopProyecto.html" class="fg-2">claude-wrapper</a><span class="fg-3">/</span><span style="font-weight: 500">Recursos</span>'
+  crumb = pcrumb('claude-wrapper', ('Recursos', ''))
   write('DesktopRecursoCrearIA.html', desktop('Crear con IA', 'projects', crumb, resources_main(), overlay=f'<div style="position: absolute; inset: 0; z-index: 30">{dialog}</div>', live=CREATE_LIVE, agents=3, running=3))
 
 

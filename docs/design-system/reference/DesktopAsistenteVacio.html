@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Asistente en un proyecto vacío (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<div class="app shell" data-theme="dark" style="width: 1440px; height: 1024px; position: relative">
+<div class="side">
+<nav class="app" data-theme="dark" aria-label="Principal" style="width: 256px; height: 1024px; background: var(--bg-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 18px">
+<div class="row" style="padding: 0 4px; height: 32px; gap: 10px">
+<a href="Main.html" class="row" style="gap: 10px; flex: 1 1 auto"><span style="width: 26px; height: 26px; border-radius: var(--r); background: var(--grad); display: grid; place-items: center; color: #fff; box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--accent-2) 70%, transparent)"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span><span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Agentry</span></a>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Plegar barra lateral"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 4v16"></path></svg></button>
+</div>
+<button type="button" class="field" style="width: 100%; cursor: pointer; justify-content: flex-start; background: var(--bg-2)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><span class="grow t-sm" style="text-align: left">Buscar o ejecutar…</span><span class="kbd">⌘K</span></button>
+<div class="col" style="gap: 1px">
+<a href="Main.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg><span class="grow">Inicio</span></a>
+<a href="DesktopChats.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span class="grow">Chats</span><span class="count">197</span></a>
+<a href="DesktopTablero.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8.5 12l2.5 2.5 4.5-5"></path></svg><span class="grow">Tareas</span></a>
+<a href="DesktopOrquestaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg><span class="grow">Orquestaciones</span><span class="count-pill live">1</span></a>
+<a href="DesktopProgramaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 5h13a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM3.5 10h17M8 3v4M16 3v4"></path></svg><span class="grow">Programaciones</span></a>
+</div>
+<div class="col" style="gap: 1px">
+<span class="t-label" style="padding: 0 10px 6px">Espacio</span>
+<a href="DesktopProyectos.html" class="nav-item on"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span class="grow">Proyectos</span></a>
+<a href="DesktopCuentas.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"></path></svg><span class="grow">Cuentas</span></a>
+<a href="DesktopConectores.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"></path></svg><span class="grow">Conectores</span></a>
+<a href="DesktopUso.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V11M10 20V4M16 20v-6M3 20.5h18"></path></svg><span class="grow">Uso</span></a>
+<a href="DesktopAjustes.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M17 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM11 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM19 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"></path></svg><span class="grow">Ajustes</span></a>
+</div>
+<div class="col" style="gap: 4px">
+<div class="row" style="padding: 0 10px 4px"><span class="t-label grow">En directo</span><span class="count-pill live">2</span></div>
+<a href="DesktopChatTarea.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 3px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: 500">Trabaja en AGN-28: tablero con columnas fijas</span></span>
+<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis grow">pnpm test</span><span class="mono fg-3">4:12</span></span>
+</a>
+<a href="DesktopOrquestacion.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 6px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: 500">ecosystem-foundation</span><span class="mono t-xs fg-3">2/9</span></span>
+<span class="segbar" style="height: 4px; margin-left: 15px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+</a>
+</div>
+<div class="grow"></div>
+<a href="#" class="nav-item"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5"></path></svg>Referencia de la API</a>
+</nav>
+</div>
+<div class="main-col" style="position: relative">
+<header class="app" data-theme="dark" style="width: 1184px; height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 20px 0 24px; border-bottom: 1px solid var(--line); background: var(--bg)">
+<nav aria-label="Ruta" class="row t-sm" style="gap: 6px">
+<button type="button" class="btn btn-ghost btn-sm project-selector" style="gap: 6px; padding: 0 8px; color: var(--fg-2)"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>notas<svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<span class="fg-3">/</span>
+<a href="DesktopProyectos.html" class="fg-2">Proyectos</a><span class="fg-3">/</span><a href="#" class="fg-2">notas</a><span class="fg-3">/</span><span style="font-weight: 500">Asistente</span>
+</nav>
+<div class="grow"></div>
+<a href="DesktopOrquestaciones.html" class="chip" style="gap: 8px; border-color: transparent; background: var(--live-soft); color: var(--live); font-family: var(--mono); font-size: 11.5px"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>2 agentes trabajando</a>
+<button type="button" class="btn btn-ghost btn-icon" aria-label="Notificaciones" style="position: relative"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"></path></svg><span class="dot" style="position: absolute; top: 8px; right: 9px; width: 6px; height: 6px; background: var(--accent)"></span></button>
+<div class="row" style="gap: 0">
+<a href="DesktopNuevoChat.html" class="btn btn-primary" style="border-radius: var(--r) 0 0 var(--r)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Nuevo chat</a>
+<button type="button" class="btn btn-primary btn-icon" aria-label="Más formas de empezar" style="border-radius: 0 var(--r) var(--r) 0; width: 30px; margin-left: 1px"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+</header>
+<main class="page" style="gap: 16px">
+<div class="page-head" style="align-items: center">
+<div class="row" style="gap: 14px"><a href="DesktopNuevoProyecto.html" class="btn btn-icon" aria-label="Volver"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"></path></svg></a>
+<span class="proj monogram" style="--hue: 100; width: 40px; height: 40px; border-radius: var(--r-lg); font-size: 13px">NO</span>
+<div class="col" style="gap: 4px"><h1 class="t-h1">Asistente de proyecto</h1><p class="fg-2 t-sm" style="margin: 0">notas · un directorio vacío. Nada se escribe hasta que lo aceptes.</p></div></div>
+<div class="row" style="gap: 8px"><a href="#" class="btn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"></path></svg>Ir al proyecto</a></div>
+</div>
+<section class="ai-run done" aria-label="Nada que leer"><span class="ai-mark sm" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg></span><span class="t-sm"><b style="font-weight: 600">Nada que leer</b> <span class="fg-2">en <span class="mono">~/Proyectos/notas</span>: ni archivos, ni chats, ni historial de git. No se ha lanzado ningún chat.</span></span><span class="grow"></span><div class="ai-facts"><span class="cost">sin coste</span></div></section>
+<div style="display: grid; grid-template-columns: 1.15fr 1fr; gap: 14px; align-items: start">
+<section class="card grad-border" aria-label="Primeras tareas">
+<div class="card-head"><svg class="ico fg-3" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8.5 12l2.5 2.5 4.5-5"></path></svg><h2 class="t-h2" style="white-space: nowrap">Primeras tareas</h2><span class="mono t-xs fg-3 grow">a Backlog</span></div>
+<div class="col" style="padding: 16px 18px 18px; gap: 12px">
+<p class="t-sm fg-2" style="margin: 0; line-height: 1.55">Sin código que leer, el asistente necesita saber qué vas a construir. Cuéntalo en una frase y te propone las primeras tareas, cada una con su porqué.</p>
+<label class="field field-area"><textarea rows="3" aria-label="Qué vas a construir" placeholder="Qué vas a construir…">Una app de notas en Markdown que se sincroniza con una carpeta de Git, con búsqueda y etiquetas.</textarea></label>
+<div class="row" style="gap: 10px"><span class="form-hint grow">Abre un chat del CLI con <span class="mono">--json-schema</span>; su coste cuenta en Uso, como el de cualquier chat.</span><button type="button" class="btn btn-primary"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg>Proponer tareas</button></div>
+</div>
+</section>
+<div class="col" style="gap: 14px"><section class="card" aria-label="Equipo">
+<div class="card-head"><svg class="ico fg-3" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"></path></svg><h2 class="t-h2">Equipo</h2><span class="mono t-xs fg-3 grow">0 de 4 aceptados</span><span class="t-xs fg-3">el de Software profesional</span></div>
+<div class="callout" style="margin: 12px 14px 4px"><svg class="ico fg-3" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01"></path></svg><span>Con nada que leer, te ofrece el equipo de la plantilla. Acepta cada rol por separado.</span></div>
+<div class="sug-row" style="align-items: center; padding: 10px 14px">
+<span class="role-av" style="--hue: 300" role="img" aria-label="Product Owner" title="Product Owner">PO</span>
+<div class="sug-main" style="gap: 2px"><span class="sug-title">Product Owner</span><div class="sug-meta"><span class="model-tag opus">opus</span><span>·</span><span>escribe: <span class="mono">nada, solo tareas</span></span></div></div>
+<div class="sug-acts"><button type="button" class="btn btn-ghost btn-sm" aria-label="Descartar Product Owner"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>Descartar</button><button type="button" class="btn btn-sm" aria-label="Aceptar Product Owner"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg>Aceptar</button></div>
+</div><div class="sug-row" style="align-items: center; padding: 10px 14px">
+<span class="role-av" style="--hue: 215" role="img" aria-label="Arquitecto" title="Arquitecto">AR</span>
+<div class="sug-main" style="gap: 2px"><span class="sug-title">Arquitecto</span><div class="sug-meta"><span class="model-tag opus">opus</span><span>·</span><span>escribe: <span class="mono">docs/</span></span></div></div>
+<div class="sug-acts"><button type="button" class="btn btn-ghost btn-sm" aria-label="Descartar Arquitecto"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>Descartar</button><button type="button" class="btn btn-sm" aria-label="Aceptar Arquitecto"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg>Aceptar</button></div>
+</div><div class="sug-row" style="align-items: center; padding: 10px 14px">
+<span class="role-av" style="--hue: 90" role="img" aria-label="Desarrollador" title="Desarrollador">DEV</span>
+<div class="sug-main" style="gap: 2px"><span class="sug-title">Desarrollador</span><div class="sug-meta"><span class="model-tag">sonnet</span><span>·</span><span>escribe: <span class="mono">src/, tests/</span></span></div></div>
+<div class="sug-acts"><button type="button" class="btn btn-ghost btn-sm" aria-label="Descartar Desarrollador"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>Descartar</button><button type="button" class="btn btn-sm" aria-label="Aceptar Desarrollador"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg>Aceptar</button></div>
+</div><div class="sug-row" style="align-items: center; padding: 10px 14px">
+<span class="role-av" style="--hue: 330" role="img" aria-label="QA" title="QA">QA</span>
+<div class="sug-main" style="gap: 2px"><span class="sug-title">QA</span><div class="sug-meta"><span class="model-tag">sonnet</span><span>·</span><span>escribe: <span class="mono">tests/</span></span></div></div>
+<div class="sug-acts"><button type="button" class="btn btn-ghost btn-sm" aria-label="Descartar QA"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>Descartar</button><button type="button" class="btn btn-sm" aria-label="Aceptar QA"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg>Aceptar</button></div>
+</div>
+</section><section class="card" aria-label="Recursos">
+<div class="card-head"><svg class="ico fg-3" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12 4 7.5"></path></svg><h2 class="t-h2 grow">Recursos</h2><span class="mono t-xs fg-3">sin propuestas</span></div>
+<div class="sug-wait"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"></path></svg>Cuando haya código, pídelos desde la pestaña Recursos con «Sugerir»</div>
+</section></div>
+</div>
+</main>
+<footer class="app statusbar" data-theme="dark" style="width: 1184px">
+<a href="DesktopCuentas.html" class="row" style="gap: 7px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>yeyo@inmoseo.net</a>
+<span class="row" style="gap: 6px">5h<span class="bar bar-thin grad"><i style="width: 45%"></i></span>45%</span>
+<span class="row" style="gap: 6px">7d<span class="bar bar-thin grad"><i style="width: 5%"></i></span>5%</span>
+<span class="grow"></span>
+<span class="row" style="gap: 6px"><span class="spin-braille"></span>2 en marcha</span>
+<span>hoy 3,41 US$</span>
+<span>Claude Code 2.1.282</span>
+</footer>
+</div>
+
+</div>
+<script>t()</script>
+</body></html>
