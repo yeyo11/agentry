@@ -733,22 +733,16 @@
 .tree-row .tree-size { font-family: var(--mono); font-size: 10.5px; color: var(--fg-3); }
 .tree-row .dir { color: var(--fg); }
 
-/* The existing code editor (the app's .code-editor, CodeMirror): a bar with the path and its state,
-   a gutter, and neutral highlighting. Nothing here uses a status colour. */
+/* The existing code editor (the app's .code-editor, CodeMirror) framed with its bar: the path and
+   its state. Its lines are the one editor body, .code-ed (section 17), so every screen draws the
+   editor the same way. Nothing here uses a status colour; "unsaved" is the app's warn badge. */
 .code-edit { display: flex; flex-direction: column; min-height: 0; border-radius: var(--r-lg); border: 1px solid var(--line-2); background: var(--bg-1); overflow: hidden; }
 .code-edit:focus-within, .code-edit.focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .code-bar { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--line); background: var(--bg-2); font-family: var(--mono); font-size: 12px; color: var(--fg-2); }
-.code-lines { display: grid; grid-template-columns: 44px minmax(0, 1fr); font-family: var(--mono); font-size: 12.5px; line-height: 20px; padding: 8px 0; overflow: hidden; }
-.code-lines .ln { padding-right: 12px; text-align: right; color: var(--fg-3); border-right: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-.code-lines .lc { padding-left: 14px; white-space: pre; color: var(--fg); overflow: hidden; text-overflow: ellipsis; }
-.code-lines .cur { background: var(--bg-3); }
-.code-lines .k { color: var(--fg-2); }
-.code-lines .p { color: var(--fg-3); }
-.code-lines .h { font-weight: 600; }
-.code-lines .caret { height: 14px; width: 2px; vertical-align: -2px; }
-/* Unsaved: a neutral mark with its word. Saving is the zone's primary action. */
-.unsaved { display: inline-flex; white-space: nowrap; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--fg-2); }
-.unsaved::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--fg-2); }
+.code-edit > .code-ed { flex: 1 1 auto; border: 0; border-radius: 0; }
+.code-ed .cur { background: var(--bg-3); }
+/* The person's text cursor, thinner than the caret of text an agent is writing. */
+.code-edit .caret { width: 2px; height: 14px; vertical-align: -2px; }
 
 /* A document rendered from Markdown (the app's .md in transcript.css), at reading width. */
 .doc-view { display: flex; flex-direction: column; gap: 12px; max-width: 680px; font-size: 14px; line-height: 1.65; color: var(--fg); }
