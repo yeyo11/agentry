@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { WorkItemCause, WorkItemLink, WorkItemStatus } from '@agentry/shared';
+import type { WorkItemActor, WorkItemCause, WorkItemLink, WorkItemStatus } from '@agentry/shared';
 import { Db } from '../src/db.ts';
 import type { AgentryEventInput } from '../src/events.ts';
 import { WorkItemError, WorkItemService, type WorkItemLinkState, type WorkItemProject } from '../src/work-items.ts';
@@ -148,6 +148,23 @@ test('refuses what the model does not allow, with the status code the API answer
   assert.throws(() => service.create('p1', { title: 'x', milestoneId: 'missing' }), refusal(400));
   // A refused create hands out no number
   assert.equal(service.create('p1', { title: 'ok' }).key, 'AGN-1');
+});
+
+test('who acts must be the person, an agent or the system, and a stored kind the store does not know is never read as the person', () => {
+  const { service, db } = setup();
+  const item = service.create('p1', { title: 'x' });
+  const entries = service.history(item.id).length;
+  const bogus = { kind: 'robot' } as unknown as WorkItemActor;
+  assert.throws(() => service.update(item.id, { title: 'y' }, { actor: bogus }), refusal(400));
+  assert.throws(() => service.comment(item.id, { body: 'hi' }, { actor: { kind: 'agent', role: 'r'.repeat(65) } }), refusal(400));
+  assert.throws(() => service.create('p1', { title: 'z' }, { actor: { kind: 'agent', role: 42 as unknown as string } }), refusal(400));
+  assert.equal(service.get(item.id).title, 'x');
+  assert.equal(service.history(item.id).length, entries);
+  assert.equal(service.comments(item.id).length, 0);
+
+  // A row written by something else, or by a later version with a kind this one does not know
+  db.connection.prepare("UPDATE work_item_history SET actor_kind = 'robot' WHERE item_id = ?").run(item.id);
+  assert.deepEqual(service.history(item.id)[0]?.actor, { kind: 'system', role: null });
 });
 
 // ---------- epics ----------

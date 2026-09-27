@@ -128,8 +128,9 @@ export const inList = (values: readonly string[]): string => JSON.stringify(valu
 
 export const statusIndex = (status: string): number => WORK_ITEM_STATUSES.indexOf(status as WorkItemStatus);
 
+/** A kind this version does not know reads as the system: never as the person, whose moves the links respect. */
 export function actorOf(kind: string | null, role: string | null): WorkItemActor {
-  const k = kind === 'agent' || kind === 'system' ? kind : 'person';
+  const k = kind === 'person' || kind === 'agent' ? kind : 'system';
   return { kind: k, role: role ?? null };
 }
 

@@ -1,4 +1,4 @@
-import type { WorkItemActor, WorkItemAssignee } from '@agentry/shared';
+import type { WorkItemActor, WorkItemActorKind, WorkItemAssignee } from '@agentry/shared';
 import { fold } from './work-item-rows.ts';
 import type { WorkItemContext } from './work-items.ts';
 
@@ -72,9 +72,25 @@ export function criterionText(value: unknown): string {
   return value.trim();
 }
 
+/** A record rather than a list, so a kind added to the union fails to compile until it is here. */
+const ACTOR_KINDS: Record<WorkItemActorKind, true> = { person: true, agent: true, system: true };
+
+function isActorKind(value: unknown): value is WorkItemActorKind {
+  return typeof value === 'string' && Object.hasOwn(ACTOR_KINDS, value);
+}
+
+/**
+ * Checked like any input, though only code passes it: the kind is stored as text and read back by
+ * whoever asks "did the person move this?", so a kind nobody knows must never reach a row.
+ */
 export function actorFrom(ctx: WorkItemContext | undefined): WorkItemActor {
-  const actor = ctx?.actor ?? PERSON;
-  return { kind: actor.kind, role: actor.role ?? null };
+  const actor: { kind?: unknown; role?: unknown } = ctx?.actor ?? PERSON;
+  if (!isActorKind(actor.kind)) throw new WorkItemError('actor must be the person, an agent or the system', 400);
+  if (actor.role === undefined || actor.role === null) return { kind: actor.kind, role: null };
+  if (typeof actor.role !== 'string' || !actor.role.trim() || actor.role.trim().length > ROLE_MAX) {
+    throw new WorkItemError(`an actor's role must be text of at most ${String(ROLE_MAX)} characters`, 400);
+  }
+  return { kind: actor.kind, role: actor.role.trim() };
 }
 
 export function milestoneName(value: unknown): string {
