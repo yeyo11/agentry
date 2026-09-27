@@ -136,7 +136,11 @@ They were agreed with the project's owner on 2026-09-26 and 2026-09-27.
 39. **Prototypes first.** Every new screen gets a static prototype in
     `docs/design-system/reference/`, in both themes, desktop and phone. The owner validates them
     before any web task builds a screen.
-40. **Four orchestrations, one pull request each**, all tasks on Opus, with no time or cost limit:
+40. **Four orchestrations, all landing in one branch, `feat/project-ecosystem`**, all tasks on Opus,
+    with no time or cost limit. Each starts from the head of that branch and is merged back into
+    it; nothing reaches `main` until the owner has tried the whole feature, in one pull request
+    (decided on 2026-09-27, replacing "one pull request each"). What the first one left to fix is in
+    [the audit](project-ecosystem-audit.md):
 
 | # | Name | Builds |
 |---|---|---|
