@@ -89,6 +89,12 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'schedule.changed': true,
   'schedule.fired': true,
   'supervisor.proposed': true,
+  'workitem.created': true,
+  'workitem.updated': true,
+  'workitem.moved': true,
+  'workitem.removed': true,
+  'milestone.changed': true,
+  'project.updated': true,
 };
 
 type Target = readonly [QueryKey, number];
@@ -196,6 +202,15 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'system.release':
       // Reading it back costs nothing: the server answers from release.json, not from GitHub
       return [[keys.release, NOW]];
+    case 'project.updated':
+      return [[keys.projects, NOW], [keys.overview, OVERVIEW]];
+    case 'workitem.created':
+    case 'workitem.updated':
+    case 'workitem.moved':
+    case 'workitem.removed':
+    case 'milestone.changed':
+      // No screen reads work items yet; the board wires its queries here when it is built
+      return [];
   }
 }
 

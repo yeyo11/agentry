@@ -943,6 +943,14 @@ export interface Project {
   /** Chats under the project and its worktrees */
   chatCount: number;
   lastActivity: string | null;
+  /**
+   * Prefix of its work items' keys (`AGN` in `AGN-12`), from {@link ProjectSettings.keyPrefix}.
+   * Optional only so the core that builds a project today still types until it fills it in; a
+   * server with the project ecosystem always sends it.
+   */
+  key?: string;
+  /** The modules switched on, from {@link ProjectSettings.modules}; always sent once the ecosystem is in */
+  modules?: ProjectModule[];
 }
 
 /** A directory chats have run in that is not imported, offered on first start. */
@@ -958,10 +966,539 @@ export interface ImportProjectRequest {
   path: string;
   /** Defaults to the directory's name */
   name?: string;
+  /** Configures the project from a template; without one, and without `modules`, every module is off */
+  template?: ProjectTemplateId;
+  /** The modules to switch on; when given, it replaces the template's choice instead of adding to it */
+  modules?: ProjectModule[];
 }
 
+/** Every field is optional, so a rename alone (`{ name }`) keeps working as it always has. */
 export interface UpdateProjectRequest {
+  name?: string;
+  /** New key prefix; the keys of existing work items follow, since only their number is stored */
+  key?: string;
+  /** The whole set of modules that are on afterwards; switching one off hides it and keeps its data */
+  modules?: ProjectModule[];
+}
+
+// ---------- Project modules ----------
+//
+// A project is more than a directory once the person switches modules on: a board of work items, a
+// team of agents, its documents, a shared memory (docs/plans/project-ecosystem.md). What a project
+// configures lives in a settings document per project, a JSON file keyed by its id, so the project
+// record itself stays a name and a path. Switching a module off only hides it: nothing it holds is
+// deleted, and switching it on again brings everything back. A project with no document reads as
+// every module off, which is how the projects imported before this existed stay as they were.
+//
+// Lists (`modules`, `types`) rather than one boolean per member, so a module or a type added later
+// is simply absent from older documents and requests instead of a missing required key.
+
+export type ProjectModule = 'board' | 'team' | 'documents' | 'memory';
+
+/**
+ * The built-in templates. `simple` switches nothing on and `custom` starts from everything off for
+ * the person to choose; the other three are presets. There are no user-saved templates.
+ */
+export type ProjectTemplateId = 'simple' | 'software' | 'library' | 'research' | 'custom';
+
+/** How the Board module is configured. The five columns and the four types are fixed; this only picks and limits. */
+export interface BoardSettings {
+  /** The types a new work item may take in this project, in the order a form offers them */
+  types: WorkItemType[];
+  /**
+   * Work in progress limit per column. A column without an entry has none. Going over a limit is
+   * allowed and only shown as a warning: it never blocks a move.
+   */
+  columnLimits: Partial<Record<WorkItemStatus, number>>;
+}
+
+/**
+ * A role of the project's team as a template or the settings describe it. `role` is free text
+ * (`product-owner`, `developer`, `qa`…) until the Team module defines its roles.
+ */
+export interface ProjectTeamRole {
+  role: string;
+  /** Model alias or id of the agent that plays it (`opus`, `sonnet`) */
+  model: string;
+  /** One line on what it answers for */
+  responsibility: string;
+}
+
+/**
+ * Reserved for the Team module (orchestration 3): nothing reads it yet. A member is a CLI agent file
+ * in the project's `.claude/agents/`, so it also works from a terminal; this is the metadata Agentry
+ * keeps beside it.
+ */
+export interface ProjectTeamSettings {
+  members: ProjectTeamMember[];
+}
+
+export interface ProjectTeamMember extends ProjectTeamRole {
+  /** Name of the agent file in the project's `.claude/agents/`, without `.md` */
+  agent: string;
+  /** Paths, relative to the project, the member may write; absent means no restriction of Agentry's own */
+  writes?: string[];
+}
+
+/**
+ * Reserved for the flow by column (orchestration 3): nothing reads it yet. Each column may have a
+ * responsible role that acts when a card enters it; agents move cards, and a person approves `done`.
+ */
+export interface ProjectFlowSettings {
+  enabled: boolean;
+  /** Responsible role per column, matching {@link ProjectTeamRole.role} */
+  columns: Partial<Record<WorkItemStatus, string>>;
+  /** Times QA may send an item back to `in_progress` before it waits for the person */
+  maxBounces: number;
+}
+
+/** Reserved for the Documents module (orchestration 3): nothing reads it yet. */
+export interface ProjectDocumentsSettings {
+  /** The documents folder, relative to the project (`docs`) */
+  path: string;
+}
+
+/**
+ * The settings document of a project, read and written whole (`GET`/`PUT /projects/:id/settings`).
+ * Later orchestrations add their configuration as optional fields, so a document written today
+ * stays valid.
+ */
+export interface ProjectSettings {
+  /** The modules switched on */
+  modules: ProjectModule[];
+  /** The template the project was created from, for reference only: editing the settings never re-applies it */
+  template: ProjectTemplateId | null;
+  /**
+   * Prefix of the work items' keys: upper case letters and digits, starting with a letter
+   * (`WORK_ITEM_KEY_PREFIX_PATTERN`), unique among projects. Derived from the name on first read.
+   */
+  keyPrefix: string;
+  board: BoardSettings;
+  team?: ProjectTeamSettings;
+  flow?: ProjectFlowSettings;
+  documents?: ProjectDocumentsSettings;
+}
+
+/**
+ * A built-in template: configuration, not only switches. `name` and `description` are the English
+ * copy; a client that knows the `id` shows its own translation.
+ */
+export interface ProjectTemplate {
+  id: ProjectTemplateId;
   name: string;
+  description: string;
+  modules: ProjectModule[];
+  board: BoardSettings;
+  /** The starting team, offered when the Team module is switched on and there is nothing in the project to read */
+  team: ProjectTeamRole[];
+}
+
+// ---------- Work items ----------
+//
+// What a project needs done, followed on its board. Named `WorkItem` because "task" already means an
+// orchestration task and a background command (`GET /tasks`); the interface still says "Task".
+//
+// A work item carries no time: no due date, no estimate, no sprint. `createdAt`, `updatedAt` and
+// `closedAt` are facts about what happened, never a plan, and no other date field is added.
+//
+// The key (`AGN-12`) is composed when read from the project's current prefix and the item's number,
+// which is what is stored and never reused inside a project, even after a delete. So changing the
+// prefix renames every key at once, history included.
+
+export type WorkItemType = 'epic' | 'story' | 'task' | 'bug';
+
+/** The five columns of the board, in order; fixed, not editable. */
+export type WorkItemStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done';
+
+/** Not a status: only `urgent` may be shown in a colour. */
+export type WorkItemPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+/**
+ * Who a work item is assigned to: the person, or a team role once the Team module exists. A
+ * discriminated union, so a kind added later (a named member) leaves the existing ones as they are.
+ */
+export type WorkItemAssignee = { kind: 'person' } | { kind: 'role'; role: string };
+
+/** `system` is Agentry itself acting on a chat's or a node's behalf; the cause beside it says which. */
+export type WorkItemActorKind = 'person' | 'agent' | 'system';
+
+/** Who did something to a work item: made a change, wrote a comment, checked a criterion. */
+export interface WorkItemActor {
+  kind: WorkItemActorKind;
+  /** The team role an agent acted as, once the Team module exists */
+  role?: string | null;
+}
+
+/**
+ * A chat or an orchestration task, as the source of a comment, the cause of a change or the other end
+ * of a link. Flat rather than a union so it maps onto one row; the ids that do not apply are null.
+ */
+export interface WorkItemSource {
+  kind: 'chat' | 'orchestration';
+  /** The chat's session id; for an orchestration task, the chat of its worker once it has one */
+  chatId: string | null;
+  orchestrationId: string | null;
+  taskId: string | null;
+}
+
+/**
+ * Why an automatic change happened: the source, and what happened there as a stable code a client
+ * translates (`chat.started`, `chat.turn-completed`, `orchestration.task.completed`…).
+ */
+export interface WorkItemCause extends WorkItemSource {
+  event: string;
+}
+
+/** Another work item as a field refers to it: enough to draw its chip without fetching it. */
+export interface WorkItemRef {
+  id: string;
+  key: string;
+  title: string;
+  type: WorkItemType;
+  status: WorkItemStatus;
+}
+
+/** One entry of the acceptance checklist, checked on its own. Its position is its order in the list. */
+export interface AcceptanceCriterion {
+  id: string;
+  text: string;
+  checked: boolean;
+  /** Who checked it; null while unchecked */
+  checkedBy: WorkItemActor | null;
+}
+
+/**
+ * `blocks` and `blocked_by` only. Stored once, as `blocks`, and reported from both ends: the item
+ * that blocks shows `blocks`, the other `blocked_by`. Orchestrating a selection turns them into the
+ * graph's `dependsOn`.
+ */
+export type WorkItemRelationType = 'blocks' | 'blocked_by';
+
+export interface WorkItemRelation {
+  type: WorkItemRelationType;
+  item: WorkItemRef;
+}
+
+/** Written by the person or by an agent; Markdown, no attachments. */
+export interface WorkItemComment {
+  id: string;
+  itemId: string;
+  author: WorkItemActor;
+  /** The chat or orchestration task an agent wrote it from; null for the person */
+  source: WorkItemSource | null;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * What a history entry, or a `workitem.updated` event, says changed. `created` opens every history;
+ * `comment` only appears on events, since comments are their own list.
+ */
+export type WorkItemChange =
+  | 'created'
+  | 'type'
+  | 'title'
+  | 'description'
+  | 'status'
+  | 'priority'
+  | 'labels'
+  | 'assignee'
+  | 'epic'
+  | 'milestone'
+  | 'criterion'
+  | 'relation'
+  | 'link'
+  | 'comment';
+
+/**
+ * A referenced thing (an epic, a milestone, a link) as it was when the entry was written, so the
+ * history still reads after it is renamed or deleted. For a work item, `key` is composed when read,
+ * like every key.
+ */
+export interface WorkItemHistoryRef {
+  id: string;
+  label: string;
+  key?: string;
+}
+
+/** A criterion as a history entry records it. */
+export interface WorkItemHistoryCriterion {
+  id: string;
+  text: string;
+  checked: boolean;
+}
+
+/** A plain value for a scalar field, the list for `labels`, and a snapshot for everything else. */
+export type WorkItemHistoryValue =
+  | string
+  | string[]
+  | WorkItemAssignee
+  | WorkItemHistoryRef
+  | WorkItemHistoryCriterion
+  | WorkItemRelation
+  | null;
+
+/**
+ * One change to one field. Written by the service, never by the caller: an update that changes
+ * three fields writes three entries.
+ */
+export interface WorkItemHistoryEntry {
+  id: string;
+  itemId: string;
+  change: WorkItemChange;
+  /** Null when there was nothing before: `created`, a criterion or a relation added */
+  from: WorkItemHistoryValue;
+  /** Null when there is nothing after: a criterion or a relation removed */
+  to: WorkItemHistoryValue;
+  actor: WorkItemActor;
+  /** Set when a chat or an orchestration made the change, rather than someone acting on the item */
+  cause: WorkItemCause | null;
+  createdAt: string;
+}
+
+/**
+ * The part a linked chat or orchestration task played: `work` worked on the item ("Work on it", or a
+ * node of an orchestration built from it), `origin` is the chat the item was created from.
+ */
+export type WorkItemLinkRole = 'work' | 'origin';
+
+/** A chat or an orchestration task tied to a work item. An item keeps every link, not only the last. */
+export interface WorkItemLink extends WorkItemSource {
+  id: string;
+  itemId: string;
+  role: WorkItemLinkRole;
+  /** The chat's title or the task's name, filled in when read; null when it is gone */
+  name?: string | null;
+  /** Filled in when read, for a chat */
+  chatState?: ChatState | null;
+  /** Filled in when read, for an orchestration task */
+  taskStatus?: OrchestrationTaskStatus | null;
+  createdAt: string;
+}
+
+export interface WorkItem {
+  /** Ours and stable: the key changes with the prefix, the id never does */
+  id: string;
+  projectId: string;
+  /** Never reused inside the project */
+  number: number;
+  /** `<prefix>-<number>`, composed when read */
+  key: string;
+  type: WorkItemType;
+  title: string;
+  /** Markdown */
+  description: string;
+  status: WorkItemStatus;
+  priority: WorkItemPriority;
+  /** Free text, in the order they were given */
+  labels: string[];
+  assignee: WorkItemAssignee | null;
+  /** Always null for an epic: there is one level of hierarchy */
+  epicId: string | null;
+  /** The epic, filled in when read, so a card can show its label */
+  epic?: WorkItemRef | null;
+  milestoneId: string | null;
+  acceptanceCriteria: AcceptanceCriterion[];
+  relations: WorkItemRelation[];
+  /**
+   * Order inside its column, compared as plain strings. Opaque to clients, which move an item by
+   * naming its neighbour ({@link MoveWorkItemRequest}), so the order a person drags survives.
+   */
+  rank: string;
+  /** The item's own git worktree, once something worked on it, on branch `task/<key>` in lower case */
+  worktree: string | null;
+  branch: string | null;
+  /**
+   * The chat or orchestration task working on it right now, filled in when read: what makes a card
+   * live. Null when nothing is.
+   */
+  activeLink?: WorkItemLink | null;
+  createdAt: string;
+  updatedAt: string;
+  /** When it last entered `done`; null while it is anywhere else */
+  closedAt: string | null;
+}
+
+/** One work item with what its page shows beyond the card. */
+export interface WorkItemDetail extends WorkItem {
+  /** For an epic, the items it groups */
+  children: WorkItemRef[];
+  links: WorkItemLink[];
+  /** Oldest first */
+  comments: WorkItemComment[];
+  /** Oldest first */
+  history: WorkItemHistoryEntry[];
+}
+
+/** A new entry of the acceptance checklist: an object, so fields can join the text later. */
+export interface NewAcceptanceCriterion {
+  text: string;
+}
+
+export interface CreateWorkItemRequest {
+  title: string;
+  /** Default `task` */
+  type?: WorkItemType;
+  description?: string;
+  /** Default `backlog` */
+  status?: WorkItemStatus;
+  /** Default `medium` */
+  priority?: WorkItemPriority;
+  labels?: string[];
+  assignee?: WorkItemAssignee | null;
+  /** Must name an epic of the same project; not allowed on an epic */
+  epicId?: string | null;
+  milestoneId?: string | null;
+  acceptanceCriteria?: NewAcceptanceCriterion[];
+}
+
+/** An entry of a replaced checklist: one with an `id` keeps its check, one without is new. */
+export interface AcceptanceCriterionInput {
+  id?: string;
+  text: string;
+}
+
+/**
+ * Only the fields present change, and `null` clears a nullable one. The status and the order change
+ * through {@link MoveWorkItemRequest}, and one criterion is checked through
+ * {@link CheckAcceptanceCriterionRequest}.
+ */
+export interface UpdateWorkItemRequest {
+  type?: WorkItemType;
+  title?: string;
+  description?: string;
+  priority?: WorkItemPriority;
+  labels?: string[];
+  assignee?: WorkItemAssignee | null;
+  epicId?: string | null;
+  milestoneId?: string | null;
+  /** Replaces the whole checklist, in this order */
+  acceptanceCriteria?: AcceptanceCriterionInput[];
+}
+
+/**
+ * Moves an item to a column and a place in it. The place is named by a neighbour rather than an
+ * index, so two people reordering at once do not land items on top of each other.
+ */
+export interface MoveWorkItemRequest {
+  status: WorkItemStatus;
+  /** The item it goes right after in the target column; null puts it first, absent puts it last */
+  afterId?: string | null;
+}
+
+/** A move always succeeds; going over the column's limit is reported, never refused. */
+export interface MoveWorkItemResult {
+  item: WorkItem;
+  column: BoardColumnSummary;
+}
+
+export interface CheckAcceptanceCriterionRequest {
+  checked: boolean;
+}
+
+export interface CreateWorkItemCommentRequest {
+  /** Markdown */
+  body: string;
+}
+
+/** Refused when it points at the item itself or closes a cycle of `blocks`. */
+export interface CreateWorkItemRelationRequest {
+  type: WorkItemRelationType;
+  itemId: string;
+}
+
+export interface CreateWorkItemLinkRequest {
+  kind: WorkItemSource['kind'];
+  role: WorkItemLinkRole;
+  chatId?: string | null;
+  orchestrationId?: string | null;
+  taskId?: string | null;
+}
+
+/**
+ * What a list, a search or the board is narrowed to. Every field is optional; the values of a list
+ * are alternatives (any of them) and fields combine (all of them). In a query string, a list is
+ * comma separated.
+ */
+export interface WorkItemFilter {
+  /** Left out for every project: the All projects view */
+  projectId?: string;
+  status?: WorkItemStatus[];
+  type?: WorkItemType[];
+  priority?: WorkItemPriority[];
+  /** Items carrying any of these labels */
+  labels?: string[];
+  /** `person`, `none`, or `role:<role>` */
+  assignee?: string[];
+  epicId?: string;
+  milestoneId?: string;
+  /** Searched in the title and the description, and matched against the key */
+  q?: string;
+}
+
+export type MilestoneState = 'open' | 'closed';
+
+/** Derived from the milestone's work items, epics left out: they group work, they are not work. */
+export interface MilestoneProgress {
+  total: number;
+  done: number;
+  byStatus: Record<WorkItemStatus, number>;
+}
+
+/** A named goal (`v0.19`) with no date: open or closed, and how far its work items are. */
+export interface Milestone {
+  id: string;
+  projectId: string;
+  name: string;
+  /** Markdown */
+  description: string;
+  state: MilestoneState;
+  progress: MilestoneProgress;
+  createdAt: string;
+  updatedAt: string;
+  /** When it was last closed; null while open */
+  closedAt: string | null;
+}
+
+export interface CreateMilestoneRequest {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateMilestoneRequest {
+  name?: string;
+  description?: string;
+  state?: MilestoneState;
+}
+
+// ---------- Board ----------
+//
+// Everything one request returns to draw a board: the five columns in order, each with its limit,
+// how many items it holds and those items in rank order. A filter narrows `items` but not `count`,
+// since a limit is about the real load of a column, not about what a search shows.
+
+/** A column without its items: what a move reports. */
+export interface BoardColumnSummary {
+  status: WorkItemStatus;
+  /** Null when the column has no limit */
+  limit: number | null;
+  /** Every item in the column, whatever the filter */
+  count: number;
+  /** `count` is over `limit`: shown in the warn colour with a word, never a block */
+  overLimit: boolean;
+}
+
+export interface BoardColumn extends BoardColumnSummary {
+  /** The items that pass the filter, in rank order */
+  items: WorkItem[];
+}
+
+export interface Board {
+  /** Null for the All projects board, whose columns carry no limit */
+  projectId: string | null;
+  /** Always the five columns, in {@link WorkItemStatus} order */
+  columns: BoardColumn[];
 }
 
 // ---------- What changed on disk ----------
@@ -2140,6 +2677,10 @@ export interface CreateProjectRequest {
   name: string;
   /** Clone this repository instead of creating an empty directory */
   gitUrl?: string;
+  /** Configures the project from a template; without one, and without `modules`, every module is off */
+  template?: ProjectTemplateId;
+  /** The modules to switch on; when given, it replaces the template's choice instead of adding to it */
+  modules?: ProjectModule[];
 }
 
 export interface ApiError {
@@ -2620,6 +3161,72 @@ export interface SupervisorProposedEvent extends AgentryEventBase, RunEventRef {
   proposal: SupervisorProposal;
 }
 
+/** What every work item event names, so a client knows which item, board and list to refetch. */
+export interface WorkItemEventRef {
+  projectId: string;
+  itemId: string;
+  key: string;
+}
+
+export interface WorkItemCreatedEvent extends AgentryEventBase, WorkItemEventRef {
+  type: 'workitem.created';
+  itemType: WorkItemType;
+  status: WorkItemStatus;
+  /** Set when a chat created it, from one of its messages */
+  source: WorkItemSource | null;
+}
+
+/** An item's fields, criteria, relations, links or comments changed; its column and place did not. */
+export interface WorkItemUpdatedEvent extends AgentryEventBase, WorkItemEventRef {
+  type: 'workitem.updated';
+  changes: WorkItemChange[];
+  actor: WorkItemActor;
+  cause: WorkItemCause | null;
+}
+
+/** An item changed column or place: a person dragged it, or it moved on its own and `cause` says why. */
+export interface WorkItemMovedEvent extends AgentryEventBase, WorkItemEventRef {
+  type: 'workitem.moved';
+  status: WorkItemStatus;
+  /** Equal to `status` when only its place in the column changed */
+  previousStatus: WorkItemStatus;
+  /** The target column is over its limit after the move */
+  overLimit: boolean;
+  actor: WorkItemActor;
+  cause: WorkItemCause | null;
+}
+
+export interface WorkItemRemovedEvent extends AgentryEventBase, WorkItemEventRef {
+  type: 'workitem.removed';
+}
+
+export type MilestoneChangeAction = 'created' | 'updated' | 'closed' | 'reopened' | 'deleted';
+
+/**
+ * A milestone was created, edited, closed, reopened or deleted. Its progress moving because an item
+ * did is not announced here: that item's own event already makes it stale.
+ */
+export interface MilestoneChangedEvent extends AgentryEventBase {
+  type: 'milestone.changed';
+  projectId: string;
+  milestoneId: string;
+  milestoneName: string;
+  action: MilestoneChangeAction;
+}
+
+/** What `project.updated` says changed; `settings` is anything else in the settings document. */
+export type ProjectChange = 'name' | 'key' | 'modules' | 'settings';
+
+/** A project was renamed, its key prefix or its modules changed, or its settings document was replaced. */
+export interface ProjectUpdatedEvent extends AgentryEventBase {
+  type: 'project.updated';
+  projectId: string;
+  projectName: string;
+  changes: ProjectChange[];
+  /** The modules on after the change */
+  modules: ProjectModule[];
+}
+
 /** Everything the buffered feed carries, discriminated by `type`. */
 export type AgentryEvent =
   | RunCreatedEvent
@@ -2650,7 +3257,13 @@ export type AgentryEvent =
   | SystemReleaseEvent
   | ScheduleChangedEvent
   | ScheduleFiredEvent
-  | SupervisorProposedEvent;
+  | SupervisorProposedEvent
+  | WorkItemCreatedEvent
+  | WorkItemUpdatedEvent
+  | WorkItemMovedEvent
+  | WorkItemRemovedEvent
+  | MilestoneChangedEvent
+  | ProjectUpdatedEvent;
 
 export type AgentryEventType = AgentryEvent['type'];
 
