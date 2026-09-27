@@ -344,7 +344,65 @@ fixer.
 
 ## What `tunnel-core` found
 
-To be written by `tunnel-core`.
+Measured on 2026-09-27 against the real localhost.run, from OpenSSH 9.6p1, with the tunnel pointed
+at a throwaway server on `127.0.0.1` that answered a fixed text (decision 5). The ssh process and
+the server were killed by PID afterwards.
+
+1. **The host key.** `ssh-keyscan localhost.run` prints nothing: the server (`lhr-2.0`) does not
+   send its version until the client does, which `ssh-keyscan` does not wait for. The key was read
+   from a real `ssh` session with a scratch `known_hosts` (`StrictHostKeyChecking=accept-new`). The
+   name resolves to three addresses; the session reached one of them, and the later run with the
+   pin and `StrictHostKeyChecking=yes` connected again:
+
+   ```
+   localhost.run ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILVqOuSMnyeGDVO1lG6EaG5In/dXABCchhmHKkuRU2s9
+   SHA256:pG6qrBxubYfWa1Zadu/V0NUgjEDiBds/7e2xzte/QNM
+   ```
+
+   It is `LOCALHOST_RUN_KNOWN_HOSTS` in `packages/core/src/tunnel.ts`, written to
+   `<dataDir>/tunnel/known_hosts` (mode `0600`) before every attempt, and ssh runs with
+   `StrictHostKeyChecking=yes`, `UpdateHostKeys=no` and `GlobalKnownHostsFile=none`. A key that
+   changes fails the tunnel with `tunnel.hostKey` and no retry, rather than being learned.
+2. **The banner line.** The address arrives on **stdout**, after `authn: authenticated as anonymous
+   user`, as `<id>.lhr.life tunneled with tls termination, https://<id>.lhr.life` (the id was 14
+   hex characters, lines end in `\r\n`). The same output carries two other `https://` links (the
+   docs and the "forever free" page), and stderr carries a welcome box and a line with the
+   caller's **public IP** (`your connection id is <ip>:<port>`). So the parser matches that one line
+   only, and requires the same name on both sides of it; and the IP line is never used as a failure
+   reason shown on screen.
+3. **The client's address.** localhost.run **adds no forwarding header at all**: no
+   `X-Forwarded-For`, `X-Real-IP`, `Forwarded` or `X-Forwarded-Proto`. It keeps the public `Host`
+   and passes the request's own headers through untouched, so an `X-Forwarded-For: 6.6.6.6` sent by
+   the client arrived as exactly that. Keying the backoff by such a header would let a stranger
+   pick whose budget they spend. The tunnel's host is therefore registered **without**
+   `clientIpHeader` (`TUNNEL_HOST_OPTIONS`), and all tunnel traffic shares one backoff bucket of its
+   own, apart from loopback: ten wrong guesses through the tunnel make the tunnel wait, never the
+   owner at the desk. The cost is that a stranger can make the owner's phone wait too, for as long
+   as the backoff lasts.
+
+Also measured, and what it changed:
+
+- **`/api/health` answers before the host is allowed.** The route is open and outside the host
+  check, so verification goes through the public URL while the host is still off the allowlist.
+  The host joins only after that first `200`. It took 2.3 s from `start` to `active`.
+- **ssh never reads `~/.ssh`:** `-F none`, `BatchMode=yes`, `PubkeyAuthentication=no`,
+  `IdentityAgent=none` and `IdentityFile=none`. The `nokey` user authenticates with `none`. The
+  real run reached `active` with all of these options set.
+- **The manual run:** the real `TunnelManager`, the system `ssh` and localhost.run, pointed at the
+  throwaway server. It went `starting → verifying → active` in 2.3 s, and the public URL answered
+  `200`. On `stop` it went `stopping → stopped`, the host left the list, and the ssh PID was gone.
+
+Three places where this task changed a file outside the ownership table, because nothing else
+could do it:
+
+- `packages/core/src/paths.ts` (`settings-layers`) gained `sshBin`, read from `SSH_BIN` with `ssh`
+  as the default.
+
+- `packages/core/src/security/auth.ts` gained `beforeUnguarded`, which the store awaits before the
+  mode turns to `none`. `Core` points it at `tunnel.stop('unguarded')`, so the answer to that `PUT`
+  already finds the tunnel closed.
+- `apps/api/src/server.ts` calls `core.tunnel.attach(port, host)` with the port it actually bound
+  to.
 
 ## Answer: notifications after a domain change
 

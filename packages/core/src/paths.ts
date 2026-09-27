@@ -22,6 +22,8 @@ export type AuthEnv = Partial<Record<(typeof AUTH_ENV_KEYS)[number], string>>;
 
 export interface CoreConfig {
   claudeBin: string;
+  /** The `ssh` the tunnel runs, from `SSH_BIN`: the system's own unless someone points at another */
+  sshBin: string;
   /**
    * claude-swap binary from `CSWAP_BIN`: owns the account credentials when several accounts are
    * registered. Null lets Agentry look for it on the `PATH` and in its own managed copy.
@@ -133,6 +135,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
   }
   return {
     claudeBin: env.CLAUDE_BIN ?? 'claude',
+    sshBin: env.SSH_BIN?.trim() || 'ssh',
     cswapBin: env.CSWAP_BIN?.trim() || null,
     cswapManaged: env.AGENTRY_CSWAP_MANAGED !== '0' && env.AGENTRY_DISTRIBUTION?.trim().toLowerCase() !== 'docker',
     configDir,
