@@ -36,7 +36,18 @@ function useSummary(pulse: HomePulse): string {
  * gradient, a line that says it in figures, and the two ways to start something. Scoped to a
  * project, the project's name is the headline and the live state moves to the line under it.
  */
-export function HomeHero({ project, aside, actions }: { project: Project | null; aside?: ReactNode; actions?: ReactNode }) {
+export function HomeHero({
+  project,
+  aside,
+  actions,
+  titleAction,
+}: {
+  project: Project | null;
+  aside?: ReactNode;
+  actions?: ReactNode;
+  /** A small control that belongs to the title itself (the project's ⚙), kept on the title's row */
+  titleAction?: ReactNode;
+}) {
   const { t } = useTranslation('home');
   const pulse = useHomePulse(project);
   const summary = useSummary(pulse);
@@ -49,17 +60,20 @@ export function HomeHero({ project, aside, actions }: { project: Project | null;
     <header className="page-header home-hero">
       <div className="page-header-text home-hero-text">
         <span className="section-label home-hero-date">{dayLabel(new Date())}</span>
-        <h1 className="text-display">
-          {project ? (
-            project.name
-          ) : pulse.loading || pulse.unreachable ? (
-            t('page.title')
-          ) : headline.kind === 'waiting' ? (
-            <Trans t={t} i18nKey="hero.waiting" count={headline.n} values={{ n: formatNumber(headline.n) }} components={{ grad }} />
-          ) : (
-            <Trans t={t} i18nKey={headline.kind === 'running' ? 'hero.running' : 'hero.idle'} components={{ grad }} />
-          )}
-        </h1>
+        <div className="home-hero-title">
+          <h1 className="text-display">
+            {project ? (
+              project.name
+            ) : pulse.loading || pulse.unreachable ? (
+              t('page.title')
+            ) : headline.kind === 'waiting' ? (
+              <Trans t={t} i18nKey="hero.waiting" count={headline.n} values={{ n: formatNumber(headline.n) }} components={{ grad }} />
+            ) : (
+              <Trans t={t} i18nKey={headline.kind === 'running' ? 'hero.running' : 'hero.idle'} components={{ grad }} />
+            )}
+          </h1>
+          {titleAction}
+        </div>
         {!pulse.loading && !pulse.unreachable && <p className="home-hero-summary">{summary}</p>}
         {aside}
       </div>

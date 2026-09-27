@@ -88,7 +88,7 @@ function ProjectDashboard({ project }: { project: Project }) {
       <HomeHero
         project={project}
         aside={<PathLabel path={project.path} />}
-        actions={
+        titleAction={
           <Link to="/?view=settings" className="btn home-hero-icon" aria-label={t('dashboard.projectSettings', { name: project.name })}>
             <Settings {...ICON_SM} />
           </Link>
