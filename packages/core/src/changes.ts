@@ -159,6 +159,34 @@ export class Changes {
     return { repo, worktree: tree.path, branch: tree.branch, base };
   }
 
+  /**
+   * The site of a work item's own worktree and branch, measured from where it left the main
+   * checkout, as a chat's is. Once the worktree is gone the branch is still read by name, from the
+   * project's repository; null when neither is left.
+   */
+  private itemSite(projectPath: string, place: { worktree: string | null; branch: string | null }): Site | null {
+    const live = place.worktree && existsSync(place.worktree) && isGitRepo(place.worktree) ? place.worktree : null;
+    const from = live ?? (existsSync(projectPath) && isGitRepo(projectPath) ? projectPath : null);
+    if (!from) return null;
+    const repo = mainTopLevel(from);
+    if (!live && !(place.branch && branchExists(repo, place.branch))) return null;
+    const base = live ? mergeBase(live, 'HEAD', headCommit(repo)) : mergeBase(repo, place.branch ?? 'HEAD', 'HEAD');
+    return { repo, worktree: live, branch: place.branch, base };
+  }
+
+  /** What a work item's branch changed; null while nothing has worked on it in a worktree. */
+  itemChanges(projectPath: string, place: { worktree: string | null; branch: string | null }): ChangeSummary | null {
+    if (!place.worktree && !place.branch) return null;
+    const site = this.itemSite(projectPath, place);
+    return site ? summarize(site) : null;
+  }
+
+  itemDiff(projectPath: string, place: { worktree: string | null; branch: string | null }, path: string): FileDiff {
+    const site = this.itemSite(projectPath, place);
+    if (!site) throw new Error('this work item has no worktree or branch left to compare');
+    return diffOf(site, path);
+  }
+
   /** A worktree gives a summary; a chat anywhere else has only what its own calls wrote. */
   async chatChanges(id: string): Promise<ChatChanges> {
     const site = await this.chatSite(id);

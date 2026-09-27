@@ -55,6 +55,9 @@ const ROOT_TYPES = [
   'CreateWorkItemRequest', 'UpdateWorkItemRequest', 'MoveWorkItemRequest', 'MoveWorkItemResult', 'CheckAcceptanceCriterionRequest',
   'CreateWorkItemCommentRequest', 'CreateWorkItemRelationRequest', 'CreateWorkItemLinkRequest',
   'Milestone', 'CreateMilestoneRequest', 'UpdateMilestoneRequest', 'Board',
+  // Work items with chats and orchestrations
+  'WorkOnWorkItemRequest', 'WorkOnWorkItemResult', 'OrchestrateWorkItemsRequest', 'WorkItemOrchestrationDraft', 'CreateWorkItemFromMessageRequest',
+  'WorkItemChanges',
 ];
 
 const generator = createGenerator({
