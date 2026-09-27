@@ -1386,3 +1386,86 @@
     display: none;
   }
 }
+
+/* A node that works on a work item names it by its key, which opens the item */
+.workitem-key-link {
+  vertical-align: 1px;
+  text-decoration: none;
+  transition: border-color var(--dur-fast), color var(--dur-fast);
+}
+
+.workitem-key-link:hover {
+  border-color: var(--line-2);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.workitem-key-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The box stays small; on a phone its target grows to a finger's around it */
+@media (pointer: coarse) {
+  .workitem-key-link {
+    position: relative;
+  }
+
+  .workitem-key-link::after {
+    content: '';
+    position: absolute;
+    inset: -12px -4px;
+  }
+}
+
+.task-editor-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.task-editor-item-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A graph drafted on the board: where it came from, and the blockers it cannot wait for */
+.orch-draft-note {
+  margin: 0;
+}
+
+.orch-draft-blockers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.orch-draft-blockers-list > li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.orch-draft-blocker-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.orch-draft-blocker-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+}

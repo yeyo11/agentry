@@ -132,5 +132,16 @@
     "resume": "Resume",
     "emptyBody": "Split an objective into tasks and run them as agents in parallel. Start a new one, or begin from a template.",
     "noMatchBody": "Try another name, or clear the status filter."
+  },
+  "workItem": {
+    "open": "Open task {{key}}"
+  },
+  "draft": {
+    "fromBoard_one": "From the board: {{count}} task, its node linked to it",
+    "fromBoard_other": "From the board: {{count}} tasks, each node linked to its own",
+    "externalTitle_one": "Blocked by a task outside the selection",
+    "externalTitle_other": "Blocked by {{count}} tasks outside the selection",
+    "externalBody_one": "The graph cannot wait for it. Launch it once that task is done, or add it to the selection on the board.",
+    "externalBody_other": "The graph cannot wait for them. Launch it once they are done, or add them to the selection on the board."
   }
 }

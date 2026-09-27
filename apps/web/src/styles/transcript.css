@@ -1107,3 +1107,76 @@
 .chat-launch-open {
   flex: none;
 }
+
+/* A message's own actions: copy it, or make a task of it. They wait at its bottom corner and show
+   when the message is pointed at or focused, and stay while their menu is open */
+.msg-actions {
+  position: absolute;
+  right: 0;
+  bottom: -16px;
+  z-index: 1;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-pop);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast);
+}
+
+.msg-user .msg-actions {
+  right: 8px;
+}
+
+.msg:hover .msg-actions,
+.msg:focus-within .msg-actions,
+.msg-actions:has([data-state='open']) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* The message the open menu acts on is lifted out of the column, so it is clear which one it is */
+.msg:not(.msg-user):has(.msg-actions [data-state='open']) > .msg-body {
+  border-radius: var(--radius-xs);
+  background: var(--bg-2);
+  box-shadow:
+    0 0 0 10px var(--bg-2),
+    0 0 0 11px var(--line);
+}
+
+.msg-menu-task {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  white-space: normal;
+}
+
+.msg-menu-hint {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+/* A finger has no hover: the ⋯ is always there, quiet, at the end of the message */
+@media (pointer: coarse) {
+  .msg-actions {
+    position: static;
+    align-self: flex-end;
+    margin: -6px -10px -10px 0;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .msg-actions .icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+    color: var(--text-faint);
+  }
+}

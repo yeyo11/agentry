@@ -47,7 +47,12 @@
       "undelivered": "Not delivered — the turn ended before the chat read it",
       "restore": "Put it back in the box"
     },
-    "stopHint": "Kill the process this chat runs in. Anything sent into it and not yet read goes with it"
+    "stopHint": "Kill the process this chat runs in. Anything sent into it and not yet read goes with it",
+    "workItem": {
+      "works": "Works on",
+      "origin": "Created from this chat",
+      "criteria": "criteria {{done}}/{{total}}"
+    }
   },
   "composer": {
     "message": "Message",
@@ -198,6 +203,18 @@
       "updated": "Updated",
       "environmentEmpty": "Nothing has reported what Claude loaded for this chat yet.",
       "messages": "Messages"
+    },
+    "workItem": {
+      "title": "Task",
+      "open": "Open",
+      "openLabel": "Open {{key}}",
+      "key": "Key",
+      "status": "Status",
+      "criteria": "Criteria",
+      "worktree": "Worktree",
+      "onEnd": "When it ends",
+      "onEndHint": "moves to In review if the turn ends well",
+      "none": "none"
     }
   },
   "delete": {
@@ -269,5 +286,18 @@
     "agents": "{{done}}/{{total}} agents",
     "open": "Open",
     "openHint": "Open {{name}} in the details"
+  },
+  "messageMenu": {
+    "label": "Message actions",
+    "copy": "Copy the message",
+    "copied": "Message copied",
+    "createTask": "Create a task from this message",
+    "createTaskHint": "In Backlog of {{project}}, linked to this chat",
+    "noProject": "This chat is under no project",
+    "noBoard": "The Board module of {{project}} is off",
+    "created": "{{key}} created in Backlog",
+    "createdDetail": "Linked to this chat",
+    "openTask": "Open",
+    "createFailed": "The task could not be created"
   }
 }

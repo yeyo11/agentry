@@ -17,6 +17,7 @@ import { NARROW, WIDE, useMediaQuery } from '../../lib/media';
 import { checklistProgress } from '../../lib/observe';
 import { BranchesCard, EnvironmentCard, ExecutionsCard, FactsCard, HealthCard, Section, UsageCard } from './Side';
 import { ToolsCard } from './ToolsCard';
+import { useChatItemLinks, WorkItemCard } from './WorkItemLinks';
 
 export const INSPECTOR_TABS = ['summary', 'activity', 'changes', 'environment'] as const;
 export type InspectorTab = (typeof INSPECTOR_TABS)[number];
@@ -164,6 +165,7 @@ function InspectorBody({
   const { t } = useTranslation('chat');
   const group = useTabGroup();
   const stepIn = chat.health.signals.some(isStepIn) || chat.health.proposal?.status === 'proposed';
+  const item = useChatItemLinks(chat.id)[0];
   return (
     <div className="run-side chat-inspector-body">
       <div className="insp-top">
@@ -181,6 +183,7 @@ function InspectorBody({
           <>
             {stepIn && <HealthCard chat={chat} />}
             <UsageCard chat={chat} />
+            {item && <WorkItemCard link={item} />}
             <FactsCard chat={chat} />
           </>
         )}
