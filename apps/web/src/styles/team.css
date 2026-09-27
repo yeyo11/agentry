@@ -390,7 +390,7 @@
   gap: 12px;
 }
 
-.team-side-card .card-head h3 {
+.team-side-card .card-head h2 {
   font-size: 15px;
 }
 
@@ -694,7 +694,7 @@
   min-width: 0;
 }
 
-.member-page-title h2 {
+.member-page-title h1 {
   margin: 0;
   font-size: 24px;
   font-weight: 600;
@@ -763,7 +763,7 @@
   flex-wrap: wrap;
 }
 
-.member-file-head h3 {
+.member-file-head h2 {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
@@ -1003,7 +1003,7 @@ a.member-run:hover {
   flex-wrap: nowrap;
 }
 
-.member-page.is-phone .member-page-title h2 {
+.member-page.is-phone .member-page-title h1 {
   font-size: 24px;
 }
 
@@ -1043,9 +1043,9 @@ a.member-run:hover {
   min-width: 0;
 }
 
-.flow-auto-text h3,
-.flow-rows-head h3,
-.flow-models h3 {
+.flow-auto-text h2,
+.flow-rows-head h2,
+.flow-models h2 {
   margin: 0;
   font-size: 15px;
   font-weight: 600;

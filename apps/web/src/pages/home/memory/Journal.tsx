@@ -127,7 +127,7 @@ export function Journal({ projectId, phone = false }: { projectId: string; phone
     <>
       {groups.map((group) => (
         <section key={group.day} className="journal-day">
-          <h3 className="section-label">{dayLabel(group.day)}</h3>
+          <h2 className="section-label">{dayLabel(group.day)}</h2>
           <ul className="card journal-cards">
             {group.entries.map((entry) => (
               <li key={entry.id} className="journal-card">

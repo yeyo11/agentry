@@ -94,7 +94,7 @@ export function FlowSummary({ columns, enabled, maxBounces, editHref }: { column
   return (
     <section className="card team-side-card" aria-labelledby="team-flow-summary">
       <div className="card-head">
-        <h3 id="team-flow-summary">{t('flow.summaryTitle')}</h3>
+        <h2 id="team-flow-summary">{t('flow.summaryTitle')}</h2>
         <span className="team-side-head-end">
           <span className="badge badge-muted team-flow-state">{enabled ? t('flow.on') : t('flow.off')}</span>
           <Link to={editHref} className="team-link">
@@ -140,7 +140,7 @@ export function TeamActivity({ runs }: { runs: FlowRun[] }) {
   return (
     <section className="card team-side-card" aria-labelledby="team-activity">
       <div className="card-head">
-        <h3 id="team-activity">{t('activity.title')}</h3>
+        <h2 id="team-activity">{t('activity.title')}</h2>
       </div>
       {runs.length === 0 ? (
         <p className="team-muted">{t('activity.none')}</p>

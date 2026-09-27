@@ -240,7 +240,7 @@ function PhoneDocuments({ project, tree, root, fileCount, tied, address }: Layou
               <ChevronLeft {...ICON} />
             </button>
             <div className="doc-phone-head-text">
-              <h2>{heading}</h2>
+              <h1>{heading}</h1>
               <span className="mono small muted ellipsis">{address.path}</span>
             </div>
           </header>
