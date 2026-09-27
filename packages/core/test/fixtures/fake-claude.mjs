@@ -14,7 +14,8 @@
 //
 //   FAKE-RESULT-<STAGE> <json>    with --json-schema, ends with that structured output; the stage
 //                                 (REFINE, WORK, VERIFY) is read off the schema as a flow run's
-//                                 differs by stage, so one item's description can script each role
+//                                 differs by stage, so one item's description can script each role;
+//                                 ASSISTANT is an assistant run's, whose schema asks for `read`
 //
 //   FAKE_CLAUDE_SPAWNS=<file>     appends `<pid> <argv>` to <file> as it starts, so a test can count
 //                                 every process spawned, tracked or not
@@ -112,7 +113,7 @@ lines.on('line', (line) => {
   const schema = flag('--json-schema');
   if (schema) {
     const props = JSON.parse(schema).properties ?? {};
-    const stage = props.verdict ? 'VERIFY' : props.acceptanceCriteria ? 'REFINE' : 'WORK';
+    const stage = props.read ? 'ASSISTANT' : props.verdict ? 'VERIFY' : props.acceptanceCriteria ? 'REFINE' : 'WORK';
     const scripted = new RegExp(`^FAKE-RESULT-${stage} (.*)$`, 'm').exec(prompt);
     if (scripted) {
       out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: '', structured_output: JSON.parse(scripted[1]) });

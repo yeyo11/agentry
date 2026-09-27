@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   AccountsOverview,
@@ -23,6 +23,7 @@ import type {
   ProjectChange,
   ProjectModule,
   ProjectSettings,
+  ProjectTeamMember,
   ProjectTemplate,
   ProjectWorktree,
   RunWorkflowRequest,
@@ -97,6 +98,8 @@ import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
 import { readFrontmatter, TeamService } from './team.ts';
 import { FlowService, type FlowLaunch } from './flow.ts';
+import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
+import { git, isGitRepo } from './git.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
@@ -131,6 +134,21 @@ export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './project-settings.ts';
 export { PROJECT_TEMPLATES } from './project-templates.ts';
 export { agentFileContent, TeamError, TeamService, templateTeam, type TeamRunSource } from './team.ts';
+export {
+  ASSISTANT_ERRORS,
+  AssistantError,
+  AssistantService,
+  DENIED_TOOLS,
+  memberFile,
+  READ_EVENT_MS,
+  READ_ONLY_TOOLS,
+  type AssistantChatResult,
+  type AssistantDeps,
+  type AssistantKnown,
+  type AssistantLaunch,
+  type AssistantProject,
+} from './assistant.ts';
+export { assistantPrompt, assistantSchema, parseAnswer, type AssistantAnswer, type AssistantBrief } from './assistant-answer.ts';
 export { FLOW_CAUSE, flowPrompt, flowResultSchema, FlowService, parseResult, writeRules, type FlowChatResult, type FlowDeps, type FlowLaunch, type FlowProject } from './flow.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
@@ -237,6 +255,8 @@ export class Core {
   readonly memoryProposals: MemoryProposalService;
   /** The flow by column: a team member's run when a card enters the column its role answers for */
   readonly flow: FlowService;
+  /** The project assistant: read-only runs that propose a team, resources and work items, each accepted on its own */
+  readonly assistant: AssistantService;
   private readonly startedAt = Date.now();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
@@ -443,11 +463,33 @@ export class Core {
     });
     this.team.runs = (projectId) => this.flow.runs(projectId);
     this.events.observe((event) => this.flow.observe(event));
+    this.assistant = new AssistantService({
+      db: this.db,
+      items: this.workItems,
+      project: (id) => this.assistantProject(id),
+      known: (project) => this.assistantKnown(project),
+      launch: (launch, onStart) => this.launchAssistantRun(launch, onStart),
+      chatBusy: (chatId) => {
+        const chat = this.runtime.get(chatId);
+        return !!chat && stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }) !== 'idle';
+      },
+      stop: (chatId) => void this.runtime.stop(chatId),
+      activity: (chatId) => this.runtime.get(chatId)?.activity ?? null,
+      cost: (chatId) => this.runtime.get(chatId)?.costUsd ?? null,
+      addMember: (project, member, content) => this.addAssistantMember(project, member, content),
+      resourceExists: async (project, scope, kind, name) => (await this.resources.get(this.assistantScope(project, scope), kind, name)) !== null,
+      saveResource: async (project, scope, kind, name, content) => {
+        await this.resources.save(this.assistantScope(project, scope), kind, name, content);
+      },
+      emit: (event) => this.events.emit(event),
+    });
+    this.events.observe((event) => this.assistant.observe(event));
     // Every result, not only a run's first: a chat worked on by hand ends many turns. The automation
     // hears it before the flow, which ends its run on it and so stops claiming the chat
     this.runtime.on('chat-result', (chatId: string, result: RunResult) => {
       this.workLinks.chatResult(chatId, result);
       void this.flow.chatResult(chatId, result);
+      this.assistant.chatResult(chatId, result);
     });
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
     // Started last of all, once the chats it may resume or start are restored, so a slot judged at
@@ -485,6 +527,7 @@ export class Core {
       } catch {
         // Shut down before the chats came back: the database is closed, and nothing may start anyway
       }
+      void this.assistant.recover().catch(() => undefined);
       this.schedules.start();
       schedulesStarted = true;
       // Every transcript is read once now rather than by whoever opens the first list, which
@@ -1037,6 +1080,116 @@ export class Core {
   projectFlow(projectId: string) {
     this.requireProject(projectId);
     return this.flow.projectFlow(projectId);
+  }
+
+  // ---------- the project assistant ----------
+
+  private async assistantProject(projectId: string): Promise<AssistantProject> {
+    const record = this.projectStore.get(projectId);
+    if (!record) throw new AssistantError('project not found', 404);
+    if (!existsSync(record.path)) throw new AssistantError("the project's directory is missing on disk", 409);
+    return { id: record.id, name: record.name, path: record.path, settings: await this.projectSettings(projectId) };
+  }
+
+  /** A project's runs are listed while it is imported, whatever its directory's state. */
+  assistantProjectExists(projectId: string): void {
+    if (!this.projectStore.get(projectId)) throw new AssistantError('project not found', 404);
+  }
+
+  private assistantScope(project: AssistantProject, scope: 'project' | 'user'): ConfigScope {
+    return scope === 'project' ? projectScope(project.path) : userScope(this.config);
+  }
+
+  /**
+   * What a run is handed beside its directory. Each part is read on its own and a part that cannot be
+   * read counts as none: the run can still read the directory, which is what it is for.
+   */
+  private async assistantKnown(project: AssistantProject): Promise<AssistantKnown> {
+    const quiet = async <T>(read: () => Promise<T> | T, fallback: T): Promise<T> => {
+      try {
+        return await read();
+      } catch {
+        return fallback;
+      }
+    };
+    const scope = projectScope(project.path);
+    const [memory, agents, skills, commands, sessions] = await Promise.all([
+      quiet(() => this.memory.list(encodeProjectId(project.path)), []),
+      quiet(async () => (await this.resources.list(scope, 'agents')).map((r) => r.name), [] as string[]),
+      quiet(async () => (await this.resources.list(scope, 'skills')).map((r) => r.name), [] as string[]),
+      quiet(async () => (await this.resources.list(scope, 'commands')).map((r) => r.name), [] as string[]),
+      quiet(() => this.sessions.listSessions(encodeProjectId(project.path)), []),
+    ]);
+    const journal = await quiet(() => this.journal.handoff(project.id), { text: '', entries: 0, bytes: 0 });
+    const items = await quiet(() => this.workItems.list({ projectId: project.id }), []);
+    const milestones = await quiet(() => this.workItems.milestones(project.id).filter((m) => m.state === 'open').map((m) => m.name), [] as string[]);
+    const commits = !isGitRepo(project.path) ? null : await quiet(() => Number(git(project.path, ['rev-list', '--count', 'HEAD'], 10_000)) || 0, 0);
+    const chats = [...sessions].sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
+    return {
+      facts: {
+        memoryFiles: memory.length,
+        journalEntries: journal.entries,
+        workItems: items.length,
+        milestones,
+        teamMembers: project.settings.team?.members.length ?? 0,
+        resources: [...agents, ...skills, ...commands],
+        chats: chats.length,
+        commits,
+      },
+      journal: journal.text,
+      chats: chats.map((c) => (c.firstPrompt ?? c.title).replace(/\s+/g, ' ').trim().slice(0, 140)).filter(Boolean),
+      resources: { agents, skills, commands },
+    };
+  }
+
+  /**
+   * Starts an assistant run's chat in the project's directory: read-only tools in `dontAsk`, no MCP
+   * server and no preset, the journal appended, the result held to the run's schema, and one turn.
+   * A run a restart cut off continues in its own chat.
+   */
+  private async launchAssistantRun(launch: AssistantLaunch, onStart: (chatId: string) => void): Promise<void> {
+    const options = {
+      model: launch.model,
+      appendSystemPrompt: launch.appendSystemPrompt || undefined,
+      permissionMode: launch.permissionMode,
+      allowedTools: launch.allowedTools,
+      disallowedTools: launch.disallowedTools,
+      toolPreset: null,
+      mcp: { servers: [] },
+      permissionPrompts: 'none' as const,
+    };
+    if (launch.resumeChatId) {
+      onStart(launch.resumeChatId);
+      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, { jsonSchema: launch.jsonSchema, keepAlive: false });
+      return;
+    }
+    await this.chats.create({ ...options, prompt: launch.prompt, cwd: launch.cwd, jsonSchema: launch.jsonSchema, keepAlive: false }, (started) => onStart(started.id));
+  }
+
+  /**
+   * A member the assistant proposed, added through the team service. When the run wrote its own
+   * instructions, their file is written first, where no file of that name exists, so the team keeps
+   * it as the person's; if the team then refuses the member, the file goes with it.
+   */
+  private async addAssistantMember(project: AssistantProject, member: ProjectTeamMember, content: string | null): Promise<void> {
+    const dir = join(project.path, '.claude', 'agents');
+    const file = join(dir, `${member.agent}.md`);
+    let wrote = false;
+    if (content !== null && /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(member.agent) && !existsSync(file)) {
+      await mkdir(dir, { recursive: true });
+      try {
+        await writeFile(file, content, { flag: 'wx' });
+        wrote = true;
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+      }
+    }
+    try {
+      await this.team.putMember(project.id, member.agent, { ...member, createFile: true });
+    } catch (err) {
+      if (wrote) await rm(file, { force: true });
+      throw err;
+    }
   }
 
   /**
