@@ -16,8 +16,21 @@ import { useEffect } from 'react';
 
 /** Under this the difference is a browser's own bar sliding in or out, not a keyboard. */
 const KEYBOARD_MIN_PX = 80;
-/** How long iOS takes to slide its keyboard away, after which the viewport is read once more */
-const KEYBOARD_CLOSE_MS = 350;
+/**
+ * When the viewport is read again after a field lets go of the focus: iOS slides its keyboard away
+ * over about a third of a second and may send its last resize halfway, with a height that is
+ * neither open nor closed, so one late read is not enough.
+ */
+const SETTLE_READS_MS = [120, 350, 700];
+
+/** Whether an on-screen keyboard can be up for this element: only something that takes typing. */
+function takesTyping(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) return false;
+  if (element.isContentEditable || element instanceof HTMLTextAreaElement) return true;
+  if (element instanceof HTMLSelectElement) return true;
+  if (!(element instanceof HTMLInputElement)) return false;
+  return !['button', 'checkbox', 'color', 'file', 'hidden', 'image', 'radio', 'range', 'reset', 'submit'].includes(element.type);
+}
 
 export function useKeyboardInset(): void {
   useEffect(() => {
@@ -25,7 +38,7 @@ export function useKeyboardInset(): void {
     if (!viewport) return;
     const root = document.documentElement;
     let last = -1;
-    let timer: number | undefined;
+    let timers: number[] = [];
     // A keyboard was measured open since the last time a field let go of the focus
     let measuredOpen = false;
     const unscroll = () => {
@@ -35,7 +48,9 @@ export function useKeyboardInset(): void {
       // `visualViewport.height` is what is visible measured through the zoom, so a page the reader
       // pinched into would otherwise read as a keyboard covering most of it
       const covered = Math.round(window.innerHeight - viewport.height * viewport.scale);
-      const inset = covered >= KEYBOARD_MIN_PX ? covered : 0;
+      // No field has the focus, so no keyboard is up, whatever a stale reading says: iOS can leave
+      // the last one taken halfway through its closing slide
+      const inset = covered >= KEYBOARD_MIN_PX && takesTyping(document.activeElement) ? covered : 0;
       if (inset !== last) {
         // The keyboard measured open has just gone: the scroll the browser made to reveal the field
         // stays behind unless undone, leaving the top bar off screen and an empty band where the
@@ -62,24 +77,30 @@ export function useKeyboardInset(): void {
         unscroll();
       }
     };
-    // iOS does not always send a last resize once its keyboard has slid away: a field losing focus
-    // reads the viewport again when the slide is over, and undoes the scroll if the keyboard is gone
-    const onFocusOut = () => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        update();
-        if (last === 0 && measuredOpen) {
-          measuredOpen = false;
-          unscroll();
-        }
-      }, KEYBOARD_CLOSE_MS);
+    // iOS does not always send a last resize once its keyboard has slid away: after a field lets go
+    // of the focus the viewport is read again through the slide, and once the keyboard is gone the
+    // scroll it left is undone (each time, since iOS may scroll again while the slide ends)
+    const settle = () => {
+      for (const id of timers) window.clearTimeout(id);
+      timers = SETTLE_READS_MS.map((ms) =>
+        window.setTimeout(() => {
+          update();
+          if (last === 0 && measuredOpen) unscroll();
+          if (ms === SETTLE_READS_MS[SETTLE_READS_MS.length - 1] && last === 0) measuredOpen = false;
+        }, ms),
+      );
     };
+    const onFocusOut = () => settle();
+    // Focus moving from one field to the next is not a keyboard closing: read it as it lands
+    const onFocusIn = () => update();
     update();
     viewport.addEventListener('resize', update);
     viewport.addEventListener('scroll', update);
     document.addEventListener('focusout', onFocusOut);
+    document.addEventListener('focusin', onFocusIn);
     return () => {
-      window.clearTimeout(timer);
+      for (const id of timers) window.clearTimeout(id);
+      document.removeEventListener('focusin', onFocusIn);
       viewport.removeEventListener('resize', update);
       viewport.removeEventListener('scroll', update);
       document.removeEventListener('focusout', onFocusOut);
