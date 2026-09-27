@@ -34,6 +34,7 @@ import type {
   OrchestrateWorkItemsRequest,
   Orchestration,
   OrchestrationSpec,
+  RelaunchOrchestrationRequest,
   WorkflowDefinition,
   WorkItem,
   WorkItemCause,
@@ -1034,6 +1035,9 @@ export class Core {
     const item = await this.workItemAccess(itemId, 'write');
     const record = this.requireProject(item.projectId);
     if (item.type === 'epic') throw new WorkItemError('an epic groups work items: work on one of them instead', 400);
+    // As "Orchestrate" refuses it: nothing an agent does may take an item out of done
+    if (item.status === 'done') throw new WorkItemError(`${item.key} is already done: move it back first to work on it again`, 409);
+    const options = startOptions(request);
     if (!existsSync(record.path)) throw new WorkItemError(`the project's directory ${record.path} is missing`, 409);
     const busy = this.workItems.links(itemId).find((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
     if (busy) throw new WorkItemError(`${item.key} is already being worked on${busy.name ? ` by ${busy.name}` : ''}`, 409);
@@ -1042,8 +1046,14 @@ export class Core {
       this.workItems.setWorktree(itemId, { worktree: place.worktree, branch: place.branch });
     }
     const linked: { link?: WorkItemLink } = {};
-    const chat = await this.chats.create({ ...startOptions(request), prompt: workItemPrompt(item), cwd: place?.cwd ?? record.path }, (started) => {
-      linked.link = this.workItems.link(itemId, { kind: 'chat', role: 'work', chatId: started.id });
+    const chat = await this.chats.create({ ...options, prompt: workItemPrompt(item), cwd: place?.cwd ?? record.path }, (started) => {
+      try {
+        linked.link = this.workItems.link(itemId, { kind: 'chat', role: 'work', chatId: started.id });
+      } catch (err) {
+        // A chat nobody can find from its item would work unseen: it goes with the failed request
+        this.runtime.stop(started.id);
+        throw err;
+      }
       this.workLinks.chatStarted(started.id);
     });
     if (!linked.link) throw new Error('the chat started without being linked to its work item');
@@ -1077,7 +1087,18 @@ export class Core {
    * node per item: the item follows its node, and two nodes would pull it two ways.
    */
   async launchOrchestration(spec: OrchestrationSpec): Promise<Orchestration> {
-    const tasks: unknown = spec?.tasks;
+    await this.checkWorkItemNodes(spec?.tasks);
+    return this.orchestrator.create(spec);
+  }
+
+  /** A relaunch names its items as the first launch did, and is held to the same checks. */
+  async relaunchOrchestration(id: string, changes: RelaunchOrchestrationRequest = {}): Promise<Orchestration> {
+    const spec = this.orchestrator.relaunchSpec(id, changes);
+    await this.checkWorkItemNodes(spec.tasks);
+    return this.orchestrator.create(spec, { relaunchedFrom: id });
+  }
+
+  private async checkWorkItemNodes(tasks: unknown): Promise<void> {
     const seen = new Set<string>();
     for (const task of Array.isArray(tasks) ? (tasks as Array<Partial<OrchestrationSpec['tasks'][number]> | null>) : []) {
       const itemId: unknown = task?.workItemId;
@@ -1090,7 +1111,6 @@ export class Core {
       if (!item) throw new WorkItemError(`${label}: work item ${itemId} not found`, 400);
       await this.ownerAccess(item.projectId, 'write');
     }
-    return this.orchestrator.create(spec);
   }
 
   /** "Create a task from this message": an item in `backlog` of the chat's project, linked to the chat it came from. */

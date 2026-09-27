@@ -20,6 +20,7 @@ export function cleanTask(task: OrchestrationTaskSpec): OrchestrationTaskSpec {
     ...(task.cwd ? { cwd: task.cwd } : {}),
     ...(task.model?.trim() ? { model: task.model.trim() } : {}),
     ...(limits ? { limits } : {}),
+    ...(task.workItemId ? { workItemId: task.workItemId } : {}),
   };
 }
 
@@ -33,6 +34,8 @@ export function specOfTask(task: OrchestrationTaskState): OrchestrationTaskSpec 
     ...(task.cwd ? { cwd: task.cwd } : {}),
     ...(task.model ? { model: task.model } : {}),
     ...(task.limits ? { limits: task.limits } : {}),
+    // A relaunch is the same work on the same items, so each node keeps its link
+    ...(task.workItemId ? { workItemId: task.workItemId } : {}),
   };
 }
 

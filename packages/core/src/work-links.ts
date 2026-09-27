@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import {
+  PERMISSION_MODES,
   WORK_ITEM_STATUSES,
   workItemBranch,
   type AgentryEvent,
@@ -16,7 +17,8 @@ import {
   type WorkItemRef,
   type WorkItemStatus,
 } from '@agentry/shared';
-import { addWorktree, headCommit, isGitRepo, isIgnored, lockWorktree, mainTopLevel, topLevel } from './git.ts';
+import { addWorktree, git, headCommit, isGitRepo, isIgnored, lockWorktree, mainTopLevel, topLevel } from './git.ts';
+import { WorkItemError } from './work-item-validation.ts';
 import type { WorkItemService } from './work-items.ts';
 
 /**
@@ -76,21 +78,50 @@ export function titleFromMessage(text: string): string {
  * so a body that also names them does not get to send the chat somewhere else.
  */
 export function startOptions(request: ChatStartOptions | undefined): ChatStartOptions {
-  const r: ChatStartOptions = request && typeof request === 'object' ? request : {};
-  return {
-    ...(r.model !== undefined ? { model: r.model } : {}),
-    ...(r.effort !== undefined ? { effort: r.effort } : {}),
-    ...(r.permissionMode !== undefined ? { permissionMode: r.permissionMode } : {}),
-    ...(r.appendSystemPrompt !== undefined ? { appendSystemPrompt: r.appendSystemPrompt } : {}),
-    ...(r.allowedTools !== undefined ? { allowedTools: r.allowedTools } : {}),
-    ...(r.disallowedTools !== undefined ? { disallowedTools: r.disallowedTools } : {}),
-    ...(r.toolPreset !== undefined ? { toolPreset: r.toolPreset } : {}),
-    ...(r.mcp !== undefined ? { mcp: r.mcp } : {}),
-    ...(r.maxBudgetUsd !== undefined ? { maxBudgetUsd: r.maxBudgetUsd } : {}),
-    ...(r.permissionPrompts !== undefined ? { permissionPrompts: r.permissionPrompts } : {}),
-    ...(r.account !== undefined ? { account: r.account } : {}),
-  };
+  // Read as unknown: a body is whatever was sent, and a number where a string goes used to reach the
+  // CLI's argument list and come back as a 500
+  const r: Record<string, unknown> = request && typeof request === 'object' && !Array.isArray(request) ? { ...request } : {};
+  const options: ChatStartOptions = {};
+  for (const key of ['model', 'effort', 'appendSystemPrompt', 'account'] as const) {
+    const value = r[key];
+    if (value === undefined) continue;
+    if (typeof value !== 'string') throw new WorkItemError(`${key} must be a string`, 400);
+    options[key] = value;
+  }
+  for (const key of ['allowedTools', 'disallowedTools'] as const) {
+    const value = r[key];
+    if (value === undefined) continue;
+    if (!isStrings(value)) throw new WorkItemError(`${key} must be a list of tool names`, 400);
+    options[key] = value;
+  }
+  const { permissionMode, toolPreset, mcp, maxBudgetUsd, permissionPrompts } = r;
+  if (permissionMode !== undefined) {
+    const mode = PERMISSION_MODES.find((m) => m === permissionMode);
+    if (!mode) throw new WorkItemError(`permissionMode must be one of ${PERMISSION_MODES.join(', ')}`, 400);
+    options.permissionMode = mode;
+  }
+  if (toolPreset !== undefined) {
+    if (toolPreset !== null && typeof toolPreset !== 'string') throw new WorkItemError('toolPreset must be the id of a tool preset, or null', 400);
+    options.toolPreset = toolPreset;
+  }
+  if (mcp !== undefined) {
+    const servers: unknown = mcp && typeof mcp === 'object' ? (mcp as { servers?: unknown }).servers : undefined;
+    if (mcp !== null && !isStrings(servers)) throw new WorkItemError('mcp must name its servers in a list, or be null', 400);
+    // Only the names: the config file is the one Agentry writes for them
+    options.mcp = mcp === null ? null : { servers: servers as string[] };
+  }
+  if (maxBudgetUsd !== undefined) {
+    if (typeof maxBudgetUsd !== 'number' || !Number.isFinite(maxBudgetUsd) || maxBudgetUsd <= 0) throw new WorkItemError('maxBudgetUsd must be a positive number', 400);
+    options.maxBudgetUsd = maxBudgetUsd;
+  }
+  if (permissionPrompts !== undefined) {
+    if (permissionPrompts !== 'host' && permissionPrompts !== 'none') throw new WorkItemError("permissionPrompts must be 'host' or 'none'", 400);
+    options.permissionPrompts = permissionPrompts;
+  }
+  return options;
 }
+
+const isStrings = (value: unknown): value is string[] => Array.isArray(value) && value.every((v) => typeof v === 'string');
 
 // ---------- where it works ----------
 
@@ -127,12 +158,38 @@ export function itemWorktree(projectPath: string, item: Pick<WorkItem, 'key' | '
   const subdir = sub && !isIgnored(root, sub) ? sub : '';
   const worktree = item.worktree ?? join(home, '.claude', 'worktrees', `task-${item.key.toLowerCase()}`);
   const branch = item.branch ?? workItemBranch(item.key);
-  if (!existsSync(worktree)) addWorktree(home, worktree, branch, 'HEAD');
+  const registered = isWorktreeOf(home, worktree);
+  if (existsSync(worktree)) {
+    // Git commands in a plain directory under the checkout reach the checkout itself: the chat
+    // would work on the project's own branch, not the item's
+    if (!registered) throw new WorkItemError(`${worktree} is there but is not a worktree of this project: move it away and try again`, 409);
+  } else {
+    // Deleted by hand: git still holds it, locked, and refuses to check its branch out anywhere else
+    if (registered) forgetWorktree(home, worktree);
+    addWorktree(home, worktree, branch, 'HEAD');
+  }
   // As the CLI does with the worktrees it runs in, so `git worktree prune` leaves it be
   lockWorktree(home, worktree, `agentry work item ${item.key}`);
   const cwd = subdir ? join(worktree, subdir) : worktree;
   mkdirSync(cwd, { recursive: true });
   return { cwd, worktree, branch };
+}
+
+function isWorktreeOf(repo: string, path: string): boolean {
+  const wanted = new Set([path, existsSync(path) ? realpathSync(path) : path]);
+  return git(repo, ['worktree', 'list', '--porcelain'], 10_000)
+    .split('\n')
+    .some((line) => line.startsWith('worktree ') && wanted.has(line.slice('worktree '.length)));
+}
+
+/** Drops git's record of a worktree whose directory is gone, so its path and branch are free again. */
+function forgetWorktree(repo: string, path: string): void {
+  try {
+    git(repo, ['worktree', 'unlock', path], 10_000);
+  } catch {
+    // not locked
+  }
+  git(repo, ['worktree', 'prune'], 30_000);
 }
 
 // ---------- orchestrating a selection ----------
@@ -216,7 +273,9 @@ export class WorkItemAutomation {
     try {
       switch (event.type) {
         case 'run.updated':
-          if (event.status === 'busy' && event.previousStatus !== 'busy') {
+          // Only a real transition starts a turn: the coalesced update a busy run keeps sending carries
+          // no previous status, and taking it for a new turn would undo a person's move every 250 ms
+          if (event.status === 'busy' && event.previousStatus !== null && event.previousStatus !== 'busy') {
             this.turns.set(event.runId, event.at);
             this.chatStarted(event.runId);
           }
@@ -244,8 +303,12 @@ export class WorkItemAutomation {
    * links the chat, since the chat's first status can reach the feed before the link exists.
    */
   chatStarted(chatId: string): void {
-    for (const link of this.chatLinks(chatId)) {
-      this.advance(link, 'in_progress', chatCause(chatId, WORK_CAUSE.chatStarted), this.turns.get(chatId) ?? link.createdAt);
+    try {
+      for (const link of this.chatLinks(chatId)) {
+        this.advance(link, 'in_progress', chatCause(chatId, WORK_CAUSE.chatStarted), this.turns.get(chatId) ?? link.createdAt);
+      }
+    } catch {
+      // see the class comment: the chat is linked and running, and the next turn moves the item
     }
   }
 
@@ -291,14 +354,26 @@ export class WorkItemAutomation {
     if (!links.length) return;
     const attempt = `${orchestrationId}/${taskId}`;
     if (status === 'running') this.attempts.set(attempt, at);
+    const node = this.deps.orchestration(orchestrationId)?.tasks.find((t) => t.id === taskId);
     for (const link of links) {
       if (runId && link.chatId !== runId) this.deps.items.setLinkChat(link.id, runId);
+      if (node?.worktree && node.branch) this.recordPlace(link.itemId, node.worktree, node.branch);
       const cause = (event: string): WorkItemCause => ({ kind: 'orchestration', chatId: runId ?? link.chatId, orchestrationId, taskId, event });
       const since = this.attempts.get(attempt) ?? link.createdAt;
       if (status === 'running') this.advance(link, 'in_progress', cause(WORK_CAUSE.taskStarted), since);
       else if (status === 'completed') this.advance(link, 'in_review', cause(WORK_CAUSE.taskCompleted), since);
     }
     if (status !== 'running' && status !== 'pending') this.attempts.delete(attempt);
+  }
+
+  /**
+   * Where a node works is where the item's changes are, as for "Work on it": the item reports the
+   * last place that worked on it, and "Work on it" afterwards continues there.
+   */
+  private recordPlace(itemId: string, worktree: string, branch: string): void {
+    const item = this.deps.items.find(itemId);
+    if (!item || !this.deps.writable(item.projectId)) return;
+    if (item.worktree !== worktree || item.branch !== branch) this.deps.items.setWorktree(item.id, { worktree, branch });
   }
 
   /**
