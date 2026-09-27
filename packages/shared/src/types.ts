@@ -1667,6 +1667,90 @@ export interface AuditPage {
   from: number;
 }
 
+// ---------- Layered settings ----------
+
+// Some settings used to be read from the environment once, at startup. They can now also be
+// changed at runtime from a JSON file the UI edits, with a fixed order of precedence: the
+// environment, then the file, then the default. A value the environment set is still shown, but
+// read-only, the same way `AGENTRY_AUTH_TOKEN` already works for the guard: whoever deployed the
+// install decided it, and the UI must not quietly override a deploy.
+
+/** Where a layered setting's current value comes from. `env` means the UI may show it but not change it. */
+export type AppSettingSource = 'env' | 'file' | 'default';
+
+/** The values of the settings that can change at runtime, without their sources. */
+export interface AppSettingValues {
+  /**
+   * Host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern with
+   * at least two labels below the wildcard. Only the configured part: the exact names a running
+   * tunnel adds for itself are not listed here, because nobody may edit them.
+   */
+  allowedHosts: string[];
+  /** How many runs may work at once; a change applies to the next run, without a restart */
+  maxConcurrentRuns: number;
+  /** The `--permission-mode` of a run that does not ask for one; applies to the next run */
+  defaultPermissionMode: PermissionMode;
+}
+
+/** `GET /settings/app`: every layered setting, and where each one's value comes from. */
+export interface AppSettings extends AppSettingValues {
+  sources: Record<keyof AppSettingValues, AppSettingSource>;
+}
+
+/**
+ * `PUT /settings/app`: the settings to change, and only those. A setting the environment set is
+ * refused rather than written to the file, where it would do nothing until the variable goes away
+ * and then change behaviour by surprise.
+ */
+export type UpdateAppSettingsRequest = Partial<AppSettingValues>;
+
+// ---------- Tunnel ----------
+
+// Reaching Agentry from a phone or another network through localhost.run, over the system's own
+// `ssh`: one provider, no account, nothing to install (docs/plans/tunnel.md). The tunnel only
+// exists while the guard asks for authentication, and only its exact host joins the allowlist.
+
+/**
+ * `verifying`: the provider handed out an address, and Agentry is checking that `GET /api/health`
+ * answers through it before showing it. A resolver asked too early caches the missing name, so an
+ * address shown before it works can look broken for a minute.
+ */
+export type TunnelState = 'stopped' | 'starting' | 'verifying' | 'active' | 'stopping' | 'failed';
+
+/** What the tunnel may be told to do beside starting and stopping it. */
+export interface TunnelSettings {
+  /** Open the tunnel whenever Agentry starts; off unless the person turns it on */
+  startWithAgentry: boolean;
+}
+
+/** `PUT /tunnel/settings`: the settings to change, and only those. */
+export type UpdateTunnelSettingsRequest = Partial<TunnelSettings>;
+
+/** `GET /tunnel`, and what `tunnel.changed` carries. */
+export interface TunnelStatus {
+  state: TunnelState;
+  /** The public HTTPS address; null unless `state` is `active`, so nobody is sent to one that does not answer yet */
+  url: string | null;
+  /**
+   * When the current address started working. The free domain changes regularly, and an installed
+   * PWA belongs to the origin it was installed from, so a client can tell how old the address is.
+   * Null unless `state` is `active`
+   */
+  since: string | null;
+  /** Why the tunnel failed, with a code a client translates; null unless `state` is `failed` */
+  reason: Localized | null;
+  /**
+   * Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`). Off by default in the Docker
+   * image and the Helm chart: the tunnel reaches the server from inside the container, around the
+   * published port, the operator's proxy and its TLS, so opening that path is the operator's call.
+   * While false, `start` is refused and the UI says who can turn it on instead of offering a button
+   */
+  enabled: boolean;
+  /** An `ssh` was found to run; without one the tunnel cannot start, and the UI says how to install it */
+  sshAvailable: boolean;
+  settings: TunnelSettings;
+}
+
 // ---------- Effective environment ----------
 
 /**
@@ -2310,6 +2394,13 @@ export interface PushPayload {
   body: string;
   /** Path to open, e.g. `/chats/<id>?prompt=<id>`; null when there is nothing but the app to open */
   href: string | null;
+  /**
+   * The same place as `href`, as an absolute URL on the tunnel's public address at the moment the
+   * push was sent; null while no tunnel is active. The free address changes, and an install made on
+   * an old one still receives its pushes, so its worker opens this instead of its own dead origin
+   * (docs/plans/tunnel.md, "Answer: notifications after a domain change")
+   */
+  url: string | null;
   at: string;
   priority: NotificationPriority;
   runId: string | null;
@@ -2650,6 +2741,21 @@ export interface SupervisorProposedEvent extends AgentryEventBase, RunEventRef {
   proposal: SupervisorProposal;
 }
 
+/** A layered setting changed, from the UI or the file: the whole document as it now stands. */
+export interface SettingsChangedEvent extends AgentryEventBase {
+  type: 'settings.changed';
+  settings: AppSettings;
+}
+
+/**
+ * The tunnel moved to another state, got a new address, or had its settings changed. Carries the
+ * whole status, so a client that follows the feed never has to refetch it.
+ */
+export interface TunnelChangedEvent extends AgentryEventBase {
+  type: 'tunnel.changed';
+  tunnel: TunnelStatus;
+}
+
 /** Everything the buffered feed carries, discriminated by `type`. */
 export type AgentryEvent =
   | RunCreatedEvent
@@ -2680,7 +2786,9 @@ export type AgentryEvent =
   | SystemReleaseEvent
   | ScheduleChangedEvent
   | ScheduleFiredEvent
-  | SupervisorProposedEvent;
+  | SupervisorProposedEvent
+  | SettingsChangedEvent
+  | TunnelChangedEvent;
 
 export type AgentryEventType = AgentryEvent['type'];
 

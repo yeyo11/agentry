@@ -83,6 +83,9 @@
   --swatch-dark-bg: #09090b;
   --swatch-dark-line: #26262c;
   --swatch-dark-grad: linear-gradient(90deg, #ec8a66, #e0668f);
+  /* A QR code is dark on light in both themes: phone cameras do not all read one inverted */
+  --qr-ink: #09090b;
+  --qr-paper: #ffffff;
 
   /* Shape */
   --radius-xs: 4px;

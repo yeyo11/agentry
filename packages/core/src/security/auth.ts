@@ -77,6 +77,11 @@ export class AuthStore {
    * owner of both writes the audit row; nothing else should read it.
    */
   readonly environmentReset: { at: string } | null = null;
+  /**
+   * Awaited before the mode turns to `none`, so whatever must not outlive the guard (the tunnel)
+   * is gone before the first unguarded request can arrive. Set by the owner of both, like the audit.
+   */
+  beforeUnguarded: (() => Promise<void>) | null = null;
 
   constructor(config: CoreConfig, env: AuthEnv = config.authEnv, verifier = new OidcVerifier()) {
     this.file = join(config.dataDir, 'auth.json');
@@ -151,6 +156,7 @@ export class AuthStore {
       if (mode === 'oidc' && !next.oidc) throw new Error('configure the issuer and the audience before turning on OIDC');
       next.mode = mode;
     }
+    if (next.mode === 'none' && this.stored.mode !== 'none') await this.beforeUnguarded?.();
     this.stored = next;
     this.oidcVerifier.reset();
     await this.persist();

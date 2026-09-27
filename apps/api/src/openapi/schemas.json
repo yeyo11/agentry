@@ -4202,6 +4202,12 @@
       },
       {
         "$ref": "#/components/schemas/SupervisorProposedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/SettingsChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/TunnelChangedEvent"
       }
     ],
     "description": "Everything the buffered feed carries, discriminated by `type`."
@@ -6150,6 +6156,223 @@
       "type"
     ],
     "description": "The supervisor answered a bad signal with a hint; the same `proposal` hangs on the chat's health."
+  },
+  "SettingsChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "settings.changed"
+      },
+      "settings": {
+        "$ref": "#/components/schemas/AppSettings"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "settings",
+      "title",
+      "type"
+    ],
+    "description": "A layered setting changed, from the UI or the file: the whole document as it now stands."
+  },
+  "AppSettings": {
+    "type": "object",
+    "properties": {
+      "allowedHosts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern with at least two labels below the wildcard. Only the configured part: the exact names a running tunnel adds for itself are not listed here, because nobody may edit them."
+      },
+      "maxConcurrentRuns": {
+        "type": "number",
+        "description": "How many runs may work at once; a change applies to the next run, without a restart"
+      },
+      "defaultPermissionMode": {
+        "$ref": "#/components/schemas/PermissionMode",
+        "description": "The `--permission-mode` of a run that does not ask for one; applies to the next run"
+      },
+      "sources": {
+        "type": "object",
+        "properties": {
+          "allowedHosts": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "maxConcurrentRuns": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "defaultPermissionMode": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          }
+        },
+        "required": [
+          "allowedHosts",
+          "maxConcurrentRuns",
+          "defaultPermissionMode"
+        ]
+      }
+    },
+    "required": [
+      "allowedHosts",
+      "defaultPermissionMode",
+      "maxConcurrentRuns",
+      "sources"
+    ],
+    "description": "`GET /settings/app`: every layered setting, and where each one's value comes from."
+  },
+  "AppSettingSource": {
+    "type": "string",
+    "enum": [
+      "env",
+      "file",
+      "default"
+    ],
+    "description": "Where a layered setting's current value comes from. `env` means the UI may show it but not change it."
+  },
+  "TunnelChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "tunnel.changed"
+      },
+      "tunnel": {
+        "$ref": "#/components/schemas/TunnelStatus"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "title",
+      "tunnel",
+      "type"
+    ],
+    "description": "The tunnel moved to another state, got a new address, or had its settings changed. Carries the whole status, so a client that follows the feed never has to refetch it."
+  },
+  "TunnelStatus": {
+    "type": "object",
+    "properties": {
+      "state": {
+        "$ref": "#/components/schemas/TunnelState"
+      },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The public HTTPS address; null unless `state` is `active`, so nobody is sent to one that does not answer yet"
+      },
+      "since": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the current address started working. The free domain changes regularly, and an installed PWA belongs to the origin it was installed from, so a client can tell how old the address is. Null unless `state` is `active`"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Localized"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why the tunnel failed, with a code a client translates; null unless `state` is `failed`"
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`). Off by default in the Docker image and the Helm chart: the tunnel reaches the server from inside the container, around the published port, the operator's proxy and its TLS, so opening that path is the operator's call. While false, `start` is refused and the UI says who can turn it on instead of offering a button"
+      },
+      "sshAvailable": {
+        "type": "boolean",
+        "description": "An `ssh` was found to run; without one the tunnel cannot start, and the UI says how to install it"
+      },
+      "settings": {
+        "$ref": "#/components/schemas/TunnelSettings"
+      }
+    },
+    "required": [
+      "state",
+      "url",
+      "since",
+      "reason",
+      "enabled",
+      "sshAvailable",
+      "settings"
+    ],
+    "description": "`GET /tunnel`, and what `tunnel.changed` carries."
+  },
+  "TunnelState": {
+    "type": "string",
+    "enum": [
+      "stopped",
+      "starting",
+      "verifying",
+      "active",
+      "stopping",
+      "failed"
+    ],
+    "description": "`verifying`: the provider handed out an address, and Agentry is checking that `GET /api/health` answers through it before showing it. A resolver asked too early caches the missing name, so an address shown before it works can look broken for a minute."
+  },
+  "Localized": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string",
+        "description": "Stable across releases: a translation is keyed by it"
+      },
+      "params": {
+        "$ref": "#/components/schemas/LocalizedParams"
+      },
+      "text": {
+        "type": "string",
+        "description": "The English sentence, always present"
+      }
+    },
+    "required": [
+      "code",
+      "text"
+    ],
+    "description": "A sentence the server writes, with a stable key beside it. The API answers in English and reads as it is; a client that knows the code says the same thing in its own language, and one that does not shows `text`."
+  },
+  "TunnelSettings": {
+    "type": "object",
+    "properties": {
+      "startWithAgentry": {
+        "type": "boolean",
+        "description": "Open the tunnel whenever Agentry starts; off unless the person turns it on"
+      }
+    },
+    "required": [
+      "startWithAgentry"
+    ],
+    "description": "What the tunnel may be told to do beside starting and stopping it."
   },
   "StreamHelloEvent": {
     "type": "object",
@@ -8525,27 +8748,6 @@
     ],
     "description": "What a person has to do: Agentry cannot authorise a connector on anyone's behalf."
   },
-  "Localized": {
-    "type": "object",
-    "properties": {
-      "code": {
-        "type": "string",
-        "description": "Stable across releases: a translation is keyed by it"
-      },
-      "params": {
-        "$ref": "#/components/schemas/LocalizedParams"
-      },
-      "text": {
-        "type": "string",
-        "description": "The English sentence, always present"
-      }
-    },
-    "required": [
-      "code",
-      "text"
-    ],
-    "description": "A sentence the server writes, with a stable key beside it. The API answers in English and reads as it is; a client that knows the code says the same thing in its own language, and one that does not shows `text`."
-  },
   "ConnectorLimit": {
     "type": "object",
     "properties": {
@@ -9326,6 +9528,13 @@
         ],
         "description": "Path to open, e.g. `/chats/<id>?prompt=<id>`; null when there is nothing but the app to open"
       },
+      "url": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The same place as `href`, as an absolute URL on the tunnel's public address at the moment the push was sent; null while no tunnel is active. The free address changes, and an install made on an old one still receives its pushes, so its worker opens this instead of its own dead origin (docs/plans/tunnel.md, \"Answer: notifications after a domain change\")"
+      },
       "at": {
         "type": "string"
       },
@@ -9351,6 +9560,7 @@
       "title",
       "body",
       "href",
+      "url",
       "at",
       "priority",
       "runId",
@@ -9414,5 +9624,37 @@
       "updateAvailable"
     ],
     "description": "Which Claude Code the wrapper runs and whether a newer one exists. The check costs a registry read, so it happens on demand or once a day, never on a page load: `checkedAt` says how old the answer is."
+  },
+  "UpdateAppSettingsRequest": {
+    "type": "object",
+    "properties": {
+      "allowedHosts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern with at least two labels below the wildcard. Only the configured part: the exact names a running tunnel adds for itself are not listed here, because nobody may edit them."
+      },
+      "maxConcurrentRuns": {
+        "type": "number",
+        "description": "How many runs may work at once; a change applies to the next run, without a restart"
+      },
+      "defaultPermissionMode": {
+        "$ref": "#/components/schemas/PermissionMode",
+        "description": "The `--permission-mode` of a run that does not ask for one; applies to the next run"
+      }
+    },
+    "description": "`PUT /settings/app`: the settings to change, and only those. A setting the environment set is refused rather than written to the file, where it would do nothing until the variable goes away and then change behaviour by surprise."
+  },
+  "UpdateTunnelSettingsRequest": {
+    "type": "object",
+    "properties": {
+      "startWithAgentry": {
+        "type": "boolean",
+        "description": "Open the tunnel whenever Agentry starts; off unless the person turns it on"
+      }
+    },
+    "additionalProperties": false,
+    "description": "`PUT /tunnel/settings`: the settings to change, and only those."
   }
 }

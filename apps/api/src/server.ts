@@ -78,6 +78,9 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   const urlHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host.includes(':') ? `[${host}]` : host;
   const url = `http://${urlHost}:${port}`;
   core.runtime.apiUrl = `${url}/api`;
+  // The port it bound to, which is not always the one it asked for; this also opens the tunnel
+  // when "start with Agentry" is on
+  core.tunnel.attach(port, urlHost);
   let closing: Promise<void> | undefined;
   return {
     url,

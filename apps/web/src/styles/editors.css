@@ -1124,3 +1124,102 @@ button.master-item-on:hover {
     align-self: stretch;
   }
 }
+
+/* ---- Settings → Remote access ---- */
+.tunnel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.tunnel-actions > p {
+  flex: 1 1 280px;
+  margin: 0;
+}
+
+/* The open address: the text beside its QR code, the code under it on a phone */
+.tunnel-address {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+}
+
+.tunnel-address-text {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tunnel-address-url {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 15px;
+}
+
+.tunnel-address-url > a {
+  min-width: 0;
+  color: var(--text);
+}
+
+/* Dark on light in both themes, with its quiet zone drawn in, so any camera reads it */
+.qr {
+  display: block;
+  flex: none;
+  width: 168px;
+  height: 168px;
+  border-radius: var(--radius);
+}
+
+.qr-paper {
+  fill: var(--qr-paper);
+}
+
+.qr-ink {
+  fill: var(--qr-ink);
+}
+
+.app-settings-hosts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .tunnel-address {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* Its basis is a width beside the code; stacked, it would become a height */
+  .tunnel-address-text {
+    flex-basis: auto;
+  }
+
+  .tunnel-address-url {
+    font-size: 13px;
+  }
+
+  .tunnel-address .qr {
+    align-self: center;
+    width: 200px;
+    height: 200px;
+  }
+
+  .tunnel-actions > .btn {
+    width: 100%;
+    min-height: 44px;
+  }
+}
