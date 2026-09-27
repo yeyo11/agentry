@@ -294,8 +294,37 @@ arriving with the gradient border above three dashed slots for the roles.
 
 
 
-<!-- Reserved for proto-ai: the assistant, suggestion and resources components go in their own
-     subsection here. -->
+### Assistant, suggestions and resources with AI
+
+The project assistant, "Suggest tasks" and the resources with AI (decisions 35 to 38 of
+[plans/project-ecosystem.md](plans/project-ecosystem.md)) are drawn in section 17 of
+`agentry-ds.css` and on the screens `Asistente`, `AsistentePropuestas`, `SugerirTareas`,
+`Recursos`, `RecursoPropuesta` and `RecursoCrearIA`, desktop and phone. Orchestration 4 builds them.
+
+Every suggestion is a CLI chat run with `--json-schema`, so **a run always shows its model, its
+time, its cost and the chat it ran in** (`.ai-facts`). The same cost also counts in Usage and in the
+status bar's "today", like any chat. A run in progress is live: the braille spinner next to its
+verb, the energy border on its one surface, and the caret of the text it writes. A finished run and
+every proposal it left stand still, and a section that waits for the reading is a dashed, still
+slot.
+
+| Reference class | App class or component | Rule |
+|---|---|---|
+| `.ai-mark` (`.sm`) | new `AssistantMark` | the assistant's sparkle on a neutral tile. Cyan only inside a live run; never the gradient |
+| `.ai-run` (`.live` + `.energy`, `.done`), `.ai-run-head`, `-title`, `-now` | new `.suggestion-run` | the run's header. Live: the verb with the braille spinner, the elapsed time and "Detener", and it takes the screen's energy border. Done: one still line with what it produced |
+| `.ai-facts` (`.cost`) | new `.suggestion-facts` | model · time · cost · chat link, in mono. The cost is the one fact in `--fg-2`; while running it reads "0,03 US$ hasta ahora" |
+| `.ai-steps`, `.ai-step` (`.now`, `.todo`), `.ai-found` | new `.suggestion-steps` | what the assistant read, one line per source with a count; the one being read has the braille spinner. What it found are neutral `.wi-label` tags |
+| `.sug-wait` | `.wi-col-slot` variant | a section waiting for the reading: dashed and still, with "en espera" in words |
+| `.sug-row` (`.accepted`, `.discarded`), `.sug-main`, `.sug-title`, `.sug-meta`, `.sug-reason`, `.sug-acts`, `.sug-done`, `.sug-like` | new `.suggestion-row` | one proposal and its reason, quoted under it. Accepted says what it became (`creada · PAG-1`, `guardada`); discarded is struck through with "Deshacer". A proposal like an existing item says "Parecida a AGN-45" and starts unselected |
+| `.sug-card`, `.sug-pick[aria-pressed]` | `.suggestion-row` on a phone | a phone never shows checkboxes: each proposal has an "Incluir" / "Incluida" button, 44 px, with the accent ring when included |
+| `.code-ed`, `.ln`, `.tx`, `.tk-*` | `CodeEditor` (`.code-editor`, CodeMirror) | the existing editor, drawn for the prototypes. One row per line so a wrapped line keeps its number; syntax neutral |
+| `.editor-meta` | `.editor-meta` of `ResourcesTab` | a proposal opened in the editor names the path it will be written to and carries the warn badge "aún sin guardar" (the app's `resources.notSavedYet`) |
+| `.res-item` (`.sel`) | `.master-item`, `.master-item-on` | the resources tab's master list, with the proposals on top under their own label |
+
+Where the gradient goes: on the assistant's finished screen, "Ir al proyecto" and the first-tasks
+card; in "Suggest tasks", only "Crear las seleccionadas"; on the resources tab, the proposals card;
+in the editor, "Crear agente". The live screens (`Asistente`, `RecursoCrearIA`) hold the one energy
+border on the run, and their primary action stays disabled until the run ends.
 
 ---
 
