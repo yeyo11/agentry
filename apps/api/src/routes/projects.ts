@@ -12,19 +12,24 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   // would otherwise take "candidates" for an id.
   app.get('/projects/candidates', () => core.projectCandidates());
 
+  // Also before `/projects/:id`, for the same reason
+  app.get('/projects/templates', () => core.projectTemplates());
+
   app.post<{ Body: ImportProjectRequest }>('/projects/import', async (req, reply) =>
-    reply.status(201).send(await core.importProject({ path: req.body?.path ?? '', ...(req.body?.name ? { name: req.body.name } : {}) })),
+    reply.status(201).send(await core.importProject({ ...req.body, path: req.body?.path ?? '' })),
   );
 
   // A new directory in the workspace, imported straight away: creating a project means wanting it.
-  app.post<{ Body: CreateProjectRequest }>('/projects', async (req, reply) => {
-    const path = await core.workspace.create(req.body?.name ?? '', req.body?.gitUrl || undefined);
-    return reply.status(201).send(await core.importProject({ path }));
-  });
-
-  app.patch<{ Params: { id: string }; Body: UpdateProjectRequest }>('/projects/:id', (req) =>
-    core.renameProject(req.params.id, req.body?.name ?? ''),
+  app.post<{ Body: CreateProjectRequest }>('/projects', async (req, reply) =>
+    reply.status(201).send(await core.createProject({ ...req.body, name: req.body?.name ?? '' })),
   );
+
+  app.patch<{ Params: { id: string }; Body: UpdateProjectRequest }>('/projects/:id', (req) => core.updateProject(req.params.id, req.body ?? {}));
+
+  app.get<{ Params: { id: string } }>('/projects/:id/settings', (req) => core.projectSettings(req.params.id));
+
+  // Validated in core, whole: a document is replaced, never merged
+  app.put<{ Params: { id: string }; Body: unknown }>('/projects/:id/settings', (req) => core.saveProjectSettings(req.params.id, req.body));
 
   // Streamed a chat at a time: a project can hold hundreds of chats, and a transcript alone can run
   // to tens of megabytes

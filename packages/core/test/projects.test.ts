@@ -226,7 +226,7 @@ test('a project renamed or removed is remembered by the next start', async () =>
   const dir = mkdtempSync(join(tmpdir(), 'agentry-proj-'));
   const first = new Core(config);
   const { id } = await first.importProject({ path: dir });
-  await first.renameProject(id, 'Renamed');
+  await first.updateProject(id, { name: 'Renamed' });
   first.db.close();
 
   const second = new Core(config);

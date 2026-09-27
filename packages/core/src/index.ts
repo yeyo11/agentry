@@ -10,6 +10,7 @@ import type {
   ChatSummary,
   ChatWorktree,
   ConfigFileRoot,
+  CreateProjectRequest,
   ImportProjectRequest,
   MemoryFile,
   MemoryProjectSummary,
@@ -18,10 +19,15 @@ import type {
   PermissionRequest,
   Project,
   ProjectCandidate,
+  ProjectChange,
+  ProjectModule,
+  ProjectSettings,
+  ProjectTemplate,
   ProjectWorktree,
   RunWorkflowRequest,
   SwitchResult,
   SystemInfo,
+  UpdateProjectRequest,
   WorkflowDefinition,
 } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
@@ -58,7 +64,9 @@ import { MemoryStore } from './memory.ts';
 import { Orchestrator } from './orchestrator.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { byStart, EXPORTED_ORIGINS, type ProjectExportSource } from './project-export.ts';
-import { attachProject, projectCandidates, ProjectStore, type ChatPlace } from './projects.ts';
+import { parseKeyPrefix, parseModules, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from './project-settings.ts';
+import { PROJECT_TEMPLATES } from './project-templates.ts';
+import { attachProject, projectCandidates, ProjectStore, type ChatPlace, type ProjectRecord } from './projects.ts';
 import { AuthStore } from './security/auth.ts';
 import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
@@ -93,6 +101,8 @@ export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnaps
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
+export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './project-settings.ts';
+export { PROJECT_TEMPLATES } from './project-templates.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
 export { AuthStore } from './security/auth.ts';
@@ -165,6 +175,8 @@ export class Core {
   readonly workspace: Workspace;
   readonly locator = new Locator();
   private readonly projectStore: ProjectStore;
+  /** What each project configures, one JSON document per project id, kept when the project is removed */
+  private readonly projectSettingsStore: ProjectSettingsStore;
   private readonly startedAt = Date.now();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
@@ -194,6 +206,7 @@ export class Core {
     this.cliVersion = new CliVersionWatch(config);
     this.release = new ReleaseWatch(config, { current: AGENTRY_VERSION, events: this.events });
     this.projectStore = new ProjectStore(config);
+    this.projectSettingsStore = new ProjectSettingsStore(config);
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db);
     this.runtime.permissions = this.permissions;
@@ -726,10 +739,14 @@ export class Core {
       for (const name of await readdir(root).catch(() => [] as string[])) addWorktree(join(root, name));
     }
 
-    return this.projectStore.list().map((p) => ({
+    const records = this.projectStore.list();
+    const settings = new Map(await Promise.all(records.map(async (p) => [p.id, await this.projectSettingsStore.read(p, records)] as const)));
+    return records.map((p) => ({
       id: p.id,
       name: p.name,
       path: p.path,
+      key: settings.get(p.id)?.keyPrefix ?? '',
+      modules: settings.get(p.id)?.modules ?? [],
       // A worktree removed from disk is history, kept in the chats that ran there, not a place to go
       worktrees: [...(worktrees.get(p.id)?.values() ?? [])].filter((w) => existsSync(w.path)).sort((a, b) => a.path.localeCompare(b.path)),
       exists: existsSync(p.path),
@@ -750,17 +767,93 @@ export class Core {
     return projectCandidates(this.projectStore.list(), await this.chatPlaces(), (d) => this.locator.worktreeOf(d));
   }
 
+  /**
+   * Imports a directory and writes its settings from the template and modules asked for. A
+   * directory that was a project before takes its old id back, and with it its settings and work
+   * items.
+   */
   async importProject(req: ImportProjectRequest): Promise<Project> {
-    const record = await this.projectStore.add(req, (d) => this.locator.worktreeOf(d));
+    const setup = parseProjectSetup(req);
+    const active = () => new Set(this.projectStore.list().map((p) => p.id));
+    const record = await this.projectStore.add(
+      { path: req.path, ...(req.name ? { name: req.name } : {}) },
+      (d) => this.locator.worktreeOf(d),
+      (path) => this.projectSettingsStore.idForPath(path, active()),
+    );
+    await this.projectSettingsStore.create(record, setup, this.projectStore.list());
     return this.projectView(record.id);
   }
 
-  async renameProject(id: string, name: string): Promise<Project> {
-    await this.projectStore.rename(id, name);
+  /** A new directory in the workspace, imported straight away. The template is checked before the directory exists. */
+  async createProject(req: CreateProjectRequest): Promise<Project> {
+    const setup = parseProjectSetup(req);
+    const path = await this.workspace.create(req.name ?? '', req.gitUrl || undefined);
+    return this.importProject({ path, ...(setup.template ? { template: setup.template } : {}), ...(setup.modules ? { modules: setup.modules } : {}) });
+  }
+
+  /** The five built-in templates, as data a wizard draws. */
+  projectTemplates(): ProjectTemplate[] {
+    return structuredClone([...PROJECT_TEMPLATES]);
+  }
+
+  /**
+   * Renames a project, changes its key prefix or its modules. Everything is validated before
+   * anything is written, so a prefix another project holds does not leave a rename half done.
+   * Switching a module off only hides it: its data stays where it is.
+   */
+  async updateProject(id: string, req: UpdateProjectRequest): Promise<Project> {
+    const record = this.requireProject(id);
+    const body: Partial<Record<keyof UpdateProjectRequest, unknown>> = req && typeof req === 'object' ? req : {};
+    if (body.name === undefined && body.key === undefined && body.modules === undefined) throw new Error('name, key or modules is required');
+    if (body.name !== undefined && (typeof body.name !== 'string' || !body.name.trim())) throw new Error('name is required');
+    const key = body.key === undefined ? undefined : parseKeyPrefix(body.key);
+    const modules = body.modules === undefined ? undefined : parseModules(body.modules);
+
+    const active = this.projectStore.list();
+    const before = await this.projectSettingsStore.read(record, active);
+    const after: ProjectSettings = { ...before, ...(key ? { keyPrefix: key } : {}), ...(modules ? { modules } : {}) };
+    const changes: ProjectChange[] = settingsChanges(before, after);
+    if (changes.length) await this.projectSettingsStore.write(record, after, active);
+    let current = record;
+    if (typeof body.name === 'string' && body.name.trim() !== record.name) {
+      current = await this.projectStore.rename(id, body.name);
+      if (current.name !== record.name) changes.push('name');
+    }
+    this.projectUpdated(current, changes, after.modules);
     return this.projectView(id);
   }
 
-  /** Forgets a project in Agentry. What Claude Code keeps about it is `purgeProject`, and is not touched. */
+  /** The project's settings document, created on first read with every module off. */
+  async projectSettings(id: string): Promise<ProjectSettings> {
+    return this.projectSettingsStore.read(this.requireProject(id), this.projectStore.list());
+  }
+
+  /** Replaces the settings document whole, after validating it. */
+  async saveProjectSettings(id: string, input: unknown): Promise<ProjectSettings> {
+    const record = this.requireProject(id);
+    const settings = parseProjectSettings(input);
+    const active = this.projectStore.list();
+    const before = await this.projectSettingsStore.read(record, active);
+    await this.projectSettingsStore.write(record, settings, active);
+    this.projectUpdated(record, settingsChanges(before, settings), settings.modules);
+    return settings;
+  }
+
+  private requireProject(id: string): ProjectRecord {
+    const record = this.projectStore.get(id);
+    if (!record) throw new Error('project not found');
+    return record;
+  }
+
+  private projectUpdated(project: ProjectRecord, changes: ProjectChange[], modules: ProjectModule[]): void {
+    if (!changes.length) return;
+    this.events.emit({ type: 'project.updated', title: `${project.name} updated`, projectId: project.id, projectName: project.name, changes, modules });
+  }
+
+  /**
+   * Forgets a project in Agentry. What Claude Code keeps about it is `purgeProject`, and is not
+   * touched; neither are its settings document and work items, which importing it again brings back.
+   */
   removeProject(id: string): Promise<void> {
     return this.projectStore.remove(id);
   }
