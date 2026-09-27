@@ -17,7 +17,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Reference stylesheet (tokens and every component class, as designed) | [`design-system/agentry-ds.css`](design-system/agentry-ds.css) |
 | Static prototypes of every screen (open `index.html`) | [`design-system/reference/`](design-system/reference/index.html) |
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
-| The 14 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
+| The 16 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
 | The tokens the app actually uses | `apps/web/src/styles/tokens.css` |
 
 The app reached this design in the `night-shift` orchestration. Where the implementation settled a
@@ -277,7 +277,7 @@ class should take in the app.
 | `.bounce` | new `.bounce` | on a card: "rebote 1 de 3", neutral. The item that used its last bounce waits for the person and says so with an idle badge ("te espera") |
 | `.proposal`, `-text`, `-meta`, `-to`, `-actions` | new `.memory-proposal` | a memory entry a role proposed: where it will be written, the text, who proposed it and from which work item. The idle rail and the card's "N esperan tu aprobación" badge say it waits for the person. Approve, edit or discard each one; nothing is written before |
 | `.tree`, `.tree-row` (`.on`), `.tree-size` | `.tree-row`, `.tree-row-on`, `.tree-size` (editors.css) | the documents folder and the CLI's memory directory. On a phone, folders and files are 48 px cells |
-| `.code-edit`, `.code-bar`, `.code-lines`, `.unsaved` | `CodeEditor` (`.code-edit` is `.code-editor`) and `.editor-meta` | the existing editor, shown with its path and "sin guardar" as a neutral mark with its word. An agent file or a document is edited there, never in a new editor |
+| `.code-edit`, `.code-bar` around `.code-ed` | `CodeEditor` (`.code-edit` is `.code-editor`) and `.editor-meta` | the existing editor framed with its path bar; its lines are the one editor body, `.code-ed` (below). Unsaved changes are the app's warn `Tag` with its word, "cambios sin guardar" (`shared.unsaved`), next to the zone's Save. An agent file or a document is edited there, never in a new editor |
 | `.doc-view` | `Markdown` (`.md`) | a document rendered at reading width |
 | `.doc-origin` | new `.doc-origin` | a generated document names the role, the work item and the chat it came from |
 | `.doc-row` (`.sel`), `.doc-kind` | `.list-row` variant | a document tied to a work item: its kind (SPEC, ADR, DOC), title, key and author role |
@@ -291,8 +291,6 @@ Hecho": the move to Done is always the person's.
 
 The empty team uses the new **`team`** illustration (`illustrations/team.svg`): an agent file
 arriving with the gradient border above three dashed slots for the roles.
-
-
 
 ### Assistant, suggestions and resources with AI
 
@@ -317,14 +315,46 @@ slot.
 | `.sug-wait` | `.wi-col-slot` variant | a section waiting for the reading: dashed and still, with "en espera" in words |
 | `.sug-row` (`.accepted`, `.discarded`), `.sug-main`, `.sug-title`, `.sug-meta`, `.sug-reason`, `.sug-acts`, `.sug-done`, `.sug-like` | new `.suggestion-row` | one proposal and its reason, quoted under it. Accepted says what it became (`creada · PAG-1`, `guardada`); discarded is struck through with "Deshacer". A proposal like an existing item says "Parecida a AGN-45" and starts unselected |
 | `.sug-card`, `.sug-pick[aria-pressed]` | `.suggestion-row` on a phone | a phone never shows checkboxes: each proposal has an "Incluir" / "Incluida" button, 44 px, with the accent ring when included |
-| `.code-ed`, `.ln`, `.tx`, `.tk-*` | `CodeEditor` (`.code-editor`, CodeMirror) | the existing editor, drawn for the prototypes. One row per line so a wrapped line keeps its number; syntax neutral |
-| `.editor-meta` | `.editor-meta` of `ResourcesTab` | a proposal opened in the editor names the path it will be written to and carries the warn badge "aún sin guardar" (the app's `resources.notSavedYet`) |
+| `.code-ed` (`.cur`), `.ln`, `.tx`, `.tk-*` | `CodeEditor` (`.code-editor`, CodeMirror) | the one editor body of every prototype, bare or inside `.code-edit`. One row per line so a wrapped line keeps its number, as CodeMirror's `lineWrapping`; syntax neutral. `.cur` is the line holding the person's cursor |
+| `.editor-meta` | `.editor-meta` of `ResourcesTab` | a proposal opened in the editor names the path it will be written to and carries the warn badge "aún sin guardar" (the app's `resources.notSavedYet`); a file that exists says "cambios sin guardar" (`shared.unsaved`) instead |
 | `.res-item` (`.sel`) | `.master-item`, `.master-item-on` | the resources tab's master list, with the proposals on top under their own label |
 
 Where the gradient goes: on the assistant's finished screen, "Ir al proyecto" and the first-tasks
 card; in "Suggest tasks", only "Crear las seleccionadas"; on the resources tab, the proposals card;
 in the editor, "Crear agente". The live screens (`Asistente`, `RecursoCrearIA`) hold the one energy
 border on the run, and their primary action stays disabled until the run ends.
+
+### Rules shared by the ecosystem screens
+
+The three sets above were drawn by three tasks in parallel. These rules hold across all of them, and
+the index (`reference/index.html`) lists every screen under its module: projects, board and work
+items; team, flow, memory and documents; assistant, suggestions and resources with AI.
+
+- **One tab strip.** A project page has the seven tabs of the plan, in its order: Resumen, Tablero,
+  Equipo, Documentos, Memoria, Recursos, Ajustes. Counts are neutral `.count`s (15 open items, 5
+  members, 23 documents, 12 resources), except Memoria, which counts the proposals waiting for the
+  person in idle ("3 esperan tu aprobación"). A tab exists only while its module is on: Ajustes
+  draws the strip without Documentos because that screen shows the module switched off. On a phone
+  the same seven are the cells of the project card, with the same figures.
+- **A role is always a `.role-av`, and its model a `.model-tag`**, wherever it appears: the team,
+  the board, the flow, the memory proposals, and the team the assistant proposes. Proposals never
+  borrow the project `.monogram`. A role keeps its hue on every screen (Product Owner 300,
+  Arquitecto 215, Desarrollador 90, QA 330, Redactor técnico 45); a role the assistant invents
+  takes one that is free.
+- **Models.** A role's model is the alias its agent file stores (`opus`, `sonnet`). Where a control
+  picks it, the tag is followed by the model it resolves to today ("sonnet · Sonnet 5"). A run's
+  `.ai-facts` names the resolved model, since that is what the CLI reported.
+- **One editor.** Every file shown for editing (an agent file, a resource, a document, a memory
+  file) is `.code-ed`, framed by `.code-edit` when it has its own path bar. Unsaved is the warn
+  badge with its word: "cambios sin guardar" for a file that exists, "aún sin guardar" for one the
+  assistant proposed.
+- **Gradients.** The top bar's "Nuevo chat" split button is shell and is not counted. On top of it a
+  screen has at most two gradient surfaces: the zone's primary action and one `.grad-border` card
+  (its `.grad-text` figure is part of the same surface). The project header's "Nueva tarea" is the
+  gradient only on Resumen; on a tab with a primary of its own it is plain.
+- **Copy.** Buttons are infinitive and short enough for half a phone's width ("Pedir propuesta",
+  "Añadir miembro"). The same figure reads the same everywhere: 23 documents, a journal of 86
+  entries, 3 proposals waiting.
 
 ---
 
@@ -352,8 +382,9 @@ Every loop respects the motion setting:
 
 ## 4. Illustrations
 
-Agentry has its own set of 14 SVG illustrations, drawn in the interface's language: hairline strokes,
-nodes and graphs, terminal windows, and the brand gradient on one element. There is no library
+Agentry has its own set of 16 SVG illustrations, drawn in the interface's language: hairline
+strokes, nodes and graphs, terminal windows, and the brand gradient on one element. `board` and
+`team` are drawn for the project ecosystem and are not in the app yet. There is no library
 dependency and no third-party licence. The reference is `design-system/illustrations/*.svg` (each
 file carries its styles, with dark fallbacks, so it previews on its own). The catalogue is on the
 reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
@@ -366,6 +397,7 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
 | `schedules` | no schedules, a schedule that never fired | accent |
 | `projects` | no projects, a project without worktrees | accent |
 | `board` | a project's board without work items, the task list without items | accent |
+| `team` | a project whose Team module is on but has no members yet | accent |
 | `no-results` | search or filters without matches, an empty usage range | accent |
 | `not-found` | 404, a chat or orchestration that no longer exists | accent |
 | `install` | Settings → Install, turning push on | accent |
