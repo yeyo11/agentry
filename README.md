@@ -360,6 +360,11 @@ transpiler.
 | `AGENTRY_WEB_DIST` | `apps/web/dist` (`/app/web` in the image) | Built UI the API serves (the desktop app points it at its bundled copy) |
 | `LOG_LEVEL` | `info` | Fastify/pino log level (`trace` … `fatal`, or `silent`) |
 
+Agentry sets two variables for every chat it starts, so an agent that calls the REST API reaches the
+wrapper that runs it and not another one on the same machine: `AGENTRY_API_URL` (this server's API,
+e.g. `http://127.0.0.1:34331/api`) and `AGENTRY_CHAT_ID` (the chat's own id). With authentication on,
+the agent still needs a token of its own.
+
 ## Securing it
 
 Agentry starts with authentication **off**, so a local install keeps working untouched. It also

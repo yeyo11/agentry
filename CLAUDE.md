@@ -30,6 +30,10 @@ After changing `packages/shared/src/types.ts`, regenerate the OpenAPI schemas (C
 drift): `pnpm --filter @agentry/api openapi:schemas`. Every new route needs a summary and a tag in
 `apps/api/src/openapi/routes.ts`, and a row in the README's REST API tables.
 
+A chat started by Agentry has `AGENTRY_API_URL` (and `AGENTRY_CHAT_ID`) in its environment. Call
+the API there, never on a guessed port: the desktop app and a dev server often run side by side,
+each with its own data, and an orchestration launched on the other one does not show up in yours.
+
 ## Conventions
 
 - TypeScript strict, no `any`, respect `noUncheckedIndexedAccess`.

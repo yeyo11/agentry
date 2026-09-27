@@ -552,6 +552,12 @@ export class ChatManager extends EventEmitter {
   lastRateLimit: RateLimitInfo | null = null;
   /** Set when claude-swap manages the accounts; null leaves chats on the active credential */
   accounts: AccountResolver | null = null;
+  /**
+   * Where this wrapper's REST API answers, once it listens. Handed to every chat as
+   * `AGENTRY_API_URL`: with a desktop app and a dev server on one machine, an agent that guessed a
+   * port drove the other wrapper and its orchestrations never showed up in the one it ran in.
+   */
+  apiUrl: string | null = null;
   /** Where chats with `permissionPrompts: 'host'` send what they ask; null means nobody answers */
   permissions: PermissionBroker | null = null;
   /** Files attached to messages; every chat may read them */
@@ -1365,7 +1371,11 @@ export class ChatManager extends EventEmitter {
     const [bin, argv] = this.command(launch, args);
     // A chat on an account must never inherit a token from the environment: it would override the account
     const base = launch.account || launch.configDir || chat.opts.account ? authFreeEnv() : process.env;
-    const env = launch.configDir ? { ...base, CLAUDE_CONFIG_DIR: launch.configDir } : base;
+    const env: NodeJS.ProcessEnv = { ...base, AGENTRY_CHAT_ID: chat.id };
+    if (launch.configDir) env.CLAUDE_CONFIG_DIR = launch.configDir;
+    // One inherited from the wrapper that started this one points at the wrong wrapper
+    if (this.apiUrl) env.AGENTRY_API_URL = this.apiUrl;
+    else delete env.AGENTRY_API_URL;
     const proc = spawn(bin, argv, { cwd: chat.cwd, env, stdio: 'pipe' });
     chat.proc = proc;
     chat.procStartedAt = now();

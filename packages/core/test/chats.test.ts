@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
@@ -140,6 +140,32 @@ test('an execution records how it ended and what it cost, and the chat adds them
     assert.equal(chat?.cost.usd, 0.02, 'the cost of a chat is what its executions cost');
     assert.equal(chat?.execution, null, 'nothing is live once both have ended');
   } finally {
+    core.shutdown();
+  }
+});
+
+test('a chat is told which wrapper runs it, and never inherits the address of another', async () => {
+  const config = tempConfig();
+  const log = join(config.dataDir, 'env.log');
+  const claude = join(config.dataDir, 'claude');
+  mkdirSync(config.dataDir, { recursive: true });
+  writeFileSync(claude, `#!/bin/sh\necho "$AGENTRY_CHAT_ID|$AGENTRY_API_URL" >> "${log}"\n`);
+  chmodSync(claude, 0o755);
+  const inherited = process.env.AGENTRY_API_URL;
+  // The wrapper itself was started from a chat of another one
+  process.env.AGENTRY_API_URL = 'http://127.0.0.1:1/api';
+  const core = new Core({ ...config, claudeBin: claude });
+  try {
+    const before = core.runtime.start({ prompt: 'hi', keepAlive: false });
+    const lines = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : []);
+    assert.equal(await until(() => lines()[0], 'the first launch'), `${before.id}|`, 'no address until the API listens');
+
+    core.runtime.apiUrl = 'http://127.0.0.1:34331/api';
+    const after = core.runtime.start({ prompt: 'hi', keepAlive: false });
+    assert.equal(await until(() => lines()[1], 'the second launch'), `${after.id}|http://127.0.0.1:34331/api`);
+  } finally {
+    if (inherited === undefined) delete process.env.AGENTRY_API_URL;
+    else process.env.AGENTRY_API_URL = inherited;
     core.shutdown();
   }
 });
