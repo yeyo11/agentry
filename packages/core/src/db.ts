@@ -172,6 +172,121 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // How much each install may be interrupted. Rows from before it get the default a new install
   // gets: the page re-registers with its own choice the next time it opens anyway.
   `ALTER TABLE push_subscriptions ADD COLUMN level TEXT NOT NULL DEFAULT 'important';`,
+
+  // The work items of the project ecosystem (docs/plans/project-ecosystem.md), in rows rather than
+  // one document per item: several processes move cards at once, and a card rewritten whole by one
+  // of them would erase the other's comment. Only the number is stored, never the key, so a new
+  // prefix renames every key at once. The counter hands out numbers and is never decremented, so a
+  // number freed by a delete is not handed out again. Nothing references the projects: a project
+  // removed from Agentry keeps its work items for when its directory is imported again.
+  `CREATE TABLE work_item_counters (
+     project_id  TEXT PRIMARY KEY,
+     last_number INTEGER NOT NULL
+   );
+   CREATE TABLE milestones (
+     id          TEXT PRIMARY KEY,
+     project_id  TEXT NOT NULL,
+     name        TEXT NOT NULL,
+     description TEXT NOT NULL,
+     state       TEXT NOT NULL,
+     created_at  TEXT NOT NULL,
+     updated_at  TEXT NOT NULL,
+     closed_at   TEXT
+   );
+   CREATE INDEX milestones_project ON milestones (project_id, created_at);
+   CREATE TABLE work_items (
+     id            TEXT PRIMARY KEY,
+     project_id    TEXT NOT NULL,
+     number        INTEGER NOT NULL,
+     type          TEXT NOT NULL,
+     title         TEXT NOT NULL,
+     description   TEXT NOT NULL,
+     status        TEXT NOT NULL,
+     priority      TEXT NOT NULL,
+     assignee_kind TEXT,
+     assignee_role TEXT,
+     epic_id       TEXT REFERENCES work_items (id) ON DELETE SET NULL,
+     milestone_id  TEXT REFERENCES milestones (id) ON DELETE SET NULL,
+     rank          TEXT NOT NULL,
+     worktree      TEXT,
+     branch        TEXT,
+     created_at    TEXT NOT NULL,
+     updated_at    TEXT NOT NULL,
+     closed_at     TEXT,
+     UNIQUE (project_id, number)
+   );
+   CREATE INDEX work_items_board ON work_items (project_id, status, rank);
+   CREATE INDEX work_items_status ON work_items (status, rank);
+   CREATE INDEX work_items_epic ON work_items (epic_id);
+   CREATE INDEX work_items_milestone ON work_items (milestone_id);
+   CREATE TABLE work_item_labels (
+     item_id  TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     position INTEGER NOT NULL,
+     label    TEXT NOT NULL,
+     PRIMARY KEY (item_id, label)
+   );
+   CREATE INDEX work_item_labels_label ON work_item_labels (label);
+   CREATE TABLE work_item_criteria (
+     id              TEXT PRIMARY KEY,
+     item_id         TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     position        INTEGER NOT NULL,
+     text            TEXT NOT NULL,
+     checked         INTEGER NOT NULL DEFAULT 0,
+     checked_by_kind TEXT,
+     checked_by_role TEXT
+   );
+   CREATE INDEX work_item_criteria_item ON work_item_criteria (item_id, position);
+   CREATE TABLE work_item_relations (
+     blocker_id TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     blocked_id TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     created_at TEXT NOT NULL,
+     PRIMARY KEY (blocker_id, blocked_id)
+   );
+   CREATE INDEX work_item_relations_blocked ON work_item_relations (blocked_id);
+   CREATE TABLE work_item_comments (
+     id                      TEXT PRIMARY KEY,
+     item_id                 TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     author_kind             TEXT NOT NULL,
+     author_role             TEXT,
+     source_kind             TEXT,
+     source_chat_id          TEXT,
+     source_orchestration_id TEXT,
+     source_task_id          TEXT,
+     body                    TEXT NOT NULL,
+     created_at              TEXT NOT NULL,
+     updated_at              TEXT NOT NULL
+   );
+   CREATE INDEX work_item_comments_item ON work_item_comments (item_id, created_at);
+   CREATE TABLE work_item_history (
+     seq                    INTEGER PRIMARY KEY AUTOINCREMENT,
+     id                     TEXT NOT NULL UNIQUE,
+     item_id                TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     change                 TEXT NOT NULL,
+     from_value             TEXT,
+     to_value               TEXT,
+     actor_kind             TEXT NOT NULL,
+     actor_role             TEXT,
+     cause_kind             TEXT,
+     cause_event            TEXT,
+     cause_chat_id          TEXT,
+     cause_orchestration_id TEXT,
+     cause_task_id          TEXT,
+     created_at             TEXT NOT NULL
+   );
+   CREATE INDEX work_item_history_item ON work_item_history (item_id, seq);
+   CREATE TABLE work_item_links (
+     id               TEXT PRIMARY KEY,
+     item_id          TEXT NOT NULL REFERENCES work_items (id) ON DELETE CASCADE,
+     kind             TEXT NOT NULL,
+     role             TEXT NOT NULL,
+     chat_id          TEXT,
+     orchestration_id TEXT,
+     task_id          TEXT,
+     created_at       TEXT NOT NULL
+   );
+   CREATE INDEX work_item_links_item ON work_item_links (item_id, created_at);
+   CREATE INDEX work_item_links_chat ON work_item_links (chat_id);
+   CREATE INDEX work_item_links_task ON work_item_links (orchestration_id, task_id);`,
 ];
 
 /** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
@@ -307,6 +422,14 @@ export class Db {
     this.migrate();
     this.pruneRotationEvents();
     this.pruneAudit();
+  }
+
+  /**
+   * The connection itself, for a store whose queries live in their own module (`work-items.ts`)
+   * rather than growing this class: it shares the schema, the pragmas and the migrations.
+   */
+  get connection(): DatabaseSync {
+    return this.db;
   }
 
   private tx<T>(fn: () => T): T {
