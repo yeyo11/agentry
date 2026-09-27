@@ -8,10 +8,8 @@ import { api, keys, useOrchestration } from '../api';
 import { Counts, FileMap, MapLegend, StatusLetter, useRowWords, type MapFile } from '../components/changes/FileMap';
 import { FileReview } from '../components/changes/FileReview';
 import { Fingerprint } from '../components/changes/Fingerprint';
-import { DiffView } from '../components/changes/DiffView';
 import {
   filesOf,
-  hourMinute,
   liveFile,
   neighbour,
   reviewKey,
@@ -25,12 +23,13 @@ import {
   type ReviewScope,
 } from '../components/changes/review-model';
 import { LIVE_REFRESH_MS, type ReviewSource } from '../components/changes/source';
+import { StepScrubber, StepsLens } from '../components/changes/steps/StepsLens';
+import { currentStep } from '../components/changes/steps/steps-model';
 import '../components/changes/changes.css';
 import { Menu, MoreActions, Tooltip, type MenuEntry } from '../components/controls';
 import { ICON_SM } from '../components/icons';
 import { Spinner } from '../components/Spinner';
 import { Empty, ErrorBox, Skeleton, usePageTitle } from '../components/ui';
-import { parseUnified } from '../lib/diff';
 import { NARROW, useMediaQuery } from '../lib/media';
 import {
   effectiveMode,
@@ -77,6 +76,7 @@ export function ChatChangesReview() {
       summary: (scope) => ({ queryKey: [...keys.chatChanges(id, scope), 'review'], queryFn: () => api.chatChanges(id, scope).then((c) => c.summary) }),
       diff: (path, opts) => ({ queryKey: keys.chatDiff(id, path, opts), queryFn: () => api.chatDiff(id, path, opts) }),
       steps: { queryKey: keys.chatSteps(id), queryFn: () => api.chatSteps(id) },
+      conversation: id,
       live,
       back: { to: `/chats/${encodeURIComponent(id)}`, label: t('back.chat') },
       subject: chat ? (chat.firstPrompt ?? chat.title) : null,
@@ -103,13 +103,15 @@ export function TaskChangesReview() {
       summary: (scope) => ({ queryKey: keys.taskChanges(id, taskId, scope), queryFn: () => api.taskChanges(id, taskId, scope) }),
       diff: (path, opts) => ({ queryKey: keys.taskDiff(id, taskId, path, opts), queryFn: () => api.taskDiff(id, taskId, path, opts) }),
       steps: { queryKey: keys.taskSteps(id, taskId), queryFn: () => api.taskSteps(id, taskId) },
+      // The worker's own chat holds the transcript its steps come from
+      conversation: task?.sessionId ?? task?.runId ?? null,
       live,
       back: { to: `/orchestration/${encodeURIComponent(id)}?task=${encodeURIComponent(taskId)}`, label: t('back.task') },
       subject: task ? task.name || task.id : null,
       // A worker's directory is its worktree, which is also the top level its files are listed from
       activity: { target, cwd: worktree, top: worktree },
     }),
-    [id, taskId, live, target, worktree, task?.name, task?.id, t],
+    [id, taskId, live, target, worktree, task?.name, task?.id, task?.sessionId, task?.runId, t],
   );
   if (orch.error) return <ErrorBox error={orch.error} />;
   if (orch.data && !task) return <Empty title={t('empty.scope')} />;
@@ -129,6 +131,7 @@ export function IntegrationChangesReview() {
       summary: (scope) => ({ queryKey: keys.integrationChanges(id, scope), queryFn: () => api.integrationChanges(id, scope) }),
       diff: (path, opts) => ({ queryKey: keys.integrationDiff(id, path, opts), queryFn: () => api.integrationDiff(id, path, opts) }),
       steps: null,
+      conversation: null,
       live,
       back: { to: `/orchestration/${encodeURIComponent(id)}`, label: t('back.orchestration') },
       subject: orch.data?.name ?? null,
@@ -179,6 +182,11 @@ function ReviewScreen({ source }: { source: ReviewSource }) {
     [params, location.pathname],
   );
   const fileHref = useCallback((path: string) => hrefWith({ file: path, lens: null, step: null }), [hrefWith]);
+
+  // ---- Step by step: the step a link asks for, or the latest ----
+  const stepList = useMemo(() => steps ?? [], [steps]);
+  const step = lens === 'steps' ? currentStep(stepList, params.get('step')) : null;
+  const stepHref = useCallback((stepId: string) => hrefWith({ lens: 'steps', step: stepId }), [hrefWith]);
 
   // ---- the files of the scope, in an order that holds still under the pointer ----
   const files = useMemo(() => (summary ? filesOf(scope, summary, scopedQ.data ?? null) : []), [scope, summary, scopedQ.data]);
@@ -291,9 +299,21 @@ function ReviewScreen({ source }: { source: ReviewSource }) {
       noWorktree={noWorktree}
       hrefWith={hrefWith}
       phone={phone}
+      stepCount={steps ? steps.length : null}
       print={
-        lens === 'result' && ordered.length > 0 ? (
-          <Fingerprint files={ordered} current={currentFile?.path ?? null} seen={new Set(ordered.filter((f) => isSeen(seen, f)).map((f) => f.path))} to={fileHref} />
+        lens === 'result' ? (
+          ordered.length > 0 ? (
+            <Fingerprint files={ordered} current={currentFile?.path ?? null} seen={new Set(ordered.filter((f) => isSeen(seen, f)).map((f) => f.path))} to={fileHref} />
+          ) : null
+        ) : step && stepList.length > 1 ? (
+          <div className="edit-scrub-row">
+            <StepScrubber steps={stepList} currentId={step.id} onPick={(stepId) => navigate(stepHref(stepId), { replace: true })} />
+            <span className="edit-scrub-keys">
+              <kbd className="palette-kbd">←</kbd>
+              <kbd className="palette-kbd">→</kbd>
+              {t('steps.keys')}
+            </span>
+          </div>
         ) : null
       }
     />
@@ -308,10 +328,14 @@ function ReviewScreen({ source }: { source: ReviewSource }) {
         steps={steps}
         loading={source.steps !== null && stepsQ.isPending}
         error={stepsQ.error}
-        selected={params.get('step')}
-        hrefOf={(stepId) => hrefWith({ lens: 'steps', step: stepId })}
+        current={step}
+        hrefOf={stepHref}
+        conversation={source.conversation}
+        resultHref={noWorktree ? null : fileHref}
         note={noWorktree ? t('lens.noWorktree') : null}
         phone={phone}
+        live={source.live}
+        back={noWorktree ? source.back : { to: hrefWith({ lens: null, step: null }), label: t('steps.back') }}
       />
     );
   else if (files.length === 0 && !(scope.kind === 'commit' && scopedQ.isPending))
@@ -353,7 +377,7 @@ function ReviewScreen({ source }: { source: ReviewSource }) {
             onSeen={onSeen(currentFile)}
             onHash={onHash(currentFile)}
             steps={steps ? stepsFor(steps, currentFile.path) : null}
-            stepHref={(stepId) => hrefWith({ lens: 'steps', step: stepId })}
+            stepHref={stepHref}
             phone={phone}
             nav={{
               prev,
@@ -377,8 +401,8 @@ function ReviewScreen({ source }: { source: ReviewSource }) {
       </div>
     );
 
-  // A file on a phone is a screen of its own, with its own header
-  const fileScreen = phone && lens === 'result' && currentFile !== null;
+  // A file or a step on a phone is a screen of its own, with its own header
+  const fileScreen = phone && (lens === 'result' ? currentFile !== null : step !== null && !stepsQ.error);
   return (
     <div className="changes-review" data-lens={lens}>
       {!fileScreen && head}
@@ -407,6 +431,7 @@ function ReviewHeader({
   hrefWith,
   phone,
   print,
+  stepCount,
 }: {
   source: ReviewSource;
   summary: ChangeSummary | null;
@@ -417,11 +442,18 @@ function ReviewHeader({
   hrefWith: (changes: Record<string, string | null>) => string;
   phone: boolean;
   print: ReactNode;
+  /** How many steps the source has, for Step by step's line under the title */
+  stepCount: number | null;
 }) {
   const { t } = useTranslation('changes');
   const navigate = useNavigate();
   const totals = totalsOf(files);
-  const metaParts = summary
+  const stepsLens = lens === 'steps';
+  const metaParts = stepsLens
+    ? stepCount
+      ? [t('steps.count', { count: stepCount })]
+      : []
+    : summary
     ? [
         summary.branch ?? t('meta.detached'),
         ...(phone ? [] : summary.base ? [t('meta.from', { base: summary.base.slice(0, 7) })] : []),
@@ -491,7 +523,7 @@ function ReviewHeader({
             <h1 className="changes-title">{t('title')}</h1>
             {metaParts.length > 0 && <span className="changes-meta">{metaParts.join(' · ')}</span>}
           </div>
-          {!noWorktree && summary && (
+          {!noWorktree && summary && !stepsLens && (
             <MoreActions
               label={t('scope.label')}
               entries={[
@@ -528,13 +560,13 @@ function ReviewHeader({
           )}
           <div className="changes-title-row">
             <h1 className="changes-title">{t('title')}</h1>
-            {metaParts.length > 0 && <span className="changes-meta">{metaParts.join(' · ')}</span>}
-            {summary && <Counts additions={totals.additions} deletions={totals.deletions} />}
+            {metaParts.length > 0 && <span className={`changes-meta${stepsLens ? ' is-sentence' : ''}`}>{metaParts.join(' · ')}</span>}
+            {summary && !stepsLens && <Counts additions={totals.additions} deletions={totals.deletions} />}
             {live}
           </div>
         </div>
         {source.steps !== null && lensSwitch}
-        {!noWorktree && summary && (
+        {!noWorktree && summary && !stepsLens && (
           <Menu
             label={t('scope.label')}
             entries={scopeEntries}
@@ -547,7 +579,7 @@ function ReviewHeader({
             }
           />
         )}
-        {!noWorktree && summary && (
+        {!noWorktree && summary && !stepsLens && (
           <Tooltip content={patch.state === 'copied' ? t('copied') : patch.state === 'failed' ? t('copyFailed') : t('copyPatch')}>
             <button type="button" className="icon-btn" aria-label={patch.state === 'copied' ? t('copied') : t('copyPatch')} disabled={files.length === 0} onClick={patch.run}>
               {patch.state === 'copied' ? <Check {...ICON_SM} /> : <Copy {...ICON_SM} />}
@@ -658,75 +690,6 @@ function PhoneFiles({ files, to, seenCount, total }: { files: MapFile[]; to: (pa
         })}
       </nav>
       <MapLegend keys={false} />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------
-// Step by step: the `steps` task draws this lens; until then it lists the edits with their patches
-
-function StepsLens({
-  steps,
-  loading,
-  error,
-  selected,
-  hrefOf,
-  note,
-  phone,
-}: {
-  steps: EditStep[] | null;
-  loading: boolean;
-  error: unknown;
-  selected: string | null;
-  hrefOf: (stepId: string) => string;
-  note: string | null;
-  phone: boolean;
-}) {
-  const { t, i18n } = useTranslation('changes');
-  if (error) return <div className="changes-pane-state"><ErrorBox error={error} /></div>;
-  if (loading) return <div className="changes-pane-state"><Skeleton rows={6} height={16} /></div>;
-  const list = steps ?? [];
-  if (list.length === 0)
-    return (
-      <div className="changes-pane-state">
-        {note && <p className="changes-diff-note">{note}</p>}
-        <Empty title={t('empty.noSteps')}>{t('empty.noStepsBody')}</Empty>
-      </div>
-    );
-  const current = list.find((s) => s.id === selected) ?? list[list.length - 1]!;
-  const diff = current.diff ? parseUnified(current.diff) : null;
-  return (
-    <div className="changes-steps">
-      <nav className="changes-steps-list" aria-label={t('steps.label')}>
-        {note && <p className="changes-diff-note">{note}</p>}
-        {list.map((s) => (
-          <Link key={s.id} to={hrefOf(s.id)} replace className={`edit-step${s.id === current.id ? ' is-current' : ''}`} aria-current={s.id === current.id ? 'step' : undefined}>
-            <span className="edit-step-head">
-              <span>{s.at ? hourMinute(s.at, i18n.language) : `#${s.index}`}</span>
-              <span className="badge">{s.tool}</span>
-              <span className="edit-step-path">{splitPath(s.path).name}</span>
-              {s.pending && (
-                <span className="changes-live">
-                  <Spinner />
-                  {t('steps.pending')}
-                </span>
-              )}
-              <Counts additions={s.additions} deletions={s.deletions} />
-            </span>
-            {s.intent && <span className="edit-step-intent">{s.intent}</span>}
-          </Link>
-        ))}
-      </nav>
-      <section className="changes-step-detail" aria-label={t('steps.stepOf', { n: current.index, total: list.length })}>
-        <span className="section-label">{t('steps.stepOf', { n: current.index, total: list.length })}</span>
-        <span className="changes-meta">{current.path}</span>
-        {current.intent && (
-          <p className="changes-step-intent">
-            <q>{current.intent}</q>
-          </p>
-        )}
-        {diff ? <DiffView diff={diff} mode="unified" path={current.path} wrap={phone} /> : <p className="changes-diff-note">{t('steps.noPatch')}</p>}
-      </section>
     </div>
   );
 }

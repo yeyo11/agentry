@@ -14,6 +14,8 @@ export interface ReviewSource {
   diff: (path: string, opts: DiffOptions) => { queryKey: readonly unknown[]; queryFn: () => Promise<FileDiff> };
   /** The transcript's edits; null where there is no transcript (the integration branch) */
   steps: { queryKey: readonly unknown[]; queryFn: () => Promise<EditStep[]> } | null;
+  /** The chat whose transcript the steps come from, for "See it in the conversation" */
+  conversation: string | null;
   /** Something is still working on it, so it is read again on the events and a slow timer */
   live: boolean;
   back: { to: string; label: string };
