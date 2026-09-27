@@ -9,7 +9,7 @@ MODS = [
 ]
 TPLS = [
   ('simple', 'blank', 'Simple', 'Un nombre y un directorio. Sin módulos.', ()),
-  ('pro', 'code', 'Software profesional', 'Todos los módulos, los cuatro tipos de tarea y un equipo de cinco roles.', ('board', 'team', 'documents', 'memory')),
+  ('pro', 'code', 'Software profesional', 'Todos los módulos, los cuatro tipos de tarea y un equipo de cuatro roles.', ('board', 'team', 'documents', 'memory')),
   ('lib', 'package', 'Biblioteca o paquete', 'Tablero, documentos y memoria. Límite de 2 en curso.', ('board', 'documents', 'memory')),
   ('research', 'flask', 'Investigación o documentación', 'Documentos y memoria, y un tablero sin bugs.', ('board', 'documents', 'memory')),
   ('custom', 'settings', 'Personalizada', 'Todo desactivado: eliges cada módulo.', ()),
@@ -51,9 +51,9 @@ def section(n, title, sub, body, right=''):
 
 def new_project_desktop():
   origin = f'''<div class="card card-pad" style="display: grid; grid-template-columns: 1.1fr 1.6fr 0.8fr; gap: 14px; align-items: start">
-<div class="form-row"><span class="t-label">Nombre</span><label class="field"><input value="pagos-api" aria-label="Nombre"></label></div>
-<div class="form-row"><span class="row" style="justify-content: space-between"><span class="t-label" style="color: var(--fg-2)">Directorio</span><span class="seg" style="padding: 2px"><button type="button" class="on" style="height: 22px; font-size: 11.5px">Local</button><button type="button" style="height: 22px; font-size: 11.5px">URL de git</button></span></span><label class="field mono">{ico('folder')}<input value="~/Proyectos/pagos-api" aria-label="Directorio"><button type="button" class="btn btn-ghost btn-sm" style="margin-right: -8px">Elegir…</button></label></div>
-<div class="form-row"><span class="t-label">Prefijo de clave</span><label class="field mono"><input value="PAG" aria-label="Prefijo de clave"></label></div>
+<div class="form-row"><span class="row" style="min-height: 28px"><span class="t-label">Nombre</span></span><label class="field"><input value="pagos-api" aria-label="Nombre"></label></div>
+<div class="form-row"><span class="row" style="justify-content: space-between; min-height: 28px"><span class="t-label" style="color: var(--fg-2)">Directorio</span><span class="seg" role="radiogroup" aria-label="Origen" style="padding: 2px"><button type="button" role="radio" aria-checked="true" class="on" style="height: 24px; font-size: 12px">Local</button><button type="button" role="radio" aria-checked="false" style="height: 24px; font-size: 12px">URL de git</button></span></span><label class="field mono">{ico('folder')}<input value="~/Proyectos/pagos-api" aria-label="Directorio"><button type="button" class="btn btn-ghost btn-sm" style="margin-right: -8px; font-family: var(--sans)">Elegir…</button></label></div>
+<div class="form-row"><span class="row" style="min-height: 28px"><span class="t-label">Prefijo de clave</span></span><label class="field mono"><input value="PAG" aria-label="Prefijo de clave"></label></div>
 <span class="form-hint" style="grid-column: 1 / -1">El directorio ya tiene <span class="mono">23</span> chats de Claude Code: quedan agrupados en el proyecto. Las tareas se llamarán <span class="mono fg-2">PAG-1</span>, <span class="mono fg-2">PAG-2</span>…</span>
 </div>'''
   tpls = f'<div role="radiogroup" aria-label="Plantilla" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px">{"".join(tpl_card(t, t[0] == "pro") for t in TPLS)}</div>'
@@ -67,12 +67,12 @@ def new_project_desktop():
 <div class="prop-row" style="align-items: flex-start; padding-top: 10px"><span class="k">Módulos</span><span class="v col" style="align-items: flex-start; gap: 6px">{''.join(f'<span class="row t-sm" style="gap: 7px">{ico("check", "ico ico-sm c-ok")}{n}</span>' for _, _, n, _ in MODS)}</span></div>
 <div class="prop-row"><span class="k">Tipos</span><span class="v row" style="gap: 8px">{tico('epic')}{tico('story')}{tico('task')}{tico('bug')}<span class="t-xs fg-3">los cuatro</span></span></div>
 <div class="prop-row"><span class="k">Límites</span><span class="v mono t-xs fg-2">en curso 3 · en revisión 3</span></div>
-<div class="prop-row" style="align-items: flex-start; padding-top: 10px"><span class="k">Equipo</span><span class="v col" style="align-items: flex-start; gap: 4px"><span class="t-sm">5 roles de la plantilla</span><span class="t-xs fg-3" style="line-height: 1.45">Después de crear el proyecto, el asistente lo lee y te propone el equipo miembro a miembro.</span></span></div>
+<div class="prop-row" style="align-items: flex-start; padding-top: 10px"><span class="k">Equipo</span><span class="v col" style="align-items: flex-start; gap: 4px"><span class="t-sm">4 roles de la plantilla</span><span class="t-xs fg-3" style="line-height: 1.45">Después de crear el proyecto, el asistente lo lee y te propone el equipo miembro a miembro.</span></span></div>
 </div>
 <div class="col" style="gap: 8px"><button type="button" class="btn btn-primary btn-lg" style="width: 100%">{ico('plus')}Crear proyecto</button><a href="DesktopProyectos.html" class="btn btn-ghost" style="width: 100%">Cancelar</a></div>
 </aside>'''
   main = f'''<main class="page" style="gap: 20px">
-<div class="page-head" style="align-items: center"><div class="row" style="gap: 12px"><a href="DesktopProyectos.html" class="btn btn-icon" aria-label="Volver a proyectos">{ico('left')}</a><div class="col" style="gap: 3px"><h1 class="t-h1">Nuevo proyecto</h1><p class="fg-2 t-sm" style="margin: 0">Un directorio, una plantilla y los módulos que quieras. Todo se puede cambiar después.</p></div></div><div style="width: 460px">{steps(2)}</div></div>
+<div class="page-head" style="align-items: center"><div class="row" style="gap: 12px"><a href="DesktopProyectos.html" class="btn btn-icon" aria-label="Volver a proyectos">{ico('left')}</a><div class="col" style="gap: 3px"><h1 class="t-h1">Nuevo proyecto</h1><p class="fg-2 t-sm" style="margin: 0">Un directorio, una plantilla y los módulos que quieras. Todo se puede cambiar después.</p></div></div></div>
 <div class="row" style="gap: 22px; align-items: flex-start">
 <div class="col grow" style="gap: 22px">
 {section(1, 'Origen', '', origin)}
@@ -150,7 +150,7 @@ def project_settings_desktop():
 <div class="form-row"><span class="t-label">Prefijo de clave</span><label class="field mono" style="width: 160px"><input value="AGN" aria-label="Prefijo de clave"></label><span class="form-hint">Las claves se componen al leerlas: si lo cambias a <span class="mono fg-2">CW</span>, <span class="mono fg-2">AGN-12</span> pasa a leerse <span class="mono fg-2">CW-12</span>. El número no cambia nunca y no se reutiliza.</span></div>
 <div class="form-row"><span class="t-label">Directorio</span><span class="mono t-sm fg-2">~/Escritorio/claude-wrapper</span></div>
 </section>
-<section class="card col" style="padding: 18px; gap: 14px"><div class="col" style="gap: 4px"><h2 class="t-h2">Tablero</h2><span class="t-sm fg-2">Límite por columna. Pasarse se permite: la columna lo dice en ámbar, sin bloquear el movimiento.</span></div>
+<section class="card col" style="padding: 18px; gap: 14px"><div class="col" style="gap: 4px"><h2 class="t-h2">Tablero</h2><span class="t-sm fg-2">Límite por columna. Pasarse se permite: la columna lo avisa con una palabra, sin bloquear el movimiento.</span></div>
 <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px">{limits}</div>
 </section>
 <section class="card col" style="padding: 18px; gap: 12px"><h2 class="t-h2">Quitar el proyecto</h2>
@@ -159,7 +159,7 @@ def project_settings_desktop():
 </div>
 <div class="col" style="flex: 1.15 1 0; gap: 18px; min-width: 0">
 <section class="card col" style="padding: 18px; gap: 12px"><div class="row"><h2 class="t-h2 grow">Módulos</h2><span class="mono t-xs fg-3">3 de 4 activados</span></div>
-{module_card('board', True, '15 abiertas · 38 en total')}
+{module_card('board', True, '15 abiertas · 27 en total')}
 {module_card('team', True, '5 miembros en .claude/agents/')}
 {module_card('documents', False, ico('eyeoff') + 'oculto · 23 documentos conservados')}
 {module_card('memory', True, 'CLAUDE.md · diario con 86 entradas')}
@@ -169,7 +169,7 @@ def project_settings_desktop():
 </div>
 </div>
 </main>'''
-  write('DesktopProyectoAjustes.html', desktop('Ajustes del proyecto', 'projects', '<a href="DesktopProyectos.html" class="fg-2">Proyectos</a><span class="fg-3">/</span><span style="font-weight: 500">Ajustes</span>', main))
+  write('DesktopProyectoAjustes.html', desktop('Ajustes del proyecto', 'projects', pcrumb('claude-wrapper', ('Ajustes', '')), main))
 
 
 def project_settings_mobile():
@@ -232,8 +232,8 @@ def project_page_desktop():
 {proj_head()}
 {proj_tabs('overview')}
 <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
-<div class="card kpi"><span class="t-label">Abiertas</span><span class="v">15</span><span class="t-xs fg-3">38 en total · 23 hechas</span></div>
-<div class="card kpi"><span class="t-label">En curso</span><span class="v c-warn">4<span class="fg-3" style="font-size: 18px">/3</span></span><span class="row t-xs c-warn" style="gap: 5px">{ico('warn', 'ico ico-sm')}sobre el límite</span></div>
+<div class="card kpi"><span class="t-label">Abiertas</span><span class="v">15</span><span class="t-xs fg-3">27 en total · 12 hechas</span></div>
+<div class="card kpi"><span class="t-label">En curso</span><span class="v c-warn">5<span class="fg-3">/3</span></span><span class="row t-xs c-warn" style="gap: 5px">{ico('warn', 'ico ico-sm')}sobre el límite</span></div>
 <div class="card kpi"><span class="t-label">Agentes trabajando</span><span class="v c-live">2</span><span class="row t-xs fg-3" style="gap: 6px"><span class="spin-braille"></span>1 chat · 1 orquestación</span></div>
 <a href="DesktopHitos.html" class="card kpi grad-border"><span class="t-label">Hito actual · <span style="text-transform: none">v0.20</span></span><span class="v grad-text">47 %</span><span class="ms-bar" style="margin-top: 2px"><i class="done" style="width: 47%"></i><i class="doing" style="width: 27%"></i></span></a>
 </div>
@@ -252,11 +252,11 @@ def project_page_desktop():
 </div></section>
 <div class="col" style="gap: 12px">
 <section class="card"><div class="card-head"><span class="t-h2 grow">Tablero</span><a href="DesktopTablero.html" class="t-sm c-accent">Abrir</a></div><div class="col" style="padding: 10px 18px 12px; gap: 2px">{dist_rows()}</div></section>
-<section class="card"><div class="card-head"><span class="t-h2 grow">Actividad</span><span class="mono t-xs fg-3">historial</span></div><div class="activity" style="padding: 14px 18px">{hrows}</div></section>
+<section class="card"><div class="card-head"><span class="t-h2 grow">Actividad</span><a href="#" class="t-sm c-accent">Ver todo</a></div><div class="activity" style="padding: 14px 18px">{hrows}</div></section>
 </div>
 </div>
 </main>'''
-  write('DesktopProyecto.html', desktop('Proyecto', 'projects', '<a href="DesktopProyectos.html" class="fg-2">Proyectos</a><span class="fg-3">/</span><span style="font-weight: 500">claude-wrapper</span>', main))
+  write('DesktopProyecto.html', desktop('Proyecto', 'projects', pcrumb('claude-wrapper', ('Resumen', '')), main))
 
 
 def project_page_mobile():

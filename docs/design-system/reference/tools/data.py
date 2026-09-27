@@ -28,7 +28,7 @@ DONE_MORE = 9
 
 def by_col(s, keys=None):
   ks = keys or W.keys()
-  return [k for k in ks if W[k]['s'] == s and k != 'AGN-12']
+  return [k for k in ks if W[k]['s'] == s]
 
 
 def card(k, sel=None):
@@ -54,7 +54,8 @@ def card(k, sel=None):
     d, n = w['child']
     body = f'<div class="wi-card-epic"><span class="ms-bar"><i class="done" style="width: {d / n * 100:.0f}%"></i></span><span>{d}/{n} tareas</span></div>'
   if live == 'chat':
-    body += '<div class="wi-card-live"><span class="spin-braille"></span><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis grow">pnpm test</span><span class="mono t-xs fg-3">4:12</span></div>'
+    # Two lines, so the command the agent runs is never cut: the verb and the time, then the detail
+    body += '<div class="wi-card-live two"><span class="spin-braille"></span><span class="c-live grow">Ejecutando</span><span class="mono t-xs fg-3">4:12</span><span class="mono fg-3 detail">pnpm test</span></div>'
   if live == 'orch':
     body += '<div class="wi-card-live"><span class="spin-braille"></span><span class="mono t-xs c-live ellipsis">nodo 3 de 9</span><span class="segbar"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i></span></div>'
   foot = []
@@ -66,6 +67,10 @@ def card(k, sel=None):
   if w.get('comments'):
     foot.append(f'<span class="wi-fact" title="Comentarios">{ico("comment")}{w["comments"]}</span>')
   who = av() if w.get('who') else ''
+  # An assignee with no facts beside it joins the meta row instead of opening a row of its own
+  if who and not foot and meta:
+    meta = meta[:-len('</div>')] + f'<span class="grow"></span>{who}</div>'
+    who = ''
   footer = f'<div class="wi-card-foot">{"".join(foot)}<span class="grow"></span>{who}</div>' if (foot or who) else ''
   return f'<article class="{cls}" aria-label="{k} · {w["title"]}">{top}{title}{meta}{body}{footer}</article>'
 

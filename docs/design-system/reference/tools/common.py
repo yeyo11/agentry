@@ -127,9 +127,9 @@ BRAND = ('<span style="width: 26px; height: 26px; border-radius: var(--r); backg
          '<svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="' + P['orch'] + '"></path></svg></span>')
 
 
-def page(title, body, mobile=False):
+def page(title, body, mobile=False, css=''):
   return f'''<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Agentry · {title}</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{{margin:0;background:var(--bg)}}</style><script>function t(){{var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){{e.setAttribute("data-theme",m)}})}}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · {title}</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{{margin:0;background:var(--bg)}}{css}</style><script>function t(){{var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){{e.setAttribute("data-theme",m)}})}}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
 {body}
 <script>t()</script>
 </body></html>
@@ -149,7 +149,12 @@ LIVE_DEFAULT = '''<div class="col" style="gap: 4px">
 </div>'''
 
 
-def sidebar(active, live=None):
+# The open work items of the project in scope: pagos-api is the empty project and shows no count,
+# and All projects adds every project's open items.
+TASKS_OPEN = {'claude-wrapper': '15', 'Todos los proyectos': '18'}
+
+
+def sidebar(active, live=None, project='claude-wrapper'):
   def item(key, href, icon, name, extra=''):
     on = ' on' if key == active else ''
     return f'<a href="{href}" class="nav-item{on}">{ico(icon)}<span class="grow">{name}</span>{extra}</a>'
@@ -163,7 +168,7 @@ def sidebar(active, live=None):
 <div class="col" style="gap: 1px">
 {item('home', 'Main.html', 'home', 'Inicio')}
 {item('chats', 'DesktopChats.html', 'chats', 'Chats', '<span class="count">197</span>')}
-{item('tasks', 'DesktopTablero.html', 'tasks', 'Tareas', '<span class="count">15</span>')}
+{item('tasks', 'DesktopTablero.html', 'tasks', 'Tareas', f'<span class="count">{TASKS_OPEN[project]}</span>' if project in TASKS_OPEN else '')}
 {item('orch', 'DesktopOrquestaciones.html', 'orch', 'Orquestaciones', '<span class="count-pill live">1</span>')}
 {item('sched', 'DesktopProgramaciones.html', 'sched', 'Programaciones')}
 </div>
@@ -210,9 +215,32 @@ STATUSBAR = '''<footer class="app statusbar" data-theme="dark" style="width: 118
 </footer>'''
 
 
-def desktop(title, active, crumb, main, overlay='', project='claude-wrapper', live=None, agents=2, running=2):
+# Rules a desktop screen needs that agentry-ds.css does not have yet. They live in the page until
+# proto-fix-review moves them into the stylesheet (the fix tasks may not edit it).
+# A card's title and its epic say what the card is about, so they wrap instead of being cut; the
+# live line of a card goes on two lines (verb and time, then the command) so the command is not cut.
+CARD_CSS = ('.wi-card-title{-webkit-line-clamp:unset}'
+            '.wi-card-live.two{flex-wrap:wrap;row-gap:3px}.wi-card-live.two .detail{flex-basis:100%;padding-left:18px}'
+            '.wi-card-meta{flex-wrap:wrap;row-gap:5px}'
+            # The board fills the page and a long column scrolls on its own, as the app's board does,
+            # so no card ever sits under the status bar or the selection bar
+            '.wi-board{flex:1 1 auto;grid-template-rows:minmax(0,1fr)}.wi-col{max-height:100%}'
+            '.wi-col-head,.wi-col-limit{flex-shrink:0}.wi-col-body{min-height:0;overflow-y:auto;scrollbar-width:none}.page.selecting{padding-bottom:84px}')
+
+
+def pcrumb(project, *parts):
+  """The breadcrumb of a project's tabs, Proyectos / <project> / <tab>, with the last part in bold.
+  Each part is (name, href)."""
+  links = {'claude-wrapper': 'DesktopProyecto.html'}
+  bits = ['<a href="DesktopProyectos.html" class="fg-2">Proyectos</a>', f'<a href="{links.get(project, "#")}" class="fg-2">{project}</a>']
+  for i, (name, href) in enumerate(parts):
+    bits.append(f'<span style="font-weight: 500">{name}</span>' if i == len(parts) - 1 else f'<a href="{href}" class="fg-2">{name}</a>')
+  return '<span class="fg-3">/</span>'.join(bits)
+
+
+def desktop(title, active, crumb, main, overlay='', project='claude-wrapper', live=None, agents=2, running=2, css=''):
   body = f'''<div class="app shell" data-theme="dark" style="width: 1440px; height: 1024px; position: relative">
-{sidebar(active, live)}
+{sidebar(active, live, project)}
 <div class="main-col" style="position: relative">
 {topbar(crumb, project, agents)}
 {main}
@@ -220,7 +248,7 @@ def desktop(title, active, crumb, main, overlay='', project='claude-wrapper', li
 </div>
 {overlay}
 </div>'''
-  return page(title + ' (desktop)', body)
+  return page(title + ' (desktop)', body, css=css)
 
 
 def tabbar(active='more'):

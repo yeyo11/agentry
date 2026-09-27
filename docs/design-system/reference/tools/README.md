@@ -23,6 +23,7 @@ Python 3 with Pillow and Chrome (`CHROME_BIN`, default `/usr/bin/google-chrome`)
 | `projects.py` | the project wizard, the project page and its settings, both sizes |
 | `chat.py` | `DesktopChatTarea`, `MobileChatTarea` |
 | `ai.py` | the assistant, suggested tasks and resources with AI, both sizes |
+| `desktop.py` | desktop only: the board while the team works it (`DesktopTableroEquipo`, hand-drawn before), Tasks with All projects (`DesktopTareasTodos`), suggestions while they run (`DesktopSugerirTareasEnCurso`) and the assistant on an empty project (`DesktopAsistenteVacio`). `DesktopDocumentoEditar` has no generator: it is `DesktopDocumentos` with the editor open, edited as HTML |
 
 ```bash
 python3 board.py && python3 tasks.py && python3 projects.py && python3 chat.py && python3 ai.py
