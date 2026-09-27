@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Sugerir tareas, en curso (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<div class="app m-screen " data-theme="dark">
+<header class="row" style="flex-shrink: 0; padding: 8px 8px; gap: 4px; min-height: 60px">
+<a href="MobileTablero.html" class="btn btn-ghost btn-lg" style="padding: 0 10px">Cancelar</a>
+<span class="grow" style="text-align: center; font-weight: 600; font-size: 17px">Sugerir tareas</span>
+<span style="width: 86px"></span>
+</header>
+<div class="m-body stack" style="gap: 12px">
+<label class="field field-lg"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><input value="lo que falta para v0.20" aria-label="Qué buscar (opcional)" style="font-size: 16px"></label>
+<section class="ai-run live energy" aria-label="Sugerencia en curso" style="padding: 14px">
+<div class="ai-run-head"><span class="ai-mark" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg></span><div class="col grow" style="gap: 3px; min-width: 0"><h2 class="ai-run-title">Buscando tareas que falten</h2><div class="ai-run-now"><span class="spin-braille"></span><span class="c-live">Leyendo</span><span class="mono ellipsis">chats</span><span class="grow"></span><span class="mono t-xs fg-3">0:22</span></div></div></div>
+<div class="ai-facts"><span>Sonnet 5</span><span class="cost">0,02 US$ hasta ahora</span><span>chat 7c2e1a</span></div>
+<hr class="divider">
+<div class="ai-steps"><div class="ai-step"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg><span><span class="path">docs/plans/</span></span><span class="n">12 documentos</span></div><div class="ai-step"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg><span>Las tareas del tablero</span><span class="n">27 tareas</span></div><div class="ai-step now"><span class="spin-braille" role="img" aria-label="Leyendo"></span><span>Los chats de las últimas dos semanas</span><span class="n">14 de 40</span></div><div class="ai-step todo"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 1 0 18M12 21a9 9 0 0 1 0-18"></path></svg><span>El historial de git</span><span class="n">después</span></div></div>
+</section>
+<div class="row" style="padding: 0 4px"><span class="t-label grow">Propuestas</span></div>
+<div class="card"><div class="sug-wait"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2"></path></svg>en espera · aparecen al terminar la lectura</div></div>
+<p class="t-xs fg-3" style="margin: 0; padding: 0 4px; line-height: 1.5">Se crean en Backlog solo las que incluyas. El coste cuenta en Uso, como el de cualquier chat.</p>
+</div>
+<div class="m-foot"><button type="button" class="btn btn-lg" style="flex: 0 0 auto"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>Detener</button><button type="button" class="btn btn-primary btn-lg" disabled>Crear las seleccionadas</button></div>
+</div>
+<script>t()</script>
+</body></html>

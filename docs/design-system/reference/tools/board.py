@@ -81,9 +81,13 @@ def mrow(k, show_status=False):
   if w.get('epic'): meta.append(epic(w['epic']))
   for l in w.get('labels', []): meta.append(label(l))
   if w.get('crit'): meta.append(f'<span class="row mono t-xs fg-3" style="gap: 4px">{ico("crit", "ico", "width: 12px; height: 12px")}{w["crit"][0]}/{w["crit"][1]}</span>')
+  if w.get('blocked'): meta.append(f'<span class="row mono t-xs fg-2" style="gap: 4px">{ico("block", "ico", "width: 12px; height: 12px")}bloqueada por {w["blocked"]}</span>')
+  if w['t'] == 'epic':
+    d, n = w['child']
+    meta.append(f'<span class="row mono t-xs fg-2" style="gap: 6px"><span class="ms-bar" style="width: 48px"><i class="done" style="width: {d / n * 100:.0f}%"></i></span>{d}/{n} tareas</span>')
   livel = ''
   if live == 'chat':
-    livel = '<span class="row t-xs" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">Ejecutando</span><span class="mono fg-3 grow ellipsis">pnpm test</span><span class="mono fg-3">4:12</span></span>'
+    livel = '<span class="row t-xs" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">Ejecutando</span><span class="mono fg-3 grow">pnpm test</span><span class="mono fg-3">4:12</span></span>'
   if live == 'orch':
     livel = '<span class="row t-xs" style="gap: 8px"><span class="spin-braille"></span><span class="mono c-live">nodo 3 de 9</span><span class="segbar grow" style="height: 4px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i></span></span>'
   who = av() if w.get('who') else ''
@@ -103,7 +107,7 @@ def msection(s, keys, first=False):
   warn = f'<span class="badge b-warn">{ico("warn", "ico", "width: 11px; height: 11px")}sobre el límite</span>' if over else ''
   rows = ''.join(mrow(k) for k in keys)
   return f'''<section class="col" style="gap: 8px" aria-label="{COL_WORD[s]}">
-<div class="row" style="gap: 8px; padding: 0 2px">{sico(s)}<span class="t-label" style="color: var(--fg-2)">{COL_WORD[s]}</span><span class="{'c-warn ' if over else ''}wi-col-count">{cnt}</span><span class="grow"></span>{warn}</div>
+<div class="row" style="gap: 8px; padding: 0 2px">{sico(s)}<span class="t-label" style="color: var(--fg-2)">{COL_WORD[s]}</span><span class="{'c-warn ' if over else ''}wi-col-count">{cnt}</span>{warn}<span class="grow"></span></div>
 <div class="card{' ' if not over else ''}" style="overflow: hidden{'; border-color: color-mix(in srgb, var(--warn) 38%, transparent)' if over else ''}">{rows}</div>
 </section>'''
 
@@ -125,28 +129,31 @@ def mtoolbar(filters_n=0):
   badge = f'<span class="count-pill" style="position: absolute; top: -4px; right: -4px; background: var(--fg); color: var(--bg)">{filters_n}</span>' if filters_n else ''
   return f'''<div class="row" style="gap: 8px">
 <label class="field field-lg grow">{ico('search', 'ico ico-lg')}<input type="search" placeholder="Buscar tareas" aria-label="Buscar tareas" style="font-size: 16px"></label>
-<button type="button" class="btn btn-lg btn-icon" aria-label="Filtros" style="position: relative">{ico('filter', 'ico ico-lg')}{badge}</button>
+<a href="MobileTableroFiltros.html" class="btn btn-lg btn-icon" aria-label="Filtros" style="position: relative">{ico('filter', 'ico ico-lg')}{badge}</a>
 </div>'''
 
 
 def mproject_chip():
-  return f'<button type="button" class="chip project-selector" style="height: 36px; font-size: 14px; padding: 0 12px">claude-wrapper{ico("down", "ico ico-sm")}</button>'
+  return f'<button type="button" class="chip project-selector" style="font-size: 14px">claude-wrapper{ico("down", "ico ico-sm")}</button>'
 
 
 def mview_seg(on):
   items = [('board', 'MobileTablero.html', 'Tablero'), ('list', 'MobileTareasLista.html', 'Lista'), ('ms', 'MobileHitos.html', 'Hitos')]
-  out = ''.join(f'<a href="{h}" role="tab" aria-selected="{"true" if k == on else "false"}" class="{"on" if k == on else ""}" style="flex: 1 1 0; justify-content: center; height: 36px; font-size: 14px">{n}</a>' for k, h, n in items)
+  out = ''.join(f'<a href="{h}" role="tab" aria-selected="{"true" if k == on else "false"}" class="{"on" if k == on else ""}" style="flex: 1 1 0; justify-content: center">{n}</a>' for k, h, n in items)
   return f'<div class="seg" role="tablist" aria-label="Vista" style="display: flex">{out}</div>'
 
 
 def board_mobile():
-  inner = f'''{mhead('Tareas', None, 'MobileMas.html', mproject_chip() + '<span style="width: 8px"></span>')}
-<div class="m-body stack" style="gap: 12px">
+  # Jumped to Por hacer: the column with an epic, the urgent bug and a blocked item, and the live
+  # cards of En curso under it. "Seleccionar" leads to the selection that orchestrates.
+  sel = f'<a href="MobileTableroSeleccion.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Seleccionar para orquestar">{ico("tasks", "ico ico-lg")}</a>'
+  inner = f'''{mhead('Tareas', None, 'MobileMas.html', mproject_chip() + sel)}
+<div class="m-body stack" style="gap: 12px; margin-bottom: 76px">
 {mview_seg('board')}
 {mtoolbar()}
-{jump('in_progress')}
+{jump('todo')}
+{msection('todo', by_col('todo'))}
 {msection('in_progress', by_col('in_progress'))}
-{msection('in_review', by_col('in_review'))}
 </div>
 <a href="MobileNuevaTarea.html" class="fab" aria-label="Nueva tarea" style="padding: 0; width: 56px">{ico('plus', 'ico ico-lg', 'stroke-width: 2.2')}</a>
 {tabbar('more')}'''

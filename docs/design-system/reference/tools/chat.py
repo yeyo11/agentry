@@ -4,7 +4,8 @@ from data import *
 def part_of(mobile=False):
   # The chat header's context row: the work item this chat works on (the app's .chat-part-of).
   if mobile:
-    return f'''<div class="part-of" style="margin: 0 16px; min-height: 48px">{ico('tasks', 'ico fg-3')}<span class="wi-key">AGN-28</span><a href="MobileTarea.html" class="ellipsis grow" style="font-size: 14px">Tablero con columnas fijas y límites</a>{sico('in_progress')}</div>'''
+    # On a phone the row itself is the link, so the whole line is the 44 px target, and the title wraps
+    return f'''<a href="MobileTarea.html" class="part-of" style="margin: 0 16px; min-height: 52px; align-items: flex-start">{ico('tasks', 'ico fg-3', 'margin-top: 2px')}<span class="col grow" style="gap: 2px; min-width: 0"><span class="row t-xs" style="gap: 6px"><span>Trabaja en</span><span class="wi-key">AGN-28</span><span class="grow"></span><span class="row" style="gap: 5px">{sico('in_progress')}En curso</span></span><span style="font-size: 14px; font-weight: 600; color: var(--fg)">Tablero con columnas fijas y límites</span></span></a>'''
   return f'''<div class="part-of" style="white-space: nowrap">{ico('tasks', 'ico fg-3')}<span>Trabaja en</span><span class="wi-key boxed">AGN-28</span><a href="DesktopTarea.html" class="ellipsis">Tablero con columnas fijas y límites</a><span class="grow"></span><span class="row t-xs" style="gap: 6px">{sico('in_progress')}En curso</span><span class="mono t-xs fg-3">criterios 2/5</span></div>'''
 
 
@@ -81,7 +82,7 @@ def chat_desktop():
 def chat_mobile():
   inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 2px">
 <a href="MobileChats.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
-<span class="col grow" style="gap: 2px; min-width: 0"><span class="ellipsis" style="font-weight: 600; font-size: 16px">Trabaja en AGN-28: tablero con…</span><span class="row t-xs mono" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">trabajando · 4:12</span></span></span>
+<span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: 600; font-size: 16px; line-height: 1.3">Trabaja en AGN-28: tablero con columnas fijas y límites</span><span class="row t-xs mono" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">trabajando · 4:12</span></span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">{ico('more', 'ico ico-lg', 'stroke-width: 3')}</button>
 </header>
 {part_of(True)}
@@ -96,8 +97,8 @@ def chat_mobile():
 <p class="t-sm fg-2" style="margin: 0 4px 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">«Las columnas ya salen en orden. He visto otra cosa que no es de esta tarea: mover una tarjeta con el teclado…»</p>
 <div class="col" style="gap: 8px">
 <button type="button" class="btn btn-lg" style="justify-content: flex-start; height: 52px">{ico('copy', 'ico ico-lg')}Copiar el mensaje</button>
-<button type="button" class="btn btn-lg" style="justify-content: flex-start; height: 52px">{ico('fork', 'ico ico-lg')}Hacer fork desde aquí</button>
-<button type="button" class="btn btn-lg" style="justify-content: flex-start; height: auto; min-height: 60px; padding: 10px 18px; background: var(--bg-4); border-color: var(--line-3)">{ico('tasks', 'ico ico-lg')}<span class="col" style="gap: 2px; align-items: flex-start"><span>Crear una tarea con este mensaje</span><span class="t-xs fg-3" style="font-weight: 400">En Backlog, enlazada a este chat</span></span></button>
+<button type="button" class="btn btn-lg" style="justify-content: flex-start; height: 52px">{ico('fork', 'ico ico-lg')}Crear un fork desde aquí</button>
+<button type="button" class="btn btn-lg" style="justify-content: flex-start; height: auto; min-height: 60px; padding: 10px 18px; border-color: var(--accent)">{ico('tasks', 'ico ico-lg')}<span class="col" style="gap: 2px; align-items: flex-start"><span>Crear una tarea con este mensaje</span><span class="t-xs fg-2" style="font-weight: 400">En Backlog, enlazada a este chat</span></span></button>
 <button type="button" class="btn btn-ghost btn-lg" style="height: 52px">Cancelar</button>
 </div>
 </div>'''
