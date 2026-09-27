@@ -38,6 +38,7 @@ const status = (state, extra = {}) => ({
   since: state === 'active' ? new Date().toISOString() : null,
   reason: null,
   sshAvailable: true,
+  enabled: true,
   settings: { startWithAgentry: false },
   ...extra,
 });

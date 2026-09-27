@@ -74,6 +74,7 @@
   },
   "tunnel": {
     "authRequired": "El túnel necesita autenticación: activa antes un token u OIDC en Seguridad.",
+    "disabled": "Este Agentry no ofrece el túnel. Quien lo ejecuta puede activarlo con AGENTRY_TUNNEL=on.",
     "noPort": "Agentry todavía no está escuchando, así que no hay nada hacia lo que abrir un túnel.",
     "sshMissing": "No se ha encontrado ningún ssh que ejecutar. Instala el cliente de OpenSSH (openssh-client) y vuelve a intentarlo.",
     "hostKey": "localhost.run ha respondido con una clave de host distinta de la que fija Agentry, así que el túnel no se ha abierto.",

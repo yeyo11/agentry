@@ -1070,6 +1070,11 @@
       "title": "ssh not found",
       "body": "The tunnel runs through this machine's ssh, and none was found. Install the OpenSSH client ({{package}} on Debian and Ubuntu), then try again."
     },
+    "disabled": {
+      "tag": "turned off",
+      "title": "The tunnel is turned off in this deploy",
+      "body": "Whoever runs this Agentry decides whether it may open a public address. They can turn it on with {{variable}} (tunnel.enabled in the Helm chart)."
+    },
     "address": {
       "label": "Public address",
       "copy": "Copy address",
