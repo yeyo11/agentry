@@ -847,8 +847,11 @@ export interface ChatStartOptions {
   maxBudgetUsd?: number;
   /** `host` sends permissions, questions and plans to the panel; `none`, the default, denies them */
   permissionPrompts?: 'host' | 'none';
-  /** Pin it to a claude-swap account (slot number, email or alias) instead of the active one */
-  account?: string;
+  /**
+   * Pin it to a claude-swap account (slot number, email or alias) instead of the active one; `null`
+   * unpins a chat on a resume or a fork. A pinned chat that hits its limit is unpinned by the rotation.
+   */
+  account?: string | null;
 }
 
 /** Starts a new chat. */

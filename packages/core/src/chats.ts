@@ -950,9 +950,12 @@ export class ChatManager extends EventEmitter {
   private applyStartOptions(chat: LiveChat, options: ChatStartOptions & ResolvedTools): void {
     const { opts } = chat;
     chat.setSettings({ ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}), ...(options.model ? { model: options.model } : {}) });
-    for (const key of ['model', 'effort', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts', 'account'] as const) {
+    for (const key of ['model', 'effort', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts'] as const) {
       if (options[key] !== undefined) Object.assign(opts, { [key]: options[key] });
     }
+    // `null` unpins it: the chat follows the active credential, or its project's policy
+    if (options.account === null) delete opts.account;
+    else if (options.account !== undefined) opts.account = options.account;
     // `null` takes the chat back to the servers the CLI loads on its own
     if (options.mcp === null) delete opts.mcp;
     else if (options.mcp) opts.mcp = options.mcp;
@@ -1472,6 +1475,14 @@ export class ChatManager extends EventEmitter {
   /** A wrapper-generated line in the transcript (account rotations, retries). */
   notice(id: string, text: string, data?: Record<string, unknown>): void {
     this.chats.get(id)?.push({ kind: 'notice', type: 'notice', text, ...(data ? { data } : {}) });
+  }
+
+  /** Lets a chat pinned to an account follow the active credential (or its policy) from its next spawn. */
+  unpin(id: string): void {
+    const chat = this.chats.get(id);
+    if (!chat?.opts.account) return;
+    delete chat.opts.account;
+    this.persist();
   }
 
   /**
