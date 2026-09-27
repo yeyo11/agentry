@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T01:59:47.104538408Z
-updated_at: 2026-09-27T18:00:00Z
+updated_at: 2026-09-27T20:00:00Z
 tags:
     - plan
     - projects
@@ -1211,7 +1211,149 @@ The screenshots were taken with a one-off script against an isolated wrapper and
 The Team and Documents tabs and the parts of `DesktopTableroEquipo` that need a team are
 orchestration 3, and "Suggest tasks" is orchestration 4.
 
+### Orchestration 3: `ecosystem-team`
+
+Orchestration 3 built the Team, flow by column, shared memory and Documents modules, core and web,
+on 2026-09-27. What it built is described in [team-and-flow.md](../team-and-flow.md). The merged
+branch's `pnpm build` and `pnpm e2e` run in the verification phase, after this was written. The
+reports of the tasks before `web-review-3` did not reach the documentation task, so their part below
+is written from their commits and the code.
+
+**`team-types`** — the contract as planned:
+
+- members as served, flow runs and the structured result, journal entries and pages, memory
+  proposals with a flat target, documents with their tree and ties;
+- the five events, and `flow.maxParallel`;
+- the web client, a query key prefix per project for each collection, and each event's
+  invalidation.
+
+Every change to an existing type is an optional field or a new union member. The value lists and
+the column-to-stage map (`FLOW_STAGE_OF_COLUMN`) joined `work-items.ts`. Went past the plan: a
+member's live line is patched from `chat.activity` instead of refetching the team.
+
+**`team-core`** — as planned: members as agent files plus `settings.team`, the template's team, and
+the four routes with `team.changed`.
+
+Where it went past the plan:
+
+- Agentry knows which agent files are still its own by their hash, in
+  `data/team-files/<projectId>.json`. It rewrites a file to follow the metadata only while the file
+  is byte for byte what Agentry wrote, and reports any other file as `drifted` or `missing`.
+- "From template" also fills the flow's empty columns, and leaves the flow off.
+- Two members may not share a role.
+- A project with no template, or with Simple, is offered the software team.
+
+**`memory-core`** — as planned: the journal as rows, the `closed` entry once per item (a partial
+unique index holds it across processes), proposals that write nothing until approved, and approval
+through `MemoryStore`.
+
+The size the plan left to the task is **16 KiB**: the newest entries that fit, stopping at the first
+that does not so the story has no hole. Where it went past the plan:
+
+- An approval claims the row first, and hands it back to `pending` if the target cannot be written.
+- An `instructions` target goes under a named heading of `CLAUDE.md`, ignoring headings inside code
+  fences.
+- Proposals have no create route: only a flow run's result makes them.
+
+**`documents-core`** — as planned: the tree, the file routes and the `document` link kind in one
+migration, covering every place of the audit's note N5.
+
+Where it went past the plan:
+
+- The migration also adds `document_kind`, and `team_role`, which the flow uses for every link it
+  makes.
+- Path traversal is refused on the path's shape and again on disk through `realpath`, so a symbolic
+  link cannot lead out of the folder.
+- A save with a stale `baseUpdatedAt` is refused (409).
+- The path travels in the query string, so no router normalises a `..` before core refuses it.
+- `POST /work-items/:itemId/links` with kind `document` goes through the documents service, and no
+  longer passes fields the API does not take, so a caller cannot set a link's team role.
+
+**`flow-core`** — the flow as the decisions say, in `flow.ts` with a `flow_runs` table and the item's
+`bounces` and `waiting` columns.
+
+Where it went around the plan:
+
+- **What a member may write** is enforced with `dontAsk` and `Edit`/`Write`/`NotebookEdit` allowed
+  under its paths, not `--disallowedTools`. The CLI's rules cannot say "every path but these".
+- **`--agent` travels with `--agents`**, a definition read from the agent file in the project's
+  checkout, because the item's worktree only has the committed agent files.
+
+Where it went past the plan:
+
+- Only a person's move, a new card or the flow's own move starts a run.
+- One queued run per item; a queued run whose item left its column is cancelled.
+- A run that ends after a person's move comments but moves nothing.
+- A Product Owner's run in `backlog` moves the item to `todo`; in `todo` it only reports whether the
+  item is ready.
+- A runtime at its concurrent limit puts the run back in the queue.
+- A resumed chat can carry an agent, a schema and `keepAlive` for one execution, which a person's
+  resume drops again.
+- The work-links automation leaves a running flow chat to the flow.
+- `GET /projects/:id/flow` is readable with the flow off.
+
+**`web-team`** — as planned:
+
+- the Team tab while the module is on;
+- the members with what each is doing, and the empty team offering the template's team;
+- a member's page with its metadata and its agent file in the existing editor;
+- the Flow screen, edited as one draft;
+- "Add a member";
+- the board worked by a role, as `DesktopTableroEquipo` draws it.
+
+**`web-memory-docs`** — as planned:
+
+- Documents, with the tree, the viewer, the one `CodeEditor`, the tied documents and New document;
+- Memory, with proposals approved, edited or discarded one by one, the journal grouped by day, and
+  the CLI's files;
+- a task's documents and its waiting panel with the moves that end it;
+- the Documents tab while the module is on.
+
+Where it went past the plan:
+
+- Memory's tab counts its waiting proposals, in idle.
+- A save that meets an agent's write is refused and offered as a reload, and the draft is kept.
+
+Its specs seed what flow runs write straight into the sandbox's database, since the fake CLI returns
+no structured result.
+
+**`web-review-3`** merged the two web tasks and compared every Team, Memory and Documents screen with
+its reference, at 1440 × 1024 and 390 × 844, dark and light, in Spanish. It fixed what sat between
+them:
+
+- The two tasks shared `.workitem-waiting`, so one restyled the other's board card. The item page's
+  panel became `.item-wait`.
+- Documents and Memory drew roles with a stand-in. Every screen now uses `RoleAvatar`.
+- A role as a task's assignee was drawn as a person with its raw id, and no role could be picked.
+  The task page, New task and the Assignee filter now offer the team's members (decision 13).
+- The crumbs now read "Equipo / Flujo" and "Equipo / Desarrollador", and a member's page on a
+  desktop stands without the project's header.
+- On a phone, a member, the flow and an open document hide the tab bar, and their Save bars sit
+  flush. The empty team is drawn on the page.
+
+It extended `a11y.spec.mjs` and `motion.spec.mjs` over the new screens, with a Developer working
+through the fake CLI, and added `team-review.spec.mjs`.
+
+**`docs-3`** — this section, and:
+
+- the new [team-and-flow.md](../team-and-flow.md);
+- [projects.md](../projects.md) and [work-items.md](../work-items.md) as built;
+- the README's feature list, events and UI table (the REST rows came with the core tasks);
+- the ROADMAP;
+- [status.md](../status.md);
+- the audit's open item on live links.
+
+**What orchestration 3 left open**, listed in [team-and-flow.md](../team-and-flow.md#known-gaps):
+
+- **A card being refined or verified is not live.** `isLive` still counts only `work` links, which
+  the audit had left for this orchestration.
+- The Flow screen has no control for `maxParallel`.
+- The `file` action of `team.changed` is never emitted.
+- The template's responsibilities are English in the Spanish interface.
+- "Pedir propuesta" (orchestration 4), "Ver todo" on the team's activity, and a few small
+  differences from the references.
+
 ## Related
 
-[[status.md]] · [[projects.md]] · [[work-items.md]] · [[design-system.md]] · [[plans/agents-redesign.md]] ·
+[[status.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[design-system.md]] · [[plans/agents-redesign.md]] ·
 [[plans/redesign-night-shift.md]] · [[knowledge-base.md]]

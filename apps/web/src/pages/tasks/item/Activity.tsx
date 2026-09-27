@@ -6,6 +6,7 @@ import { Monogram } from '../../../components/icons';
 import { Segmented } from '../../../components/ui';
 import { formatDateTime, timeAgo } from '../../../lib/format';
 import { columnMeta, priorityMeta } from '../../../lib/work-items';
+import { useRoleName } from '../../team/RoleAvatar';
 import { AgentMark } from './Criteria';
 import type { ItemActions } from './hooks';
 import { activityOf, causeLine, historyLine, shortId, type ActivityFilter, type HistoryLine } from './model';
@@ -27,6 +28,7 @@ const HISTORY_ICON: Record<HistoryLine['icon'], LucideIcon> = {
 function HistoryItem({ entry, person }: { entry: WorkItemHistoryEntry; person: string }) {
   const { t } = useTranslation('workItem');
   const { t: tt } = useTranslation('tasks');
+  const roleName = useRoleName();
   const line = historyLine(entry);
   // Columns, types and priorities travel as ids; the page says them in its language
   const word = (name: string, value: string): string => {
@@ -37,7 +39,7 @@ function HistoryItem({ entry, person }: { entry: WorkItemHistoryEntry; person: s
   };
   const values = Object.fromEntries(Object.entries({ ...line.values, person }).map(([name, value]) => [name, word(name, value)]));
   const cause = causeLine(entry.cause);
-  const who = entry.actor.kind === 'person' ? person : entry.actor.kind === 'agent' ? (entry.actor.role ?? t('actor.agent')) : t('actor.system');
+  const who = entry.actor.kind === 'person' ? person : entry.actor.kind === 'agent' ? (entry.actor.role ? roleName(entry.actor.role) : t('actor.agent')) : t('actor.system');
   const Icon = HISTORY_ICON[line.icon];
   // The keys are checked against the English file where the model builds them (HistoryKey,
   // CauseKey); a union of them with a bag of values is more than t's overloads resolve
@@ -70,6 +72,7 @@ function HistoryItem({ entry, person }: { entry: WorkItemHistoryEntry; person: s
 
 function CommentItem({ comment, person }: { comment: WorkItemComment; person: string }) {
   const { t } = useTranslation('workItem');
+  const roleName = useRoleName();
   const agent = comment.author.kind !== 'person';
   const chat = comment.source?.chatId;
   return (
@@ -77,7 +80,7 @@ function CommentItem({ comment, person }: { comment: WorkItemComment; person: st
       {agent ? <AgentMark size={28} /> : <Monogram name={person} size={28} />}
       <div className="comment-body">
         <div className="comment-head">
-          <b>{agent ? (comment.author.role ?? t('actor.agent')) : person}</b>
+          <b>{agent ? (comment.author.role ? roleName(comment.author.role) : t('actor.agent')) : person}</b>
           {agent && <span className="badge badge-muted">{t('actor.agentBadge')}</span>}
           {agent && chat && <span className="mono small muted">{t('link.chat', { id: shortId(chat) })}</span>}
           <time dateTime={comment.createdAt} title={formatDateTime(comment.createdAt)}>

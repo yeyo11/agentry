@@ -6,6 +6,10 @@
 // The second half does it on a real live surface: a work item whose "Work on it" chat is running,
 // on the board, the list, its own page and a phone's board. The fake CLI runs the `run:` line of
 // the item's description, which is what keeps the chat working while the pages are read.
+//
+// Orchestration 3 adds one more: a team member working through the flow by column. The template's
+// team is taken, the flow switched on, and a card moved into En curso, which starts the Developer's
+// run; its `run:` line keeps the member working on the Team tab while it is read.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -61,6 +65,7 @@ export default async ({ page, api, check, dirs }) => {
   // ---- the ecosystem's live surfaces: a card, a row and a work item whose chat is running ----
   let projectId = null;
   let chatId = null;
+  const flowChats = [];
   try {
     const dir = join(dirs.workspaceDir, 'e2e-motion');
     mkdirSync(dir, { recursive: true });
@@ -74,8 +79,27 @@ export default async ({ page, api, check, dirs }) => {
     check(work.status === 201 || work.status === 200, `Work on it started a chat (${work.status} ${JSON.stringify(work.body)})`);
     chatId = work.body.chat.id;
 
+    // A member at work: the card is placed while the flow is off, then moved into the column its role answers for
+    const team = await api.post(`/projects/${projectId}/team/from-template`, {});
+    check(team.status === 200 || team.status === 201, `the template's team (${team.status})`);
+    const flowItem = (await api.post(`/projects/${projectId}/work-items`, { title: 'Keep a member working', status: 'todo', description: 'run: sleep 120' })).body;
+    const settings = (await api.get(`/projects/${projectId}/settings`)).body;
+    const on = await api.put(`/projects/${projectId}/settings`, {
+      ...settings,
+      flow: { ...(settings.flow ?? {}), enabled: true, columns: { backlog: 'product-owner', todo: 'product-owner', in_progress: 'developer', in_review: 'qa' }, maxBounces: 3 },
+    });
+    check(on.status === 200, `the flow is on (${on.status})`);
+    await api.post(`/work-items/${flowItem.id}/move`, { status: 'in_progress' });
+    for (let i = 0; i < 40; i++) {
+      const flow = (await api.get(`/projects/${projectId}/flow`)).body;
+      for (const run of flow?.running ?? []) if (run.chatId && !flowChats.includes(run.chatId)) flowChats.push(run.chatId);
+      if (flowChats.length > 0) break;
+      await page.sleep(500);
+    }
+    check(flowChats.length > 0, 'the Developer is working on the card');
+
     const board = `/tasks?project=${projectId}`;
-    const pages = [board, `${board}&view=list`, `/tasks/${item.key}?project=${projectId}`];
+    const pages = [board, `${board}&view=list`, `/tasks/${item.key}?project=${projectId}`, `/?project=${projectId}&view=team`];
     const open = async (path) => {
       await page.goto(path, 1200);
       await page.waitFor(`return !!document.querySelector('main .live-rail')`, { label: `${path} shows the item as live` });
@@ -119,10 +143,26 @@ export default async ({ page, api, check, dirs }) => {
     await open(board);
     const phone = await page.eval(loops());
     check(phone.length === 0, `the phone's board: nothing repeats at subtle (${phone.join(', ')})`);
+    // …and so does the phone's list of members, with one at work
+    await open(`/?project=${projectId}&view=team`);
+    const members = await page.eval(loops());
+    check(members.length === 0, `the phone's team: nothing repeats at subtle (${members.join(', ')})`);
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem('agentry-motion');`).catch(() => {});
+    if (projectId) {
+      // Off first, so stopping the member's run starts nothing after it
+      const settings = (await api.get(`/projects/${projectId}/settings`).catch(() => ({ body: null }))).body;
+      if (settings?.flow) await api.put(`/projects/${projectId}/settings`, { ...settings, flow: { ...settings.flow, enabled: false } }).catch(() => {});
+    }
+    for (const id of flowChats) {
+      await api.post(`/chats/${id}/stop`).catch(() => {});
+      for (let i = 0; i < 40; i++) {
+        if ((await api.del(`/chats/${id}`).catch(() => ({ status: 0 }))).status === 200) break;
+        await page.sleep(250);
+      }
+    }
     if (chatId) {
       await api.post(`/chats/${chatId}/stop`).catch(() => {});
       for (let i = 0; i < 40; i++) {

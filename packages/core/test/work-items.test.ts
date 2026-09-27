@@ -746,7 +746,7 @@ test('every change reaches the feed with the ids to refetch, and only once it is
   service.relate(a.id, { type: 'blocks', itemId: b.id });
   service.move(a.id, { status: 'todo' });
   service.remove(a.id);
-  for (const e of events) if ('itemId' in e) seen.push(`${e.type}:${e.key}`);
+  for (const e of events) if ('key' in e) seen.push(`${e.type}:${e.key}`);
   assert.deepEqual(seen, [
     'workitem.created:AGN-1',
     'workitem.created:AGN-2',

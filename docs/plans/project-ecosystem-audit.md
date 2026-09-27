@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T07:12:38.39333137Z
-updated_at: 2026-09-27T12:00:00Z
+updated_at: 2026-09-27T20:00:00Z
 tags:
     - audit
     - plan
@@ -151,8 +151,10 @@ In the code:
   node's `workItemId`, and the scheduler launches through `orchestrator.create`, not core's checks,
   so a scheduled graph links to those items. The scheduler was outside 1b's files; stripping
   `workItemId` there, as templates now do, is the likely answer.
-- **Live links for the new roles.** `isLive` in `work-item-rows.ts` counts only `work` links, and
-  nothing writes `refine` or `verify` yet. Orchestration 3 updates it when it does.
+- **Still open after orchestration 3. Live links for the new roles.** `isLive` in
+  `work-item-rows.ts` counts only `work` links. Orchestration 3's flow writes `refine` and `verify`
+  chat links but left `isLive` as it was, so a card being refined or verified is not drawn live. See
+  [team-and-flow.md](../team-and-flow.md#known-gaps).
 - A generic error thrown while "Work on it" creates its chat reaches the client as a 400, not a
   500: the API's shared error handler, left as it is.
 

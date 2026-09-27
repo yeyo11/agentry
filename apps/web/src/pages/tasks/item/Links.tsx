@@ -80,7 +80,8 @@ export function Links({ item }: { item: WorkItemDetail }) {
   // A chat's badge and cost come from the project's chat list, which the Chats page reads too
   const chats = useChats({ project: item.projectId, enabled: item.links.some((link) => link.kind === 'chat') });
   const byId = new Map((chats.data ?? []).map((chat) => [chat.id, chat]));
-  const links = sortLinks(item.links);
+  // Documents have their own section (Documents.tsx): this one is what acted on the item
+  const links = sortLinks(item.links.filter((link) => link.kind !== 'document'));
   return (
     <section className="workitem-section" aria-labelledby={`links-${item.id}`}>
       <div className="workitem-section-head">

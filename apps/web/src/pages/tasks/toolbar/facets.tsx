@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Monogram, PriorityMark, WorkItemTypeIcon } from '../../../components/icons';
 import { labelsInUse, NO_MILESTONE } from '../board/model';
 import { ProjectFacetIcon, type Facet } from './Filters';
+import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 
 /**
  * The toolbar's facets and their options, from what the board holds: the epics and labels in use,
@@ -25,6 +26,7 @@ export function useFacets({
   milestones: readonly Milestone[];
 }): Facet[] {
   const { t } = useTranslation('tasks');
+  const roleName = useRoleName();
   return useMemo(() => {
     const roles = [...new Set(items.flatMap((item) => (item.assignee?.kind === 'role' ? [item.assignee.role] : [])))].sort();
     const epics = items.filter((item) => item.type === 'epic');
@@ -46,7 +48,7 @@ export function useFacets({
         label: t('toolbar.assignee'),
         options: [
           { value: 'person', label: t('toolbar.person'), mark: <Monogram name={t('toolbar.person')} size={18} /> },
-          ...roles.map((role) => ({ value: `role:${role}`, label: role, mark: <Monogram name={role} size={18} /> })),
+          ...roles.map((role) => ({ value: `role:${role}`, label: roleName(role), mark: <RoleAvatar role={role} size="sm" label={roleName(role)} /> })),
           { value: 'none', label: t('toolbar.unassigned') },
         ],
       },
@@ -65,5 +67,5 @@ export function useFacets({
     if (allProjects)
       facets.unshift({ field: 'projects', label: t('toolbar.project'), icon: <ProjectFacetIcon />, options: projects.map((project) => ({ value: project.id, label: project.name })) });
     return facets;
-  }, [allProjects, items, milestones, projects, t]);
+  }, [allProjects, items, milestones, projects, roleName, t]);
 }

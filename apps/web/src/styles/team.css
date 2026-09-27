@@ -1,0 +1,1432 @@
+/* The Team tab of a project and what a board worked by a team adds to its cards (docs/plans/
+   project-ecosystem.md, orchestration 3). References: DesktopEquipo, DesktopEquipoVacio,
+   DesktopMiembro, DesktopFlujo, DesktopTableroEquipo and their Mobile* screens; design system §2
+   maps .role-av, .model-tag, .member-card, .flow-strip, .flow-row, .bounce to the classes here.
+   Nothing here loops: a member at work borrows .live-rail and the spinners from primitives.css. */
+
+/* ---------- Role avatar: a neutral squircle, the role's hue only on its corner diamond ---------- */
+.role-avatar {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--fg-2);
+  line-height: 1;
+}
+
+.role-avatar::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  border-radius: var(--radius-xs);
+  border: 1.5px solid var(--bg-2);
+  background: var(--hue-mark);
+}
+
+/* A three-letter role (DEV) keeps 11 px text: the small tile grows sideways instead of shrinking it */
+.role-avatar-sm {
+  width: auto;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 3px;
+  border-radius: var(--radius-xs);
+  letter-spacing: 0;
+}
+
+.role-avatar-sm::after {
+  width: 5px;
+  height: 5px;
+  border-width: 1px;
+  right: -1.5px;
+  bottom: -1.5px;
+}
+
+.role-avatar-lg {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+
+.role-avatar-lg::after {
+  width: 9px;
+  height: 9px;
+}
+
+/* The model of a role, neutral: a model is a choice, not a state */
+.model-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.model-tag.is-opus::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--fg-2);
+}
+
+/* A path a member may write */
+.scope-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--line-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+
+.team-muted {
+  margin: 0;
+  color: var(--fg-3);
+  font-size: 12px;
+}
+
+.team-person {
+  display: inline-flex;
+  flex: none;
+}
+
+.team-person .monogram {
+  font-size: 11px;
+  border-radius: 50%;
+}
+
+.team-link {
+  font-size: 13px;
+  color: var(--accent);
+}
+
+/* ---------- The tab: a toolbar, then the members (or the flow) beside a side column ---------- */
+.team-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.team-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.team-switch .count {
+  margin-left: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.team-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+  align-items: start;
+}
+
+.team-main,
+.team-side {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+@media (max-width: 1200px) {
+  .team-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- Member cards ---------- */
+.member-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 1100px) {
+  .member-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.member-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-card);
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+.member-card:hover {
+  border-color: var(--line-3);
+}
+
+.member-card.live-rail {
+  padding-left: 20px;
+}
+
+.member-card.live-rail::before {
+  inset: 16px auto 16px 0;
+}
+
+.member-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.member-head-link {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.member-head-link:hover .member-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.member-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.member-name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.member-file {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.member-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fg-2);
+}
+
+.member-facts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.member-facts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--fg-2);
+}
+
+.member-facts .section-label {
+  min-width: 96px;
+}
+
+.member-column {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--fg-2);
+}
+
+/* What the member does now: the live line, or at rest its last work, still */
+.member-now {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 34px;
+  margin-top: auto;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.member-now .workitem-key,
+.member-now-line .workitem-key {
+  flex-shrink: 0;
+}
+
+.member-now-ticker {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.member-now-more {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.member-now-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.team-run-working {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.team-live-spin,
+.team-live-verb {
+  color: var(--live);
+}
+
+/* The last card of the grid: agents with no role, or a new member */
+.member-add {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 180px;
+  border-style: dashed;
+  background: transparent;
+  box-shadow: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.member-add-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--line-3);
+  color: var(--fg-2);
+}
+
+.member-add-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.member-add-hint {
+  max-width: 300px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg-3);
+}
+
+.member-file-state {
+  flex-shrink: 0;
+}
+
+/* ---------- The side column: the flow at a glance and the team's activity ---------- */
+.team-side-card {
+  gap: 12px;
+}
+
+.team-side-card .card-head h3 {
+  font-size: 15px;
+}
+
+.team-side-head-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.team-flow-state {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.team-flow-summary {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.team-flow-summary > li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.team-flow-summary > li:first-child {
+  border-top: 0;
+}
+
+.team-flow-who {
+  min-width: 120px;
+  color: var(--fg-2);
+}
+
+.team-flow-who.is-none {
+  color: var(--fg-3);
+}
+
+.team-flow-foot {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.team-activity {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.team-activity-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.team-activity-text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.team-activity-key {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.team-activity-key:hover {
+  text-decoration: underline;
+}
+
+.team-activity-cause {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--fg-3);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.team-activity-time {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Empty team ---------- */
+.team-empty {
+  align-items: center;
+  padding: 40px 32px;
+  gap: 18px;
+}
+
+.team-empty code {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+}
+
+.team-empty-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* A phone draws the empty team on the page itself, not in a card, with its actions full width */
+.team-empty.is-phone {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 4px;
+}
+
+.team-empty.is-phone .state-illustrated {
+  padding: 16px 0 8px;
+}
+
+.team-empty.is-phone .state-action {
+  align-self: stretch;
+}
+
+/* The template's roles run the width of the phone, as cells, not a centred column */
+.team-template:has(.team-template-cells) {
+  align-items: stretch;
+}
+
+.team-template:has(.team-template-cells) > .section-label {
+  align-self: flex-start;
+}
+
+.team-empty.is-phone .team-empty-actions {
+  flex-direction: column;
+  align-self: stretch;
+  width: 100%;
+}
+
+.team-empty.is-phone .team-empty-actions .btn {
+  width: 100%;
+  min-height: 44px;
+  justify-content: center;
+}
+
+.team-template {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.team-template-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.team-template-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 10px 0 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.team-empty-foot {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.team-template-cells .settings-cell {
+  gap: 12px;
+}
+
+.team-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---------- Phone: the members as cells ---------- */
+.team-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.team-working {
+  font-size: 13px;
+  color: var(--live);
+}
+
+.member-cell {
+  gap: 12px;
+  align-items: center;
+  padding-block: 14px;
+}
+
+.member-cell.live-rail::before {
+  inset: 12px auto 12px 0;
+}
+
+.member-cell-text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.member-cell-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.team-phone-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.team-page.is-phone .team-switch .segmented,
+.flow-page.is-phone .team-switch .segmented {
+  width: 100%;
+}
+
+.team-page.is-phone .team-switch .segment {
+  flex: 1 1 0;
+}
+
+/* ---------- One member ---------- */
+.member-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .member-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.member-main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.member-page-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.member-page-title {
+  flex: 1 1 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.member-page-title h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.member-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+@media (max-width: 1100px) {
+  .member-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.member-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.member-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.member-textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.member-textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.member-file-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.member-file-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.member-file-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* The existing editor framed with its path bar */
+.member-editor {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-2);
+  background: var(--bg-1);
+  overflow: hidden;
+}
+
+.member-editor:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.member-editor-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-2);
+}
+
+.member-editor .code-editor {
+  border: 0;
+  border-radius: 0;
+}
+
+.member-file-preview {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--bg-1);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--fg-2);
+  white-space: pre-wrap;
+  overflow: hidden;
+}
+
+.member-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+  padding-left: 20px;
+  border-left: 1px solid var(--line);
+}
+
+@media (max-width: 1200px) {
+  .member-aside {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+.member-props .prop-key {
+  width: 96px;
+}
+
+.member-model {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.member-model .combobox,
+.member-model input {
+  min-width: 0;
+}
+
+.member-columns {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.member-prop-text {
+  color: var(--fg-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.member-aside-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.member-aside-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* A run of the member, now or before: the one going now carries the live rail */
+.member-run {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+a.member-run:hover {
+  border-color: var(--line-3);
+}
+
+.member-run.live-rail {
+  padding-left: 14px;
+}
+
+.member-run.live-rail::before {
+  inset: 10px auto 10px 0;
+}
+
+.member-run-spin {
+  color: var(--live);
+  flex-shrink: 0;
+}
+
+.member-run-icon {
+  flex-shrink: 0;
+  color: var(--fg-3);
+}
+
+.member-run-text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.member-run-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.member-run-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.member-run-time {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.member-file-alert .btn {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.member-phone-props {
+  padding: 4px 16px;
+  gap: 0;
+}
+
+.member-memory-cell {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* The phone's Save and Discard stay in reach at the foot of the screen, above the tab bar */
+.member-phone-foot {
+  position: sticky;
+  bottom: var(--stick-bottom);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 -16px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.member-phone-foot > .btn {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+.member-phone-foot > .badge {
+  flex-shrink: 0;
+}
+
+.member-phone-foot > .btn {
+  min-height: 44px;
+}
+
+/* A column of full-width fields: the desktop grid's start alignment would shrink them to their text */
+.member-page.is-phone {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+}
+
+.member-memory-cell > span:not(.prop-key) {
+  white-space: nowrap;
+}
+
+.member-page.is-phone .member-page-head {
+  flex-wrap: nowrap;
+}
+
+.member-page.is-phone .member-page-title h2 {
+  font-size: 24px;
+}
+
+.member-page.is-phone .member-textarea,
+.member-page.is-phone .list-editor-add input {
+  font-size: 16px;
+}
+
+/* ---------- The flow ---------- */
+.flow-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.flow-page.is-phone {
+  gap: 14px;
+}
+
+.flow-auto {
+  gap: 18px;
+}
+
+.flow-auto-head,
+.flow-bounces-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.flow-auto-text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.flow-auto-text h3,
+.flow-rows-head h3,
+.flow-models h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.flow-auto-text p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fg-2);
+}
+
+.flow-switch {
+  flex-shrink: 0;
+  flex-direction: row-reverse;
+  gap: 10px;
+}
+
+.flow-switch-word {
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+/* The five columns in order with the role that acts in each; neutral, the flow is configuration */
+.flow-strip {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.flow-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 8px 12px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--bg-1);
+  text-align: center;
+  min-width: 0;
+}
+
+.flow-node + .flow-node::before {
+  content: '';
+  position: absolute;
+  left: -24px;
+  top: 50%;
+  width: 20px;
+  height: 1px;
+  background: var(--line-3);
+}
+
+.flow-node + .flow-node::after {
+  content: '';
+  position: absolute;
+  left: -9px;
+  top: calc(50% - 3px);
+  width: 5px;
+  height: 5px;
+  border: solid var(--line-3);
+  border-width: 1px 1px 0 0;
+  transform: rotate(45deg);
+}
+
+.flow-node.is-person {
+  border-style: dashed;
+}
+
+.flow-node-col {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-2);
+}
+
+.flow-node-who {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 22px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+/* The way back, from In review to In progress: a dashed bracket between the two nodes' centres */
+.flow-back {
+  position: relative;
+  height: 14px;
+  margin: -12px 29% 0 50%;
+  border: 1px dashed var(--line-3);
+  border-top: 0;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.flow-back-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: -8px 0 0;
+  padding-left: 20%;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.flow-rows {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.flow-rows-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.flow-row {
+  display: grid;
+  grid-template-columns: 150px 220px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  min-height: 64px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.flow-row:last-child {
+  border-bottom: 0;
+}
+
+.flow-col {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flow-col-name {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-2);
+}
+
+.flow-role {
+  width: 100%;
+  min-height: 38px;
+}
+
+.flow-role.is-fixed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 6px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--line-2);
+  color: var(--fg-2);
+}
+
+.flow-role-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.flow-does {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--fg-2);
+  line-height: 1.45;
+}
+
+.flow-then {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+}
+
+.flow-bounces {
+  gap: 14px;
+}
+
+.flow-bounces-input {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.flow-bounced {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.flow-bounced-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.flow-bounced-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.bounce {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-models {
+  gap: 12px;
+}
+
+.flow-model-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.flow-model-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.flow-model-row:first-child {
+  border-top: 0;
+}
+
+.flow-model-input {
+  width: 132px;
+  flex-shrink: 0;
+}
+
+/* The phone's flow: each column a stacked cell, its role a select on the right */
+.flow-page.is-phone .flow-rows {
+  padding: 0;
+}
+
+.flow-page.is-phone .flow-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'col role'
+    'does does';
+  gap: 8px 12px;
+  padding: 12px 16px;
+}
+
+.flow-page.is-phone .flow-col {
+  grid-area: col;
+}
+
+.flow-page.is-phone .flow-role {
+  grid-area: role;
+  width: auto;
+  min-width: 150px;
+  min-height: 44px;
+}
+
+.flow-page.is-phone .flow-does {
+  grid-area: does;
+  padding-left: 24px;
+}
+
+.flow-page.is-phone .flow-then {
+  font-family: var(--sans);
+  font-size: 13px;
+}
+
+.flow-page.is-phone .flow-bounces-head {
+  align-items: center;
+}
+
+/* ---------- The board worked by a team ---------- */
+.board-flow-btn .badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.board-column-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.board-column-role-name {
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.workitem-card-live.has-role.has-ticker {
+  align-items: flex-start;
+}
+
+/* What an item waits for from the person: the idle badge with its word, and on approval the move */
+.workitem-waiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.workitem-waiting.is-approval {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.workitem-waiting-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.workitem-waiting-text {
+  color: var(--fg-2);
+  min-width: 0;
+}
+
+.workitem-approve {
+  justify-content: center;
+}
+
+.workitem-mrow .workitem-approve {
+  min-height: 44px;
+}
+
+.workitem-mrow .workitem-waiting {
+  align-self: stretch;
+}
+
+/* A card that came back from QA carries one more fact: the foot wraps rather than push its avatar out */
+.workitem-card-foot:has(.bounce) {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.workitem-card-foot:has(.bounce) .grow {
+  flex-basis: 0;
+}

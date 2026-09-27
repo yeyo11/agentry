@@ -1,4 +1,4 @@
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import {
   entrySearchText,
   searchPattern,
@@ -42,7 +42,7 @@ import { toChatEnvironment, toChildren, type BranchFacts } from './chat-branches
 import { mergeLiveWorkflows } from './workflows.ts';
 import { chatControl, chatState, lastEndedOf, sessionHolder, type SessionHolder } from './chat-model.ts';
 import type { ChatTools } from './chat-tools.ts';
-import type { AdoptedChat, ChatManager, ChatRuntime } from './chats.ts';
+import type { AdoptedChat, ChatManager, ChatRuntime, ExecutionExtras, NewChat } from './chats.ts';
 import type { CliSession, TranscriptSummary } from './cli-facts.ts';
 import type { HealthService } from './health-service.ts';
 import { backgroundLogs, isLiveCliSession, listActiveCliSessions, stopBackgroundSession } from './cli.ts';
@@ -445,7 +445,12 @@ export class ChatService {
    * Starts a new chat. `onStart` hears of it in the same tick the process is spawned, before any of
    * its output can arrive: for a caller that has to tie the chat to something before it answers.
    */
-  async create(request: NewChatRequest, onStart?: (chat: ChatRuntime) => void): Promise<ChatSummary> {
+  async create(request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'keepAlive'>, onStart?: (chat: ChatRuntime) => void): Promise<ChatSummary> {
+    // `--agents` reads the file it is given: only the definitions the flow writes, never a path a
+    // request body names, since the API hands its body here as it came
+    if (request.agentsFile !== undefined && dirname(resolve(request.agentsFile)) !== resolve(this.deps.config.dataDir, 'flow-agents')) {
+      throw new Error('agentsFile is not a file Agentry wrote');
+    }
     // `toolPreset: null` is how a request says it wants no preset, the default included
     const fallback = request.toolPreset === undefined && request.allowedTools === undefined ? this.deps.tools.presets.defaultPreset() : null;
     const picked = fallback ? { ...request, toolPreset: fallback.id } : request;
@@ -502,7 +507,7 @@ export class ChatService {
    * last saw: a chat a terminal opened a second ago is closed to this, and one nobody holds any
    * more, even if it was born in a terminal, is adopted.
    */
-  async resume(id: string, request: ResumeChatRequest): Promise<ChatSummary> {
+  async resume(id: string, request: ResumeChatRequest, extras: ExecutionExtras = {}): Promise<ChatSummary> {
     const chat = await this.summaryOf(id, true);
     if (!chat) throw new Error('chat not found');
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to resume.', null);
@@ -510,7 +515,8 @@ export class ChatService {
     if (chat.control.mode === 'interactive') throw new ChatConflictError('This chat already has a live execution: send it a message instead.', null);
     const adoption = await this.adoptionOf(chat);
     const chosen = await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null);
-    this.deps.runtime.resume(id, { ...request, ...chosen }, adoption);
+    // A person continuing a chat the flow ran gets a chat again, not the member's structured result
+    this.deps.runtime.resume(id, { ...request, ...chosen, agent: extras.agent ?? null, agentsFile: extras.agentsFile ?? null, jsonSchema: extras.jsonSchema ?? null, ...(extras.keepAlive !== undefined ? { keepAlive: extras.keepAlive } : {}) }, adoption);
     return this.require(id);
   }
 

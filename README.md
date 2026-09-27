@@ -81,6 +81,20 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
   itself as that work goes, forward only and never over a person's move, and its card shows live
   while an agent works on it. See [docs/projects.md](docs/projects.md) and
   [docs/work-items.md](docs/work-items.md).
+- **A team of agents that works the board** — with the Team module on, a project has members, each a
+  Claude Code agent file in `.claude/agents/` (so it works from a terminal too) with a role, a model
+  and the paths it may write. Switch the **flow by column** on and a card entering a column starts
+  its role's run as that agent:
+  - the Product Owner refines in Backlog and To do;
+  - the Developer implements in In progress;
+  - QA verifies in In review, and sends the card back with its comment a set number of times before
+    it waits for you.
+
+  Agents move cards, but only you move one to Done, and at most a set number of runs go at once.
+  Members propose what the team should remember, and nothing reaches `CLAUDE.md`, the CLI's memory
+  or the project **journal** until you approve it. Every run is handed the journal's newest entries.
+  **Documents** reads and edits the repository's documents folder, with the specifications and
+  decisions a run wrote tied to their task. See [docs/team-and-flow.md](docs/team-and-flow.md).
 - **Tools and servers per chat** — start or resume a chat with a named preset of allowed and
   disallowed tools (`read-only`, `no-network`, `everything`, all editable, restorable, one of them
   the default for a chat that picks none) and with only the MCP servers you pick. A fork inherits
@@ -617,6 +631,23 @@ the auto-switch threshold as a reference line.
 | DELETE | `/projects/:id` | Remove a project from Agentry. Harmless: nothing on disk changes, and its settings and work items are kept for when it is imported again |
 | DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible, and separate from removing the project |
 
+### Team
+
+A project's team (Team module). Each member is a Claude Code agent file in the project's
+`.claude/agents/`, so it also works from a terminal, plus the role, model, responsibility and write
+paths Agentry keeps in the project's settings. Agentry writes a starting agent file only where there
+is none, and never overwrites one a person wrote or edited: that member is reported as `drifted` (or
+`missing` when the file was deleted). Changes need the module on (409 otherwise) and emit
+`team.changed`.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/projects/:id/team` | The members, each with its agent file's state, the columns it answers for under the flow and its flow runs, and the agent files no member uses |
+| POST | `/projects/:id/team/from-template` | `{ roles? }` — add the template's roles the person accepted, each with its agent file (an existing file is kept) |
+| PUT | `/projects/:id/team/:agent` | `{ role, model, responsibility, writes?, createFile? }` — create or replace a member's metadata. Two members may not share a role. The file itself goes through `/config/resources/agents/:name?project=` |
+| DELETE | `/projects/:id/team/:agent` | Take a member off the team; its agent file stays |
+| GET | `/projects/:id/flow` | The flow by column's runs going and queued, each with its item, role, stage and chat; `enabled` and the per-project cap `maxParallel` |
+
 ### Work items
 
 A project's board. Changing anything needs the project imported and its **Board** module on (409
@@ -644,9 +675,9 @@ event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `l
 | POST | `/work-items/:itemId/comments` | `{ body }` — comment as the person |
 | POST | `/work-items/:itemId/relations` | `{ type: blocks\|blocked_by, itemId }` — relate two items of the project; the item itself (400) and a cycle of `blocks` (409) are refused |
 | DELETE | `/work-items/:itemId/relations/:otherId` | Remove the relation between two items |
-| GET | `/work-items/:itemId/links` | The chats and orchestration tasks tied to the item, with their state |
-| POST | `/work-items/:itemId/links` | `{ kind, role, chatId?, orchestrationId?, taskId? }` — tie a chat or an orchestration task to the item |
-| DELETE | `/work-items/:itemId/links/:linkId` | Untie it; the chat or orchestration is not touched |
+| GET | `/work-items/:itemId/links` | The chats, orchestration tasks and documents tied to the item, with their state |
+| POST | `/work-items/:itemId/links` | `{ kind, role, chatId?, orchestrationId?, taskId?, documentPath? }` — tie a chat, an orchestration task or a document of the documents folder to the item |
+| DELETE | `/work-items/:itemId/links/:linkId` | Untie it; the chat, orchestration or file is not touched |
 | GET | `/work-items/:itemId/history` | Every change to the item, oldest first, with who made it and why |
 | POST | `/work-items/:itemId/work` | "Work on it": a chat prompted with the item, in its own worktree on `task/<key>` (made again if it was deleted by hand), with the options a new chat takes, each checked for its type (400). The item enters `in_progress` when a turn starts and `in_review` when one ends well. An epic is refused (400), and so are an item in `done`, one already being worked on and a plain directory where its worktree goes (409) |
 | GET | `/work-items/:itemId/changes` | What the item's branch changed: commits, files and what is not committed yet. The branch is the last chat's or orchestration node's that worked on the item |
@@ -657,13 +688,29 @@ event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `l
 | PATCH | `/milestones/:milestoneId` | `{ name?, description?, state? }` — edit, close or reopen a milestone |
 | DELETE | `/milestones/:milestoneId` | Delete a milestone; its items stay, without it |
 
+### Documents
+
+A project's documents folder, `documents.path` in its settings (`docs` by default): its Markdown
+files, and the work items each is tied to. A `path` is relative to the project and `/`-separated,
+and is refused (400) when it is absolute, climbs with `..`, has a hidden part, is not Markdown, or
+lies outside the folder, symbolic links included. Changing anything needs the **Documents** module
+on (409 otherwise); reading does not.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/projects/:id/documents` | The folder's tree, directories first, each file with its title, size, time and ties |
+| GET | `/projects/:id/documents/file?path=` | One file's content and ties |
+| PUT | `/projects/:id/documents/file?path=` | `{ content, baseUpdatedAt? }` — create or replace a file; a file changed since `baseUpdatedAt` is refused (409). Emits `document.changed` |
+| DELETE | `/projects/:id/documents/file?path=` | Delete a file and untie it from every item. Emits `document.changed` |
+| POST | `/work-items/:itemId/documents` | `{ path, kind? }` — tie a file on disk to the item, role `reference`. Emits `document.changed` and `workitem.updated` |
+
 ### Events
 
 One Server-Sent Events stream for the whole app, so a client never has to poll.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes (`orchestration.updated` also carries `verificationStatus` while the checks run); `changes.updated` when a running task's or the integration branch's commits or uncommitted files move; `chat.activity` when what a chat's live execution is doing changes (a tool call, a block being written or thought, a prompt blocking it), at most once per chat per second; `health.changed` when a chat's health changes; `supervisor.proposed` when the supervisor answers one with a hint; `schedule.changed` (created, updated, enabled, disabled, deleted, rescheduled) and `schedule.fired` (every run row written or moved); `workitem.created`, `workitem.updated` (naming the fields that changed), `workitem.moved` (with the previous column and whether the new one is over its limit) and `workitem.removed`; `milestone.changed` (created, updated, closed, reopened, deleted); `project.updated` (name, key, modules or settings); `sessions.changed`; `system.release` once per newer Agentry release a check finds (not a notification). Opens with `stream.hello`, which carries the server's `version`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
+| GET | `/events?since=ID` | Every change as an `AgentryEvent` (`id:`, `event: <type>`, `data: <json>`): runs created, updated, ended and removed; prompts waiting for a person (`run.waiting`, `permission.requested`/`resolved`); rate limits and account rotation; background tasks, subagents and workflows starting and ending; orchestration, task and merge-conflict changes (`orchestration.updated` also carries `verificationStatus` while the checks run); `changes.updated` when a running task's or the integration branch's commits or uncommitted files move; `chat.activity` when what a chat's live execution is doing changes (a tool call, a block being written or thought, a prompt blocking it), at most once per chat per second; `health.changed` when a chat's health changes; `supervisor.proposed` when the supervisor answers one with a hint; `schedule.changed` (created, updated, enabled, disabled, deleted, rescheduled) and `schedule.fired` (every run row written or moved); `workitem.created`, `workitem.updated` (naming the fields that changed), `workitem.moved` (with the previous column and whether the new one is over its limit) and `workitem.removed`; `milestone.changed` (created, updated, closed, reopened, deleted); `team.changed` (created, updated, removed, template); `flow.run` (queued, started, ended, with its outcome); `journal.changed` (added, removed); `memory.proposal` (created, approved, rejected); `document.changed` (written, removed, tied, untied); `project.updated` (name, key, modules or settings); `sessions.changed`; `system.release` once per newer Agentry release a check finds (not a notification). Opens with `stream.hello`, which carries the server's `version`; honours `Last-Event-ID` against a bounded in-memory buffer and sends `stream.resync` when that id is gone (refetch everything). A `: ping` comment every 15 s |
 
 ```bash
 curl -N localhost:8787/api/events
@@ -980,6 +1027,22 @@ loaded into every session of that project.
 | PUT | `/memory/:project/:name` | Create or overwrite `name.md` — body `{ content }` |
 | DELETE | `/memory/:project/:name` | Delete a memory file |
 
+### Project journal and memory proposals
+
+A project's journal is Agentry's record of decisions taken and items closed, handed to every flow run
+(the newest entries, up to 16 KiB). Team members propose what the team should remember; nothing is
+written to `CLAUDE.md`, the CLI's memory or the journal until a person approves it. Changes need the
+project's Memory module on.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/projects/:id/journal?limit=&before=` | The journal, newest first, paged, with what a flow run is handed |
+| POST | `/projects/:id/journal` | Write a decision or a note by hand — body `{ text, kind?, itemId?, documentPath? }` |
+| DELETE | `/journal/:entryId` | Delete a journal entry |
+| GET | `/projects/:id/memory/proposals?status=` | The team's memory proposals, newest first, by status |
+| POST | `/memory-proposals/:proposalId/approve` | Approve a proposal, optionally with edited `text`, and write it to its target |
+| POST | `/memory-proposals/:proposalId/reject` | Reject a proposal, with an optional `reason`; nothing is written |
+
 ### Plugins
 
 Delegated to `claude plugin`; actions return the CLI output as `{ ok, output }` and can take a while.
@@ -1006,8 +1069,8 @@ The claude.ai connectors of the signed-in account, as the CLI reports them. Agen
 
 | Page | What it covers |
 | --- | --- |
-| Home | A dashboard of widgets. With a project selected: **Now** (what waits for a person first — chats stopped for a permission or a question, blocked orchestration tasks, merge conflicts, a command running for long, a missing CLI or credential — each with its action, then every working chat with a ticker of what it is doing), **Quick start** (a prompt that starts a chat in the project, with the model, permission mode, tool preset and MCP servers in one status line), **Limits**, **Orchestrations** (the running ones, or the latest, with a compact stepper and its progress), **Upcoming schedules**, **Pick up again**, **Today** (what the day has cost per model), **Memory** (the project's `CLAUDE.md` excerpt), **Worktrees**, **Resources** (counts per kind) and **Export** (the project's chats as Markdown or JSON). With All projects: Now, Orchestrations, Limits, Pick up again, Today, Upcoming schedules and **Projects** (each one's live count and last activity). The header shows the project's monogram, name, key, template, path, chats and worktrees, with New chat and (Board on) New task. Under it a strip of tabs, each `/?view=…`: Resumen (the dashboard), **Tablero** (`board`, while the Board module is on), **Memoria** (`memory`, while Shared memory is on), Recursos (`resources`: agents, skills, commands, output styles, rules and saved workflows, each workflow with a **Run** button), Worktrees and Ajustes (`settings`: name, key prefix, modules, the board's column limits, removing the project, then Claude Code's settings). The widgets open them too; an address naming a hidden tab lands on Resumen, and old `?tab=` links redirect there. On a phone the tabs are a card of cells, each its own screen |
-| Tasks | The board of the selected project (`/tasks`), or of every project with All projects. Five fixed columns with their counts and optional limits (over one: the warn colour and "Over the limit: 4 of 3", never refused); cards with key, type, priority, title, epic, labels, assignee, checklist progress and blockers, and the live rail, spinner and what the agent is doing while a chat or orchestration node works on the item. Drag a card, or move it with the keyboard (Space, arrows, Space); search, filters by type, priority, label, assignee, epic and milestone kept in the address, and **Select** to hand a selection to the orchestration editor as a draft with its dependencies. `?view=list` is the list grouped by column; `/tasks/milestones` the milestones with their progress, open and closed, without dates. A card opens its item in a panel beside the board (`?item=KEY`); `/tasks/:key` is its page: every field edited in place, the Markdown description, the acceptance checklist with who checked each entry, relations, linked chats and orchestrations, the changes on its branch, and the activity with comments. **Work on it** starts a chat on the item with New chat's options; **Move to Done** is the person's approval. **New task** (`?new=1`, `N`) is a dialog, a full screen on a phone. On a phone the board is one list with a jump between columns, a move sheet per card and the filters in a sheet |
+| Home | A dashboard of widgets. With a project selected: **Now** (what waits for a person first — chats stopped for a permission or a question, blocked orchestration tasks, merge conflicts, a command running for long, a missing CLI or credential — each with its action, then every working chat with a ticker of what it is doing), **Quick start** (a prompt that starts a chat in the project, with the model, permission mode, tool preset and MCP servers in one status line), **Limits**, **Orchestrations** (the running ones, or the latest, with a compact stepper and its progress), **Upcoming schedules**, **Pick up again**, **Today** (what the day has cost per model), **Memory** (the project's `CLAUDE.md` excerpt), **Worktrees**, **Resources** (counts per kind) and **Export** (the project's chats as Markdown or JSON). With All projects: Now, Orchestrations, Limits, Pick up again, Today, Upcoming schedules and **Projects** (each one's live count and last activity). The header shows the project's monogram, name, key, template, path, chats and worktrees, with New chat and (Board on) New task. Under it a strip of tabs, each `/?view=…`: Resumen (the dashboard), **Tablero** (`board`, while the Board module is on), **Equipo** (`team`, while the Team module is on: the members with their agent file's state, their columns, write paths and what each does now; a member's page (`&member=`) with its metadata and its agent file in the editor; the flow (`&section=flow`) with its switch, each column's role, the bounce limit and each role's model; and, with nobody on the team, the template's team), **Documentos** (`documents`, while the Documents module is on: the documents folder as a tree, a document rendered or edited (`&doc=`, `&mode=edit`), and the documents tied to tasks with the role that wrote them), **Memoria** (`memory`, while Shared memory is on: the team's memory proposals approved one by one, the project journal, and the CLI's `CLAUDE.md` and memory files), Recursos (`resources`: agents, skills, commands, output styles, rules and saved workflows, each workflow with a **Run** button), Worktrees and Ajustes (`settings`: name, key prefix, modules, the board's column limits, removing the project, then Claude Code's settings). The widgets open them too; an address naming a hidden tab lands on Resumen, and old `?tab=` links redirect there. On a phone the tabs are a card of cells, each its own screen |
+| Tasks | The board of the selected project (`/tasks`), or of every project with All projects. Five fixed columns with their counts and optional limits (over one: the warn colour and "Over the limit: 4 of 3", never refused); cards with key, type, priority, title, epic, labels, assignee, checklist progress and blockers, and the live rail, spinner and what the agent is doing while a chat or orchestration node works on the item. Drag a card, or move it with the keyboard (Space, arrows, Space); search, filters by type, priority, label, assignee, epic and milestone kept in the address, and **Select** to hand a selection to the orchestration editor as a draft with its dependencies. `?view=list` is the list grouped by column; `/tasks/milestones` the milestones with their progress, open and closed, without dates. A card opens its item in a panel beside the board (`?item=KEY`); `/tasks/:key` is its page: every field edited in place, the Markdown description, the acceptance checklist with who checked each entry, relations, linked chats and orchestrations, the changes on its branch, and the activity with comments. **Work on it** starts a chat on the item with New chat's options; **Move to Done** is the person's approval. With the Team module on, each column shows the role that answers for it under the flow, a card names the member at work on it and its bounces, a task can be assigned to a role, and a task shows its tied documents and what it waits for from the person (QA's pass, or its last bounce) with the move that ends it. **New task** (`?new=1`, `N`) is a dialog, a full screen on a phone. On a phone the board is one list with a jump between columns, a move sheet per card and the filters in a sheet |
 | Chats | Every conversation in one list, whoever started it, grouped by day (Today, Yesterday, This week, Earlier) when sorted by activity. A toolbar with state tabs and their counts (All, Working, Waiting for you, Idle), search, sort and **Filters** (origin, project, model, orchestration workers, housekeeping chats), each filter in force shown as a removable chip. Each row takes two lines: a state rail and word, the title and the time; then the first prompt — or, while it works, what it is doing now — its origin and project and at most two tags (a control that is not the default, a fork or a worktree), with a context ring and the cost on the right. Select several with `x` or their checkbox to export them as Markdown or delete them with one confirmation; a chat with something running on it is skipped and named |
 | Chat | One conversation, live over SSE. A one-line header: title, one pill for its state, who controls it and the stream (`Working · live`), its checklist as `▰▰▱ 1/3`, search, **Stop ▾** (with Interrupt) while it works and a ⋯ menu with Export Markdown/JSON, Fork, Subagent messages, Copy id and Delete; on a phone search and Interrupt move into the ⋯ menu, Stop keeps only its icon and ⓘ opens the inspector. The transcript shows the author only when it changes, folds consecutive tool calls into one **step** ("7 tools · 42 s", open with a live rail while it runs), and replaces "working…" with a ticker of what the agent is doing (`Running npm test`, `Editing src/app.ts`). A `Task` call opens its subagent's transcript in a side panel, like background tasks and workflows (`?detail=…`: prompt, status, duration, tokens, transcript and result, updating while it runs). The composer is one pill with a status line under it (`model · mode · preset · MCP`) that opens the permission mode, model, tool preset and MCP servers; while the agent works and the box is empty, send becomes interrupt. The **inspector** is a drawer on the right: folded, it is a rail with its toggle and one button per tab; open, it is docked beside the transcript from 1100 px (remembered open or folded) and slides over the chat from 900 px; on a phone it is a sheet. It has four tabs: Summary (context, cost, facts, id), Activity (the checklist as steps, executions), Changes (a worktree's commits and files with `+/−`, or the files its own tool calls wrote, and a diff per file) and Environment (branches, **health** with the actions that fit the signal — cancel the command, send a hint, interrupt, and the supervisor's proposed hint when it is on — tools, servers and environment). What it can do follows its control: send, interrupt, resume, or continue in a copy. On a phone the page is the screen's height, with the composer following the on-screen keyboard. New chat puts the prompt first and the directory, model, mode, system prompt, account and tools under **Advanced options**. `?prompt=<id>` scrolls to a permission prompt. A message's menu (a sheet on a phone) copies it or creates a task from it in Backlog; a chat that works on a task names it under its header, the whole row a link, and the inspector's Summary shows its card |
 | Projects | The management screen, with search and sort (recent activity, name, most chats), each card with its key and its modules: rename, remove (harmless) or purge what Claude Code keeps about it (irreversible). **New project** opens the wizard (`/projects/new`): a local directory, a repository to clone or a new directory in the workspace, one of five templates, the module switches it preselected, and a summary with the key prefix; on a phone, one step per screen. On a first start with none imported it offers the directories holding the most chats, each opening the wizard |

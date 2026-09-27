@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-09-27T18:00:00Z
+updated_at: 2026-09-27T20:00:00Z
 tags:
     - work-items
     - board
@@ -25,7 +25,9 @@ after [its audit](plans/project-ecosystem-audit.md): the contract in `packages/s
 `packages/core/src/work-links.ts`, and the routes in `apps/api/src/routes/work-items.ts`.
 Orchestration 2 (`ecosystem-board-web`) built the screens from the prototypes the owner validated on
 2026-09-27: the board, the list, All projects, milestones, the item's page and panel, New task, and
-the entry points in chats and orchestrations. See [The screens](#the-screens).
+the entry points in chats and orchestrations. See [The screens](#the-screens). Orchestration 3
+(`ecosystem-team`) added a team of agents that works the board by column, documents tied to items
+and the item's waiting state: see [team-and-flow.md](team-and-flow.md).
 
 A board belongs to a project whose **Board** module is on; see [projects.md](projects.md).
 
@@ -52,7 +54,7 @@ web never disagree on them. Each is built with `valuesOf`, which checks the list
 both ways, so neither can grow without the other.
 
 A work item has a key, type, title, Markdown description, status, priority, free labels, an assignee
-(the person, or a team role, reserved for orchestration 3), an epic, a milestone, an **acceptance
+(the person, or a team role of the project), an epic, a milestone, an **acceptance
 checklist** (each entry checked on its own, recording who checked it), **relations** (`blocks` and
 `blocked_by` only), comments by the person and by agents, its history, and its links. No attachments.
 
@@ -222,16 +224,21 @@ exhaustively without them growing later:
   follow the fixed columns (`refine` in `backlog` and `todo`, `work` in `in_progress`, `verify` in
   `in_review`), so the set does not grow with whatever team role a project puts on a column.
   `reference` is a link made by hand.
-
-Only the contract has these yet. The store accepts a chat or an orchestration task, as `work` or
-`origin`, and refuses the rest with 400; it has no column for `documentPath`, `bounces` or
-`waiting`, which orchestration 3 adds with its own migration.
 - `WorkItemSourceKind` stays `chat` and `orchestration`: it is what acts on an item. A team role acts
   through a chat, the person acts with no source, and a document never acts.
 
-A work item also carries two optional fields for the flow by column (decisions 29 and 30), which
-nothing writes before orchestration 3: `bounces` (absent reads as 0) and `waiting`, `approval` or
-`bounces` (absent reads as null); `WorkItemChange` has `waiting` for its history.
+The store accepts every kind and role. A document is tied through the documents service, which
+knows the project's folder and checks the path; the store only checks its shape, and de-duplicates
+a document by its path. A link may also carry `teamRole`, the team role whose flow run made it,
+and a document link its `documentKind` (`spec`, `adr`, `report`, `doc`). The API does not take
+`teamRole` from a caller. See [team-and-flow.md](team-and-flow.md#documents).
+
+A work item also carries two fields for the flow by column (decisions 29 and 30), stored as columns
+of `work_items`: `bounces`, how many times verification sent it back in the current round, and
+`waiting`, what it waits for from the person (`approval`, `bounces` or null). A change of `waiting`
+is in the history; the count alone is not. **A person's move to another column starts a new round**:
+it clears `waiting` and resets `bounces` to 0. See
+[team-and-flow.md](team-and-flow.md#what-a-runs-end-moves).
 
 ## The automation
 
@@ -264,6 +271,11 @@ since moves only go forward.
 Every handler swallows its own failures: it runs inside someone else's event, and a board that cannot
 be updated must not break a chat. An item whose chat was cut by a restart stays where it was.
 
+**The flow by column** is the other thing that moves items, and the two stay apart. A chat that a
+flow run is using is the flow's while the run goes on, and the automation leaves it alone. A move
+the automation makes (actor `system`) never starts a flow run, and the flow's own moves have the
+actor `agent` with the member's role. See [team-and-flow.md](team-and-flow.md#the-flow-by-column).
+
 ## Events
 
 Every change reaches the feed: `workitem.created`, `workitem.updated` (naming the fields that
@@ -271,7 +283,8 @@ changed), `workitem.moved` (with the previous column and whether the new one is 
 `workitem.removed`, and `milestone.changed` (`created`, `updated`, `closed`, `reopened`,
 `deleted`). The store emits them once the transaction is committed. Reordering the acceptance
 criteria emits `workitem.updated` naming `criterion` and returns the new `updatedAt`, without a
-history entry: the history records what the checklist says, not its order. The audit log records the writes
+history entry: the history records what the checklist says, not its order. Tying or untying a document also emits `document.changed`, and the flow's runs emit
+`flow.run` (see [team-and-flow.md](team-and-flow.md#routes-and-events)). The audit log records the writes
 as it does every route's, named by their OpenAPI summary.
 
 ## The screens
@@ -444,25 +457,36 @@ The README's [Work items](../README.md#work-items) table lists every route, with
 `type`, `priority`, `labels`, `assignee`, `epicId`, `milestoneId` and `q` over title, description and
 key). The OpenAPI descriptions in `apps/api/src/openapi/routes.ts` carry the details of each refusal.
 
+### Worked by a team
+
+Orchestration 3 added what `DesktopTableroEquipo` draws, on one project's board with the Team module
+on:
+
+- each column's responsible role while the flow is on;
+- the member at work on a card;
+- a card's bounces ("rebote 1 de 3");
+- an item waiting for the person, and why.
+
+A task can be assigned to a role: the task page, New task and the Assignee filter offer the team's
+members and draw a role as its squircle avatar with its translated name, where a person stays a round
+monogram. A task also shows the documents tied to it and its waiting panel, with "Aprobar y pasar a
+Hecho" and "Volver a En curso". See [team-and-flow.md](team-and-flow.md#the-screens).
+
 ## Not built yet
 
-- Assigning to a team role does nothing yet; the roles, the flow by column (a role that acts when a
-  card enters its column, QA sending an item back) and the approval of `done` are orchestration 3.
-- On the board, the parts of `DesktopTableroEquipo` that need a team (role avatars, a column's
-  responsible role) wait for orchestration 3, and so do the project's Team and Documents tabs.
 - Suggested work items are orchestration 4, and the web has no "Suggest tasks" button until then.
 
 ## Known gaps
 
 Left open by the fixes of 1b, each for its owner to decide:
 
-- **Schedules skip the node checks.** A schedule filled from `specOfOrchestration` carries each
-  node's `workItemId`, and the scheduler launches through `orchestrator.create` directly, not
-  through core's checks, so a scheduled graph links to those items. Stripping `workItemId` there, as
-  a saved template does, is the likely answer.
-- **Only `work` links make a card live.** `linkOf` and `isLive` in `work-item-rows.ts` know the roles
-  written today; orchestration 3 has to count `refine` and `verify` chats as live when it starts
-  writing them.
+- **Only `work` links make a card live.** `isLive` in `work-item-rows.ts` still counts only `work`
+  links. Orchestration 3's flow now writes `refine` and `verify` chat links, so a card that a Product
+  Owner is refining or QA is verifying has no `activeLink` and shows no live rail, although the Team
+  tab shows that member at work. Counting those links is the likely fix.
+
+(Schedules no longer take over work items: since the second audit a schedule drops each node's
+`workItemId` when it is stored and when it fires, `withoutWorkItems`.)
 - A generic error thrown while "Work on it" creates its chat reaches the client as a 400, not a
   500: that is the API's shared error handler.
 
@@ -480,4 +504,4 @@ Left open by the web of orchestration 2 (its `web-review` report):
 
 ## Related
 
-[[projects.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[team-and-flow.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

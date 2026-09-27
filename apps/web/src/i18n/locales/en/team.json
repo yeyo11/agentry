@@ -1,0 +1,219 @@
+{
+  "back": "Back to the project",
+  "roles": {
+    "product-owner": "Product Owner",
+    "architect": "Architect",
+    "developer": "Developer",
+    "qa": "QA",
+    "researcher": "Researcher",
+    "writer": "Technical writer",
+    "reviewer": "Reviewer"
+  },
+  "stage": {
+    "refine": {
+      "name": "refines",
+      "doing": "Refining",
+      "done": "refined",
+      "onEnter": "completes the description and the acceptance criteria",
+      "onEnd": "moves it to To do when its criteria are complete"
+    },
+    "work": {
+      "name": "implements",
+      "doing": "Working",
+      "done": "worked on",
+      "onEnter": "opens a chat in the task's worktree",
+      "onEnd": "moves it to In review"
+    },
+    "verify": {
+      "name": "verifies",
+      "doing": "Verifying",
+      "done": "verified",
+      "onEnter": "checks each criterion against the worktree",
+      "onEnd": "waits for your approval, or sends it back to In progress"
+    }
+  },
+  "outcome": {
+    "rejected": "sent back",
+    "failed": "failed",
+    "cancelled": "cancelled",
+    "queued": "queued"
+  },
+  "members": {
+    "title": "Members",
+    "count_one": "{{count}} member",
+    "count_other": "{{count}} members",
+    "working_one": "{{count}} working now",
+    "working_other": "{{count}} working now"
+  },
+  "member": {
+    "actions": "More actions for {{name}}",
+    "open": "Open",
+    "back": "Back to the team",
+    "properties": "Role properties",
+    "role": "Role",
+    "model": "Model",
+    "column": "Column",
+    "onEnter": "On entering",
+    "onEnd": "On finishing",
+    "answersFor": "Answers for",
+    "consulted": "No column · consulted",
+    "writes": "May write in",
+    "writesAnywhere": "Anywhere in the project",
+    "writesHint": "Outside these paths the chats Agentry starts for it may not edit. From a terminal it is only what its agent file says.",
+    "addPath": "Add a path…",
+    "responsibility": "Responsibility",
+    "responsibilityHint": "Goes at the start of every prompt the role gets.",
+    "file": "Agent file",
+    "fileHint": "what you save here the CLI reads as it is, in the terminal too",
+    "fileContent": "Agent file content",
+    "filePreview": "Preview of {{path}}",
+    "markdown": "Markdown",
+    "edit": "Edit",
+    "idle": "No work now",
+    "queued_one": "{{count}} queued",
+    "queued_other": "{{count}} queued",
+    "more_one": "and {{count}} more",
+    "more_other": "and {{count}} more",
+    "nowAndBefore": "Now and before",
+    "noRuns": "It has not worked on a task yet.",
+    "itemGone": "Task deleted",
+    "memory": "Memory",
+    "noProposals": "No proposals waiting",
+    "proposalsWaiting_one": "{{count}} proposal of its own waits",
+    "proposalsWaiting_other": "{{count}} proposals of its own wait",
+    "proposalFrom": "from {{key}}",
+    "waiting_one": "{{count}} waits",
+    "waiting_other": "{{count}} wait",
+    "waitingWord": "waits",
+    "memoryHint": "When it starts it gets CLAUDE.md, the project's memory and the journal. It has no memory of its own.",
+    "saved": "{{name}} saved",
+    "saveFailed": "Could not save the member"
+  },
+  "file": {
+    "missing": "file missing",
+    "drifted": "file edited",
+    "missingTitle": "The agent file is missing",
+    "missingBody": "{{path}} was deleted. The member stays on the team; write its file again to use it.",
+    "write": "Write the file",
+    "writeFailed": "Could not write the agent file",
+    "driftedTitle": "The agent file says something else",
+    "driftedBody": "Its frontmatter differs from the role in: {{fields}}. It was edited by hand, so Agentry leaves it as it is."
+  },
+  "add": {
+    "title": "Add member",
+    "submit": "Add member",
+    "role": "Role",
+    "rolePlaceholder": "developer, qa, tech-writer…",
+    "roleHint": "One member per role: the flow gives each column to a role.",
+    "roleTaken": "That role is already on the team.",
+    "file": "Agent file",
+    "newFile": "A new file",
+    "fileNew": "Agentry writes {{path}} with the role's instructions.",
+    "fileKept": "The file is kept as it is.",
+    "responsibilityPlaceholder": "What it answers for, in one line",
+    "added": "{{name}} joined the team",
+    "failed": "Could not add the member",
+    "existingTitle": "Add an agent that already exists",
+    "existingHint_one": ".claude/agents/ has {{count}} agent without a role: {{names}}",
+    "existingHint_other": ".claude/agents/ has {{count}} agents without a role: {{names}}",
+    "newHint": "A role, its model and its agent file in .claude/agents/"
+  },
+  "remove": {
+    "action": "Take off the team",
+    "title": "Take {{name}} off the team?",
+    "body": "Its metadata goes; {{path}} stays on disk, so it still works from a terminal.",
+    "confirm": "Take off",
+    "done": "{{name}} left the team",
+    "failed": "Could not take the member off the team"
+  },
+  "empty": {
+    "title": "This project has no team yet",
+    "body": "Each member is a CLI agent in <code>.claude/agents/</code>, with its role, its model and what it may write, so it also works from the terminal. Start with the template's team and edit each member afterwards.",
+    "bodyShort": "Each member is a CLI agent in <code>.claude/agents/</code>, with its role and its model. Start with the template's team.",
+    "useTemplate": "Use the template's",
+    "templateBrings": "The {{name}} template brings",
+    "templateBringsShort": "The template brings",
+    "foot": "An agent file that already exists is kept as it is",
+    "applied_one": "{{count}} member joined the team",
+    "applied_other": "{{count}} members joined the team",
+    "failed": "Could not add the template's team"
+  },
+  "flow": {
+    "title": "Flow",
+    "summaryTitle": "Flow by column",
+    "on": "automatic",
+    "off": "off",
+    "edit": "Edit",
+    "nobody": "Nobody",
+    "you": "You",
+    "youApprove": "You approve the move to Done",
+    "youApproveShort": "You approve it",
+    "bouncesLine_one": "Up to {{count}} bounce; then it waits for you",
+    "bouncesLine_other": "Up to {{count}} bounces; then it waits for you",
+    "auto": "Automatic flow",
+    "autoBody": "When a task enters a column, the role that answers for it acts. The agents move the cards; you approve the move to Done.",
+    "autoBodyShort": "When a task enters a column, the role that answers for it acts. You approve the move to Done.",
+    "enabled": "On",
+    "disabled": "Off",
+    "stripLabel": "The columns and the role that acts in each",
+    "back": "if QA rejects it, it goes back to In progress with its comment and the same chat resumes",
+    "whoTitle": "Who answers for each column",
+    "whoHint": "one role per column",
+    "roleFor": "Role that answers for {{column}}",
+    "column": {
+      "backlog": {
+        "does": "Refines: title, description and acceptance criteria.",
+        "then": "→ moves it to To do when the criteria are complete"
+      },
+      "todo": {
+        "does": "Checks that nothing blocks it.",
+        "then": "→ waits for you to move it or orchestrate it"
+      },
+      "in_progress": {
+        "does": "Implements in the task/<key> worktree.",
+        "then": "→ moves it to In review when the turn ends well"
+      },
+      "in_review": {
+        "does": "Verifies each criterion against the worktree.",
+        "then": "→ if it fails, back to In progress with its comment"
+      },
+      "done": {
+        "does": "You approve the move to Done. No agent moves a task to Done.",
+        "then": "→ fixed: it does not depend on the flow"
+      }
+    },
+    "bouncesTitle": "Bounces",
+    "bouncesBody": "How many times QA may send a task back before it waits for you.",
+    "bouncesBodyShort": "after that, the task waits for you",
+    "bouncesMax": "Bounces at most",
+    "atMost": "at most",
+    "bounceOf": "{{n}} of {{max}}",
+    "modelsTitle": "Model of each role",
+    "modelFor": "Model of {{role}}",
+    "modelsHint": "Opus for Product Owner and Architect, Sonnet for the rest, as the template brings.",
+    "save": "Save the flow",
+    "saved": "Flow saved",
+    "saveFailed": "Could not save the flow"
+  },
+  "activity": {
+    "title": "Team activity",
+    "none": "Nobody on the team has worked on a task yet."
+  },
+  "board": {
+    "columnRole": "{{role}} answers for this column"
+  },
+  "card": {
+    "bounce": "bounce {{n}} of {{max}}",
+    "bounceTitle_one": "QA sent it back {{count}} time out of {{max}}",
+    "bounceTitle_other": "QA sent it back {{count}} times out of {{max}}",
+    "waits": "waits",
+    "waitsForYou": "waits for you",
+    "passed": "{{role}} passed it",
+    "passedAnon": "Verification passed it",
+    "sentBack_one": "{{role}} sent it back {{count}} time",
+    "sentBack_other": "{{role}} sent it back {{count}} times",
+    "sentBackAnon_one": "Sent back {{count}} time",
+    "sentBackAnon_other": "Sent back {{count}} times",
+    "approve": "Approve and move to Done"
+  }
+}

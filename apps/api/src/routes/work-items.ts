@@ -165,7 +165,13 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
 
   app.post<{ Params: { itemId: string }; Body: CreateWorkItemLinkRequest }>('/work-items/:itemId/links', async (req, reply) => {
     await core.workItemAccess(req.params.itemId, 'write');
-    return reply.status(201).send(core.workItems.link(req.params.itemId, bodyOf(req.body)));
+    const { kind, role, chatId, orchestrationId, taskId, documentPath } = bodyOf(req.body);
+    // A document goes through the Documents module, which knows the project's folder and refuses a
+    // path outside it; the store alone only checks the path's shape
+    if (kind === 'document') {
+      return reply.status(201).send(await core.documents.tie(req.params.itemId, { path: documentPath ?? '' }, { role, chatId: chatId ?? null }));
+    }
+    return reply.status(201).send(core.workItems.link(req.params.itemId, { kind, role, chatId, orchestrationId, taskId, documentPath }));
   });
 
   app.delete<{ Params: { itemId: string; linkId: string } }>('/work-items/:itemId/links/:linkId', async (req) => {

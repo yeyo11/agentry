@@ -440,6 +440,12 @@
   flex-shrink: 0;
 }
 
+/* The spacer before an assignee takes what is left of the line: at its default 200 px basis it
+   wrapped onto a line of its own and left the avatar under it, at the start */
+.workitem-card-meta > .grow {
+  flex-basis: 0;
+}
+
 .workitem-project {
   display: inline-flex;
   align-items: center;
