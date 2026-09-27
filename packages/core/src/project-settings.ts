@@ -280,10 +280,25 @@ export function settingsChanges(before: ProjectSettings, after: ProjectSettings)
 }
 
 /** The file on disk: the settings, and the project they belong to, so a re-import can find them. */
-interface SettingsDoc {
+export interface SettingsDoc {
   projectId: string;
   path: string;
   settings: unknown;
+}
+
+/**
+ * What a read answers, and what it has to write down so the answer stays the same next time: the
+ * `settings` value of the file, or null when nothing is written.
+ */
+interface Resolution {
+  settings: ProjectSettings;
+  persist: unknown;
+}
+
+/** What `create` found and left: the document before, null for a project seen for the first time. */
+export interface CreatedSettings {
+  settings: ProjectSettings;
+  previous: ProjectSettings | null;
 }
 
 const ID = /^[A-Za-z0-9-]+$/;
@@ -291,6 +306,12 @@ const ID = /^[A-Za-z0-9-]+$/;
 /**
  * `project-settings/<projectId>.json` in the data directory. Read from disk on every call rather than
  * held in memory: several wrapper processes share the data directory, and a document is small.
+ *
+ * A read writes only what keeps its own answer stable: the document of a project that has none, and
+ * the prefix of one that clashes with another project's. A document that does not parse or whose
+ * prefix does not validate is answered in memory and left on disk as it is: it is most likely a hand
+ * edit with a typo, and writing defaults over it would lose the modules, limits and prefix the typo
+ * only hid. Only a write the person asks for replaces it.
  */
 export class ProjectSettingsStore {
   private readonly dir: string;
@@ -308,7 +329,8 @@ export class ProjectSettingsStore {
     return join(this.dir, `${projectId}.json`);
   }
 
-  private readDoc(projectId: string): SettingsDoc | null {
+  /** Protected so a test can count the reads. */
+  protected readDoc(projectId: string): SettingsDoc | null {
     const file = this.file(projectId);
     if (!existsSync(file)) return null;
     try {
@@ -316,8 +338,6 @@ export class ProjectSettingsStore {
       if (!isObject(raw)) return { projectId, path: '', settings: null };
       return { projectId, path: typeof raw.path === 'string' ? raw.path : '', settings: raw.settings };
     } catch {
-      // Unreadable reads as its defaults and is left on disk for the person to look at; only a write
-      // they ask for replaces it
       return { projectId, path: '', settings: null };
     }
   }
@@ -349,15 +369,17 @@ export class ProjectSettingsStore {
   }
 
   /**
-   * The stored document as it is, without deriving or writing anything: the work item store reads
-   * keys and limits synchronously, inside its transactions. Null when there is no usable document,
-   * which `read` fixes; removed projects' documents still answer, so their items keep their keys.
+   * The stored document as it is, without writing anything: the work item store reads keys and
+   * limits synchronously, inside its transactions. Removed projects' documents still answer, so their
+   * items keep their keys. With the project's `name`, a document whose prefix is unusable answers the
+   * prefix `read` derives for it, so keys and the project list agree; without it, null.
    */
-  stored(projectId: string): ProjectSettings | null {
+  stored(projectId: string, name?: string): ProjectSettings | null {
     if (!ID.test(projectId)) return null;
     const doc = this.readDoc(projectId);
-    const prefix = doc && this.prefixOf(doc);
-    return doc && prefix ? sanitizeSettings(doc.settings, prefix) : null;
+    if (!doc) return null;
+    const prefix = this.prefixOf(doc) ?? (name === undefined ? null : deriveKeyPrefix(name, this.takenPrefixes(projectId, this.allDocs())));
+    return prefix ? sanitizeSettings(doc.settings, prefix) : null;
   }
 
   /**
@@ -366,50 +388,99 @@ export class ProjectSettingsStore {
    * project imported now: a stored prefix that clashes with one of theirs is derived again.
    */
   async read(project: ProjectRecord, active: readonly ProjectRecord[]): Promise<ProjectSettings> {
-    const doc = this.readDoc(project.id);
-    if (doc) {
-      const stored = this.prefixOf(doc);
-      if (stored && !this.clashes(project.id, stored, active)) return sanitizeSettings(doc.settings, stored);
-    }
+    const docOf = (id: string) => this.readDoc(id);
+    const first = this.resolve(project, active, docOf, () => this.allDocs());
+    if (first.persist === null) return first.settings;
     return this.serialized(async () => {
       // Another call may have written it while this one waited
-      const now = this.readDoc(project.id);
-      const stored = now && this.prefixOf(now);
-      if (now && stored && !this.clashes(project.id, stored, active)) return sanitizeSettings(now.settings, stored);
-      const prefix = deriveKeyPrefix(project.name, this.takenPrefixes(project.id));
-      const settings = now ? { ...sanitizeSettings(now.settings, prefix), keyPrefix: prefix } : defaultProjectSettings(prefix);
-      await this.writeDoc(project, settings);
-      return settings;
+      const now = this.resolve(project, active, docOf, () => this.allDocs());
+      if (now.persist !== null) await this.writeDoc(project, now.persist);
+      return now.settings;
     });
+  }
+
+  /**
+   * `read` for every project at once, as listing them needs: each document is read from disk once,
+   * rather than once for the project and again for every other project it is checked against.
+   */
+  async readAll(projects: readonly ProjectRecord[]): Promise<Map<string, ProjectSettings>> {
+    const docs = this.allDocs();
+    const byId = new Map(docs.map((doc) => [doc.projectId, doc]));
+    const docOf = (id: string) => byId.get(id) ?? null;
+    const result = new Map<string, ProjectSettings>();
+    for (const project of projects) {
+      const resolved = this.resolve(project, projects, docOf, () => docs);
+      // Rare: a project with no document yet, or a clash. `read` writes it under the lock
+      result.set(project.id, resolved.persist === null ? resolved.settings : await this.read(project, projects));
+    }
+    return result;
+  }
+
+  private resolve(
+    project: ProjectRecord,
+    active: readonly ProjectRecord[],
+    docOf: (id: string) => SettingsDoc | null,
+    docs: () => SettingsDoc[],
+  ): Resolution {
+    const doc = docOf(project.id);
+    const stored = doc && this.prefixOf(doc);
+    // Two projects holding one prefix: the one imported first keeps it, whichever is read first
+    const index = active.findIndex((p) => p.id === project.id);
+    const rivals = index < 0 ? active : active.slice(0, index);
+    if (doc && stored && !this.clashes(project.id, stored, rivals, docOf)) return { settings: sanitizeSettings(doc.settings, stored), persist: null };
+    const prefix = deriveKeyPrefix(project.name, this.takenPrefixes(project.id, docs()));
+    if (!doc) {
+      const settings = defaultProjectSettings(prefix);
+      return { settings, persist: settings };
+    }
+    // A clash is repaired on disk, and only the prefix changes there, so nothing the file holds that
+    // this version does not read is lost. Anything else unusable is answered in memory only
+    const persist = stored && isObject(doc.settings) ? { ...doc.settings, keyPrefix: prefix } : null;
+    return { settings: { ...sanitizeSettings(doc.settings, prefix), keyPrefix: prefix }, persist };
   }
 
   /** Replaces the document whole. The caller has validated it; the prefix's uniqueness is checked here. */
   async write(project: ProjectRecord, settings: ProjectSettings, active: readonly ProjectRecord[]): Promise<void> {
     await this.serialized(async () => {
-      if (this.clashes(project.id, settings.keyPrefix, active)) throw new Error(`key ${settings.keyPrefix} is already used by another project`);
+      if (this.clashes(project.id, settings.keyPrefix, active, (id) => this.readDoc(id))) {
+        throw new Error(`key ${settings.keyPrefix} is already used by another project`);
+      }
       await this.writeDoc(project, settings);
     });
   }
 
   /**
    * A new project's document, derived from its template. A project imported again with a document
-   * already on disk keeps it, and only takes the modules the request names.
+   * already on disk keeps it: the request only switches on the modules it names and records the
+   * template it names. What the document holds beyond that is written back as it was, so a part a
+   * hand edit broke is still there for the person to fix.
    */
-  async create(project: ProjectRecord, setup: ReturnType<typeof parseProjectSetup>, active: readonly ProjectRecord[]): Promise<ProjectSettings> {
+  async create(project: ProjectRecord, setup: ReturnType<typeof parseProjectSetup>, active: readonly ProjectRecord[]): Promise<CreatedSettings> {
     return this.serialized(async () => {
       const existing = this.readDoc(project.id);
       if (existing) {
         const stored = this.prefixOf(existing);
-        const prefix = stored && !this.clashes(project.id, stored, active) ? stored : deriveKeyPrefix(project.name, this.takenPrefixes(project.id));
-        const settings = { ...sanitizeSettings(existing.settings, prefix), keyPrefix: prefix };
+        const prefix =
+          stored && !this.clashes(project.id, stored, active, (id) => this.readDoc(id))
+            ? stored
+            : deriveKeyPrefix(project.name, this.takenPrefixes(project.id, this.allDocs()));
+        const previous = sanitizeSettings(existing.settings, stored ?? prefix);
         const modules = setup.modules ?? (setup.template ? projectTemplate(setup.template).modules : null);
-        if (modules) settings.modules = normalizeModules(modules);
-        await this.writeDoc(project, settings);
-        return settings;
+        const overrides = {
+          keyPrefix: prefix,
+          ...(modules ? { modules: normalizeModules(modules) } : {}),
+          ...(setup.template ? { template: setup.template } : {}),
+        };
+        await this.writeDoc(project, { ...(isObject(existing.settings) ? existing.settings : {}), ...overrides });
+        return { settings: { ...sanitizeSettings(existing.settings, prefix), ...overrides }, previous };
       }
-      const settings = settingsFromTemplate(setup.template, setup.modules, deriveKeyPrefix(project.name, this.takenPrefixes(project.id)));
+      const settings = settingsFromTemplate(
+        setup.template,
+        setup.modules,
+        deriveKeyPrefix(project.name, this.takenPrefixes(project.id, this.allDocs())),
+      );
       await this.writeDoc(project, settings);
-      return settings;
+      return { settings, previous: null };
     });
   }
 
@@ -418,19 +489,19 @@ export class ProjectSettingsStore {
    * document keeps its prefix, but should not stop the person from reusing it. Derivation avoids
    * those too (see `takenPrefixes`), so re-importing rarely has to change a prefix.
    */
-  private clashes(projectId: string, prefix: string, active: readonly ProjectRecord[]): boolean {
+  private clashes(projectId: string, prefix: string, active: readonly ProjectRecord[], docOf: (id: string) => SettingsDoc | null): boolean {
     return active.some((p) => {
       if (p.id === projectId) return false;
-      const doc = this.readDoc(p.id);
+      const doc = docOf(p.id);
       return !!doc && this.prefixOf(doc) === prefix;
     });
   }
 
-  private takenPrefixes(exceptId: string): Set<string> {
-    return new Set(this.allDocs().flatMap((doc) => (doc.projectId === exceptId ? [] : (this.prefixOf(doc) ?? []))));
+  private takenPrefixes(exceptId: string, docs: readonly SettingsDoc[]): Set<string> {
+    return new Set(docs.flatMap((doc) => (doc.projectId === exceptId ? [] : (this.prefixOf(doc) ?? []))));
   }
 
-  private writeDoc(project: ProjectRecord, settings: ProjectSettings): Promise<void> {
+  private writeDoc(project: ProjectRecord, settings: unknown): Promise<void> {
     const doc: SettingsDoc = { projectId: project.id, path: project.path, settings };
     return writeAtomic(this.file(project.id), `${JSON.stringify(doc, null, 2)}\n`);
   }

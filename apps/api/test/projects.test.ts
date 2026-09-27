@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import type { AgentryEvent, Project, ProjectSettings, ProjectTemplate } from '@agentry/shared';
+import type { AgentryEvent, Board, Project, ProjectSettings, ProjectTemplate, WorkItem } from '@agentry/shared';
 import { Core, loadConfig } from '@agentry/core';
 import { buildApp } from '../src/app.ts';
 
@@ -137,4 +137,39 @@ test('removing a project keeps its settings, and importing the directory again b
   const again = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path, name: 'Lib' }) })).json<Project>();
   assert.deepEqual([again.id, again.key, again.modules], [first.id, first.key, ['board', 'documents', 'memory']]);
   await app.inject({ method: 'DELETE', url: `/api/projects/${again.id}` });
+});
+
+test('the Board switched off and on again keeps its work items, their keys, columns and order', async () => {
+  const { id } = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: scratch(), name: 'Round Trip', template: 'software' }) })).json<Project>();
+  try {
+    const create = async (body: object) => {
+      const res = await app.inject({ method: 'POST', url: `/api/projects/${id}/work-items`, ...json(body) });
+      assert.equal(res.statusCode, 201, res.body);
+      return res.json<WorkItem>();
+    };
+    const epic = await create({ title: 'Checkout', type: 'epic' });
+    const first = await create({ title: 'Pay by card', epicId: epic.id, status: 'todo' });
+    const second = await create({ title: 'Pay by transfer', epicId: epic.id, status: 'todo' });
+    // The order a person dragged must survive too
+    await app.inject({ method: 'POST', url: `/api/work-items/${second.id}/move`, ...json({ status: 'todo', afterId: null }) });
+    const board = async () => (await app.inject(`/api/projects/${id}/work-items/board`)).json<Board>();
+    const shape = (b: Board) => b.columns.map((c) => [c.status, c.items.map((i) => [i.key, i.epicId])]);
+    const before = shape(await board());
+    assert.deepEqual(before[1], ['todo', [[second.key, epic.id], [first.key, epic.id]]]);
+
+    const off = await app.inject({ method: 'PATCH', url: `/api/projects/${id}`, ...json({ modules: [] }) });
+    assert.deepEqual(off.json<Project>().modules, []);
+    // Hidden, not gone: the items still read, and nothing can change them
+    assert.equal((await app.inject(`/api/work-items/${first.id}`)).json<WorkItem>().key, first.key);
+    const refused = await app.inject({ method: 'POST', url: `/api/projects/${id}/work-items`, ...json({ title: 'Nope' }) });
+    assert.equal(refused.statusCode, 409);
+
+    const on = await app.inject({ method: 'PATCH', url: `/api/projects/${id}`, ...json({ modules: ['board'] }) });
+    assert.deepEqual([on.json<Project>().key, on.json<Project>().modules], ['RT', ['board']]);
+    assert.deepEqual(shape(await board()), before);
+    // A number is never reused, so the next item follows the last one made before the switch
+    assert.equal((await create({ title: 'Refunds' })).number, second.number + 1);
+  } finally {
+    await app.inject({ method: 'DELETE', url: `/api/projects/${id}` });
+  }
 });

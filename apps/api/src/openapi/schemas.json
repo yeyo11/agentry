@@ -6210,11 +6210,7 @@
     "type": "object",
     "properties": {
       "kind": {
-        "type": "string",
-        "enum": [
-          "chat",
-          "orchestration"
-        ]
+        "$ref": "#/components/schemas/WorkItemSourceKind"
       },
       "chatId": {
         "type": [
@@ -6243,6 +6239,14 @@
       "taskId"
     ],
     "description": "A chat or an orchestration task, as the source of a comment, the cause of a change or the other end of a link. Flat rather than a union so it maps onto one row; the ids that do not apply are null."
+  },
+  "WorkItemSourceKind": {
+    "type": "string",
+    "enum": [
+      "chat",
+      "orchestration"
+    ],
+    "description": "What acts on a work item on an agent's behalf: a chat, or a task of an orchestration. Final: a team role acts through a chat (the actor names the role), the person acts with no source at all, and a document never acts, it is only linked (see  {@link  WorkItemLinkKind } )."
   },
   "WorkItemUpdatedEvent": {
     "type": "object",
@@ -6321,9 +6325,10 @@
       "criterion",
       "relation",
       "link",
-      "comment"
+      "comment",
+      "waiting"
     ],
-    "description": "What a history entry, or a `workitem.updated` event, says changed. `created` opens every history; `comment` only appears on events, since comments are their own list."
+    "description": "What a history entry, or a `workitem.updated` event, says changed. `created` opens every history; `comment` only appears on events, since comments are their own list. `waiting` is the flow's  {@link  WorkItemWaitReason }  starting or ending, from and to the reason or null; reserved for orchestration 3."
   },
   "WorkItemActor": {
     "type": "object",
@@ -6357,11 +6362,7 @@
     "type": "object",
     "properties": {
       "kind": {
-        "type": "string",
-        "enum": [
-          "chat",
-          "orchestration"
-        ]
+        "$ref": "#/components/schemas/WorkItemSourceKind"
       },
       "chatId": {
         "type": [
@@ -8054,14 +8055,14 @@
       },
       "key": {
         "type": "string",
-        "description": "Prefix of its work items' keys (`AGN` in `AGN-12`), from  {@link  ProjectSettings.keyPrefix } . Optional only so the core that builds a project today still types until it fills it in; a server with the project ecosystem always sends it."
+        "description": "Prefix of its work items' keys (`AGN` in `AGN-12`), from  {@link  ProjectSettings.keyPrefix }"
       },
       "modules": {
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/ProjectModule"
         },
-        "description": "The modules switched on, from  {@link  ProjectSettings.modules } ; always sent once the ecosystem is in"
+        "description": "The modules switched on, from  {@link  ProjectSettings.modules } ; empty for a project that never had one"
       }
     },
     "required": [
@@ -8071,7 +8072,9 @@
       "worktrees",
       "exists",
       "chatCount",
-      "lastActivity"
+      "lastActivity",
+      "key",
+      "modules"
     ],
     "description": "A directory the person imported, with the worktrees that belong to it."
   },
@@ -10260,6 +10263,21 @@
         ],
         "description": "The chat or orchestration task working on it right now, filled in when read: what makes a card live. Null when nothing is."
       },
+      "bounces": {
+        "type": "number",
+        "description": "Times the verifying role sent it back to `in_progress` in the current round of work, compared with  {@link  ProjectFlowSettings.maxBounces } ; a person moving it starts a new round. Reserved for the flow by column (orchestration 3): absent reads as 0."
+      },
+      "waiting": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemWaitReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What it waits for from the person, which the board shows in the idle colour with a word. Reserved for the flow by column (orchestration 3): absent reads as null, waiting for nothing."
+      },
       "createdAt": {
         "type": "string"
       },
@@ -10427,13 +10445,6 @@
   "WorkItemLink": {
     "type": "object",
     "properties": {
-      "kind": {
-        "type": "string",
-        "enum": [
-          "chat",
-          "orchestration"
-        ]
-      },
       "chatId": {
         "type": [
           "string",
@@ -10459,8 +10470,18 @@
       "itemId": {
         "type": "string"
       },
+      "kind": {
+        "$ref": "#/components/schemas/WorkItemLinkKind"
+      },
       "role": {
         "$ref": "#/components/schemas/WorkItemLinkRole"
+      },
+      "documentPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For a `document` link, its path relative to the project; absent or null for the others"
       },
       "name": {
         "type": [
@@ -10505,15 +10526,38 @@
       "role",
       "taskId"
     ],
-    "description": "A chat or an orchestration task tied to a work item. An item keeps every link, not only the last."
+    "description": "A chat, an orchestration task or a document tied to a work item. An item keeps every link, not only the last."
+  },
+  "WorkItemLinkKind": {
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/WorkItemSourceKind"
+      },
+      {
+        "type": "string",
+        "const": "document"
+      }
+    ],
+    "description": "What a work item can be linked to: what can act on it ( {@link  WorkItemSourceKind } ), and a document of the project (a specification, an architecture decision) tied to it by the Documents module."
   },
   "WorkItemLinkRole": {
     "type": "string",
     "enum": [
+      "origin",
+      "refine",
       "work",
-      "origin"
+      "verify",
+      "reference"
     ],
-    "description": "The part a linked chat or orchestration task played: `work` worked on the item (\"Work on it\", or a node of an orchestration built from it), `origin` is the chat the item was created from."
+    "description": "The part a linked chat, orchestration task or document played in the item's life. The roles past `origin` follow the fixed columns, so they cannot grow with the flow: whichever team role a project puts on a column, its chat is `refine` in `backlog` and `todo`, `work` in `in_progress` and `verify` in `in_review`.\n\n- `origin`: the item was created from it (the chat of \"Create a task from this message\", or a   document the assistant proposed items from).\n- `refine`: refined it before work started; for a document, the specification refinement wrote.\n- `work`: worked on it (\"Work on it\", a node of an orchestration built from it); for a document,   one written while working, such as an architecture decision.\n- `verify`: verified it against its acceptance criteria; for a document, the verification report.\n- `reference`: tied to it by hand, without playing a part in its life. Documents only, in practice.\n\nOnly `work` and `origin`, on chats and orchestration tasks, are written until orchestration 3; a client handles every member all the same."
+  },
+  "WorkItemWaitReason": {
+    "type": "string",
+    "enum": [
+      "approval",
+      "bounces"
+    ],
+    "description": "Why an item waits for the person under the flow by column: `approval`, an agent finished and asks for the move to `done`, which only a person makes; `bounces`, verification sent it back more times than the project allows. Either ends when a person moves it."
   },
   "WorkItemDetail": {
     "type": "object",
@@ -10629,6 +10673,21 @@
           }
         ],
         "description": "The chat or orchestration task working on it right now, filled in when read: what makes a card live. Null when nothing is."
+      },
+      "bounces": {
+        "type": "number",
+        "description": "Times the verifying role sent it back to `in_progress` in the current round of work, compared with  {@link  ProjectFlowSettings.maxBounces } ; a person moving it starts a new round. Reserved for the flow by column (orchestration 3): absent reads as 0."
+      },
+      "waiting": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemWaitReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What it waits for from the person, which the board shows in the idle colour with a word. Reserved for the flow by column (orchestration 3): absent reads as null, waiting for nothing."
       },
       "createdAt": {
         "type": "string"
@@ -11163,11 +11222,7 @@
     "type": "object",
     "properties": {
       "kind": {
-        "type": "string",
-        "enum": [
-          "chat",
-          "orchestration"
-        ]
+        "$ref": "#/components/schemas/WorkItemLinkKind"
       },
       "role": {
         "$ref": "#/components/schemas/WorkItemLinkRole"
@@ -11189,12 +11244,20 @@
           "string",
           "null"
         ]
+      },
+      "documentPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For a `document` link: the document's path, relative to the project"
       }
     },
     "required": [
       "kind",
       "role"
-    ]
+    ],
+    "description": "Every kind and role is accepted by the contract; until orchestration 3 stores them, the server refuses a `document` link and the roles other than `work` and `origin` with a 400."
   },
   "Milestone": {
     "type": "object",

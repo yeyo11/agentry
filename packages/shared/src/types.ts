@@ -943,14 +943,10 @@ export interface Project {
   /** Chats under the project and its worktrees */
   chatCount: number;
   lastActivity: string | null;
-  /**
-   * Prefix of its work items' keys (`AGN` in `AGN-12`), from {@link ProjectSettings.keyPrefix}.
-   * Optional only so the core that builds a project today still types until it fills it in; a
-   * server with the project ecosystem always sends it.
-   */
-  key?: string;
-  /** The modules switched on, from {@link ProjectSettings.modules}; always sent once the ecosystem is in */
-  modules?: ProjectModule[];
+  /** Prefix of its work items' keys (`AGN` in `AGN-12`), from {@link ProjectSettings.keyPrefix} */
+  key: string;
+  /** The modules switched on, from {@link ProjectSettings.modules}; empty for a project that never had one */
+  modules: ProjectModule[];
 }
 
 /** A directory chats have run in that is not imported, offered on first start. */
@@ -1130,11 +1126,18 @@ export interface WorkItemActor {
 }
 
 /**
+ * What acts on a work item on an agent's behalf: a chat, or a task of an orchestration. Final: a team
+ * role acts through a chat (the actor names the role), the person acts with no source at all, and a
+ * document never acts, it is only linked (see {@link WorkItemLinkKind}).
+ */
+export type WorkItemSourceKind = 'chat' | 'orchestration';
+
+/**
  * A chat or an orchestration task, as the source of a comment, the cause of a change or the other end
  * of a link. Flat rather than a union so it maps onto one row; the ids that do not apply are null.
  */
 export interface WorkItemSource {
-  kind: 'chat' | 'orchestration';
+  kind: WorkItemSourceKind;
   /** The chat's session id; for an orchestration task, the chat of its worker once it has one */
   chatId: string | null;
   orchestrationId: string | null;
@@ -1193,7 +1196,9 @@ export interface WorkItemComment {
 
 /**
  * What a history entry, or a `workitem.updated` event, says changed. `created` opens every history;
- * `comment` only appears on events, since comments are their own list.
+ * `comment` only appears on events, since comments are their own list. `waiting` is the flow's
+ * {@link WorkItemWaitReason} starting or ending, from and to the reason or null; reserved for
+ * orchestration 3.
  */
 export type WorkItemChange =
   | 'created'
@@ -1209,7 +1214,8 @@ export type WorkItemChange =
   | 'criterion'
   | 'relation'
   | 'link'
-  | 'comment';
+  | 'comment'
+  | 'waiting';
 
 /**
  * A referenced thing (an epic, a milestone, a link) as it was when the entry was written, so the
@@ -1258,16 +1264,38 @@ export interface WorkItemHistoryEntry {
 }
 
 /**
- * The part a linked chat or orchestration task played: `work` worked on the item ("Work on it", or a
- * node of an orchestration built from it), `origin` is the chat the item was created from.
+ * What a work item can be linked to: what can act on it ({@link WorkItemSourceKind}), and a document
+ * of the project (a specification, an architecture decision) tied to it by the Documents module.
  */
-export type WorkItemLinkRole = 'work' | 'origin';
+export type WorkItemLinkKind = WorkItemSourceKind | 'document';
 
-/** A chat or an orchestration task tied to a work item. An item keeps every link, not only the last. */
-export interface WorkItemLink extends WorkItemSource {
+/**
+ * The part a linked chat, orchestration task or document played in the item's life. The roles past
+ * `origin` follow the fixed columns, so they cannot grow with the flow: whichever team role a
+ * project puts on a column, its chat is `refine` in `backlog` and `todo`, `work` in `in_progress` and
+ * `verify` in `in_review`.
+ *
+ * - `origin`: the item was created from it (the chat of "Create a task from this message", or a
+ *   document the assistant proposed items from).
+ * - `refine`: refined it before work started; for a document, the specification refinement wrote.
+ * - `work`: worked on it ("Work on it", a node of an orchestration built from it); for a document,
+ *   one written while working, such as an architecture decision.
+ * - `verify`: verified it against its acceptance criteria; for a document, the verification report.
+ * - `reference`: tied to it by hand, without playing a part in its life. Documents only, in practice.
+ *
+ * Only `work` and `origin`, on chats and orchestration tasks, are written until orchestration 3; a
+ * client handles every member all the same.
+ */
+export type WorkItemLinkRole = 'origin' | 'refine' | 'work' | 'verify' | 'reference';
+
+/** A chat, an orchestration task or a document tied to a work item. An item keeps every link, not only the last. */
+export interface WorkItemLink extends Omit<WorkItemSource, 'kind'> {
   id: string;
   itemId: string;
+  kind: WorkItemLinkKind;
   role: WorkItemLinkRole;
+  /** For a `document` link, its path relative to the project; absent or null for the others */
+  documentPath?: string | null;
   /** The chat's title or the task's name, filled in when read; null when it is gone */
   name?: string | null;
   /** Filled in when read, for a chat */
@@ -1276,6 +1304,13 @@ export interface WorkItemLink extends WorkItemSource {
   taskStatus?: OrchestrationTaskStatus | null;
   createdAt: string;
 }
+
+/**
+ * Why an item waits for the person under the flow by column: `approval`, an agent finished and asks
+ * for the move to `done`, which only a person makes; `bounces`, verification sent it back more times
+ * than the project allows. Either ends when a person moves it.
+ */
+export type WorkItemWaitReason = 'approval' | 'bounces';
 
 export interface WorkItem {
   /** Ours and stable: the key changes with the prefix, the id never does */
@@ -1314,6 +1349,17 @@ export interface WorkItem {
    * live. Null when nothing is.
    */
   activeLink?: WorkItemLink | null;
+  /**
+   * Times the verifying role sent it back to `in_progress` in the current round of work, compared with
+   * {@link ProjectFlowSettings.maxBounces}; a person moving it starts a new round. Reserved for the
+   * flow by column (orchestration 3): absent reads as 0.
+   */
+  bounces?: number;
+  /**
+   * What it waits for from the person, which the board shows in the idle colour with a word. Reserved
+   * for the flow by column (orchestration 3): absent reads as null, waiting for nothing.
+   */
+  waiting?: WorkItemWaitReason | null;
   createdAt: string;
   updatedAt: string;
   /** When it last entered `done`; null while it is anywhere else */
@@ -1408,12 +1454,18 @@ export interface CreateWorkItemRelationRequest {
   itemId: string;
 }
 
+/**
+ * Every kind and role is accepted by the contract; until orchestration 3 stores them, the server
+ * refuses a `document` link and the roles other than `work` and `origin` with a 400.
+ */
 export interface CreateWorkItemLinkRequest {
-  kind: WorkItemSource['kind'];
+  kind: WorkItemLinkKind;
   role: WorkItemLinkRole;
   chatId?: string | null;
   orchestrationId?: string | null;
   taskId?: string | null;
+  /** For a `document` link: the document's path, relative to the project */
+  documentPath?: string | null;
 }
 
 /**

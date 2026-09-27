@@ -337,7 +337,7 @@ export class Core {
     this.workItems = new WorkItemService({
       db: this.db,
       project: (id) => {
-        const settings = this.projectSettingsStore.stored(id);
+        const settings = this.projectSettingsStore.stored(id, this.projectStore.get(id)?.name);
         return settings ? { keyPrefix: settings.keyPrefix, columnLimits: settings.board.columnLimits } : null;
       },
       emit: (event) => this.events.emit(event),
@@ -345,7 +345,10 @@ export class Core {
     });
     this.workLinks = new WorkItemAutomation({
       items: this.workItems,
-      writable: (id) => !!this.projectStore.get(id) && !!this.projectSettingsStore.stored(id)?.modules.includes('board'),
+      writable: (id) => {
+        const record = this.projectStore.get(id);
+        return !!record && !!this.projectSettingsStore.stored(id, record.name)?.modules.includes('board');
+      },
       orchestration: (id) => this.orchestrator.get(id),
     });
     this.events.observe((event) => this.workLinks.observe(event));
@@ -793,7 +796,7 @@ export class Core {
     }
 
     const records = this.projectStore.list();
-    const settings = new Map(await Promise.all(records.map(async (p) => [p.id, await this.projectSettingsStore.read(p, records)] as const)));
+    const settings = await this.projectSettingsStore.readAll(records);
     return records.map((p) => ({
       id: p.id,
       name: p.name,
@@ -833,7 +836,9 @@ export class Core {
       (d) => this.locator.worktreeOf(d),
       (path) => this.projectSettingsStore.idForPath(path, active()),
     );
-    await this.projectSettingsStore.create(record, setup, this.projectStore.list());
+    const { settings, previous } = await this.projectSettingsStore.create(record, setup, this.projectStore.list());
+    // A directory imported again can come back with other modules: whoever shows its tabs has to know
+    if (previous) this.projectUpdated(record, settingsChanges(previous, settings), settings.modules);
     return this.projectView(record.id);
   }
 
@@ -976,8 +981,8 @@ export class Core {
 
   private async boardProjects(): Promise<Set<string>> {
     const records = this.projectStore.list();
-    const settings = await Promise.all(records.map(async (p) => [p.id, await this.projectSettingsStore.read(p, records)] as const));
-    return new Set(settings.filter(([, s]) => s.modules.includes('board')).map(([id]) => id));
+    const settings = await this.projectSettingsStore.readAll(records);
+    return new Set([...settings].filter(([, s]) => s.modules.includes('board')).map(([id]) => id));
   }
 
   /**
