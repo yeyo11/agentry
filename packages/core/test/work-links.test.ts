@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import type { AgentryEvent, Orchestration, OrchestrationTaskStatus, RunStatus, WorkItemHistoryEntry, WorkItemStatus } from '@agentry/shared';
 import { Db } from '../src/db.ts';
-import { orchestrationDraft, titleFromMessage, WorkItemAutomation, workItemPrompt } from '../src/work-links.ts';
+import { itemWorktree, orchestrationDraft, titleFromMessage, WorkItemAutomation, workItemPrompt } from '../src/work-links.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -239,6 +242,46 @@ test('a graph launched from a saved template does not take over the items its no
   s.automation.observe(taskEvent('o1', 'agn-1', 'running', 'worker-1'));
   assert.equal(s.items.links(a.id).length, 0);
   assert.equal(statusOf(s, a.id), 'backlog');
+});
+
+// ---------- the item's worktree ----------
+
+const gitIn = (dir: string, ...args: string[]) =>
+  execFileSync('git', ['-C', dir, '-c', 'user.name=Someone', '-c', 'user.email=s@example.com', ...args], { stdio: 'pipe', encoding: 'utf8' }).trim();
+
+function repoWithCommit(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'agentry-links-repo-'));
+  gitIn(dir, 'init', '-q', '-b', 'main');
+  writeFileSync(join(dir, 'README.md'), 'project\n');
+  gitIn(dir, 'add', '-A');
+  gitIn(dir, 'commit', '-q', '-m', 'initial');
+  return dir;
+}
+
+test('a worktree deleted by hand is made again on the same branch, keeping its commits', () => {
+  const repo = repoWithCommit();
+  const first = itemWorktree(repo, { key: 'AGN-1', worktree: null, branch: null });
+  assert.ok(first);
+  writeFileSync(join(first.worktree, 'work.txt'), 'kept\n');
+  gitIn(first.worktree, 'add', '-A');
+  gitIn(first.worktree, 'commit', '-q', '-m', 'work');
+  rmSync(first.worktree, { recursive: true, force: true });
+
+  const again = itemWorktree(repo, { key: 'AGN-1', worktree: first.worktree, branch: first.branch });
+  assert.deepEqual(again, first);
+  assert.ok(existsSync(join(first.worktree, 'work.txt')), 'the branch came back with its commit');
+  assert.equal(gitIn(first.worktree, 'branch', '--show-current'), first.branch);
+});
+
+test("a plain directory where the item's worktree should be is refused, not worked in", () => {
+  const repo = repoWithCommit();
+  const path = join(repo, '.claude', 'worktrees', 'task-agn-2');
+  mkdirSync(path, { recursive: true });
+  writeFileSync(join(path, 'notes.txt'), 'mine\n');
+  assert.throws(
+    () => itemWorktree(repo, { key: 'AGN-2', worktree: null, branch: null }),
+    (err: Error & { statusCode?: number }) => err.statusCode === 409 && /not a worktree/.test(err.message),
+  );
 });
 
 // ---------- prompts and drafts ----------

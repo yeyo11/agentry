@@ -16,7 +16,8 @@ import {
   type WorkItemRef,
   type WorkItemStatus,
 } from '@agentry/shared';
-import { addWorktree, headCommit, isGitRepo, isIgnored, lockWorktree, mainTopLevel, topLevel } from './git.ts';
+import { addWorktree, git, headCommit, isGitRepo, isIgnored, lockWorktree, mainTopLevel, topLevel } from './git.ts';
+import { WorkItemError } from './work-item-validation.ts';
 import type { WorkItemService } from './work-items.ts';
 
 /**
@@ -127,12 +128,38 @@ export function itemWorktree(projectPath: string, item: Pick<WorkItem, 'key' | '
   const subdir = sub && !isIgnored(root, sub) ? sub : '';
   const worktree = item.worktree ?? join(home, '.claude', 'worktrees', `task-${item.key.toLowerCase()}`);
   const branch = item.branch ?? workItemBranch(item.key);
-  if (!existsSync(worktree)) addWorktree(home, worktree, branch, 'HEAD');
+  const registered = isWorktreeOf(home, worktree);
+  if (existsSync(worktree)) {
+    // Git commands in a plain directory under the checkout reach the checkout itself: the chat
+    // would work on the project's own branch, not the item's
+    if (!registered) throw new WorkItemError(`${worktree} is there but is not a worktree of this project: move it away and try again`, 409);
+  } else {
+    // Deleted by hand: git still holds it, locked, and refuses to check its branch out anywhere else
+    if (registered) forgetWorktree(home, worktree);
+    addWorktree(home, worktree, branch, 'HEAD');
+  }
   // As the CLI does with the worktrees it runs in, so `git worktree prune` leaves it be
   lockWorktree(home, worktree, `agentry work item ${item.key}`);
   const cwd = subdir ? join(worktree, subdir) : worktree;
   mkdirSync(cwd, { recursive: true });
   return { cwd, worktree, branch };
+}
+
+function isWorktreeOf(repo: string, path: string): boolean {
+  const wanted = new Set([path, existsSync(path) ? realpathSync(path) : path]);
+  return git(repo, ['worktree', 'list', '--porcelain'], 10_000)
+    .split('\n')
+    .some((line) => line.startsWith('worktree ') && wanted.has(line.slice('worktree '.length)));
+}
+
+/** Drops git's record of a worktree whose directory is gone, so its path and branch are free again. */
+function forgetWorktree(repo: string, path: string): void {
+  try {
+    git(repo, ['worktree', 'unlock', path], 10_000);
+  } catch {
+    // not locked
+  }
+  git(repo, ['worktree', 'prune'], 30_000);
 }
 
 // ---------- orchestrating a selection ----------
