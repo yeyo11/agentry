@@ -50,6 +50,8 @@ const ROOT_TYPES = [
   'PushKeyInfo', 'RegisterPushSubscriptionRequest', 'PushSubscriptionSummary', 'RemovePushSubscriptionRequest', 'SendTestPushRequest', 'PushSendResult', 'PushPayload',
   // Packaging
   'CliVersionInfo', 'AgentryReleaseInfo',
+  // Settings that change at runtime, and the tunnel
+  'AppSettings', 'UpdateAppSettingsRequest', 'TunnelStatus', 'TunnelSettings', 'UpdateTunnelSettingsRequest',
 ];
 
 const generator = createGenerator({

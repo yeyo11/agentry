@@ -89,6 +89,8 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'schedule.changed': true,
   'schedule.fired': true,
   'supervisor.proposed': true,
+  'settings.changed': true,
+  'tunnel.changed': true,
 };
 
 type Target = readonly [QueryKey, number];
@@ -196,6 +198,10 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'system.release':
       // Reading it back costs nothing: the server answers from release.json, not from GitHub
       return [[keys.release, NOW]];
+    case 'settings.changed':
+    case 'tunnel.changed':
+      // Nothing reads the layered settings or the tunnel yet; the Remote access tab brings their queries
+      return [];
   }
 }
 
