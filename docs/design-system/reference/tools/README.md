@@ -27,9 +27,14 @@ Python 3 with Pillow and Chrome (`CHROME_BIN`, default `/usr/bin/google-chrome`)
 | `desktop.py` | desktop only: the board while the team works it (`DesktopTableroEquipo`, hand-drawn before), Tasks with All projects (`DesktopTareasTodos`), suggestions while they run (`DesktopSugerirTareasEnCurso`) and the assistant on an empty project (`DesktopAsistenteVacio`). `DesktopDocumentoEditar` has no generator: it is `DesktopDocumentos` with the editor open, edited as HTML |
 
 ```bash
-python3 board.py && python3 tasks.py && python3 projects.py && python3 chat.py && python3 ai.py
+python3 board.py && python3 tasks.py && python3 projects.py && python3 chat.py && python3 ai.py \
+  && python3 desktop.py && python3 phone.py
 NS_OUT=/tmp/ns-out python3 board.py   # write somewhere else, to diff against the committed HTML
 ```
+
+Every rule a screen needs lives in `agentry-ds.css`: a page's own `<style>` holds only the body
+background, and inline styles are for layout. A rule two screens share goes into the stylesheet and
+into §2 of `docs/design-system.md`.
 
 ## Checks
 

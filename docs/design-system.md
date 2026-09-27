@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-09-25T18:55:39Z
+updated_at: 2026-09-27T12:00:00Z
 tags:
     - design-system
     - web
@@ -17,7 +17,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Reference stylesheet (tokens and every component class, as designed) | [`design-system/agentry-ds.css`](design-system/agentry-ds.css) |
 | Static prototypes of every screen (open `index.html`) | [`design-system/reference/`](design-system/reference/index.html) |
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
-| The 16 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
+| The 15 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
 | The tokens the app actually uses | `apps/web/src/styles/tokens.css` |
 
 The app reached this design in the `night-shift` orchestration. Where the implementation settled a
@@ -124,6 +124,23 @@ icon.
   splash and error page, which cannot read CSS variables, and the two `theme-color` metas in
   `apps/web/index.html`.
 
+### Tokens the project ecosystem added
+
+The fixes of the ecosystem's prototypes (the audit in
+[plans/project-ecosystem-audit.md](plans/project-ecosystem-audit.md)) took the last raw values out of
+sections 15 to 17 of `agentry-ds.css`. The app gains these when orchestration 2 builds the screens.
+
+| Token | Value | Use |
+|---|---|---|
+| `--on-accent` | `var(--bg)` | what sits on a solid accent fill: the knob of a checked switch, the tick of a checkbox, the dot of a radio. The app's `controls.css` already draws them this way. `#fff` stays only on the gradient |
+| `--hue-base`, `--hue-fill`, `--hue-ink`, `--hue-mark` | worked out from `--hue` on `.proj.monogram`, `.wi-epic` and `.role-av` | a project's, an epic's or a role's own colour: the tint, the letters and the diamond mark. They sit on the element that carries `--hue`, because a custom property resolves where it is declared. No rule writes `hsl()` itself |
+| `--sel-bg`, `--sel-mark` | `var(--bg-3)`, a 2 px accent inset | the one selected-row look, for every list, tree and master column (`.list-row.sel`, `.wi-row.sel`, `.wi-mrow.sel`, `.tree-row.on`, `.doc-row.sel`, `.res-item.sel`). A chosen card or tile takes the accent ring instead |
+| `--touch` | `44px` | the smallest target on a phone. Segmented controls, chips, buttons, the column jump, steppers, fields and the part-of row get it as `min-height` from the stylesheet, which wins over any inline height |
+
+Light `--live` is `#0b6680` in the reference, darker than the app's `#0e7490`: that one reads 4.2:1
+on its own soft tint over `--bg-1`, where a live line sits. The app should take the darker value
+when it builds the board.
+
 ### Reference stylesheet names vs app names
 
 `agentry-ds.css` was written for the design canvas, so a few of its names differ from the app's.
@@ -218,39 +235,45 @@ The phone is the top bar, the page and a tab bar.
 
 The project ecosystem ([plans/project-ecosystem.md](plans/project-ecosystem.md)) is drawn in
 section 15 of `agentry-ds.css` and on the `Desktop*`/`Mobile*` screens whose names start with
-`NuevoProyecto`, `Proyecto`, `Tablero`, `Tarea`, `NuevaTarea`, `Hitos` and `ChatTarea`. The app has
+`NuevoProyecto`, `Proyecto`, `Tablero`, `Tarea`, `TareasLista`, `TareasTodos`, `NuevaTarea`,
+`Hitos` and `ChatTarea` (the phone also draws the wizard's steps one by one, `TableroSeleccion`,
+`TableroFiltros`, `TareaActividad` and `TareaCambios`). The app has
 none of these classes yet: orchestration 2 builds them, and the right-hand column is the name each
 one should take there. The reference classes start with `wi-` because `.board` and `.board-task`
 already belong to the orchestration board.
 
 | Reference class | App class or component | Rule |
 |---|---|---|
-| `.switch`, `.switch-lg`, `.checkbox`, `.radio` | `Toggle` in `components/controls` (`.switch`, `.checkbox`) | drawn so prototypes stop mocking native inputs. Checked is the rose |
+| `.switch`, `.switch-lg`, `.checkbox`, `.radio` | `Toggle` in `components/controls` (`.switch`, `.checkbox`) | drawn so prototypes stop mocking native inputs. Checked is the rose, and what sits on it is `--on-accent` |
+| `.btn[aria-pressed="true"]` | the pressed state of a toggle button | a view filter or "Seleccionar" while selection mode is on: the chosen segment's fill (`--bg-4`), never the accent or the gradient |
 | `.scrim`, `.dialog`, `.dialog-head`, `-body`, `-foot` | `.dialog*` (overlays.css) | New task is a dialog on a desktop and a full screen on a phone |
 | `.form-row`, `.form-hint`, `.field-area` | `.field` and the form rows of the editors | mono section label above the control, hint under it |
 | `.module-card` (`.on`), `.module-ico`, `.module-note` | new `.module-card` | one module, its switch, and what switching it off means ("oculto · 14 documentos conservados"). Off hides, never deletes |
 | `.tpl-card` (`.on`), `.tpl-mods`, `.tpl-mod` | new `.template-card` | a radio card. The chosen one takes the accent ring, never the gradient: the wizard's gradient is its primary action |
 | `.steps`, `.step` (`.on`, `.done`) | `Stepper` | a neutral stepper; nothing in a wizard is live or failed |
 | `.proj-head`, `.proj-tabs` | the project page header and `Tabs` | a tab exists only while its module is on. On a phone the tabs become a card of cells |
-| `.wi-board`, `.wi-col` (`.over`), `.wi-col-head`, `.wi-col-count`, `.wi-col-limit`, `.wi-col-slot` | new `.workitem-board`, `.workitem-col*` | five fixed columns. Over its limit a column takes a warn hairline and says "Sobre el límite: 4 de 3"; the move is never blocked |
+| `.wi-board`, `.wi-col` (`.over`), `.wi-col-head`, `.wi-col-count`, `.wi-col-limit`, `.wi-col-slot` | new `.workitem-board`, `.workitem-col*` | five fixed columns. Over its limit a column takes a warn hairline and says "Sobre el límite: 5 de 3"; the move is never blocked. The board fills the page and a long column scrolls on its own, so no card sits under the status bar or the selection bar (`.page.selecting` keeps room for the bar) |
 | `.wi-status` (`.s-done`) | new `WorkItemStatusIcon` | a column is told by shape; only done is coloured (ok) and it is always named |
-| `.wi-card` (`.done`, `.sel`, `.rail-live`), `.wi-card-top`, `-title`, `-meta`, `-foot`, `.wi-fact`, `.wi-card-live`, `.wi-card-epic` | new `.workitem-card*` | a card at rest is still. A card whose chat or orchestration node runs carries `.rail-live`, the ring spinner and the live line. Selection mode gives the chosen cards the accent ring and a checked box, and never shows a box on a phone |
+| `.wi-card` (`.done`, `.sel`, `.rail-live`), `.wi-card-top`, `-title`, `-meta`, `-foot`, `.wi-fact`, `.wi-card-live` (`.two`), `.wi-card-epic` | new `.workitem-card*` | a card at rest is still. A card whose chat or orchestration node runs carries `.rail-live`, the ring spinner and the live line. The title and the meta row wrap, never cut; a live line with a command takes two lines (`.two`: the verb and the time, then the command). Selection mode gives the chosen cards the accent ring and a checked box, and never shows a box on a phone |
+| `.wi-proj` | new `.workitem-project` | on Tasks with All projects selected, each card names its project at the head of its meta row, and no column shows a limit (each project has its own) |
 | `.wi-key` (`.boxed`) | new `.workitem-key` | `AGN-12` in mono, tabular |
 | `.wi-type` | new `WorkItemTypeIcon` | epic, story, task and bug by shape, all neutral |
 | `.wi-prio` (`.p-low`, `.p-medium`, `.p-high`, `.p-urgent`) | new `PriorityMark` | priority is not a status: three neutral bars, and urgent the only mark with a colour, the accent. Always with its word in `aria-label` |
 | `.wi-epic`, `.wi-label`, `.wi-assignee` (`.none`) | new `.workitem-epic`, `.workitem-label`, `.monogram` | the epic is neutral, with its own `--hue` only on the diamond, so a board of one epic does not turn the brand's colour |
 | `.select-bar` | new `.selection-bar` | floats over the board while cards are chosen; holds "Orquestar" |
-| `.wi-group`, `.wi-row`, `.wi-row-title` | `.list-row` variants | the list view, grouped by column |
+| `.wi-group`, `.wi-row`, `.wi-row-title` | `.list-row` variants | the list view, grouped by column. On a phone the title wraps instead of being cut |
 | `.wi-jump`, `.wi-mrow` | `.seg` variant, `.list-row` variant | the phone board: columns are sections of one list, and the jump control shows each column's glyph and count, the chosen one with its name |
+| `button.wi-mrow[aria-pressed]` (`.sel`) | `.list-row` variant | selection on a phone: the whole row is a pressed button with the selected-row look and says "Elegida" in words. An epic cannot be chosen and says why ("las épicas no se orquestan"). No checkbox |
 | `.ms-bar` (`.done`, `.doing`), `.ms-name`, `.ms-legend` | `ProgressBar` variant | done in ok, the ones in flight in a neutral tone, the rest as track. No dates anywhere |
 | `.prop-row` | the chat inspector's rows | the work item's properties |
-| `.ac-row` (`.on`), `.ac-by` | new `.criterion-row` | each criterion checked on its own, with who checked it (the person or an agent's chat) |
+| `.ac-row` (`.on`), `.ac-by` | new `.criterion-row` | each criterion checked on its own, with who checked it (the person or an agent's chat). **The one place a check mark is always visible, a phone included**: the whole row is the control (`label` or `button role="checkbox"`, at least 44 px on a phone) and the box only shows its state |
 | `.rel-row`, `.rel-kind` | new `.relation-row` | `blocks` and `blocked by` only |
 | `.link-row` (`.rail-live`), `.link-ico` | new `.work-link-row` | a chat or orchestration task that worked on the item, the role it played, and its state as a badge with its word |
-| `.diff-file`, `.diffstat` | the Changes tab of the chat | what changed in the item's worktree. The diffstat has no status colours |
+| `.diff-file`, `.diffstat`, `.path.wrap` | the Changes tab of the chat | what changed in the item's worktree. The diffstat has no status colours. In a narrow column the path wraps (`.path.wrap`) instead of losing its file name |
 | `.activity`, `.hist`, `.hist-ico`, `.cause` | new `.history-entry` | automatic history interleaved with comments; an automatic move names its cause |
 | `.comment` (`.agent`), `.comment-body`, `.agent-mark` | new `.comment` | the person's comment carries their monogram; an agent's carries the `›_` mark and the chat it came from |
-| `.part-of` with a `.wi-key` | `.chat-part-of` | a chat that works on an item names it under its header: "Trabaja en AGN-28 *title* · En curso" |
+| `.part-of` with a `.wi-key` | `.chat-part-of` | a chat that works on an item names it under its header: "Trabaja en AGN-28 *title* · En curso". On a phone the row is the link itself (`a.part-of`), 52 px high |
+| `.cell.stacked` | `.settings-cell` variant | a phone cell whose content stacks in lines (a relation, a changed file, a flow row, a journal entry), so nothing in it is cut |
 | `.stack`, `.m-foot` | layout helpers | a column whose cards keep their height; a phone detail's bottom action bar |
 
 The sidebar gains **Tareas** between Chats and Orchestrations, with the open count of the selected
@@ -261,9 +284,10 @@ three-way segmented control under the title. A new task on a phone is the gradie
 
 The Team, Memory and Documents modules of the ecosystem are drawn in section 16 of
 `agentry-ds.css` and on the `Desktop*`/`Mobile*` screens named `Equipo`, `EquipoVacio`,
-`Miembro`, `Flujo`, `Memoria`, `Documentos`, `Documento` (phone only) and `TableroEquipo` (the
-board while a team works it). Orchestration 3 builds them; the right-hand column is the name each
-class should take in the app.
+`Miembro`, `Flujo`, `Memoria`, `Documentos`, `DocumentoEditar`, `Documento` (phone only) and
+`TableroEquipo` (the board while a team works it). The phone draws Memory's three tabs as
+`Memoria`, `MemoriaDiario` and `MemoriaCLI`. Orchestration 3 builds them; the right-hand column
+is the name each class should take in the app.
 
 | Reference class | App class or component | Rule |
 |---|---|---|
@@ -297,7 +321,10 @@ arriving with the gradient border above three dashed slots for the roles.
 The project assistant, "Suggest tasks" and the resources with AI (decisions 35 to 38 of
 [plans/project-ecosystem.md](plans/project-ecosystem.md)) are drawn in section 17 of
 `agentry-ds.css` and on the screens `Asistente`, `AsistentePropuestas`, `SugerirTareas`,
-`Recursos`, `RecursoPropuesta` and `RecursoCrearIA`, desktop and phone. Orchestration 4 builds them.
+`Recursos`, `RecursoPropuesta` and `RecursoCrearIA`, desktop and phone, plus `AsistenteVacio` (a
+project with nothing to read: no run, no cost, the template's roles offered one by one) and
+`SugerirTareasEnCurso` (a suggestion while it runs). The phone draws the Team and Resources
+proposals as `AsistenteEquipo` and `AsistenteRecursos`. Orchestration 4 builds them.
 
 Every suggestion is a CLI chat run with `--json-schema`, so **a run always shows its model, its
 time, its cost and the chat it ran in** (`.ai-facts`). The same cost also counts in Usage and in the
@@ -354,7 +381,24 @@ items; team, flow, memory and documents; assistant, suggestions and resources wi
   gradient only on Resumen; on a tab with a primary of its own it is plain.
 - **Copy.** Buttons are infinitive and short enough for half a phone's width ("Pedir propuesta",
   "Añadir miembro"). The same figure reads the same everywhere: 23 documents, a journal of 86
-  entries, 3 proposals waiting.
+  entries, 3 proposals waiting. Outcomes use the glossary's words ("completada", "interrumpida",
+  "Crear un fork"), and the copy never names a colour: it says "el color de aviso".
+- **One data set.** Every prototype of `claude-wrapper` draws the same 27 work items: 15 open and
+  12 done, with the columns adding up to it (Backlog 4, Por hacer 4, En curso 5 over its limit of
+  3, En revisión 2, Hecho 12), and milestones v0.20 (7 of 15), v0.21 (0 of 3), two closed ones (3
+  and 2) and 4 open items without one. `pagos-api` is the empty project and shows no counts. With
+  All projects selected, Tasks adds `google-docs-mcp` for 18 open items.
+- **Breadcrumb.** Every project tab reads `Proyectos / <project> / <tab>` in the top bar, and a
+  page inside a tab adds its own part (`Equipo / Flujo`, `Equipo / <role>`, `Recursos / <name>`).
+  Tasks reads `Tareas` on the board, the list and the milestones (the segmented control says which
+  view), and `Tareas / <key>` on a work item.
+- **Titles.** A page title is `.t-h1`, 24 px, on both sizes. A full-screen form on a phone
+  ("Cancelar · Nueva tarea") keeps its 17 px header.
+- **No bulk accept.** Suggested work items, team members and resources are accepted one by one
+  (decision 36 of the plan): there is no "Aceptar todas". Discarding says "Descartar" in words.
+- **Nothing that carries the meaning is cut**, and nothing sits under the FAB, the selection bar or
+  a toolbar: titles, epics, flow descriptions and module notes wrap; a phone list ends above the
+  FAB.
 
 ---
 
@@ -382,7 +426,7 @@ Every loop respects the motion setting:
 
 ## 4. Illustrations
 
-Agentry has its own set of 16 SVG illustrations, drawn in the interface's language: hairline
+Agentry has its own set of 15 SVG illustrations, drawn in the interface's language: hairline
 strokes, nodes and graphs, terminal windows, and the brand gradient on one element. `board` and
 `team` are drawn for the project ecosystem and are not in the app yet. There is no library
 dependency and no third-party licence. The reference is `design-system/illustrations/*.svg` (each
