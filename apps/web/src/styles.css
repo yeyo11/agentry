@@ -25,6 +25,7 @@
 @import './styles/board.css';
 @import './styles/work-item.css';
 @import './styles/team.css';
+@import './styles/suggestion.css';
 @import './styles/documents.css';
 @import './styles/editors.css';
 @import './styles/overlays.css';
