@@ -104,16 +104,16 @@ export function formatCost(usd: number | null | undefined): string {
 }
 
 /**
- * A cost where only a few characters fit (a phone's figure tile): whole dollars, the language's
- * short form past a thousand ($1.3K, 1,3 mil US$), and cents only under a dollar, where they are
- * the whole figure.
+ * An amount where only a few characters fit (a phone's figure tile), without its currency: the
+ * words beside it say it, since "1,3 mil US$" does not fit a third of a phone in Spanish. Whole
+ * units, the language's short form past a thousand (1.3K, 1,3 mil), and cents only under one,
+ * where they are the whole figure.
  */
-export function formatCostShort(usd: number | null | undefined): string {
-  const value = usd || 0;
-  if (value > 0 && value < 1) return formatCost(value);
-  const digits = value < 1000 ? 0 : 1;
-  return cached(`usd-short:${digits}`, (l) =>
-    new Intl.NumberFormat(l, { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: digits }),
+export function formatAmountShort(amount: number | null | undefined): string {
+  const value = amount || 0;
+  const digits = value > 0 && value < 1 ? 2 : value < 1000 ? 0 : 1;
+  return cached(`amount-short:${digits}`, (l) =>
+    new Intl.NumberFormat(l, { notation: 'compact', minimumFractionDigits: value > 0 && value < 1 ? 2 : 0, maximumFractionDigits: digits }),
   ).format(value);
 }
 

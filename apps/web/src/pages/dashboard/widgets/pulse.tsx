@@ -5,7 +5,7 @@ import { useOverview } from '../../../api';
 import { ProgressRing, usageTone } from '../../../components/motion';
 import { Spinner } from '../../../components/Spinner';
 import { Skeleton } from '../../../components/ui';
-import { formatCost, formatCostShort, formatNumber, timeUntil } from '../../../lib/format';
+import { formatAmountShort, formatCost, formatNumber, timeUntil } from '../../../lib/format';
 import { useHomePulse } from '../pulse';
 import type { WidgetProps } from '../registry';
 
@@ -104,7 +104,7 @@ export function KpisWidget({ project, title, id }: WidgetProps) {
         label={t('kpis.spend')}
         tag={t('kpis.today')}
         value={pulse.spentToday === null ? '—' : formatCost(pulse.spentToday)}
-        valueShort={pulse.spentToday === null ? '—' : formatCostShort(pulse.spentToday)}
+        valueShort={pulse.spentToday === null ? '—' : formatAmountShort(pulse.spentToday)}
         valueClass="grad-text"
         sub={
           pulse.chatsWithoutCost > 0

@@ -4,7 +4,7 @@ import test from 'node:test';
 // Formatting follows navigator.languages; pin it so the result does not depend on the machine.
 Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });
 const { setLanguage } = await import('../src/i18n/index.ts');
-const { formatBytes, formatCost, formatCostShort, formatDateTime, formatDuration, formatNumber, timeAgo, timeUntil } = await import('../src/lib/format.ts');
+const { formatBytes, formatAmountShort, formatCost, formatDateTime, formatDuration, formatNumber, timeAgo, timeUntil } = await import('../src/lib/format.ts');
 
 const SEC = 1000;
 const MIN = 60 * SEC;
@@ -64,16 +64,18 @@ test('Spanish output', () => {
   }
 });
 
-test('a short cost keeps whole dollars, and the language’s short form past a thousand', () => {
+test('a short amount keeps whole units, and the language’s short form past a thousand', () => {
   setLanguage('en');
-  assert.equal(formatCostShort(286.95), '$287');
-  assert.equal(formatCostShort(1286.95), '$1.3K');
-  assert.equal(formatCostShort(0.42), '$0.42');
-  assert.equal(formatCostShort(0), '$0');
+  assert.equal(formatAmountShort(286.95), '287');
+  assert.equal(formatAmountShort(1362.13), '1.4K');
+  assert.equal(formatAmountShort(12345.6), '12.3K');
+  assert.equal(formatAmountShort(0.42), '0.42');
+  assert.equal(formatAmountShort(0), '0');
   setLanguage('es');
   try {
-    assert.equal(formatCostShort(286.95), '287\u00a0US$');
-    assert.equal(formatCostShort(1286.95), '1,3\u00a0mil\u00a0US$');
+    assert.equal(formatAmountShort(286.95), '287');
+    assert.equal(formatAmountShort(1362.13), '1,4\u00a0mil');
+    assert.equal(formatAmountShort(0.42), '0,42');
   } finally {
     setLanguage('en');
   }
