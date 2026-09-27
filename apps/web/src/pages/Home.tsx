@@ -1,9 +1,9 @@
 import type { Project } from '@agentry/shared';
-import { BookText, ChevronLeft, ChevronRight, FolderX, GitFork, LayoutDashboard, MessageCircle, Package, Plus, SlidersHorizontal, SquareKanban, Users, type LucideIcon } from 'lucide-react';
+import { BookText, ChevronLeft, ChevronRight, FileText, FolderX, GitFork, LayoutDashboard, MessageCircle, Package, Plus, SlidersHorizontal, SquareKanban, Users, type LucideIcon } from 'lucide-react';
 import { lazy, Suspense, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
-import { useOpenTaskCount, useProjectSettings, useTeam } from '../api';
+import { useDocuments, useOpenTaskCount, useProjectSettings, useTeam } from '../api';
 import { ICON, ICON_SM, Monogram, WorkItemKey } from '../components/icons';
 import { Skeleton, TabPanel, Tabs, usePageTitle, useTabGroup } from '../components/ui';
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
@@ -14,12 +14,14 @@ import { NEW_TASK_PATH } from '../lib/work-items';
 import { Dashboard } from './dashboard/Dashboard';
 import { HomeHero } from './dashboard/Hero';
 import { defaultLayout } from './dashboard/registry';
+import { usePendingProposalCount } from './home/memory/Proposals';
 import { asProjectView, legacyTabRedirect, projectViews, type ProjectViewId } from './dashboard/views';
 
 // The dashboard is what most visits are for; the project's other tabs load when opened
 const ProjectSettings = lazy(() => import('./home/ProjectSettings').then((m) => ({ default: m.ProjectSettings })));
 const ProjectMemory = lazy(() => import('./home/ProjectMemory').then((m) => ({ default: m.ProjectMemory })));
 const ProjectResources = lazy(() => import('./home/ProjectResources').then((m) => ({ default: m.ProjectResources })));
+const ProjectDocuments = lazy(() => import('./documents/Documents').then((m) => ({ default: m.ProjectDocuments })));
 const ProjectWorktrees = lazy(() => import('./home/ProjectWorktrees').then((m) => ({ default: m.ProjectWorktrees })));
 // The Tasks board itself: it reads the selected project, which on this page is the one shown
 const ProjectBoard = lazy(() => import('./tasks/Board').then((m) => ({ default: m.Board })));
@@ -31,6 +33,7 @@ const TAB_ICON: Record<TabId, LucideIcon> = {
   summary: LayoutDashboard,
   board: SquareKanban,
   team: Users,
+  documents: FileText,
   memory: BookText,
   resources: Package,
   worktrees: GitFork,
@@ -51,11 +54,36 @@ function MissingAlert({ project }: { project: Project }) {
   );
 }
 
-/** The figure each tab carries, neutral: open tasks on the board, the team's members, the worktrees. */
+/**
+ * The figure each tab carries, neutral: open tasks on the board, the team's members, the documents,
+ * the worktrees. Memory's is the proposals waiting for the person, which `IDLE_COUNT` draws in idle.
+ */
 function useTabCounts(project: Project): Partial<Record<TabId, number>> {
   const open = useOpenTaskCount(project, true);
   const team = useTeam(project.modules.includes('team') ? project.id : null).data;
-  return { board: open, team: team?.members.length || undefined, worktrees: project.worktrees.length || undefined };
+  const documents = useDocuments(project.modules.includes('documents') ? project.id : null).data?.fileCount;
+  const proposals = usePendingProposalCount(project.id, project.modules.includes('memory'));
+  return {
+    board: open,
+    team: team?.members.length || undefined,
+    documents,
+    memory: proposals || undefined,
+    worktrees: project.worktrees.length || undefined,
+  };
+}
+
+/** Tabs whose figure waits for the person: drawn in idle, and said in words to a screen reader. */
+const IDLE_COUNT: ReadonlySet<TabId> = new Set(['memory']);
+
+function TabCount({ id, count }: { id: TabId; count: number }) {
+  const { t } = useTranslation('home');
+  if (!IDLE_COUNT.has(id)) return <span className="count">{formatNumber(count)}</span>;
+  const label = t('memoryTab.proposals.waiting', { count, n: formatNumber(count) });
+  return (
+    <span className="count count-idle" title={label} aria-label={label}>
+      {formatNumber(count)}
+    </span>
+  );
 }
 
 /**
@@ -164,9 +192,12 @@ function PhoneTabCells({ views, counts }: { views: ProjectViewId[]; counts: Part
                   <Icon {...ICON} />
                 </span>
                 <span className="settings-cell-name">{t(`tabs.${view}`)}</span>
-                {count !== undefined && (
-                  <span className="mono small muted">{view === 'board' ? t('projects:head.open', { count, n: formatNumber(count) }) : formatNumber(count)}</span>
-                )}
+                {count !== undefined &&
+                  (IDLE_COUNT.has(view) ? (
+                    <TabCount id={view} count={count} />
+                  ) : (
+                    <span className="mono small muted">{view === 'board' ? t('projects:head.open', { count, n: formatNumber(count) }) : formatNumber(count)}</span>
+                  ))}
                 <ChevronRight {...ICON_SM} className="settings-cell-chevron" />
               </Link>
             </li>
@@ -190,6 +221,7 @@ function TabBody({ project, tab }: { project: Project; tab: ProjectViewId }) {
       {tab === 'team' && <ProjectTeam project={project} />}
       {tab === 'settings' && <ProjectSettings project={project} />}
       {tab === 'memory' && <ProjectMemory project={project} />}
+      {tab === 'documents' && <ProjectDocuments project={project} />}
       {tab === 'resources' && <ProjectResources project={project} />}
       {tab === 'worktrees' && <ProjectWorktrees project={project} />}
     </Suspense>
@@ -237,8 +269,10 @@ function ProjectPage({ project }: { project: Project }) {
   if (narrow) {
     return view ? (
       <>
-        {/* Team heads its own screens: the tab, a member, each with what it holds */}
-        {view !== 'team' && <PhoneViewHead project={project} view={view} onBack={() => open('summary')} />}
+        {/* Team heads its own screens, and so does a document open on a phone, with its way back */}
+        {view !== 'team' && !(view === 'documents' && params.has('doc')) && (
+          <PhoneViewHead project={project} view={view} onBack={() => open('summary')} />
+        )}
         <MissingAlert project={project} />
         <div className="tab-panel">
           <TabBody project={project} tab={view} />
@@ -252,6 +286,19 @@ function ProjectPage({ project }: { project: Project }) {
             they sat a dozen widgets down, where the reference has them near the top */}
         <PhoneTabCells views={views} counts={counts} />
         <ProjectDashboard project={project} />
+      </>
+    );
+  }
+
+  // A member is a page of its own, as its reference draws it: the crumb says where it is, its back
+  // button leads to the team, and the project's head and tabs would only push its editor down
+  if (view === 'team' && params.has('member')) {
+    return (
+      <>
+        <MissingAlert project={project} />
+        <div className="tab-panel">
+          <TabBody project={project} tab={view} />
+        </div>
       </>
     );
   }
@@ -273,7 +320,7 @@ function ProjectPage({ project }: { project: Project }) {
               <>
                 <Icon {...ICON_SM} />
                 {t(`tabs.${id}`)}
-                {count !== undefined && <span className="count">{formatNumber(count)}</span>}
+                {count !== undefined && <TabCount id={id} count={count} />}
               </>
             );
             return { id, label, dirty: dirtyKeys.size > 0 && id === tab };

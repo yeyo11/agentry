@@ -2,14 +2,14 @@ import type { ProjectModule } from '@agentry/shared';
 
 /**
  * A project's own tabs, each at `/?view=<id>`, in the order the strip draws them after Resumen (the
- * dashboard, which has no `view`). Documents joins once orchestration 3 builds it.
+ * dashboard, which has no `view`).
  */
-export const PROJECT_VIEWS = ['board', 'team', 'memory', 'resources', 'worktrees', 'settings'] as const;
+export const PROJECT_VIEWS = ['board', 'team', 'documents', 'memory', 'resources', 'worktrees', 'settings'] as const;
 
 export type ProjectViewId = (typeof PROJECT_VIEWS)[number];
 
 /** The module a tab belongs to: it exists only while that module is on. The others are always there. */
-export const VIEW_MODULE: Partial<Record<ProjectViewId, ProjectModule>> = { board: 'board', team: 'team', memory: 'memory' };
+export const VIEW_MODULE: Partial<Record<ProjectViewId, ProjectModule>> = { board: 'board', team: 'team', documents: 'documents', memory: 'memory' };
 
 export const asProjectView = (value: string | null): ProjectViewId | null => PROJECT_VIEWS.find((id) => id === value) ?? null;
 

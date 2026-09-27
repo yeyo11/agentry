@@ -523,6 +523,42 @@
   justify-content: center;
 }
 
+/* A phone draws the empty team on the page itself, not in a card, with its actions full width */
+.team-empty.is-phone {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 4px;
+}
+
+.team-empty.is-phone .state-illustrated {
+  padding: 16px 0 8px;
+}
+
+.team-empty.is-phone .state-action {
+  align-self: stretch;
+}
+
+/* The template's roles run the width of the phone, as cells, not a centred column */
+.team-template:has(.team-template-cells) {
+  align-items: stretch;
+}
+
+.team-template:has(.team-template-cells) > .section-label {
+  align-self: flex-start;
+}
+
+.team-empty.is-phone .team-empty-actions {
+  flex-direction: column;
+  align-self: stretch;
+  width: 100%;
+}
+
+.team-empty.is-phone .team-empty-actions .btn {
+  width: 100%;
+  min-height: 44px;
+  justify-content: center;
+}
+
 .team-template {
   display: flex;
   flex-direction: column;
@@ -586,6 +622,7 @@
 .member-cell {
   gap: 12px;
   align-items: center;
+  padding-block: 14px;
 }
 
 .member-cell.live-rail::before {
@@ -926,7 +963,7 @@ a.member-run:hover {
 /* The phone's Save and Discard stay in reach at the foot of the screen, above the tab bar */
 .member-phone-foot {
   position: sticky;
-  bottom: 0;
+  bottom: var(--stick-bottom);
   z-index: 2;
   display: flex;
   align-items: center;

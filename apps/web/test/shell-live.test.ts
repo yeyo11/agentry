@@ -120,6 +120,12 @@ test('the tab bar steps aside on a chat and on an orchestration, not on their li
   // A new chat is that page too: the box sits at the bottom of the window, where the bar would be
   for (const path of ['/chats/abc', '/chats/abc/', '/chats/new', '/orchestration/o1', '/projects/new', '/tasks/AGN-12', '/tasks/AGN-12/']) assert.equal(hidesTabBar(path), true, path);
   for (const path of ['/', '/chats', '/orchestration', '/settings', '/projects', '/tasks', '/tasks/milestones']) assert.equal(hidesTabBar(path), false, path);
+  // A member, the flow and an open document bring their own Save bar; the lists around them keep the tab bar
+  for (const search of ['?project=p&view=team&member=developer', '?project=p&view=team&section=flow', '?project=p&view=documents&doc=docs%2Fa.md', '?view=documents&doc=a.md&mode=edit'])
+    assert.equal(hidesTabBar('/', search), true, search);
+  for (const search of ['', '?project=p&view=team', '?project=p&view=documents', '?project=p&view=documents&dir=docs%2Fspecs', '?project=p&view=memory'])
+    assert.equal(hidesTabBar('/', search), false, search);
+  assert.equal(hidesTabBar('/chats', '?view=team&member=developer'), false);
 });
 
 test('the phone FAB follows the page: words on Home, an icon on the lists, none where the tab bar steps aside', () => {

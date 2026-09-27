@@ -208,7 +208,7 @@ export function TeamEmpty({ projectId, roles, templateName, phone, onAdd }: { pr
   );
   return (
     <>
-      <section className={`card glow-top team-empty ${phone ? 'is-phone' : ''}`.trim()}>
+      <section className={phone ? 'team-empty is-phone' : 'card glow-top team-empty'}>
         <Empty
           illustration="team"
           size={phone ? 'md' : 'lg'}

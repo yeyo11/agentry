@@ -153,7 +153,14 @@ export function liveSummary({
  * Pages that bring their own back button and a sticky footer (a chat's composer, an
  * orchestration's summary) take the whole height on a phone, so the tab bar steps aside there.
  */
-export function hidesTabBar(pathname: string): boolean {
+export function hidesTabBar(pathname: string, search = ''): boolean {
+  // A team member, the flow and an open document end in their own Save bar, as their references do
+  if (pathname === '/' && search) {
+    const params = new URLSearchParams(search);
+    const view = params.get('view');
+    if (view === 'team' && (params.has('member') || params.get('section') === 'flow')) return true;
+    if (view === 'documents' && params.has('doc')) return true;
+  }
   // A new chat is the same page as the chat it becomes — a box at the bottom of the window — and
   // the bar would sit over it; its header carries the way back instead
   if (/^\/chats\/[^/]+\/?$/.test(pathname)) return true;
@@ -180,7 +187,7 @@ export interface FabPlan {
  * different "+" (MobileHitos draws none).
  */
 export function fabFor(pathname: string, search = ''): FabPlan | null {
-  if (hidesTabBar(pathname)) return null;
+  if (hidesTabBar(pathname, search)) return null;
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
   if (path === '/') return new URLSearchParams(search).has('view') ? null : { action: 'chat', labelled: true };
   if (path === '/chats' || path === '/projects') return { action: 'chat', labelled: false };
