@@ -50,6 +50,12 @@ export default async ({ page, api, check, dirs }) => {
     check(/in progress 2/.test(summary), `the summary carries the template's limit (${summary})`);
     check((await page.eval(`return document.querySelectorAll('main .btn-primary').length`)) === 1, 'the wizard has one primary action');
 
+    // Proposing is on for this template and would hand the project to the assistant, which starts a
+    // CLI run: that hand-off is assistant.spec's, against the fake CLI; this one lands on the project
+    const propose = `document.querySelector('main .wizard-propose [role=switch]')?.getAttribute('aria-checked')`;
+    check((await page.eval(`return ${propose}`)) === 'true', 'the wizard offers to propose a team, resources and tasks');
+    await page.click('main .wizard-propose [role=switch]', undefined, 300);
+    check((await page.eval(`return ${propose}`)) === 'false', 'proposing can be switched off');
     await page.click('main .wizard-create', undefined, 1500);
     await page.waitFor(`return location.pathname === '/' && document.querySelector('main h1')?.textContent === 'e2e-wizard'`, { label: 'the new project page' });
     const project = (await api.get('/projects')).body.find((p) => p.path === dir);

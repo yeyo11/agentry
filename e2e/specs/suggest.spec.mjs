@@ -16,7 +16,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(condition, label, limit = 20_000) {
   const end = Date.now() + limit;
   for (;;) {
-    const value = await condition().catch(() => null);
+    // A condition may be synchronous, such as a file existing
+    const value = await Promise.resolve().then(condition).catch(() => null);
     if (value) return value;
     if (Date.now() > end) throw new Error(`timed out waiting for: ${label}`);
     await sleep(200);
@@ -79,7 +80,9 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       `const row = [...document.querySelectorAll('.dialog .suggestion-row')].find((r) => r.textContent.includes('milestone')); return row?.querySelector('.checkbox')?.getAttribute('data-state')`,
     );
     check(similar === 'unchecked', `a proposal like an existing item starts unselected (${similar})`);
-    check((await page.text('.dialog .suggestion-row:nth-child(3)')).includes(`Similar to ${existing.key}`), 'it names the item it resembles');
+    // The mark is a flex row, so innerText breaks the line between "Similar to" and the key
+    const like = (await page.text('.dialog .suggestion-row:nth-child(3)')).replace(/\s+/g, ' ');
+    check(like.includes(`Similar to ${existing.key}`), `it names the item it resembles (${like})`);
     check((await page.text('.dialog .dialog-foot')).includes('2 of 3 selected'), 'the footer counts the selection');
     check((await itemCount()) === before, 'nothing is created before the person creates it');
 
@@ -112,7 +115,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.click('.resources-proposals .suggestion-row button', 'Review', 1000);
     await page.waitFor(`return new URLSearchParams(location.search).has('proposal') && !!document.querySelector('.resource-proposal-editor')`, { label: 'the proposal in the editor' });
     const meta = await page.text('.resource-proposal-editor .editor-meta');
-    check(meta.includes('not saved yet') && meta.includes('.claude/agents/migration-reviewer.md'), `it is unsaved and says where it goes (${meta})`);
+    // The badge is an uppercase label, which innerText reads as it is drawn
+    check(/not saved yet/i.test(meta) && meta.includes('.claude/agents/migration-reviewer.md'), `it is unsaved and says where it goes (${meta})`);
     await page.click('.resource-proposal-actions .btn-primary', undefined, 1200);
     await until(() => existsSync(agentPath), 'saving the proposal writes the agent file');
     await page.waitFor(`return new URLSearchParams(location.search).get('res') === 'agents:migration-reviewer'`, { label: 'the editor holds the saved file' });
@@ -139,6 +143,17 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await until(() => existsSync(onePath), 'saving it writes the agent file');
 
     // ---- On a phone: the same suggestion as Include buttons, no checkboxes ----
+    // The desktop created the first two by title, which now makes them "similar" too: the new run
+    // proposes two new ones beside the one like an existing item
+    const fresh = [
+      { ...workItems[0], title: 'Redo a move that was undone', epic: null },
+      { ...workItems[1], title: 'Column limit not checked on restore' },
+      workItems[2],
+    ];
+    writeFileSync(
+      fake.scripts,
+      JSON.stringify({ [WORK_ITEMS_KEY]: answer({ workItems: fresh }), [ONE_AGENT_KEY]: answer({ resources: [one] }), [SUGGEST_KEY]: answer({ resources }) }),
+    );
     await page.viewport(390, 844);
     await page.goto(`/tasks?project=${projectId}&suggest=1`, 1800);
     await page.waitFor(`return !!document.querySelector('.newtask-screen .suggest-body')`, { label: 'the full screen' });
