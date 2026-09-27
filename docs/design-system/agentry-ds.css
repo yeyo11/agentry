@@ -640,7 +640,132 @@
    (role avatar, flow row, proposal row). proto-foundation leaves it empty.
    ========================================================================== */
 
-/* ---------- 16. Equipo, flujo, memoria y documentos (proto-team) ---------- */
+/* ---------- 16. Equipo, flujo, memoria y documentos (proto-team) ----------
+   The Team, Memory and Documents modules of docs/plans/project-ecosystem.md. A team member is an
+   agent file of the CLI plus the role Agentry keeps for it. A person is round (.monogram); a role is
+   a squircle, so a board never mixes them up. Nothing here loops: a member at work borrows
+   .rail-live, .spin-ring and .spin-braille from §11. */
+
+/* Role avatar: a neutral squircle with the role's initials in mono, and the role's own --hue only
+   on a small diamond in its corner, as the epic label does. The gradient stays on the person's own
+   active avatar. */
+.role-av { position: relative; flex-shrink: 0; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-sm); background: var(--bg-3); border: 1px solid var(--line-2); font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--fg-2); }
+.role-av::after { content: ''; position: absolute; right: -2px; bottom: -2px; width: 7px; height: 7px; transform: rotate(45deg); border-radius: var(--r-xs); border: 1.5px solid var(--bg-2); background: color-mix(in oklab, hsl(var(--hue, 20) 70% 55%), var(--fg) 25%); }
+.role-av.sm { width: 20px; height: 20px; border-radius: var(--r-xs); font-size: 8.5px; }
+.role-av.sm::after { width: 5px; height: 5px; border-width: 1px; right: -1.5px; bottom: -1.5px; }
+.role-av.lg { width: 44px; height: 44px; border-radius: var(--r); font-size: 13px; }
+.role-av.lg::after { width: 9px; height: 9px; }
+/* The model of a role, in mono. Neutral: a model is a choice, not a state. */
+.model-tag { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: var(--r-xs); background: var(--bg-3); border: 1px solid var(--line); font-family: var(--mono); font-size: 11px; color: var(--fg-2); white-space: nowrap; }
+.model-tag.opus::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--fg-2); }
+/* A path a role may write, or may not (.deny, struck through). */
+.scope { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 7px; border-radius: var(--r-xs); border: 1px solid var(--line-2); font-family: var(--mono); font-size: 11px; color: var(--fg-2); white-space: nowrap; }
+.scope.deny { border-style: dashed; color: var(--fg-3); text-decoration: line-through; text-decoration-color: var(--line-3); }
+
+/* Member card: one role of the team, its model, what it owns, what it may write and what it is
+   doing now. The one at work carries the live rail, like a work item card. */
+.member-card { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: var(--r-xl); border: 1px solid var(--line); background: var(--bg-2); box-shadow: var(--shadow); transition: border-color var(--dur-fast); }
+.member-card:hover { border-color: var(--line-3); }
+.member-card.rail-live { padding-left: 18px; }
+.member-card.rail-live::before { top: 14px; bottom: 14px; }
+.member-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.member-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.member-file { font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.member-desc { margin: 0; font-size: 13px; line-height: 1.5; color: var(--fg-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.member-facts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--fg-3); }
+/* What the member is doing now: the live line (shape of .wi-card-live) or, at rest, its last work. */
+.member-now { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 32px; padding: 6px 10px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg); font-size: 12.5px; color: var(--fg-3); }
+.member-now .wi-key { flex-shrink: 0; }
+
+/* Flow strip: the five columns in order, each with the role that acts when a card enters it, and
+   the way back when QA rejects. Neutral: the flow is configuration, nothing in it is live. */
+.flow-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 28px; position: relative; }
+.flow-node { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px 12px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-1); text-align: center; }
+.flow-node + .flow-node::before { content: ''; position: absolute; left: -24px; top: 50%; width: 20px; height: 1px; background: var(--line-3); }
+.flow-node + .flow-node::after { content: ''; position: absolute; left: -9px; top: calc(50% - 3px); width: 5px; height: 5px; border: solid var(--line-3); border-width: 1px 1px 0 0; transform: rotate(45deg); }
+.flow-node .t-label { color: var(--fg-2); }
+.flow-node.person { border-style: dashed; }
+/* The way back, from In review to In progress: a dashed bracket between the two nodes' centres, and
+   its words under it. */
+.flow-back { position: relative; height: 14px; margin: -6px 29% 0 50%; border: 1px dashed var(--line-3); border-top: 0; border-radius: 0 0 var(--r) var(--r); }
+.flow-back::before { content: ''; position: absolute; left: -4px; top: -1px; width: 6px; height: 6px; border: solid var(--line-3); border-width: 1px 0 0 1px; transform: rotate(45deg); }
+.flow-back-note { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: -6px; padding-left: 20%; font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; }
+
+/* Flow row: a column, its responsible role (a Select in the app), what the role does there and when
+   it moves the card on. The row for done is the person's and cannot change. */
+.flow-row { display: grid; grid-template-columns: 150px 220px minmax(0, 1fr); align-items: center; gap: 16px; min-height: 60px; padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.flow-row:last-child { border-bottom: 0; }
+.flow-col { display: flex; align-items: center; gap: 8px; }
+.flow-col .t-label { color: var(--fg-2); }
+.flow-role { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px 0 6px; border-radius: var(--r); border: 1px solid var(--line-2); background: var(--bg-2); font-size: 13px; font-weight: 500; }
+.flow-role.fixed { border-style: dashed; background: transparent; color: var(--fg-2); }
+.flow-does { display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--fg-2); line-height: 1.45; }
+.flow-does .then { font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+/* A number with steppers (the app's NumberInput), for the maximum number of bounces. */
+.stepper { display: inline-flex; align-items: center; height: 36px; border-radius: var(--r); border: 1px solid var(--line-2); background: var(--bg-2); overflow: hidden; }
+.stepper > button { width: 34px; height: 100%; display: grid; place-items: center; border: 0; background: transparent; color: var(--fg-2); cursor: pointer; }
+.stepper > button:hover { background: var(--bg-3); color: var(--fg); }
+.stepper > output { min-width: 40px; height: 100%; display: grid; place-items: center; border-inline: 1px solid var(--line); font-family: var(--mono); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* On a card: the item came back from QA. Neutral while it has bounces left; the item waiting for the
+   person after the last one is idle, and says so. */
+.bounce { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px; color: var(--fg-2); white-space: nowrap; }
+.bounce .ico { width: 12px; height: 12px; }
+
+/* Proposal row: a memory entry a role proposed, waiting for the person (idle, with its word). Who
+   proposed it, from which work item, and where it will be written once approved. */
+.proposal { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 14px 18px; border-bottom: 1px solid var(--line); }
+.proposal:last-child { border-bottom: 0; }
+.proposal::before { content: ''; position: absolute; left: 0; top: 14px; bottom: 14px; width: 2px; border-radius: var(--r-xs); background: var(--idle); }
+.proposal-text { margin: 0; font-size: 14px; line-height: 1.5; }
+.proposal-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--fg-3); }
+.proposal-meta b { font-weight: 500; color: var(--fg-2); }
+.proposal-to { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px; color: var(--fg-2); }
+.proposal-actions { display: flex; align-items: center; gap: 6px; }
+
+/* File tree of a folder (the app's .tree-row, .tree-icon, .tree-size in editors.css). --depth
+   indents; the open file takes the accent inset of a selected row. */
+.tree { display: flex; flex-direction: column; padding: 6px; }
+.tree-row { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 8px 0 calc(8px + var(--depth, 0) * 16px); border-radius: var(--r-sm); font-size: 13px; color: var(--fg-2); white-space: nowrap; cursor: pointer; }
+.tree-row:hover { background: var(--bg-3); color: var(--fg); }
+.tree-row.on { background: var(--bg-3); color: var(--fg); font-weight: 500; box-shadow: inset 2px 0 0 var(--accent); }
+.tree-row .ico { width: 14px; height: 14px; color: var(--fg-3); }
+.tree-row .name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tree-row .tree-size { font-family: var(--mono); font-size: 10.5px; color: var(--fg-3); }
+.tree-row .dir { color: var(--fg); }
+
+/* The existing code editor (the app's .code-editor, CodeMirror): a bar with the path and its state,
+   a gutter, and neutral highlighting. Nothing here uses a status colour. */
+.code-edit { display: flex; flex-direction: column; min-height: 0; border-radius: var(--r-lg); border: 1px solid var(--line-2); background: var(--bg-1); overflow: hidden; }
+.code-edit:focus-within, .code-edit.focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.code-bar { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--line); background: var(--bg-2); font-family: var(--mono); font-size: 12px; color: var(--fg-2); }
+.code-lines { display: grid; grid-template-columns: 44px minmax(0, 1fr); font-family: var(--mono); font-size: 12.5px; line-height: 20px; padding: 8px 0; overflow: hidden; }
+.code-lines .ln { padding-right: 12px; text-align: right; color: var(--fg-3); border-right: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.code-lines .lc { padding-left: 14px; white-space: pre; color: var(--fg); overflow: hidden; text-overflow: ellipsis; }
+.code-lines .cur { background: var(--bg-3); }
+.code-lines .k { color: var(--fg-2); }
+.code-lines .p { color: var(--fg-3); }
+.code-lines .h { font-weight: 600; }
+.code-lines .caret { height: 14px; width: 2px; vertical-align: -2px; }
+/* Unsaved: a neutral mark with its word. Saving is the zone's primary action. */
+.unsaved { display: inline-flex; white-space: nowrap; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--fg-2); }
+.unsaved::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--fg-2); }
+
+/* A document rendered from Markdown (the app's .md in transcript.css), at reading width. */
+.doc-view { display: flex; flex-direction: column; gap: 12px; max-width: 680px; font-size: 14px; line-height: 1.65; color: var(--fg); }
+.doc-view h1 { margin: 0; font-size: 24px; line-height: 1.25; font-weight: 600; letter-spacing: -0.025em; }
+.doc-view h2 { margin: 8px 0 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.doc-view p, .doc-view ul { margin: 0; color: var(--fg-2); }
+.doc-view ul { padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.doc-view strong { color: var(--fg); font-weight: 600; }
+.doc-view code { font-size: 0.86em; }
+/* Where a generated document came from: the role, the work item, the chat. */
+.doc-origin { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-radius: var(--r); background: var(--bg-1); border: 1px solid var(--line); font-size: 12.5px; color: var(--fg-2); }
+/* A document tied to a work item: kind, title, the item's key and the role that wrote it. */
+.doc-row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; transition: background var(--dur-fast); cursor: pointer; }
+.doc-row:last-child { border-bottom: 0; }
+.doc-row:hover { background: var(--bg-3); }
+.doc-row.sel { background: var(--bg-3); box-shadow: inset 2px 0 0 var(--accent); }
+.doc-kind { flex-shrink: 0; width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--bg-3); color: var(--fg-2); font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.02em; }
 
 /* ---------- end of 16 ---------- */
 

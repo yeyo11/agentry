@@ -257,8 +257,40 @@ The sidebar gains **Tareas** between Chats and Orchestrations, with the open cou
 project. On a phone it lives in the More sheet, and the board, the list and the milestones share a
 three-way segmented control under the title. A new task on a phone is the gradient FAB.
 
-<!-- Reserved for proto-team: the team, flow, memory and documents components go in their own
-     subsection here. -->
+### Team, flow, memory and documents
+
+The Team, Memory and Documents modules of the ecosystem are drawn in section 16 of
+`agentry-ds.css` and on the `Desktop*`/`Mobile*` screens named `Equipo`, `EquipoVacio`,
+`Miembro`, `Flujo`, `Memoria`, `Documentos`, `Documento` (phone only) and `TableroEquipo` (the
+board while a team works it). Orchestration 3 builds them; the right-hand column is the name each
+class should take in the app.
+
+| Reference class | App class or component | Rule |
+|---|---|---|
+| `.role-av` (`.sm`, `.lg`) | new `RoleAvatar` (`.role-avatar`) | a role is a neutral squircle with its initials in mono; a person stays a round `.monogram`, so a board never mixes them up. The role's `--hue` is only on the corner diamond, as on the epic label |
+| `.model-tag` (`.opus`) | new `.model-tag` | the model of a role, neutral: a model is a choice, not a state |
+| `.scope` (`.deny`) | the chips of `StringListEditor` | a path a role may write; `.deny` is one it may never write, dashed and struck through |
+| `.member-card`, `.member-head`, `-name`, `-file`, `-desc`, `-facts`, `-now` | new `.member-card*` | one role: its agent file under `.claude/agents/`, its model, the columns it answers for, where it writes, and what it does now. A member at work carries `.rail-live` and the braille spinner next to its verb; at rest it says its last work, still |
+| `.flow-strip`, `.flow-node` (`.person`), `.flow-back`, `.flow-back-note` | new `.flow-strip` | the five columns in order with the role that acts in each, and the way back from In review to In progress. Neutral: the flow is configuration |
+| `.flow-row`, `.flow-col`, `.flow-role` (`.fixed`), `.flow-does` | new `.flow-row`; the role is a `Select` | the responsible role of a column, what it does there and when it moves the card on. The row for Done is the person's, dashed and locked: agents never move a card to Done |
+| `.stepper` | `NumberInput` (components/controls) | the maximum number of bounces. 44 px buttons on a phone |
+| `.bounce` | new `.bounce` | on a card: "rebote 1 de 3", neutral. The item that used its last bounce waits for the person and says so with an idle badge ("te espera") |
+| `.proposal`, `-text`, `-meta`, `-to`, `-actions` | new `.memory-proposal` | a memory entry a role proposed: where it will be written, the text, who proposed it and from which work item. The idle rail and the card's "N esperan tu aprobación" badge say it waits for the person. Approve, edit or discard each one; nothing is written before |
+| `.tree`, `.tree-row` (`.on`), `.tree-size` | `.tree-row`, `.tree-row-on`, `.tree-size` (editors.css) | the documents folder and the CLI's memory directory. On a phone, folders and files are 48 px cells |
+| `.code-edit`, `.code-bar`, `.code-lines`, `.unsaved` | `CodeEditor` (`.code-edit` is `.code-editor`) and `.editor-meta` | the existing editor, shown with its path and "sin guardar" as a neutral mark with its word. An agent file or a document is edited there, never in a new editor |
+| `.doc-view` | `Markdown` (`.md`) | a document rendered at reading width |
+| `.doc-origin` | new `.doc-origin` | a generated document names the role, the work item and the chat it came from |
+| `.doc-row` (`.sel`), `.doc-kind` | `.list-row` variant | a document tied to a work item: its kind (SPEC, ADR, DOC), title, key and author role |
+
+The tab strip of a project carries **Documentos** between Equipo and Memoria, as the plan orders
+the tabs. The Memory tab counts the proposals waiting, in idle. On the board, each column's head
+shows the role that answers for it (the person's monogram on Done), a card's assignee can be a
+role, and the live line of a card worked by a role carries the role's avatar next to the verb.
+A card that QA passed waits in In review with an idle "espera" and a plain "Aprobar y pasar a
+Hecho": the move to Done is always the person's.
+
+The empty team uses the new **`team`** illustration (`illustrations/team.svg`): an agent file
+arriving with the gradient border above three dashed slots for the roles.
 
 
 
