@@ -33,6 +33,24 @@ test('refuses neighbours given in the wrong order', () => {
   assert.throws(() => rankBetween('a', 'a'));
 });
 
+test('refuses to answer a rank outside its bounds, rather than one that sorts in the wrong place', () => {
+  // A rank ending in the lowest digit leaves nothing strictly before it past its prefix
+  assert.throws(() => rankBetween('a', 'a0'));
+  assert.throws(() => rankBetween(null, '0'));
+  assert.throws(() => rankBetween('a!', null));
+});
+
+test('appending at the end again and again grows a rank one character per sixty cards', () => {
+  let last = rankBetween(null, null);
+  for (let i = 0; i < 1000; i++) {
+    const next = rankBetween(last, null);
+    assert.ok(last < next, `${last} < ${next}`);
+    assert.doesNotMatch(next, /0$/);
+    last = next;
+  }
+  assert.ok(last.length <= 18, `${last} after 1000 appends`);
+});
+
 test('spread ranks are increasing, short and leave room between each other', () => {
   for (const count of [1, 2, 10, 61, 62, 500, 5000]) {
     const ranks = spreadRanks(count);

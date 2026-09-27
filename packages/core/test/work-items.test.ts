@@ -302,6 +302,32 @@ test('reordering the criteria alone is announced and returns the new updatedAt, 
 
 // ---------- moves and ranks ----------
 
+test('appending to a column keeps ranks short instead of respreading the column every hundred cards', () => {
+  const { service, db } = setup();
+  const first = service.create('p1', { title: 'first' });
+  for (let i = 0; i < 400; i++) service.create('p1', { title: `card ${String(i)}` });
+  // A respread would have rewritten the first card's rank
+  assert.equal(service.get(first.id).rank, first.rank);
+  const longest = db.connection.prepare('SELECT MAX(LENGTH(rank)) AS n FROM work_items').get() as { n: number };
+  assert.ok(longest.n <= 8, `ranks grew to ${String(longest.n)} characters`);
+});
+
+test('neighbours a hand edit left with no valid rank between them get the column respread, in order', () => {
+  const { service, db } = setup();
+  const [a, b, c] = ['A', 'B', 'C'].map((t) => service.create('p1', { title: t }));
+  assert.ok(a && b && c);
+  // Nothing sorts strictly between `a` and `a0`, and a midpoint would land after `a0`
+  const setRank = db.connection.prepare('UPDATE work_items SET rank = ? WHERE id = ?');
+  setRank.run('a', a.id);
+  setRank.run('a0', b.id);
+  service.move(c.id, { status: 'backlog', afterId: a.id });
+  assert.deepEqual(orderIn(service, 'p1', 'backlog'), ['A', 'C', 'B']);
+  // A rank holding a character that is not a digit is respread too, rather than failing the move
+  setRank.run('a!', b.id);
+  service.move(c.id, { status: 'backlog', afterId: b.id });
+  assert.deepEqual(orderIn(service, 'p1', 'backlog'), ['A', 'B', 'C']);
+});
+
 test('moves keep the order a person gives, first, last and after a neighbour', () => {
   const { service } = setup();
   const [a, b, c] = ['A', 'B', 'C'].map((t) => service.create('p1', { title: t }));

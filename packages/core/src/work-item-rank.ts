@@ -39,12 +39,39 @@ function midpoint(low: string, high: string | null): string {
 }
 
 /**
+ * The shortest step past `low`: its first digit that can still grow, grown by one. Halving the gap
+ * to the end instead would add a character every six cards appended, and a column filled from the
+ * bottom would need spreading out every hundred or so; this adds one every sixty.
+ */
+function next(low: string): string {
+  for (let i = 0; i < low.length; i++) {
+    const d = digit(low[i]);
+    if (d < BASE - 1) return low.slice(0, i) + (DIGITS[d + 1] ?? '');
+  }
+  return low + (DIGITS[1] ?? '');
+}
+
+function checkRank(rank: string): void {
+  for (const char of rank) digit(char);
+}
+
+/**
  * A rank strictly between `before` and `after`. Null for `before` is the start of the column, null
  * for `after` its end.
+ *
+ * Throws rather than answer a rank outside the bounds: neighbours a hand edit left without room (a
+ * rank ending in the lowest digit, a character that is no digit) have no rank between them, and
+ * the caller spreads the column out again instead.
  */
 export function rankBetween(before: string | null, after: string | null): string {
+  if (before !== null) checkRank(before);
+  if (after !== null) checkRank(after);
   if (before !== null && after !== null && before >= after) throw new Error(`rank ${before} is not before ${after}`);
-  return midpoint(before ?? '', after);
+  const rank = before !== null && after === null ? next(before) : midpoint(before ?? '', after);
+  if (!rank || (before !== null && rank <= before) || (after !== null && rank >= after)) {
+    throw new Error(`no rank between ${before ?? 'the start'} and ${after ?? 'the end'}`);
+  }
+  return rank;
 }
 
 /** `count` ranks in increasing order, evenly spaced and all of one short length. */

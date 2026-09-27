@@ -1025,13 +1025,15 @@ export class WorkItemService {
 
   /**
    * A rank between two neighbours of a column. Should it come out long, or should the neighbours
-   * leave no room (a tie a hand-edited row could leave), the column is spread out again first,
-   * inside the same transaction, and the rank is taken from the fresh spacing.
+   * leave no room (a tie or a malformed rank a hand-edited row could leave), the column is spread
+   * out again first, inside the same transaction, and the rank is taken from the fresh spacing.
    */
   private rankInColumn(projectId: string, status: WorkItemStatus, itemId: string, before: string | null, after: string | null): string {
-    if (before === null || after === null || before < after) {
+    try {
       const rank = rankBetween(before, after);
       if (rank.length <= RANK_REBALANCE_LENGTH) return rank;
+    } catch {
+      // no room between these two: the respread below makes some
     }
     const others = this.sql
       .prepare('SELECT id, rank FROM work_items WHERE project_id = ? AND status = ? AND id != ? ORDER BY rank, id')
