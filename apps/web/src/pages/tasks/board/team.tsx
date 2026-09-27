@@ -99,7 +99,7 @@ export function BounceFact({ item }: { item: Pick<WorkItem, 'bounces'> }) {
   const max = team?.maxBounces ?? count;
   const said = t('card.bounceTitle', { count, max });
   return (
-    <span className="workitem-fact bounce-mark" title={said}>
+    <span className="workitem-fact bounce" title={said}>
       <CornerDownLeft size={12} strokeWidth={1.75} aria-hidden />
       <span aria-hidden>{t('card.bounce', { n: count, max })}</span>
       <span className="sr-only">{said}</span>

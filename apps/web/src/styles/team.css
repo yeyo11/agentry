@@ -123,7 +123,7 @@
 
 .team-link {
   font-size: 13px;
-  color: var(--accent-text);
+  color: var(--accent);
 }
 
 /* ---------- The tab: a toolbar, then the members (or the flow) beside a side column ---------- */
@@ -923,27 +923,43 @@ a.member-run:hover {
   text-decoration: none;
 }
 
-/* The phone's Save and Discard stay in reach at the foot of the screen */
+/* The phone's Save and Discard stay in reach at the foot of the screen, above the tab bar */
 .member-phone-foot {
   position: sticky;
-  bottom: calc(var(--tabbar-h) + 8px);
+  bottom: 0;
   z-index: 2;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+  display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 0;
+  margin: 0 -16px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
   background: var(--bg);
+}
+
+.member-phone-foot > .btn {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+.member-phone-foot > .badge {
+  flex-shrink: 0;
 }
 
 .member-phone-foot > .btn {
   min-height: 44px;
 }
 
+/* A column of full-width fields: the desktop grid's start alignment would shrink them to their text */
 .member-page.is-phone {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 16px;
+}
+
+.member-memory-cell > span:not(.prop-key) {
+  white-space: nowrap;
 }
 
 .member-page.is-phone .member-page-head {
@@ -1226,7 +1242,7 @@ a.member-run:hover {
   line-height: 1.35;
 }
 
-.bounce-mark {
+.bounce {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -1263,7 +1279,7 @@ a.member-run:hover {
 }
 
 .flow-model-input {
-  width: 120px;
+  width: 132px;
   flex-shrink: 0;
 }
 
@@ -1362,4 +1378,18 @@ a.member-run:hover {
 
 .workitem-mrow .workitem-approve {
   min-height: 44px;
+}
+
+.workitem-mrow .workitem-waiting {
+  align-self: stretch;
+}
+
+/* A card that came back from QA carries one more fact: the foot wraps rather than push its avatar out */
+.workitem-card-foot:has(.bounce) {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.workitem-card-foot:has(.bounce) .grow {
+  flex-basis: 0;
 }

@@ -20,7 +20,7 @@ import { taskPath } from '../../lib/work-items';
 import { AnswersFor, FileState } from './Members';
 import { cleanWrites, sameList, stageOf } from './model';
 import { RunTicker, runTime, useRunDone } from './parts';
-import { ModelTag, RoleAvatar, useRoleName } from './RoleAvatar';
+import { RoleAvatar, useRoleName } from './RoleAvatar';
 
 interface Draft {
   responsibility: string;
@@ -274,7 +274,6 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
       <div className="prop-row">
         <span className="prop-key">{t('member.model')}</span>
         <span className="member-model">
-          <ModelTag model={now.model || member.model} />
           <ModelCombobox value={now.model} onChange={(model) => set({ model })} aria-label={t('member.model')} />
         </span>
       </div>

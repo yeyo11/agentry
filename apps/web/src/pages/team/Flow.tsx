@@ -14,7 +14,7 @@ import { NARROW, useMediaQuery } from '../../lib/media';
 import { columnMeta, taskPath } from '../../lib/work-items';
 import { FLOW_COLUMNS, MAX_BOUNCES, sameFlow, setColumnRole } from './model';
 import { PersonMark } from './parts';
-import { ModelTag, RoleAvatar, useRoleName } from './RoleAvatar';
+import { RoleAvatar, useRoleName } from './RoleAvatar';
 
 const NOBODY = '';
 
@@ -238,7 +238,7 @@ export function FlowEditor({ project, team, flow: saved, switcher }: { project: 
                 <WorkItemKey value={item.key} />
                 <span className="flow-bounced-title">{item.title}</span>
                 {item.waiting === 'bounces' && <span className="badge badge-idle">{t('card.waitsForYou')}</span>}
-                <span className="bounce-mark">{t('flow.bounceOf', { n: item.bounces ?? 0, max: saved.maxBounces })}</span>
+                <span className="bounce">{t('flow.bounceOf', { n: item.bounces ?? 0, max: saved.maxBounces })}</span>
               </Link>
             </li>
           ))}
@@ -257,7 +257,6 @@ export function FlowEditor({ project, team, flow: saved, switcher }: { project: 
             <li key={member.agent} className="flow-model-row">
               <RoleAvatar role={member.role} size="sm" />
               <span className="grow">{roleName(member.role)}</span>
-              <ModelTag model={value} />
               <span className="flow-model-input">
                 <ModelCombobox value={value} onChange={(model) => setModels((now) => ({ ...now, [member.agent]: model }))} aria-label={t('flow.modelFor', { role: roleName(member.role) })} />
               </span>
