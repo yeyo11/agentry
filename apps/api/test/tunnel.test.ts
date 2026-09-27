@@ -94,7 +94,7 @@ async function openTunnel(w: Wrapper, token: string): Promise<TunnelStatus> {
 test('the tunnel starts stopped, with ssh found and start with Agentry off', async (t) => {
   const { app } = await wrapper(t);
   const status = await tunnel(app);
-  assert.deepEqual(status, { state: 'stopped', url: null, since: null, reason: null, sshAvailable: true, settings: { startWithAgentry: false } });
+  assert.deepEqual(status, { state: 'stopped', url: null, since: null, reason: null, enabled: true, sshAvailable: true, settings: { startWithAgentry: false } });
 });
 
 test('no tunnel without authentication', async (t) => {

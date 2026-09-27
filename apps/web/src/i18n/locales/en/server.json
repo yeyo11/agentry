@@ -74,6 +74,7 @@
   },
   "tunnel": {
     "authRequired": "The tunnel needs authentication: turn on a token or OIDC in Security first.",
+    "disabled": "This Agentry does not offer the tunnel. Whoever runs it can turn it on with AGENTRY_TUNNEL=on.",
     "noPort": "Agentry is not listening yet, so there is nothing to open a tunnel to.",
     "sshMissing": "No ssh was found to run. Install the OpenSSH client (openssh-client) and try again.",
     "hostKey": "localhost.run answered with a host key that is not the one Agentry pins, so the tunnel was not opened.",

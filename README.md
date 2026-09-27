@@ -92,6 +92,10 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
   and able to tell you that a chat is waiting while it is closed, over Web Push this server signs
   with its own VAPID key. No app store, no native shell, no third-party push account. The
   push half needs HTTPS: see [On a phone](#on-a-phone).
+- **Reach it from anywhere, with nothing to set up** — Settings → Remote access opens a public HTTPS
+  address through [localhost.run](https://localhost.run) over the system's own `ssh`, with a QR code
+  for the phone: no account, no domain, no proxy. It only opens while authentication is on, only its
+  exact host is let in, and the provider's host key is pinned. See [docs/tunnel.md](docs/tunnel.md).
 - **One container, one volume** — non-root, the CLI baked in and pinned with an update check,
   everything else on a data volume. Compose profiles, a TLS proxy and a Helm chart are in
   [docs/deploy.md](docs/deploy.md).
@@ -267,6 +271,13 @@ nothing. [docs/deploy.md](docs/deploy.md) has the TLS proxy that fixes it. On iP
 reaches an app on the Home Screen only, never a Safari tab: install first, then turn the switch on
 from the app that starts.
 
+**No domain or proxy?** Settings → Remote access opens a tunnel through localhost.run, which gives an
+HTTPS origin, and so push, with nothing to configure. Turn on authentication first: the tunnel refuses
+to open without it. Its free address changes from time to time, and each new address is a new site for
+the phone: sign in there once. Notifications sent after a change open the new address on Chrome (not
+verified on iOS). localhost.run terminates TLS, so it sees every request, the token included. See
+[docs/tunnel.md](docs/tunnel.md).
+
 ## Local development
 
 Requires Node 22+, pnpm 10 and a logged-in `claude` CLI in your `PATH`.
@@ -337,8 +348,8 @@ transpiler.
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude config dir (`/home/node/.claude` in the image) |
 | `AGENTRY_WORKSPACE_DIR` | `./workspace` | Default working directory for runs |
 | `AGENTRY_DATA_DIR` | `./data` | Wrapper state |
-| `AGENTRY_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one |
-| `AGENTRY_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes |
+| `AGENTRY_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one. Without the variable it is editable in Settings → Security and applies to the next run; set, it is shown read-only there. Empty counts as unset |
+| `AGENTRY_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes (1 to 64). Editable in Settings → Security unless set here, like the mode above. Empty counts as unset |
 | `AGENTRY_PUSH_SUBJECT` | `https://github.com/yeyo11/agentry` | The VAPID `sub` claim of every Web Push this server signs: a `mailto:` or `https:` a push service can complain to, naming a real domain — Apple refuses the whole JWT with `403 BadJwtToken` for something like `mailto:agentry@localhost`. Changing it takes effect on the next start, keypair and registered installs untouched |
 | `AGENTRY_AUTH_MODE` | `none` | `none`, `token` or `oidc`. **Seeds** an install that has no `auth.json` yet; after that the setting saved from the UI wins. See [Securing it](#securing-it) |
 | `AGENTRY_AUTH_TOKEN` | – | The bearer token to seed with when the mode is `token`. Only its SHA-256 is stored |
@@ -352,7 +363,9 @@ transpiler.
 | `AGENTRY_DISTRIBUTION` | – (a source checkout) | How this server was installed, which decides the update steps the UI offers: `docker` (set by the image), `appimage` or `deb` (set by the desktop app) |
 | `AGENTRY_PID_FILE` | `/tmp/agentry.pid` in the image | Where the server writes its pid, so the image's healthcheck can end a wedged server |
 | `AGENTRY_HEALTH_RESTART_AFTER` | `3` | Consecutive failed health probes (30 s apart) after which the container restarts itself |
-| `AGENTRY_ALLOWED_HOSTS` | – (loopback only) | Comma-separated host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern standing for that domain's subdomains. A `Host` that matches none of them is refused `421` before the credential is read. Ports and letter case are ignored; `GET /api/health` is exempt. Behind a proxy, name the public host here or everything answers `421` |
+| `AGENTRY_ALLOWED_HOSTS` | – (loopback only) | Comma-separated host names this wrapper answers to besides loopback, each a name or a `*.domain` pattern standing for that domain's subdomains. A `Host` that matches none of them is refused `421` before the credential is read. Ports and letter case are ignored; `GET /api/health` is exempt. Behind a proxy, name the public host here or everything answers `421`. Without the variable the list is editable in Settings → Security ([docs/layered-settings.md](docs/layered-settings.md)); a running tunnel's exact host is added on its own |
+| `AGENTRY_TUNNEL` | on (off in the image) | Whether Settings → Remote access may open a tunnel through localhost.run: `on`/`1`/`true` or `off`/`0`/`false`, empty meaning the default; anything else stops the server at startup. In Docker it goes around the published port and the proxy, which is why it is off there. See [docs/tunnel.md](docs/tunnel.md) |
+| `SSH_BIN` | `ssh` | The `ssh` the tunnel runs. It never reads `~/.ssh` |
 | `AGENTRY_CORS_ORIGIN` | – (CORS off) | Comma-separated origins (or `*`, which echoes the caller) for external browser clients. The event streams obey this list too. The bundled UI never needs it: in dev it uses the Vite `/api` proxy, in production it is same-origin |
 | `VITE_API_TARGET` | `http://localhost:8787` | Where the Vite dev server proxies `/api` |
 | `AGENTRY_IDLE_TIMEOUT_MS` | `600000` | Idle runs are closed after this (they resume transparently) |
@@ -380,12 +393,19 @@ directory it wins over the environment).
   `AGENTRY_ALLOWED_HOSTS` is refused `421`, and that happens **before** the credential is looked at,
   so it holds in `mode: none` as well. It is what stops a page on another domain from pointing that
   domain at `127.0.0.1` and driving your install from your own browser. Put a proxy in front and you
-  must name the public host there; `GET /api/health` is exempt, so probes are unaffected.
+  must name the public host there; `GET /api/health` is exempt, so probes are unaffected. Without
+  the variable the list is editable in Settings → Security, and a running tunnel adds its own exact
+  host, never a pattern, for as long as it answers.
 - **Guessing is slowed down.** After ten failed authentications an address is answered `429` with a
   `Retry-After` that doubles from a second to a minute, and is forgotten after fifteen quiet minutes.
   A token you supply yourself must be at least 24 characters; one Agentry generates is 32 random
   bytes. The wait counts the peer's address, so behind a reverse proxy every client shares one
-  count — see [SECURITY.md](SECURITY.md).
+  count — see [SECURITY.md](SECURITY.md). Through the tunnel, which carries no trustworthy client
+  address, all traffic shares one count of its own, apart from loopback, so a stranger's guesses
+  never make the desk wait.
+- **The tunnel.** Settings → Remote access refuses to open while the mode is `none`, and turning the
+  mode to `none` closes it first. localhost.run terminates its TLS, so it sees every request, the
+  token included, and the `?token=` URLs below. See [docs/tunnel.md](docs/tunnel.md).
 - **What stays open.** `GET /api/health`, so a probe needs no credential, and the built UI bundle,
   which is what gives a `401` a sign-in screen instead of a blank page. `/docs` and `/openapi.json`
   are guarded like everything else.
@@ -453,6 +473,9 @@ what is and is not protected.
   security contexts, `auth.mode` (`none`, `token`, `oidc`) and `auth.readOnly`. There is no Ingress
   template; bring your own — and if it gives the pod a host name, put that name in
   `AGENTRY_ALLOWED_HOSTS` through the chart's `env`.
+- **The tunnel** (Settings → Remote access) is off in the image and the chart unless you turn it on
+  (`AGENTRY_TUNNEL=on`, or `tunnel.enabled: true`): from inside the container it goes around the
+  published port, the proxy and the Ingress. It needs outbound TCP 22.
 - **A pinned Claude Code**: the image installs a fixed version and Settings → Account says when a
   newer one is published, with how to move. The check reads the npm registry on demand and once a
   day.
@@ -525,9 +548,9 @@ next start, audited with actor `env` (see [Securing it](#securing-it)).
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/tunnel` | `{ state, url, since, reason, sshAvailable, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed` |
+| GET | `/tunnel` | `{ state, url, since, reason, enabled, sshAvailable, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed`, `enabled` false where the deploy does not offer the tunnel (`AGENTRY_TUNNEL`, off in the image) |
 | PUT | `/tunnel/settings` | `{ startWithAgentry }`, off by default. Emits `tunnel.changed` |
-| POST | `/tunnel/start` | Opens the tunnel through localhost.run; `409` while the auth mode is `none`. The address shows, and its exact host joins the allowlist, once `/api/health` answers through it |
+| POST | `/tunnel/start` | Opens the tunnel through localhost.run; `409` while the auth mode is `none` or where `enabled` is false. The address shows, and its exact host joins the allowlist, once `/api/health` answers through it |
 | POST | `/tunnel/stop` | Takes the host off the allowlist and ends `ssh`; turning the auth mode to `none` does it first |
 
 ### Accounts (multi-account)
@@ -1147,6 +1170,12 @@ interactive `claude` session (`/mcp`) or in claude.ai's connector settings: Agen
   who holds it, so every device that turned push on is sent the same notifications, whoever the chat
   was started by, and anyone who can reach Settings can test or remove another device's registration.
   Turning it on on a shared phone tells whoever is holding it that a chat is waiting.
+- The tunnel goes through one provider, localhost.run, which terminates TLS and so sees every
+  request, the bearer token and the five `?token=` URLs included. Its free address changes from time
+  to time; each new one is a new site for a phone, which signs in again there, and an app installed
+  from an old address keeps opening that one. Notifications follow the current address on Chrome;
+  on iOS that is not verified. localhost.run passes no client address, so every stranger behind the
+  tunnel shares one failed-login wait, and can make your phone wait with them.
 - A subscription token is meant for your own individual use; use an API key for anything
   shared or multi-user.
 - Switching accounts rewrites the shared credential file: runs already in flight keep the account

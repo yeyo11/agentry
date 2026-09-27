@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-09-25T16:22:09Z
+updated_at: 2026-09-27T18:00:00Z
 tags:
     - desktop
     - electron
@@ -36,6 +36,7 @@ start, and that becomes the port it remembers. `PORT` in the environment overrid
 | Login | `CLAUDE_CODE_OAUTH_TOKEN` | Your existing `~/.claude` login |
 | Listens on | `0.0.0.0:8787` | `127.0.0.1`, the port it used last |
 | Web Push | Over HTTPS, to any installed browser or phone | Not registered — see below |
+| Tunnel (Settings → Remote access) | Off unless `AGENTRY_TUNNEL=on` | On; `openssh-client` is a dependency of the `.deb` |
 
 The image can afford `bypassPermissions` because the container is the boundary. The desktop app has
 no boundary: Claude reads and writes your real files and runs commands with your privileges. So it
@@ -61,6 +62,9 @@ token in Settings → Security if other users share the machine.
 - The [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) installed and logged in on
   the host. The app uses that login and your `~/.claude` (sessions, settings, MCP servers); it does
   not ask for a token. Run `claude` once in a terminal to log in.
+- `ssh` (`openssh-client`) for the tunnel in Settings → Remote access. The `.deb` depends on it, so
+  apt installs it; with the AppImage, a desktop system almost always has it already. Without it, the
+  tab says how to install it and everything else works.
 - For the AppImage, `libfuse2` (`libfuse2t64` on Ubuntu 24.04). Without it, run the AppImage with
   `--appimage-extract-and-run`.
 
@@ -209,6 +213,8 @@ does is logged to `desktop.log`.
 | Claude Code config and transcripts | `~/.claude` (the CLI's own, unchanged) |
 | claude-swap installed by the app (uv, Python, cache) | `~/.config/Agentry/data/tools` |
 | Registered accounts | `~/.local/share/claude-swap` (claude-swap's own) |
+| The tunnel's pinned host key and ssh PID | `~/.config/Agentry/data/tunnel` |
+| "Open the tunnel when Agentry starts" | `~/.config/Agentry/data/tunnel-settings.json` |
 
 `~/.config` is `$XDG_CONFIG_HOME` if you set it. The workspace can be moved by starting the app
 with `AGENTRY_WORKSPACE_DIR` set. Each run can still use any project directory.
@@ -233,6 +239,17 @@ Agentry's version, which then takes over. An update of Agentry that moves the pi
 upgrades its copy in the background. **Remove claude-swap** in the page's menu deletes that folder;
 the accounts stay in `~/.local/share/claude-swap` for any other `cswap`. Setting `CSWAP_BIN` or
 `AGENTRY_CSWAP_MANAGED=0` turns the managed install off.
+
+## Reaching it from a phone
+
+The server listens on `127.0.0.1` only, so a phone cannot reach it directly. Settings → **Remote
+access** opens a tunnel through localhost.run over your `ssh`: a public HTTPS address and a QR
+code, with no account and nothing else to install. Turn on a token in Settings → Security first,
+because the tunnel refuses to open without authentication. The tunnel reaches the port the server
+actually bound to, and since the app keeps that port, "Open the tunnel when Agentry starts" keeps
+working across launches. The address itself changes from time to time. localhost.run terminates TLS,
+so it sees every request, the token included. [tunnel.md](tunnel.md) has the details, and
+`AGENTRY_TUNNEL=off` in the app's environment turns the tab off.
 
 ## The CLI is not detected
 
@@ -321,4 +338,4 @@ release.
 
 ## Related
 
-[[deploy.md]] · [[status.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[plans/managed-claude-swap.md]]
+[[deploy.md]] · [[status.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[plans/managed-claude-swap.md]] · [[tunnel.md]]

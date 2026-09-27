@@ -212,6 +212,7 @@ export class Core {
     this.tunnel = new TunnelManager({
       dataDir: config.dataDir,
       sshBin: config.sshBin,
+      enabled: config.tunnelEnabled,
       security: this.security,
       hosts: this.appSettings.runtimeHosts,
       emit: (event) => this.events.emit(event),

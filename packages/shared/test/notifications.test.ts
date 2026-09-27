@@ -277,6 +277,7 @@ test('a setting or the tunnel changing refreshes the page but never wakes anyone
       url: 'https://abc123.lhr.life',
       since: AT,
       reason: null,
+      enabled: true,
       sshAvailable: true,
       settings: { startWithAgentry: false },
     },

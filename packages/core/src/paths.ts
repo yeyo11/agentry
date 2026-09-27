@@ -31,6 +31,13 @@ export interface CoreConfig {
   cswapBin: string | null;
   /** Agentry may install claude-swap itself: not in the Docker image, which bakes it in */
   cswapManaged: boolean;
+  /**
+   * Whether this deploy offers the tunnel, from `AGENTRY_TUNNEL`. On by default, and off by default
+   * in the Docker image (`AGENTRY_DISTRIBUTION=docker`): there the tunnel reaches the server from
+   * inside the container, around the port the operator published, their proxy and their TLS
+   * (docs/plans/tunnel.md, "Answer: the tunnel in Docker").
+   */
+  tunnelEnabled: boolean;
   configDir: string;
   /** Global CLI config file holding user-scope mcpServers */
   globalConfigFile: string;
@@ -93,6 +100,18 @@ function parseAllowedHosts(value: string | undefined): string[] {
   return hosts;
 }
 
+/**
+ * `AGENTRY_TUNNEL` as a yes or a no, or the default when it says nothing. Anything else stops the
+ * wrapper: a typo in the variable that opens a public address is not something to guess about.
+ */
+function parseTunnelSwitch(value: string | undefined, fallback: boolean): boolean {
+  if (!isSet(value)) return fallback;
+  const word = value.trim().toLowerCase();
+  if (['on', '1', 'true'].includes(word)) return true;
+  if (['off', '0', 'false'].includes(word)) return false;
+  throw new Error(`AGENTRY_TUNNEL: '${value}' is neither on nor off`);
+}
+
 /** What a layered setting is when neither the environment nor `app-settings.json` says otherwise. */
 export const DEFAULT_APP_SETTINGS: Readonly<AppSettingValues> = Object.freeze({
   allowedHosts: [],
@@ -138,6 +157,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     sshBin: env.SSH_BIN?.trim() || 'ssh',
     cswapBin: env.CSWAP_BIN?.trim() || null,
     cswapManaged: env.AGENTRY_CSWAP_MANAGED !== '0' && env.AGENTRY_DISTRIBUTION?.trim().toLowerCase() !== 'docker',
+    tunnelEnabled: parseTunnelSwitch(env.AGENTRY_TUNNEL, env.AGENTRY_DISTRIBUTION?.trim().toLowerCase() !== 'docker'),
     configDir,
     globalConfigFile,
     projectsDir: join(configDir, 'projects'),

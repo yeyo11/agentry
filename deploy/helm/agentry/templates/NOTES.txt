@@ -10,6 +10,12 @@ then open http://localhost:{{ .Values.port }}.
 WARNING: auth.mode is "none". Anyone who can reach the Service can run Claude on your account.
 Keep it a ClusterIP behind port-forward, or set auth.mode to token or oidc before adding an Ingress.
 {{- end }}
+{{- if .Values.tunnel.enabled }}
+
+tunnel.enabled is true: from Settings > Remote access, anyone who can sign in can open a public
+localhost.run address that reaches this pod around the Service, the Ingress and its TLS. It needs
+egress to localhost.run on TCP 22, and it refuses to open while the auth mode is "none".
+{{- end }}
 {{- if not .Values.claude.existingSecret }}
 
 No Claude credential was given (claude.existingSecret): set one from the UI, under Settings > Account.

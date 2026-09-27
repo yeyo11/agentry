@@ -1,13 +1,13 @@
 ---
 created_at: 2026-09-27T10:34:29.651906091Z
-updated_at: 2026-09-27T10:35:09.641387596Z
+updated_at: 2026-09-27T18:00:00Z
 tags:
     - plan
     - tunnel
     - remote-access
     - security
     - settings
-    - launched
+    - built
 ---
 # Plan: reaching Agentry through a tunnel
 
@@ -16,8 +16,11 @@ reverse proxy, an account or anything new to install. Agentry opens a tunnel thr
 [localhost.run](https://localhost.run) with the system's own `ssh`, shows the public HTTPS address
 and a QR code, and closes it again, all from the settings page.
 
-Status: **orchestration `tunnel` launched on 2026-09-27** from `feat/tunnel`. The measurements below
-were taken the same day.
+Status: **built on 2026-09-27** by the orchestration `tunnel` from `feat/tunnel`, as one pull
+request. Every task delivered, and both open questions are answered below. The merged branch's e2e
+verification runs in the orchestration. The measurements below were taken the same day. What each
+task delivered is under [Outcome](#outcome), and the feature itself is documented in
+[tunnel.md](../tunnel.md) and [layered-settings.md](../layered-settings.md).
 
 ## Why
 
@@ -502,12 +505,147 @@ stopped answering.
 
 ## Answer: the tunnel in Docker
 
-To be written by `packaging`.
+**The image offers the tunnel only when the operator turns it on**, with `AGENTRY_TUNNEL=on` in
+`.env` for Compose, or `tunnel.enabled: true` in the Helm chart. Everywhere else (a source install,
+the desktop app) it is on by default, and `AGENTRY_TUNNEL=off` turns it off there too.
+
+### The evidence
+
+Measured on 2026-09-27 with Docker 29.8.0 on the default `bridge` network, following decision 5.
+The container was a throwaway `node:22-bookworm-slim` with `openssh-client` added. Inside it, a
+throwaway server listened on `127.0.0.1:9999` and answered a fixed text. The container published
+**no port at all**: `docker port` printed nothing.
+
+- **Port 22 is open by default.** A TCP connect to `localhost.run:22` from the container succeeded.
+  The container's ssh (OpenSSH 9.2p1, Debian 12, the same base as the image) then opened the tunnel
+  with the exact options `TunnelManager` passes, including the pinned key and
+  `StrictHostKeyChecking=yes`. The banner line gave a `<id>.lhr.life` address.
+- **The tunnel goes around everything the operator put in front.** A `GET` of that public address,
+  sent from the host over the internet, answered `200` with the throwaway text. So a server inside a
+  container with nothing published was reachable from anywhere. That is also what happens to the
+  real image's Compose setup:
+  - Compose publishes only `127.0.0.1:${PORT}`.
+  - The `tls` profile puts Caddy, with its own certificate, in front.
+  - The tunnel skips both. It reaches `127.0.0.1:8787` from inside the container, and
+    localhost.run's TLS and certificate replace the operator's.
+- **Cleanup:** the ssh and the server were killed inside the container, the container was removed
+  (`--rm`), and nothing from it was printed except the lines above. Its stderr holds the public IP.
+
+### Why off in Docker
+
+- **Docker and Kubernetes operators decide ingress outside the process.** In Compose they do it
+  with `ports:` and a proxy; in Helm with a `ClusterIP` Service, an Ingress and NetworkPolicies. A
+  Helm operator expects every way into a pod to appear in the manifests. A pod that dials out and
+  opens a public way in of its own looks like a backdoor to a security review. A button in the UI
+  that does this, where anyone who can sign in can press it, is not something to switch on by
+  default.
+- **Nothing in the network stops it.** The measurement shows that Docker's default bridge lets the
+  container out on port 22, so the only thing between the image and a public address is Agentry's
+  own switch. On a cluster with egress NetworkPolicies, or behind a firewall that blocks outbound
+  22, turning it on is not enough either. The chart says so.
+- **On a desktop the person is the operator.** The machine is theirs, nothing stands in front of
+  the port, and the tunnel is the feature's whole point, so it stays on by default there.
+
+### What was built
+
+- `CoreConfig.tunnelEnabled` (`packages/core/src/paths.ts`), from `AGENTRY_TUNNEL`. It is decided
+  the same way as `cswapManaged`: on by default, and off by default when
+  `AGENTRY_DISTRIBUTION=docker`.
+  - `on`, `1` and `true` turn it on; `off`, `0` and `false` turn it off.
+  - Empty or unset means the default, because Compose passes empty variables through.
+  - Any other value stops the wrapper at startup. A typo in the switch that opens a public address
+    is not something to guess about.
+- `TunnelStatus.enabled` (`packages/shared/src/types.ts`, schemas regenerated), so the UI can say
+  who can turn the tunnel on instead of offering a button.
+- `TunnelManager` with `enabled: false`:
+  - `start` is refused with `409` and `tunnel.disabled`.
+  - A "start with Agentry" saved earlier does not open the tunnel. The state stays `stopped`, not
+    `failed`: nothing went wrong.
+- Compose: `.env.example` documents `AGENTRY_TUNNEL=on` and what it goes around. `env_file: .env`
+  already hands it to the container, so `docker-compose.yml` did not change.
+- Helm: `tunnel.enabled: false` in `values.yaml`. The deployment always writes `AGENTRY_TUNNEL` as
+  `on` or `off`, so the release decides whatever the image defaults to. `NOTES.txt` warns when it
+  is on. The chart does not refuse `tunnel.enabled` with `auth.mode: none`, because `auth.mode`
+  only seeds a fresh volume, and the UI's value wins after that. The tunnel checks the live mode
+  itself.
+- The Dockerfile only gained comments. `openssh-client` was already there, and
+  `AGENTRY_DISTRIBUTION=docker` is what keeps the tunnel off.
+- The `.deb` declares `openssh-client` (`apps/desktop/electron-builder.yml`).
+
+Turned on, the image's tunnel is the same as everywhere else: it refuses under `mode: 'none'`, only
+its exact host joins the allowlist, and it opens only when someone starts it or turns on "start with
+Agentry".
+
+Changed outside `packaging`'s ownership, because the answer needed them:
+
+- `packages/shared/src/types.ts` (`TunnelStatus.enabled`) and the regenerated
+  `apps/api/src/openapi/schemas.json`.
+- `packages/core/src/tunnel.ts` and the wiring in `packages/core/src/index.ts`.
+- The `GET` and `POST /tunnel/start` descriptions in `apps/api/src/openapi/routes.ts`.
+- `.env.example`.
+- One field added to the `TunnelStatus` literals in `packages/shared/test/notifications.test.ts`
+  and `apps/api/test/tunnel.test.ts`.
 
 ## Outcome
 
-To be written by the `docs` task.
+Built on 2026-09-27 by the seven tasks of the orchestration, each on its own branch, merged into
+`docs` in dependency order. Typecheck and the unit suite pass on the merge (shared 14, desktop 42,
+core 540, web 529, api 115). The e2e suite, with the new `remote-access.spec.mjs`, runs once in the
+orchestration's verification. The feature is documented in [tunnel.md](../tunnel.md) and
+[layered-settings.md](../layered-settings.md).
+
+- **`types`.** The contract as planned, plus three choices past the text:
+  - `TunnelStatus.reason` is a `Localized`, so the web translates failures by `code`.
+  - `TunnelStatus` carries `settings`, because no `GET` route for the tunnel settings was planned.
+  - `AppSettings.allowedHosts` is only the configured part. A test also says that neither new event
+    ever becomes a notification, so an address never reaches a lock screen or a push service.
+- **`settings-layers`.** `AppSettingsStore` and `RuntimeHosts` on `Core`, `GET` and
+  `PUT /api/settings/app`, and a `backoffKey` in `security.ts`. All four "done when" conditions have a
+  test. Beyond the plan:
+  - Small edits to `chats.ts` and `orchestrator.ts`, which no task owned, so the next run reads the
+    store.
+  - An empty `AGENTRY_MAX_CONCURRENT_RUNS` or `AGENTRY_DEFAULT_PERMISSION_MODE` now counts as unset.
+    Before, an empty run limit meant a wrapper that could start no run.
+  - A header registered with a runtime host is read at its last hop, because earlier hops are the
+    client's to forge.
+- **`tunnel-core`.** `TunnelManager`, the four routes under a new "Remote access" tag, the fake
+  `ssh`, and the three findings above. The answer to the header question was "there is none", so the
+  tunnel is registered without `clientIpHeader`, and all its traffic shares one backoff bucket, apart
+  from loopback. It also went past the ownership table in three small places (`paths.ts`, `auth.ts`'s
+  `beforeUnguarded`, `server.ts`), listed above. The manual run reached `active` in 2.3 s and stopped
+  cleanly.
+- **`push-current-url`.** Open question 1 is answered **yes, on Chrome; built but not verified on
+  iOS**. `PushPayload.url` carries the current tunnel address, and the worker follows it only from one
+  `*.lhr.life` origin to another. Its limits (sign in again, duplicates, a stale address, a lost
+  renewal) are in the answer above and in [tunnel.md](../tunnel.md#the-address-changes).
+- **`packaging`.** Open question 2 is answered **off in Docker unless the operator turns it on**:
+  `AGENTRY_TUNNEL` in Compose's `.env`, and `tunnel.enabled` in the chart. It also added
+  `TunnelStatus.enabled` and the `tunnel.disabled` refusal, both outside its ownership, and
+  `openssh-client` to the `.deb`. A real image build confirmed the `409`.
+- **`web`.** Settings → Remote access (state word and colour, address with copy, an in-house QR code
+  for versions 1 to 10 with two new tokens, the auth warning, the no-ssh state, "start with Agentry",
+  and a footnote about new addresses), and the three layered settings as two cards in Security. Both
+  events write their caches directly. The e2e spec is written, not run, and `a11y.spec.mjs` covers
+  the new tab.
+- **`docs`.** It finished the merges and wrote [tunnel.md](../tunnel.md) and
+  [layered-settings.md](../layered-settings.md). It added the Docker section and the Helm value to
+  [deploy.md](../deploy.md) and the phone section and data paths to [desktop.md](../desktop.md), and
+  updated the README (features, On a phone, the environment table, Securing it, Deploying, Known
+  limitations), `SECURITY.md` and [status.md](../status.md). Two gaps showed up only once `packaging`
+  and `web` met:
+  - The merged tree did not typecheck: `enabled` was missing from the `TunnelStatus` literals of
+    `push.test.ts` and `remote-access.test.tsx`.
+  - The tab did not know `enabled`: in the Docker image it offered a start button that could only
+    answer `409`, and `tunnel.disabled` had no translation.
+
+  The tab now says that the deploy turned the tunnel off and names `AGENTRY_TUNNEL=on`, in `en` and
+  `es`, with a unit test. The e2e fake status carries `enabled: true`. The README's `GET /tunnel` row
+  gained `enabled`.
+
+Left for later, as the plan already said: moving the event streams to `fetch`, so the token leaves
+the URL, and a fixed domain. Also left: suggesting, from Settings → Notifications, removal of a
+device registered on an old tunnel address.
 
 ## Related
 
-[[deploy.md]] · [[desktop.md]] · [[plans/mobile.md]] · [[security-model]] · [[layered-settings]]
+[[deploy.md]] · [[desktop.md]] · [[plans/mobile.md]] · [[tunnel.md]] · [[layered-settings.md]] · [[security-model]]

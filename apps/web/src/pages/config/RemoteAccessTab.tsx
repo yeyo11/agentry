@@ -92,7 +92,7 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
         onStart={() => start.mutate()}
         onStop={() => void close()}
       />
-      {status.sshAvailable && (
+      {status.sshAvailable && status.enabled && (
         <Card title={t('remote.startWith.title')}>
           <Switch
             checked={status.settings.startWithAgentry}
@@ -130,6 +130,23 @@ export function TunnelPanel({
   const { t } = useTranslation('config');
   const { state } = status;
   const guarded = authMode !== 'none';
+
+  // Off by the deploy (AGENTRY_TUNNEL, off in the image): only whoever runs Agentry can change that,
+  // so a start button would only ever answer 409
+  if (!status.enabled) {
+    return (
+      <Card title={t('remote.title')} actions={<Tag tone="warn">{t('remote.disabled.tag')}</Tag>}>
+        <p className="small muted">{t('remote.intro')}</p>
+        <div className="alert alert-warn" role="status" data-testid="tunnel-disabled">
+          <ShieldAlert {...ICON} className="alert-icon" />
+          <div className="alert-body">
+            <strong>{t('remote.disabled.title')}</strong>
+            <div className="small">{t('remote.disabled.body', { variable: 'AGENTRY_TUNNEL=on' })}</div>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   if (!status.sshAvailable) {
     return (

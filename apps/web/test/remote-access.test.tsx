@@ -29,6 +29,7 @@ const status = (state: TunnelState, extra: Partial<TunnelStatus> = {}): TunnelSt
   since: state === 'active' ? new Date(Date.now() - 60_000).toISOString() : null,
   reason: null,
   sshAvailable: true,
+  enabled: true,
   settings: { startWithAgentry: false },
   ...extra,
 });
@@ -188,6 +189,13 @@ test('without ssh the card says how to install it instead of offering a button t
   assert.match(html, /state-illustrated/);
   assert.ok(text(html).includes('ssh not found'));
   assert.ok(text(html).includes('openssh-client'));
+  assert.doesNotMatch(html, /tunnel-start/);
+});
+
+test('a deploy that turned the tunnel off says who can turn it on, and offers no button', () => {
+  const html = panel(status('stopped', { enabled: false }));
+  assert.match(html, /tunnel-disabled/);
+  assert.ok(text(html).includes('AGENTRY_TUNNEL=on'));
   assert.doesNotMatch(html, /tunnel-start/);
 });
 

@@ -323,7 +323,7 @@ function tunnelEvent(state: TunnelState, url: string | null): AgentryEventInput 
   return {
     type: 'tunnel.changed',
     title: `Tunnel ${state}`,
-    tunnel: { state, url, since: url ? new Date().toISOString() : null, reason: null, sshAvailable: true, settings: { startWithAgentry: false } },
+    tunnel: { state, url, since: url ? new Date().toISOString() : null, reason: null, sshAvailable: true, enabled: true, settings: { startWithAgentry: false } },
   };
 }
 

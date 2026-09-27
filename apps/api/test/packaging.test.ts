@@ -199,3 +199,53 @@ test('a listen that failed for any other reason is not retried away', async (t) 
   // An address this machine does not have: retrying on port 0 would hide a real misconfiguration
   await assert.rejects(listenOn(app, 8787, '203.0.113.1'), (err: NodeJS.ErrnoException) => err.code !== 'EADDRINUSE');
 });
+
+// Open question 2 of docs/plans/tunnel.md: in the image the tunnel would reach the server from
+// inside the container, around the published port, the proxy and its TLS, so the operator opts in.
+test('the image does not offer the tunnel until the operator turns it on', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'agentry-pkg-tunnel-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const build = (extra: Record<string, string>) =>
+    new Core(
+      loadConfig({
+        CLAUDE_BIN: '/nonexistent/claude',
+        CSWAP_BIN: '/nonexistent/cswap',
+        CLAUDE_CONFIG_DIR: join(root, 'claude'),
+        AGENTRY_WORKSPACE_DIR: join(root, 'workspace'),
+        AGENTRY_DATA_DIR: join(root, 'data'),
+        // A guard that allows the tunnel, so the only thing refusing it is the switch
+        AGENTRY_AUTH_MODE: 'token',
+        AGENTRY_AUTH_TOKEN: 'packaging-test-token',
+        AGENTRY_DISTRIBUTION: 'docker',
+        ...extra,
+      }),
+    );
+  const headers = { authorization: 'Bearer packaging-test-token' };
+
+  const closed = build({});
+  const app = await buildApp(closed, { logLevel: 'silent', webDist: join(root, 'no-ui') });
+  t.after(async () => {
+    closed.shutdown();
+    await app.close();
+  });
+  assert.equal((await app.inject({ url: '/api/tunnel', headers })).json().enabled, false);
+  const refused = await app.inject({ method: 'POST', url: '/api/tunnel/start', headers });
+  assert.equal(refused.statusCode, 409);
+  assert.match(refused.body, /AGENTRY_TUNNEL/);
+
+  const opened = build({ AGENTRY_TUNNEL: 'on' });
+  t.after(() => opened.shutdown());
+  assert.equal(opened.tunnel.status().enabled, true);
+});
+
+test('the compose file, the .env example and the chart all say how to turn the tunnel on', () => {
+  const read = (path: string) => readFileSync(resolve(here, '../../..', path), 'utf8');
+  // Compose hands .env to the container whole: documenting the variable there is what makes it reachable
+  assert.match(read('docker-compose.yml'), /^\s+env_file: \.env$/m);
+  assert.match(read('.env.example'), /^# AGENTRY_TUNNEL=on$/m);
+
+  const values = read('deploy/helm/agentry/values.yaml');
+  assert.match(values, /^tunnel:\n {2}enabled: false$/m, 'the chart keeps the tunnel off unless the release turns it on');
+  // Written whatever the value, so a release that says "off" is off even on an image that changed its default
+  assert.match(read('deploy/helm/agentry/templates/deployment.yaml'), /- name: AGENTRY_TUNNEL\n\s+value: \{\{ ternary "on" "off" \.Values\.tunnel\.enabled \| quote \}\}/);
+});

@@ -1070,6 +1070,11 @@
       "title": "No se encuentra ssh",
       "body": "El túnel pasa por el ssh de esta máquina y no se ha encontrado ninguno. Instala el cliente de OpenSSH ({{package}} en Debian y Ubuntu) y vuelve a intentarlo."
     },
+    "disabled": {
+      "tag": "desactivado",
+      "title": "El túnel está desactivado en este despliegue",
+      "body": "Quien ejecuta este Agentry decide si puede abrir una dirección pública. Puede activarlo con {{variable}} (tunnel.enabled en el chart de Helm)."
+    },
     "address": {
       "label": "Dirección pública",
       "copy": "Copiar la dirección",
