@@ -205,6 +205,28 @@ export default async ({ page, api, check, dirs }) => {
     await api.post(`/work-items/${story.id}/comments`, { body: 'Check it with the keyboard only.' });
     const board = `/tasks?project=${projectId}`;
     const itemPage = `/tasks/${story.key}?project=${projectId}`;
+
+    // Orchestration 3's screens with something in them: the template's team (so the board, the item
+    // and the flow name roles), a document tied to the story, and a journal entry. The flow stays
+    // off, so no run starts in the sandbox; the story is assigned to a role
+    const team = await api.post(`/projects/${projectId}/team/from-template`, {});
+    check(team.status === 200 || team.status === 201, `the template's team (${team.status})`);
+    const spec = await api.put(`/projects/${projectId}/documents/file?path=${encodeURIComponent('docs/specs/board.md')}`, { content: '# Board\n\nEvery card says its key.\n' });
+    check(spec.status === 200, `a document was written (${spec.status})`);
+    await api.post(`/work-items/${story.id}/documents`, { path: 'docs/specs/board.md', kind: 'spec' });
+    await api.post(`/projects/${projectId}/journal`, { kind: 'decision', text: 'Cards name their column in words' });
+    await api.request('PATCH', `/work-items/${story.id}`, { assignee: { kind: 'role', role: 'developer' } });
+    const project = `/?project=${projectId}`;
+    const ecosystem = [
+      `${project}&view=team`,
+      `${project}&view=team&member=developer`,
+      `${project}&view=team&section=flow`,
+      `${project}&view=documents`,
+      `${project}&view=documents&doc=${encodeURIComponent('docs/specs/board.md')}`,
+      `${project}&view=documents&doc=${encodeURIComponent('docs/specs/board.md')}&mode=edit`,
+      `${project}&view=memory&section=journal`,
+      `${project}&view=memory&section=cli`,
+    ];
     const milestones = `/tasks/milestones?project=${projectId}`;
 
     // Nothing is logged in inside the sandbox, so the first task fails, the one behind it is blocked
@@ -245,6 +267,7 @@ export default async ({ page, api, check, dirs }) => {
       ...['account', 'instructions', 'settings', 'mcp', 'agents', 'skills', 'commands', 'output-styles', 'rules', 'files', 'memory', 'plugins', 'supervisor', 'security', 'install', 'notifications'].map((tab) => `/settings?tab=${tab}`),
       `/?project=${projectId}`,
       ...['board', 'settings', 'memory', 'resources', 'worktrees'].map((view) => `/?project=${projectId}&view=${view}`),
+      ...ecosystem,
       '/projects/new',
       board,
       `${board}&view=list`,
@@ -277,6 +300,7 @@ export default async ({ page, api, check, dirs }) => {
       `/?project=${projectId}`,
       `/?project=${projectId}&view=settings`,
       `/?project=${projectId}&view=board`,
+      ...ecosystem,
       '/projects/new',
       board,
       `${board}&view=list`,
@@ -415,7 +439,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.viewport(1440, 900);
 
     // ---------- status is never colour alone ----------
-    for (const path of ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/accounts', '/connectors', board, `${board}&view=list`, milestones, itemPage]) {
+    for (const path of ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/accounts', '/connectors', board, `${board}&view=list`, milestones, itemPage, ...ecosystem]) {
       await settle(page, path);
       const bare = await page.eval(`
         const bare = [];

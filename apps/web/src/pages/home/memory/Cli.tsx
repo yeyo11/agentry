@@ -54,6 +54,7 @@ export function CliMemoryCard({ cli, editorHref }: { cli: CliMemory; editorHref:
     <section className="card memory-card" aria-labelledby="memory-cli-title">
       <div className="card-head">
         <h2 id="memory-cli-title">{t('memoryTab.cli.title')}</h2>
+        <span className="doc-fill" />
         <Link to={editorHref()} className="link-btn small">
           {t('memoryTab.cli.openEditor')}
         </Link>

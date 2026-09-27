@@ -10,7 +10,7 @@ import { ICON_SM, WorkItemKey, WorkItemStatusIcon } from '../../components/icons
 import { useToast } from '../../components/Toast';
 import { formatNumber } from '../../lib/format';
 import { DOCUMENT_KINDS, newDocumentContent, newDocumentPath, normalizeNewPath, type TiedDocument } from './model';
-import { RoleAvatar, useRoleName } from './RoleTag';
+import { RoleAvatar, useRoleName } from '../team/RoleAvatar';
 
 /** The mono tag of a kind of document (SPEC, ADR, INFO, DOC). */
 export function DocumentKindTag({ kind }: { kind: DocumentKind }) {

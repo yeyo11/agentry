@@ -11,6 +11,7 @@ import {
   NONE,
   assigneeOf,
   assigneeValue,
+  useAssigneeName,
   useAssigneeOptions,
   useEpicOptions,
   useMilestoneOptions,
@@ -116,7 +117,8 @@ export function Properties({ item, actions, person }: { item: WorkItemDetail; ac
   const statuses = useStatusOptions();
   const priorities = usePriorityOptions();
   const types = useTypeOptions(undefined, item.type);
-  const assignees = useAssigneeOptions(person, item.assignee);
+  const assignees = useAssigneeOptions(person, item.assignee, item.projectId);
+  const assigneeName = useAssigneeName(person)(item.assignee);
   const epics = useEpicOptions(item.projectId, item.id);
   const milestones = useMilestoneOptions(item.projectId, item.milestoneId);
   const milestone = milestones.milestones.find((m) => m.id === item.milestoneId) ?? null;
@@ -177,9 +179,9 @@ export function Properties({ item, actions, person }: { item: WorkItemDetail; ac
           options={assignees}
           onPick={(value) => actions.update.mutate({ assignee: assigneeOf(value) })}
           trigger={
-            <Value label={t('fields.assigneeIs', { assignee: item.assignee ? (item.assignee.kind === 'person' ? person : item.assignee.role) : t('fields.noAssignee') })}>
+            <Value label={t('fields.assigneeIs', { assignee: assigneeName })}>
               <AssigneeMark assignee={item.assignee} person={person} />
-              <span className={item.assignee ? '' : 'muted'}>{item.assignee ? (item.assignee.kind === 'person' ? person : item.assignee.role) : t('fields.noAssignee')}</span>
+              <span className={item.assignee ? '' : 'muted'}>{assigneeName}</span>
             </Value>
           }
         />

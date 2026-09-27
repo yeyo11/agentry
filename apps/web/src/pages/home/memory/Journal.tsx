@@ -12,7 +12,7 @@ import { ErrorBox, Segmented, Skeleton } from '../../../components/ui';
 import { formatDate, formatDateTime, formatNumber, timeAgo } from '../../../lib/format';
 import { taskPath } from '../../../lib/work-items';
 import { usePersonName } from '../../tasks/item/hooks';
-import { RoleAvatar, useRoleName } from '../../documents/RoleTag';
+import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import { dayGroups, hourMinute } from './model';
 
 const KIND_ICON: Record<JournalEntryKind, LucideIcon> = { closed: Check, decision: GitCommitVertical, memory: BookText, note: StickyNote };

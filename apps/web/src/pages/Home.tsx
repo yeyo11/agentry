@@ -290,6 +290,19 @@ function ProjectPage({ project }: { project: Project }) {
     );
   }
 
+  // A member is a page of its own, as its reference draws it: the crumb says where it is, its back
+  // button leads to the team, and the project's head and tabs would only push its editor down
+  if (view === 'team' && params.has('member')) {
+    return (
+      <>
+        <MissingAlert project={project} />
+        <div className="tab-panel">
+          <TabBody project={project} tab={view} />
+        </div>
+      </>
+    );
+  }
+
   const tabs: TabId[] = ['summary', ...views];
   return (
     <>

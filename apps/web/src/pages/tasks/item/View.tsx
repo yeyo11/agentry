@@ -23,6 +23,7 @@ import {
   NONE,
   assigneeOf,
   assigneeValue,
+  useAssigneeName,
   useAssigneeOptions,
   useEpicOptions,
   useMilestoneOptions,
@@ -240,14 +241,14 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
   const statuses = useStatusOptions();
   const priorities = usePriorityOptions();
   const types = useTypeOptions(undefined, item.type);
-  const assignees = useAssigneeOptions(person, item.assignee);
+  const assignees = useAssigneeOptions(person, item.assignee, item.projectId);
   const epics = useEpicOptions(item.projectId, item.id);
   const milestones = useMilestoneOptions(item.projectId, item.milestoneId);
   const milestone = milestones.milestones.find((m) => m.id === item.milestoneId) ?? null;
   const changes = useWorkItemChanges(item.id);
   const summary = changes.data?.summary;
   const changed = summary ? new Set([...summary.files, ...summary.uncommitted].map((f) => f.path)).size : 0;
-  const assigneeName = item.assignee ? (item.assignee.kind === 'person' ? person : item.assignee.role) : t('fields.noAssignee');
+  const assigneeName = useAssigneeName(person)(item.assignee);
 
   return (
     <div className="workitem-layout is-phone">

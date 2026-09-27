@@ -12,7 +12,7 @@ import { ErrorBox, Skeleton } from '../../../components/ui';
 import { useDirty } from '../../../lib/dirty';
 import { formatNumber, timeAgo } from '../../../lib/format';
 import { taskPath } from '../../../lib/work-items';
-import { RoleAvatar, useRoleName } from '../../documents/RoleTag';
+import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 
 const Markdown = lazy(() => import('../../../components/Markdown'));
 

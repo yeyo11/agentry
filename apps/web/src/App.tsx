@@ -19,7 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { api, chatListQuery, keys, useOpenTaskCount } from './api';
+import { api, chatListQuery, keys, useOpenTaskCount, useTeam } from './api';
 import { CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
 import type { MenuItem } from './components/controls/Menu';
 import { Tooltip } from './components/controls/Tooltip';
@@ -48,6 +48,7 @@ import { fabFor, hidesTabBar, pageHoldsScope } from './lib/shell-live';
 import { NEW_TASK_PATH, TASKS_PATH, normalizeKey } from './lib/work-items';
 import { Home } from './pages/Home';
 import { asProjectView } from './pages/dashboard/views';
+import { useRoleName } from './pages/team/RoleAvatar';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
 const Accounts = lazyPage(() => import('./pages/Accounts').then((m) => m.Accounts));
@@ -98,6 +99,32 @@ export function App() {
     <ProjectScopeProvider>
       <Shell />
     </ProjectScopeProvider>
+  );
+}
+
+/**
+ * The Team tab's crumbs: "Equipo", and below it "Equipo / Flujo" or "Equipo / Desarrollador", with
+ * Equipo leading back, as the flow's and the member's references draw them.
+ */
+function TeamCrumbs({ projectId, search }: { projectId: string; search: string }) {
+  const { t } = useTranslation(['home', 'team']);
+  const roleName = useRoleName();
+  const params = new URLSearchParams(search);
+  const agent = params.get('member');
+  const flow = params.get('section') === 'flow';
+  const members = useTeam(agent ? projectId : null).data?.members;
+  if (!agent && !flow) return <span className="crumb-page ellipsis">{t('home:tabs.team')}</span>;
+  const role = agent ? (members?.find((m) => m.agent === agent)?.role ?? agent) : null;
+  return (
+    <>
+      <Link to={`/?${new URLSearchParams({ project: projectId, view: 'team' }).toString()}`} className="crumb-page muted ellipsis">
+        {t('home:tabs.team')}
+      </Link>
+      <span className="crumb-sep" aria-hidden>
+        /
+      </span>
+      <span className="crumb-page ellipsis">{role ? roleName(role) : t('team:flow.title')}</span>
+    </>
   );
 }
 
@@ -229,7 +256,7 @@ function Shell() {
     </NavLink>
   );
 
-  const tabBar = !hidesTabBar(pathname);
+  const tabBar = !hidesTabBar(pathname, search);
   // On a phone the Chats header carries the scope, as a chip beside its title; a second selector
   // up here would be two controls for one choice. Decided here, not hidden in CSS, so that exactly
   // one is in the DOM
@@ -351,7 +378,7 @@ function Shell() {
                 <span className="crumb-sep" aria-hidden>
                   /
                 </span>
-                <span className="crumb-page ellipsis">{t(`home:tabs.${projectTab}`)}</span>
+                {projectTab === 'team' ? <TeamCrumbs projectId={project.id} search={search} /> : <span className="crumb-page ellipsis">{t(`home:tabs.${projectTab}`)}</span>}
               </>
             ) : taskKey ? (
               <>

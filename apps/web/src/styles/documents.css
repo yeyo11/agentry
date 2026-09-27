@@ -3,64 +3,6 @@
    .proposal → .memory-proposal, .doc-row / .doc-kind / .doc-origin / .doc-view keep their names,
    .tree-row is editors.css's, .bounce is the card's mark. */
 
-/* ---------- a role, until the Team tab's RoleAvatar replaces it ---------- */
-
-/* Neutral squircle, initials in mono; the role's hue is only on the corner diamond (`--hue-mark`,
-   worked out by tokens.css on `.role-avatar`, which the element also carries). */
-.doc-role {
-  position: relative;
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-3);
-  border: 1px solid var(--line-2);
-  color: var(--fg-2);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.doc-role::after {
-  content: '';
-  position: absolute;
-  right: -2px;
-  bottom: -2px;
-  width: 7px;
-  height: 7px;
-  transform: rotate(45deg);
-  border-radius: var(--radius-xs);
-  border: 1.5px solid var(--bg-2);
-  background: var(--hue-mark);
-}
-
-.doc-role-sm {
-  width: auto;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 3px;
-  border-radius: var(--radius-xs);
-  letter-spacing: 0;
-}
-
-.doc-role-sm::after {
-  width: 5px;
-  height: 5px;
-  border-width: 1px;
-  right: -1.5px;
-  bottom: -1.5px;
-}
-
-.doc-role-lg {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius);
-  font-size: 13px;
-}
-
 /* ---------- Documents: tree · document · tied list ---------- */
 
 /* The three columns reach down to the status bar, as the reference draws them */
@@ -611,11 +553,12 @@
   max-width: 100%;
 }
 
-/* The one action of the screen, above the tab bar, where a thumb finds it; its band is opaque so
+/* The one action of the screen, at the bottom where a thumb finds it (an open document hides the
+   tab bar, as its reference does); its band is opaque so
    the text scrolling under it never shows through the gap */
 .doc-phone-foot {
   position: sticky;
-  bottom: var(--tabbar-h);
+  bottom: var(--stick-bottom);
   display: flex;
   gap: 10px;
   padding: 8px 0;
@@ -645,6 +588,11 @@
   margin: 0;
   max-width: 900px;
   line-height: 1.5;
+}
+
+/* The intro stops at a reading width; the button still sits at the page's right edge */
+.memory-intro > .btn {
+  margin-left: auto;
 }
 
 .memory-grid {
@@ -1014,7 +962,7 @@
   white-space: nowrap;
 }
 
-.workitem-waiting {
+.item-wait {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1024,14 +972,14 @@
   background: var(--bg-1);
 }
 
-.workitem-waiting.is-quiet {
+.item-wait.is-quiet {
   flex-direction: row;
   padding: 0;
   border: 0;
   background: none;
 }
 
-.workitem-waiting-head {
+.item-wait-head {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1039,12 +987,12 @@
   font-size: 13px;
 }
 
-.workitem-waiting-why {
+.item-wait-why {
   flex: 1 1 auto;
   color: var(--fg-2);
 }
 
-.workitem-waiting-quote {
+.item-wait-quote {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -1054,11 +1002,11 @@
   color: var(--fg-2);
 }
 
-.workitem-waiting-hint {
+.item-wait-hint {
   margin: 0;
 }
 
-.workitem-waiting-actions {
+.item-wait-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -1102,7 +1050,7 @@
     font-size: 15px;
   }
 
-  .workitem-waiting-actions > .btn {
+  .item-wait-actions > .btn {
     flex: 1;
     min-height: 44px;
   }

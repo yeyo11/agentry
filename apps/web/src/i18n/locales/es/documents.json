@@ -1,14 +1,5 @@
 {
   "loadFailed": "No se pudo leer la carpeta de documentos",
-  "roles": {
-    "product-owner": "Product Owner",
-    "architect": "Arquitecto",
-    "developer": "Desarrollador",
-    "qa": "QA",
-    "writer": "Redactor técnico",
-    "researcher": "Investigador",
-    "reviewer": "Revisor"
-  },
   "empty": {
     "title": "Aún no hay documentos en {{root}}/",
     "missing": "La carpeta {{root}}/ aún no existe",

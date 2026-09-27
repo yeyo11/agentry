@@ -11,7 +11,7 @@ import { ICON_SM } from '../../../components/icons';
 import { useToast } from '../../../components/Toast';
 import { useProjectScope } from '../../../lib/project-scope';
 import { DOCUMENT_KINDS, baseName, documentLinks, filesOf } from '../../documents/model';
-import { RoleAvatar, useRoleName } from '../../documents/RoleTag';
+import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import { DocumentKindTag } from '../../documents/Tied';
 
 /** A document of the item on the Documents tab of its project, opened. */

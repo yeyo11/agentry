@@ -1,8 +1,9 @@
 import type { Milestone, WorkItemAssignee, WorkItemPriority, WorkItemRef, WorkItemStatus, WorkItemType } from '@agentry/shared';
 import { useTranslation } from 'react-i18next';
-import { useMilestones, useWorkItemList } from '../../../api';
+import { useMilestones, useProjects, useTeam, useWorkItemList } from '../../../api';
 import { Monogram, PriorityMark, WorkItemStatusIcon, WorkItemTypeIcon, nameHue } from '../../../components/icons';
 import { WORK_ITEM_COLUMNS, WORK_ITEM_PRIORITY_META, WORK_ITEM_TYPE_META } from '../../../lib/work-items';
+import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import type { PickerOption } from './Picker';
 
 /**
@@ -61,14 +62,29 @@ export const assigneeValue = (assignee: WorkItemAssignee | null): string => (ass
 export const assigneeOf = (value: string): WorkItemAssignee | null =>
   value === 'person' ? { kind: 'person' } : value.startsWith('role:') ? { kind: 'role', role: value.slice(5) } : null;
 
-/** The person's round monogram, or an empty dashed ring for nobody. A role is orchestration 3's squircle; until then it reads as its name. */
+/** The person's round monogram, a role's squircle (as the board draws it), or an empty dashed ring for nobody. */
 export function AssigneeMark({ assignee, person }: { assignee: WorkItemAssignee | null; person: string }) {
   if (!assignee) return <span className="workitem-assignee-none" aria-hidden />;
-  return <Monogram name={assignee.kind === 'person' ? person : assignee.role} size={18} />;
+  if (assignee.kind === 'role') return <RoleAvatar role={assignee.role} size="sm" />;
+  return <Monogram name={person} size={18} />;
 }
 
-export function useAssigneeOptions(person: string, current: WorkItemAssignee | null): PickerOption<string>[] {
+/** An assignee in words: the person's name, a role's display name, or "no assignee". */
+export function useAssigneeName(person: string): (assignee: WorkItemAssignee | null) => string {
   const { t } = useTranslation('workItem');
+  const roleName = useRoleName();
+  return (assignee) => (!assignee ? t('fields.noAssignee') : assignee.kind === 'person' ? person : roleName(assignee.role));
+}
+
+/**
+ * Nobody, the person, and each member of the project's team while its Team module is on (decision
+ * 13 of the ecosystem plan). A role already set stays pickable after its member left the team.
+ */
+export function useAssigneeOptions(person: string, current: WorkItemAssignee | null, projectId: string | null): PickerOption<string>[] {
+  const { t } = useTranslation('workItem');
+  const roleName = useRoleName();
+  const project = useProjects(false).data?.find((p) => p.id === projectId);
+  const team = useTeam(project?.modules.includes('team') ? project.id : null).data;
   const options: PickerOption<string>[] = [
     {
       value: NONE,
@@ -89,14 +105,16 @@ export function useAssigneeOptions(person: string, current: WorkItemAssignee | n
       ),
     },
   ];
-  // Roles come with the Team module (orchestration 3); one already set stays pickable
-  if (current?.kind === 'role') {
+  const roles = (team?.members ?? []).map((member) => member.role);
+  if (current?.kind === 'role' && !roles.includes(current.role)) roles.push(current.role);
+  for (const role of roles) {
+    const assignee: WorkItemAssignee = { kind: 'role', role };
     options.push({
-      value: assigneeValue(current),
+      value: assigneeValue(assignee),
       label: (
         <span className="workitem-option">
-          <AssigneeMark assignee={current} person={person} />
-          {current.role}
+          <AssigneeMark assignee={assignee} person={person} />
+          {roleName(role)}
         </span>
       ),
     });

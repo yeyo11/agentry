@@ -15,7 +15,7 @@ import { useDirty } from '../../lib/dirty';
 import { timeAgo } from '../../lib/format';
 import { taskPath } from '../../lib/work-items';
 import { mainTie } from './model';
-import { RoleAvatar, useRoleName } from './RoleTag';
+import { RoleAvatar, useRoleName } from '../team/RoleAvatar';
 
 const Markdown = lazy(() => import('../../components/Markdown'));
 

@@ -1,14 +1,5 @@
 {
   "loadFailed": "Could not read the documents folder",
-  "roles": {
-    "product-owner": "Product Owner",
-    "architect": "Architect",
-    "developer": "Developer",
-    "qa": "QA",
-    "writer": "Technical writer",
-    "researcher": "Researcher",
-    "reviewer": "Reviewer"
-  },
   "empty": {
     "title": "No documents in {{root}}/ yet",
     "missing": "The folder {{root}}/ is not there yet",

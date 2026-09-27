@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useProjectSettings } from '../../../api';
 import { ICON_SM } from '../../../components/icons';
 import { formatNumber } from '../../../lib/format';
-import { RoleAvatar, useRoleName } from '../../documents/RoleTag';
+import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import type { ItemActions } from './hooks';
 
 /** The flow's default when a project never set one (`ProjectFlowSettings.maxBounces`). */
@@ -51,7 +51,7 @@ export function WaitingState({ item, actions }: { item: WorkItemDetail; actions:
   if (!waiting && bounces === 0) return null;
   if (!waiting) {
     return (
-      <div className="workitem-waiting is-quiet">
+      <div className="item-wait is-quiet">
         <BounceMark bounces={bounces} max={max} />
       </div>
     );
@@ -61,7 +61,7 @@ export function WaitingState({ item, actions }: { item: WorkItemDetail; actions:
   const who = role ? roleName(role) : t('waiting.verification');
   const moving = actions.move.isPending;
   const approve = (
-    <button type="button" className="btn btn-small workitem-approve" disabled={moving || item.status === 'done'} onClick={() => actions.move.mutate('done')}>
+    <button type="button" className="btn btn-small item-wait-approve" disabled={moving || item.status === 'done'} onClick={() => actions.move.mutate('done')}>
       <Check {...ICON_SM} />
       {t('waiting.approve')}
     </button>
@@ -74,25 +74,25 @@ export function WaitingState({ item, actions }: { item: WorkItemDetail; actions:
   );
 
   return (
-    <section className="workitem-waiting" role="status" aria-label={waiting === 'approval' ? t('waiting.approvalLabel') : t('waiting.bouncesLabel')}>
-      <div className="workitem-waiting-head">
+    <section className="item-wait" role="status" aria-label={waiting === 'approval' ? t('waiting.approvalLabel') : t('waiting.bouncesLabel')}>
+      <div className="item-wait-head">
         <span className="badge badge-idle">
           <Hourglass size={11} strokeWidth={2} aria-hidden />
           {waiting === 'approval' ? t('waiting.approvalBadge') : t('waiting.bouncesBadge')}
         </span>
-        <span className="workitem-waiting-why">
+        <span className="item-wait-why">
           {waiting === 'approval' ? t('waiting.approvalWhy', { who }) : t('waiting.bouncesWhy', { who, count: bounces, n: formatNumber(bounces) })}
         </span>
         {bounces > 0 && <BounceMark bounces={bounces} max={max} />}
       </div>
       {comment && (
-        <blockquote className="workitem-waiting-quote">
+        <blockquote className="item-wait-quote">
           {role && <RoleAvatar role={role} size="sm" />}
           <span>{comment.body}</span>
         </blockquote>
       )}
-      <p className="small muted workitem-waiting-hint">{waiting === 'approval' ? t('waiting.approvalHint') : t('waiting.bouncesHint')}</p>
-      <div className="workitem-waiting-actions">
+      <p className="small muted item-wait-hint">{waiting === 'approval' ? t('waiting.approvalHint') : t('waiting.bouncesHint')}</p>
+      <div className="item-wait-actions">
         {waiting === 'approval' ? (
           <>
             {approve}

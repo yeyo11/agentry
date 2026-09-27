@@ -36,7 +36,7 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.text('.project-tabs [role=tab][aria-selected=true] .count-idle')).trim() === '3', 'the Memory tab counts the proposals waiting, in idle');
     check(/3 wait for your approval/i.test(await page.text('.memory-card .memory-waiting')), 'the card says how many wait, in words');
     check((await page.text('.memory-proposal')).includes('CLAUDE.md'), 'the oldest proposal says where it will be written');
-    check(await page.eval(`return !!document.querySelector('.memory-proposal .doc-role[aria-label="Architect"]')`), 'who proposed it is its role');
+    check(await page.eval(`return !!document.querySelector('.memory-proposal .role-avatar[aria-label="Architect"]')`), 'who proposed it is its role');
 
     // Approve as it is: written to CLAUDE.md, under its section
     await page.click('.memory-proposal .memory-approve', 'Approve', 800);

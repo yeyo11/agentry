@@ -20,6 +20,7 @@ import {
   NONE,
   assigneeOf,
   assigneeValue,
+  useAssigneeName,
   useAssigneeOptions,
   useEpicOptions,
   useMilestoneOptions,
@@ -166,12 +167,12 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
 
   const statuses = useStatusOptions();
   const priorities = usePriorityOptions();
-  const assignees = useAssigneeOptions(person, draft.assignee);
+  const assignees = useAssigneeOptions(person, draft.assignee, project?.id ?? null);
   const epics = useEpicOptions(project?.id ?? null);
   const milestones = useMilestoneOptions(project?.id ?? null, draft.milestoneId);
   const epic = epics.epics.find((e) => e.id === draft.epicId) ?? null;
   const milestone = milestones.milestones.find((m) => m.id === draft.milestoneId) ?? null;
-  const assigneeName = draft.assignee ? (draft.assignee.kind === 'person' ? person : draft.assignee.role) : t('fields.noAssignee');
+  const assigneeName = useAssigneeName(person)(draft.assignee);
 
   const create = useMutation({
     mutationFn: async () => {

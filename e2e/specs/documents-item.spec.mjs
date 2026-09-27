@@ -52,31 +52,31 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- QA passed it: it waits for the person's approval ----
     await page.goto(`/tasks/${seeded.templates.key}?project=${projectId}`, 1500);
-    await page.waitFor(`return !!document.querySelector('.workitem-waiting .badge-idle')`, { label: 'the waiting state' });
-    const approval = await page.text('.workitem-waiting');
+    await page.waitFor(`return !!document.querySelector('.item-wait .badge-idle')`, { label: 'the waiting state' });
+    const approval = await page.text('.item-wait');
     check(/waiting/i.test(approval) && approval.includes('QA passed it'), `it says what it waits for and why, in words (${approval})`);
     check(approval.includes('Every criterion holds'), "QA's latest word is quoted");
     check(approval.includes('bounce 1 of 3'), 'its bounces show, neutral');
-    await page.click('.workitem-waiting .workitem-approve', 'Approve and move to Done', 1000);
+    await page.click('.item-wait .item-wait-approve', 'Approve and move to Done', 1000);
     await until(async () => {
       const now = await item(seeded.templates.id);
       return now.status === 'done' && !now.waiting;
     }, "the person's approval moved it to Done and ended the wait");
-    await page.waitFor(`return !document.querySelector('.workitem-waiting')`, { label: 'the waiting state is gone' });
+    await page.waitFor(`return !document.querySelector('.item-wait')`, { label: 'the waiting state is gone' });
 
     // ---- QA sent it back three times of three: it waits for the person ----
     await page.goto(`/tasks/${seeded.cost.key}?project=${projectId}`, 1500);
-    await page.waitFor(`return !!document.querySelector('.workitem-waiting .badge-idle')`, { label: 'the last bounce waits' });
-    const bounces = await page.text('.workitem-waiting');
+    await page.waitFor(`return !!document.querySelector('.item-wait .badge-idle')`, { label: 'the last bounce waits' });
+    const bounces = await page.text('.item-wait');
     check(/waiting for you/i.test(bounces) && bounces.includes('QA sent it back 3 times') && bounces.includes('bounce 3 of 3'), `it says it used its bounces (${bounces})`);
 
     // ---- the same on a phone: the actions are full-width, 44 px ----
     await page.viewport(390, 844);
     await page.goto(`/tasks/${seeded.cost.key}?project=${projectId}`, 1500);
-    await page.waitFor(`return !!document.querySelector('.workitem-waiting .workitem-send-back')`, { label: 'the waiting state on a phone' });
-    const heights = await page.eval(`return [...document.querySelectorAll('.workitem-waiting-actions .btn')].map((b) => b.getBoundingClientRect().height)`);
+    await page.waitFor(`return !!document.querySelector('.item-wait .workitem-send-back')`, { label: 'the waiting state on a phone' });
+    const heights = await page.eval(`return [...document.querySelectorAll('.item-wait-actions .btn')].map((b) => b.getBoundingClientRect().height)`);
     check(heights.length === 2 && heights.every((h) => h >= 44), `both actions are 44 px targets (${JSON.stringify(heights)})`);
-    await page.click('.workitem-waiting .workitem-send-back', 'Back to In progress', 1000);
+    await page.click('.item-wait .workitem-send-back', 'Back to In progress', 1000);
     await until(async () => {
       const now = await item(seeded.cost.id);
       return now.status === 'in_progress' && !now.waiting && (now.bounces ?? 0) === 0;
