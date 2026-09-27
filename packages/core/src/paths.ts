@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import type { PermissionMode } from '@agentry/shared';
+import type { AppSettingValues, PermissionMode } from '@agentry/shared';
 
 /**
  * What the environment may say about the guard. Read here with everything else the environment
@@ -52,6 +52,24 @@ export interface CoreConfig {
    * answers to a name of its own.
    */
   allowedHosts: readonly string[];
+  /**
+   * The layered settings (`AppSettingValues`) the environment set. The three values above stay the
+   * environment's, or the default's; what applies at runtime is read from `AppSettingsStore`, which
+   * needs to know which of them the deploy decided and the UI may therefore not change.
+   */
+  settingsFromEnv: ReadonlySet<keyof AppSettingValues>;
+}
+
+/**
+ * Why an allowlist entry is not one the guard can match, or null when it is. Shared by the
+ * environment and `app-settings.json`, so a pattern refused in one is refused in the other.
+ */
+export function hostPatternProblem(host: string): string | null {
+  const wildcard = host.startsWith('*.');
+  if (host.includes('*') && (!wildcard || host.slice(2).includes('*') || host.split('.').length < 3)) {
+    return `'${host}' is neither a host name nor a pattern such as '*.example.com'`;
+  }
+  return null;
 }
 
 /**
@@ -67,13 +85,18 @@ function parseAllowedHosts(value: string | undefined): string[] {
     .map((host) => host.trim().toLowerCase())
     .filter((host) => host !== '');
   for (const host of hosts) {
-    const wildcard = host.startsWith('*.');
-    if (host.includes('*') && (!wildcard || host.slice(2).includes('*') || host.split('.').length < 3)) {
-      throw new Error(`AGENTRY_ALLOWED_HOSTS: '${host}' is neither a host name nor a pattern such as '*.example.com'`);
-    }
+    const problem = hostPatternProblem(host);
+    if (problem) throw new Error(`AGENTRY_ALLOWED_HOSTS: ${problem}`);
   }
   return hosts;
 }
+
+/** What a layered setting is when neither the environment nor `app-settings.json` says otherwise. */
+export const DEFAULT_APP_SETTINGS: Readonly<AppSettingValues> = Object.freeze({
+  allowedHosts: [],
+  maxConcurrentRuns: 8,
+  defaultPermissionMode: 'acceptEdits',
+});
 
 /** pnpm runs scripts from the package dir; default state dirs belong at the monorepo root instead. */
 function baseDir(): string {
@@ -82,6 +105,20 @@ function baseDir(): string {
   }
   return process.cwd();
 }
+
+/**
+ * A variable counts as set when it holds something. Compose files pass `VAR=${VAR:-}` through, and
+ * an empty value there means "not configured": treating it as set would lock the setting in the UI
+ * to a value nobody chose.
+ */
+const isSet = (value: string | undefined): value is string => value !== undefined && value.trim() !== '';
+
+/** The variable behind each layered setting, which the UI names when it shows one as read-only. */
+export const APP_SETTING_ENV = {
+  allowedHosts: 'AGENTRY_ALLOWED_HOSTS',
+  maxConcurrentRuns: 'AGENTRY_MAX_CONCURRENT_RUNS',
+  defaultPermissionMode: 'AGENTRY_DEFAULT_PERMISSION_MODE',
+} as const satisfies Record<keyof AppSettingValues, string>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
   const configDir = resolve(env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'));
@@ -103,10 +140,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     projectsDir: join(configDir, 'projects'),
     workspaceDir,
     dataDir,
-    defaultPermissionMode: (env.AGENTRY_DEFAULT_PERMISSION_MODE as PermissionMode | undefined) ?? 'acceptEdits',
-    maxConcurrentRuns: Number(env.AGENTRY_MAX_CONCURRENT_RUNS ?? 8),
+    defaultPermissionMode: isSet(env.AGENTRY_DEFAULT_PERMISSION_MODE) ? (env.AGENTRY_DEFAULT_PERMISSION_MODE.trim() as PermissionMode) : DEFAULT_APP_SETTINGS.defaultPermissionMode,
+    maxConcurrentRuns: isSet(env.AGENTRY_MAX_CONCURRENT_RUNS) ? Number(env.AGENTRY_MAX_CONCURRENT_RUNS) : DEFAULT_APP_SETTINGS.maxConcurrentRuns,
     pushSubject: env.AGENTRY_PUSH_SUBJECT?.trim() || 'https://github.com/yeyo11/agentry',
     allowedHosts: parseAllowedHosts(env.AGENTRY_ALLOWED_HOSTS),
+    settingsFromEnv: new Set((Object.keys(APP_SETTING_ENV) as (keyof AppSettingValues)[]).filter((key) => isSet(env[APP_SETTING_ENV[key]]))),
     authEnv: Object.fromEntries(AUTH_ENV_KEYS.flatMap((key) => (env[key] === undefined ? [] : [[key, env[key]]]))) as AuthEnv,
   };
 }

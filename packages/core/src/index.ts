@@ -26,6 +26,7 @@ import type {
 } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
+import { AppSettingsStore } from './app-settings.ts';
 import { stateFromRun } from './chat-model.ts';
 import { ChatService, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatRuntime } from './chats.ts';
@@ -71,7 +72,8 @@ export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 export { DEFAULT_EDITOR, parseEditorSettings, sanitizeEditor, templateProblem, type EditorTemplateProblem } from './editor-settings.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
-export { loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
+export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
+export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
 export { ChatConflictError, DEFAULT_ORIGINS, type ChatFilter, type Placement } from './chat-service.ts';
 export { compareVersions } from './version-check.ts';
@@ -158,6 +160,11 @@ export class Core {
   readonly credentials: CredentialStore;
   /** How the API is guarded: the auth mode, the token hash and read-only */
   readonly security: AuthStore;
+  /**
+   * The settings that change at runtime (`app-settings.json` under the environment), and the exact
+   * hosts answered beside the allowlist. What applies now is read here, never from `config`
+   */
+  readonly appSettings: AppSettingsStore;
   readonly uploads: UploadStore;
   readonly accounts: AccountManager;
   readonly cliVersion: CliVersionWatch;
@@ -191,12 +198,20 @@ export class Core {
         summary: 'Replace the token from AGENTRY_AUTH_TOKEN (AGENTRY_AUTH_TOKEN_RESET)',
       });
     }
+    this.appSettings = new AppSettingsStore(config, {
+      emit: (event) => {
+        // `system()` carries the default permission mode, and a cached copy would show the old one
+        this.forgetSystem();
+        this.events.emit(event);
+      },
+    });
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
     this.release = new ReleaseWatch(config, { current: AGENTRY_VERSION, events: this.events });
     this.projectStore = new ProjectStore(config);
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db);
+    this.runtime.defaults = this.appSettings;
     this.runtime.permissions = this.permissions;
     this.runtime.bus = this.events;
     this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events);
@@ -463,7 +478,7 @@ export class Core {
         auth,
         configDir: this.config.configDir,
         workspaceDir: this.config.workspaceDir,
-        defaultPermissionMode: this.config.defaultPermissionMode,
+        defaultPermissionMode: this.appSettings.defaultPermissionMode,
         version: AGENTRY_VERSION,
       };
       // A read that finished late never replaces a newer one
