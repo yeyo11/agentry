@@ -289,6 +289,36 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    CREATE INDEX work_item_links_task ON work_item_links (orchestration_id, task_id);`,
 ];
 
+/**
+ * The schema version the work item tables arrive in. Found rather than counted, so the test that
+ * upgrades into it keeps upgrading from the version before it when later migrations are added.
+ */
+export const WORK_ITEMS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE work_item_counters')) + 1;
+
+/**
+ * Applies the migrations a database has not run yet, up to schema version `until` (every one by
+ * default). Exported so a test can build a database as an older release left it.
+ */
+export function migrate(db: DatabaseSync, until = MIGRATIONS.length): void {
+  const row = db.prepare('PRAGMA user_version').get() as { user_version: number } | undefined;
+  const applied = row?.user_version ?? 0;
+  for (let version = applied; version < Math.min(until, MIGRATIONS.length); version++) {
+    const statement = MIGRATIONS[version];
+    if (statement === undefined) continue;
+    // One transaction per migration: a failure leaves user_version behind, never half a schema
+    db.exec('BEGIN');
+    try {
+      if (typeof statement === 'string') db.exec(statement);
+      else statement(db);
+      db.exec(`PRAGMA user_version = ${String(version + 1)}`);
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+}
+
 /** Rows older than this are dropped on open, so a long-lived install cannot grow without bound. */
 const KEEP_EVENTS = 20_000;
 /** Command runs kept across every kind; the newest few dozen of a kind are all "usual" ever looks at. */
@@ -419,7 +449,7 @@ export class Db {
     this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec('PRAGMA busy_timeout = 5000');
     this.db.exec('PRAGMA foreign_keys = ON');
-    this.migrate();
+    migrate(this.db);
     this.pruneRotationEvents();
     this.pruneAudit();
   }
@@ -441,21 +471,6 @@ export class Db {
     } catch (err) {
       this.db.exec('ROLLBACK');
       throw err;
-    }
-  }
-
-  private migrate(): void {
-    const row = this.db.prepare('PRAGMA user_version').get() as { user_version: number } | undefined;
-    const applied = row?.user_version ?? 0;
-    for (let version = applied; version < MIGRATIONS.length; version++) {
-      const statement = MIGRATIONS[version];
-      if (statement === undefined) continue;
-      // One transaction per migration: a failure leaves user_version behind, never half a schema
-      this.tx(() => {
-        if (typeof statement === 'string') this.db.exec(statement);
-        else statement(this.db);
-        this.db.exec(`PRAGMA user_version = ${String(version + 1)}`);
-      });
     }
   }
 

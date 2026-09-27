@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { WorkItemActor, WorkItemCause, WorkItemLink, WorkItemStatus } from '@agentry/shared';
-import { Db } from '../src/db.ts';
+import { Db, WORK_ITEMS_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import type { AgentryEventInput } from '../src/events.ts';
 import { WorkItemError, WorkItemService, type WorkItemLinkState, type WorkItemProject } from '../src/work-items.ts';
 import { tempConfig } from './helpers.ts';
@@ -788,31 +788,16 @@ test('a ROLLBACK that fails does not hide the error that caused it, and the stor
 test('the migration applies on top of a database at the previous version and keeps what it held', () => {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
-  // Build the store as the previous release left it: every migration but this one, with a row in it
-  const current = new Db(config);
-  current.savePushSubscription({
-    id: 'sub-1',
-    endpoint: 'https://push.example/1',
-    p256dh: 'k',
-    auth: 'a',
-    kinds: [],
-    level: 'important',
-    label: 'Phone',
-    createdAt: '2026-09-01T00:00:00.000Z',
-    lastSeenAt: '2026-09-01T00:00:00.000Z',
-  });
-  current.close();
+  // Build the store as the release before the work items left it, whatever migrations came since:
+  // every migration up to the one before theirs, with a row in it
   const raw = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
-  const version = (raw.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
-  const tables = (raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND (name LIKE 'work_item%' OR name = 'milestones')").all() as Array<{ name: string }>).map(
-    (t) => t.name,
-  );
-  assert.deepEqual(tables.sort(), ['milestones', 'work_item_comments', 'work_item_counters', 'work_item_criteria', 'work_item_history', 'work_item_labels', 'work_item_links', 'work_item_relations', 'work_items']);
-  raw.exec('PRAGMA foreign_keys = OFF');
-  for (const table of ['work_item_links', 'work_item_history', 'work_item_comments', 'work_item_relations', 'work_item_criteria', 'work_item_labels', 'work_items', 'milestones', 'work_item_counters']) {
-    raw.exec(`DROP TABLE ${table}`);
-  }
-  raw.exec(`PRAGMA user_version = ${String(version - 1)}`);
+  migrate(raw, WORK_ITEMS_SCHEMA_VERSION - 1);
+  const workTables = () =>
+    (raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND (name LIKE 'work_item%' OR name = 'milestones')").all() as Array<{ name: string }>).map((t) => t.name);
+  assert.deepEqual(workTables(), []);
+  raw
+    .prepare(`INSERT INTO push_subscriptions (id, endpoint, p256dh, auth, kinds, level, label, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run('sub-1', 'https://push.example/1', 'k', 'a', '[]', 'important', 'Phone', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
   raw.close();
 
   const reopened = new Db(config);
@@ -823,7 +808,11 @@ test('the migration applies on top of a database at the previous version and kee
   reopened.close();
 
   const check = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
-  assert.equal((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, version);
+  assert.ok((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version >= WORK_ITEMS_SCHEMA_VERSION);
+  const tables = (check.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND (name LIKE 'work_item%' OR name = 'milestones')").all() as Array<{ name: string }>).map(
+    (t) => t.name,
+  );
+  assert.deepEqual(tables.sort(), ['milestones', 'work_item_comments', 'work_item_counters', 'work_item_criteria', 'work_item_history', 'work_item_labels', 'work_item_links', 'work_item_relations', 'work_items']);
   const indexes = (check.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'work_items'").all() as Array<{ name: string }>).map((i) => i.name);
   assert.ok(indexes.includes('work_items_board'), 'indexed by project and status');
   check.close();
