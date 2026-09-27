@@ -5,6 +5,7 @@ import i18n from '../i18n';
 import { limitsOf } from '../lib/orchestration-v2';
 import { NumberInput } from './controls';
 import { Field, ModelCombobox } from './ui';
+import { useLinkedWorkItem, WorkItemKeyLink } from './WorkItemKeyLink';
 
 /**
  * One task of a graph, editable: the launch form, the relaunch panel and a template all edit the
@@ -23,8 +24,16 @@ export function TaskEditor({
 }) {
   const { t } = useTranslation(['orchestration', 'orchestrationV2', 'config']);
   const deps = task.dependsOn ?? [];
+  const item = useLinkedWorkItem(task.workItemId);
   return (
     <div className="task-editor" role="group" aria-label={t('taskEditor.group', { id: task.id || t('taskEditor.noId') })}>
+      {/* A node drafted from the board names the item it will move: launching links the two */}
+      {item && (
+        <div className="task-editor-item">
+          <WorkItemKeyLink item={item} />
+          <span className="task-editor-item-title">{item.title}</span>
+        </div>
+      )}
       <div className="form-grid form-grid-3">
         <Field label={t('taskEditor.id')}>
           <input value={task.id} onChange={(e) => onChange({ id: e.target.value.replace(/\s+/g, '-') })} />
