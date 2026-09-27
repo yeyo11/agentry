@@ -23,6 +23,9 @@
  *      the New chat menu and Settings → Appearance
  *    - `primitives`: the shared building blocks every page reuses (Spinner, ProgressBar, Stepper,
  *      ActivityTicker, Menu, SplitButton, Sheet, ListToolbar): words a page does not get to reword
+ *    - `tasks`: the Tasks board, list and milestones (pages/tasks/Board, List, Milestones), and the
+ *      words every work item screen shares: columns, types and priorities (lib/work-items.ts)
+ *    - `workItem`: one work item's page and the New task form (pages/tasks/WorkItem, NewTask, item/*)
  *    - `schedules`: the Schedules page and its form (pages/Schedules, pages/schedules/*)
  *    - `usage`: the Usage page (pages/Usage)
  *    - `work`: what is left of the pages the chats redesign removed (Dashboard, Agents, Sessions…)

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { useAccounts, useConnectors, useSchedules } from '../../api';
+import { useAccounts, useConnectors, useOpenTaskCount, useSchedules } from '../../api';
+import { useProjectScope } from '../../lib/project-scope';
 import { accountExhausted } from '../../pages/accounts/usage';
 import { moreNotes, type MoreNote } from '../../lib/shell-live';
 import { useUsageNow } from '../../lib/usage-now';
@@ -19,6 +20,9 @@ export function useMoreNotes(): Record<string, MoreNote> {
   const accounts = useAccounts(swap);
   const schedules = useSchedules();
   const connectors = useConnectors();
+  // The sidebar's own figure, from the same board entry: the sheet asks for nothing new
+  const { project, settled } = useProjectScope();
+  const tasks = useOpenTaskCount(project, settled);
 
   const accountList = accounts.data?.accounts;
   const connectorsData = connectors.data;
@@ -26,6 +30,7 @@ export function useMoreNotes(): Record<string, MoreNote> {
   return useMemo(
     () =>
       moreNotes({
+        tasks,
         projects: overview?.counts.projects,
         accounts: swap
           ? accountList
@@ -42,6 +47,6 @@ export function useMoreNotes(): Record<string, MoreNote> {
             ? { total: connectorsData.connectors.length, pending: connectorsData.connectors.filter((c) => c.status === 'needs-auth').length }
             : undefined,
       }),
-    [overview, swap, accountList, scheduleCount, now.todayCost, connectorsData],
+    [tasks, overview, swap, accountList, scheduleCount, now.todayCost, connectorsData],
   );
 }

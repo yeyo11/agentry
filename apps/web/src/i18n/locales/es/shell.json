@@ -39,7 +39,18 @@
   },
   "nav": {
     "work": "Trabajo",
-    "space": "Espacio"
+    "space": "Espacio",
+    "tasks": "Tareas",
+    "open_one": "abierta",
+    "open_other": "abiertas"
+  },
+  "tasks": {
+    "openCount_one": "{{n}} abierta",
+    "openCount_other": "{{n}} abiertas",
+    "newTask": "Nueva tarea",
+    "newTaskIn": "Añadir una tarea al tablero de {{name}}",
+    "newTaskHint": "Añadir una tarea al tablero de un proyecto",
+    "goToHint": "El tablero del proyecto elegido, o de todos"
   },
   "statusbar": {
     "label": "Barra de estado",

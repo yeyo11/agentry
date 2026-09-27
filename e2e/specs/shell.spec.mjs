@@ -2,13 +2,21 @@
 // Settings → Appearance as the one place for theme, language and motion (they left the top bar),
 // the palette reaching the same preferences, and a phone's bottom tab bar instead of a slide-over.
 
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+/** The figure beside Tasks in the sidebar, without the words said to a screen reader */
+const tasksCount = `(document.querySelector('#sidebar a.nav-link[href="/tasks"] .nav-count')?.childNodes[0]?.textContent ?? null)`;
+const pageHeading = `(document.querySelector('main h1')?.textContent.trim() ?? null)`;
+
 const openNewMenu = async (page) => {
   await page.focus('.topbar-new .split-btn-more');
   await page.press('Enter');
   await page.waitFor(`return !!document.querySelector('[role=menu]')`, { label: 'the New chat menu opens' });
 };
 
-export default async ({ page, check }) => {
+export default async ({ page, api, check, dirs }) => {
+  let projectId = null;
   try {
     await page.viewport(1440, 900);
     await page.goto('/', 1500);
@@ -23,7 +31,10 @@ export default async ({ page, check }) => {
     check(!(await page.eval(`return !!document.querySelector('.topbar .palette-trigger')?.getClientRects().length`)), 'and not in the top bar on a desktop');
     // The sidebar's two groups, and the status bar at the bottom of the column
     const groups = await page.eval(`return [...document.querySelectorAll('#sidebar .nav-group')].map((g) => [...g.querySelectorAll('a')].map((a) => a.getAttribute('href').split('?')[0]))`);
-    check(JSON.stringify(groups) === JSON.stringify([['/', '/chats', '/orchestration', '/schedules'], ['/projects', '/accounts', '/connectors', '/usage', '/settings']]), `the sidebar has the Work and Space groups (${JSON.stringify(groups)})`);
+    check(
+      JSON.stringify(groups) === JSON.stringify([['/', '/chats', '/tasks', '/orchestration', '/schedules'], ['/projects', '/accounts', '/connectors', '/usage', '/settings']]),
+      `the sidebar has the Work and Space groups, Tasks between Chats and Orchestrations (${JSON.stringify(groups)})`,
+    );
     const status = await page.eval(`const s = document.querySelector('.statusbar'); if (!s) return null; const r = s.getBoundingClientRect(); return { height: r.height, bottom: r.bottom, text: s.innerText }`);
     check(status !== null && Math.round(status.height) === 30 && Math.abs(status.bottom - 900) <= 1, `the status bar is 30px at the bottom (${JSON.stringify(status)})`);
     check(/Claude Code|CLI not detected|Not logged in|Connecting|unreachable/.test(status?.text ?? ''), `the status bar says the connection or the CLI (${status?.text})`);
@@ -34,6 +45,59 @@ export default async ({ page, check }) => {
     for (const item of ['Run workflow', 'New orchestration']) check(items.includes(item), `"${item}" is behind New chat ▾ (${items.join(', ')})`);
     await page.click('[role=menu] [role=menuitem]', 'New orchestration', 900);
     check((await page.eval(`return location.pathname + location.search`)) === '/orchestration?new=1', 'New orchestration opens the Orchestrations page with its form');
+
+    // ---- Tasks: the open items of the selected project, kept current by the event feed ----
+    const dir = join(dirs.workspaceDir, 'e2e-shell-tasks');
+    mkdirSync(dir, { recursive: true });
+    const imported = await api.post('/projects/import', { path: dir, name: 'e2e-shell-tasks', template: 'software' });
+    check(imported.status === 201 && imported.body.modules.includes('board'), `a project with its board was imported (${imported.status})`);
+    projectId = imported.body.id;
+    const created = [];
+    for (const title of ['First task', 'Second task', 'Third task']) {
+      const made = await api.post(`/projects/${projectId}/work-items`, { title });
+      check(made.status === 201, `"${title}" was created (${made.status})`);
+      created.push(made.body);
+    }
+    const moved = await api.post(`/work-items/${created[2].id}/move`, { status: 'done' });
+    check(moved.status === 200, `a task was moved to Done (${moved.status})`);
+    await page.goto(`/?project=${projectId}`, 1200);
+    await page.waitFor(`return ${tasksCount} === '2'`, { label: 'Tasks counts the two open items of the project, not the one done' });
+    const said = await page.text('#sidebar a.nav-link[href="/tasks"] .nav-count .sr-only');
+    check(said.trim() === 'open', `the count is said with its word (${said})`);
+    // A task created elsewhere (an agent, another tab) shows without a reload
+    await api.post(`/projects/${projectId}/work-items`, { title: 'Fourth task' });
+    await page.waitFor(`return ${tasksCount} === '3'`, { label: 'the count follows a task created through the API' });
+    // With All projects, every project's open items
+    const all = (await api.get('/work-items/board')).body;
+    const open = all.columns.filter((c) => c.status !== 'done').reduce((sum, c) => sum + c.count, 0);
+    await page.goto('/?project=all', 1200);
+    await page.waitFor(`return ${tasksCount} === '${open}'`, { label: `All projects counts every open item (${open})` });
+
+    // Every new route renders, under its crumb
+    await page.goto(`/?project=${projectId}`, 900);
+    await page.click('#sidebar a.nav-link[href="/tasks"]', undefined, 900);
+    check((await page.eval(`return location.pathname`)) === '/tasks', 'Tasks opens /tasks');
+    await page.waitFor(`return ${pageHeading} === 'Tasks'`, { label: 'the Tasks page' });
+    check((await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/tasks"]').classList.contains('is-active')`)) === true, 'Tasks is the current section');
+    check((await page.text('.topbar .crumb-page')).trim() === 'Tasks', 'the crumb reads Tasks');
+    await page.goto('/tasks/milestones', 900);
+    await page.waitFor(`return ${pageHeading} === 'Milestones'`, { label: 'the milestones page' });
+    const key = created[0].key;
+    await page.goto(`/tasks/${key.toLowerCase()}`, 900);
+    await page.waitFor(`return ${pageHeading} === '${key}'`, { label: `a work item's page, by its key in any case (${key})` });
+    const crumbs = await page.eval(`return [...document.querySelectorAll('.topbar .crumb-page')].map((c) => c.textContent.trim())`);
+    check(JSON.stringify(crumbs) === JSON.stringify(['Tasks', key]), `the crumb reads Tasks / ${key} (${JSON.stringify(crumbs)})`);
+    await page.goto('/projects/new', 900);
+    await page.waitFor(`return ${pageHeading} === 'New project'`, { label: 'the new project wizard' });
+
+    // The palette starts a task and goes to Tasks
+    await page.key('k', 2);
+    await page.waitFor(`return !!document.querySelector('[role=dialog][aria-label="Command palette"]')`, { label: 'palette open' });
+    await page.type('new task');
+    await page.sleep(300);
+    check((await page.text('.palette-list [role=option][aria-selected=true]')).includes('New task'), 'the palette offers New task');
+    await page.key('Enter');
+    await page.waitFor(`return location.pathname + location.search === '/tasks?new=1'`, { label: 'New task opens Tasks with its form' });
 
     // ---- Settings → Appearance: the first tab, and what /settings opens on ----
     await page.goto('/settings', 1200);
@@ -71,7 +135,7 @@ export default async ({ page, check }) => {
 
     // ---- a phone: the tab bar, nothing sideways, fingers get room ----
     await page.viewport(390, 844);
-    for (const path of ['/', '/chats', '/orchestration', '/settings']) {
+    for (const path of ['/', '/chats', '/tasks', '/orchestration', '/settings']) {
       await page.goto(path, 900);
       const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
       check(overflow <= 1, `[390px ${path}] nothing scrolls sideways (${overflow}px)`);
@@ -98,6 +162,13 @@ export default async ({ page, check }) => {
     check(orchestrations?.name === 'New orchestration', `[390px /orchestration] the FAB starts an orchestration (${JSON.stringify(orchestrations)})`);
     await page.click('.fab', undefined, 900);
     check((await page.eval(`return location.pathname + location.search`)) === '/orchestration?new=1', 'the Orchestrations FAB opens the new orchestration form');
+    // Tasks is in the More sheet on a phone, and its FAB starts a task
+    const tasksFab = await fab('/tasks');
+    check(tasksFab?.text === '' && tasksFab?.name === 'New task', `[390px /tasks] the FAB is an icon named New task (${JSON.stringify(tasksFab)})`);
+    check((await page.eval(`return document.querySelector('.tabbar-more')?.classList.contains('is-active')`)) === true, '[390px /tasks] More is the current tab, where Tasks lives');
+    await page.click('.fab', undefined, 900);
+    check((await page.eval(`return location.pathname + location.search`)) === '/tasks?new=1', 'the Tasks FAB opens the New task form');
+    check((await fab(`/tasks/${key}`)) === null, "[390px a work item] no FAB on a work item's page");
     check((await fab('/settings')) === null, '[390px /settings] no FAB where there is nothing to start');
     await fab('/');
     await page.click('.fab', undefined, 900);
@@ -108,6 +179,8 @@ export default async ({ page, check }) => {
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
-    await page.eval(`localStorage.removeItem('agentry-theme'); localStorage.removeItem('agentry-motion'); localStorage.removeItem('agentry-language'); localStorage.removeItem('agentry-palette-recent'); return true`).catch(() => {});
+    await page.eval(`localStorage.removeItem('agentry-theme'); localStorage.removeItem('agentry-motion'); localStorage.removeItem('agentry-language'); localStorage.removeItem('agentry-palette-recent'); localStorage.removeItem('agentry:project'); return true`).catch(() => {});
+    // Later specs count the projects
+    if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
   }
 };

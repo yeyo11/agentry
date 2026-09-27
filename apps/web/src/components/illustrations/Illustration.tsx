@@ -1,4 +1,5 @@
 import { type CSSProperties, type FunctionComponent, useId } from 'react';
+import { Board } from './board';
 import { Chats } from './chats';
 import { CliMissing } from './cli-missing';
 import { Connector } from './connector';
@@ -11,6 +12,7 @@ import { Projects } from './projects';
 import { Quota } from './quota';
 import { Schedules } from './schedules';
 import { SignedOut } from './signed-out';
+import { Team } from './team';
 import { Welcome } from './welcome';
 
 export type IllustrationTone = 'accent' | 'warn' | 'bad' | 'live';
@@ -23,6 +25,8 @@ const ILLUSTRATIONS = {
   orchestrations: [Orchestrations, 'accent'],
   schedules: [Schedules, 'accent'],
   projects: [Projects, 'accent'],
+  board: [Board, 'accent'],
+  team: [Team, 'accent'],
   'no-results': [NoResults, 'accent'],
   'not-found': [NotFound, 'accent'],
   install: [Install, 'accent'],

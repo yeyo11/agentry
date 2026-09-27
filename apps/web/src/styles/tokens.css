@@ -199,8 +199,8 @@
   --info-soft: rgba(29, 78, 216, 0.09);
   --idle: #6d28d9;
   --idle-soft: rgba(109, 40, 217, 0.09);
-  --live: #0e7490;
-  --live-soft: rgba(14, 116, 144, 0.1);
+  --live: #0b6680;
+  --live-soft: rgba(11, 102, 128, 0.1);
   --shadow-sm: 0 1px 2px rgba(20, 16, 10, 0.06);
   --shadow-md: 0 8px 24px -14px rgba(20, 16, 10, 0.18);
   --shadow-lg: 0 18px 48px -12px rgba(20, 16, 10, 0.22);
@@ -250,8 +250,8 @@
     --info-soft: rgba(29, 78, 216, 0.09);
     --idle: #6d28d9;
     --idle-soft: rgba(109, 40, 217, 0.09);
-    --live: #0e7490;
-    --live-soft: rgba(14, 116, 144, 0.1);
+    --live: #0b6680;
+    --live-soft: rgba(11, 102, 128, 0.1);
     --shadow-sm: 0 1px 2px rgba(20, 16, 10, 0.06);
     --shadow-md: 0 8px 24px -14px rgba(20, 16, 10, 0.18);
     --shadow-lg: 0 18px 48px -12px rgba(20, 16, 10, 0.22);
@@ -277,4 +277,17 @@
   --monogram-fill: hsl(var(--hue) 70% 55% / 0.14);
   --monogram-shadow: none;
   --monogram-ink: color-mix(in oklab, hsl(var(--hue) 70% 55%), var(--text) 50%);
+}
+
+/* The same working-out for anything else that has a colour of its own: an epic's label, a team
+   role's avatar. The label and the avatar stay neutral and only their small diamond takes the hue
+   (--hue-mark), so a board of one epic does not turn the brand's colour. Rules read these, never
+   hsl() themselves; `.monogram` gets them too for a project's tile. */
+.monogram,
+.workitem-epic,
+.role-avatar {
+  --hue-base: hsl(var(--hue, 20) 70% 55%);
+  --hue-fill: hsl(var(--hue, 20) 70% 55% / 0.14);
+  --hue-ink: color-mix(in oklab, var(--hue-base), var(--text) 50%);
+  --hue-mark: color-mix(in oklab, var(--hue-base), var(--text) 25%);
 }

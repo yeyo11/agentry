@@ -13,7 +13,7 @@ const rootTag = (html: string) => html.match(/^<svg[^>]*>/)?.[0] ?? '';
 const rootClasses = (html: string) => (rootTag(html).match(/class="([^"]*)"/)?.[1] ?? '').split(' ');
 
 test('every illustration renders its drawing', () => {
-  assert.equal(ILLUSTRATION_NAMES.length, 13);
+  assert.equal(ILLUSTRATION_NAMES.length, 15);
   for (const name of ILLUSTRATION_NAMES) {
     const html = renderToStaticMarkup(<Illustration name={name} />);
     assert.match(rootTag(html), /viewBox="0 0 240 160"/, name);
@@ -73,4 +73,18 @@ test('Empty shows the illustration instead of the icon, and keeps the icon witho
   const compact = renderToStaticMarkup(<Empty title="Nothing here" />);
   assert.match(compact, /^<div class="state state-empty"><span class="state-icon"/);
   assert.doesNotMatch(compact, /class="il/);
+});
+
+test('the board and team drawings of the project ecosystem join the set in the accent tone', () => {
+  for (const name of ['board', 'team'] as const) {
+    assert.ok(ILLUSTRATION_NAMES.includes(name), name);
+    const html = renderToStaticMarkup(<Illustration name={name} size="lg" />);
+    assert.match(rootTag(html), new RegExp(`data-illustration="${name}"`));
+    assert.deepEqual(rootClasses(html), ['il', 'il-lg']);
+    // The card or agent file arriving is the one element in the brand gradient, and it floats
+    assert.match(html, /class="cg"/);
+    assert.match(html, /class="a-float"/);
+  }
+  // The board's card carries a key, not a word: it reads the same in every language
+  assert.match(renderToStaticMarkup(<Illustration name="board" />), />AGN-1</);
 });

@@ -11,6 +11,7 @@ import {
   Plug,
   Plus,
   Settings2,
+  SquareCheck,
   Users,
   Workflow,
 } from 'lucide-react';
@@ -18,7 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { api, chatListQuery, keys } from './api';
+import { api, chatListQuery, keys, useOpenTaskCount } from './api';
 import { CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
 import type { MenuItem } from './components/controls/Menu';
 import { Tooltip } from './components/controls/Tooltip';
@@ -44,6 +45,7 @@ import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
 import { NARROW, useMediaQuery } from './lib/media';
 import { fabFor, hidesTabBar, pageHoldsScope } from './lib/shell-live';
+import { NEW_TASK_PATH, TASKS_PATH, normalizeKey } from './lib/work-items';
 import { Home } from './pages/Home';
 
 // Only the landing pages ship in the main bundle; everything else loads on first visit
@@ -57,6 +59,10 @@ const NewChat = lazyPage(() => import('./pages/NewChat').then((m) => m.NewChat))
 const Orchestration = lazyPage(() => import('./pages/Orchestration').then((m) => m.Orchestration));
 const OrchestrationDetail = lazyPage(() => import('./pages/OrchestrationDetail').then((m) => m.OrchestrationDetail));
 const Projects = lazyPage(() => import('./pages/Projects').then((m) => m.Projects));
+const NewProject = lazyPage(() => import('./pages/projects/NewProject').then((m) => m.NewProject));
+const TasksBoard = lazyPage(() => import('./pages/tasks/Board').then((m) => m.Board));
+const Milestones = lazyPage(() => import('./pages/tasks/Milestones').then((m) => m.Milestones));
+const WorkItemPage = lazyPage(() => import('./pages/tasks/WorkItem').then((m) => m.WorkItemPage));
 const RunWorkflowDialog = lazyPage(
   () => import('./components/RunWorkflowDialog').then((m) => m.RunWorkflowDialog),
   // A dialog has no page to stand in for: the banner alone says what happened
@@ -109,6 +115,7 @@ function Shell() {
   const counts = overview.data?.counts;
   const connection = useConnection(overview, feed === 'open');
   const live = useLive(counts);
+  const openTasks = useOpenTaskCount(project, settled);
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -167,6 +174,8 @@ function Shell() {
 
   const home: NavItem = { to: '/', label: t('nav.home'), icon: House, count: { value: counts?.chatsWaiting, what: t('nav.badge.waiting') } };
   const chats: NavItem = { to: '/chats', label: t('nav.chats'), icon: MessagesSquare, count: { value: counts?.chatsWorking, what: t('nav.badge.working'), live: true } };
+  // The open items of the scope: neutral, since an item waiting in a column is not something running
+  const tasks: NavItem = { to: TASKS_PATH, label: t('shell:nav.tasks'), icon: SquareCheck, count: { value: openTasks, what: t('shell:nav.open', { count: openTasks ?? 0 }) } };
   const orchestrations: NavItem = {
     to: '/orchestration',
     label: t('nav.orchestrations'),
@@ -187,7 +196,7 @@ function Shell() {
   };
   // What a person does, then where it happens: the sidebar's two groups
   const groups = [
-    { id: 'work', label: t('shell:nav.work'), items: [home, chats, orchestrations, schedules] },
+    { id: 'work', label: t('shell:nav.work'), items: [home, chats, tasks, orchestrations, schedules] },
     { id: 'space', label: t('shell:nav.space'), items: [projects, accounts, connectors, usage, settings] },
   ];
   const items = groups.flatMap((group) => group.items);
@@ -196,6 +205,9 @@ function Shell() {
 
   const newChat = () => navigate(project?.exists ? `/chats/new?cwd=${encodeURIComponent(project.path)}` : '/chats/new');
   const newOrchestration = () => navigate(NEW_ORCHESTRATION_PATH);
+  const newTask = () => navigate(NEW_TASK_PATH);
+  // A work item's page adds its key to the crumb: "Tasks / AGN-12"
+  const taskKey = pathname.startsWith(`${TASKS_PATH}/`) ? normalizeKey(decodeURIComponent(pathname.slice(TASKS_PATH.length + 1))) : null;
   // What else a person can start: behind "New chat ▾" in the top bar, and in the phone's More sheet
   const startEntries: MenuItem[] = [
     { id: 'run-workflow', label: t('shell.runWorkflow'), icon: Play, onSelect: () => setWorkflowOpen(true) },
@@ -323,7 +335,19 @@ function Shell() {
             <span className="crumb-sep" aria-hidden>
               /
             </span>
-            <span className="crumb-page ellipsis">{current?.label ?? 'Agentry'}</span>
+            {taskKey ? (
+              <>
+                <Link to={TASKS_PATH} className="crumb-page ellipsis">
+                  {current?.label}
+                </Link>
+                <span className="crumb-sep" aria-hidden>
+                  /
+                </span>
+                <span className="crumb-page mono">{taskKey}</span>
+              </>
+            ) : (
+              <span className="crumb-page ellipsis">{current?.label ?? 'Agentry'}</span>
+            )}
           </div>
           <div className="topbar-actions">
             <CommandPaletteTrigger className="topbar-search" />
@@ -345,6 +369,10 @@ function Shell() {
               <Route path="/chats/new" element={<NewChat />} />
               <Route path="/chats/:id" element={<ChatView />} />
               <Route path="/projects" element={<Projects />} />
+              <Route path="/projects/new" element={<NewProject />} />
+              <Route path="/tasks" element={<TasksBoard />} />
+              <Route path="/tasks/milestones" element={<Milestones />} />
+              <Route path="/tasks/:key" element={<WorkItemPage />} />
               <Route path="/orchestration" element={<Orchestration />} />
               <Route path="/orchestration/:id" element={<OrchestrationDetail />} />
               <Route path="/accounts" element={<Accounts />} />
@@ -381,11 +409,11 @@ function Shell() {
 
       {tabBar && (
         <>
-          <Fab pathname={pathname} onNewChat={newChat} onNewOrchestration={newOrchestration} />
+          <Fab pathname={pathname} onNewChat={newChat} onNewOrchestration={newOrchestration} onNewTask={newTask} />
           <TabBar
             pathname={pathname}
             tabs={[home, chats, orchestrations]}
-            more={[projects, accounts, schedules, usage, connectors, settings]}
+            more={[tasks, projects, accounts, schedules, usage, connectors, settings]}
             start={startEntries}
             account={<AccountCard now={now} connection={connection} />}
             connection={connectionLink}
