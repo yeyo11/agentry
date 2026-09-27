@@ -411,6 +411,108 @@ folder already has one.
 - This plan's **Outcome** section: what each task delivered and where it went past or around this
   text.
 
+## Orchestration 1b: `ecosystem-fixes`
+
+Fixes what [the audit](project-ecosystem-audit.md) found, before the web is built. It starts from
+`feat/project-ecosystem` and is merged back into it. The audit is the list of work: every finding in
+your area is yours unless this section gives it to another task. The rules of orchestration 1 apply,
+the prototype rules included, and `apps/web/src` stays untouched except `lib/events.ts` when a new
+event type forces it.
+
+Decisions taken for the findings that needed one:
+
+- **"Work on it" on an item in `done` is refused** with a 409, as "Orchestrate" already does.
+- **An item in `in_review` stays there when its chat takes another turn.** Moves are forward only.
+- **No bulk accept.** "Aceptar las 3 que quedan" is removed (decision 36).
+- **The acceptance checklist on a phone**: the whole row is the control, at least 44 px high, and the
+  design system records the checklist as the one place a check mark is always visible.
+- **The code editor on a phone is a preview with an "Editar" button**, as the member screen does.
+- **The starting team of the software template has four roles** (Product Owner, Architect,
+  Developer, QA), as `project-templates.ts` says. The prototypes follow the code.
+- **One data set for every prototype of `claude-wrapper`**: 27 work items, 15 open and 12 done, with
+  the columns adding up to it; `pagos-api` is the empty project, with no counts.
+- **Breadcrumb on the project's tabs**: `Proyectos / <project> / <tab>`.
+
+### File ownership
+
+| Task | Owns |
+|---|---|
+| `fix-settings` | `packages/shared/src/types.ts`, `packages/shared/src/work-items.ts`, the generated schemas, `packages/core/src/project-settings.ts`, `project-templates.ts`, `projects.ts`, the project parts of `packages/core/src/index.ts`, `apps/api/src/routes/projects.ts`, `apps/web/src/lib/events.ts`, their tests |
+| `fix-store` | `packages/core/src/work-items.ts` and the files it is split into, `work-item-rank.ts`, the work item parts of `db.ts`, their tests |
+| `fix-links` | `packages/core/src/work-links.ts`, `packages/shared/src/orchestration.ts`, the link parts of `packages/core/src/index.ts`, `orchestrator.ts`, `chat-service.ts`, `apps/api/src/routes/work-items.ts` and `orchestrations.ts`, their tests |
+| `proto-fix-system` | `docs/design-system/agentry-ds.css`, `Sidebar.html`, `MobileMas.html`, `TabBar.html`, the generators if they are recovered |
+| `proto-fix-desktop` | the new `Desktop*` screens and their screenshots |
+| `proto-fix-phone` | the new `Mobile*` screens and their screenshots |
+| `proto-fix-review` | `index.html`, `manifest.json`, `docs/design-system.md`, cross-screen fixes |
+| `docs-fixes` | `docs/**` except `docs/design-system/**`, `README.md`, `ROADMAP.md` |
+
+### `fix-settings`
+
+Audit, "Bugs to fix in the code", items 2 and 7, and the minor findings of the contract: a read
+never writes over a document that does not parse or validate, and a test asserts the file is
+unchanged; `Project.key` and `Project.modules` become required; the value lists cannot drift from
+their unions; a re-import that changes modules emits `project.updated` and records the template it
+named; listing projects reads each settings document once; the round trip "Board off and on with its
+work items and keys intact" is tested through the API. Decide `WorkItemSource.kind` and
+`WorkItemLinkRole` now for what orchestration 3 needs (documents tied to items, a role refining and
+a role verifying), and add the optional fields the flow needs on a work item (bounces, waiting for
+approval), so the web is built on unions that will not grow.
+
+### `fix-store`
+
+Audit item 6, the store's part: search folds case for every language, not only ASCII; reordering
+criteria emits an event and returns the new `updatedAt`; appending to a column does not use up rank
+length; `rankBetween` refuses to return a rank outside its bounds and the column is respread
+instead; the actor's kind is validated; `comments()` answers 404 for a missing item and a comment
+has a maximum length; a failed `ROLLBACK` does not hide the original error; link ids are validated
+as non-empty strings; the migration test does not assume its migration is the last. Split
+`work-items.ts` along the lines the audit suggests if it can be done without changing behaviour.
+Add the tests the audit lists as missing.
+
+### `fix-links` (depends on `fix-settings` and `fix-store`)
+
+Audit items 1, 3, 4 and 5, and the links' part of 6: a turn starts only on a real transition into
+`busy`, tested with the coalesced event as the publisher really emits it; a relaunch keeps
+`workItemId` and goes through the same checks as a launch; an item worked by a node records the
+node's worktree and branch and reports its changes; a worktree deleted by hand is recovered, and a
+plain directory at its path is refused; a link write that fails stops the chat it belonged to; start
+options are type checked; "Work on it" on a `done` item is refused. Find why the first test of
+`apps/api/test/work-links.test.ts` takes 20 s and fix it.
+
+### `proto-fix-system`
+
+The stylesheet and the shared pieces, first, so the two screen tasks build on them: an
+`--on-accent` token and a hue token instead of `#fff` and `hsl()`; segmented controls, the column
+jump and chips at 44 px on a phone, in the stylesheet, not inline; one selected-row accent; the
+type sizes of sections 15 to 17 on the documented scale; `--fg-2` on `--bg-4` where the contrast
+fell short. Add Tasks to `Sidebar.html` and to the More sheet in `MobileMas.html`. If the
+generators still exist in `/tmp/ns-gen` and `/tmp/ns-ai`, bring them into
+`docs/design-system/reference/tools/` with a note on how to run them; if not, say so.
+
+### `proto-fix-desktop` and `proto-fix-phone` (both depend on `proto-fix-system`)
+
+Every finding of the audit for your size, and the screens it lists as undrawn. Desktop also draws
+the Tasks view with All projects selected, suggestions while they run, the assistant on an empty
+project and the document editor. Phone draws wizard steps 1 and 4, selection with "Orquestar", the
+filter sheet, the Activity and Changes tabs of a work item, relations on the work item and on the
+new task form, the Journal and CLI tabs of Memory, the Team and Resources proposals, the document
+editor, and an epic and an urgent item on the board. Nothing that carries the meaning is truncated,
+and nothing sits under the FAB or a toolbar. Capture every screen you touch again, in both themes,
+and look at it.
+
+### `proto-fix-review` (depends on both)
+
+Every screen side by side once more, in both themes and both sizes, against the audit: each
+finding is either fixed or listed in your result with the reason. Update the index, the manifest
+and the design system doc (15 illustrations, the checklist exception, the new tokens). End with the
+list of screens for the owner to validate.
+
+### `docs-fixes` (depends on `fix-links` and `proto-fix-review`)
+
+Bring `docs/projects.md`, `docs/work-items.md`, the README and `docs/status.md` up to what changed,
+complete the plan's Outcome with what orchestration 1 left undrawn and what this one fixed, and
+mark in the audit which findings are closed and which stay open.
+
 ## Verification
 
 Once the graph is integrated: `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm e2e`, with a fixer.
