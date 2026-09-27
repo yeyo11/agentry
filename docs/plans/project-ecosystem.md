@@ -694,6 +694,147 @@ left, screen by screen.
 `docs/projects.md` and `docs/work-items.md` describe the screens as built; README's feature list and
 screenshots of the board (`docs/media/`); `docs/status.md`; this plan's Outcome for orchestration 2.
 
+## Orchestration 3: `ecosystem-team`
+
+The Team, flow by column, shared memory and Documents modules, core and web (decisions 26 to 34).
+It starts from `feat/project-ecosystem` with orchestration 2 merged and is merged back into it. The
+screens were validated with the rest of the prototypes on 2026-09-27: `DesktopEquipo`,
+`DesktopEquipoVacio`, `DesktopMiembro`, `DesktopFlujo`, `DesktopTableroEquipo`, `DesktopMemoria`,
+`DesktopDocumentos`, `DesktopDocumentoEditar` and their `Mobile*` screens, `MobileMemoriaDiario` and
+`MobileMemoriaCLI` included.
+
+### Decisions taken for this orchestration
+
+Written by the planner on 2026-09-27 where the plan left a choice open; the owner can reopen them.
+
+- **A member runs as its agent through the CLI**: `claude --agent <agent>` with `--model` from the
+  member, in the item's worktree. The agent file in `.claude/agents/<agent>.md` is the role's
+  instructions, so the same member works from a terminal.
+- **What a member may write** (`writes`) is enforced on the chats Agentry starts for it, through the
+  CLI's permission rules (`--disallowedTools` for `Edit`/`Write` outside those paths). From a
+  terminal it is only the agent's instructions; the member screen says so.
+- **The starting team** comes from the project's template (four roles in "Software profesional").
+  Proposing a team by reading the project is orchestration 4: the empty Team screen offers only the
+  template's team and "add a member" here.
+- **The journal is Agentry's**: rows in SQLite per project, written when an item reaches `done`
+  (its title, who approved it, its links), when a person approves a memory proposal addressed to it,
+  and by hand. It is handed to every flow run with `--append-system-prompt`, the newest entries
+  first, capped at a size the task decides and documents.
+- **Memory proposals come from flow runs' structured results.** Every chat the flow starts ends with
+  a `--json-schema` result: `{ summary, verdict?, memoryProposals[], documents[] }`. A proposal names
+  its target (a CLI memory file of the project, or the journal), its text and its reason; it waits
+  for the person, who approves (optionally editing it), or rejects. Nothing is written before.
+- **Documents written by a run** (the Product Owner's specification, an architecture decision, QA's
+  report) are files in the project's documents folder (`documents.path`, default `docs`), written by
+  the agent itself in the worktree, and reported in the result so Agentry links them to the item
+  with the role that wrote them.
+- **The flow**, per decision 28 to 30, only while `flow.enabled`:
+  - a card entering a column that has a responsible role starts that role's run on the item: refine
+    in `backlog` or `todo` (the Product Owner completes the description and the acceptance
+    criteria, and writes the specification), work in `in_progress` (the Developer, in the item's
+    worktree, continuing its work chat when there is one), verify in `in_review` (QA checks each
+    criterion and gives a verdict);
+  - QA passing leaves the item in `in_review` waiting for the person's approval (`waiting:
+    'approval'`); QA failing sends it back to `in_progress` with QA's comment, increments `bounces`
+    and resumes the Developer's chat; past `maxBounces` it waits for the person (`waiting:
+    'bounces'`);
+  - only a person moves an item to `done`, which clears `waiting`; a person's move always wins and
+    cancels nothing already running, but no new run starts from an automatic move the person undid;
+  - **at most `flow.maxParallel` runs per project at once** (new optional setting, default 2), the
+    rest queued in order, so the flow cannot drain the accounts' quota on its own;
+  - driven by the event feed, never by polling, and it survives a restart: a queued or cut run is
+    rows, resumed or started again once the runtime is back.
+
+### Routes (the contract between the core and the web tasks)
+
+| Method | Route | Owner |
+|---|---|---|
+| GET | `/projects/:id/team` (members, each with its agent file's state and what it is doing now) | `team-core` |
+| POST | `/projects/:id/team/from-template` | `team-core` |
+| PUT, DELETE | `/projects/:id/team/:agent` (metadata; the file itself through `/config/resources/agents/:name?project=`) | `team-core` |
+| GET, POST | `/projects/:id/journal` | `memory-core` |
+| DELETE | `/journal/:entryId` | `memory-core` |
+| GET | `/projects/:id/memory/proposals?status=` | `memory-core` |
+| POST | `/memory-proposals/:proposalId/approve` (optional edited text), `/memory-proposals/:proposalId/reject` | `memory-core` |
+| GET | `/projects/:id/documents` (the tree, each file with the items it is tied to) | `documents-core` |
+| GET, PUT, DELETE | `/projects/:id/documents/file?path=` | `documents-core` |
+| POST | `/work-items/:itemId/documents` (tie a document by hand, role `reference`) | `documents-core` |
+| GET | `/projects/:id/flow` (runs running and queued, by item) | `flow-core` |
+
+Events: `team.changed`, `journal.changed`, `memory.proposal` (created, approved, rejected),
+`document.changed`, `flow.run` (queued, started, ended); item changes keep using `workitem.*`.
+
+### File ownership
+
+| Task | Owns |
+|---|---|
+| `team-types` | `packages/shared/src/types.ts` and `work-items.ts`, the generated schemas, `apps/web/src/api.ts` (client functions and query keys for every route above), `apps/web/src/lib/events.ts` |
+| `team-core` | new `packages/core/src/team.ts`, the team routes in new `apps/api/src/routes/team.ts`, their tests |
+| `memory-core` | new `packages/core/src/journal.ts` and `memory-proposals.ts`, a new migration, new `apps/api/src/routes/journal.ts`, their tests; `memory.ts` only to add what approving needs |
+| `documents-core` | new `packages/core/src/documents.ts`, the `document` link kind in `work-items.ts`, `work-item-rows.ts` and a migration (the `document_path` column; see the audit's note N5 for every place a new link kind touches), new `apps/api/src/routes/documents.ts`, their tests |
+| `flow-core` | new `packages/core/src/flow.ts`, the flow's parts of `packages/core/src/index.ts`, `work-links.ts` and `project-settings.ts` (`maxParallel`), new `apps/api/src/routes/flow.ts`, their tests |
+| `web-team` | new `apps/web/src/pages/team/**`, the Team tab in `pages/dashboard/views.ts` and `pages/projects/**`, the role on board cards in `pages/tasks/board/**`, new `styles/team.css`, `locales/*/team.json`, `e2e/specs/team*.spec.mjs` |
+| `web-memory-docs` | `apps/web/src/pages/home/ProjectMemory.tsx`, new `pages/documents/**`, the Documents tab, the documents and the waiting state on `pages/tasks/item/**`, new `styles/documents.css`, `locales/*/documents.json` and `home.json`, `e2e/specs/documents*.spec.mjs`, `e2e/specs/memory*.spec.mjs` |
+| `web-review-3` | any web file, for cross-screen fixes only, after both web tasks |
+| `docs-3` | `docs/**` except `docs/design-system/reference/**`, `README.md`, `ROADMAP.md` |
+
+Two tasks that need the same file (`views.ts` for the tabs, `index.ts` in core for wiring) touch
+only their own lines and say so in their result; the integration merges them.
+
+### `team-types`
+
+The shared types for members as served (agent file present or missing, drifted from the metadata,
+what it is doing now), journal entries, memory proposals and their targets, documents and the tree,
+flow runs and the structured result a flow run returns, the new events, `flow.maxParallel`; the
+web client and query keys for every route in the table, and the invalidation of each new event.
+**Done when**: typecheck passes, the schemas are regenerated, and nothing existing changed shape.
+
+### `team-core` (depends on `team-types`)
+
+Members are agent files plus the metadata in `settings.team`. From the template: write each role's
+agent file (frontmatter with `name`, `description`, `model`; a body that states the role, its
+responsibility, what it may write, and that it ends a flow run with the structured result) unless
+a file of that name exists, which is kept. A member whose file was deleted or edited by hand is
+reported, never overwritten silently. The Team module switched off hides nothing on disk.
+
+### `memory-core` (depends on `team-types`)
+
+The journal and the proposals, as the decisions say. Approving a proposal to a CLI memory file
+writes it through `MemoryStore` (appending to the file it names, or creating it and indexing it in
+`MEMORY.md`); to the journal, adds an entry. Every entry and decision records who and when. An item
+reaching `done` writes its journal entry, once.
+
+### `documents-core` (depends on `team-types`)
+
+The documents folder: a tree of Markdown files under `documents.path`, read and written with path
+traversal refused, and ties to items as `document` links with their role. Implement every place the
+audit's note N5 lists for a new link kind, in one migration.
+
+### `flow-core` (depends on `team-core`, `memory-core`, `documents-core`)
+
+The flow as the decisions say: queue, start with `--agent`, `--model`, `--append-system-prompt`
+(the journal) and `--json-schema`, the permission rules from `writes`, read the result, write the
+comment, the proposals, the document links, the bounce and the waiting state, and move the card.
+Test every transition, every case where nothing must happen (flow off, module off, a person's move,
+`done`), the cap, and a restart in the middle, with the fake CLI.
+
+### `web-team` (depends on `flow-core`)
+
+Team, empty Team, Member (with the agent file in the existing editor), Flow, and the board worked by
+a role, as their references draw them, both themes, both sizes; the Team tab while the module is on.
+
+### `web-memory-docs` (depends on `flow-core`)
+
+Memory with its three tabs (proposals approved one by one, the journal, the CLI's files), Documents
+with the viewer and the editor, and on a work item its documents and its waiting state (approval or
+bounces) with the action that clears it; the Documents tab while the module is on.
+
+### `web-review-3` (depends on `web-team` and `web-memory-docs`) and `docs-3` (depends on `web-review-3`)
+
+As in orchestration 2: every new screen next to its reference and against each other, a11y and
+motion specs extended; then `docs/projects.md`, `docs/work-items.md`, a new `docs/team-and-flow.md`,
+README, status and this plan's Outcome.
+
 ## Verification
 
 Once the graph is integrated: `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm e2e`, with a fixer.
