@@ -1,0 +1,421 @@
+---
+created_at: 2026-09-27T01:59:47.104538408Z
+updated_at: 2026-09-27T01:59:47.104538408Z
+tags:
+    - plan
+    - projects
+    - work-items
+    - board
+    - team
+    - memory
+    - ai-suggestions
+    - design-system
+---
+# Plan: the project ecosystem
+
+Turn a project from "a name and a path" into the place where its work is followed, the way a real
+project is: a board of work items tied to chats and orchestrations, a team of agents with roles, a
+memory the team shares, documents, and an assistant that reads the project and suggests what to
+create. Every piece is a **module** a project switches on when it is created or edited.
+
+This plan is the source of truth for the orchestrations that build it, together with CLAUDE.md,
+CONTRIBUTING.md and [docs/design-system.md](../design-system.md). Where a task prompt and this plan
+disagree, the plan wins; where the plan and the design system disagree on a visual detail, the
+design system wins.
+
+Status: **orchestration 1 (`ecosystem-foundation`) launched on 2026-09-27**. Orchestrations 2 to 4
+are described here and get their task sections before each is launched.
+
+## Why
+
+Agentry runs chats and orchestrations, but it has nowhere to say *what the project needs done*. Work
+starts from a prompt typed on the spot and leaves no trace once the chat is closed. The resources of
+a project (agents, skills, commands) are written by hand in an editor, with no help and no relation
+to what the project is. A project is only `{ id, name, path }`, and the only thing that can be
+edited about it is its name.
+
+## Decisions already taken, not to be reopened by a task
+
+They were agreed with the project's owner on 2026-09-26 and 2026-09-27.
+
+### Projects and modules
+
+1. **Modules per project.** Board, Team, Documents and Shared memory are modules. Creating or
+   editing a project offers a **template that preselects modules, plus one switch per module**.
+2. **Five built-in templates**: Simple (no modules), Professional software (everything), Library or
+   package, Research or documentation, Custom (everything off). No user-saved templates for now.
+3. **A template carries configuration, not only switches**: the modules, the work item types, the
+   optional limits per column, the starting team and the model of each role.
+4. **Switching a module off hides it and keeps its data.** Switching it on again brings everything
+   back. Nothing is deleted by a switch.
+5. **Projects already imported keep every module off** until someone switches one on.
+6. **The ecosystem lives in tabs on the project page**: Overview, Board, Team, Documents, Memory,
+   Resources, Settings. A tab exists only while its module is on. The sidebar gets a **Tasks** entry
+   between Chats and Orchestrations that opens the board of the selected project; with All projects
+   selected it shows every project's work items with the project named on each. On a phone, Tasks
+   is in the More sheet and the board is a list grouped by column.
+
+### Work items
+
+7. **The model's name is `WorkItem`**, because `task` already means an orchestration task and a
+   background command (`GET /tasks`). The interface says "Task" / "Tarea".
+8. **No time in a work item.** No due date, no estimate, no time tracking, no sprints with a
+   calendar. `createdAt` and `updatedAt` exist as facts, never as a plan.
+9. **Five fixed columns**: `backlog`, `todo`, `in_progress`, `in_review`, `done`. Not editable.
+10. **Fixed types**: `epic`, `story`, `task`, `bug`.
+11. **One level of hierarchy**: an epic groups work items. An epic has no parent, and a work item
+    that is not an epic has at most one epic.
+12. **A key per project, YouTrack style**: `AGN-12`. The prefix is derived from the project's name,
+    editable in the project's settings, and the number never repeats inside a project.
+13. **Fields**: key, type, title, description (Markdown), status, priority (`low`, `medium`, `high`,
+    `urgent`), free labels, assignee (the person, or a team role once the Team module exists), epic,
+    milestone, acceptance criteria, relations.
+14. **Milestones without dates**: a name ("v0.19"), a description, open or closed, and a progress
+    figure derived from its work items.
+15. **Two views**: the board, and a list with filters and search.
+16. **Optional limit per column.** Going over it is allowed and shows in the warn colour with a
+    word; it never blocks the move.
+17. **Inside a work item**: the automatic history of changes, and comments written by the person
+    and by agents. No attachments.
+18. **Acceptance criteria are a structured checklist**, each entry checked on its own, with who
+    checked it.
+19. **Relations**: `blocks` and `blocked by` only. Orchestrating a selection turns them into the
+    graph's `dependsOn`.
+20. **Work items and git**: working on an item happens in its own worktree and branch
+    (`task/<key>`, lower case), and the item shows what changed there. No automatic pull request.
+
+### Links with chats and orchestrations
+
+21. **"Work on it"** starts a chat in the project with the item's description and acceptance
+    criteria as the prompt, in the item's worktree. The item moves to `in_progress` when the chat
+    starts and to `in_review` when the chat's turn ends well. A failed or stopped chat moves
+    nothing. Every automatic move is recorded in the history with its cause.
+22. **"Orchestrate"** on a selection creates an orchestration whose nodes are those items. Each node
+    is linked to its item, and the item follows the node's status.
+23. **Only work items created on the board are cards.** An orchestration launched from elsewhere
+    does not create cards.
+24. **"Create a task from this message"** in a chat creates a work item in `backlog`, linked to the
+    chat, with the message as its description.
+25. A work item keeps **every chat and orchestration that worked on it**, not only the last.
+
+### Team, memory and documents (orchestration 3)
+
+26. **A team member is a CLI agent file** in the project's `.claude/agents/`, so it also works from a
+    terminal, plus role metadata Agentry keeps (role, responsibility, model, what it may write).
+27. **The assistant proposes the team** after reading the project, and the person accepts member by
+    member. With nothing to read, the template's team is offered.
+28. **Flow by column, switchable per project**: each column has a responsible role that acts when a
+    card enters it. The Product Owner refines in `backlog` and `todo`, the Developer implements in
+    `in_progress`, QA verifies in `in_review`.
+29. **Agents move cards; the person approves the move to `done`.**
+30. **When QA rejects**, the item goes back to `in_progress` with the comment and the same chat is
+    resumed. After a maximum number of bounces, set per project, the item waits for the person.
+31. **A model per role**, editable: Opus for Product Owner and Architect, Sonnet for the others.
+32. **Shared memory** is the CLI's own (`CLAUDE.md` and the project's memory directory) plus a
+    **project journal** Agentry keeps (decisions taken, items closed), handed to each agent when it
+    starts.
+33. **Every role proposes memory entries and the person approves each one.** No private memory per
+    role.
+34. **Documents**: a viewer and editor of the repository's documents folder, plus documents
+    generated by an agent and tied to work items (specifications, architecture decisions).
+
+### Suggestions (orchestration 4)
+
+35. **The assistant suggests on demand and when a project is created**: team, resources and first
+    work items. Never on a schedule.
+36. **Suggested work items and resources are accepted one by one** before anything is written.
+37. **Resources with AI**: "Suggest" reads the project and proposes agents, skills and commands with
+    their content; "Create with AI" builds one from a description. Both open the existing editor so
+    the person reviews before saving, in the project's scope by default.
+
+### How it is built
+
+38. **The one rule holds.** Everything an agent does goes through the Claude Code CLI: a chat with
+    `--json-schema` for structured suggestions, agent files for roles. No SDK and no HTTP call to
+    Anthropic.
+39. **Prototypes first.** Every new screen gets a static prototype in
+    `docs/design-system/reference/`, in both themes, desktop and phone. The owner validates them
+    before any web task builds a screen.
+40. **Four orchestrations, one pull request each**, all tasks on Opus, with no time or cost limit:
+
+| # | Name | Builds |
+|---|---|---|
+| 1 | `ecosystem-foundation` | Shared types, project modules and templates, the work item store and API, the links with chats and orchestrations, and the prototypes of **every** new screen |
+| 2 | `ecosystem-board-web` | The web of orchestration 1: project wizard and settings, project tabs, board, list, work item detail, the chat and orchestration entry points. Launched once the prototypes are validated |
+| 3 | `ecosystem-team` | Team, flow by column, journal and memory proposals, documents, core and web |
+| 4 | `ecosystem-assistant` | The project assistant, suggested work items, resources with AI |
+
+## Not in orchestration 1
+
+- Any file under `apps/web/src`. The web is orchestration 2, after the prototypes are validated.
+- Team, flow, journal, documents and suggestions in core or in the API. Orchestration 1 only
+  **prototypes** their screens. The shared types may reserve `assignee.role` as a string.
+- Dates, estimates, sprints, attachments, editable columns, configurable types, user templates.
+- New languages.
+
+## Rules every task follows
+
+1. **Work only inside your worktree, on your branch.** Commit with Conventional Commits subjects, in
+   English, with a body that explains why. Never push. Never merge another task's branch yourself.
+2. **No AI attribution in commits.** No `Co-Authored-By` and no "Generated with" trailer, ever.
+3. **Code, comments and docs are in English.** The prototypes show the intended `es` copy, which
+   follows `apps/web/src/i18n/GLOSSARY.md`: Spanish from Spain, infinitive buttons, sentence case.
+4. **Checks you run:** `timeout 900 pnpm typecheck` and `timeout 900 pnpm test`. You may write e2e
+   specs, but **do not run `pnpm e2e`**: it runs once, in the verification, on the merged branch.
+5. **Every long command runs under `timeout`.** If one hits its timeout twice, stop and report it.
+6. **TypeScript strict and no `any`.** Respect `noUncheckedIndexedAccess`. Comments explain why.
+7. **Storage follows the convention.** Settings-shaped documents go in JSON files written with
+   `writeAtomic`; accumulating records go in SQLite as rows, through a new entry at the end of
+   `MIGRATIONS` in `packages/core/src/db.ts`. Never edit a migration that already exists.
+8. **Every new route** gets a summary and a tag in `apps/api/src/openapi/routes.ts` and a row in the
+   README's REST API tables. After changing `packages/shared/src/types.ts`, run
+   `pnpm --filter @agentry/api openapi:schemas` and commit the result.
+9. **Every change reaches the event feed.** A work item or a project's modules changing emits an
+   `AgentryEvent` that names what changed and carries the ids to refetch it.
+10. **Never touch the real `~/.claude`.** Tests and experiments set `CLAUDE_CONFIG_DIR` and the data
+    directory to scratch directories.
+11. **Don't touch files outside your scope** (see ownership). If you need something from another
+    task's file, say so in your result instead of editing it.
+12. If something in your scope turns out impossible, or much larger than it looks, **do the rest
+    and say what you left out**. Don't silently narrow the scope.
+13. **In your result**, say plainly what you delivered, what you left out and why, how you verified
+    it (the exact commands and their outcome), and documentation notes for the `docs` task.
+
+### Rules of the prototype tasks
+
+14. **Read [docs/design-system.md](../design-system.md) in full and open the existing reference**
+    (`docs/design-system/reference/index.html`, the `Desktop*` and `Mobile*` screens, `DSComponentes`,
+    `DSEstados`, `DSMovil`) before drawing anything. A new screen is built from the components that
+    exist. The shell (sidebar, top bar, status bar, tab bar) is the one the other screens use.
+15. **Tokens only**: every colour, radius, shadow, font, duration and easing comes from the
+    variables of `agentry-ds.css`. No hex, `rgb()`, pixel radius or millisecond value in a page.
+16. **Both themes, both sizes.** Desktop at 1440 x 1024 and phone at 390 x 844, dark and light
+    (`#light`). Contrast is at least 4.5:1 for text and 3:1 for large numbers in both.
+17. **The gradient is used sparingly**: at most two gradient surfaces per screen, on the one primary
+    action of a zone and on what the screen is about. Never as a background.
+18. **Only live things move.** Cyan and loops mean an agent is working now. A card whose chat is
+    running carries the live rail and the ring spinner; a card at rest is still. At most one energy
+    border per screen.
+19. **Status colours mean one thing each** and always come with a word or an icon: ok is done, warn
+    is near a limit or stopped, bad is failed or destructive, idle is waiting for the person.
+    Priority is **not** a status: it uses neutral marks, with `urgent` the only one allowed a colour.
+20. **Type**: Geist for the interface, Geist Mono for keys (`AGN-12`), ids, paths, counts and section
+    labels, on the scale of the design system. Numbers are tabular.
+21. **Phone**: touch targets of at least 44 px, inputs at 16 px, "..." menus as a sheet, no
+    always-visible checkboxes, and no horizontal board: columns are sections of one list, with a
+    segmented control to jump between them.
+22. **Empty states** use the `Empty` pattern with one illustration, never next to live data. A new
+    illustration is drawn in the language of the existing set, coloured by classes, and its SVG goes
+    into `docs/design-system/illustrations/`.
+23. **Screenshots**: every screen is captured with headless Chrome (`CHROME_BIN`) into
+    `docs/design-system/reference/screenshots/<Screen>-dark.webp` and `-light.webp`, and you look at
+    them before finishing. A screen you have not looked at is not done.
+24. **A new component variant** goes into `agentry-ds.css` and into §2 of `docs/design-system.md`,
+    with the app class it will map to.
+
+## File ownership
+
+| Task | Owns |
+|---|---|
+| `types` | `packages/shared/src/types.ts` (the new sections), the generated OpenAPI schemas |
+| `proto-foundation` | `docs/design-system/agentry-ds.css`, `docs/design-system/illustrations/**`, the project, board and work item screens under `docs/design-system/reference/`, and their screenshots |
+| `project-modules` | `packages/core/src/projects.ts`, new `packages/core/src/project-settings.ts` and `project-templates.ts`, `apps/api/src/routes/projects.ts`, the `Projects` entries of `openapi/routes.ts`, their tests |
+| `work-items` | new `packages/core/src/work-items.ts` (and siblings), the new migration in `packages/core/src/db.ts`, their tests |
+| `proto-team` | the team, flow, memory and documents screens under `docs/design-system/reference/`, their screenshots, and the section of `agentry-ds.css` that `proto-foundation` reserved for it |
+| `proto-ai` | the assistant, suggestion and resources screens under `docs/design-system/reference/`, their screenshots, and its reserved section of `agentry-ds.css` |
+| `work-items-api` | new `apps/api/src/routes/work-items.ts`, its registration, its entries in `openapi/routes.ts`, the new events in core's event sources, the README rows, its tests |
+| `proto-index` | `docs/design-system/reference/index.html`, `manifest.json`, §2 of `docs/design-system.md`, cross-screen fixes of the new prototypes |
+| `work-links` | the links between work items, chats and orchestrations in core and in the API, their tests |
+| `docs` | `docs/**` except `docs/design-system/**`, `README.md`, `ROADMAP.md` |
+
+## Stage 0
+
+### `types` (the contract)
+
+Add to `packages/shared/src/types.ts`, each under its own section header with the reasoning as a
+comment:
+
+- **Project modules**: `ProjectModule` (`board`, `team`, `documents`, `memory`), `ProjectSettings`
+  (modules on, template it came from, key prefix, limit per column, and what the later
+  orchestrations will add, reserved as optional fields), `ProjectTemplate` and its id union.
+  `Project` gains `key` and `modules`. `CreateProjectRequest` and `ImportProjectRequest` accept a
+  template and modules; `UpdateProjectRequest` accepts the name, the key and the modules, all
+  optional, so renaming keeps working.
+- **Work items**: `WorkItem`, `WorkItemType`, `WorkItemStatus`, `WorkItemPriority`,
+  `WorkItemAssignee`, `AcceptanceCriterion`, `WorkItemRelation`, `WorkItemComment`,
+  `WorkItemHistoryEntry` (what changed, from, to, who, and the cause when a chat or an orchestration
+  did it), `WorkItemLink` (a chat or an orchestration task, and the role it played), `Milestone`
+  with its derived progress, and the requests to create, update, move, comment and filter.
+- **Board**: `Board` as what one request returns to draw it: the columns in order, each with its
+  limit, its count and its items in rank order. An item has a `rank` inside its column so the order
+  a person gives by dragging survives.
+- **Events**: `workitem.created`, `workitem.updated`, `workitem.moved`, `workitem.removed`,
+  `milestone.changed`, `project.updated`, added to the `AgentryEvent` union.
+- No field for dates other than `createdAt`, `updatedAt` and `closedAt` as facts.
+- **Done when**: typecheck passes across the workspace, the OpenAPI schemas are regenerated and
+  committed, and nothing that exists changed shape in a way that breaks a caller.
+
+### `proto-foundation` (design system additions and the project, board and work item screens)
+
+Add to `agentry-ds.css`, in a new numbered section, and to §2 of the design system doc: the module
+switch card, the template card, the project tab strip, the board column (header with mono label,
+count and limit), the work item card, the key chip (mono), the type icon, the priority mark, the
+milestone bar, the acceptance checklist row, the history entry, the comment (person and agent), the
+linked chat or orchestration row. Reserve two empty, clearly delimited sections after yours, one
+for `proto-team` and one for `proto-ai`, so the three of you never edit the same lines.
+
+Draw the illustration for an empty board, and its SVG in `docs/design-system/illustrations/`.
+
+Screens, each desktop and phone unless it says otherwise:
+
+- **New project**: the wizard. Name and directory or git URL, then the template cards, then the
+  module switches the template preselected, then a summary. The primary action is the one gradient
+  surface.
+- **Project settings**: name, key prefix, modules with their switches, and what switching one off
+  means (hidden, data kept).
+- **Project page**: the tab strip with Overview active, showing how the dashboard sits under it.
+- **Board**: five columns, cards of every type and priority, an epic label on cards, one column
+  over its limit, one card whose chat is running and one whose orchestration node is running. The
+  toolbar holds search, filters (type, priority, label, assignee, epic, milestone), the board and
+  list switch, the selection mode with "Orchestrate", and "New task" as the primary action.
+- **Board, empty**: the `Empty` pattern with the new illustration and "Create the first task".
+- **List**: the same items as rows, grouped by column, with the filters applied.
+- **Work item detail**: key and title, type, status, priority, labels, assignee, epic, milestone,
+  the description, the acceptance checklist, relations, the linked chats and orchestrations with
+  their state, what changed in its worktree, and the history and comments. "Work on it" is the
+  primary action.
+- **New task**: the form, as a dialog on desktop and a full screen on a phone.
+- **Milestones**: the list with progress bars, open and closed.
+- **Chat, with the entry point**: the message menu with "Create a task from this message", and the
+  chat header naming the work item it works on.
+
+**Done when**: every screen exists in both themes and both sizes with its screenshots, and the rules
+of the prototype tasks hold on each.
+
+## Stage 1
+
+### `project-modules` (depends on `types`)
+
+- `ProjectRecord` stays a name and a path. What a project configures goes in a **settings document
+  per project**, a JSON file in the data directory keyed by the project's id, read and written
+  whole.
+- A project without a settings document reads as every module off, and gets a key prefix derived
+  from its name on first read (upper case letters, two to five, unique among projects, a digit
+  appended on a clash).
+- The five templates live in code as data, each with its modules and configuration.
+  `GET /projects/templates` lists them.
+- `POST /projects` and `POST /projects/import` accept a template and modules. `PATCH /projects/:id`
+  accepts the name, the key and the modules. `GET /projects/:id/settings` and
+  `PUT /projects/:id/settings` read and replace the document, validated.
+- Changing the key prefix does not rename the keys of existing work items' history; the item's
+  number is what is stored, and the key is composed when read.
+- Removing a project from Agentry keeps its settings document and its work items, so importing the
+  directory again brings them back. Say so in the route's description.
+- Emits `project.updated`.
+- **Done when**: tests cover the defaults, the templates, validation, the key derivation and its
+  clashes, and a module switched off and on again with its data intact.
+
+### `work-items` (depends on `types`)
+
+- Tables, as one new migration: work items, their labels, acceptance criteria, relations, comments,
+  history, links, milestones, and the counter that hands out numbers per project. Indexed by
+  project and status.
+- A service in core with no HTTP in it: create, read, update, move (status and rank), delete,
+  comment, check a criterion, relate, link, list with filters and search over title and
+  description, the board of a project, milestones and their derived progress.
+- **Rules it enforces**: an epic has no epic; a relation cannot point at itself or close a cycle of
+  `blocks`; a number is never reused, even after a delete; a move over a column's limit succeeds and
+  reports it.
+- **History is written by the service**, never by the caller: one entry per field that changed, with
+  who did it and the cause.
+- Several wrapper processes share the database: allocate numbers and ranks inside a transaction.
+- **Done when**: tests cover every rule above, the filters, the rank order after moves, and the
+  migration applied on top of a database at the previous version.
+
+### `proto-team` (depends on `proto-foundation`)
+
+Screens: **Team** (the members as cards with role, model and what each is doing now; an empty state
+that offers the assistant's proposal or the template's team), **Member** (the role, its
+responsibility, its model, what it may write, and the agent file's content in the existing editor),
+**Flow** (each column with its responsible role, the switch for the automatic flow, who approves
+`done`, the maximum number of bounces), **Memory** (the CLI's memory, the project journal, and the
+entries proposed by agents waiting for approval, each with who proposed it and from which work
+item), **Documents** (the tree of the documents folder, the viewer and editor, and the documents
+tied to work items). Add the role avatar, the flow row and the proposal row to your section of the
+stylesheet. On the board, show a card being worked by a role.
+
+### `proto-ai` (depends on `proto-foundation`)
+
+Screens: **Project assistant** (after creating a project: reading the repository as a live state,
+then the proposed team, resources and first work items, each accepted or discarded on its own),
+**Suggest tasks** (from the board: the proposals with type, priority and the reason for each, and
+"Create the selected ones"), **Resources with AI** (the resources tab with "Suggest" and "Create
+with AI", the proposals list, and a proposal opened in the existing editor marked as not saved yet).
+A suggestion in progress is a live state; a finished one is still. Say where the cost of each run
+shows.
+
+## Stage 2
+
+### `work-items-api` (depends on `work-items` and `project-modules`)
+
+- Routes under `/projects/:id/work-items` for the collection, the board and the milestones, and
+  under `/work-items/:itemId` for one item, its comments, criteria, relations, links and history.
+  `GET /work-items` lists across projects for the All projects view.
+- A project whose Board module is off answers these routes with a clear error, not with an empty
+  list, except reads of what it already holds, which stay possible so nothing looks lost.
+- Emits the work item and milestone events on the feed.
+- The audit log records creations, deletions and moves, as the other routes do.
+- **Done when**: route tests cover every route, the module switch, validation errors and the events
+  emitted; OpenAPI and the README tables are complete.
+
+### `proto-index` (depends on `proto-team` and `proto-ai`)
+
+Add every new screen to `index.html` and `manifest.json`, grouped as the existing ones are. Go
+through all of them side by side and fix what differs between tasks: spacing, the same component
+drawn two ways, copy that breaks the glossary. Complete §2 of the design system doc with every new
+variant and the app class it maps to. Write `docs/design-system/reference/README` notes only if the
+folder already has one.
+
+## Stage 3
+
+### `work-links` (depends on `work-items-api`)
+
+- `POST /work-items/:itemId/work` starts a chat for the item: prompt built from its title,
+  description and acceptance criteria, in a worktree and branch named after its key, with the chat
+  start options a new chat accepts. Working on an item that already has a worktree continues in it.
+- `POST /projects/:id/work-items/orchestrate` takes a selection and returns an orchestration
+  **draft**, not a launched graph: one node per item, `dependsOn` from `blocks`. Launching it is the
+  existing route, which now accepts the link between each node and its item.
+- `POST /chats/:id/work-items` creates an item from a message of the chat.
+- **Automation**, driven by the events that already exist, never by polling: the item moves when
+  its chat starts and when its turn ends well, and follows its orchestration node. A person's move
+  always wins over an automatic one, and an automatic move never takes an item out of `done`.
+- The item reports what changed in its worktree through what `changes.ts` already does.
+- It survives a restart: links are rows, and an item whose chat was cut by a restart stays where it
+  was.
+- **Done when**: tests cover each automatic move and each case where nothing must move, the draft
+  built from a selection with relations, and the item created from a message.
+
+## Stage 4
+
+### `docs` (depends on every other task)
+
+- `docs/projects.md` and `docs/work-items.md`: what each feature is and how it works, from the
+  results of the tasks.
+- README: the feature list and the REST tables. ROADMAP: what landed and what is next.
+  `docs/status.md`: the new state of the project.
+- This plan's **Outcome** section: what each task delivered and where it went past or around this
+  text.
+
+## Verification
+
+Once the graph is integrated: `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm e2e`, with a fixer.
+
+## Outcome
+
+To be written by the `docs` task.
+
+## Related
+
+[[status.md]] · [[design-system.md]] · [[plans/agents-redesign.md]] ·
+[[plans/redesign-night-shift.md]] · [[knowledge-base.md]]
