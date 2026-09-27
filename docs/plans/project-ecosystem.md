@@ -926,6 +926,24 @@ thing that moves; a finished one is still.
 As in orchestration 3; `docs-4` also writes `docs/assistant.md` and closes this plan's Outcome and
 `docs/status.md` for the whole ecosystem.
 
+## Parked: a knowledge base and integrations
+
+Raised by the owner on 2026-09-27 after the four orchestrations, and parked the same day: the
+Documents module stays as built. Nothing below is decided.
+
+- **Documents as a project knowledge base, not only the repository's `docs/`.** Material a task
+  needs, such as an API contract, should not have to be versioned. Whether a document is versioned
+  must be a choice, not a rule: per document, per folder or per project, with a default that may
+  depend on the kind of document. Local documents would live in Agentry's data directory and reach
+  a chat through the CLI's `--add-dir`; versioned ones stay in the repository.
+- **Integrations, managed clearly from chats.** An integration would be a record (name, base URL per
+  environment, authentication, its contract from the knowledge base, notes, optionally its MCP
+  server passed to a chat with `--mcp-config`), enabled per project and per chat, and declared by a
+  task so "Work on it" enables it. How credentials are kept is open.
+
+The questions put to the owner, with their options, are in the conversation of that day; the
+answers were not given. Start from them if this is picked up.
+
 ## Verification
 
 Once the graph is integrated: `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm e2e`, with a fixer.
