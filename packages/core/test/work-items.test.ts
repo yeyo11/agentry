@@ -518,6 +518,16 @@ test('comments by the person and by agents are their own list, oldest first, and
   assert.throws(() => service.comment(item.id, { body: ' ' }), refusal(400));
 });
 
+test('the comments of a missing item are a 404, not an empty list, and a comment has a maximum length', () => {
+  const { service } = setup();
+  assert.throws(() => service.comments('missing'), refusal(404));
+  const item = service.create('p1', { title: 'x' });
+  assert.deepEqual(service.comments(item.id), []);
+  assert.throws(() => service.comment(item.id, { body: 'x'.repeat(50_001) }), refusal(400));
+  assert.equal(service.comment(item.id, { body: 'x'.repeat(50_000) }).body.length, 50_000);
+  assert.equal(service.comments(item.id).length, 1);
+});
+
 test('an item keeps every link, a repeated link is the one already there, and a working one makes the item live', () => {
   const states = new Map<string, WorkItemLinkState>([
     ['s1', { name: 'First try', chatState: 'idle' }],

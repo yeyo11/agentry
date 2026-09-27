@@ -71,7 +71,7 @@ import {
   type StoredHistoryValue,
   type StoredItemRef,
 } from './work-item-rows.ts';
-import { CRITERIA_MAX, WorkItemError, actorFrom, assignee, criterionText, labels, milestoneName, oneOf, text, title } from './work-item-validation.ts';
+import { CRITERIA_MAX, WorkItemError, actorFrom, assignee, commentBody, criterionText, labels, milestoneName, oneOf, text, title } from './work-item-validation.ts';
 
 export { WorkItemError } from './work-item-validation.ts';
 
@@ -230,6 +230,7 @@ export class WorkItemService {
 
   /** Oldest first. */
   comments(itemId: string): WorkItemComment[] {
+    if (!this.row(itemId)) throw new WorkItemError('work item not found', 404);
     const rows = this.sql.prepare('SELECT * FROM work_item_comments WHERE item_id = ? ORDER BY created_at, rowid').all(itemId) as unknown as CommentRow[];
     return rows.map(commentOf);
   }
@@ -569,7 +570,7 @@ export class WorkItemService {
 
   /** Comments are their own list, not history; the event still says one arrived. */
   comment(itemId: string, input: CreateWorkItemCommentRequest, ctx?: WorkItemCommentContext): WorkItemComment {
-    if (typeof input.body !== 'string' || !input.body.trim()) throw new WorkItemError('a comment needs a body', 400);
+    const body = commentBody(input.body);
     const actor = actorFrom(ctx);
     const source = ctx?.source ?? null;
     const comment = this.write(() => {
@@ -591,7 +592,7 @@ export class WorkItemService {
           source?.chatId ?? null,
           source?.orchestrationId ?? null,
           source?.taskId ?? null,
-          input.body,
+          body,
           now,
           now,
         );

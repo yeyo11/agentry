@@ -21,6 +21,8 @@ export const LABEL_MAX = 64;
 export const LABELS_MAX = 20;
 export const CRITERIA_MAX = 100;
 export const ROLE_MAX = 64;
+/** Room for an agent's report with its logs, short of a body that would bloat every read of the item */
+export const COMMENT_MAX = 50_000;
 
 export function oneOf<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
   if (typeof value !== 'string' || !allowed.includes(value as T)) throw new WorkItemError(`${field} must be one of ${allowed.join(', ')}`, 400);
@@ -83,6 +85,12 @@ function isActorKind(value: unknown): value is WorkItemActorKind {
  * Checked like any input, though only code passes it: the kind is stored as text and read back by
  * whoever asks "did the person move this?", so a kind nobody knows must never reach a row.
  */
+export function commentBody(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) throw new WorkItemError('a comment needs a body', 400);
+  if (value.length > COMMENT_MAX) throw new WorkItemError(`a comment is longer than ${String(COMMENT_MAX)} characters`, 400);
+  return value;
+}
+
 export function actorFrom(ctx: WorkItemContext | undefined): WorkItemActor {
   const actor: { kind?: unknown; role?: unknown } = ctx?.actor ?? PERSON;
   if (!isActorKind(actor.kind)) throw new WorkItemError('actor must be the person, an agent or the system', 400);
