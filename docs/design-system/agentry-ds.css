@@ -224,6 +224,12 @@
 .part-of a { color: var(--fg); font-weight: 600; }
 .part-of a::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
 .part-of .segbar { flex: 0 1 160px; min-width: 64px; }
+/* Dirección pública de un túnel (Ajustes → Acceso remoto): la URL en mono con copiar y su código QR. Es de lo que va la pantalla mientras el túnel está abierto, así que lleva .grad-border. El QR es siempre oscuro sobre claro, en los dos temas: no todas las cámaras leen uno invertido. */
+.tunnel-address { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px; padding: 18px; border-radius: var(--r-lg); }
+.tunnel-address .url { font-family: var(--mono); font-size: 15px; color: var(--fg); overflow-wrap: anywhere; }
+.qr { display: block; flex: none; width: 168px; height: 168px; border-radius: var(--r); }
+.qr .paper { fill: #ffffff; }
+.qr .ink { fill: #09090b; }
 
 /* ---------- 10. Datos ---------- */
 .kpi { padding: 16px; display: flex; flex-direction: column; gap: 6px; }

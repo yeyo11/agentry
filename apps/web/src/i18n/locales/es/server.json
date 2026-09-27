@@ -71,5 +71,13 @@
       "web-artifacts": "Artefactos web",
       "claude-ai-memory": "Memoria de claude.ai"
     }
+  },
+  "tunnel": {
+    "authRequired": "El túnel necesita autenticación: activa antes un token u OIDC en Seguridad.",
+    "noPort": "Agentry todavía no está escuchando, así que no hay nada hacia lo que abrir un túnel.",
+    "sshMissing": "No se ha encontrado ningún ssh que ejecutar. Instala el cliente de OpenSSH (openssh-client) y vuelve a intentarlo.",
+    "hostKey": "localhost.run ha respondido con una clave de host distinta de la que fija Agentry, así que el túnel no se ha abierto.",
+    "unverified": "localhost.run ha dado {{host}}, pero Agentry no ha podido llegar a sí mismo por ella.",
+    "exited": "ssh terminó antes de que localhost.run diera una dirección: {{detail}}"
   }
 }
