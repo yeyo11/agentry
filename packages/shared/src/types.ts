@@ -1973,6 +1973,283 @@ export interface TieDocumentRequest {
   kind?: DocumentKind;
 }
 
+// ---------- The project assistant: suggested team, resources and work items ----------
+//
+// Orchestration 4 of docs/plans/project-ecosystem.md (decisions 35 to 37). An assistant run is a chat
+// through the CLI in the project's directory, read-only (the read tools, and `Bash` limited to
+// `git log`, `git status` and `ls`), that answers through `--json-schema`. It never writes a file:
+// each proposal is accepted or discarded on its own, and only an accept makes Agentry write
+// something, through the service that owns it (the team, the work items, the resources). It runs on
+// demand or when a project is created, never on a schedule.
+
+/**
+ * `project`: team, resources and first work items, after creating a project or on demand from its
+ * page. `work-items`: "Suggest tasks" on the board. `resources`: "Suggest" on the Resources tab, or
+ * "Create with AI" for one resource from a description.
+ */
+export type AssistantRunKind = 'project' | 'work-items' | 'resources';
+
+/**
+ * `running` has its chat, or is about to; `completed` answered and its proposals are served;
+ * `failed` ended without a readable answer (the chat failed, the result did not match the schema, or
+ * a restart cut it and it could not be started again); `stopped` a person stopped it. A finished run
+ * never runs again: "Suggest again" is a new run.
+ */
+export type AssistantRunStatus = 'running' | 'completed' | 'failed' | 'stopped';
+
+/** The resources an assistant proposes or creates: the ones a project's `.claude/` holds as Markdown. */
+export type AssistantResourceKind = Extract<ResourceKind, 'agents' | 'skills' | 'commands'>;
+
+/**
+ * What an entry of "what it read" is: the project's files (`file`, `dir`), the CLI's `instructions`
+ * (`CLAUDE.md`) and `memory`, Agentry's `journal`, `work-items` and `milestones` (so it does not
+ * propose them again), the `team`, the `resources`, the CLI's `chats` in the directory and the `git`
+ * history.
+ */
+export type AssistantSourceKind =
+  | 'file'
+  | 'dir'
+  | 'instructions'
+  | 'memory'
+  | 'journal'
+  | 'work-items'
+  | 'milestones'
+  | 'team'
+  | 'resources'
+  | 'chats'
+  | 'git';
+
+/**
+ * `pending`: it will read it later ("after"); `reading`: now; `read`: all of it; `partial`: some of
+ * it (`count` of `total`); `missing`: it looked and there is none (`CLAUDE.md` does not exist).
+ */
+export type AssistantSourceState = 'pending' | 'reading' | 'read' | 'partial' | 'missing';
+
+/** What `count` and `total` count, which a client words ("142 lines", "23 chats", "14 of 20"). */
+export type AssistantSourceUnit = 'lines' | 'files' | 'documents' | 'chats' | 'commits' | 'items' | 'entries' | 'members';
+
+/**
+ * One entry of what a run read ("See what it read"): kept on the run, filled in from the chat's tool
+ * calls and from what Agentry handed it (its journal, its work items, its team, its resources).
+ */
+export interface AssistantSource {
+  kind: AssistantSourceKind;
+  /** Relative to the project, `/`-separated, a directory ending in `/` (`docs/`); null for what is not a path */
+  path: string | null;
+  state: AssistantSourceState;
+  count: number | null;
+  /** For `partial`, how many there were */
+  total: number | null;
+  unit: AssistantSourceUnit | null;
+  /** A few names a client may list beside it: the open milestones (`v0.20`), the files of a group */
+  names: string[];
+}
+
+/**
+ * Something a `project` run found, shown as a tag ("TypeScript", "Fastify"): `stack` is what the
+ * project uses, `gap` is what it lacks ("no CI").
+ */
+export interface AssistantFinding {
+  kind: 'stack' | 'gap';
+  label: string;
+}
+
+/** `pending` waits for the person; `superseded` was pending when the person asked to suggest again. */
+export type AssistantProposalStatus = 'pending' | 'accepted' | 'discarded' | 'superseded';
+
+export type AssistantProposalKind = 'team-member' | 'resource' | 'work-item';
+
+/** How many proposals of a kind a run made, by status: "2 of 6 accepted", "3 to review". */
+export interface AssistantProposalCount {
+  total: number;
+  pending: number;
+  accepted: number;
+  discarded: number;
+  superseded: number;
+}
+
+/** An assistant run as `GET /projects/:id/assistant/runs` lists it; `GET /assistant/runs/:runId` adds its proposals. */
+export interface AssistantRun {
+  id: string;
+  projectId: string;
+  kind: AssistantRunKind;
+  status: AssistantRunStatus;
+  /** Model alias or id the chat ran with; `sonnet` unless the request chose another */
+  model: string;
+  /** What the person described: the one resource "Create with AI" builds, or what an empty project is for */
+  description: string | null;
+  /** For a `resources` run from a description, the kind of the one resource it builds; null otherwise */
+  resourceKind: AssistantResourceKind | null;
+  /**
+   * The chat it runs in, which counts in Usage like any other. Null while starting, and for a run with
+   * nothing to read ({@link AssistantRun.empty}), which starts no chat.
+   */
+  chatId: string | null;
+  /** What the chat is doing now, filled in when read while it runs */
+  activity?: ChatActivity | null;
+  /**
+   * The project had nothing to read: no files, no chats, no git history. No chat was started; a
+   * `project` run offers the template's team, and asks for a description to propose work items.
+   */
+  empty: boolean;
+  /** The template whose team it offered as the starting point; null when it proposed none */
+  template: ProjectTemplateId | null;
+  /** What it read, in the order it read it; entries still `pending` while it runs */
+  sources: AssistantSource[];
+  /** For a `project` run; empty for the others and until the answer comes */
+  findings: AssistantFinding[];
+  /** Proposals by kind; a kind the run does not propose counts zero */
+  counts: Record<AssistantProposalKind, AssistantProposalCount>;
+  /** The chat's cost so far, then its total; null when the CLI reported none (or no chat was started) */
+  costUsd: number | null;
+  /** From start to end; null while it runs */
+  durationMs: number | null;
+  /** Why it failed; null unless `failed` */
+  error: Localized | null;
+  /** The finished run of the same kind whose pending proposals this one superseded ("Suggest again") */
+  supersedes: string | null;
+  /** The run that superseded this one's pending proposals; null while none has */
+  supersededBy: string | null;
+  startedAt: string;
+  endedAt: string | null;
+}
+
+/** `GET /assistant/runs/:runId`, and what starting or stopping one answers. */
+export interface AssistantRunDetail extends AssistantRun {
+  /** Every proposal it made, whatever its status, by kind then in the order it proposed them */
+  proposals: AssistantProposal[];
+}
+
+/**
+ * `POST /projects/:id/assistant/runs`. One run at a time per project and kind: a second one while
+ * one runs is refused with 409. A new run leaves the previous one's pending proposals as they are,
+ * unless `supersede` says to set them aside ("Suggest again").
+ */
+export interface StartAssistantRunRequest {
+  kind: AssistantRunKind;
+  /** Default `sonnet` (`DEFAULT_ASSISTANT_MODEL`) */
+  model?: string;
+  /**
+   * For a `resources` run, the one resource to build ("Create with AI"), with `resourceKind`; for a
+   * `project` or `work-items` run, what the project is for when there is nothing to read
+   */
+  description?: string;
+  /** Required with a `resources` run's `description` */
+  resourceKind?: AssistantResourceKind;
+  /** Mark the pending proposals of the latest finished run of this kind `superseded`. Default false */
+  supersede?: boolean;
+}
+
+/** A role of the team the assistant proposes, as the member it would add. */
+export interface ProposedTeamMember extends ProjectTeamRole {
+  /** Name of the agent file it would write in `.claude/agents/`, without `.md` */
+  agent: string;
+  /** Paths or globs it may write; empty means nothing but work items ("writes: nothing, only tasks") */
+  writes: string[];
+  /** One of the template's roles; false for one the project needs beyond it ("outside the template") */
+  fromTemplate: boolean;
+  /** The agent file's `description`, what the CLI picks it by */
+  description: string;
+  /** The agent file's body; empty lets the team service write its starting one */
+  instructions: string;
+}
+
+/** A resource the assistant proposes: a whole file, opened in the editor before anything is saved. */
+export interface ProposedResource {
+  kind: AssistantResourceKind;
+  /** File or directory name, without extension; a command's without its `/` */
+  name: string;
+  /** One line, as its frontmatter says it */
+  description: string;
+  /** The whole file, frontmatter included (a skill's `SKILL.md`) */
+  content: string;
+  /** Where it is meant to go: the project by default (decision 37) */
+  scope: ConfigScopeKind;
+  /**
+   * Where it would be saved, relative to its scope's root: the project (`.claude/agents/x.md`, a
+   * skill's directory `.claude/skills/x/`), or the Claude config dir for `user` (`agents/x.md`)
+   */
+  path: string;
+}
+
+/** A work item the assistant proposes, created in `backlog` when accepted. */
+export interface ProposedWorkItem {
+  type: WorkItemType;
+  title: string;
+  /** Markdown */
+  description: string;
+  priority: WorkItemPriority;
+  labels: string[];
+  acceptanceCriteria: NewAcceptanceCriterion[];
+  /** An existing epic of the project it belongs to */
+  epicId: string | null;
+  /** Filled in when read; null without one or once it is gone */
+  epic: WorkItemRef | null;
+  /**
+   * An existing item it resembles ("Similar to AGN-45"), filled in when read; such a proposal starts
+   * unselected where a client offers a selection
+   */
+  similarTo: WorkItemRef | null;
+}
+
+/** What every proposal carries, whatever its kind. */
+export interface AssistantProposalBase {
+  id: string;
+  runId: string;
+  projectId: string;
+  status: AssistantProposalStatus;
+  /** Why it proposes it, one or two sentences; for a work item, its first comment once accepted */
+  reason: string;
+  /** Its place among the run's proposals of the same kind */
+  position: number;
+  /** Who accepted or discarded it last; null while pending (and again once restored) */
+  decidedBy: WorkItemActor | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
+/** Accepting it adds the member through the team service, agent file included. */
+export interface AssistantTeamMemberProposal extends AssistantProposalBase {
+  kind: 'team-member';
+  member: ProposedTeamMember;
+  /** The member as added, by agent file name, once accepted; null otherwise */
+  acceptedAgent: string | null;
+}
+
+/**
+ * Accepting it is saving it: the editor opens the proposal unsaved, and its save is the accept, with
+ * what the person edited ({@link AcceptAssistantProposalRequest.resource}).
+ */
+export interface AssistantResourceProposal extends AssistantProposalBase {
+  kind: 'resource';
+  resource: ProposedResource;
+  /** Where it was saved, once accepted: its scope and its path there; null otherwise */
+  saved: { scope: ConfigScopeKind; name: string; path: string } | null;
+}
+
+/** Accepting it creates the item in `backlog`, with the reason as its first comment. */
+export interface AssistantWorkItemProposal extends AssistantProposalBase {
+  kind: 'work-item';
+  workItem: ProposedWorkItem;
+  /** The item it created, once accepted ("created · PAG-1"); null otherwise, or once it is gone */
+  created: WorkItemRef | null;
+}
+
+/** One proposal of a run, accepted or discarded on its own (decision 36). */
+export type AssistantProposal = AssistantTeamMemberProposal | AssistantResourceProposal | AssistantWorkItemProposal;
+
+/**
+ * `POST /assistant/proposals/:proposalId/accept`, with what the person changed before accepting;
+ * only the part that matches the proposal's kind is read, and a field left out keeps the proposed
+ * value. Accepting a proposal that is not `pending` is refused with 409.
+ */
+export interface AcceptAssistantProposalRequest {
+  member?: Partial<Omit<ProposedTeamMember, 'fromTemplate'>>;
+  /** The editor's save: the name, content and scope the person left */
+  resource?: { name?: string; content?: string; scope?: ConfigScopeKind };
+  workItem?: Partial<Omit<ProposedWorkItem, 'epic' | 'similarTo'>>;
+}
+
 // ---------- What changed on disk ----------
 //
 // An agent's real output is the diff, not its report. Everything here comes from `git` (`log`,
@@ -3783,6 +4060,48 @@ export interface FlowRunEvent extends AgentryEventBase, WorkItemEventRef {
   outcome: FlowRunOutcome | null;
 }
 
+/**
+ * `started` and `failed` as they say; `ended` a run that completed or was stopped (its `status`
+ * says which); `read` a running one's {@link AssistantRun.sources} or cost changed, at most every
+ * few seconds, so "what it has read" fills in without polling.
+ */
+export type AssistantRunAction = 'started' | 'read' | 'ended' | 'failed';
+
+/** An assistant run started, read something, ended or failed. */
+export interface AssistantRunEvent extends AgentryEventBase {
+  type: 'assistant.run';
+  projectId: string;
+  runId: string;
+  kind: AssistantRunKind;
+  action: AssistantRunAction;
+  status: AssistantRunStatus;
+  /** Set once its chat started; null for a run with nothing to read */
+  chatId: string | null;
+  /** The run whose pending proposals this one superseded when it started, which reads again */
+  supersedes: string | null;
+}
+
+export type AssistantProposalAction = 'accepted' | 'discarded' | 'restored';
+
+/**
+ * A proposal was accepted, discarded or restored. What an accept wrote announces itself too where
+ * it has an event (`workitem.created`, `team.changed`); a saved resource has none, so this names it.
+ */
+export interface AssistantProposalEvent extends AgentryEventBase {
+  type: 'assistant.proposal';
+  projectId: string;
+  runId: string;
+  proposalId: string;
+  proposalKind: AssistantProposalKind;
+  action: AssistantProposalAction;
+  /** For an accepted work item, the item it created */
+  itemId: string | null;
+  /** For an accepted team member, its agent file name */
+  agent: string | null;
+  /** For an accepted resource, where it was saved */
+  resource: { kind: AssistantResourceKind; name: string; scope: ConfigScopeKind } | null;
+}
+
 /** Everything the buffered feed carries, discriminated by `type`. */
 export type AgentryEvent =
   | RunCreatedEvent
@@ -3824,7 +4143,9 @@ export type AgentryEvent =
   | JournalChangedEvent
   | MemoryProposalEvent
   | DocumentChangedEvent
-  | FlowRunEvent;
+  | FlowRunEvent
+  | AssistantRunEvent
+  | AssistantProposalEvent;
 
 export type AgentryEventType = AgentryEvent['type'];
 

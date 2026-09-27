@@ -62,6 +62,8 @@ const ROOT_TYPES = [
   'Team', 'TeamMember', 'TeamFromTemplateRequest', 'PutTeamMemberRequest', 'ProjectFlow', 'FlowRun', 'FlowRunResult',
   'JournalPage', 'JournalEntry', 'CreateJournalEntryRequest', 'MemoryProposal', 'ApproveMemoryProposalRequest', 'RejectMemoryProposalRequest',
   'ProjectDocuments', 'DocumentFile', 'WriteDocumentRequest', 'TieDocumentRequest',
+  // The project assistant: runs and their proposals
+  'AssistantRun', 'AssistantRunDetail', 'StartAssistantRunRequest', 'AssistantProposal', 'AcceptAssistantProposalRequest',
 ];
 
 const generator = createGenerator({
