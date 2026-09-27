@@ -22,8 +22,13 @@ export type AuthEnv = Partial<Record<(typeof AUTH_ENV_KEYS)[number], string>>;
 
 export interface CoreConfig {
   claudeBin: string;
-  /** claude-swap binary: owns the account credentials when several accounts are registered */
-  cswapBin: string;
+  /**
+   * claude-swap binary from `CSWAP_BIN`: owns the account credentials when several accounts are
+   * registered. Null lets Agentry look for it on the `PATH` and in its own managed copy.
+   */
+  cswapBin: string | null;
+  /** Agentry may install claude-swap itself: not in the Docker image, which bakes it in */
+  cswapManaged: boolean;
   configDir: string;
   /** Global CLI config file holding user-scope mcpServers */
   globalConfigFile: string;
@@ -91,7 +96,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
   }
   return {
     claudeBin: env.CLAUDE_BIN ?? 'claude',
-    cswapBin: env.CSWAP_BIN ?? 'cswap',
+    cswapBin: env.CSWAP_BIN?.trim() || null,
+    cswapManaged: env.AGENTRY_CSWAP_MANAGED !== '0' && env.AGENTRY_DISTRIBUTION?.trim().toLowerCase() !== 'docker',
     configDir,
     globalConfigFile,
     projectsDir: join(configDir, 'projects'),

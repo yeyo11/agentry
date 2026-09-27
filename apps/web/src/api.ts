@@ -23,6 +23,7 @@ import type {
   CancelCommandRequest,
   CancelCommandResult,
   ChangeSummary,
+  CswapInfo,
   ChatChanges,
   Checklist,
   ChatBackgroundTask,
@@ -119,6 +120,7 @@ import type {
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
 import { RUN_TAG } from './lib/chat-pages';
+import { accountsRefetchInterval } from './lib/cswap';
 import { useFallbackInterval } from './lib/feed';
 
 export const BASE = '/api';
@@ -447,6 +449,10 @@ export const api = {
   switchAccount: (body: SwitchAccountRequest) => request<SwitchResult>('/accounts/switch', { method: 'POST', body }),
   addAccount: (body: AddAccountTokenRequest) => request<AccountsOverview>('/accounts/token', { method: 'POST', body }),
   removeAccount: (number: number) => request<{ ok: true }>(`/accounts/${number}`, { method: 'DELETE' }),
+  /** Starts Agentry's own install of claude-swap; it goes on in the background and `accounts()` follows it */
+  installCswap: () => request<CswapInfo>('/accounts/cswap/install', { method: 'POST' }),
+  /** Removes the copy of claude-swap Agentry installed; the accounts are kept */
+  removeCswap: () => request<CswapInfo>('/accounts/cswap', { method: 'DELETE' }),
   accountEvents: (limit = 500, o?: ReadOptions) => request<AutoSwitchEvent[]>(`/accounts/events${qs({ limit: String(limit) })}`, o),
   setAccountEnabled: (number: number, enabled: boolean) =>
     request<{ ok: true }>(`/accounts/${number}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' }),
@@ -628,7 +634,13 @@ export const useScheduleRuns = (id: string, enabled: boolean) => {
 
 /** Usage refreshes on claude-swap's own cadence; polling faster would only re-read its cache. */
 export const useAccounts = (enabled = true) =>
-  useQuery({ queryKey: keys.accounts, queryFn: ({ signal }) => api.accounts(false, { signal }), refetchInterval: 10_000, enabled });
+  useQuery({
+    queryKey: keys.accounts,
+    queryFn: ({ signal }) => api.accounts(false, { signal }),
+    // An install of claude-swap reports its progress only through this read
+    refetchInterval: (query) => accountsRefetchInterval(query.state.data?.cswap),
+    enabled,
+  });
 
 /** `claude mcp list` is slow, and the server keeps its answer for a minute: asking sooner gains nothing. */
 export const useConnectors = (enabled = true) =>

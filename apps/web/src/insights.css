@@ -655,10 +655,24 @@
   .accounts-action-text {
     display: none;
   }
-  .accounts-page .page-actions .btn {
+  .accounts-page .page-actions .btn,
+  .accounts-page .page-actions .icon-btn {
     min-width: 44px;
     min-height: 44px;
   }
+}
+
+/* claude-swap's own install: its step beside the spinner, and the notice above the accounts */
+.cswap-progress {
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+.cswap-notice .alert-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 /* ==== end Accounts ==== */

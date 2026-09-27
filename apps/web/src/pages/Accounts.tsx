@@ -1,25 +1,26 @@
 import { useQueryClient } from '@tanstack/react-query';
 import type { AccountSummary, AutoSwitchSettings } from '@agentry/shared';
-import { ChevronLeft, ChevronRight, ExternalLink, Info, Plus, RefreshCw } from 'lucide-react';
-import { useCallback, useState } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { ChevronLeft, ChevronRight, Info, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, keys, useAccountEvents, useAccounts } from '../api';
+import { MoreActions } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
 import { ICON, ICON_SM } from '../components/icons';
 import { useToast } from '../components/Toast';
 import { Card, Empty, ErrorBox, PageHeader, Skeleton, StatusBadge, usePageTitle } from '../components/ui';
+import { cswapInstalling, cswapRemovable } from '../lib/cswap';
 import { formatDateTime, timeAgo, toMs } from '../lib/format';
 import { NARROW, useMediaQuery } from '../lib/media';
 import { AccountCard, ExhaustedAccountRow } from './accounts/AccountCard';
 import { AddAccountDialog } from './accounts/AddAccountDialog';
 import { AutoSwitchCard } from './accounts/AutoSwitchCard';
+import { CswapMissing, CswapNotice } from './accounts/CswapSetup';
 import { PoliciesCard } from './accounts/PoliciesCard';
 import { UsageHistoryCard } from './accounts/UsageHistoryCard';
 import { accountExhausted, sortAccounts } from './accounts/usage';
 import '../insights.css';
-
-const CSWAP_URL = 'https://github.com/realiti4/claude-swap';
 
 export function Accounts() {
   const { t } = useTranslation(['accountsConfig', 'config', 'common']);
@@ -39,6 +40,33 @@ export function Accounts() {
   const [params, setParams] = useSearchParams();
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: keys.accounts });
+
+  const [starting, setStarting] = useState(false);
+  const install = async () => {
+    setStarting(true);
+    try {
+      const cswap = await api.installCswap();
+      // Shows the progress at once instead of at the next read
+      queryClient.setQueryData(keys.accounts, (old: typeof data) => (old ? { ...old, cswap } : old));
+      await refresh();
+    } catch (err) {
+      toast.error(t('cswap.installStartFailed'), err);
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  // The install ends on its own, in the background: the page catches the moment claude-swap turns
+  // up and, with no account yet, goes straight on to adding the first one
+  const installing = data ? cswapInstalling(data.cswap) : false;
+  const wasInstalling = useRef(false);
+  useEffect(() => {
+    if (wasInstalling.current && !installing && data?.cswap.installed) {
+      void refresh();
+      if (data.accounts.length === 0) setAdding(true);
+    }
+    wasInstalling.current = installing;
+  }, [installing, data?.cswap.installed]);
 
   const act = async (label: string, failure: string, fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -62,6 +90,15 @@ export function Accounts() {
   // Falls back to the overview's window while the history query is still in flight
   const events = fullHistory ? (history.data ?? data.events) : data.events;
   const lastRead = data.accounts.reduce<string | null>((latest, a) => ((toMs(a.usageFetchedAt) ?? 0) > (toMs(latest) ?? 0) ? a.usageFetchedAt : latest), null);
+  const removeCswap = () =>
+    void confirm({
+      title: t('cswap.removeTitle'),
+      body: t('cswap.removeBody'),
+      confirmLabel: t('common:actions.remove'),
+      danger: true,
+    }).then(async (ok) => {
+      if (ok) await act(t('cswap.removed'), t('cswap.removeFailed'), () => api.removeCswap());
+    });
   const toggle = (account: AccountSummary) =>
     void act(
       account.disabled ? t('config:accounts.backInRotation', { email: account.email }) : t('config:accounts.heldOut', { email: account.email }),
@@ -99,6 +136,7 @@ export function Accounts() {
           installed
             ? [
                 t('page.subtitle', { accounts: t('config:accounts.count', { count: data.accounts.length }), version: data.cswap.version ?? '' }).trim(),
+                data.cswap.source === 'managed' ? t('cswap.managedSource') : null,
                 lastRead ? t('config:accounts.usageRead', { ago: timeAgo(lastRead) }) : null,
               ]
                 .filter(Boolean)
@@ -111,33 +149,23 @@ export function Accounts() {
               <RefreshCw {...ICON_SM} /> <span className="accounts-action-text">{t('config:accounts.refreshUsage')}</span>
             </button>
             {installed && data.accounts.length > 0 && addButton}
+            {cswapRemovable(data.cswap) && (
+              <MoreActions
+                label={t('cswap.more')}
+                title={t('cswap.more')}
+                entries={[{ id: 'remove-cswap', label: t('cswap.remove'), icon: Trash2, destructive: true, disabled: busy, onSelect: removeCswap }]}
+              />
+            )}
           </>
         }
       />
 
       {adding && <AddAccountDialog onClose={closeAdd} onAdded={() => void refresh()} />}
 
+      {installed && <CswapNotice cswap={data.cswap} onInstall={() => void install()} starting={starting} />}
+
       {!installed ? (
-        <Empty
-          illustration="cli-missing"
-          tone="warn"
-          title={t('config:accounts.notInstalled')}
-          action={
-            <a className="btn btn-primary" href={CSWAP_URL} target="_blank" rel="noreferrer">
-              <ExternalLink {...ICON_SM} /> {t('page.installGuide')}
-            </a>
-          }
-        >
-          <Trans
-            t={t}
-            i18nKey="config:accounts.notInstalledHint"
-            components={{
-              anchor: <a href={CSWAP_URL} target="_blank" rel="noreferrer" />,
-              code: <code className="mono" />,
-            }}
-          />
-          {data.cswap.error && <div className="muted small">{data.cswap.error}</div>}
-        </Empty>
+        <CswapMissing cswap={data.cswap} onInstall={() => void install()} starting={starting} />
       ) : data.accounts.length === 0 ? (
         <Empty illustration="signed-out" tone="warn" title={t('config:accounts.none')} action={addButton}>
           {t('page.noneHint')}

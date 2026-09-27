@@ -532,6 +532,8 @@ class LiveChat {
 export interface AccountResolver {
   /** claude-swap is installed and has at least one account registered */
   readonly managed: boolean;
+  /** The `cswap` a pinned chat runs through: `CSWAP_BIN`, the one on the `PATH`, or Agentry's own copy */
+  readonly bin: string;
   isActive(identifier: string): boolean;
   /** Which account, and which config directory, a chat starts with */
   launchFor(chat: { account: string | null; cwd: string }): Launch;
@@ -1321,7 +1323,7 @@ export class ChatManager extends EventEmitter {
     // An account with a config directory of its own runs `claude` against it: `cswap run` would
     // replace CLAUDE_CONFIG_DIR with its session profile, and the directory would be ignored
     if (!account || launch.configDir || !this.accounts?.managed || this.accounts.isActive(account)) return [this.config.claudeBin, args];
-    return [this.config.cswapBin, ['run', account, '--share-history', '--', ...args]];
+    return [this.accounts.bin, ['run', account, '--share-history', '--', ...args]];
   }
 
   /** The launch of a chat, or the plain one when claude-swap does not manage the accounts. */

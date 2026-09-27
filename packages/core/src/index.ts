@@ -77,6 +77,7 @@ export { ChatConflictError, DEFAULT_ORIGINS, type ChatFilter, type Placement } f
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
 export { DEFAULT_AUTO_SWITCH } from './accounts.ts';
+export { CSWAP_VERSION, UV_VERSION } from './cswap-pin.ts';
 export {
   chatControl,
   chatState,
@@ -336,6 +337,11 @@ export class Core {
         to: result.to,
         reason: result.reason,
       });
+    });
+    // A managed install (or its removal) can change who owns the credential
+    this.accounts.on('cswap', () => {
+      this.syncCredentialOwner();
+      this.forgetSystem();
     });
     this.runtime.on('rate-limited', (run: ChatRuntime) => {
       this.events.emit({ type: 'run.rateLimited', title: `${run.name} hit its rate limit`, ...runRef(run) });

@@ -32,6 +32,7 @@ start, and that becomes the port it remembers. `PORT` in the environment overrid
 | Sandbox | The container | **None** |
 | Default permission mode | `bypassPermissions` | `acceptEdits` |
 | Claude Code CLI | Baked into the image | Yours, from your `PATH` |
+| claude-swap (multiple accounts) | Baked into the image | Yours if it is compatible, or installed by the app on request |
 | Login | `CLAUDE_CODE_OAUTH_TOKEN` | Your existing `~/.claude` login |
 | Listens on | `0.0.0.0:8787` | `127.0.0.1`, the port it used last |
 | Web Push | Over HTTPS, to any installed browser or phone | Not registered — see below |
@@ -206,6 +207,8 @@ does is logged to `desktop.log`.
 | Logs | `~/.config/Agentry/logs/desktop.log` and `server.log` |
 | Default working directory for runs | `~/Agentry/workspace` |
 | Claude Code config and transcripts | `~/.claude` (the CLI's own, unchanged) |
+| claude-swap installed by the app (uv, Python, cache) | `~/.config/Agentry/data/tools` |
+| Registered accounts | `~/.local/share/claude-swap` (claude-swap's own) |
 
 `~/.config` is `$XDG_CONFIG_HOME` if you set it. The workspace can be moved by starting the app
 with `AGENTRY_WORKSPACE_DIR` set. Each run can still use any project directory.
@@ -214,6 +217,22 @@ The **File** menu opens the data, workspace and logs folders (press `Alt` if the
 hidden). Each log is rotated when the app starts once it passes 5 MB, keeping the last three.
 
 Only one instance runs at a time: opening the app again focuses the existing window.
+
+## Multiple accounts
+
+Several Claude accounts, and rotating between them, go through
+[claude-swap](https://github.com/realiti4/claude-swap). You do not have to install it: on the
+Accounts page, **Activate multiple accounts** downloads a pinned uv, checks its digest, and has it
+install the claude-swap version Agentry is tested with — and a Python 3.12 if your system has none —
+into `~/.config/Agentry/data/tools`. It takes about 20 seconds and 50–80 MB the first time, and
+touches nothing outside that folder. Then the Add account dialog opens.
+
+If you already have a `cswap` on your `PATH` in a version Agentry understands, the app uses yours and
+downloads nothing. One outside that range is still used, with a warning and an offer to install
+Agentry's version, which then takes over. An update of Agentry that moves the pinned version
+upgrades its copy in the background. **Remove claude-swap** in the page's menu deletes that folder;
+the accounts stay in `~/.local/share/claude-swap` for any other `cswap`. Setting `CSWAP_BIN` or
+`AGENTRY_CSWAP_MANAGED=0` turns the managed install off.
 
 ## The CLI is not detected
 
@@ -241,8 +260,9 @@ Directories that do not exist are dropped. If the UI still says **Claude Code CL
    `ELECTRON_RUN_AS_NODE=1`, and it removes that from its environment as it starts, so the chats
    and commands it runs — an Electron app among them — start as themselves rather than as Node.
 
-The same applies to the optional [claude-swap](https://github.com/realiti4/claude-swap) binary for
-multiple accounts (`CSWAP_BIN`). Any variable from the
+The same applies to a [claude-swap](https://github.com/realiti4/claude-swap) of your own
+(`CSWAP_BIN`), when you would rather not use the copy the app installs (see
+[Multiple accounts](#multiple-accounts)). Any variable from the
 [environment table](../README.md#environment-variables), such as `AGENTRY_DEFAULT_PERMISSION_MODE`,
 can be set this way.
 
@@ -301,4 +321,4 @@ release.
 
 ## Related
 
-[[deploy.md]] · [[status.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]]
+[[deploy.md]] · [[status.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[plans/managed-claude-swap.md]]
