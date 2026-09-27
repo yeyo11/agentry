@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-09-25T18:55:39Z
+updated_at: 2026-09-27T20:00:00Z
 tags:
     - design-system
     - web
@@ -18,6 +18,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Static prototypes of every screen (open `index.html`) | [`design-system/reference/`](design-system/reference/index.html) |
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
 | The 13 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
+| The diff comparator: its rules, modes, pieces and states (§5) | `DSComparador` and the **Changes** section of the reference |
 | The tokens the app actually uses | `apps/web/src/styles/tokens.css` |
 
 The app reached this design in the `night-shift` orchestration. Where the implementation settled a
@@ -173,6 +174,8 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.empty-state` + `Illustration` | `Empty` (`components/ui.tsx`), and the new `components/illustrations/` | see §4 |
 | `.avatar` (initials) | `.monogram` | a soft tint of the name's hue with letters in that hue; the gradient only on the active one |
 | `.fab` | `.fab` (components/shell/Fab.tsx), the round "+" alone on every page, named by `aria-label` | a page's own button for the same action carries `.page-action-fab` and hides wherever the FAB shows |
+| `.dv`, `.dv-row`, `.dv-ghost`, `.dv-seam`, `.dv-fold`, `.dv-map` | new: `.diff`, `.diff-row`, `.diff-fold-pill`, `.diff-seam`, `.diff-gap`, `.diff-rail` (`components/changes/`) | see §5 |
+| `.fp`, `.fmap`, `.frow`, `.step`, `.scrub`, `.why` | new: `.changes-print`, `.changes-map`, `.changes-file`, `.edit-step`, `.edit-scrub`, `.changes-why` | see §5 |
 
 These keep their behaviour and take the new styling: the controls in
 `apps/web/src/components/controls`, and the primitives in `components/ui.tsx` and
@@ -301,7 +304,82 @@ Rules:
 
 ---
 
-## 5. Content rules
+## 5. Diff comparator
+
+Changes are reviewed inside Agentry. Nothing links to an editor or hands out a command to copy:
+the comparator draws the unified diff the API already serves. The reference is `DSComparador`, the
+`DiffView` component and the screens of the reference's **Changes** section; the classes are §15
+of `agentry-ds.css`.
+
+**Four rules**
+
+1. **Only what changed carries colour.** Syntax is muted (`--sx-*`) and never uses green, red or
+   cyan. Context lines are dimmed in Reading. The changed words of a line are one mark
+   (`--diff-*-word`) that spans their syntax runs, not a mark per token.
+2. **What was removed folds away.** In Reading the file reads as it is now. A pill on the rail of
+   the first new line of a block (`−2`) opens the removed lines in place; when nothing replaced
+   them, the pill sits on a dashed seam between the lines they were between.
+3. **One line, one rail.** A 3 px rail in `--diff-add` or `--diff-del` marks a changed line, and its
+   number takes the same colour. A whole row is tinted, very lightly (`--diff-*-bg`), only in Unified
+   and Side by side.
+4. **Every change carries its why.** Where there is a transcript, the file header shows the intent
+   of the latest step that touched the file, and each step shows the sentence Claude wrote just
+   before the edit. One click reaches that place in the conversation.
+
+**Modes**
+
+| Mode | Draws | When |
+|---|---|---|
+| Reading (default) | the new file, rails, pills for what was removed, context dimmed | reading an agent's work top to bottom |
+| Unified | old and new interleaved, both line numbers, a sign column | the familiar view; Step by step uses it for each patch |
+| Side by side | matched lines face to face, the shorter side's padding hatched | from 1100 px of diff; the file list folds into a rail |
+
+Removed and added lines are paired by similarity (over 0.45), not by position, so a line that moved
+down a row still faces its old self. A phone offers Reading and Unified, and wraps long lines at 19
+px rows instead of scrolling sideways.
+
+**Pieces**
+
+- **Rows** are 20 px, mono 12.5 px, line numbers tabular in a 54 px column (46 px in Unified, 40 px
+  per side in Side by side).
+- **Gaps** between hunks are one row: "21 unchanged lines · in `aheadCount()`" (the function comes
+  from git's hunk header) and a ghost "Show". Opening one asks for the whole file once
+  (`context=full`) unless it is over 5 000 lines.
+- **Change fingerprint**: a 6 px strip, one segment per file as wide as its churn, split into added
+  and removed; the current file ringed, the seen ones at 18 %. It is also navigation.
+- **Block rail**: 14 px at the right of the diff, the file to scale, a mark per block (added,
+  removed, or both halves), the viewport as a box, the current block ringed.
+- **File map**: the tree by directory; a row is a status letter (M, A, D, R, B for binary), the
+  name, the counts, a hollow dot when not committed yet, a check when seen, and the live rail with
+  the braille spinner on the file the agent is editing right now. The selected row takes the
+  gradient indicator, like the sidebar.
+- **Steps**: a vertical line of dots, the selected one in the gradient, the pending one live; the
+  intent clamped to two lines. A scrubber of dots sits under the header.
+- **Keyboard**: `j`/`k` blocks, `n`/`p` files, `v` seen and next, `m` mode, `o` open the block's
+  removed lines, `[` the file map, `/` filter, `←`/`→` steps. None fires while typing in a field.
+
+**Tokens**
+
+| Token | Use |
+|---|---|
+| `--diff-add`, `--diff-del` | rails, line numbers, signs, pills (they are `--ok` and `--bad`) |
+| `--diff-add-bg`, `--diff-del-bg` | row tints in Unified and Side by side; removed lines opened in Reading |
+| `--diff-add-word`, `--diff-del-word` | the mark on changed words |
+| `--sx-kw`, `--sx-str`, `--sx-num`, `--sx-type`, `--sx-fn`, `--sx-com` | muted syntax, for code inside the comparator only |
+
+**States.** No worktree: Result is disabled with its reason and the screen opens on Step by step.
+Nothing changed yet: compact `Empty`, no illustration (it sits next to the conversation). Binary:
+said, not drawn. Over 5 000 lines: blocks only. Added: all rail. Deleted: one pill with its line
+count, and no Side by side. Renamed without changes: "only renamed".
+
+**Where it lives.** One screen for a chat, a task and the integration branch
+(`/chats/:id/changes`, `/orchestration/:id/tasks/:taskId/changes`, `/orchestration/:id/changes`);
+everywhere else, the compact summary opens it. The screen has no energy border: the live rail on
+the file being edited is its only moving part.
+
+---
+
+## 6. Content rules
 
 - Every string goes through i18n with `en` and `es` parity. The `es` copy follows `GLOSSARY.md`:
   - Spanish from Spain, with infinitive buttons ("Guardar", "Reanudar").
@@ -316,7 +394,7 @@ Rules:
 
 ---
 
-## 6. Checklist for every UI change
+## 7. Checklist for every UI change
 
 1. The diff has no raw colours, radii or durations: all go through tokens. The web test that
    guards this passes.
@@ -331,6 +409,7 @@ Rules:
 7. An empty, error or install state uses `Empty` with the matching illustration (§4), and uses at
    most one illustration per screen.
 8. A new variant or illustration is added to this document and to `agentry-ds.css` in the same PR.
+9. A diff is drawn with `DiffView` and follows the four rules of §5: nothing links to an editor.
 
 ## Landed
 
@@ -455,4 +534,4 @@ Rules:
 
 ## Related
 
-[[plans/redesign-night-shift.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[desktop.md]]
+[[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[desktop.md]]

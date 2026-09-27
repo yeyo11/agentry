@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Cambios (desktop)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app shell" data-theme="dark" style="width: 1440px; height: 1024px">
+<div class="side">
+
+<nav class="app" data-theme="dark" aria-label="Principal" style="width: 256px; height: 1024px; background: var(--bg-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 18px">
+
+<div class="row" style="padding: 0 4px; height: 32px; gap: 10px">
+<a href="Main.html" class="row" style="gap: 10px; flex: 1 1 auto">
+<span style="width: 26px; height: 26px; border-radius: 8px; background: var(--grad); display: grid; place-items: center; color: #fff; box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 4px 14px -4px rgba(176,74,94,0.7)"><svg class="ico ico-sm" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>
+<span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Agentry</span>
+</a>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Plegar barra lateral"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 4v16"></path></svg></button>
+</div>
+
+<button type="button" class="field" style="width: 100%; cursor: pointer; justify-content: flex-start; background: var(--bg-2)"><svg class="ico" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><span class="grow t-sm" style="text-align: left">Buscar o ejecutar…</span><span class="kbd">⌘K</span></button>
+
+<div class="col" style="gap: 1px">
+
+<a href="Main.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg><span class="grow">Inicio</span><span class="count"></span></a>
+
+<a href="DesktopChats.html" class="nav-item on"><svg class="ico" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span class="grow">Chats</span><span class="count">197</span></a>
+
+<a href="DesktopOrquestaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg><span class="grow">Orquestaciones</span><span class="count-pill live">2</span></a>
+
+<a href="DesktopProgramaciones.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M5.5 5h13a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM3.5 10h17M8 3v4M16 3v4"></path></svg><span class="grow">Programaciones</span><span class="count"></span></a>
+
+</div>
+
+<div class="col" style="gap: 1px">
+<span class="t-label" style="padding: 0 10px 6px">Espacio</span>
+
+<a href="DesktopProyectos.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span class="grow">Proyectos</span></a>
+
+<a href="DesktopCuentas.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M12.5 8a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"></path></svg><span class="grow">Cuentas</span></a>
+
+<a href="DesktopConectores.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"></path></svg><span class="grow">Conectores</span></a>
+
+<a href="DesktopUso.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M4 20V11M10 20V4M16 20v-6M3 20.5h18"></path></svg><span class="grow">Uso</span></a>
+
+<a href="DesktopAjustes.html" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M17 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM11 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM19 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"></path></svg><span class="grow">Ajustes</span></a>
+
+</div>
+
+<div class="col" style="gap: 4px">
+<div class="row" style="padding: 0 10px 4px"><span class="t-label grow">En directo</span><span class="count-pill live">3</span></div>
+<a href="DesktopChat.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 3px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: 500">claude-wrapper-b67aa3</span></span>
+<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis grow">Compare styles</span><span class="mono fg-3">15s</span></span>
+</a>
+<a href="DesktopOrquestacion.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 6px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: 500">spanish-copy</span><span class="mono t-xs fg-3">2/6</span></span>
+<span class="segbar" style="height: 4px; margin-left: 15px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 60%"></i><i></i><i></i><i></i></span>
+</a>
+<a href="DesktopOrquestaciones.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 6px">
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: 500">app-updates</span><span class="mono t-xs fg-3">2/5</span></span>
+<span class="segbar" style="height: 4px; margin-left: 15px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 35%"></i><i></i><i></i></span>
+</a>
+</div>
+
+<div class="grow"></div>
+<a href="#" class="nav-item"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5"></path></svg>Referencia de la API</a>
+</nav>
+</div>
+<div class="main-col">
+
+
+<header class="app" data-theme="dark" style="width: 1184px; height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 20px 0 24px; border-bottom: 1px solid var(--line); background: var(--bg)">
+<nav aria-label="Ruta" class="row t-sm" style="gap: 6px">
+<button type="button" class="btn btn-ghost btn-sm" style="gap: 6px; padding: 0 8px; color: var(--fg-2)"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Todos los proyectos<svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
+<span class="fg-3">/</span>
+<span style="font-weight: 500">Chats</span>
+</nav>
+<div class="grow"></div>
+<a href="DesktopOrquestaciones.html" class="chip" style="gap: 8px; border-color: transparent; background: var(--live-soft); color: var(--live); font-family: var(--mono); font-size: 11.5px"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>3 agentes trabajando</a>
+<button type="button" class="btn btn-ghost btn-icon" aria-label="Notificaciones" style="position: relative"><svg class="ico" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"></path></svg><span class="dot" style="position: absolute; top: 8px; right: 9px; width: 6px; height: 6px; background: var(--accent)"></span></button>
+<div class="row" style="gap: 0">
+<a href="DesktopNuevoChat.html" class="btn btn-primary" style="border-radius: 8px 0 0 8px"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Nuevo chat</a>
+<button type="button" class="btn btn-primary btn-icon" aria-label="Más formas de empezar" style="border-radius: 0 8px 8px 0; width: 30px; margin-left: 1px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+</header>
+
+
+<header class="col" style="flex-shrink: 0; gap: 12px; padding: 12px 20px 12px 12px; border-bottom: 1px solid var(--line)">
+<div class="row" style="gap: 10px">
+<a href="DesktopChatCambios.html" class="btn btn-ghost btn-icon btn-sm" aria-label="Volver al chat"><svg class="ico" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"></path></svg></a>
+<div class="col grow" style="gap: 2px">
+<span class="t-xs fg-3 ellipsis">Añade un parámetro de contexto al diff de cada archivo y quita los enlaces al editor</span>
+<div class="row" style="gap: 12px"><h1 class="t-h1" style="font-size: 20px">Cambios</h1><span class="mono t-xs fg-3" style="white-space: nowrap">agentry/b67aa3 · desde 8923191 · 3 commits · 7 archivos</span><span class="cnt"><span class="a">+89</span> <span class="d">−26</span></span><span class="row t-xs c-live" style="gap: 6px; white-space: nowrap"><span class="spin-braille"></span>se actualiza solo</span></div>
+</div>
+<div class="seg" role="tablist" aria-label="Qué ver"><button type="button" role="tab" aria-selected="true" class="on">Resultado</button><a href="DesktopCambiosPasos.html" role="tab" aria-selected="false">Paso a paso</a></div>
+<button type="button" class="chip" style="height: 32px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M3 12h4m10 0h4M12 3v4m0 10v4"></path><circle cx="12" cy="12" r="4.5"></circle></svg>Todo el trabajo<svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Copiar el parche" title="Copiar el parche"><svg class="ico" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path></svg></button>
+</div>
+<div class="fp" style="margin-left: 42px" role="img" aria-label="Huella del cambio: cada archivo ocupa lo que cambió"><i class="seen" style="flex: 14 1 0; --a: 79%" title="changes.ts +11 −3"></i><i class="" style="flex: 13 1 0; --a: 46%" title="Changes.tsx +6 −7"></i><i class="" style="flex: 42 1 0; --a: 100%" title="diff.ts +42 −0"></i><i class="" style="flex: 10 1 0; --a: 0%" title="editor.ts +0 −10"></i><i class="" style="flex: 13 1 0; --a: 100%" title="diff.test.ts +13 −0"></i><i class="sel" style="flex: 16 1 0; --a: 69%" title="git.ts +11 −5"></i><i class="seen" style="flex: 7 1 0; --a: 86%" title="types.ts +6 −1"></i></div>
+</header>
+
+<div class="row" style="flex: 1 1 auto; min-height: 0; align-items: stretch; gap: 0">
+
+
+<aside class="col" style="width: 288px; flex-shrink: 0; gap: 0; border-right: 1px solid var(--line); background: var(--bg-1)" aria-label="Archivos cambiados">
+<div class="row" style="height: 46px; padding: 0 12px 0 18px; gap: 8px; border-bottom: 1px solid var(--line)"><span class="t-label">Archivos</span><span class="count">7</span><span class="grow"></span><span class="mono t-xs fg-3">2 de 7 vistos</span><span class="bar bar-thin" style="width: 40px"><i style="width: 29%"></i></span></div>
+<div style="padding: 10px 10px 4px"><label class="field" style="height: 30px; padding: 0 10px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><input placeholder="Filtrar archivos" aria-label="Filtrar archivos" style="font-size: 12.5px"><span class="kbd">/</span></label></div>
+<nav class="fmap grow" style="padding: 4px 0; overflow: hidden">
+
+<div class="fdir"><svg class="ico ico-sm" viewBox="0 0 24 24" style="width: 12px; height: 12px"><path d="m6 9 6 6 6-6"></path></svg>apps/api/src/routes</div>
+
+<a href="#" class="frow seen" title="apps/api/src/routes/changes.ts · modificado"><span class="st st-m">M</span><span class="row" style="gap: 6px; min-width: 0"><span class="fname">changes.ts</span></span><span class="row" style="gap: 6px"><svg class="ico ico-sm fg-3" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="m5 12 5 5 9-10"></path></svg><span class="cnt"><span class="a">+11</span> <span class="d">−3</span></span></span></a>
+
+
+<div class="fdir"><svg class="ico ico-sm" viewBox="0 0 24 24" style="width: 12px; height: 12px"><path d="m6 9 6 6 6-6"></path></svg>apps/web/src/components/observe</div>
+
+<a href="#" class="frow live" title="apps/web/src/components/observe/Changes.tsx · modificado · sin commit · Claude lo está editando"><span class="st st-m">M</span><span class="row" style="gap: 6px; min-width: 0"><span class="fname">Changes.tsx</span><span title="Sin commit todavía" style="width: 6px; height: 6px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--fg-3); flex-shrink: 0"></span></span><span class="row" style="gap: 6px"><span class="spin-braille"></span><span class="cnt"><span class="a">+6</span> <span class="d">−7</span></span></span></a>
+
+
+<div class="fdir"><svg class="ico ico-sm" viewBox="0 0 24 24" style="width: 12px; height: 12px"><path d="m6 9 6 6 6-6"></path></svg>apps/web/src/lib</div>
+
+<a href="#" class="frow" title="apps/web/src/lib/diff.ts · añadido"><span class="st st-a">A</span><span class="row" style="gap: 6px; min-width: 0"><span class="fname">diff.ts</span></span><span class="row" style="gap: 6px"><span class="cnt"><span class="a">+42</span> <span class="d"></span></span></span></a>
+
+<a href="#" class="frow" title="apps/web/src/lib/editor.ts · eliminado"><span class="st st-d">D</span><span class="row" style="gap: 6px; min-width: 0"><span class="fname">editor.ts</span></span><span class="row" style="gap: 6px"><span class="cnt"><span class="a"></span> <span class="d">−10</span></span></span></a>
+
+
+<div class="fdir"><svg class="ico ico-sm" viewBox="0 0 24 24" style="width: 12px; height: 12px"><path d="m6 9 6 6 6-6"></path></svg>apps/web/test</div>
+
+<a href="#" class="frow" title="apps/web/test/diff.test.ts · añadido · sin commit"><span class="st st-a">A</span><span class="row" style="gap: 6px; min-width: 0"><span class="fname">diff.test.ts</span><span title="Sin commit todavía" style="width: 6px; height: 6px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--fg-3); flex-shrink: 0"></span></span><span class="row" style="gap: 6px"><span class="cnt"><span class="a">+13</span> <span class="d"></span></span></span></a>
+
+
+<div class="fdir"><svg class="ico ico-sm" viewBox="0 0 24 24" style="width: 12px; height: 12px"><path d="m6 9 6 6 6-6"></path></svg>packages/core/src</div>
+
+<a href="#" class="frow sel" title="packages/core/src/git.ts · modificado"><span class="st st-m">M</span><span class="row" style="gap: 6px; min-width: 0"><span class="fname">git.ts</span></span><span class="row" style="gap: 6px"><span class="cnt"><span class="a">+11</span> <span class="d">−5</span></span></span></a>
+
+
+<div class="fdir"><svg class="ico ico-sm" viewBox="0 0 24 24" style="width: 12px; height: 12px"><path d="m6 9 6 6 6-6"></path></svg>packages/shared/src</div>
+
+<a href="#" class="frow seen" title="packages/shared/src/types.ts · modificado"><span class="st st-m">M</span><span class="row" style="gap: 6px; min-width: 0"><span class="fname">types.ts</span></span><span class="row" style="gap: 6px"><svg class="ico ico-sm fg-3" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="m5 12 5 5 9-10"></path></svg><span class="cnt"><span class="a">+6</span> <span class="d">−1</span></span></span></a>
+
+
+</nav>
+<div class="col" style="gap: 8px; padding: 12px 18px 14px; border-top: 1px solid var(--line)">
+<span class="row t-xs fg-3" style="gap: 6px; white-space: nowrap"><span style="width: 6px; height: 6px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--fg-3)"></span>sin commit<span style="width: 8px"></span><span class="spin-braille"></span>Claude lo está editando</span>
+<span class="row t-xs fg-3" style="gap: 5px; white-space: nowrap"><span class="kbd">j</span><span class="kbd">k</span>bloques<span style="width: 8px"></span><span class="kbd">n</span><span class="kbd">p</span>archivos</span>
+</div>
+</aside>
+
+
+
+<section class="col grow" style="gap: 0; min-width: 0" aria-label="packages/core/src/git.ts">
+<div class="dv-head">
+<span class="path grow"><span class="dir">packages/core/src/</span><span class="name">git.ts</span></span>
+<span class="cnt"><span class="a">+11</span> <span class="d">−5</span></span>
+<span style="width: 1px; height: 20px; background: var(--line-2); margin: 0 4px"></span>
+<div class="seg seg-compact" role="radiogroup" aria-label="Cómo comparar" style="padding: 2px">
+<button type="button" role="radio" aria-checked="true" class="on" title="Lectura: el archivo como queda; lo quitado, plegado" style="height: 26px; padding: 0 9px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"></path></svg><span class="lbl">Lectura</span></button>
+<button type="button" role="radio" aria-checked="false" class="" title="Unificado" style="height: 26px; padding: 0 9px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></svg><span class="lbl">Unificado</span></button>
+<button type="button" role="radio" aria-checked="false" class="" title="Lado a lado" style="height: 26px; padding: 0 9px"><svg class="ico ico-sm" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M12 4v16"></path></svg><span class="lbl">Lado a lado</span></button>
+</div>
+<span class="row mono t-xs fg-2" style="gap: 2px; margin-left: 6px; white-space: nowrap"><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Bloque anterior" style="width: 26px; height: 26px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"></path></svg></button><span style="padding: 0 2px">2 / 5</span><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Bloque siguiente" style="width: 26px; height: 26px"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button></span>
+<button type="button" class="chip" role="checkbox" aria-checked="false" style="height: 28px"><span style="width: 13px; height: 13px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--fg-3)"></span>Visto<span class="kbd" style="padding: 2px 4px">v</span></button>
+<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Más acciones del archivo"><svg class="ico" viewBox="0 0 24 24" style="stroke-width: 3"><path d="M5 12h.01M12 12h.01M19 12h.01"></path></svg></button>
+</div>
+<div class="why" style="padding: 10px 18px; border-bottom: 1px solid var(--line); align-items: center"><svg class="spark" viewBox="0 0 24 24" fill="currentColor" style="margin-top: 0"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"></path></svg><span class="grow ellipsis"><q>Un binario imprime <code>-</code> en los dos contadores; lo dejo dicho en un comentario.</q></span><span class="mono t-xs fg-3" style="white-space: nowrap">último de 3 pasos · 14:03</span><a href="DesktopCambiosPasos.html" class="t-xs c-accent" style="white-space: nowrap">Ver los pasos</a></div>
+
+
+<div class="app dv dv-read" data-theme="dark" style="display: flex; width: 895px; height: 760px; overflow: hidden">
+<div style="flex: 1 1 auto; min-width: 0; overflow: hidden; padding: 10px 0 24px">
+
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">1</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">import</span><span class=""> { execFileSync } </span><span class="sx-kw">from</span><span class=""> </span><span class="sx-str">'node:child_process'</span><span class="">;</span></span></span></div>
+
+
+
+
+
+<div class="dv-row mod"><span class="dv-num">2</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">import</span><span class=""> </span><span class="sx-kw">type</span><span class=""> { </span><span class="sx-type">ChangedFile</span><span class="">, </span><span class="sx-type">Commit</span></span><span class="wd"><span class="">, </span><span class="sx-type">DiffContext</span></span><span class=""><span class=""> } </span><span class="sx-kw">from</span><span class=""> </span><span class="sx-str">'@agentry/shared'</span><span class="">;</span></span></span><button type="button" class="dv-ghost" aria-label="Mostrar lo quitado">−1</button></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">3</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">4</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com">/** Lines of context that stand for "the whole file": git has no flag of its own for it. */</span></span></span></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">5</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">const</span><span class=""> </span><span class="sx-type">WHOLE_FILE</span><span class=""> = </span><span class="sx-num">1_000_000</span><span class="">;</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">6</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">7</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com">/** Runs git in `dir` and returns what it printed, without the last newline. */</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">8</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">git</span><span class="">(dir: string, args: string[]): string {</span></span></span></div>
+
+
+
+
+
+<div class="dv-row mod"><span class="dv-num">9</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">return</span><span class=""> </span><span class="sx-fn">execFileSync</span><span class="">(</span><span class="sx-str">'git'</span><span class="">, args, { cwd: dir, encoding: </span><span class="sx-str">'utf8'</span><span class="">, maxBuffer: </span></span><span class="wd"><span class="sx-num">64</span></span><span class=""><span class=""> * </span><span class="sx-num">1024</span><span class=""> * </span><span class="sx-num">1024</span><span class=""> }).</span><span class="sx-fn">replace</span><span class="">(/\n$/, </span><span class="sx-str">''</span><span class="">);</span></span></span><button type="button" class="dv-ghost" aria-label="Mostrar lo quitado">−1</button></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">10</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">}</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">11</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">12</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">export</span><span class=""> </span><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">isGitRepo</span><span class="">(dir: string): boolean {</span></span></span></div>
+
+
+
+<div class="dv-fold"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"></path></svg><span>21 líneas sin cambios</span><span class="fold-where">· en <span class="where">aheadCount()</span></span><button type="button" class="btn btn-ghost">Mostrar</button></div>
+
+
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">34</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">35</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com">/**</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">36</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com"> * One file's diff against `base`, exactly as git prints it. Without `ref` the working tree is the</span></span></span></div>
+
+
+
+
+
+<div class="dv-row mod"><span class="dv-num">37</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com"> * other side, so what the worker has not committed yet is part of it. </span></span><span class="wd"><span class="sx-com">`context` is the number of</span></span></span><button type="button" class="dv-ghost" aria-label="Mostrar lo quitado">−1</button></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">38</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com"> * unchanged lines around each change, or `'full'` for the whole file in one hunk.</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">39</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com"> */</span></span></span></div>
+
+
+
+
+
+<div class="dv-row mod"><span class="dv-num">40</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">export</span><span class=""> </span><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">fileDiff</span><span class="">(dir: string, base: string, ref: string | </span><span class="sx-kw">undefined</span><span class="">, paths: string[]</span></span><span class="wd"><span class="">, context: </span><span class="sx-type">DiffContext</span><span class=""> = </span><span class="sx-num">3</span></span><span class=""><span class="">): string {</span></span></span><button type="button" class="dv-ghost" aria-label="Mostrar lo quitado">−2</button></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">41</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">const</span><span class=""> unified = context === </span><span class="sx-str">'full'</span><span class=""> ? </span><span class="sx-type">WHOLE_FILE</span><span class=""> : </span><span class="sx-type">Math</span><span class="">.</span><span class="sx-fn">max</span><span class="">(</span><span class="sx-num">0</span><span class="">, </span><span class="sx-type">Math</span><span class="">.</span><span class="sx-fn">min</span><span class="">(context, </span><span class="sx-num">500</span><span class="">));</span></span></span></div>
+
+
+
+
+
+<div class="dv-row mod"><span class="dv-num">42</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">const</span><span class=""> args = [</span><span class="sx-str">'diff'</span><span class="">, </span><span class="sx-str">'--no-color'</span><span class="">, </span><span class="sx-str">'--find-renames'</span><span class="">, </span></span><span class="wd"><span class="sx-str">`--unified=${unified}`</span><span class="">,</span></span><span class=""><span class=""> base];</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">43</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">if</span><span class=""> (ref) args.</span><span class="sx-fn">push</span><span class="">(ref);</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">44</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  args.</span><span class="sx-fn">push</span><span class="">(</span><span class="sx-str">'--'</span><span class="">, ...paths);</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">45</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">return</span><span class=""> </span><span class="sx-fn">git</span><span class="">(dir, args);</span></span></span></div>
+
+
+
+<div class="dv-fold"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"></path></svg><span>19 líneas sin cambios</span><span class="fold-where">· en <span class="where">diffFiles()</span></span><button type="button" class="btn btn-ghost">Mostrar</button></div>
+
+
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">65</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">66</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">parseNumstat</span><span class="">(line: string): </span><span class="sx-type">ChangedFile</span><span class=""> {</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">67</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">const</span><span class=""> [added = </span><span class="sx-str">'0'</span><span class="">, deleted = </span><span class="sx-str">'0'</span><span class="">, path = </span><span class="sx-str">''</span><span class="">] = line.</span><span class="sx-fn">split</span><span class="">(</span><span class="sx-str">'\t'</span><span class="">);</span></span></span></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">68</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-com">// A binary file prints `-` for both counts: nothing to count, but still a change</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">69</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">return</span><span class=""> { path, status: </span><span class="sx-str">'modified'</span><span class="">, additions: </span><span class="sx-type">Number</span><span class="">(added) || </span><span class="sx-num">0</span><span class="">, deletions: </span><span class="sx-type">Number</span><span class="">(deleted) || </span><span class="sx-num">0</span><span class=""> };</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">70</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">}</span></span></span></div>
+
+
+
+
+
+
+
+
+</div>
+
+<div class="dv-map" aria-hidden="true"><div class="view" style="top: 0%; height: 52%"></div><i class="tick mod" style="top: 1.43%; height: 5.71%"></i><i class="tick mod cur" style="top: 11.43%; height: 1.43%"></i><i class="tick mod" style="top: 51.43%; height: 2.86%"></i><i class="tick mod" style="top: 55.71%; height: 4.29%"></i><i class="tick add" style="top: 95.71%; height: 1.43%"></i></div>
+
+</div>
+
+</section>
+</div>
+
+
+
+<footer class="app statusbar" data-theme="dark" style="width: 1184px">
+<a href="DesktopCuentas.html" class="row" style="gap: 7px"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>yeyo@inmoseo.net</a>
+<span class="row" style="gap: 6px">5h<span class="bar bar-thin grad"><i style="width: 45%"></i></span>45%</span>
+<span class="row" style="gap: 6px">7d<span class="bar bar-thin grad"><i style="width: 5%"></i></span>5%</span>
+<span class="grow"></span>
+<span class="row" style="gap: 6px"><span class="spin-braille"></span>3 en marcha</span>
+<span>hoy 3,41 US$</span>
+<span>Claude Code 2.1.282</span>
+</footer>
+
+</div>
+</div>
+</body></html>
