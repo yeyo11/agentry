@@ -13,6 +13,8 @@ import type {
   AutoSwitchEvent,
   AutoSwitchSettings,
   CswapInfo,
+  CswapManagedInfo,
+  CswapSource,
   RotationPolicy,
   SwitchResult,
   SwitchStrategy,
@@ -21,6 +23,8 @@ import type {
 } from '@agentry/shared';
 import { AccountConfigs, pickAccount } from './account-config.ts';
 import { writeAtomic } from './config/files.ts';
+import { CswapInstaller, type CswapInstallerOptions } from './cswap-install.ts';
+import { CSWAP_VERSION, cswapCompatible } from './cswap-pin.ts';
 import type { Db } from './db.ts';
 import type { CoreConfig } from './paths.ts';
 
@@ -148,6 +152,15 @@ interface ExecResult {
   code: number;
 }
 
+export interface AccountManagerOptions {
+  installer?: CswapInstallerOptions;
+  /** Environment the `cswap` children inherit, `PATH` included */
+  env?: NodeJS.ProcessEnv;
+}
+
+/** A refusal the API answers with 409 rather than 400 */
+const conflict = (message: string) => Object.assign(new Error(message), { statusCode: 409 });
+
 /**
  * Thin layer over `cswap …`: claude-swap stays the owner of the account credentials, the
  * usage polling and the rotation policy. Everything degrades to "not installed" without it.
@@ -156,6 +169,10 @@ export class AccountManager extends EventEmitter {
   private readonly file: string;
   private settings: AutoSwitchSettings = { ...DEFAULT_AUTO_SWITCH };
   private detectCache: { at: number; value: CswapInfo } | null = null;
+  /** The `cswap` detect() settled on; every child runs this one */
+  private resolved: string | null = null;
+  readonly installer: CswapInstaller;
+  private readonly env: NodeJS.ProcessEnv;
   private listCache: { at: number; value: AccountSummary[] } | null = null;
   private auto: ChildProcessWithoutNullStreams | null = null;
   private restartTimer: NodeJS.Timeout | null = null;
@@ -172,8 +189,11 @@ export class AccountManager extends EventEmitter {
   constructor(
     private readonly config: CoreConfig,
     private readonly db: Db,
+    opts: AccountManagerOptions = {},
   ) {
     super();
+    this.env = opts.env ?? process.env;
+    this.installer = new CswapInstaller(config.dataDir, { env: this.env, ...opts.installer });
     this.file = join(config.dataDir, 'accounts.json');
     this.configs = new AccountConfigs(config);
     if (existsSync(this.file)) {
@@ -188,12 +208,17 @@ export class AccountManager extends EventEmitter {
 
   // ---------- process plumbing ----------
 
-  private exec(args: string[], opts: { timeoutMs?: number; input?: string } = {}): Promise<ExecResult> {
+  /** The `cswap` every child runs: the one detect() resolved, or whatever `PATH` has before that. */
+  get bin(): string {
+    return this.resolved ?? this.config.cswapBin ?? 'cswap';
+  }
+
+  private exec(args: string[], opts: { timeoutMs?: number; input?: string; bin?: string } = {}): Promise<ExecResult> {
     return new Promise((resolvePromise) => {
       const child = execFile(
-        this.config.cswapBin,
+        opts.bin ?? this.bin,
         args,
-        { timeout: opts.timeoutMs ?? CMD_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024, env: authFreeEnv() },
+        { timeout: opts.timeoutMs ?? CMD_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024, env: authFreeEnv(this.env) },
         (error, stdout, stderr) => {
           const code = error ? (typeof error.code === 'number' ? error.code : 1) : 0;
           resolvePromise({ stdout, stderr: stderr || (error && code !== 0 ? error.message : ''), code });
@@ -228,20 +253,106 @@ export class AccountManager extends EventEmitter {
 
   // ---------- reads ----------
 
+  private async probe(bin: string): Promise<{ bin: string; version: string | null; error?: string }> {
+    const res = await this.exec(['--version'], { timeoutMs: 15_000, bin });
+    if (res.code === 0) return { bin, version: res.stdout.trim().split(/\s+/).at(-1) ?? null };
+    return { bin, version: null, error: res.stderr.trim().slice(0, 300) || `'${bin}' was not found in PATH` };
+  }
+
+  /** Agentry may install and remove its own copy: never over a binary the operator chose. */
+  private get managedAvailable(): boolean {
+    return this.config.cswapManaged && !this.config.cswapBin && this.installer.asset !== null;
+  }
+
+  private managedInfo(version: string | null): CswapManagedInfo {
+    const error = this.installer.error;
+    return {
+      available: this.managedAvailable,
+      state: this.installer.state,
+      version,
+      ...(this.installer.step ? { step: this.installer.step } : {}),
+      ...(error ? { error } : {}),
+    };
+  }
+
+  /**
+   * Which `cswap` runs. `CSWAP_BIN` wins whatever it is; then one on the `PATH` whose output Agentry
+   * understands, so someone who installed claude-swap keeps theirs; then Agentry's managed copy; and
+   * last an incompatible one on the `PATH`, used with a warning rather than not at all.
+   */
   async detect(force = false): Promise<CswapInfo> {
     if (!force && this.detectCache && Date.now() - this.detectCache.at < DETECT_TTL_MS) return this.detectCache.value;
-    const res = await this.exec(['--version'], { timeoutMs: 15_000 });
-    const value: CswapInfo =
-      res.code === 0
-        ? { installed: true, version: res.stdout.trim().split(' ').at(-1) ?? null, path: this.config.cswapBin }
-        : {
-            installed: false,
-            version: null,
-            path: null,
-            error: res.stderr.trim().slice(0, 300) || `'${this.config.cswapBin}' was not found in PATH`,
-          };
+    const managed = existsSync(this.installer.bin) ? await this.probe(this.installer.bin) : null;
+    let pick: { bin: string; version: string | null; error?: string };
+    let source: CswapSource;
+    if (this.config.cswapBin) {
+      pick = await this.probe(this.config.cswapBin);
+      source = 'env';
+    } else {
+      const onPath = await this.probe('cswap');
+      if (onPath.version && cswapCompatible(onPath.version)) [pick, source] = [onPath, 'path'];
+      else if (managed?.version) [pick, source] = [managed, 'managed'];
+      else [pick, source] = [onPath, 'path'];
+    }
+    const installed = pick.version !== null;
+    const value: CswapInfo = {
+      installed,
+      version: pick.version,
+      path: installed ? pick.bin : null,
+      ...(pick.error && !installed ? { error: pick.error } : {}),
+      source: installed ? source : null,
+      compatible: cswapCompatible(pick.version),
+      pinned: CSWAP_VERSION,
+      managed: this.managedInfo(managed?.version ?? null),
+    };
+    this.resolved = installed ? pick.bin : null;
     this.detectCache = { at: Date.now(), value };
     return value;
+  }
+
+  /** The cached answer with the install's progress, which moves faster than the cache expires. */
+  private async cswapInfo(refresh: boolean): Promise<CswapInfo> {
+    // An install that just landed is picked up now, not when the cache happens to expire
+    const landed = this.installer.state === 'installed' && this.detectCache?.value.managed.version == null;
+    const info = await this.detect(refresh || landed);
+    return { ...info, managed: this.managedInfo(info.managed.version) };
+  }
+
+  // ---------- the managed copy ----------
+
+  /**
+   * Starts installing the pinned claude-swap into the data directory and returns at once; the page
+   * follows the progress through `GET /accounts`. When it lands, everything that waits for
+   * claude-swap at boot starts now.
+   */
+  async installCswap(): Promise<CswapInfo> {
+    if (!this.managedAvailable) throw conflict('this Agentry does not install claude-swap itself (Docker image, CSWAP_BIN or AGENTRY_CSWAP_MANAGED=0)');
+    const upgrading = this.detectCache?.value.source === 'managed';
+    if (upgrading) this.stopAuto();
+    void this.installer.install().then(async () => {
+      await this.detect(true);
+      await this.list(true).catch(() => []);
+      this.startSampler();
+      if (this.settings.enabled) await this.startAuto().catch(() => {});
+      this.emit('cswap', await this.cswapInfo(false));
+    });
+    return this.cswapInfo(false);
+  }
+
+  /** Deletes the managed copy. The accounts stay in claude-swap's data dir for any other cswap. */
+  async removeCswap(): Promise<CswapInfo> {
+    if (!this.managedAvailable) throw conflict('this Agentry does not manage a copy of claude-swap');
+    const wasManaged = this.detectCache?.value.source === 'managed';
+    if (wasManaged) this.stopAuto();
+    await this.installer.remove();
+    const info = await this.detect(true);
+    this.listCache = null;
+    if (info.installed) {
+      await this.list(true).catch(() => []);
+      if (wasManaged && this.settings.enabled) await this.startAuto().catch(() => {});
+    }
+    this.emit('cswap', info);
+    return info;
   }
 
   async list(refresh = false): Promise<AccountSummary[]> {
@@ -278,7 +389,7 @@ export class AccountManager extends EventEmitter {
   }
 
   async overview(refresh = false): Promise<AccountsOverview> {
-    const [cswap, accounts] = await Promise.all([this.detect(refresh), this.list(refresh)]);
+    const [cswap, accounts] = await Promise.all([this.cswapInfo(refresh), this.list(refresh)]);
     return {
       cswap,
       accounts,
@@ -570,7 +681,7 @@ export class AccountManager extends EventEmitter {
     ];
     if (this.settings.models.length) args.push('--model', this.settings.models.join(','));
 
-    const child = spawn(this.config.cswapBin, args, { env: authFreeEnv(), stdio: 'pipe' });
+    const child = spawn(this.bin, args, { env: authFreeEnv(this.env), stdio: 'pipe' });
     this.auto = child;
     createInterface({ input: child.stdout }).on('line', (line) => this.handleAutoLine(line));
     createInterface({ input: child.stderr }).on('line', (line) => {
@@ -608,6 +719,9 @@ export class AccountManager extends EventEmitter {
     await this.list(true).catch(() => []);
     this.startSampler();
     if (this.settings.enabled) await this.startAuto().catch(() => {});
+    // An Agentry update that moved the pin brings the managed copy along, in the background
+    const managed = this.detectCache?.value.managed;
+    if (managed?.available && managed.version && managed.version !== CSWAP_VERSION) await this.installCswap().catch(() => {});
   }
 
   /** Reads the usage now and then, so the history has points while nobody has the page open. */

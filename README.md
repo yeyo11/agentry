@@ -332,7 +332,8 @@ transpiler.
 | `ANTHROPIC_API_KEY` | – | Alternative: API key billing |
 | `PORT` / `HOST` | `8787` / `127.0.0.1` (`0.0.0.0` in the image) | API listen address. Loopback by default because the API runs commands on the machine and starts with no credential; the image opens it because Compose publishes the container on `127.0.0.1` anyway. Binding every interface while the mode is `none` logs a warning |
 | `CLAUDE_BIN` | `claude` | CLI binary to use |
-| `CSWAP_BIN` | `cswap` | claude-swap binary. With accounts registered it owns the credential, and the token above is ignored |
+| `CSWAP_BIN` | – | claude-swap binary. Unset, Agentry uses a compatible `cswap` on the `PATH`, else the copy it installed itself. With accounts registered claude-swap owns the credential, and the token above is ignored |
+| `AGENTRY_CSWAP_MANAGED` | on (off in the image) | `0` stops Agentry from installing claude-swap itself (see [Accounts](#accounts-multi-account)) |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude config dir (`/home/node/.claude` in the image) |
 | `AGENTRY_WORKSPACE_DIR` | `./workspace` | Default working directory for runs |
 | `AGENTRY_DATA_DIR` | `./data` | Wrapper state |
@@ -527,6 +528,16 @@ which owns the credential file, polls each account's 5h/7d/per-model usage and s
 under Claude Code's own locks. Without it installed every route answers
 `{"cswap": {"installed": false}, "accounts": []}` and the wrapper stays single-account.
 
+**Where `cswap` comes from.** The Docker image bakes in the version Agentry parses. Anywhere else,
+the first match wins: `CSWAP_BIN`; a `cswap` on the `PATH` whose version Agentry understands; the
+copy Agentry installed itself; and last an incompatible one on the `PATH`, used with a warning.
+The Accounts page installs that copy with one button: a pinned uv, checked against its digest,
+installs the pinned claude-swap (and a Python 3.12 when the system has none) entirely inside the
+data directory, and nothing else on the system is touched. An Agentry update that moves the pin
+upgrades the copy in the background. Removing it keeps the accounts, which live in claude-swap's own
+data directory. `cswap.source`, `cswap.compatible` and `cswap.managed` in `GET /accounts` say which
+binary is in use and how the install is going.
+
 Register each account with a token from `claude setup-token` (there is no interactive login in a
 container). **From the first registered account on, claude-swap owns authentication:** the wrapper
 stops injecting `CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_API_KEY`, because the CLI reads the
@@ -535,6 +546,8 @@ environment before the credential file.
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/accounts?refresh=1` | Accounts with usage per window, the active one, auto-rotation settings and the rotation log |
+| POST | `/accounts/cswap/install` | Install (or retry, or upgrade) Agentry's own copy of the pinned claude-swap; answers at once with `managed.state: installing`. `409` in the Docker image or with `CSWAP_BIN` |
+| DELETE | `/accounts/cswap` | Remove Agentry's copy of claude-swap; the accounts are kept |
 | POST | `/accounts/switch` | `{ target?, strategy? }` — a slot number, email or alias; without a target it rotates (`best` \| `next-available`) |
 | POST | `/accounts/token` | `{ token, slot?, email? }` — register an account. The token goes to `cswap add-token` over stdin and is never returned |
 | DELETE | `/accounts/:number` | Remove an account |

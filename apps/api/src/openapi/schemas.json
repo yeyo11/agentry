@@ -3790,14 +3790,94 @@
       },
       "error": {
         "type": "string"
+      },
+      "source": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CswapSource"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "compatible": {
+        "type": "boolean",
+        "description": "The version is one whose `--json` output Agentry parses"
+      },
+      "pinned": {
+        "type": "string",
+        "description": "The version Agentry installs and is tested against"
+      },
+      "managed": {
+        "$ref": "#/components/schemas/CswapManagedInfo"
       }
     },
     "required": [
       "installed",
       "version",
-      "path"
+      "path",
+      "source",
+      "compatible",
+      "pinned",
+      "managed"
     ],
     "description": "The `cswap` binary that owns the account credentials, when it is installed."
+  },
+  "CswapSource": {
+    "type": "string",
+    "enum": [
+      "env",
+      "path",
+      "managed"
+    ],
+    "description": "Where the `cswap` in use came from: `CSWAP_BIN`, the `PATH`, or the copy Agentry installed in its own data directory."
+  },
+  "CswapManagedInfo": {
+    "type": "object",
+    "properties": {
+      "available": {
+        "type": "boolean",
+        "description": "False in the Docker image (claude-swap is baked in), with `CSWAP_BIN`, or with `AGENTRY_CSWAP_MANAGED=0`"
+      },
+      "state": {
+        "$ref": "#/components/schemas/CswapInstallState"
+      },
+      "step": {
+        "type": "string",
+        "enum": [
+          "uv",
+          "claude-swap"
+        ],
+        "description": "While installing: fetching uv, or uv installing claude-swap (and Python, when the system lacks it)"
+      },
+      "version": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Version of the managed copy, when there is one"
+      },
+      "error": {
+        "type": "string",
+        "description": "Why the last install failed"
+      }
+    },
+    "required": [
+      "available",
+      "state",
+      "version"
+    ]
+  },
+  "CswapInstallState": {
+    "type": "string",
+    "enum": [
+      "absent",
+      "installing",
+      "installed",
+      "failed"
+    ],
+    "description": "Progress of the copy of claude-swap Agentry installs itself."
   },
   "AutoSwitchSettings": {
     "type": "object",

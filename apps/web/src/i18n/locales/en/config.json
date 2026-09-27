@@ -178,6 +178,12 @@
   "cli": {
     "title": "Claude Code",
     "version": "In use",
+    "cswap": "claude-swap",
+    "cswapSource": {
+      "managed": "installed by Agentry",
+      "path": "on the PATH",
+      "env": "from CSWAP_BIN"
+    },
     "notInstalled": "not installed",
     "pinned": "Pinned by the image",
     "notPinned": "not pinned (the image installs whatever was current when it was built)",
@@ -717,7 +723,7 @@
     "needsCswap": "Multi-account support needs claude-swap",
     "refreshUsage": "Refresh usage",
     "notInstalled": "claude-swap is not installed",
-    "notInstalledHint": "Several accounts and automatic rotation are delegated to <anchor>claude-swap</anchor>. Install it with <code>uv tool install claude-swap</code> (it ships in the Docker image), then register each account with a token from <code>claude setup-token</code>.",
+    "notInstalledHint": "Several accounts and automatic rotation are delegated to <anchor>claude-swap</anchor>. Once it is installed, each account is registered with a token from <code>claude setup-token</code>.",
     "switched": "Switched to {{email}}",
     "switchFailed": "Switched to {{email}} failed",
     "backInRotation": "{{email}} back in rotation",

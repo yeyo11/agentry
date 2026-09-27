@@ -124,6 +124,11 @@ test('accounts degrade and validate without claude-swap', async () => {
   assert.deepEqual(overview.accounts, []);
   assert.equal(overview.activeNumber, null);
   assert.equal(overview.autoSwitchRunning, false);
+  // CSWAP_BIN is the operator's choice: Agentry installs and removes nothing over it
+  assert.equal(overview.cswap.source, null);
+  assert.equal(overview.cswap.managed.available, false);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/accounts/cswap/install' })).statusCode, 409);
+  assert.equal((await app.inject({ method: 'DELETE', url: '/api/accounts/cswap' })).statusCode, 409);
 
   // Identifiers and settings are rejected before anything is spawned
   assert.equal((await app.inject({ method: 'POST', url: '/api/accounts/switch', ...json({ target: '--help' }) })).statusCode, 400);

@@ -9,7 +9,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import Fastify from 'fastify';
-import { Core, loadConfig } from '@agentry/core';
+import { Core, CSWAP_VERSION, UV_VERSION, loadConfig } from '@agentry/core';
 import { buildApp } from '../src/app.ts';
 import { listenOn } from '../src/server.ts';
 
@@ -50,6 +50,11 @@ test('the Agentry release is read without asking GitHub, and the image says it i
   assert.equal(before.updateAvailable, false);
   assert.match(dockerfile, /^\s+AGENTRY_DISTRIBUTION=docker$/m);
   await app.close();
+});
+
+test('the image bakes the claude-swap and uv the managed install pins', () => {
+  assert.equal(/^ARG CLAUDE_SWAP_VERSION=(.*)$/m.exec(dockerfile)?.[1], CSWAP_VERSION);
+  assert.equal(/^ARG UV_VERSION=(.*)$/m.exec(dockerfile)?.[1], UV_VERSION);
 });
 
 test('closing the server does not wait for a browser tab that is still listening to the event stream', async () => {

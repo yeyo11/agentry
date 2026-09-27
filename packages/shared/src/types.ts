@@ -1819,12 +1819,39 @@ export interface ConnectorsOverview {
 
 // ---------- Accounts (claude-swap) ----------
 
+/**
+ * Where the `cswap` in use came from: `CSWAP_BIN`, the `PATH`, or the copy Agentry installed in its
+ * own data directory.
+ */
+export type CswapSource = 'env' | 'path' | 'managed';
+
+/** Progress of the copy of claude-swap Agentry installs itself. */
+export type CswapInstallState = 'absent' | 'installing' | 'installed' | 'failed';
+
+export interface CswapManagedInfo {
+  /** False in the Docker image (claude-swap is baked in), with `CSWAP_BIN`, or with `AGENTRY_CSWAP_MANAGED=0` */
+  available: boolean;
+  state: CswapInstallState;
+  /** While installing: fetching uv, or uv installing claude-swap (and Python, when the system lacks it) */
+  step?: 'uv' | 'claude-swap';
+  /** Version of the managed copy, when there is one */
+  version: string | null;
+  /** Why the last install failed */
+  error?: string;
+}
+
 /** The `cswap` binary that owns the account credentials, when it is installed. */
 export interface CswapInfo {
   installed: boolean;
   version: string | null;
   path: string | null;
   error?: string;
+  source: CswapSource | null;
+  /** The version is one whose `--json` output Agentry parses */
+  compatible: boolean;
+  /** The version Agentry installs and is tested against */
+  pinned: string;
+  managed: CswapManagedInfo;
 }
 
 /** One rate-limit window as claude-swap reports it. */
