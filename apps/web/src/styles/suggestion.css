@@ -1,0 +1,386 @@
+/*
+ * A suggestion run and its proposals, shared by the project assistant (pages/assistant), "Suggest
+ * tasks" on the board and the resources with AI: section 17 of docs/design-system/agentry-ds.css
+ * (`.ai-*` and `.sug-*` there, mapped in §2 of docs/design-system.md). Every run is a CLI chat, so
+ * it always says its model, its time, its cost and its chat. A run in progress is live: the braille
+ * spinner beside its verb and the energy border on its one surface. A finished run, and every
+ * proposal it left, stand still.
+ */
+
+/* The assistant's sparkle on a neutral tile. Cyan only inside a live run; never the gradient. */
+.suggestion-mark {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  color: var(--fg-2);
+}
+
+.suggestion-mark svg {
+  width: 16px;
+  height: 16px;
+}
+
+.suggestion-mark.is-sm {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+}
+
+.suggestion-mark.is-sm svg {
+  width: 13px;
+  height: 13px;
+}
+
+.suggestion-run.is-live .suggestion-mark {
+  background: var(--live-soft);
+  border-color: transparent;
+  color: var(--live);
+}
+
+/* A run: what it is doing now, or, folded into one still line, what it did */
+.suggestion-run {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  box-shadow: var(--shadow);
+}
+
+.suggestion-run.is-done {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+
+.suggestion-run-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.suggestion-run-text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.suggestion-run-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.suggestion-run-now {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.suggestion-run-now .ticker-target {
+  font-size: 12px;
+}
+
+.suggestion-run-elapsed {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--fg-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.suggestion-run-divider {
+  width: 100%;
+  height: 1px;
+  margin: 0;
+  border: 0;
+  background: var(--line);
+}
+
+.suggestion-run-part {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Model, time, cost and chat. The cost is the one fact in --fg-2: the owner asked to see it on every run. */
+.suggestion-facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.suggestion-facts > * + *::before {
+  content: '·';
+  display: inline-block;
+  margin: 0 7px;
+  color: var(--fg-3);
+  text-decoration: none;
+}
+
+.suggestion-facts .cost {
+  color: var(--fg-2);
+  font-weight: 500;
+}
+
+.suggestion-facts a {
+  color: var(--fg-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line-3);
+  text-underline-offset: 2px;
+}
+
+/* What the run read: one line per source, the one being read with the braille spinner */
+.suggestion-steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.suggestion-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+
+.suggestion-step > svg,
+.suggestion-step > .spinner-glyph {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--fg-3);
+  text-align: center;
+  line-height: 14px;
+}
+
+.suggestion-step .path {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.suggestion-step .n {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.suggestion-step.is-now {
+  color: var(--fg);
+}
+
+.suggestion-step.is-now > .spinner-glyph {
+  color: var(--live);
+}
+
+.suggestion-step.is-todo {
+  color: var(--fg-3);
+}
+
+.suggestion-found {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+/* A section waiting for the reading: dashed and still, "waiting" in words */
+.suggestion-wait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  margin: 12px 14px;
+  padding: 8px 12px;
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--line-2);
+  color: var(--fg-3);
+  font-size: 12px;
+  text-align: center;
+}
+
+.suggestion-wait svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* One proposal and its reason, accepted or discarded on its own */
+.suggestion-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.suggestion-row:last-child {
+  border-bottom: 0;
+}
+
+.suggestion-row.is-compact {
+  align-items: center;
+  padding: 10px 14px;
+}
+
+.suggestion-row > .checkbox {
+  margin-top: 2px;
+}
+
+.suggestion-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.suggestion-row.is-compact .suggestion-main {
+  gap: 2px;
+}
+
+.suggestion-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.38;
+}
+
+.suggestion-title .mono {
+  font-size: 13px;
+}
+
+.suggestion-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.suggestion-meta .mono {
+  font-size: 11px;
+}
+
+.suggestion-meta-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* The reason is the assistant's own words, so it reads as a quote under the title */
+.suggestion-reason {
+  margin: 0;
+  padding-left: 10px;
+  box-shadow: inset 2px 0 0 var(--line-2);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+
+.suggestion-acts {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.suggestion-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+
+.suggestion-row.is-discarded .suggestion-title {
+  color: var(--fg-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--line-3);
+}
+
+.suggestion-row.is-discarded .suggestion-reason,
+.suggestion-row.is-discarded .suggestion-meta {
+  display: none;
+}
+
+.suggestion-like {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--fg-2);
+}
+
+/* A phone never shows checkboxes: "Include" / "Included", with the accent ring when included */
+.suggestion-pick[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.suggestion-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.suggestion-card:last-child {
+  border-bottom: 0;
+}
+
+.suggestion-card .suggestion-acts > .btn {
+  flex: 1 1 0;
+  min-height: 44px;
+}
+
+.suggestion-card .suggestion-title {
+  font-size: 15px;
+}
+
+.suggestion-card .suggestion-reason {
+  font-size: 14px;
+}

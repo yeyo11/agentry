@@ -1,0 +1,46 @@
+{
+  "facts": {
+    "soFar": "{{cost}} hasta ahora",
+    "noCost": "sin coste",
+    "chat": "chat {{id}}",
+    "elapsed": "Lleva {{time}}"
+  },
+  "stop": "Detener",
+  "similarTo": "Parecida a",
+  "count": {
+    "pending": "después",
+    "missing": "no existe",
+    "partial": "{{n}} de {{total}}",
+    "lines_one": "{{n}} línea",
+    "lines_other": "{{n}} líneas",
+    "files_one": "{{n}} archivo",
+    "files_other": "{{n}} archivos",
+    "documents_one": "{{n}} documento",
+    "documents_other": "{{n}} documentos",
+    "chats_one": "{{n}} chat",
+    "chats_other": "{{n}} chats",
+    "commits_one": "{{n}} commit",
+    "commits_other": "{{n}} commits",
+    "items_one": "{{n}} tarea",
+    "items_other": "{{n}} tareas",
+    "entries_one": "{{n}} entrada",
+    "entries_other": "{{n}} entradas",
+    "members_one": "{{n}} miembro",
+    "members_other": "{{n}} miembros"
+  },
+  "source": {
+    "and": "y",
+    "reading": "(leyendo ahora)",
+    "file": "Un archivo",
+    "dir": "Un directorio",
+    "instructions": "Las instrucciones del proyecto",
+    "memory": "La memoria del proyecto",
+    "journal": "El diario del proyecto",
+    "work-items": "El tablero",
+    "milestones": "Los hitos abiertos",
+    "team": "El equipo",
+    "resources": "Los recursos del proyecto",
+    "chats": "Los chats de Claude Code en este directorio",
+    "git": "El historial de git"
+  }
+}
