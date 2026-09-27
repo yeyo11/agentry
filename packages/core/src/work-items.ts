@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import {
+  DOCUMENT_KINDS,
+  WORK_ITEM_LINK_KINDS,
+  WORK_ITEM_LINK_ROLES,
   WORK_ITEM_PRIORITIES,
   WORK_ITEM_STATUSES,
   WORK_ITEM_TYPES,
@@ -18,6 +21,8 @@ import {
   type CreateWorkItemLinkRequest,
   type CreateWorkItemRelationRequest,
   type CreateWorkItemRequest,
+  type DocumentKind,
+  type DocumentTie,
   type Milestone,
   type MilestoneChangeAction,
   type MilestoneProgress,
@@ -44,6 +49,7 @@ import {
   type WorkItemType,
 } from '@agentry/shared';
 import type { Db } from './db.ts';
+import { DocumentPathError, isMarkdown, pathSegments } from './document-paths.ts';
 import type { AgentryEventInput } from './events.ts';
 import { RANK_REBALANCE_LENGTH, rankBetween, spreadRanks } from './work-item-rank.ts';
 import {
@@ -71,7 +77,7 @@ import {
   type StoredHistoryValue,
   type StoredItemRef,
 } from './work-item-rows.ts';
-import { CRITERIA_MAX, WorkItemError, actorFrom, assignee, commentBody, criterionText, labels, milestoneName, oneOf, optionalId, text, title } from './work-item-validation.ts';
+import { CRITERIA_MAX, ROLE_MAX, WorkItemError, actorFrom, assignee, commentBody, criterionText, labels, milestoneName, oneOf, optionalId, text, title } from './work-item-validation.ts';
 
 export { WorkItemError } from './work-item-validation.ts';
 
@@ -115,6 +121,15 @@ export interface WorkItemServiceDeps {
   emit?: (event: AgentryEventInput) => void;
   /** Fills in a link's name and state when read; without it links carry only their ids and no item is live */
   linkState?: (link: WorkItemLink) => WorkItemLinkState | null;
+}
+
+/**
+ * A link as code makes it. The flow adds what the API does not take from a caller: which kind of
+ * document a run wrote, and the team role whose run made the link.
+ */
+export interface WorkItemLinkInput extends CreateWorkItemLinkRequest {
+  documentKind?: DocumentKind | null;
+  teamRole?: string | null;
 }
 
 /** Who is acting, and why when it is a chat or an orchestration rather than someone on the item. */
@@ -681,43 +696,62 @@ export class WorkItemService {
   }
 
   /**
-   * Ties a chat or an orchestration task to the item. An item keeps every link; the same link twice
-   * is the one already there.
+   * Ties a chat, an orchestration task or a document to the item. An item keeps every link; the same
+   * link twice is the one already there. A document is the same link whatever role it was tied in,
+   * so a specification refinement wrote and someone later ties by hand is listed once.
+   *
+   * A document's path is only checked for its shape here: that it lies in the project's documents
+   * folder is for `DocumentService`, which knows the folder, to check before calling this.
    */
-  link(itemId: string, input: CreateWorkItemLinkRequest, ctx?: WorkItemContext): WorkItemLink {
-    const kind = oneOf(input.kind, ['chat', 'orchestration'] as const, 'kind');
-    const role = oneOf(input.role, ['work', 'origin'] as const, 'role');
+  link(itemId: string, input: WorkItemLinkInput, ctx?: WorkItemContext): WorkItemLink {
+    const kind = oneOf(input.kind, WORK_ITEM_LINK_KINDS, 'kind');
+    const role = oneOf(input.role, WORK_ITEM_LINK_ROLES, 'role');
     const chatId = optionalId(input.chatId, 'chatId');
-    const orchestrationId = optionalId(input.orchestrationId, 'orchestrationId');
-    const taskId = optionalId(input.taskId, 'taskId');
+    const orchestrationId = kind === 'document' ? null : optionalId(input.orchestrationId, 'orchestrationId');
+    const taskId = kind === 'document' ? null : optionalId(input.taskId, 'taskId');
+    const teamRole = teamRoleOf(input.teamRole);
     if (kind === 'chat' && !chatId) throw new WorkItemError('a chat link needs chatId', 400);
     if (kind === 'orchestration' && (!orchestrationId || !taskId)) throw new WorkItemError('an orchestration link needs orchestrationId and taskId', 400);
+    let documentPath: string | null = null;
+    let documentKind: DocumentKind | null = null;
+    if (kind === 'document') {
+      documentPath = linkedDocumentPath(input.documentPath);
+      documentKind = input.documentKind === undefined || input.documentKind === null ? 'doc' : oneOf(input.documentKind, DOCUMENT_KINDS, 'documentKind');
+    } else if (input.documentPath !== undefined && input.documentPath !== null) {
+      throw new WorkItemError('documentPath is for a document link only', 400);
+    }
     const actor = actorFrom(ctx);
     const cause = ctx?.cause ?? null;
     const result = this.write(() => {
-      this.mustRow(itemId);
+      const itemRow = this.mustRow(itemId);
       // A task's chat is only known once its worker starts, so the task, not the chat, is its identity
       const existing = (
         kind === 'chat'
           ? this.sql.prepare("SELECT * FROM work_item_links WHERE item_id = ? AND kind = 'chat' AND role = ? AND chat_id = ?").get(itemId, role, chatId)
-          : this.sql
-              .prepare("SELECT * FROM work_item_links WHERE item_id = ? AND kind = 'orchestration' AND role = ? AND orchestration_id = ? AND task_id = ?")
-              .get(itemId, role, orchestrationId, taskId)
+          : kind === 'orchestration'
+            ? this.sql
+                .prepare("SELECT * FROM work_item_links WHERE item_id = ? AND kind = 'orchestration' AND role = ? AND orchestration_id = ? AND task_id = ?")
+                .get(itemId, role, orchestrationId, taskId)
+            : this.sql.prepare("SELECT * FROM work_item_links WHERE item_id = ? AND kind = 'document' AND document_path = ?").get(itemId, documentPath)
       ) as LinkRow | undefined;
-      if (existing) return { link: linkOf(existing), changed: false };
+      if (existing) return { link: linkOf(existing), projectId: itemRow.project_id, changed: false };
       const id = randomUUID();
       const now = new Date().toISOString();
       this.sql
-        .prepare('INSERT INTO work_item_links (id, item_id, kind, role, chat_id, orchestration_id, task_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(id, itemId, kind, role, chatId, orchestrationId, taskId, now);
+        .prepare(
+          `INSERT INTO work_item_links (id, item_id, kind, role, chat_id, orchestration_id, task_id, document_path, document_kind, team_role, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(id, itemId, kind, role, chatId, orchestrationId, taskId, documentPath, documentKind, teamRole, now);
       const link = linkOf(this.sql.prepare('SELECT * FROM work_item_links WHERE id = ?').get(id) as unknown as LinkRow);
       this.sql.prepare('UPDATE work_items SET updated_at = ? WHERE id = ?').run(now, itemId);
       this.record([{ itemId, change: 'link', from: null, to: { id, label: this.linkLabel(link) } }], actor, cause, now);
-      return { link, changed: true };
+      return { link, projectId: itemRow.project_id, changed: true };
     });
     if (result.changed) {
       const item = this.find(itemId);
       if (item) this.emitUpdated(item, ['link'], actor, cause);
+      this.emitDocument(result.link, result.projectId, 'tied');
     }
     return this.withState(result.link);
   }
@@ -752,6 +786,46 @@ export class WorkItemService {
     });
     const item = this.find(link.itemId);
     if (item) this.emitUpdated(item, ['link'], actor, cause);
+    if (item) this.emitDocument(link, item.projectId, 'untied');
+  }
+
+  /**
+   * The `document` links of a project's items, each with the item it ties, oldest first. A path is
+   * given to read one file's ties; without it, every tie of the project, for the folder's tree.
+   */
+  documentTies(projectId: string, path?: string): Array<{ path: string; tie: DocumentTie }> {
+    const rows = this.sql
+      .prepare(
+        `SELECT l.* FROM work_item_links l JOIN work_items i ON i.id = l.item_id
+         WHERE i.project_id = ? AND l.kind = 'document' AND (? IS NULL OR l.document_path = ?)
+         ORDER BY l.created_at, l.rowid`,
+      )
+      .all(projectId, path ?? null, path ?? null) as unknown as LinkRow[];
+    if (!rows.length) return [];
+    const prefix = this.prefixOf(projectId);
+    const items = this.sql
+      .prepare('SELECT * FROM work_items WHERE id IN (SELECT value FROM json_each(?))')
+      .all(inList([...new Set(rows.map((r) => r.item_id))])) as unknown as ItemRow[];
+    const refs = new Map(items.map((r) => [r.id, this.refOf(r, prefix)]));
+    return rows.flatMap((row) => {
+      const link = linkOf(row);
+      const item = refs.get(row.item_id);
+      if (!item || !link.documentPath) return [];
+      return [
+        {
+          path: link.documentPath,
+          tie: {
+            linkId: link.id,
+            item,
+            kind: link.documentKind ?? 'doc',
+            linkRole: link.role,
+            teamRole: link.teamRole ?? null,
+            chatId: link.chatId,
+            createdAt: link.createdAt,
+          },
+        },
+      ];
+    });
   }
 
   // ---------- milestones ----------
@@ -868,6 +942,18 @@ export class WorkItemService {
     this.emit({ type: 'workitem.updated', title: `Updated ${item.key}: ${item.title}`, ...eventRef(item), changes, actor, cause });
   }
 
+  private emitDocument(link: WorkItemLink, projectId: string, action: 'tied' | 'untied'): void {
+    if (link.kind !== 'document' || !link.documentPath) return;
+    this.emit({
+      type: 'document.changed',
+      title: `Document ${link.documentPath} ${action}`,
+      projectId,
+      path: link.documentPath,
+      action,
+      itemId: link.itemId,
+    });
+  }
+
   private emitMilestone(milestone: Milestone, action: MilestoneChangeAction): void {
     this.emit({
       type: 'milestone.changed',
@@ -924,6 +1010,7 @@ export class WorkItemService {
   }
 
   private linkLabel(link: WorkItemLink): string {
+    if (link.kind === 'document') return link.documentPath ?? 'document';
     const name = this.deps.linkState?.(link)?.name;
     if (name) return name;
     return link.kind === 'chat' ? `chat ${link.chatId ?? ''}` : `${link.orchestrationId ?? ''} / ${link.taskId ?? ''}`;
@@ -1171,7 +1258,8 @@ export class WorkItemService {
   }
 
   private withState(link: WorkItemLink): WorkItemLink {
-    if (!this.deps.linkState) return link;
+    // A document has no state to fill in: it is a file, read by the Documents module when opened
+    if (!this.deps.linkState || link.kind === 'document') return link;
     const state = this.deps.linkState(link);
     return {
       ...link,
@@ -1297,4 +1385,23 @@ function sourcePart(cause: WorkItemCause): WorkItemSource {
 
 function eventRef(item: WorkItem): { projectId: string; itemId: string; key: string } {
   return { projectId: item.projectId, itemId: item.id, key: item.key };
+}
+
+function linkedDocumentPath(value: unknown): string {
+  try {
+    const segments = pathSegments(value, 'documentPath');
+    if (!isMarkdown(segments[segments.length - 1] ?? '')) throw new DocumentPathError('documentPath must name a Markdown file');
+    return segments.join('/');
+  } catch (err) {
+    if (err instanceof DocumentPathError) throw new WorkItemError(err.message, 400);
+    throw err;
+  }
+}
+
+function teamRoleOf(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string' || !value.trim() || value.trim().length > ROLE_MAX) {
+    throw new WorkItemError(`teamRole must be text of at most ${String(ROLE_MAX)} characters`, 400);
+  }
+  return value.trim();
 }
