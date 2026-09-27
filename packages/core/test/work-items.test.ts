@@ -543,6 +543,18 @@ test('search looks in the title and the description, takes wildcards literally a
   assert.deepEqual(titles('lib-1'), [foreign.id]);
 });
 
+test('search and the label filter fold case in every language, not only in ASCII', () => {
+  const { service } = setup();
+  const session = service.create('p1', { title: 'SESIÓN caducada', labels: ['Übersetzung'] });
+  const street = service.create('p1', { title: 'x', description: 'Die STRASSE ist gesperrt' });
+  const ids = (filter: Parameters<WorkItemService['list']>[0]) => service.list({ projectId: 'p1', ...filter }).map((i) => i.id);
+  assert.deepEqual(ids({ q: 'sesión' }), [session.id]);
+  assert.deepEqual(ids({ q: 'Sesión CADUCADA' }), [session.id]);
+  assert.deepEqual(ids({ q: 'straße' }), [street.id]);
+  assert.deepEqual(ids({ labels: ['übersetzung'] }), [session.id]);
+  assert.deepEqual(ids({ labels: ['ÜBERSETZUNG'] }), [session.id]);
+});
+
 test('the board holds the five columns in order; a filter narrows the items but not the counts', () => {
   const { service, bug, story, task } = seeded();
   const board = service.board('p1', { type: ['bug'] });

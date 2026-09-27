@@ -1,4 +1,5 @@
 import type { WorkItemActor, WorkItemAssignee } from '@agentry/shared';
+import { fold } from './work-item-rows.ts';
 import type { WorkItemContext } from './work-items.ts';
 
 /** The checks every value goes through before the store writes it, and the refusal they throw. */
@@ -48,8 +49,8 @@ export function labels(value: unknown): string[] {
     const label = raw.trim();
     if (!label) continue;
     if (label.length > LABEL_MAX) throw new WorkItemError(`a label is longer than ${String(LABEL_MAX)} characters`, 400);
-    if (seen.has(label.toLowerCase())) continue;
-    seen.add(label.toLowerCase());
+    if (seen.has(fold(label))) continue;
+    seen.add(fold(label));
     out.push(label);
   }
   if (out.length > LABELS_MAX) throw new WorkItemError(`an item carries at most ${String(LABELS_MAX)} labels`, 400);

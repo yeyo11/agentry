@@ -52,6 +52,7 @@ import {
   commentOf,
   emptyProgress,
   emptySource,
+  fold,
   inList,
   isLive,
   linkOf,
@@ -1083,10 +1084,6 @@ export class WorkItemService {
     within('w.status', filter.status);
     within('w.type', filter.type);
     within('w.priority', filter.priority);
-    if (filter.labels?.length) {
-      where.push('EXISTS (SELECT 1 FROM work_item_labels l WHERE l.item_id = w.id AND lower(l.label) IN (SELECT lower(value) FROM json_each(?)))');
-      params.push(inList(filter.labels));
-    }
     if (filter.assignee?.length) {
       const alternatives: string[] = [];
       for (const a of filter.assignee) {
@@ -1107,21 +1104,21 @@ export class WorkItemService {
       where.push('w.milestone_id = ?');
       params.push(filter.milestoneId);
     }
-    const q = filter.q?.trim();
-    const key = q ? parseWorkItemKey(q) : null;
-    if (q) {
-      // Ids and paths hold `_` and `%`, which LIKE would read as wildcards
-      const pattern = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
-      const byKey = key ? ' OR w.number = ?' : '';
-      where.push(`(w.title LIKE ? ESCAPE '\\' OR w.description LIKE ? ESCAPE '\\'${byKey})`);
-      params.push(pattern, pattern);
-      if (key) params.push(key.number);
-    }
-    const rows = this.sql
+    let rows = this.sql
       .prepare(`SELECT w.* FROM work_items w ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY w.project_id, w.rank, w.id`)
       .all(...params) as unknown as ItemRow[];
-    const out = key && q ? rows.filter((r) => textMatches(r, q) || this.prefixOf(r.project_id) === key.prefix) : rows;
-    return out.sort((a, b) => statusIndex(a.status) - statusIndex(b.status));
+    // Text is matched here rather than in SQL, whose case folding stops at ASCII
+    if (filter.labels?.length) {
+      const wanted = new Set(filter.labels.map(fold));
+      const labelMap = this.labelsOf(rows.map((r) => r.id));
+      rows = rows.filter((r) => (labelMap.get(r.id) ?? []).some((label) => wanted.has(fold(label))));
+    }
+    const q = filter.q?.trim();
+    if (q) {
+      const key = parseWorkItemKey(q);
+      rows = rows.filter((r) => textMatches(r, q) || (key !== null && r.number === key.number && this.prefixOf(r.project_id) === key.prefix));
+    }
+    return rows.sort((a, b) => statusIndex(a.status) - statusIndex(b.status));
   }
 
   private counts(projectId: string | null): Map<string, number> {

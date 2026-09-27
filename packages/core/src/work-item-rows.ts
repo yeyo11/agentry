@@ -152,9 +152,17 @@ export function emptyProgress(): MilestoneProgress {
   return { total: 0, done: 0, byStatus: { backlog: 0, todo: 0, in_progress: 0, in_review: 0, done: 0 } };
 }
 
+/**
+ * Text as search compares it. SQLite's `LIKE` and `lower()` fold ASCII only, so `sesión` would miss
+ * `SESIÓN`; the round trip through upper case also folds `ß` into `ss` and a final sigma into `σ`.
+ */
+export function fold(value: string): string {
+  return value.normalize('NFC').toUpperCase().toLowerCase();
+}
+
 export function textMatches(row: ItemRow, q: string): boolean {
-  const needle = q.toLowerCase();
-  return row.title.toLowerCase().includes(needle) || row.description.toLowerCase().includes(needle);
+  const needle = fold(q);
+  return fold(row.title).includes(needle) || fold(row.description).includes(needle);
 }
 
 export function isLive(link: WorkItemLink): boolean {
