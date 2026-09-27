@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-09-25T18:55:39Z
+updated_at: 2026-09-27T06:00:00Z
 tags:
     - status
     - project-state
@@ -18,12 +18,12 @@ change gets in.
 
 | | |
 | --- | --- |
-| Version | **0.17.2**, the same across all five packages |
+| Version | **0.19.0**, the same across all five packages |
 | Released | 2026-09-25, by release-please from the commit messages |
 | Runtime | Node >= 22, pnpm workspace |
-| Source | 454 tracked `.ts`/`.tsx` files; the API contract is 2,676 lines of `packages/shared/src/types.ts` |
-| REST | 17 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 115 unit and integration test files, plus 34 browser specs under `e2e/` |
+| Source | 481 tracked `.ts`/`.tsx` files; the API contract is 3,356 lines of `packages/shared/src/types.ts` |
+| REST | 18 route files, documented as OpenAPI 3.1 and served at `/docs` |
+| Tests | 124 unit and integration test files, plus 37 browser specs under `e2e/specs/` |
 | CI | `ci.yml` (typecheck, tests, advisories, OpenAPI drift, e2e, image smoke test), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape is unchanged: `packages/shared` holds the types every other package imports,
@@ -38,7 +38,7 @@ duration written anywhere else.
 
 ## What is built
 
-The ROADMAP's [Done](../ROADMAP.md#done) section lists 28 areas and is the accurate inventory. The
+The ROADMAP's [Done](../ROADMAP.md#done) section lists 30 areas and is the accurate inventory. The
 spine of it: chats and projects modelled as Agentry's own objects over the CLI's stream-json;
 orchestration with a task DAG, parallel workers and a verification phase on the integration branch;
 observability that reconstructs what an agent did from git and the transcript; several accounts
@@ -46,13 +46,23 @@ rotated before they run out; schedules; configuration and MCP servers per scope;
 chat; authentication as none, bearer token or OIDC; a progressive web app with push for phones; a
 Linux desktop app; and a Docker image with a Kubernetes manifest.
 
+The newest piece is the **project ecosystem's foundation**, server side only: projects switch
+modules on from a template ([projects.md](projects.md)), and the Board module gives them work items
+that chats and orchestrations work on and move ([work-items.md](work-items.md)).
+
 ## What is open
 
+- **The rest of the project ecosystem.** Orchestration 1 built the contract, the store, the API and
+  the links with chats and orchestrations, and prototyped every new screen (48 of them, desktop and
+  phone, dark and light) in `docs/design-system/reference/`. No web code exists for any of it: the
+  owner validates the prototypes first, then orchestration 2 builds the board's screens, 3 the team,
+  memory and documents, and 4 the assistant. See the plan's
+  [Outcome](plans/project-ecosystem.md#outcome).
 - **The editable dashboard.** Home renders any layout that validates, from a registry of widget
   types, but the layout is not editable or persisted per project, and the Documents and Flows
   widgets do not exist. Left out of the redesign deliberately — see
-  [the UI redesign plan](plans/ui-redesign.md#not-in-this-orchestration). It is the only entry under
-  [Next](../ROADMAP.md#next).
+  [the UI redesign plan](plans/ui-redesign.md#not-in-this-orchestration). It is listed under [Next](../ROADMAP.md#next)
+  with the ecosystem's remaining orchestrations.
 - **Two plans whose final verification never ran.** [`plans/roadmap-completion.md`](plans/roadmap-completion.md)
   and [`plans/post-roadmap.md`](plans/post-roadmap.md) are both marked *built; final verification
   pending*. The code landed; the closing pass over it did not.
@@ -75,7 +85,8 @@ Linux desktop app; and a Docker image with a Kubernetes manifest.
 | [`plans/post-roadmap.md`](plans/post-roadmap.md) | Built; final verification pending |
 | [`plans/spanish-copy.md`](plans/spanish-copy.md) | Landed (#94) — see [Outcome](plans/spanish-copy.md#outcome) |
 | [`plans/app-updates.md`](plans/app-updates.md) | Landed (#95) — see [Outcome](plans/app-updates.md#outcome) |
-| [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Every task landed; the merged branch's e2e verification runs in the orchestration — see [Outcome](plans/redesign-night-shift.md#outcome) |
+| [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Landed (#101) — see [Outcome](plans/redesign-night-shift.md#outcome) |
+| [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | Orchestration 1 of 4 built (server side and prototypes); its merged branch's verification runs in the orchestration — see [Outcome](plans/project-ecosystem.md#outcome) |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.
@@ -88,9 +99,9 @@ pnpm test
 pnpm build && pnpm e2e
 ```
 
-`pnpm typecheck` and `pnpm test` pass on the Night Shift branch (run on 2026-09-25), apart from one
-core timing test that is flaky under the full parallel run and passes alone. `pnpm e2e` runs in
-that orchestration's verification phase. The last full e2e run on `main` (`d6269c4`) had three
+`pnpm typecheck` and `pnpm test` pass on the `ecosystem-foundation` branch (run on 2026-09-27:
+1,232 tests across the five packages, none failing). `pnpm build` and `pnpm e2e` run in that
+orchestration's verification phase. The last full e2e run on `main` (`d6269c4`) had three
 specs that failed in the full suite and passed alone: see the plan's
 [Before launching](plans/redesign-night-shift.md#before-launching). The browser suite runs headless Chrome over CDP against an isolated
 wrapper, with a time limit per spec and per run so it cannot hang. CI runs all of it on every pull request, and additionally fails
@@ -121,4 +132,5 @@ possible to keep honest.
 [[knowledge-base.md]] · [[deploy.md]] · [[desktop.md]] · [[plans/roadmap-completion.md]] ·
 [[plans/post-roadmap.md]] · [[plans/ui-redesign.md]] · [[plans/agent-observability.md]] ·
 [[plans/agents-redesign.md]] · [[plans/mobile.md]] · [[plans/spanish-copy.md]] ·
-[[plans/app-updates.md]] · [[plans/redesign-night-shift.md]] · [[design-system.md]]
+[[plans/app-updates.md]] · [[plans/redesign-night-shift.md]] · [[design-system.md]] ·
+[[plans/project-ecosystem.md]] · [[projects.md]] · [[work-items.md]]

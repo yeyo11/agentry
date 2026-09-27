@@ -67,6 +67,14 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
 - **Orchestration you can revise** — re-run one task of a finished graph with everything that
   depends on it, edit and relaunch a graph as a new one, save graphs as templates, and give a task
   or the whole graph a time and a cost limit.
+- **A board of what each project needs done** (API only, screens to come) — projects switch
+  modules on from a template, and the Board module gives them work items with YouTrack-style keys
+  (`AGN-12`), five fixed columns with optional limits, epics, milestones without dates, acceptance
+  checklists, `blocks` relations and a history the server writes. "Work on it" starts a chat on an
+  item in its own worktree on `task/<key>`, a selection becomes a draft orchestration with its
+  dependencies, and a chat's message becomes a task; the item moves itself as that work goes, forward
+  only and never over a person's move. See [docs/projects.md](docs/projects.md) and
+  [docs/work-items.md](docs/work-items.md).
 - **Tools and servers per chat** — start or resume a chat with a named preset of allowed and
   disallowed tools (`read-only`, `no-network`, `everything`, all editable, restorable, one of them
   the default for a chat that picks none) and with only the MCP servers you pick. A fork inherits
