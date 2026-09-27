@@ -205,7 +205,8 @@ export function ProjectResources({ project }: { project: Project }) {
     <div className="resources-ai-actions">
       <button type="button" className="btn resources-suggest" disabled={suggesting} onClick={() => suggestRun.mutate()}>
         <Sparkle {...ICON_SM} />
-        {suggest && suggest.status !== 'running' ? t('resourcesAi.suggestAgain') : t('resourcesAi.suggest')}
+        {/* A phone's row holds two buttons and "+": the short label, as MobileRecursos draws it */}
+        {suggest && suggest.status !== 'running' && !phone ? t('resourcesAi.suggestAgain') : t('resourcesAi.suggest')}
       </button>
       <button type="button" className="btn resources-create-ai" onClick={() => update({ ai: '1' })}>
         <Pencil {...ICON_SM} />

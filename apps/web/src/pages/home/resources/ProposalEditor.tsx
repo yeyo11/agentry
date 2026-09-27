@@ -11,6 +11,7 @@ import { ICON_SM } from '../../../components/icons';
 import { useToast } from '../../../components/Toast';
 import { Segmented, Tag } from '../../../components/ui';
 import { useDirty } from '../../../lib/dirty';
+import { NARROW, useMediaQuery } from '../../../lib/media';
 import { savePath, shownName } from './model';
 
 /**
@@ -39,6 +40,7 @@ export function ProposalEditor({
   const { t } = useTranslation('config');
   const toast = useToast();
   const queryClient = useQueryClient();
+  const phone = useMediaQuery(NARROW);
   const { resource } = proposal;
   const [content, setContent] = useState(resource.content);
   const [scope, setScope] = useState<ConfigScopeKind>(initialScope ?? resource.scope);
@@ -72,7 +74,7 @@ export function ProposalEditor({
   const trySave = () => pending && !save.isPending && save.mutate();
 
   return (
-    <div className="form resource-proposal-editor">
+    <div className={`form resource-proposal-editor${phone ? ' is-phone' : ''}`}>
       <div className="editor-meta">
         <strong className="mono resource-proposal-name">{name}</strong>
         <Tag>{t(`resourcesAi.kind.${resource.kind}`)}</Tag>

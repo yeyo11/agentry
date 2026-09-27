@@ -10,7 +10,12 @@
 // Orchestration 3 adds one more: a team member working through the flow by column. The template's
 // team is taken, the flow switched on, and a card moved into En curso, which starts the Developer's
 // run; its `run:` line keeps the member working on the Team tab while it is read.
-import { mkdirSync } from 'node:fs';
+//
+// Orchestration 4 adds the assistant's runs: the project assistant, "Suggest tasks" and "Suggest" on
+// the Resources tab, one of each kind at once, each kept reading by a `run:` line in the fake CLI's
+// scripts file (their prompts are core's, so the spec cannot type them). A run at work is the one
+// energy border of its screen, and it stops like everything else.
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const fakeCli = true;
@@ -31,7 +36,7 @@ const loops = (root = 'body') => `
   }
   return found;`;
 
-export default async ({ page, api, check, dirs }) => {
+export default async ({ page, api, check, dirs, fakeCli }) => {
   await page.goto('/', 1200);
   check((await page.eval(`return document.documentElement.dataset.motion`)) === 'full', 'everything moves by default');
   check((await page.eval(`return document.documentElement.dataset.hidden`)) === 'false', 'a tab being looked at is marked as such');
@@ -66,9 +71,12 @@ export default async ({ page, api, check, dirs }) => {
   let projectId = null;
   let chatId = null;
   const flowChats = [];
+  const assistantRuns = [];
   try {
     const dir = join(dirs.workspaceDir, 'e2e-motion');
     mkdirSync(dir, { recursive: true });
+    // Something to read, or the assistant has nothing to do and starts no chat
+    writeFileSync(join(dir, 'README.md'), '# e2e-motion\n');
     const imported = await api.post('/projects/import', { path: dir, name: 'e2e-motion', template: 'software' });
     check(imported.status === 201, `a project with its board (${imported.status})`);
     projectId = imported.body.id;
@@ -98,20 +106,52 @@ export default async ({ page, api, check, dirs }) => {
     }
     check(flowChats.length > 0, 'the Developer is working on the card');
 
+    // The assistant at work, one run of each kind: every one reads until it is stopped
+    const reading = 'run: sleep 120';
+    writeFileSync(
+      fakeCli.scripts,
+      JSON.stringify({
+        'project "e2e-motion"': reading,
+        'the next work items: what is missing or broken': reading,
+        '`resources`: agents, skills and commands that would help': reading,
+      }),
+    );
+    for (const kind of ['project', 'work-items', 'resources']) {
+      const started = await api.post(`/projects/${projectId}/assistant/runs`, { kind });
+      check(started.status === 201 || started.status === 200, `an assistant run of kind ${kind} (${started.status} ${JSON.stringify(started.body)})`);
+      check(started.body.status === 'running', `the ${kind} run is reading (${started.body.status})`);
+      assistantRuns.push(started.body.id);
+    }
+
     const board = `/tasks?project=${projectId}`;
-    const pages = [board, `${board}&view=list`, `/tasks/${item.key}?project=${projectId}`, `/?project=${projectId}&view=team`];
-    const open = async (path) => {
+    // Each page, and what shows its live thing: a rail on a row, or the energy border of a run
+    const rail = 'main .live-rail';
+    const energy = '.suggestion-run.is-live.live-energy';
+    const pages = [
+      [board, rail],
+      [`${board}&view=list`, rail],
+      [`/tasks/${item.key}?project=${projectId}`, rail],
+      [`/?project=${projectId}&view=team`, rail],
+      [`/projects/${projectId}/assistant`, `main ${energy}`],
+      [`${board}&suggest=1`, `[role=dialog] ${energy}`],
+      [`/?project=${projectId}&view=resources`, `main ${energy}`],
+    ];
+    const open = async (path, live = rail) => {
       await page.goto(path, 1200);
-      await page.waitFor(`return !!document.querySelector('main .live-rail')`, { label: `${path} shows the item as live` });
+      await page.waitFor(`return !!document.querySelector(${JSON.stringify(live)})`, { label: `${path} shows something live` });
       await page.sleep(300);
     };
 
-    // Full: the live things are what moves
+    // Full: the live things are what moves, and a run's screen has one energy border
     await page.eval(`localStorage.setItem('agentry-motion', 'full');`);
-    for (const path of pages) {
-      await open(path);
-      const moving = await page.eval(loops('main'));
-      check(moving.length > 0, `${path}: a running chat's item moves at full`);
+    for (const [path, live] of pages) {
+      await open(path, live);
+      const moving = await page.eval(loops(live === rail ? 'main' : live));
+      check(moving.length > 0, `${path}: what is at work moves at full`);
+      if (live !== rail) {
+        const borders = await page.eval(`return document.querySelectorAll('.live-energy').length`);
+        check(borders === 1, `${path}: one energy border (${borders})`);
+      }
       // Nobody is looking: a hidden tab pauses every one of them
       await page.eval(`document.documentElement.dataset.hidden = 'true';`);
       const hidden = await page.eval(loops());
@@ -120,8 +160,8 @@ export default async ({ page, api, check, dirs }) => {
 
     for (const level of ['subtle', 'off']) {
       await page.eval(`localStorage.setItem('agentry-motion', '${level}');`);
-      for (const path of pages) {
-        await open(path);
+      for (const [path, live] of pages) {
+        await open(path, live);
         const still = await page.eval(loops());
         check(still.length === 0, `${path}: nothing repeats at ${level} (${still.join(', ')})`);
       }
@@ -130,8 +170,8 @@ export default async ({ page, api, check, dirs }) => {
     // The system setting stops them too, with the stored level back at full
     await page.eval(`localStorage.setItem('agentry-motion', 'full');`);
     await page.reduceMotion();
-    for (const path of pages) {
-      await open(path);
+    for (const [path, live] of pages) {
+      await open(path, live);
       const still = await page.eval(loops());
       check(still.length === 0, `${path}: nothing repeats under prefers-reduced-motion (${still.join(', ')})`);
     }
@@ -147,10 +187,15 @@ export default async ({ page, api, check, dirs }) => {
     await open(`/?project=${projectId}&view=team`);
     const members = await page.eval(loops());
     check(members.length === 0, `the phone's team: nothing repeats at subtle (${members.join(', ')})`);
+    // …and the phone's assistant, whose run card is the screen
+    await open(`/projects/${projectId}/assistant`, `main ${energy}`);
+    const assistant = await page.eval(loops());
+    check(assistant.length === 0, `the phone's assistant: nothing repeats at subtle (${assistant.join(', ')})`);
   } finally {
     await page.reduceMotion(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem('agentry-motion');`).catch(() => {});
+    for (const id of assistantRuns) await api.post(`/assistant/runs/${id}/stop`).catch(() => {});
     if (projectId) {
       // Off first, so stopping the member's run starts nothing after it
       const settings = (await api.get(`/projects/${projectId}/settings`).catch(() => ({ body: null }))).body;

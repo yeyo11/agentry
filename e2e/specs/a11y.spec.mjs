@@ -6,7 +6,9 @@
 // It seeds a chat (with a subagent and a background task), a project with its board (an epic, work
 // items with criteria and a relation, a milestone) and an orchestration whose workers fail in the
 // sandbox, so the pages are scanned with content in them, and removes all of it afterwards because
-// the chats spec counts what the sandbox holds.
+// the chats spec counts what the sandbox holds. The assistant's screens (orchestration 4) are scanned
+// without the CLI: an empty project's run reads nothing, starts no chat, and offers the template's
+// team at once.
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -136,6 +138,7 @@ export default async ({ page, api, check, dirs }) => {
   const tasksRoot = join(tmpdir(), `claude-${String(process.getuid?.() ?? 0)}`, PROJECT);
   const workspace = join(dirs.workspaceDir, 'e2e-a11y');
   let projectId = null;
+  let emptyProjectId = null;
   let orchestrationId = null;
   const workItems = [];
   const orchestrationChats = [];
@@ -229,6 +232,17 @@ export default async ({ page, api, check, dirs }) => {
     ];
     const milestones = `/tasks/milestones?project=${projectId}`;
 
+    // Orchestration 4's screens: the assistant of a project that has not asked it anything, and of
+    // an empty one with the template's team to accept member by member
+    const emptyDir = join(dirs.workspaceDir, 'e2e-a11y-empty');
+    mkdirSync(emptyDir, { recursive: true });
+    const emptyProject = await api.post('/projects/import', { path: emptyDir, name: 'e2e-a11y-empty', template: 'software' });
+    check(emptyProject.status === 201, `the empty project was imported (${emptyProject.status})`);
+    emptyProjectId = emptyProject.body.id;
+    const emptyRun = await api.post(`/projects/${emptyProjectId}/assistant/runs`, { kind: 'project' });
+    check(emptyRun.status === 201 && emptyRun.body.empty === true, `the empty project's run reads nothing (${emptyRun.status} ${JSON.stringify(emptyRun.body?.empty)})`);
+    const assistant = [`/projects/${projectId}/assistant`, `/projects/${emptyProjectId}/assistant`];
+
     // Nothing is logged in inside the sandbox, so the first task fails, the one behind it is blocked
     // and the graph waits for a decision: the states the board has to show without colour alone
     const created = await api.post('/orchestrations', {
@@ -268,6 +282,7 @@ export default async ({ page, api, check, dirs }) => {
       `/?project=${projectId}`,
       ...['board', 'settings', 'memory', 'resources', 'worktrees'].map((view) => `/?project=${projectId}&view=${view}`),
       ...ecosystem,
+      ...assistant,
       '/projects/new',
       board,
       `${board}&view=list`,
@@ -301,6 +316,8 @@ export default async ({ page, api, check, dirs }) => {
       `/?project=${projectId}&view=settings`,
       `/?project=${projectId}&view=board`,
       ...ecosystem,
+      ...assistant,
+      `/?project=${projectId}&view=resources`,
       '/projects/new',
       board,
       `${board}&view=list`,
@@ -433,13 +450,24 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText.includes(${JSON.stringify(story.title)})`, { label: 'the work item panel' });
     await scan(page, 'work item panel', { rules: OVERLAY_RULES });
     await page.key('Escape');
+    // …and orchestration 4's: Suggest tasks before it runs, and Create with AI on the Resources tab
+    await page.goto(`${board}&suggest=1`, 800);
+    await page.waitFor(`return !!document.querySelector('[role=dialog] .suggest-body')`, { label: 'the Suggest tasks dialog' });
+    await scan(page, 'suggest tasks dialog', { rules: OVERLAY_RULES });
+    await page.key('Escape');
+    await page.goto(`/?project=${projectId}&view=resources&ai=1`, 800);
+    await page.waitFor(`return !!document.querySelector('[role=dialog] .create-ai-description')`, { label: 'the Create with AI dialog' });
+    await scan(page, 'create with AI dialog', { rules: OVERLAY_RULES });
+    await page.key('Escape');
     await page.viewport(420, 900);
     await settle(page, `${board}&new=1`);
     await scan(page, '420px new task screen', { rules: OVERLAY_RULES });
+    await settle(page, `${board}&suggest=1`);
+    await scan(page, '420px suggest tasks screen', { rules: OVERLAY_RULES });
     await page.viewport(1440, 900);
 
     // ---------- status is never colour alone ----------
-    for (const path of ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/accounts', '/connectors', board, `${board}&view=list`, milestones, itemPage, ...ecosystem]) {
+    for (const path of ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/accounts', '/connectors', board, `${board}&view=list`, milestones, itemPage, ...ecosystem, ...assistant]) {
       await settle(page, path);
       const bare = await page.eval(`
         const bare = [];
@@ -526,6 +554,7 @@ export default async ({ page, api, check, dirs }) => {
     for (const id of orchestrationChats) await api.del(`/chats/${id}`).catch(() => {});
     for (const id of workItems.reverse()) await api.del(`/work-items/${id}`).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
+    if (emptyProjectId) await api.del(`/projects/${emptyProjectId}`).catch(() => {});
     rmSync(projectDir, { recursive: true, force: true });
     rmSync(tasksRoot, { recursive: true, force: true });
   }
