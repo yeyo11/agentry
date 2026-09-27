@@ -287,6 +287,14 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    CREATE INDEX work_item_links_item ON work_item_links (item_id, created_at);
    CREATE INDEX work_item_links_chat ON work_item_links (chat_id);
    CREATE INDEX work_item_links_task ON work_item_links (orchestration_id, task_id);`,
+  // A document of the project tied to a work item (the Documents module) is a link like a chat is,
+  // so an item keeps one list of what it is tied to. The path is relative to the project, never
+  // absolute, so a project moved to another directory keeps its ties. `team_role` is the role whose
+  // flow run made a link, for documents and chats alike; null for links made outside the flow.
+  `ALTER TABLE work_item_links ADD COLUMN document_path TEXT;
+   ALTER TABLE work_item_links ADD COLUMN document_kind TEXT;
+   ALTER TABLE work_item_links ADD COLUMN team_role TEXT;
+   CREATE INDEX work_item_links_document ON work_item_links (document_path) WHERE document_path IS NOT NULL;`,
 ];
 
 /**
@@ -294,6 +302,9 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
  * upgrades into it keeps upgrading from the version before it when later migrations are added.
  */
 export const WORK_ITEMS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE work_item_counters')) + 1;
+
+/** The schema version document links arrive in, found the same way. */
+export const DOCUMENT_LINKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN document_path')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by

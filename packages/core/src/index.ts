@@ -52,6 +52,7 @@ import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { stateFromRun } from './chat-model.ts';
 import { WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
+import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsPlace } from './documents.ts';
 import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { ChatService, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatRuntime, type RunResult } from './chats.ts';
@@ -130,10 +131,13 @@ export {
   WorkItemService,
   type WorkItemCommentContext,
   type WorkItemContext,
+  type WorkItemLinkInput,
   type WorkItemLinkState,
   type WorkItemProject,
   type WorkItemServiceDeps,
 } from './work-items.ts';
+export { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentServiceDeps, type DocumentsPlace, type TieOptions } from './documents.ts';
+export { DocumentPathError } from './document-paths.ts';
 export { orchestrationDraft, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt, type WorkItemAutomationDeps } from './work-links.ts';
 export { AuthStore } from './security/auth.ts';
 export { OidcVerifier, type FetchLike } from './security/oidc.ts';
@@ -212,6 +216,7 @@ export class Core {
    * `workItemProject` and friends first: the store itself knows nothing of modules.
    */
   readonly workItems: WorkItemService;
+  readonly documents: DocumentService;
   /** Moves items as the chats and nodes linked to them work, from the feed and the runtime's results */
   private readonly workLinks: WorkItemAutomation;
   private readonly startedAt = Date.now();
@@ -343,6 +348,12 @@ export class Core {
       },
       emit: (event) => this.events.emit(event),
       linkState: (link) => this.workItemLinkState(link),
+    });
+    this.documents = new DocumentService({
+      items: this.workItems,
+      place: (projectId, access) => this.documentsPlace(projectId, access),
+      itemProject: async (itemId) => (await this.workItemAccess(itemId, 'write')).projectId,
+      emit: (event) => this.events.emit(event),
     });
     this.workLinks = new WorkItemAutomation({
       items: this.workItems,
@@ -933,6 +944,19 @@ export class Core {
       throw new WorkItemError("the Board module is off in this project: switch it on in the project's settings to change its work items", 409);
     }
     return settings;
+  }
+
+  /**
+   * The documents folder of an imported project. A write needs its Documents module on; a read does
+   * not, as the board's reads do not need the Board module.
+   */
+  private async documentsPlace(projectId: string, access: 'read' | 'write'): Promise<DocumentsPlace> {
+    const record = this.requireProject(projectId);
+    const settings = await this.projectSettings(projectId);
+    if (access === 'write' && !settings.modules.includes('documents')) {
+      throw new DocumentError("the Documents module is off in this project: switch it on in the project's settings to change its documents", 409);
+    }
+    return { projectPath: record.path, root: settings.documents?.path ?? DEFAULT_DOCUMENTS_PATH };
   }
 
   /** The item, after the same check on the project it belongs to. Reads of a removed project's items still work. */
