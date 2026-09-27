@@ -4179,6 +4179,21 @@
       },
       {
         "$ref": "#/components/schemas/ProjectUpdatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/TeamChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/JournalChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/MemoryProposalEvent"
+      },
+      {
+        "$ref": "#/components/schemas/DocumentChangedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/FlowRunEvent"
       }
     ],
     "description": "Everything the buffered feed carries, discriminated by `type`."
@@ -6328,7 +6343,7 @@
       "comment",
       "waiting"
     ],
-    "description": "What a history entry, or a `workitem.updated` event, says changed. `created` opens every history; `comment` only appears on events, since comments are their own list. `waiting` is the flow's  {@link  WorkItemWaitReason }  starting or ending, from and to the reason or null; reserved for orchestration 3."
+    "description": "What a history entry, or a `workitem.updated` event, says changed. `created` opens every history; `comment` only appears on events, since comments are their own list. `waiting` is the flow's  {@link  WorkItemWaitReason }  starting or ending, from and to the reason or null."
   },
   "WorkItemActor": {
     "type": "object",
@@ -6614,6 +6629,394 @@
       "settings"
     ],
     "description": "What `project.updated` says changed; `settings` is anything else in the settings document."
+  },
+  "TeamChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "team.changed"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "action": {
+        "$ref": "#/components/schemas/TeamChangeAction"
+      },
+      "agents": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The members it touched, by agent file name"
+      }
+    },
+    "required": [
+      "action",
+      "agents",
+      "at",
+      "id",
+      "projectId",
+      "title",
+      "type"
+    ],
+    "description": "A project's team changed."
+  },
+  "TeamChangeAction": {
+    "type": "string",
+    "enum": [
+      "created",
+      "updated",
+      "removed",
+      "template",
+      "file"
+    ],
+    "description": "`created` and `updated` are a member's metadata written through `PUT`, `template` the members a template wrote, `removed` a member taken off the team (its agent file stays), and `file` an agent file of a member written, deleted or found drifted."
+  },
+  "JournalChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "journal.changed"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "entryId": {
+        "type": "string"
+      },
+      "action": {
+        "$ref": "#/components/schemas/JournalChangeAction"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/JournalEntryKind"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "action",
+      "at",
+      "entryId",
+      "id",
+      "itemId",
+      "kind",
+      "projectId",
+      "title",
+      "type"
+    ],
+    "description": "An entry was added to a project's journal, or removed from it."
+  },
+  "JournalChangeAction": {
+    "type": "string",
+    "enum": [
+      "added",
+      "removed"
+    ]
+  },
+  "JournalEntryKind": {
+    "type": "string",
+    "enum": [
+      "closed",
+      "decision",
+      "memory",
+      "note"
+    ],
+    "description": "What a journal entry records: `closed`, an item reached `done` (written once per item); `decision`, a decision taken; `memory`, an approved memory proposal addressed to the journal; `note`, anything else a person wrote by hand."
+  },
+  "MemoryProposalEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "memory.proposal"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "proposalId": {
+        "type": "string"
+      },
+      "action": {
+        "$ref": "#/components/schemas/MemoryProposalAction"
+      },
+      "target": {
+        "$ref": "#/components/schemas/MemoryProposalTarget"
+      },
+      "role": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The role that proposed it"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "action",
+      "at",
+      "id",
+      "itemId",
+      "projectId",
+      "proposalId",
+      "role",
+      "target",
+      "title",
+      "type"
+    ],
+    "description": "A memory proposal was made, approved or rejected. An approval also wrote its target: the journal announces its entry on its own, the CLI's memory and `CLAUDE.md` are read again from `target`."
+  },
+  "MemoryProposalAction": {
+    "type": "string",
+    "enum": [
+      "created",
+      "approved",
+      "rejected"
+    ]
+  },
+  "MemoryProposalTarget": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/components/schemas/MemoryProposalTargetKind"
+      },
+      "file": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For `memory`: the file name (`tests.md`)"
+      },
+      "section": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For `instructions`: the heading it goes under; null appends at the end"
+      }
+    },
+    "required": [
+      "kind",
+      "file",
+      "section"
+    ],
+    "description": "Flat rather than a union so it maps onto one row; the fields that do not apply are null."
+  },
+  "MemoryProposalTargetKind": {
+    "type": "string",
+    "enum": [
+      "instructions",
+      "memory",
+      "journal"
+    ],
+    "description": "Where an approved proposal is written: `instructions`, the project's `CLAUDE.md` (under `section` when given, a heading of it); `memory`, a file of the project's CLI memory directory (`file`, appended to, or created and indexed in `MEMORY.md`); `journal`, a `memory` entry of the journal."
+  },
+  "DocumentChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "document.changed"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string",
+        "description": "Relative to the project"
+      },
+      "action": {
+        "$ref": "#/components/schemas/DocumentChangeAction"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The item of a `tied` or `untied`; for a file written by a flow run, the item it was written for"
+      }
+    },
+    "required": [
+      "action",
+      "at",
+      "id",
+      "itemId",
+      "path",
+      "projectId",
+      "title",
+      "type"
+    ],
+    "description": "A document of a project's documents folder changed, or was tied to or untied from an item."
+  },
+  "DocumentChangeAction": {
+    "type": "string",
+    "enum": [
+      "written",
+      "removed",
+      "tied",
+      "untied"
+    ],
+    "description": "`written` and `removed` are the file; `tied` and `untied` a link between it and a work item."
+  },
+  "FlowRunEvent": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      },
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "flow.run"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "action": {
+        "$ref": "#/components/schemas/FlowRunAction"
+      },
+      "role": {
+        "type": "string"
+      },
+      "agent": {
+        "type": "string"
+      },
+      "stage": {
+        "$ref": "#/components/schemas/FlowStage"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Set once started"
+      },
+      "outcome": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunOutcome"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when ended"
+      }
+    },
+    "required": [
+      "action",
+      "agent",
+      "at",
+      "chatId",
+      "id",
+      "itemId",
+      "key",
+      "outcome",
+      "projectId",
+      "role",
+      "runId",
+      "stage",
+      "title",
+      "type"
+    ],
+    "description": "A flow run was queued, started or ended. What it did to the item (a comment, a move, the waiting state) comes as that item's own `workitem.*` events."
+  },
+  "FlowRunAction": {
+    "type": "string",
+    "enum": [
+      "queued",
+      "started",
+      "ended"
+    ]
+  },
+  "FlowStage": {
+    "type": "string",
+    "enum": [
+      "refine",
+      "work",
+      "verify"
+    ],
+    "description": "What a flow run does, named after the link role its chat gets: `refine` in `backlog` and `todo`, `work` in `in_progress`, `verify` in `in_review`."
+  },
+  "FlowRunOutcome": {
+    "type": "string",
+    "enum": [
+      "passed",
+      "rejected",
+      "failed",
+      "cancelled"
+    ],
+    "description": "How a run ended: `passed`, it finished well (and for QA, the item held); `rejected`, QA's verdict failed the item; `failed`, the chat failed or its result was unreadable; `cancelled`, a person's move or the flow being switched off made it moot before it started."
   },
   "StreamHelloEvent": {
     "type": "object",
@@ -10000,7 +10403,7 @@
     "required": [
       "members"
     ],
-    "description": "Reserved for the Team module (orchestration 3): nothing reads it yet. A member is a CLI agent file in the project's `.claude/agents/`, so it also works from a terminal; this is the metadata Agentry keeps beside it."
+    "description": "The Team module's metadata. A member is a CLI agent file in the project's `.claude/agents/`, so it also works from a terminal; this is what Agentry keeps beside it. `GET /projects/:id/team` serves each member with the state of its file ( {@link  TeamMember } )."
   },
   "ProjectTeamMember": {
     "type": "object",
@@ -10025,7 +10428,7 @@
         "items": {
           "type": "string"
         },
-        "description": "Paths, relative to the project, the member may write; absent means no restriction of Agentry's own"
+        "description": "Paths or globs, relative to the project, the member may write; absent means no restriction of Agentry's own. Enforced on the chats Agentry starts for it through the CLI's permission rules; from a terminal it is only what the agent file says."
       }
     },
     "required": [
@@ -10060,11 +10463,15 @@
             "type": "string"
           }
         },
-        "description": "Responsible role per column, matching  {@link  ProjectTeamRole.role }"
+        "description": "Responsible role per column, matching  {@link  ProjectTeamRole.role } ; `done` never has one"
       },
       "maxBounces": {
         "type": "number",
         "description": "Times QA may send an item back to `in_progress` before it waits for the person"
+      },
+      "maxParallel": {
+        "type": "number",
+        "description": "Flow runs of the project at once; the rest wait in order, so the flow cannot drain the accounts' quota on its own. Absent reads as 2 (`DEFAULT_FLOW_MAX_PARALLEL`)."
       }
     },
     "required": [
@@ -10072,7 +10479,7 @@
       "columns",
       "maxBounces"
     ],
-    "description": "Reserved for the flow by column (orchestration 3): nothing reads it yet. Each column may have a responsible role that acts when a card enters it; agents move cards, and a person approves `done`."
+    "description": "The flow by column. Each column may have a responsible role that acts when a card enters it; agents move cards, and a person approves `done`. Only while `enabled` and the Team module is on."
   },
   "ProjectDocumentsSettings": {
     "type": "object",
@@ -10085,7 +10492,7 @@
     "required": [
       "path"
     ],
-    "description": "Reserved for the Documents module (orchestration 3): nothing reads it yet."
+    "description": "The Documents module: the repository's documents folder, and documents tied to work items."
   },
   "ProjectTemplate": {
     "type": "object",
@@ -10265,7 +10672,7 @@
       },
       "bounces": {
         "type": "number",
-        "description": "Times the verifying role sent it back to `in_progress` in the current round of work, compared with  {@link  ProjectFlowSettings.maxBounces } ; a person moving it starts a new round. Reserved for the flow by column (orchestration 3): absent reads as 0."
+        "description": "Times the verifying role sent it back to `in_progress` in the current round of work, compared with  {@link  ProjectFlowSettings.maxBounces } ; a person moving it starts a new round. Written by the flow by column: absent reads as 0."
       },
       "waiting": {
         "anyOf": [
@@ -10276,7 +10683,7 @@
             "type": "null"
           }
         ],
-        "description": "What it waits for from the person, which the board shows in the idle colour with a word. Reserved for the flow by column (orchestration 3): absent reads as null, waiting for nothing."
+        "description": "What it waits for from the person, which the board shows in the idle colour with a word. Written by the flow by column: absent reads as null, waiting for nothing."
       },
       "createdAt": {
         "type": "string"
@@ -10483,6 +10890,24 @@
         ],
         "description": "For a `document` link, its path relative to the project; absent or null for the others"
       },
+      "documentKind": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DocumentKind"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "For a `document` link, what kind of document it is; absent or null for the others"
+      },
+      "teamRole": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The team role whose flow run made the link (the Product Owner's specification, QA's chat); absent or null for a link a person or a chat outside the flow made"
+      },
       "name": {
         "type": [
           "string",
@@ -10549,7 +10974,17 @@
       "verify",
       "reference"
     ],
-    "description": "The part a linked chat, orchestration task or document played in the item's life. The roles past `origin` follow the fixed columns, so they cannot grow with the flow: whichever team role a project puts on a column, its chat is `refine` in `backlog` and `todo`, `work` in `in_progress` and `verify` in `in_review`.\n\n- `origin`: the item was created from it (the chat of \"Create a task from this message\", or a   document the assistant proposed items from).\n- `refine`: refined it before work started; for a document, the specification refinement wrote.\n- `work`: worked on it (\"Work on it\", a node of an orchestration built from it); for a document,   one written while working, such as an architecture decision.\n- `verify`: verified it against its acceptance criteria; for a document, the verification report.\n- `reference`: tied to it by hand, without playing a part in its life. Documents only, in practice.\n\nOnly `work` and `origin`, on chats and orchestration tasks, are written until orchestration 3; a client handles every member all the same."
+    "description": "The part a linked chat, orchestration task or document played in the item's life. The roles past `origin` follow the fixed columns, so they cannot grow with the flow: whichever team role a project puts on a column, its chat is `refine` in `backlog` and `todo`, `work` in `in_progress` and `verify` in `in_review`.\n\n- `origin`: the item was created from it (the chat of \"Create a task from this message\", or a   document the assistant proposed items from).\n- `refine`: refined it before work started; for a document, the specification refinement wrote.\n- `work`: worked on it (\"Work on it\", a node of an orchestration built from it); for a document,   one written while working, such as an architecture decision.\n- `verify`: verified it against its acceptance criteria; for a document, the verification report.\n- `reference`: tied to it by hand, without playing a part in its life. Documents only, in practice.\n\n`refine`, `work` and `verify` are also what a flow run's chat gets, by its  {@link  FlowStage } ; a client handles every member all the same."
+  },
+  "DocumentKind": {
+    "type": "string",
+    "enum": [
+      "spec",
+      "adr",
+      "report",
+      "doc"
+    ],
+    "description": "What a document tied to a work item is: `spec`, a specification (the Product Owner's, refining); `adr`, an architecture decision; `report`, a verification report (QA's); `doc`, anything else."
   },
   "WorkItemWaitReason": {
     "type": "string",
@@ -10676,7 +11111,7 @@
       },
       "bounces": {
         "type": "number",
-        "description": "Times the verifying role sent it back to `in_progress` in the current round of work, compared with  {@link  ProjectFlowSettings.maxBounces } ; a person moving it starts a new round. Reserved for the flow by column (orchestration 3): absent reads as 0."
+        "description": "Times the verifying role sent it back to `in_progress` in the current round of work, compared with  {@link  ProjectFlowSettings.maxBounces } ; a person moving it starts a new round. Written by the flow by column: absent reads as 0."
       },
       "waiting": {
         "anyOf": [
@@ -10687,7 +11122,7 @@
             "type": "null"
           }
         ],
-        "description": "What it waits for from the person, which the board shows in the idle colour with a word. Reserved for the flow by column (orchestration 3): absent reads as null, waiting for nothing."
+        "description": "What it waits for from the person, which the board shows in the idle colour with a word. Written by the flow by column: absent reads as null, waiting for nothing."
       },
       "createdAt": {
         "type": "string"
@@ -11257,7 +11692,7 @@
       "kind",
       "role"
     ],
-    "description": "Every kind and role is accepted by the contract; until orchestration 3 stores them, the server refuses a `document` link and the roles other than `work` and `origin` with a 400."
+    "description": "Every kind and role is accepted by the contract. A document is tied by hand through `POST /work-items/:itemId/documents` ( {@link  TieDocumentRequest } ), with the role `reference`."
   },
   "Milestone": {
     "type": "object",
@@ -11628,5 +12063,988 @@
       "summary"
     ],
     "description": "What the item's own branch changed, read from git the way a chat's worktree is."
+  },
+  "Team": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "The Team module is on; with it off the members are still served, and the client hides them"
+      },
+      "members": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TeamMember"
+        }
+      },
+      "unassignedAgents": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Agent files in the project's `.claude/agents/` that no member uses, which \"add a member\" offers"
+      }
+    },
+    "required": [
+      "projectId",
+      "enabled",
+      "members",
+      "unassignedAgents"
+    ]
+  },
+  "TeamMember": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id of the agent that plays it (`opus`, `sonnet`)"
+      },
+      "responsibility": {
+        "type": "string",
+        "description": "One line on what it answers for"
+      },
+      "agent": {
+        "type": "string",
+        "description": "Name of the agent file in the project's `.claude/agents/`, without `.md`"
+      },
+      "writes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Paths or globs, relative to the project, the member may write; absent means no restriction of Agentry's own. Enforced on the chats Agentry starts for it through the CLI's permission rules; from a terminal it is only what the agent file says."
+      },
+      "file": {
+        "$ref": "#/components/schemas/TeamAgentFile"
+      },
+      "columns": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemStatus"
+        },
+        "description": "The columns it answers for under the flow, in board order; empty for a role that is only consulted"
+      },
+      "running": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowRun"
+        },
+        "description": "Its flow runs working now, oldest first; empty when it is idle"
+      },
+      "queued": {
+        "type": "number",
+        "description": "How many of its flow runs wait for a free place"
+      },
+      "lastRun": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRun"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Its latest run that ended, for \"refined AGN-47 1 h ago\"; null when it never ran"
+      }
+    },
+    "required": [
+      "agent",
+      "columns",
+      "file",
+      "lastRun",
+      "model",
+      "queued",
+      "responsibility",
+      "role",
+      "running"
+    ],
+    "description": "A member as `GET /projects/:id/team` serves it: the metadata, its file, and what it is doing."
+  },
+  "TeamAgentFile": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Relative to the project: `.claude/agents/<agent>.md`"
+      },
+      "state": {
+        "$ref": "#/components/schemas/TeamAgentFileState"
+      },
+      "drift": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TeamAgentDriftField"
+        },
+        "description": "Empty unless `state` is `drifted`"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "As the file's frontmatter says them; null when the file is missing or leaves them out"
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "path",
+      "state",
+      "drift",
+      "description",
+      "model",
+      "updatedAt"
+    ]
+  },
+  "TeamAgentFileState": {
+    "type": "string",
+    "enum": [
+      "ok",
+      "missing",
+      "drifted"
+    ],
+    "description": "The member's agent file as it is on disk: `ok`, it matches the metadata; `missing`, it was deleted (the member still shows, and its file can be written again); `drifted`, its frontmatter says something the metadata does not ( {@link  TeamAgentFile.drift } ). A drifted or hand-edited file is reported, never overwritten."
+  },
+  "TeamAgentDriftField": {
+    "type": "string",
+    "enum": [
+      "name",
+      "description",
+      "model"
+    ],
+    "description": "A frontmatter field of the agent file that disagrees with the member's metadata."
+  },
+  "FlowRun": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "itemId": {
+        "type": "string"
+      },
+      "item": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Filled in when read; null once the item is gone"
+      },
+      "role": {
+        "type": "string",
+        "description": "The team role, matching  {@link  ProjectTeamRole.role }"
+      },
+      "agent": {
+        "type": "string",
+        "description": "The member's agent file name, as `claude --agent` takes it"
+      },
+      "model": {
+        "type": "string"
+      },
+      "stage": {
+        "$ref": "#/components/schemas/FlowStage"
+      },
+      "column": {
+        "$ref": "#/components/schemas/WorkItemStatus",
+        "description": "The column the card entered that started it"
+      },
+      "state": {
+        "$ref": "#/components/schemas/FlowRunState"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat it runs in; null while queued. A Developer's run continues the item's work chat when there is one"
+      },
+      "activity": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatActivity"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "What the chat is doing now, filled in when read while it runs"
+      },
+      "outcome": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunOutcome"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null until it ends"
+      },
+      "summary": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The result's summary, once it ended with one"
+      },
+      "queuedAt": {
+        "type": "string"
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "itemId",
+      "item",
+      "role",
+      "agent",
+      "model",
+      "stage",
+      "column",
+      "state",
+      "chatId",
+      "outcome",
+      "summary",
+      "queuedAt",
+      "startedAt",
+      "endedAt"
+    ],
+    "description": "One run of a team member on a work item, queued, running or ended. Rows, so it survives a restart."
+  },
+  "FlowRunState": {
+    "type": "string",
+    "enum": [
+      "queued",
+      "running",
+      "ended"
+    ],
+    "description": "`queued` waits for a place under `maxParallel`; `running` has its chat; `ended` has an outcome."
+  },
+  "TeamFromTemplateRequest": {
+    "type": "object",
+    "properties": {
+      "roles": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "description": "Writes the members of the project's template (`ProjectTemplate.team`). The person accepts them one by one, so `roles` names the ones accepted; absent means every role of the template. An agent file that already exists is kept as it is, and a role already on the team is left alone."
+  },
+  "PutTeamMemberRequest": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string",
+        "description": "Model alias or id of the agent that plays it (`opus`, `sonnet`)"
+      },
+      "responsibility": {
+        "type": "string",
+        "description": "One line on what it answers for"
+      },
+      "writes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "createFile": {
+        "type": "boolean",
+        "description": "Write a starting agent file for the role when there is none; an existing file is never overwritten"
+      }
+    },
+    "required": [
+      "model",
+      "responsibility",
+      "role"
+    ],
+    "description": "Creates or replaces a member's metadata (`PUT /projects/:id/team/:agent`). The agent file itself is edited through `/config/resources/agents/:name?project=`."
+  },
+  "ProjectFlow": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "`flow.enabled`, with the Team module on"
+      },
+      "maxParallel": {
+        "type": "number"
+      },
+      "running": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowRun"
+        },
+        "description": "Oldest first"
+      },
+      "queued": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowRun"
+        },
+        "description": "In the order they will start"
+      }
+    },
+    "required": [
+      "projectId",
+      "enabled",
+      "maxParallel",
+      "running",
+      "queued"
+    ],
+    "description": "`GET /projects/:id/flow`: what the flow is doing in a project now."
+  },
+  "FlowRunResult": {
+    "type": "object",
+    "properties": {
+      "summary": {
+        "type": "string"
+      },
+      "verdict": {
+        "$ref": "#/components/schemas/FlowVerdict"
+      },
+      "memoryProposals": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowMemoryProposal"
+        }
+      },
+      "documents": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowRunDocument"
+        }
+      }
+    },
+    "required": [
+      "summary",
+      "memoryProposals",
+      "documents"
+    ],
+    "description": "The structured result every flow run ends with, through the CLI's `--json-schema`. `summary` becomes the member's comment on the item; `verdict` is QA's only."
+  },
+  "FlowVerdict": {
+    "type": "string",
+    "enum": [
+      "pass",
+      "fail"
+    ],
+    "description": "QA's verdict: `pass` leaves the item waiting for the person's approval, `fail` sends it back to `in_progress`."
+  },
+  "FlowMemoryProposal": {
+    "type": "object",
+    "properties": {
+      "target": {
+        "$ref": "#/components/schemas/MemoryProposalTarget"
+      },
+      "text": {
+        "type": "string"
+      },
+      "reason": {
+        "type": "string",
+        "description": "Why the team should remember it"
+      }
+    },
+    "required": [
+      "target",
+      "text",
+      "reason"
+    ],
+    "description": "A memory entry a flow run proposes, as its result carries it."
+  },
+  "FlowRunDocument": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Relative to the project, inside the documents folder (`docs/specs/agn-28-board.md`)"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/DocumentKind"
+      }
+    },
+    "required": [
+      "path",
+      "kind"
+    ],
+    "description": "A document a flow run wrote in the item's worktree, reported so Agentry ties it to the item."
+  },
+  "JournalPage": {
+    "type": "object",
+    "properties": {
+      "entries": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/JournalEntry"
+        }
+      },
+      "total": {
+        "type": "number",
+        "description": "Every entry of the project"
+      },
+      "handed": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "number"
+          },
+          "bytes": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "entries",
+          "bytes"
+        ],
+        "description": "What a flow run is handed: the newest entries that fit the cap"
+      },
+      "nextBefore": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Pass as `before` for the next page; null on the last"
+      }
+    },
+    "required": [
+      "entries",
+      "total",
+      "handed",
+      "nextBefore"
+    ],
+    "description": "`GET /projects/:id/journal?limit=&before=`, newest first."
+  },
+  "JournalEntry": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/JournalEntryKind"
+      },
+      "text": {
+        "type": "string",
+        "description": "Markdown; for `closed`, the item's title as it was"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "item": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Filled in when read; null when there is no item or it is gone"
+      },
+      "author": {
+        "$ref": "#/components/schemas/WorkItemActor",
+        "description": "Who wrote or proposed it: the person, or the agent and its role"
+      },
+      "approvedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who approved it: the move to `done` for `closed`, the proposal for `memory`; null for what a person wrote"
+      },
+      "proposalId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The proposal it came from"
+      },
+      "documentPath": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "A document it refers to (an architecture decision), relative to the project"
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemSource"
+        },
+        "description": "For `closed`: the chats and orchestration tasks that worked on the item"
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "kind",
+      "text",
+      "itemId",
+      "item",
+      "author",
+      "approvedBy",
+      "proposalId",
+      "documentPath",
+      "sources",
+      "createdAt"
+    ],
+    "description": "One entry of a project's journal, Agentry's own record of decisions and closed items. The newest are handed to every flow run with `--append-system-prompt`."
+  },
+  "CreateJournalEntryRequest": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "decision",
+          "note"
+        ],
+        "description": "Default `note`"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "documentPath": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "description": "An entry written by hand. `closed` and `memory` are Agentry's to write."
+  },
+  "MemoryProposal": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "target": {
+        "$ref": "#/components/schemas/MemoryProposalTarget"
+      },
+      "text": {
+        "type": "string",
+        "description": "As proposed"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "status": {
+        "$ref": "#/components/schemas/MemoryProposalStatus"
+      },
+      "proposedBy": {
+        "$ref": "#/components/schemas/WorkItemActor",
+        "description": "The agent and its role"
+      },
+      "source": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemSource"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The chat it came from"
+      },
+      "flowRunId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "item": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemRef"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Filled in when read; null when there is no item or it is gone"
+      },
+      "approvedText": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "What was written, when the person edited it before approving; null otherwise"
+      },
+      "decidedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/WorkItemActor"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The person, once decided"
+      },
+      "decidedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "rejectReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Why it was rejected, when the person said"
+      },
+      "journalEntryId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The journal entry an approval to the journal wrote"
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "projectId",
+      "target",
+      "text",
+      "reason",
+      "status",
+      "proposedBy",
+      "source",
+      "flowRunId",
+      "itemId",
+      "item",
+      "approvedText",
+      "decidedBy",
+      "decidedAt",
+      "rejectReason",
+      "journalEntryId",
+      "createdAt"
+    ],
+    "description": "A memory entry a team member proposed. Nothing is written until the person approves it."
+  },
+  "MemoryProposalStatus": {
+    "type": "string",
+    "enum": [
+      "pending",
+      "approved",
+      "rejected"
+    ]
+  },
+  "ApproveMemoryProposalRequest": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "The text to write instead of the proposed one"
+      }
+    }
+  },
+  "RejectMemoryProposalRequest": {
+    "type": "object",
+    "properties": {
+      "reason": {
+        "type": "string"
+      }
+    }
+  },
+  "ProjectDocuments": {
+    "type": "object",
+    "properties": {
+      "projectId": {
+        "type": "string"
+      },
+      "root": {
+        "type": "string",
+        "description": "`documents.path`, relative to the project (`docs`)"
+      },
+      "exists": {
+        "type": "boolean",
+        "description": "The folder is on disk"
+      },
+      "tree": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DocumentNode"
+        },
+        "description": "The folder's entries, directories first"
+      },
+      "fileCount": {
+        "type": "number"
+      },
+      "tiedCount": {
+        "type": "number",
+        "description": "Files tied to at least one item"
+      }
+    },
+    "required": [
+      "projectId",
+      "root",
+      "exists",
+      "tree",
+      "fileCount",
+      "tiedCount"
+    ],
+    "description": "`GET /projects/:id/documents`: the tree of the documents folder."
+  },
+  "DocumentNode": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string",
+        "description": "Relative to the project, `/`-separated (`docs/specs/agn-28-board.md`)"
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "file",
+          "dir"
+        ]
+      },
+      "children": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DocumentNode"
+        },
+        "description": "For a directory, its entries, directories first; absent for a file"
+      },
+      "fileCount": {
+        "type": "number",
+        "description": "For a directory, the Markdown files under it at any depth"
+      },
+      "title": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For a file: its first `# ` heading, when it has one"
+      },
+      "size": {
+        "type": "number"
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "ties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DocumentTie"
+        },
+        "description": "For a file, the items it is tied to; empty for a directory"
+      }
+    },
+    "required": [
+      "name",
+      "path",
+      "type",
+      "ties"
+    ],
+    "description": "A file or directory of the documents folder. Only Markdown files are listed."
+  },
+  "DocumentTie": {
+    "type": "object",
+    "properties": {
+      "linkId": {
+        "type": "string"
+      },
+      "item": {
+        "$ref": "#/components/schemas/WorkItemRef"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/DocumentKind"
+      },
+      "linkRole": {
+        "$ref": "#/components/schemas/WorkItemLinkRole",
+        "description": "The part it played in the item's life; `reference` when tied by hand"
+      },
+      "teamRole": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The team role that wrote it; null when a person tied it"
+      },
+      "chatId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The chat that wrote it"
+      },
+      "createdAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "linkId",
+      "item",
+      "kind",
+      "linkRole",
+      "teamRole",
+      "chatId",
+      "createdAt"
+    ],
+    "description": "A work item a document is tied to, as a `document` link."
+  },
+  "DocumentFile": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Relative to the project"
+      },
+      "content": {
+        "type": "string"
+      },
+      "title": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "size": {
+        "type": "number"
+      },
+      "updatedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "ties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DocumentTie"
+        }
+      }
+    },
+    "required": [
+      "path",
+      "content",
+      "title",
+      "size",
+      "updatedAt",
+      "ties"
+    ],
+    "description": "`GET /projects/:id/documents/file?path=`."
+  },
+  "WriteDocumentRequest": {
+    "type": "object",
+    "properties": {
+      "content": {
+        "type": "string"
+      },
+      "baseUpdatedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The `updatedAt` the editor started from; when the file changed since (an agent wrote it), the write is refused with 409 instead of overwriting it. Absent writes whatever is there."
+      }
+    },
+    "required": [
+      "content"
+    ],
+    "description": "`PUT /projects/:id/documents/file?path=`: creates or replaces a Markdown file of the documents folder."
+  },
+  "TieDocumentRequest": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Relative to the project, inside the documents folder"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/DocumentKind",
+        "description": "Default `doc`"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "description": "`POST /work-items/:itemId/documents`: ties a document of the project to an item by hand, role `reference`."
   }
 }

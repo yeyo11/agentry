@@ -141,6 +141,22 @@ import type {
   WorkItemOrchestrationDraft,
   WorkOnWorkItemRequest,
   WorkOnWorkItemResult,
+  ApproveMemoryProposalRequest,
+  CreateJournalEntryRequest,
+  DocumentFile,
+  JournalEntry,
+  JournalPage,
+  MemoryProposal,
+  MemoryProposalStatus,
+  ProjectDocuments,
+  ProjectFlow,
+  PutTeamMemberRequest,
+  RejectMemoryProposalRequest,
+  Team,
+  TeamFromTemplateRequest,
+  TeamMember,
+  TieDocumentRequest,
+  WriteDocumentRequest,
 } from '@agentry/shared';
 import i18n from './i18n';
 import { authHeaders, setChallenge, withToken } from './lib/auth';
@@ -247,6 +263,12 @@ async function uploadFile(file: File): Promise<Attachment> {
 /** Config scope: no projectId means the user scope. */
 export interface Scope {
   projectId?: string;
+}
+
+/** A page of a project's journal, newest first: `before` is the `nextBefore` of the previous page. */
+export interface JournalQuery {
+  limit?: number;
+  before?: string;
 }
 
 const num = (value: number | undefined) => (value === undefined ? undefined : String(value));
@@ -596,6 +618,39 @@ export const api = {
   updateMilestone: (milestoneId: string, req: UpdateMilestoneRequest) =>
     request<Milestone>(`/milestones/${enc(milestoneId)}`, { method: 'PATCH', body: req }),
   deleteMilestone: (milestoneId: string) => request<{ ok: true }>(`/milestones/${enc(milestoneId)}`, { method: 'DELETE' }),
+  // ---- team, flow, journal, memory proposals and documents (docs/plans/project-ecosystem.md, orchestration 3)
+  team: (projectId: string, o?: ReadOptions) => request<Team>(`/projects/${enc(projectId)}/team`, o),
+  teamFromTemplate: (projectId: string, req: TeamFromTemplateRequest = {}) =>
+    request<Team>(`/projects/${enc(projectId)}/team/from-template`, { method: 'POST', body: req }),
+  /** The member's metadata; its agent file is a resource: `putResource({ projectId }, 'agents', agent, …)` */
+  putTeamMember: (projectId: string, agent: string, req: PutTeamMemberRequest) =>
+    request<TeamMember>(`/projects/${enc(projectId)}/team/${enc(agent)}`, { method: 'PUT', body: req }),
+  /** Takes the member off the team; its agent file stays */
+  removeTeamMember: (projectId: string, agent: string) =>
+    request<{ ok: true }>(`/projects/${enc(projectId)}/team/${enc(agent)}`, { method: 'DELETE' }),
+  flow: (projectId: string, o?: ReadOptions) => request<ProjectFlow>(`/projects/${enc(projectId)}/flow`, o),
+  journal: (projectId: string, page: JournalQuery = {}, o?: ReadOptions) =>
+    request<JournalPage>(`/projects/${enc(projectId)}/journal${qs({ limit: num(page.limit), before: page.before })}`, o),
+  addJournalEntry: (projectId: string, req: CreateJournalEntryRequest) =>
+    request<JournalEntry>(`/projects/${enc(projectId)}/journal`, { method: 'POST', body: req }),
+  removeJournalEntry: (entryId: string) => request<{ ok: true }>(`/journal/${enc(entryId)}`, { method: 'DELETE' }),
+  /** Every status when `status` is left out */
+  memoryProposals: (projectId: string, status?: MemoryProposalStatus, o?: ReadOptions) =>
+    request<MemoryProposal[]>(`/projects/${enc(projectId)}/memory/proposals${qs({ status })}`, o),
+  approveMemoryProposal: (proposalId: string, req: ApproveMemoryProposalRequest = {}) =>
+    request<MemoryProposal>(`/memory-proposals/${enc(proposalId)}/approve`, { method: 'POST', body: req }),
+  rejectMemoryProposal: (proposalId: string, req: RejectMemoryProposalRequest = {}) =>
+    request<MemoryProposal>(`/memory-proposals/${enc(proposalId)}/reject`, { method: 'POST', body: req }),
+  documents: (projectId: string, o?: ReadOptions) => request<ProjectDocuments>(`/projects/${enc(projectId)}/documents`, o),
+  /** `path` is relative to the project, as the tree gives it */
+  documentFile: (projectId: string, path: string, o?: ReadOptions) =>
+    request<DocumentFile>(`/projects/${enc(projectId)}/documents/file${qs({ path })}`, o),
+  writeDocument: (projectId: string, path: string, req: WriteDocumentRequest) =>
+    request<DocumentFile>(`/projects/${enc(projectId)}/documents/file${qs({ path })}`, { method: 'PUT', body: req }),
+  deleteDocument: (projectId: string, path: string) =>
+    request<{ ok: true }>(`/projects/${enc(projectId)}/documents/file${qs({ path })}`, { method: 'DELETE' }),
+  tieDocument: (itemId: string, req: TieDocumentRequest) =>
+    request<WorkItemLink>(`/work-items/${enc(itemId)}/documents`, { method: 'POST', body: req }),
   /** The VAPID public key to subscribe against; the server makes its keypair when this is first asked */
   pushKey: () => request<PushKeyInfo>('/push/key'),
   pushSubscriptions: () => request<PushSubscriptionSummary[]>('/push/subscriptions'),
@@ -702,6 +757,20 @@ export const keys = {
   milestoneEach: ['milestones', 'one'] as const,
   milestones: (projectId: string) => ['milestones', projectId] as const,
   milestone: (milestoneId: string) => ['milestones', 'one', milestoneId] as const,
+  // ---- team, flow, journal, memory proposals and documents. One prefix per project for each, so an
+  // event of that project reaches every page and filter of it
+  team: (projectId: string) => ['team', projectId] as const,
+  flow: (projectId: string) => ['flow', projectId] as const,
+  /** Every page of a project's journal */
+  journal: (projectId: string) => ['journal', projectId] as const,
+  journalPage: (projectId: string, page: JournalQuery = {}) => ['journal', projectId, page.limit ?? 0, page.before ?? ''] as const,
+  /** Not under `memory`: that prefix is the CLI's memory files, which a proposal only reaches once approved */
+  memoryProposalsOf: (projectId: string) => ['memory-proposals', projectId] as const,
+  memoryProposals: (projectId: string, status?: MemoryProposalStatus) => ['memory-proposals', projectId, status ?? 'all'] as const,
+  /** A project's tree and every file read of it */
+  documentsOf: (projectId: string) => ['documents', projectId] as const,
+  documentTree: (projectId: string) => ['documents', projectId, 'tree'] as const,
+  documentFile: (projectId: string, path: string) => ['documents', projectId, 'file', path] as const,
   pushSubscriptions: ['push', 'subscriptions'] as const,
   availablePlugins: (q: string) => ['plugins', 'available', q] as const,
   pluginDetails: (plugin: string) => ['plugins', 'details', plugin] as const,
@@ -874,6 +943,65 @@ export const useChatWorkItems = (chatId: string | null) =>
     queryKey: keys.chatWorkItems(chatId ?? ''),
     queryFn: ({ signal }) => api.chatWorkItems(chatId ?? '', { signal }),
     enabled: chatId !== null,
+  });
+
+// ---------- team, flow, journal, memory proposals and documents ----------
+//
+// Kept fresh by `team.changed`, `flow.run`, `journal.changed`, `memory.proposal` and
+// `document.changed` (lib/events.ts); a member's live line is patched in place by `chat.activity`.
+
+export const useTeam = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.team(projectId ?? ''),
+    queryFn: ({ signal }) => api.team(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useFlow = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.flow(projectId ?? ''),
+    queryFn: ({ signal }) => api.flow(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useJournal = (projectId: string | null, page: JournalQuery = {}) =>
+  useQuery({
+    queryKey: keys.journalPage(projectId ?? '', page),
+    queryFn: ({ signal }) => api.journal(projectId ?? '', page, { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+    placeholderData: keepPreviousData,
+  });
+
+/** Every status when `status` is left out; the Memory tab asks for `pending`. */
+export const useMemoryProposals = (projectId: string | null, status?: MemoryProposalStatus) =>
+  useQuery({
+    queryKey: keys.memoryProposals(projectId ?? '', status),
+    queryFn: ({ signal }) => api.memoryProposals(projectId ?? '', status, { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+export const useDocuments = (projectId: string | null) =>
+  useQuery({
+    queryKey: keys.documentTree(projectId ?? ''),
+    queryFn: ({ signal }) => api.documents(projectId ?? '', { signal }),
+    enabled: projectId !== null,
+    refetchInterval: useFallbackInterval(),
+  });
+
+/**
+ * No fallback interval: `document.changed` says when the file changed, and an editor open on it
+ * compares `updatedAt` to its own before taking the new content, so an agent's write never replaces
+ * what the person is typing.
+ */
+export const useDocumentFile = (projectId: string | null, path: string | null) =>
+  useQuery({
+    queryKey: keys.documentFile(projectId ?? '', path ?? ''),
+    queryFn: ({ signal }) => api.documentFile(projectId ?? '', path ?? '', { signal }),
+    enabled: projectId !== null && path !== null,
   });
 
 /**

@@ -1021,9 +1021,9 @@ export interface ProjectTeamRole {
 }
 
 /**
- * Reserved for the Team module (orchestration 3): nothing reads it yet. A member is a CLI agent file
- * in the project's `.claude/agents/`, so it also works from a terminal; this is the metadata Agentry
- * keeps beside it.
+ * The Team module's metadata. A member is a CLI agent file in the project's `.claude/agents/`, so it
+ * also works from a terminal; this is what Agentry keeps beside it. `GET /projects/:id/team` serves
+ * each member with the state of its file ({@link TeamMember}).
  */
 export interface ProjectTeamSettings {
   members: ProjectTeamMember[];
@@ -1032,23 +1032,32 @@ export interface ProjectTeamSettings {
 export interface ProjectTeamMember extends ProjectTeamRole {
   /** Name of the agent file in the project's `.claude/agents/`, without `.md` */
   agent: string;
-  /** Paths, relative to the project, the member may write; absent means no restriction of Agentry's own */
+  /**
+   * Paths or globs, relative to the project, the member may write; absent means no restriction of
+   * Agentry's own. Enforced on the chats Agentry starts for it through the CLI's permission rules;
+   * from a terminal it is only what the agent file says.
+   */
   writes?: string[];
 }
 
 /**
- * Reserved for the flow by column (orchestration 3): nothing reads it yet. Each column may have a
- * responsible role that acts when a card enters it; agents move cards, and a person approves `done`.
+ * The flow by column. Each column may have a responsible role that acts when a card enters it;
+ * agents move cards, and a person approves `done`. Only while `enabled` and the Team module is on.
  */
 export interface ProjectFlowSettings {
   enabled: boolean;
-  /** Responsible role per column, matching {@link ProjectTeamRole.role} */
+  /** Responsible role per column, matching {@link ProjectTeamRole.role}; `done` never has one */
   columns: Partial<Record<WorkItemStatus, string>>;
   /** Times QA may send an item back to `in_progress` before it waits for the person */
   maxBounces: number;
+  /**
+   * Flow runs of the project at once; the rest wait in order, so the flow cannot drain the accounts'
+   * quota on its own. Absent reads as 2 (`DEFAULT_FLOW_MAX_PARALLEL`).
+   */
+  maxParallel?: number;
 }
 
-/** Reserved for the Documents module (orchestration 3): nothing reads it yet. */
+/** The Documents module: the repository's documents folder, and documents tied to work items. */
 export interface ProjectDocumentsSettings {
   /** The documents folder, relative to the project (`docs`) */
   path: string;
@@ -1197,8 +1206,7 @@ export interface WorkItemComment {
 /**
  * What a history entry, or a `workitem.updated` event, says changed. `created` opens every history;
  * `comment` only appears on events, since comments are their own list. `waiting` is the flow's
- * {@link WorkItemWaitReason} starting or ending, from and to the reason or null; reserved for
- * orchestration 3.
+ * {@link WorkItemWaitReason} starting or ending, from and to the reason or null.
  */
 export type WorkItemChange =
   | 'created'
@@ -1283,7 +1291,7 @@ export type WorkItemLinkKind = WorkItemSourceKind | 'document';
  * - `verify`: verified it against its acceptance criteria; for a document, the verification report.
  * - `reference`: tied to it by hand, without playing a part in its life. Documents only, in practice.
  *
- * Only `work` and `origin`, on chats and orchestration tasks, are written until orchestration 3; a
+ * `refine`, `work` and `verify` are also what a flow run's chat gets, by its {@link FlowStage}; a
  * client handles every member all the same.
  */
 export type WorkItemLinkRole = 'origin' | 'refine' | 'work' | 'verify' | 'reference';
@@ -1296,6 +1304,13 @@ export interface WorkItemLink extends Omit<WorkItemSource, 'kind'> {
   role: WorkItemLinkRole;
   /** For a `document` link, its path relative to the project; absent or null for the others */
   documentPath?: string | null;
+  /** For a `document` link, what kind of document it is; absent or null for the others */
+  documentKind?: DocumentKind | null;
+  /**
+   * The team role whose flow run made the link (the Product Owner's specification, QA's chat);
+   * absent or null for a link a person or a chat outside the flow made
+   */
+  teamRole?: string | null;
   /** The chat's title or the task's name, filled in when read; null when it is gone */
   name?: string | null;
   /** Filled in when read, for a chat */
@@ -1351,13 +1366,13 @@ export interface WorkItem {
   activeLink?: WorkItemLink | null;
   /**
    * Times the verifying role sent it back to `in_progress` in the current round of work, compared with
-   * {@link ProjectFlowSettings.maxBounces}; a person moving it starts a new round. Reserved for the
-   * flow by column (orchestration 3): absent reads as 0.
+   * {@link ProjectFlowSettings.maxBounces}; a person moving it starts a new round. Written by the
+   * flow by column: absent reads as 0.
    */
   bounces?: number;
   /**
-   * What it waits for from the person, which the board shows in the idle colour with a word. Reserved
-   * for the flow by column (orchestration 3): absent reads as null, waiting for nothing.
+   * What it waits for from the person, which the board shows in the idle colour with a word. Written
+   * by the flow by column: absent reads as null, waiting for nothing.
    */
   waiting?: WorkItemWaitReason | null;
   createdAt: string;
@@ -1455,8 +1470,8 @@ export interface CreateWorkItemRelationRequest {
 }
 
 /**
- * Every kind and role is accepted by the contract; until orchestration 3 stores them, the server
- * refuses a `document` link and the roles other than `work` and `origin` with a 400.
+ * Every kind and role is accepted by the contract. A document is tied by hand through
+ * `POST /work-items/:itemId/documents` ({@link TieDocumentRequest}), with the role `reference`.
  */
 export interface CreateWorkItemLinkRequest {
   kind: WorkItemLinkKind;
@@ -1607,6 +1622,355 @@ export interface WorkItemChanges {
   branch: string | null;
   /** Null while nothing has worked on it in a worktree, or once its branch is gone */
   summary: ChangeSummary | null;
+}
+
+// ---------- Team, flow by column, journal, memory proposals and documents ----------
+//
+// Orchestration 3 of docs/plans/project-ecosystem.md. A team member is a CLI agent file in the
+// project's `.claude/agents/` plus the metadata in `settings.team`; it runs as `claude --agent` with
+// its model, so the same member works from a terminal. The flow starts a member's run when a card
+// enters the column it answers for, and every run ends with a structured result
+// ({@link FlowRunResult}) through `--json-schema`: its comment, QA's verdict, the memory entries it
+// proposes and the documents it wrote. Nothing reaches the memory before the person approves it.
+
+/**
+ * The member's agent file as it is on disk: `ok`, it matches the metadata; `missing`, it was deleted
+ * (the member still shows, and its file can be written again); `drifted`, its frontmatter says
+ * something the metadata does not ({@link TeamAgentFile.drift}). A drifted or hand-edited file is
+ * reported, never overwritten.
+ */
+export type TeamAgentFileState = 'ok' | 'missing' | 'drifted';
+
+/** A frontmatter field of the agent file that disagrees with the member's metadata. */
+export type TeamAgentDriftField = 'name' | 'description' | 'model';
+
+export interface TeamAgentFile {
+  /** Relative to the project: `.claude/agents/<agent>.md` */
+  path: string;
+  state: TeamAgentFileState;
+  /** Empty unless `state` is `drifted` */
+  drift: TeamAgentDriftField[];
+  /** As the file's frontmatter says them; null when the file is missing or leaves them out */
+  description: string | null;
+  model: string | null;
+  updatedAt: string | null;
+}
+
+/** A member as `GET /projects/:id/team` serves it: the metadata, its file, and what it is doing. */
+export interface TeamMember extends ProjectTeamMember {
+  file: TeamAgentFile;
+  /** The columns it answers for under the flow, in board order; empty for a role that is only consulted */
+  columns: WorkItemStatus[];
+  /** Its flow runs working now, oldest first; empty when it is idle */
+  running: FlowRun[];
+  /** How many of its flow runs wait for a free place */
+  queued: number;
+  /** Its latest run that ended, for "refined AGN-47 1 h ago"; null when it never ran */
+  lastRun: FlowRun | null;
+}
+
+export interface Team {
+  projectId: string;
+  /** The Team module is on; with it off the members are still served, and the client hides them */
+  enabled: boolean;
+  members: TeamMember[];
+  /** Agent files in the project's `.claude/agents/` that no member uses, which "add a member" offers */
+  unassignedAgents: string[];
+}
+
+/**
+ * Writes the members of the project's template (`ProjectTemplate.team`). The person accepts them one
+ * by one, so `roles` names the ones accepted; absent means every role of the template. An agent file
+ * that already exists is kept as it is, and a role already on the team is left alone.
+ */
+export interface TeamFromTemplateRequest {
+  roles?: string[];
+}
+
+/**
+ * Creates or replaces a member's metadata (`PUT /projects/:id/team/:agent`). The agent file itself is
+ * edited through `/config/resources/agents/:name?project=`.
+ */
+export interface PutTeamMemberRequest extends ProjectTeamRole {
+  writes?: string[];
+  /** Write a starting agent file for the role when there is none; an existing file is never overwritten */
+  createFile?: boolean;
+}
+
+/**
+ * What a flow run does, named after the link role its chat gets: `refine` in `backlog` and `todo`,
+ * `work` in `in_progress`, `verify` in `in_review`.
+ */
+export type FlowStage = 'refine' | 'work' | 'verify';
+
+/** `queued` waits for a place under `maxParallel`; `running` has its chat; `ended` has an outcome. */
+export type FlowRunState = 'queued' | 'running' | 'ended';
+
+/**
+ * How a run ended: `passed`, it finished well (and for QA, the item held); `rejected`, QA's verdict
+ * failed the item; `failed`, the chat failed or its result was unreadable; `cancelled`, a person's
+ * move or the flow being switched off made it moot before it started.
+ */
+export type FlowRunOutcome = 'passed' | 'rejected' | 'failed' | 'cancelled';
+
+/** One run of a team member on a work item, queued, running or ended. Rows, so it survives a restart. */
+export interface FlowRun {
+  id: string;
+  projectId: string;
+  itemId: string;
+  /** Filled in when read; null once the item is gone */
+  item: WorkItemRef | null;
+  /** The team role, matching {@link ProjectTeamRole.role} */
+  role: string;
+  /** The member's agent file name, as `claude --agent` takes it */
+  agent: string;
+  model: string;
+  stage: FlowStage;
+  /** The column the card entered that started it */
+  column: WorkItemStatus;
+  state: FlowRunState;
+  /** The chat it runs in; null while queued. A Developer's run continues the item's work chat when there is one */
+  chatId: string | null;
+  /** What the chat is doing now, filled in when read while it runs */
+  activity?: ChatActivity | null;
+  /** Null until it ends */
+  outcome: FlowRunOutcome | null;
+  /** The result's summary, once it ended with one */
+  summary: string | null;
+  queuedAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
+/** `GET /projects/:id/flow`: what the flow is doing in a project now. */
+export interface ProjectFlow {
+  projectId: string;
+  /** `flow.enabled`, with the Team module on */
+  enabled: boolean;
+  maxParallel: number;
+  /** Oldest first */
+  running: FlowRun[];
+  /** In the order they will start */
+  queued: FlowRun[];
+}
+
+/** QA's verdict: `pass` leaves the item waiting for the person's approval, `fail` sends it back to `in_progress`. */
+export type FlowVerdict = 'pass' | 'fail';
+
+/** A memory entry a flow run proposes, as its result carries it. */
+export interface FlowMemoryProposal {
+  target: MemoryProposalTarget;
+  text: string;
+  /** Why the team should remember it */
+  reason: string;
+}
+
+/** A document a flow run wrote in the item's worktree, reported so Agentry ties it to the item. */
+export interface FlowRunDocument {
+  /** Relative to the project, inside the documents folder (`docs/specs/agn-28-board.md`) */
+  path: string;
+  kind: DocumentKind;
+}
+
+/**
+ * The structured result every flow run ends with, through the CLI's `--json-schema`. `summary`
+ * becomes the member's comment on the item; `verdict` is QA's only.
+ */
+export interface FlowRunResult {
+  summary: string;
+  verdict?: FlowVerdict;
+  memoryProposals: FlowMemoryProposal[];
+  documents: FlowRunDocument[];
+}
+
+/**
+ * What a journal entry records: `closed`, an item reached `done` (written once per item); `decision`,
+ * a decision taken; `memory`, an approved memory proposal addressed to the journal; `note`, anything
+ * else a person wrote by hand.
+ */
+export type JournalEntryKind = 'closed' | 'decision' | 'memory' | 'note';
+
+/**
+ * One entry of a project's journal, Agentry's own record of decisions and closed items. The newest
+ * are handed to every flow run with `--append-system-prompt`.
+ */
+export interface JournalEntry {
+  id: string;
+  projectId: string;
+  kind: JournalEntryKind;
+  /** Markdown; for `closed`, the item's title as it was */
+  text: string;
+  itemId: string | null;
+  /** Filled in when read; null when there is no item or it is gone */
+  item: WorkItemRef | null;
+  /** Who wrote or proposed it: the person, or the agent and its role */
+  author: WorkItemActor;
+  /** Who approved it: the move to `done` for `closed`, the proposal for `memory`; null for what a person wrote */
+  approvedBy: WorkItemActor | null;
+  /** The proposal it came from */
+  proposalId: string | null;
+  /** A document it refers to (an architecture decision), relative to the project */
+  documentPath: string | null;
+  /** For `closed`: the chats and orchestration tasks that worked on the item */
+  sources: WorkItemSource[];
+  createdAt: string;
+}
+
+/** `GET /projects/:id/journal?limit=&before=`, newest first. */
+export interface JournalPage {
+  entries: JournalEntry[];
+  /** Every entry of the project */
+  total: number;
+  /** What a flow run is handed: the newest entries that fit the cap */
+  handed: { entries: number; bytes: number };
+  /** Pass as `before` for the next page; null on the last */
+  nextBefore: string | null;
+}
+
+/** An entry written by hand. `closed` and `memory` are Agentry's to write. */
+export interface CreateJournalEntryRequest {
+  text: string;
+  /** Default `note` */
+  kind?: Extract<JournalEntryKind, 'decision' | 'note'>;
+  itemId?: string | null;
+  documentPath?: string | null;
+}
+
+/**
+ * Where an approved proposal is written: `instructions`, the project's `CLAUDE.md` (under `section`
+ * when given, a heading of it); `memory`, a file of the project's CLI memory directory (`file`,
+ * appended to, or created and indexed in `MEMORY.md`); `journal`, a `memory` entry of the journal.
+ */
+export type MemoryProposalTargetKind = 'instructions' | 'memory' | 'journal';
+
+/** Flat rather than a union so it maps onto one row; the fields that do not apply are null. */
+export interface MemoryProposalTarget {
+  kind: MemoryProposalTargetKind;
+  /** For `memory`: the file name (`tests.md`) */
+  file: string | null;
+  /** For `instructions`: the heading it goes under; null appends at the end */
+  section: string | null;
+}
+
+export type MemoryProposalStatus = 'pending' | 'approved' | 'rejected';
+
+/** A memory entry a team member proposed. Nothing is written until the person approves it. */
+export interface MemoryProposal {
+  id: string;
+  projectId: string;
+  target: MemoryProposalTarget;
+  /** As proposed */
+  text: string;
+  reason: string;
+  status: MemoryProposalStatus;
+  /** The agent and its role */
+  proposedBy: WorkItemActor;
+  /** The chat it came from */
+  source: WorkItemSource | null;
+  flowRunId: string | null;
+  itemId: string | null;
+  /** Filled in when read; null when there is no item or it is gone */
+  item: WorkItemRef | null;
+  /** What was written, when the person edited it before approving; null otherwise */
+  approvedText: string | null;
+  /** The person, once decided */
+  decidedBy: WorkItemActor | null;
+  decidedAt: string | null;
+  /** Why it was rejected, when the person said */
+  rejectReason: string | null;
+  /** The journal entry an approval to the journal wrote */
+  journalEntryId: string | null;
+  createdAt: string;
+}
+
+export interface ApproveMemoryProposalRequest {
+  /** The text to write instead of the proposed one */
+  text?: string;
+}
+
+export interface RejectMemoryProposalRequest {
+  reason?: string;
+}
+
+/**
+ * What a document tied to a work item is: `spec`, a specification (the Product Owner's, refining);
+ * `adr`, an architecture decision; `report`, a verification report (QA's); `doc`, anything else.
+ */
+export type DocumentKind = 'spec' | 'adr' | 'report' | 'doc';
+
+/** A work item a document is tied to, as a `document` link. */
+export interface DocumentTie {
+  linkId: string;
+  item: WorkItemRef;
+  kind: DocumentKind;
+  /** The part it played in the item's life; `reference` when tied by hand */
+  linkRole: WorkItemLinkRole;
+  /** The team role that wrote it; null when a person tied it */
+  teamRole: string | null;
+  /** The chat that wrote it */
+  chatId: string | null;
+  createdAt: string;
+}
+
+/** A file or directory of the documents folder. Only Markdown files are listed. */
+export interface DocumentNode {
+  name: string;
+  /** Relative to the project, `/`-separated (`docs/specs/agn-28-board.md`) */
+  path: string;
+  type: 'file' | 'dir';
+  /** For a directory, its entries, directories first; absent for a file */
+  children?: DocumentNode[];
+  /** For a directory, the Markdown files under it at any depth */
+  fileCount?: number;
+  /** For a file: its first `# ` heading, when it has one */
+  title?: string | null;
+  size?: number;
+  updatedAt?: string | null;
+  /** For a file, the items it is tied to; empty for a directory */
+  ties: DocumentTie[];
+}
+
+/** `GET /projects/:id/documents`: the tree of the documents folder. */
+export interface ProjectDocuments {
+  projectId: string;
+  /** `documents.path`, relative to the project (`docs`) */
+  root: string;
+  /** The folder is on disk */
+  exists: boolean;
+  /** The folder's entries, directories first */
+  tree: DocumentNode[];
+  fileCount: number;
+  /** Files tied to at least one item */
+  tiedCount: number;
+}
+
+/** `GET /projects/:id/documents/file?path=`. */
+export interface DocumentFile {
+  /** Relative to the project */
+  path: string;
+  content: string;
+  title: string | null;
+  size: number;
+  updatedAt: string | null;
+  ties: DocumentTie[];
+}
+
+/** `PUT /projects/:id/documents/file?path=`: creates or replaces a Markdown file of the documents folder. */
+export interface WriteDocumentRequest {
+  content: string;
+  /**
+   * The `updatedAt` the editor started from; when the file changed since (an agent wrote it), the
+   * write is refused with 409 instead of overwriting it. Absent writes whatever is there.
+   */
+  baseUpdatedAt?: string | null;
+}
+
+/** `POST /work-items/:itemId/documents`: ties a document of the project to an item by hand, role `reference`. */
+export interface TieDocumentRequest {
+  /** Relative to the project, inside the documents folder */
+  path: string;
+  /** Default `doc` */
+  kind?: DocumentKind;
 }
 
 // ---------- What changed on disk ----------
@@ -3341,6 +3705,84 @@ export interface ProjectUpdatedEvent extends AgentryEventBase {
   modules: ProjectModule[];
 }
 
+/**
+ * `created` and `updated` are a member's metadata written through `PUT`, `template` the members a
+ * template wrote, `removed` a member taken off the team (its agent file stays), and `file` an agent
+ * file of a member written, deleted or found drifted.
+ */
+export type TeamChangeAction = 'created' | 'updated' | 'removed' | 'template' | 'file';
+
+/** A project's team changed. */
+export interface TeamChangedEvent extends AgentryEventBase {
+  type: 'team.changed';
+  projectId: string;
+  action: TeamChangeAction;
+  /** The members it touched, by agent file name */
+  agents: string[];
+}
+
+export type JournalChangeAction = 'added' | 'removed';
+
+/** An entry was added to a project's journal, or removed from it. */
+export interface JournalChangedEvent extends AgentryEventBase {
+  type: 'journal.changed';
+  projectId: string;
+  entryId: string;
+  action: JournalChangeAction;
+  kind: JournalEntryKind;
+  itemId: string | null;
+}
+
+export type MemoryProposalAction = 'created' | 'approved' | 'rejected';
+
+/**
+ * A memory proposal was made, approved or rejected. An approval also wrote its target: the journal
+ * announces its entry on its own, the CLI's memory and `CLAUDE.md` are read again from `target`.
+ */
+export interface MemoryProposalEvent extends AgentryEventBase {
+  type: 'memory.proposal';
+  projectId: string;
+  proposalId: string;
+  action: MemoryProposalAction;
+  target: MemoryProposalTarget;
+  /** The role that proposed it */
+  role: string | null;
+  itemId: string | null;
+}
+
+/** `written` and `removed` are the file; `tied` and `untied` a link between it and a work item. */
+export type DocumentChangeAction = 'written' | 'removed' | 'tied' | 'untied';
+
+/** A document of a project's documents folder changed, or was tied to or untied from an item. */
+export interface DocumentChangedEvent extends AgentryEventBase {
+  type: 'document.changed';
+  projectId: string;
+  /** Relative to the project */
+  path: string;
+  action: DocumentChangeAction;
+  /** The item of a `tied` or `untied`; for a file written by a flow run, the item it was written for */
+  itemId: string | null;
+}
+
+export type FlowRunAction = 'queued' | 'started' | 'ended';
+
+/**
+ * A flow run was queued, started or ended. What it did to the item (a comment, a move, the waiting
+ * state) comes as that item's own `workitem.*` events.
+ */
+export interface FlowRunEvent extends AgentryEventBase, WorkItemEventRef {
+  type: 'flow.run';
+  runId: string;
+  action: FlowRunAction;
+  role: string;
+  agent: string;
+  stage: FlowStage;
+  /** Set once started */
+  chatId: string | null;
+  /** Set when ended */
+  outcome: FlowRunOutcome | null;
+}
+
 /** Everything the buffered feed carries, discriminated by `type`. */
 export type AgentryEvent =
   | RunCreatedEvent
@@ -3377,7 +3819,12 @@ export type AgentryEvent =
   | WorkItemMovedEvent
   | WorkItemRemovedEvent
   | MilestoneChangedEvent
-  | ProjectUpdatedEvent;
+  | ProjectUpdatedEvent
+  | TeamChangedEvent
+  | JournalChangedEvent
+  | MemoryProposalEvent
+  | DocumentChangedEvent
+  | FlowRunEvent;
 
 export type AgentryEventType = AgentryEvent['type'];
 
