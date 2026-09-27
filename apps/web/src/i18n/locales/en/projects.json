@@ -82,9 +82,145 @@
   },
   "settings": {
     "environmentHint": "what Claude actually loaded in the last chat here",
-    "sections": "Project settings sections"
+    "sections": "Project settings sections",
+    "cliTitle": "Claude Code",
+    "cliHint": "The configuration the CLI reads in this project: CLAUDE.md, settings, MCP servers and files."
   },
   "resources": {
     "sections": "Project resources"
+  },
+  "head": {
+    "chats_one": "{{n}} chat",
+    "chats_other": "{{n}} chats",
+    "worktrees_one": "{{n}} worktree",
+    "worktrees_other": "{{n}} worktrees",
+    "newTask": "New task",
+    "open_one": "{{n}} open",
+    "open_other": "{{n}} open",
+    "backToProjects": "Back to projects"
+  },
+  "modules": {
+    "board": {
+      "name": "Board",
+      "description": "Tasks in five columns, milestones, and their link with chats and orchestrations."
+    },
+    "team": {
+      "name": "Team",
+      "description": "Agents with a role, a model and what they may write, in .claude/agents/."
+    },
+    "documents": {
+      "name": "Documents",
+      "description": "The repository's docs/ folder and the documents the agents write."
+    },
+    "memory": {
+      "name": "Shared memory",
+      "description": "CLAUDE.md, the project's memory and a journal every agent receives."
+    },
+    "hiddenKept": "hidden · its data is kept",
+    "hiddenEmpty": "hidden, no data yet",
+    "offMeansBrief": "Switching a module off hides it and keeps its data",
+    "offMeansShort": "Switching a module off hides its tab and keeps its data. Switching it on brings everything back.",
+    "offMeansLong": "Switching a module off <strong>hides its tab and keeps its data</strong>. Switching it on again brings everything back, as it was. No switch deletes anything.",
+    "marksLabel": "Modules: {{list}}",
+    "marksNone": "No modules"
+  },
+  "templates": {
+    "simple": {
+      "name": "Simple",
+      "description": "A name and a directory. No modules."
+    },
+    "software": {
+      "name": "Professional software",
+      "description": "Every module, the four task types and a team of four roles."
+    },
+    "library": {
+      "name": "Library or package",
+      "description": "Board, documents and memory. A limit of 2 in progress."
+    },
+    "research": {
+      "name": "Research or documentation",
+      "description": "Documents and memory, and a board without bugs."
+    },
+    "custom": {
+      "name": "Custom",
+      "description": "Everything off: you choose each module."
+    }
+  },
+  "prefix": {
+    "empty": "The key prefix cannot be empty",
+    "pattern": "Upper-case letters and digits, starting with a letter, 2 to 10 characters",
+    "taken": "{{prefix}} is already used by another project"
+  },
+  "wizard": {
+    "subtitle": "A directory, a template and the modules you want. Everything can be changed later.",
+    "backToProjects": "Back to projects",
+    "close": "Close",
+    "stepsLabel": "Steps of the new project",
+    "stepOf": "step {{n}} of {{total}}",
+    "steps": {
+      "origin": "Origin",
+      "template": "Template",
+      "modules": "Modules",
+      "summary": "Summary"
+    },
+    "chooseTemplate": "Choose a template",
+    "templateHint": "Preselects modules, task types, limits and the starting team.",
+    "modulesHint": "The ones the template preselected.",
+    "modulesHintPhone": "{{template}} preselected these. Change them now or later in the project's settings.",
+    "name": "Name",
+    "namePlaceholder": "my-project",
+    "directory": "Directory",
+    "directoryPlaceholder": "/home/you/code/my-project",
+    "source": "Where the project comes from",
+    "local": "Local",
+    "git": "Git URL",
+    "prefix": "Key prefix",
+    "keysHint": "Tasks will be called <mono>{{a}}</mono>, <mono>{{b}}</mono>…",
+    "candidateHint_one": "The directory already has {{n}} Claude Code chat: it is grouped in the project.",
+    "candidateHint_other": "The directory already has {{n}} Claude Code chats: they are grouped in the project.",
+    "importHint": "Every chat that ran under the directory becomes part of the project. A git worktree is refused: import its repository.",
+    "emptyHint": "Leave the directory empty to create a new one in the workspace.",
+    "gitHint": "The repository is cloned into the workspace.",
+    "unnamed": "Unnamed",
+    "inWorkspace": "a new directory in the workspace",
+    "change": "Change",
+    "summaryKeys": "Keys",
+    "summaryTypes": "Types",
+    "summaryLimits": "Limits",
+    "allTypes": "all four",
+    "noLimits": "none",
+    "moduleOff": "{{name}} · off",
+    "teamRoles_one": "{{n}} role from the template",
+    "teamRoles_other": "{{n}} roles from the template",
+    "noTeam": "No starting team",
+    "teamHint": "Kept with the project for when the Team module can create its agents; nothing is written to .claude/agents/ yet.",
+    "create": "Create project",
+    "created": "Created {{name}}",
+    "keyFailed": "The project was created, but its key prefix could not be set",
+    "next": "Next",
+    "back": "Back"
+  },
+  "general": {
+    "title": "General",
+    "name": "Name",
+    "prefix": "Key prefix",
+    "prefixShort": "Prefix",
+    "prefixHint": "Keys are composed when they are read: a new prefix renames <mono>{{from}}</mono> at once. The number never changes and is never reused.",
+    "prefixHintChange": "Keys are composed when they are read: <mono>{{from}}</mono> will read <mono>{{to}}</mono>. The number never changes and is never reused.",
+    "directory": "Directory",
+    "modules": "Modules",
+    "modulesOn": "{{n}} of {{total}} on",
+    "boardNote": "{{open}} open · {{total}} in total",
+    "boardLimits": "Board limits",
+    "limitsHint": "A limit per column. Going over it is allowed: the column says so in words, and nothing is blocked.",
+    "limitOf": "Limit of {{column}}",
+    "noLimits": "no limits",
+    "removeTitle": "Remove the project",
+    "removeBody": "It stops showing in Agentry. Its settings and its tasks are kept: import the directory again and everything comes back. The repository is not touched.",
+    "discard": "Discard",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "saved": "Project settings saved",
+    "saveFailed": "Could not save the project settings"
   }
 }
