@@ -5,8 +5,8 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import type { WorkItemCause, WorkItemLink, WorkItemStatus } from '@agentry/shared';
-import { Db } from '../src/db.ts';
+import type { WorkItemActor, WorkItemCause, WorkItemLink, WorkItemStatus } from '@agentry/shared';
+import { Db, WORK_ITEMS_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import type { AgentryEventInput } from '../src/events.ts';
 import { WorkItemError, WorkItemService, type WorkItemLinkState, type WorkItemProject } from '../src/work-items.ts';
 import { tempConfig } from './helpers.ts';
@@ -150,6 +150,23 @@ test('refuses what the model does not allow, with the status code the API answer
   assert.equal(service.create('p1', { title: 'ok' }).key, 'AGN-1');
 });
 
+test('who acts must be the person, an agent or the system, and a stored kind the store does not know is never read as the person', () => {
+  const { service, db } = setup();
+  const item = service.create('p1', { title: 'x' });
+  const entries = service.history(item.id).length;
+  const bogus = { kind: 'robot' } as unknown as WorkItemActor;
+  assert.throws(() => service.update(item.id, { title: 'y' }, { actor: bogus }), refusal(400));
+  assert.throws(() => service.comment(item.id, { body: 'hi' }, { actor: { kind: 'agent', role: 'r'.repeat(65) } }), refusal(400));
+  assert.throws(() => service.create('p1', { title: 'z' }, { actor: { kind: 'agent', role: 42 as unknown as string } }), refusal(400));
+  assert.equal(service.get(item.id).title, 'x');
+  assert.equal(service.history(item.id).length, entries);
+  assert.equal(service.comments(item.id).length, 0);
+
+  // A row written by something else, or by a later version with a kind this one does not know
+  db.connection.prepare("UPDATE work_item_history SET actor_kind = 'robot' WHERE item_id = ?").run(item.id);
+  assert.deepEqual(service.history(item.id)[0]?.actor, { kind: 'system', role: null });
+});
+
 // ---------- epics ----------
 
 test('an epic groups items of its project and never has an epic of its own', () => {
@@ -272,7 +289,61 @@ test('a criterion is checked on its own, with who checked it, and a replaced lis
   assert.throws(() => service.checkCriterion(item.id, 'missing', { checked: true }), refusal(404));
 });
 
+test('reordering the criteria alone is announced and returns the new updatedAt, without a history entry', async () => {
+  const { service, events } = setup();
+  const item = service.create('p1', { title: 'x', acceptanceCriteria: [{ text: 'a' }, { text: 'b' }] });
+  const [a, b] = item.acceptanceCriteria;
+  assert.ok(a && b);
+  const entries = service.history(item.id).length;
+  events.length = 0;
+  await new Promise((resolve) => setTimeout(resolve, 5));
+
+  const reordered = service.update(item.id, { acceptanceCriteria: [{ id: b.id, text: 'b' }, { id: a.id, text: 'a' }] });
+  assert.deepEqual(
+    reordered.acceptanceCriteria.map((c) => c.text),
+    ['b', 'a'],
+  );
+  assert.ok(reordered.updatedAt > item.updatedAt, 'the result carries the new updatedAt');
+  assert.equal(reordered.updatedAt, service.get(item.id).updatedAt);
+  assert.deepEqual(
+    events.map((e) => [e.type, 'changes' in e ? e.changes : null]),
+    [['workitem.updated', ['criterion']]],
+  );
+  assert.equal(service.history(item.id).length, entries);
+
+  // The same order again is no change at all
+  events.length = 0;
+  service.update(item.id, { acceptanceCriteria: [{ id: b.id, text: 'b' }, { id: a.id, text: 'a' }] });
+  assert.deepEqual(events, []);
+});
+
 // ---------- moves and ranks ----------
+
+test('appending to a column keeps ranks short instead of respreading the column every hundred cards', () => {
+  const { service, db } = setup();
+  const first = service.create('p1', { title: 'first' });
+  for (let i = 0; i < 400; i++) service.create('p1', { title: `card ${String(i)}` });
+  // A respread would have rewritten the first card's rank
+  assert.equal(service.get(first.id).rank, first.rank);
+  const longest = db.connection.prepare('SELECT MAX(LENGTH(rank)) AS n FROM work_items').get() as { n: number };
+  assert.ok(longest.n <= 8, `ranks grew to ${String(longest.n)} characters`);
+});
+
+test('neighbours a hand edit left with no valid rank between them get the column respread, in order', () => {
+  const { service, db } = setup();
+  const [a, b, c] = ['A', 'B', 'C'].map((t) => service.create('p1', { title: t }));
+  assert.ok(a && b && c);
+  // Nothing sorts strictly between `a` and `a0`, and a midpoint would land after `a0`
+  const setRank = db.connection.prepare('UPDATE work_items SET rank = ? WHERE id = ?');
+  setRank.run('a', a.id);
+  setRank.run('a0', b.id);
+  service.move(c.id, { status: 'backlog', afterId: a.id });
+  assert.deepEqual(orderIn(service, 'p1', 'backlog'), ['A', 'C', 'B']);
+  // A rank holding a character that is not a digit is respread too, rather than failing the move
+  setRank.run('a!', b.id);
+  service.move(c.id, { status: 'backlog', afterId: b.id });
+  assert.deepEqual(orderIn(service, 'p1', 'backlog'), ['A', 'B', 'C']);
+});
 
 test('moves keep the order a person gives, first, last and after a neighbour', () => {
   const { service } = setup();
@@ -447,6 +518,16 @@ test('comments by the person and by agents are their own list, oldest first, and
   assert.throws(() => service.comment(item.id, { body: ' ' }), refusal(400));
 });
 
+test('the comments of a missing item are a 404, not an empty list, and a comment has a maximum length', () => {
+  const { service } = setup();
+  assert.throws(() => service.comments('missing'), refusal(404));
+  const item = service.create('p1', { title: 'x' });
+  assert.deepEqual(service.comments(item.id), []);
+  assert.throws(() => service.comment(item.id, { body: 'x'.repeat(50_001) }), refusal(400));
+  assert.equal(service.comment(item.id, { body: 'x'.repeat(50_000) }).body.length, 50_000);
+  assert.equal(service.comments(item.id).length, 1);
+});
+
 test('an item keeps every link, a repeated link is the one already there, and a working one makes the item live', () => {
   const states = new Map<string, WorkItemLinkState>([
     ['s1', { name: 'First try', chatState: 'idle' }],
@@ -487,6 +568,45 @@ test('an item keeps every link, a repeated link is the one already there, and a 
   assert.throws(() => service.link(item.id, { kind: 'orchestration', role: 'work', orchestrationId: 'o1' }), refusal(400));
   service.unlink(first.id);
   assert.equal(service.links(item.id).length, 3);
+});
+
+test('the ids of a link must be non-empty text, refused with a 400 rather than failing in SQLite', () => {
+  const { service } = setup();
+  const item = service.create('p1', { title: 'x' });
+  const bad = (value: unknown) => value as string;
+  for (const chatId of [bad({}), bad(42), bad(['c1']), '', '   ']) {
+    assert.throws(() => service.link(item.id, { kind: 'chat', role: 'work', chatId }), refusal(400), JSON.stringify(chatId));
+  }
+  assert.throws(() => service.link(item.id, { kind: 'orchestration', role: 'work', orchestrationId: bad({}), taskId: 't1' }), refusal(400));
+  assert.throws(() => service.link(item.id, { kind: 'orchestration', role: 'work', orchestrationId: 'o1', taskId: bad(7) }), refusal(400));
+  assert.throws(() => service.link(item.id, { kind: 'orchestration', role: 'work', orchestrationId: 'o1', taskId: 't1', chatId: bad(true) }), refusal(400));
+  assert.deepEqual(service.links(item.id), []);
+
+  const link = service.link(item.id, { kind: 'orchestration', role: 'work', orchestrationId: 'o1', taskId: 't1' });
+  assert.throws(() => service.setLinkChat(link.id, bad(null)), refusal(400));
+  assert.throws(() => service.setLinkChat(link.id, ''), refusal(400));
+  assert.equal(service.setLinkChat(link.id, 'c9').chatId, 'c9');
+});
+
+test('the worktree and branch of an item are recorded as a fact: announced, but not written into its history', () => {
+  const { service, events } = setup();
+  const item = service.create('p1', { title: 'x' });
+  const entries = service.history(item.id).length;
+  events.length = 0;
+  const placed = service.setWorktree(item.id, { worktree: '/repo/.claude/worktrees/agn-1', branch: 'task/agn-1' });
+  assert.deepEqual([placed.worktree, placed.branch], ['/repo/.claude/worktrees/agn-1', 'task/agn-1']);
+  assert.deepEqual(
+    [service.get(item.id).worktree, service.get(item.id).branch],
+    ['/repo/.claude/worktrees/agn-1', 'task/agn-1'],
+  );
+  assert.equal(service.history(item.id).length, entries);
+  assert.deepEqual(
+    events.map((e) => (e.type === 'workitem.updated' ? [e.itemId, e.changes, e.actor.kind] : e.type)),
+    [[item.id, [], 'system']],
+  );
+  const cleared = service.setWorktree(item.id, { worktree: null, branch: null });
+  assert.deepEqual([cleared.worktree, cleared.branch], [null, null]);
+  assert.throws(() => service.setWorktree('missing', { worktree: '/x', branch: 'task/x' }), refusal(404));
 });
 
 // ---------- lists, filters, search and the board ----------
@@ -541,6 +661,18 @@ test('search looks in the title and the description, takes wildcards literally a
   assert.deepEqual(titles(story.key, 'p1'), [story.id]);
   // A key names one project's item, even across every project
   assert.deepEqual(titles('lib-1'), [foreign.id]);
+});
+
+test('search and the label filter fold case in every language, not only in ASCII', () => {
+  const { service } = setup();
+  const session = service.create('p1', { title: 'SESIÓN caducada', labels: ['Übersetzung'] });
+  const street = service.create('p1', { title: 'x', description: 'Die STRASSE ist gesperrt' });
+  const ids = (filter: Parameters<WorkItemService['list']>[0]) => service.list({ projectId: 'p1', ...filter }).map((i) => i.id);
+  assert.deepEqual(ids({ q: 'sesión' }), [session.id]);
+  assert.deepEqual(ids({ q: 'Sesión CADUCADA' }), [session.id]);
+  assert.deepEqual(ids({ q: 'straße' }), [street.id]);
+  assert.deepEqual(ids({ labels: ['übersetzung'] }), [session.id]);
+  assert.deepEqual(ids({ labels: ['ÜBERSETZUNG'] }), [session.id]);
 });
 
 test('the board holds the five columns in order; a filter narrows the items but not the counts', () => {
@@ -648,36 +780,45 @@ test('a listener that throws does not undo the change nor reach the caller', () 
   db.close();
 });
 
+test('a ROLLBACK that fails does not hide the error that caused it, and the store stays usable', () => {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  const db = new Db(config);
+  let sabotage = false;
+  const service = new WorkItemService({
+    db,
+    project: () => ({ keyPrefix: 'AGN', columnLimits: {} }),
+    // Runs inside the link's transaction: ends it early, so the store's own ROLLBACK finds none
+    linkState: () => {
+      if (!sabotage) return null;
+      db.connection.exec('ROLLBACK');
+      throw new Error('the original failure');
+    },
+  });
+  const item = service.create('p1', { title: 'x' });
+  sabotage = true;
+  assert.throws(() => service.link(item.id, { kind: 'chat', role: 'work', chatId: 'c1' }), /the original failure/);
+  sabotage = false;
+  assert.deepEqual(service.links(item.id), []);
+  assert.equal(service.update(item.id, { title: 'y' }).title, 'y');
+  db.close();
+});
+
 // ---------- persistence ----------
 
 test('the migration applies on top of a database at the previous version and keeps what it held', () => {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
-  // Build the store as the previous release left it: every migration but this one, with a row in it
-  const current = new Db(config);
-  current.savePushSubscription({
-    id: 'sub-1',
-    endpoint: 'https://push.example/1',
-    p256dh: 'k',
-    auth: 'a',
-    kinds: [],
-    level: 'important',
-    label: 'Phone',
-    createdAt: '2026-09-01T00:00:00.000Z',
-    lastSeenAt: '2026-09-01T00:00:00.000Z',
-  });
-  current.close();
+  // Build the store as the release before the work items left it, whatever migrations came since:
+  // every migration up to the one before theirs, with a row in it
   const raw = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
-  const version = (raw.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
-  const tables = (raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND (name LIKE 'work_item%' OR name = 'milestones')").all() as Array<{ name: string }>).map(
-    (t) => t.name,
-  );
-  assert.deepEqual(tables.sort(), ['milestones', 'work_item_comments', 'work_item_counters', 'work_item_criteria', 'work_item_history', 'work_item_labels', 'work_item_links', 'work_item_relations', 'work_items']);
-  raw.exec('PRAGMA foreign_keys = OFF');
-  for (const table of ['work_item_links', 'work_item_history', 'work_item_comments', 'work_item_relations', 'work_item_criteria', 'work_item_labels', 'work_items', 'milestones', 'work_item_counters']) {
-    raw.exec(`DROP TABLE ${table}`);
-  }
-  raw.exec(`PRAGMA user_version = ${String(version - 1)}`);
+  migrate(raw, WORK_ITEMS_SCHEMA_VERSION - 1);
+  const workTables = () =>
+    (raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND (name LIKE 'work_item%' OR name = 'milestones')").all() as Array<{ name: string }>).map((t) => t.name);
+  assert.deepEqual(workTables(), []);
+  raw
+    .prepare(`INSERT INTO push_subscriptions (id, endpoint, p256dh, auth, kinds, level, label, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run('sub-1', 'https://push.example/1', 'k', 'a', '[]', 'important', 'Phone', '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z');
   raw.close();
 
   const reopened = new Db(config);
@@ -688,7 +829,11 @@ test('the migration applies on top of a database at the previous version and kee
   reopened.close();
 
   const check = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
-  assert.equal((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, version);
+  assert.ok((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version >= WORK_ITEMS_SCHEMA_VERSION);
+  const tables = (check.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND (name LIKE 'work_item%' OR name = 'milestones')").all() as Array<{ name: string }>).map(
+    (t) => t.name,
+  );
+  assert.deepEqual(tables.sort(), ['milestones', 'work_item_comments', 'work_item_counters', 'work_item_criteria', 'work_item_history', 'work_item_labels', 'work_item_links', 'work_item_relations', 'work_items']);
   const indexes = (check.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'work_items'").all() as Array<{ name: string }>).map((i) => i.name);
   assert.ok(indexes.includes('work_items_board'), 'indexed by project and status');
   check.close();
