@@ -9,6 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { createContext, runInContext } from 'node:vm';
 import { buildServiceWorker, shellId } from '../scripts/sw-shell.ts';
+import { TEST_PUSH_KEY_PREFIX } from '@agentry/shared';
 import { PUSH_STATE_CACHE, PUSH_STATE_KEY } from '../src/lib/push-model.ts';
 
 const WEB = path.join(import.meta.dirname, '..');
@@ -82,6 +83,8 @@ interface ClientSpec {
   url: string;
   /** The page a person is looking at right now: the one that shows the toast itself */
   visible?: boolean;
+  /** The page has the input focus; a backgrounded iOS app can be visible without it */
+  focused?: boolean;
   /** The page answers the worker's hand-off message, i.e. it routed the path itself */
   acks?: boolean;
   /** `navigate()` is refused for a window this worker does not control */
@@ -97,6 +100,7 @@ class FakeClient {
   constructor(private readonly spec: ClientSpec) {
     this.url = spec.url;
     this.visibilityState = spec.visible ? 'visible' : 'hidden';
+    this.focused = spec.focused ?? false;
   }
   focus(): Promise<FakeClient> {
     this.focused = true;
@@ -436,10 +440,34 @@ const FALLBACK = { title: 'Agentry', body: 'Something is waiting for you.' };
 // `QUJD` is `ABC`: enough to prove the key reaches `subscribe` as the bytes it was stored as
 const STATE = { applicationServerKey: 'QUJD', kinds: ['waiting', 'limit'], label: 'Android · Chrome · PWA', fallback: FALLBACK };
 
-test('a push arriving while a page of ours is visible shows nothing: that page has the toast', async () => {
-  const worker = await ready(SHELL, { clients: [{ url: `${ORIGIN}/chats`, visible: true }, { url: `${ORIGIN}/usage` }] });
+const FOCUSED = { url: `${ORIGIN}/chats`, visible: true, focused: true };
+
+test('a push arriving while a page of ours is focused shows nothing: that page has the toast', async () => {
+  const worker = await ready(SHELL, { clients: [FOCUSED, { url: `${ORIGIN}/usage` }] });
   await worker.push(WAITING);
   assert.deepEqual(worker.shown, [], 'the same news as a toast and as a notification is the news twice');
+});
+
+test('a page that says it is visible but has no focus does not swallow the push', async () => {
+  // What a backgrounded iOS app reports: taking its word for it hid every notification
+  const worker = await ready(SHELL, { clients: [{ url: `${ORIGIN}/chats`, visible: true }] });
+  await worker.push(WAITING);
+  assert.equal(worker.shown.length, 1);
+});
+
+test('a test push is shown even with the page in front: the page that asked has no toast for it', async () => {
+  const worker = await ready(SHELL, { clients: [FOCUSED] });
+  await worker.push({ ...WAITING, kind: 'activity', key: `${TEST_PUSH_KEY_PREFIX}2026-09-27T15:00:00.000Z` });
+  assert.equal(worker.shown.length, 1);
+});
+
+test("a push through Apple's service is always shown, or WebKit revokes the subscription as silent", async () => {
+  const worker = await ready(SHELL, { clients: [FOCUSED], held: subscription('https://web.push.apple.com/QOabc') });
+  await worker.push(WAITING);
+  assert.equal(worker.shown.length, 1);
+  const other = await ready(SHELL, { clients: [FOCUSED], held: subscription('https://fcm.googleapis.com/fcm/send/abc') });
+  await other.push(WAITING);
+  assert.deepEqual(other.shown, [], 'only Apple is held to that rule');
 });
 
 test('with no page visible the payload becomes the notification, tagged with its dedupe key', async () => {
@@ -560,6 +588,7 @@ test('a subscription with no encryption keys is not registered: nothing could be
 test('the worker and the page name the same cache for the state they share', () => {
   assert.match(SOURCE, new RegExp(`const PUSH_STATE_CACHE = '${PUSH_STATE_CACHE}';`));
   assert.match(SOURCE, new RegExp(`const PUSH_STATE_KEY = '${PUSH_STATE_KEY}';`));
+  assert.match(SOURCE, new RegExp(`const TEST_PUSH_KEY_PREFIX = '${TEST_PUSH_KEY_PREFIX}';`));
   // The shell cache is dropped on every new build; this one holds what a rotation needs and is not
   assert.ok(!PUSH_STATE_CACHE.startsWith('agentry-shell-'));
 });

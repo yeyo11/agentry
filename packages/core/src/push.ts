@@ -10,6 +10,7 @@ import {
   KINDS,
   LEVELS,
   notificationsFor,
+  TEST_PUSH_KEY_PREFIX,
   type AgentryEvent,
   type NotificationDraft,
   type NotificationKind,
@@ -271,7 +272,7 @@ export class PushService {
     const at = new Date().toISOString();
     return this.deliver(targets, {
       kind: 'activity',
-      key: `push:test:${at}`,
+      key: `${TEST_PUSH_KEY_PREFIX}${at}`,
       title: 'Agentry push works',
       body: 'This is the test notification you asked for.',
       href: null,
