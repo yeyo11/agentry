@@ -81,7 +81,8 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/tasks"]').classList.contains('is-active')`)) === true, 'Tasks is the current section');
     check((await page.text('.topbar .crumb-page')).trim() === 'Tasks', 'the crumb reads Tasks');
     await page.goto('/tasks/milestones', 900);
-    await page.waitFor(`return ${pageHeading} === 'Milestones'`, { label: 'the milestones page' });
+    // The milestones are a view of Tasks: the title stays, and the view switch says which (DesktopHitos)
+    await page.waitFor(`return ${pageHeading} === 'Tasks' && document.querySelector('main [role=radiogroup] [role=radio][aria-checked=true]')?.textContent.trim() === 'Milestones'`, { label: 'the milestones page' });
     const key = created[0].key;
     await page.goto(`/tasks/${key.toLowerCase()}`, 900);
     await page.waitFor(`return ${pageHeading} === '${key}'`, { label: `a work item's page, by its key in any case (${key})` });

@@ -192,5 +192,6 @@ test('Tasks in the More sheet says its open items with the word, and nothing whe
 test('only the chat list holds the project scope in its own header', () => {
   assert.equal(pageHoldsScope('/chats'), true);
   assert.equal(pageHoldsScope('/chats/'), true);
-  for (const path of ['/', '/chats/new', '/chats/abc', '/orchestration', '/projects']) assert.equal(pageHoldsScope(path), false, path);
+  assert.equal(pageHoldsScope('/tasks'), true);
+  for (const path of ['/', '/chats/new', '/chats/abc', '/orchestration', '/projects', '/tasks/milestones', '/tasks/AGN-12']) assert.equal(pageHoldsScope(path), false, path);
 });

@@ -277,5 +277,8 @@ export function moreNotes(input: MoreNotesInput): Record<string, MoreNote> {
  */
 export function pageHoldsScope(pathname: string): boolean {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
-  return path === '/chats';
+  if (path === '/chats') return true;
+  // Tasks draws the scope as a chip beside its title (MobileTablero); its milestones name the
+  // project under theirs and leave the top bar's selector where it is
+  return path === '/tasks';
 }
