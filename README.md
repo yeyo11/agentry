@@ -48,7 +48,8 @@ docker run -p 127.0.0.1:8787:8787 -v agentry-data:/data ghcr.io/yeyo11/agentry
   so one lost to a closed tab is reloaded instead of paid for twice, and a graph interrupted by a
   restart goes on where it stopped.
 - **Multi-account rotation** — usage per window, proactive switching before an account runs out,
-  and a run that hits its limit is rotated and resumed on the next account. Every rotation is
+  and a run that hits its limit is rotated and resumed on the next account (a chat pinned to the
+  account that ran out is unpinned first). Every rotation is
   recorded, so "why did my account change" has an answer that survives a restart.
 - **See what an agent really did, and step in** — for every orchestration task and every chat: the
   branch and its commits, the files changed with `+/−` and a highlighted diff per file, what is
