@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-09-27T18:00:00Z
+updated_at: 2026-09-27T20:00:00Z
 tags:
     - projects
     - modules
@@ -17,7 +17,9 @@ template it came from, the prefix of its work items' keys (`AGN-12`) and how its
 This is the first piece of the [project ecosystem](plans/project-ecosystem.md): orchestration 1
 (`ecosystem-foundation`) built the server side, and orchestration 2 (`ecosystem-board-web`) built the
 screens from the prototypes in `docs/design-system/reference/`, which the owner validated on
-2026-09-27. The board itself is in [work-items.md](work-items.md).
+2026-09-27. The board itself is in [work-items.md](work-items.md). Orchestration 3 (`ecosystem-team`)
+built the Team, Documents and Shared memory modules on top, core and web: see
+[team-and-flow.md](team-and-flow.md).
 
 ## The record stays small, the settings go beside it
 
@@ -34,7 +36,9 @@ project, `data/project-settings/<id>.json`, read and written whole with `writeAt
 | `template` | The template it was created from, for reference only: editing never re-applies it |
 | `keyPrefix` | The prefix of the work items' keys, unique among projects |
 | `board` | The work item types the board offers and the optional limit per column |
-| `team`, `flow`, `documents` | Reserved for orchestration 3, already validated when stored |
+| `team` | The team's members: each one's agent file name, role, model, responsibility and write paths ([team-and-flow.md](team-and-flow.md)) |
+| `flow` | The flow by column: the switch, the role of each column, `maxBounces` and `maxParallel` |
+| `documents` | The documents folder, `path` (`docs` when absent) |
 
 Modules and board types are **lists**, not one boolean per member, so a module or a type added later
 is simply absent from an old document instead of a missing required key. `Project` (what
@@ -85,9 +89,16 @@ Nothing is deleted by a switch. For the Board module this is enforced by the wor
 the module off, changes answer 409 and reads keep working, so nothing looks lost (see
 [work-items.md](work-items.md#access)).
 
-The Team, Documents and Shared memory modules can already be switched on, and their state is saved.
-The only thing that reads them so far is the web: Shared memory shows or hides the Memoria tab. The
-rest of their behaviour comes in orchestration 3.
+The other three modules follow the same rule, and each is described in
+[team-and-flow.md](team-and-flow.md):
+
+- **Team**: the project's team of agents and the flow by column. The flow runs only while Team and
+  Board are both on, and switching either off cancels its queue and stops its runs. Switching Team
+  off touches nothing on disk: the agent files stay in `.claude/agents/`.
+- **Documents**: the project's documents folder and the documents tied to work items.
+- **Shared memory**: the project journal, the team's memory proposals and the CLI's own memory.
+
+Each answers 409 to a change while it is off, and keeps answering reads.
 
 ## Templates
 
@@ -104,8 +115,9 @@ applied once, when the project is created or imported.
 | `custom` | none | all | none | the software team, if Team is switched on later |
 
 Models follow the plan: Opus for the roles that decide (Product Owner, Architect, Researcher), Sonnet
-for the ones that carry the work out. The team is only data for now; nothing creates agent files
-from it until orchestration 3. There are no user-saved templates.
+for the ones that carry the work out. The team is what the empty Team tab offers: accepting it
+writes each role's agent file and fills the flow's empty columns, with the flow left off (see
+[team-and-flow.md](team-and-flow.md#the-starting-team)). There are no user-saved templates.
 
 `name` and `description` are the English copy; a client that knows the `id` shows its own
 translation.
@@ -150,17 +162,22 @@ The project page (`/`, with a project selected) is a header over a strip of tabs
 - **The tabs** each live at `/?view=<id>` (`apps/web/src/pages/dashboard/views.ts`):
   - Resumen: the dashboard that used to be the whole page, with no `view`;
   - Tablero (`board`);
+  - Equipo (`team`);
+  - Documentos (`documents`);
   - Memoria (`memory`);
   - Recursos (`resources`);
   - Worktrees;
   - Ajustes (`settings`).
 
-  Tablero shows the number of open tasks and Worktrees its own count, in neutral grey.
-- **A tab exists only while its module is on.** Tablero follows the Board module and Memoria follows
-  Shared memory; the other tabs are always there. An address that names a hidden tab lands on
-  Resumen, and old `?tab=` links still redirect to `?view=`. Team and Documents get their tabs in
-  orchestration 3.
-- **The top bar's breadcrumb** reads `Proyectos / <project> / <tab>`.
+  Tablero shows the number of open tasks, Equipo its members, Documentos its files and Worktrees
+  its own count, in neutral grey. Memoria shows the memory proposals waiting for the person, in the
+  idle colour.
+- **A tab exists only while its module is on.** Tablero follows the Board module, Equipo the Team
+  module, Documentos the Documents module and Memoria Shared memory; the other tabs are always
+  there. An address that names a hidden tab lands on Resumen, and old `?tab=` links still redirect
+  to `?view=`.
+- **The top bar's breadcrumb** reads `Proyectos / <project> / <tab>`. Inside Equipo it goes one
+  level deeper, "Equipo / Flujo" or "Equipo / Desarrollador", with "Equipo" as a link back.
 - **On a phone**, the strip becomes a card of cells right under the header, and each tab opens as its
   own screen with a back button.
 
@@ -219,4 +236,4 @@ composed when read, so a new prefix renames every key at once, history included.
 
 ## Related
 
-[[work-items.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[work-items.md]] · [[team-and-flow.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

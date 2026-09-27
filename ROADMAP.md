@@ -179,16 +179,29 @@
 
   Both themes and both sizes, checked against the references. See [docs/work-items.md](docs/work-items.md#the-screens)
   and [docs/projects.md](docs/projects.md#the-screens).
+- **The team, the flow by column, shared memory and documents** — orchestration 3 of the project
+  ecosystem, core and web:
+  - a project's team: each member a Claude Code agent file plus the role, model, responsibility and
+    write paths Agentry keeps. A file a person wrote or edited is never overwritten, only reported;
+  - the flow by column, switched on per project. A card entering a column starts its role's run with
+    `--agent`, `--model`, the journal as `--append-system-prompt` and a structured result through
+    `--json-schema`. QA sends the card back a set number of times; only a person moves it to Done.
+    Runs are capped per project, queued as rows, and survive a restart;
+  - the project journal, and memory proposals a person approves one by one;
+  - the documents folder, read and edited with path traversal refused, and documents tied to tasks;
+  - the Team, member, Flow, Documents and Memory screens, the board worked by a team, and a task's
+    documents and waiting state, in both themes and sizes.
+
+  See [docs/team-and-flow.md](docs/team-and-flow.md).
 
 ## Next
 
 ### Planned
 
-- **The project ecosystem, orchestrations 3 and 4** ([docs/plans/project-ecosystem.md](docs/plans/project-ecosystem.md)).
-  3, `ecosystem-team`: a team of agents with roles as CLI agent
-  files, the flow by column with QA sending items back, the project journal and memory proposals,
-  and documents. 4, `ecosystem-assistant`: the project assistant, suggested work items, and
-  resources with AI, all through CLI chats with `--json-schema`.
+- **The project ecosystem, orchestration 4** ([docs/plans/project-ecosystem.md](docs/plans/project-ecosystem.md)):
+  `ecosystem-assistant`, the project assistant (including proposing a team by reading the
+  project), suggested work items, and resources with AI, all through CLI chats with
+  `--json-schema`.
 
 - **Dashboard: editable layout persisted per project; Documents and Flows widgets.** Home already
   renders any layout that passes validation, from a registry of widget types, so adding, removing,
