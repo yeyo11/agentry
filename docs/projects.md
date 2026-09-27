@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-09-27T06:00:00Z
+updated_at: 2026-09-27T12:00:00Z
 tags:
     - projects
     - modules
@@ -40,13 +40,35 @@ project, `data/project-settings/<id>.json`, read and written whole with `writeAt
 
 Modules and board types are **lists**, not one boolean per member, so a module or a type added later
 is simply absent from an old document instead of a missing required key. `Project` (what
-`GET /projects` returns) gains `key` and `modules`, filled in by core.
+`GET /projects` returns) gains `key` and `modules`, filled in by core. Both are **required** in the
+contract since the fixes of orchestration 1b: core fills them on every project, and a client that had
+to guess at their absence would show an empty key.
+
+The lists of values (modules, templates, and the work item orders in
+[work-items.md](work-items.md#the-model)) are built with `valuesOf` in
+`packages/shared/src/work-items.ts`, which checks each list against its union both ways, so a member
+added to a union cannot go missing from the validators and screens that read the list.
 
 ## A project nobody configured
 
 A project with no settings document, which is every project imported before this, reads as **every
 module off**. On that first read it gets a key prefix derived from its name, and the document is
 written straight away so the prefix never moves.
+
+### A read never writes over the person's file
+
+A document that does not parse, or whose parts do not validate (one typo in a hand edit), is
+answered **in memory**: the parts that still validate, and defaults and a derived prefix for the
+rest. The file is left as the person wrote it, so the next `GET /projects` does not wipe the
+modules, the column limits and the key prefix. A test asserts the file is unchanged.
+
+A read writes only the two things that keep its own answer stable: the document of a project that
+has none, and a prefix that clashes with another project's. For a clash only the prefix changes on
+disk, and the project imported first keeps its prefix whichever of the two is read first. Listing
+projects reads each document once (`readAll`), not once per project it is checked against.
+
+The work item store asks for a project's settings synchronously and passes the project's name, so an
+unusable prefix reads as the same derived one the project list shows.
 
 `deriveKeyPrefix` takes the initials of the name's words when it has several (`claude wrapper` →
 `CW`, `MyShop` → `MS`), or the first letter and the consonants after it when it has one (`Agentry`
@@ -101,7 +123,9 @@ translation.
   validated.
 
 Every change emits `project.updated` on the event feed, naming what changed (`name`, `key`,
-`modules`, `settings`). The README's [Projects](../README.md#projects) table has every route.
+`modules`, `settings`). That includes importing a known directory again with other modules: the
+import emits it, records the template the request named, and keeps whatever else the old document
+holds, a part a hand edit broke included. The README's [Projects](../README.md#projects) table has every route.
 
 ## Removing and importing again
 
@@ -110,9 +134,13 @@ so do the work items, which are keyed by the project's id. The document records 
 written for, so importing the same directory again finds it and **takes the old id back**, and with
 it the settings and the board. `DELETE /projects/:id` says so in its description.
 
+Switching the Board off and on again is tested through the API end to end: with the module off the
+items still read and creating one answers 409; switched on again, the same keys, columns, epics and
+order come back, and the next item is numbered after the last one made before the switch.
+
 Changing the key prefix does not rewrite anything: only an item's number is stored, and its key is
 composed when read, so a new prefix renames every key at once, history included.
 
 ## Related
 
-[[work-items.md]] · [[plans/project-ecosystem.md]] · [[design-system.md]] · [[status.md]]
+[[work-items.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

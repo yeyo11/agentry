@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-09-27T06:00:00Z
+updated_at: 2026-09-27T12:00:00Z
 tags:
     - status
     - project-state
@@ -21,9 +21,9 @@ change gets in.
 | Version | **0.19.0**, the same across all five packages |
 | Released | 2026-09-25, by release-please from the commit messages |
 | Runtime | Node >= 22, pnpm workspace |
-| Source | 481 tracked `.ts`/`.tsx` files; the API contract is 3,356 lines of `packages/shared/src/types.ts` |
+| Source | 484 tracked `.ts`/`.tsx` files; the API contract is 3,408 lines of `packages/shared/src/types.ts` |
 | REST | 18 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 124 unit and integration test files, plus 37 browser specs under `e2e/specs/` |
+| Tests | 127 unit and integration test files, plus 37 browser specs under `e2e/specs/` |
 | CI | `ci.yml` (typecheck, tests, advisories, OpenAPI drift, e2e, image smoke test), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape is unchanged: `packages/shared` holds the types every other package imports,
@@ -53,10 +53,15 @@ that chats and orchestrations work on and move ([work-items.md](work-items.md)).
 ## What is open
 
 - **The rest of the project ecosystem.** Orchestration 1 built the contract, the store, the API and
-  the links with chats and orchestrations, and prototyped every new screen (48 of them, desktop and
-  phone, dark and light) in `docs/design-system/reference/`. No web code exists for any of it: the
-  owner validates the prototypes first, then orchestration 2 builds the board's screens, 3 the team,
-  memory and documents, and 4 the assistant. See the plan's
+  the links with chats and orchestrations, and prototyped every new screen in
+  `docs/design-system/reference/`. [Its audit](plans/project-ecosystem-audit.md) found five bugs in
+  the links and the settings, a contract still open, and prototypes that disagreed with each other
+  and left 18 states undrawn; orchestration 1b (`ecosystem-fixes`) fixed them, and the prototypes are
+  now 66 screens (27 desktop, 39 phone), dark and light. What 1b left open is listed in the audit.
+  No web code exists for any of it: the owner validates the prototypes first, then orchestration 2
+  builds the board's screens, 3 the team, memory and documents, and 4 the assistant. Every
+  orchestration of the ecosystem lands in `feat/project-ecosystem`, and it reaches `main` in one pull
+  request once the owner has tried the whole feature. See the plan's
   [Outcome](plans/project-ecosystem.md#outcome).
 - **The editable dashboard.** Home renders any layout that validates, from a registry of widget
   types, but the layout is not editable or persisted per project, and the Documents and Flows
@@ -86,7 +91,7 @@ that chats and orchestrations work on and move ([work-items.md](work-items.md)).
 | [`plans/spanish-copy.md`](plans/spanish-copy.md) | Landed (#94) — see [Outcome](plans/spanish-copy.md#outcome) |
 | [`plans/app-updates.md`](plans/app-updates.md) | Landed (#95) — see [Outcome](plans/app-updates.md#outcome) |
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Landed (#101) — see [Outcome](plans/redesign-night-shift.md#outcome) |
-| [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | Orchestration 1 of 4 built (server side and prototypes); its merged branch's verification runs in the orchestration — see [Outcome](plans/project-ecosystem.md#outcome) |
+| [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | Orchestration 1 of 4 built (server side and prototypes) and fixed by 1b after [its audit](plans/project-ecosystem-audit.md); the prototypes wait for the owner's validation — see [Outcome](plans/project-ecosystem.md#outcome) |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.
@@ -99,9 +104,9 @@ pnpm test
 pnpm build && pnpm e2e
 ```
 
-`pnpm typecheck` and `pnpm test` pass on the `ecosystem-foundation` branch (run on 2026-09-27:
-1,232 tests across the five packages, none failing). `pnpm build` and `pnpm e2e` run in that
-orchestration's verification phase. The last full e2e run on `main` (`d6269c4`) had three
+`pnpm typecheck` and `pnpm test` pass on the `ecosystem-fixes` branch (run on 2026-09-27: 1,260
+tests across the five packages, none failing). `pnpm build` and `pnpm e2e` run in that
+orchestration's verification phase, on the merged branch. The last full e2e run on `main` (`d6269c4`) had three
 specs that failed in the full suite and passed alone: see the plan's
 [Before launching](plans/redesign-night-shift.md#before-launching). The browser suite runs headless Chrome over CDP against an isolated
 wrapper, with a time limit per spec and per run so it cannot hang. CI runs all of it on every pull request, and additionally fails
@@ -133,4 +138,4 @@ possible to keep honest.
 [[plans/post-roadmap.md]] · [[plans/ui-redesign.md]] · [[plans/agent-observability.md]] ·
 [[plans/agents-redesign.md]] · [[plans/mobile.md]] · [[plans/spanish-copy.md]] ·
 [[plans/app-updates.md]] · [[plans/redesign-night-shift.md]] · [[design-system.md]] ·
-[[plans/project-ecosystem.md]] · [[projects.md]] · [[work-items.md]]
+[[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[projects.md]] · [[work-items.md]]
