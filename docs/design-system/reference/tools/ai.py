@@ -262,7 +262,7 @@ def assistant_done_desktop():
 def mhead_proj(title, back, right=''):
   return f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px; min-height: 60px">
 <a href="{back}" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
-<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 2px"><span style="font-weight: 600; font-size: 17px">{title}</span><span class="mono t-xs fg-3 ellipsis">pagos-api · PAG</span></span>
+<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 2px"><h1 class="t-h1" style="font-size: 24px">{title}</h1><span class="mono t-xs fg-3 ellipsis">pagos-api · PAG</span></span>
 {right}
 </header>'''
 
@@ -275,7 +275,7 @@ def assistant_live_mobile():
 <div class="ai-run-head">{mark()}<div class="col grow" style="gap: 3px; min-width: 0"><h2 class="ai-run-title">Leyendo el repositorio</h2>{live_verb('Leyendo', 'src/webhooks/stripe.ts', '0:41')}</div></div>
 {facts(f('Sonnet 5'), f('0,03 US$ hasta ahora', 'cost'), f('chat 4e1f09'))}
 <hr class="divider">
-{steps_html(items)}
+{steps_html(items).replace('<span class="ellipsis">', '<span>')}
 {found_html()}
 </section>
 <div class="row" style="padding: 0 4px"><span class="t-label grow">Después de leer</span></div>
@@ -298,14 +298,21 @@ def msug_task(x):
     acts = f'<div class="row" style="gap: 8px"><span class="t-xs fg-3 grow">Descartada</span><button type="button" class="btn btn-ghost btn-lg" style="height: 44px">{ico("undo", "ico ico-sm")}Deshacer</button></div>'
   else:
     acts = f'<div class="sug-acts">{accept_btns(False)}</div>'
-  reason = f'<p class="sug-reason" style="font-size: 13.5px">{x["why"]}</p>' if x.get('why') and st != 'discarded' else ''
+  reason = f'<p class="sug-reason" style="font-size: 14px">{x["why"]}</p>' if x.get('why') and st != 'discarded' else ''
   meta = task_meta(x) if st != 'discarded' else ''
   title_style = 'font-size: 15px' + ('; color: var(--fg-3); text-decoration: line-through; text-decoration-color: var(--line-3)' if st == 'discarded' else '')
   return f'<div class="sug-card"><span class="sug-title" style="{title_style}">{x["title"]}</span>{meta}{reason}{acts}</div>'
 
 
+def mprop_seg(on):
+  # The three kinds of proposal, each a screen of its own on a phone
+  items = [('tasks', 'MobileAsistentePropuestas.html', 'Tareas', 6), ('team', 'MobileAsistenteEquipo.html', 'Equipo', 5), ('res', 'MobileAsistenteRecursos.html', 'Recursos', 3)]
+  out = ''.join(f'<a href="{h}" role="tab" aria-selected="{"true" if k == on else "false"}" class="{"on" if k == on else ""}" style="flex: 1 1 0; justify-content: center">{n} <span class="count">{c}</span></a>' for k, h, n, c in items)
+  return f'<div class="seg" role="tablist" aria-label="Propuestas" style="display: flex">{out}</div>'
+
+
 def assistant_done_mobile():
-  seg = '<div class="seg" role="tablist" aria-label="Propuestas" style="display: flex"><button type="button" role="tab" aria-selected="true" class="on" style="flex: 1 1 0; justify-content: center; height: 40px; font-size: 14px">Tareas <span class="count">6</span></button><button type="button" role="tab" aria-selected="false" style="flex: 1 1 0; justify-content: center; height: 40px; font-size: 14px">Equipo <span class="count">5</span></button><button type="button" role="tab" aria-selected="false" style="flex: 1 1 0; justify-content: center; height: 40px; font-size: 14px">Recursos <span class="count">3</span></button></div>'
+  seg = mprop_seg('tasks')
   order = [TASKS[2], TASKS[0], TASKS[3], TASKS[4]]
   inner = f'''{mhead_proj('Asistente de proyecto', 'MobileNuevoProyecto.html', '<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">' + ico('more', 'ico ico-lg', 'stroke-width: 3') + '</button>')}
 <div class="m-body stack" style="gap: 12px">
@@ -370,7 +377,7 @@ def suggest_desktop():
 def msugg_card(x):
   pressed = 'true' if x['on'] else 'false'
   btn = f'<button type="button" class="btn btn-lg sug-pick" aria-pressed="{pressed}" style="height: 44px">{ico("check", "ico") if x["on"] else ico("plus", "ico")}{"Incluida" if x["on"] else "Incluir"}</button>'
-  return f'<div class="sug-card"><span class="sug-title" style="font-size: 15px">{x["title"]}</span>{task_meta(x)}<p class="sug-reason" style="font-size: 13.5px">{x["why"]}</p><div class="sug-acts">{btn}</div></div>'
+  return f'<div class="sug-card"><span class="sug-title" style="font-size: 15px">{x["title"]}</span>{task_meta(x)}<p class="sug-reason" style="font-size: 14px">{x["why"]}</p><div class="sug-acts">{btn}</div></div>'
 
 
 def suggest_mobile():
@@ -411,7 +418,7 @@ EXIST = {
 
 
 def kinds_seg(big=False):
-  st = ' style="flex: 1 1 0; justify-content: center; height: 40px; font-size: 13.5px; padding: 0 6px"' if big else ''
+  st = ' style="flex: 1 1 0; justify-content: center; font-size: 13px; padding: 0 6px"' if big else ''
   items = [('Todos', 12, True), ('Agentes', 5, False), ('Skills', 4, False), ('Comandos', 3, False)]
   out = ''.join(f'<button type="button" role="tab" aria-selected="{"true" if on else "false"}" class="{"on" if on else ""}"{st}>{n} <span class="count">{c}</span></button>' for n, c, on in items)
   return f'<div class="seg" role="tablist" aria-label="Tipo de recurso"{" style=\"display: flex\"" if big else ""}>{out}</div>'
@@ -538,7 +545,7 @@ CREATE_LIVE = ASSIST_LIVE.replace('href="DesktopAsistente.html"', 'href="Desktop
 
 
 def create_ai_form(mobile=False):
-  seg_st = ' style="flex: 1 1 0; justify-content: center; height: 40px; font-size: 14px"' if mobile else ''
+  seg_st = ' style="flex: 1 1 0; justify-content: center"' if mobile else ''
   segd = ' style="display: flex"' if mobile else ''
   kinds = ''.join(f'<button type="button" role="radio" aria-checked="{"true" if k == "agent" else "false"}" class="{"on" if k == "agent" else ""}"{seg_st}>{ico(KIND[k][0], "ico ico-sm")}{KIND[k][1]}</button>' for k in ('agent', 'skill', 'command'))
   scope = f'<button type="button" role="radio" aria-checked="true" class="on"{seg_st}>{ico("folder", "ico ico-sm")}Proyecto</button><button type="button" role="radio" aria-checked="false"{seg_st}>{ico("user", "ico ico-sm")}Usuario</button>'
@@ -583,14 +590,14 @@ def resources_mobile():
       right = f'<span class="sug-done">{ico("check", "ico ico-sm")}guardada</span>'
     else:
       right = ico('right', 'ico fg-3')
-    reason = f'<span class="t-sm fg-2" style="line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">{x.get("why") or x["desc"]}</span>'
+    reason = f'<span class="t-sm fg-2" style="line-height: 1.45">{x.get("why") or x["desc"]}</span>'
     return f'<a href="MobileRecursoPropuesta.html" class="cell" style="align-items: flex-start; padding: 12px 14px; gap: 12px">{kind_ico(x["k"])}<span class="col grow" style="gap: 3px; min-width: 0"><span class="row" style="gap: 7px"><span class="mono" style="font-weight: 500; font-size: 14px">{x["name"]}</span><span class="badge">{word}</span></span>{reason}</span><span style="margin-top: 4px">{right}</span></a>'
 
   def ecell(k, n, d):
-    return f'<a href="#" class="cell">{ico(KIND[k][0], "ico fg-3")}<span class="col grow" style="gap: 1px; min-width: 0"><span class="mono" style="font-weight: 500; font-size: 14px">{n}</span><span class="t-xs fg-3 ellipsis">{d}</span></span>{ico("right", "ico fg-3")}</a>'
+    return f'<a href="#" class="cell">{ico(KIND[k][0], "ico fg-3")}<span class="col grow" style="gap: 1px; min-width: 0"><span class="mono" style="font-weight: 500; font-size: 14px">{n}</span><span class="t-xs fg-3">{d}</span></span>{ico("right", "ico fg-3")}</a>'
   inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px; min-height: 60px">
 <a href="MobileProyecto.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
-<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 2px"><span style="font-weight: 600; font-size: 17px">Recursos</span><span class="mono t-xs fg-3 ellipsis">claude-wrapper · .claude/</span></span>
+<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 2px"><h1 class="t-h1" style="font-size: 24px">Recursos</h1><span class="mono t-xs fg-3 ellipsis">claude-wrapper · .claude/</span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Nuevo recurso">{ico('plus', 'ico ico-lg')}</button>
 </header>
 <div class="m-body stack" style="gap: 12px">
@@ -610,14 +617,15 @@ def resources_mobile():
 def proposal_mobile():
   inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px; min-height: 60px">
 <a href="MobileRecursos.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
-<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 2px"><span class="mono" style="font-weight: 600; font-size: 16px">migration-reviewer</span><span class="t-xs fg-3">Agente · propuesta del asistente</span></span>
+<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 2px"><h1 class="t-h1 mono" style="font-size: 24px">migration-reviewer</h1><span class="t-xs fg-3">Agente · propuesta del asistente</span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">{ico('more', 'ico ico-lg', 'stroke-width: 3')}</button>
 </header>
 <div class="m-body stack" style="gap: 12px">
 <div class="row" style="gap: 8px; flex-wrap: wrap"><span class="badge b-warn">{ico('warn', 'ico', 'width: 11px; height: 11px')}aún sin guardar</span><span class="mono t-xs fg-3">.claude/agents/migration-reviewer.md</span></div>
-<div class="callout" style="align-items: flex-start; font-size: 13.5px">{mark(True)}<div class="col" style="gap: 4px; min-width: 0"><span><span class="mono">db.ts</span> tiene 14 migraciones y la regla de no editar una existente solo está en CONTRIBUTING.md.</span>{facts(f('Sonnet 5'), f('0,07 US$ por las 4', 'cost'), f('chat a91c30'))}</div></div>
-<div class="seg" role="radiogroup" aria-label="Dónde" style="display: flex"><button type="button" role="radio" aria-checked="true" class="on" style="flex: 1 1 0; justify-content: center; height: 40px; font-size: 14px">{ico('folder', 'ico ico-sm')}Proyecto</button><button type="button" role="radio" aria-checked="false" style="flex: 1 1 0; justify-content: center; height: 40px; font-size: 14px">{ico('user', 'ico ico-sm')}Usuario</button></div>
-{code_ed(AGENT_MD[:13], size=12)}
+<div class="callout" style="align-items: flex-start; font-size: 13px">{mark(True)}<div class="col" style="gap: 4px; min-width: 0"><span><span class="mono">db.ts</span> tiene 14 migraciones y la regla de no editar una existente solo está en CONTRIBUTING.md.</span>{facts(f('Sonnet 5'), f('0,07 US$ por las 4', 'cost'), f('chat a91c30'))}</div></div>
+<div class="seg" role="radiogroup" aria-label="Dónde" style="display: flex"><button type="button" role="radio" aria-checked="true" class="on" style="flex: 1 1 0; justify-content: center">{ico('folder', 'ico ico-sm')}Proyecto</button><button type="button" role="radio" aria-checked="false" style="flex: 1 1 0; justify-content: center">{ico('user', 'ico ico-sm')}Usuario</button></div>
+<div class="row" style="padding: 0 4px; gap: 8px"><span class="t-label grow">Contenido</span><a href="#" class="btn btn-lg">{ico('edit', 'ico')}Editar</a></div>
+{code_ed(AGENT_MD[:8], size=12)}
 </div>
 <div class="m-foot"><button type="button" class="btn btn-lg">Descartar</button><button type="button" class="btn btn-primary btn-lg">{ico('check', 'ico ico-lg')}Crear agente</button></div>'''
   write('MobileRecursoPropuesta.html', mobile('Propuesta en el editor', inner))

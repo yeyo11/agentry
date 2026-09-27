@@ -96,7 +96,7 @@ def mwizard_head(step):
 def new_project_mobile():
   inner = f'''{mwizard_head(2)}
 <div class="m-body stack" style="gap: 10px; padding-top: 10px">
-<h2 class="t-h2" style="font-size: 17px">Elige una plantilla</h2>
+<h2 class="t-h2">Elige una plantilla</h2>
 <p class="t-sm fg-2" style="margin: -4px 0 4px">Preselecciona módulos, tipos de tarea, límites y el equipo inicial.</p>
 <div role="radiogroup" aria-label="Plantilla" class="col" style="gap: 8px">{"".join(tpl_card(t, t[0] == "pro", row=True) for t in TPLS)}</div>
 </div>
@@ -104,7 +104,7 @@ def new_project_mobile():
   write('MobileNuevoProyecto.html', mobile('Nuevo proyecto', inner))
   inner = f'''{mwizard_head(3)}
 <div class="m-body stack" style="gap: 10px; padding-top: 10px">
-<h2 class="t-h2" style="font-size: 17px">Módulos</h2>
+<h2 class="t-h2">Módulos</h2>
 <p class="t-sm fg-2" style="margin: -4px 0 4px">Software profesional los activa todos. Puedes cambiarlos ahora o en los ajustes del proyecto.</p>
 <div class="col" style="gap: 8px">{module_card('board', big=True)}{module_card('team', big=True)}{module_card('documents', False, ico('eyeoff') + 'oculto, sin datos todavía', big=True)}{module_card('memory', big=True)}</div>
 <div class="callout" style="padding: 12px">{ico('eyeoff', 'ico fg-3')}<span>Desactivar un módulo oculta su pestaña y conserva sus datos. Al activarlo vuelve todo.</span></div>
@@ -175,19 +175,19 @@ def project_settings_desktop():
 def project_settings_mobile():
   def cell_sw(k, on, note):
     _, icon, name, _ = next(m for m in MODS if m[0] == k)
-    return f'<label class="cell" style="min-height: 64px"><span class="module-ico" style="{"background: var(--accent-soft); color: var(--accent)" if on else ""}">{ico(icon)}</span><span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: 500{"" if on else "; color: var(--fg-2)"}">{name}</span><span class="mono t-xs fg-3 ellipsis">{note}</span></span><button type="button" class="switch switch-lg{" on" if on else ""}" role="switch" aria-checked="{"true" if on else "false"}" aria-label="{name}"></button></label>'
+    return f'<label class="cell" style="min-height: 64px"><span class="module-ico" style="{"background: var(--accent-soft); color: var(--accent)" if on else ""}">{ico(icon)}</span><span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: 500{"" if on else "; color: var(--fg-2)"}">{name}</span><span class="mono t-xs fg-3" style="line-height: 1.45">{note}</span></span><button type="button" class="switch switch-lg{" on" if on else ""}" role="switch" aria-checked="{"true" if on else "false"}" aria-label="{name}"></button></label>'
   inner = f'''{mhead('Ajustes', 'claude-wrapper', 'MobileProyecto.html')}
 <div class="m-body stack" style="gap: 16px">
 <div class="col" style="gap: 8px"><span class="t-label" style="padding: 0 4px">General</span>
 <div class="card" style="overflow: hidden">
-<div class="cell" style="min-height: 56px"><span class="fg-3" style="width: 76px">Nombre</span><input class="grow" value="claude-wrapper" aria-label="Nombre" style="border: 0; outline: 0; background: transparent; font-size: 16px; min-width: 0"></div>
-<div class="cell" style="min-height: 56px"><span class="fg-3" style="width: 76px">Prefijo</span><input class="grow mono" value="AGN" aria-label="Prefijo de clave" style="border: 0; outline: 0; background: transparent; font-size: 16px; min-width: 0"></div>
+<label class="cell" style="min-height: 56px"><span class="fg-3" style="width: 76px">Nombre</span><input class="grow" value="claude-wrapper" aria-label="Nombre" style="border: 0; outline: 0; background: transparent; font-size: 16px; min-width: 0"></label>
+<label class="cell" style="min-height: 56px"><span class="fg-3" style="width: 76px">Prefijo</span><input class="grow mono" value="AGN" aria-label="Prefijo de clave" style="border: 0; outline: 0; background: transparent; font-size: 16px; min-width: 0"></label>
 </div>
 <span class="form-hint" style="padding: 0 4px">Cambiarlo cambia cómo se leen las claves: <span class="mono">AGN-12</span> pasaría a <span class="mono">CW-12</span>. El número no cambia.</span>
 </div>
 <div class="col" style="gap: 8px"><span class="t-label" style="padding: 0 4px">Módulos</span>
 <div class="card" style="overflow: hidden">
-{cell_sw('board', True, '15 abiertas · 38 en total')}
+{cell_sw('board', True, '15 abiertas · 27 en total')}
 {cell_sw('team', True, '5 miembros')}
 {cell_sw('documents', False, 'oculto · 23 documentos conservados')}
 {cell_sw('memory', True, 'diario con 86 entradas')}
@@ -265,7 +265,7 @@ def project_page_mobile():
   inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px">
 <a href="MobileProyectos.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
 <span class="proj monogram" style="--hue: 20; width: 36px; height: 36px; border-radius: var(--r)">CW</span>
-<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 6px"><span style="font-weight: 600; font-size: 17px">claude-wrapper</span><span class="mono t-xs fg-3 ellipsis">AGN · ~/Escritorio/claude-wrapper</span></span>
+<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 6px"><h1 class="t-h1" style="font-size: 24px">claude-wrapper</h1><span class="mono t-xs fg-3">AGN · ~/Escritorio/claude-wrapper</span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">{ico('more', 'ico ico-lg', 'stroke-width: 3')}</button>
 </header>
 <div class="m-body stack" style="gap: 14px">
@@ -273,11 +273,11 @@ def project_page_mobile():
 <span class="row"><span class="t-label grow">Hito actual · <span style="text-transform: none">v0.20</span></span>{ico('right', 'ico fg-3')}</span>
 <span class="row" style="align-items: baseline; gap: 10px"><span class="t-num grad-text" style="font-size: 34px; font-weight: 600; letter-spacing: -0.035em">47 %</span><span class="t-sm fg-2">7 de 15 hechas</span></span>
 <span class="ms-bar"><i class="done" style="width: 47%"></i><i class="doing" style="width: 27%"></i></span>
-<span class="row mono t-xs fg-3" style="gap: 12px"><span>15 abiertas</span><span class="row c-warn" style="gap: 5px">{ico('warn', 'ico', 'width: 12px; height: 12px')}en curso 4/3, sobre el límite</span></span>
+<span class="row mono t-xs fg-3" style="gap: 12px"><span>15 abiertas</span><span class="row c-warn" style="gap: 5px">{ico('warn', 'ico', 'width: 12px; height: 12px')}en curso 5/3, sobre el límite</span></span>
 </a>
 <div class="col" style="gap: 8px"><div class="row" style="padding: 0 4px"><span class="t-label grow">En marcha ahora</span><span class="count-pill live">2</span></div>
-<a href="MobileChatTarea.html" class="card row rail-live" style="padding: 12px 14px 12px 16px; gap: 10px; min-height: 56px"><span class="spin-ring"></span><span class="col grow" style="gap: 2px; min-width: 0"><span class="row" style="gap: 7px"><span class="wi-key">AGN-28</span><span class="t-sm ellipsis" style="font-weight: 500">Tablero con columnas fijas</span></span><span class="row t-xs" style="gap: 6px"><span class="c-live">Ejecutando</span><span class="mono fg-3">pnpm test</span></span></span><span class="mono t-xs fg-3">4:12</span></a>
-<a href="MobileOrquestacion.html" class="card row rail-live" style="padding: 12px 14px 12px 16px; gap: 10px; min-height: 56px"><span class="spin-ring"></span><span class="col grow" style="gap: 4px; min-width: 0"><span class="row" style="gap: 7px"><span class="wi-key">AGN-30</span><span class="t-sm ellipsis" style="font-weight: 500">API de tareas y del tablero</span></span><span class="segbar" style="height: 4px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span><span class="mono t-xs fg-3">3/9</span></a>
+<a href="MobileChatTarea.html" class="card row rail-live" style="padding: 12px 14px 12px 16px; gap: 10px; min-height: 56px"><span class="spin-ring"></span><span class="col grow" style="gap: 2px; min-width: 0"><span class="row" style="gap: 7px"><span class="wi-key">AGN-28</span><span class="t-sm" style="font-weight: 500">Tablero con columnas fijas y límites</span></span><span class="row t-xs" style="gap: 6px"><span class="c-live">Ejecutando</span><span class="mono fg-3">pnpm test</span></span></span><span class="mono t-xs fg-3">4:12</span></a>
+<a href="MobileOrquestacion.html" class="card row rail-live" style="padding: 12px 14px 12px 16px; gap: 10px; min-height: 56px"><span class="spin-ring"></span><span class="col grow" style="gap: 4px; min-width: 0"><span class="row" style="gap: 7px"><span class="wi-key">AGN-30</span><span class="t-sm" style="font-weight: 500">API de tareas y del tablero</span></span><span class="segbar" style="height: 4px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span><span class="mono t-xs fg-3">3/9</span></a>
 </div>
 <nav aria-label="Secciones del proyecto" class="card" style="overflow: hidden">
 {cell('board', 'Tablero', '15 abiertas', 'MobileTablero.html')}

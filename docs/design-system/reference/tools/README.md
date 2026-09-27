@@ -18,6 +18,7 @@ Python 3 with Pillow and Chrome (`CHROME_BIN`, default `/usr/bin/google-chrome`)
 |---|---|
 | `common.py` | the shell (sidebar, top bar, tab bar), the icons and `desktop()` / `mobile()` / `write()`. Not run on its own |
 | `data.py` | the one data set of `claude-wrapper`: the work items, their columns, epics and milestones, and `card()` / `col()` |
+| `phone.py` | the phone-only states: wizard steps 1 and 4, board selection and filters, a work item's Activity and Changes, Tasks with All projects, the assistant's Team and Resources proposals, the assistant with nothing to read, and suggestions while they run. Run after the others; it imports them |
 | `board.py` | `DesktopTablero`, `MobileTablero` |
 | `tasks.py` | the empty board, the list, the work item, the new task form and the milestones, both sizes |
 | `projects.py` | the project wizard, the project page and its settings, both sizes |
