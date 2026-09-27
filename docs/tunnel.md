@@ -40,6 +40,8 @@ one rule (the CLI only) is not involved.
    it has no token yet (see [The address changes](#the-address-changes)).
 5. **Close tunnel** takes the address off the allowlist, then ends ssh. When the page you are on
    came through the tunnel itself, it asks first, because closing the tunnel ends that page too.
+   Once closed, that page says the tunnel is closed and its address no longer works, instead of
+   reporting the dropped connection as an error.
 
 **Open the tunnel when Agentry starts** is a switch on the same tab, off by default. It still needs
 authentication on and ssh installed. It is kept in `tunnel-settings.json` in the data directory.
@@ -185,7 +187,9 @@ blocks it makes every attempt end in `tunnel.exited`. `SSH_BIN` points at anothe
 `GET /api/tunnel` returns the state, `url` and `since` (only while `active`), `reason` (only while
 `failed`), `enabled`, `sshAvailable` and the settings. `PUT /api/tunnel/settings` takes
 `{ startWithAgentry }`, and `POST /api/tunnel/start` and `POST /api/tunnel/stop` open and close the
-tunnel. Every move emits `tunnel.changed` on `/api/events`, carrying the whole status, so a client
+tunnel. A stop that arrives through the tunnel itself answers first, with `state: 'stopping'`, and
+ends ssh a second after the reply is sent: the reply travels back through the ssh that the stop
+kills, so stopping first would leave the caller with nothing but a dropped connection. Every move emits `tunnel.changed` on `/api/events`, carrying the whole status, so a client
 never has to refetch. The event's title never contains the address, and neither event ever becomes
 a notification, so an address never ends up on a lock screen or in a push service. The rows are in the
 README's [Remote access](../README.md#remote-access) table.

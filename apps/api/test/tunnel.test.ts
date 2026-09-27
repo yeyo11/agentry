@@ -22,7 +22,7 @@ interface Wrapper {
   app: FastifyInstance;
   core: Core;
   /** A request through the tunnel's address, as a phone would make it */
-  remote: (url: string, path: string, headers?: Record<string, string>) => Promise<number>;
+  remote: (url: string, path: string, headers?: Record<string, string>, method?: string) => Promise<number>;
 }
 
 async function until(check: () => boolean | Promise<boolean>, what: string, ms = 5_000): Promise<void> {
@@ -57,12 +57,12 @@ async function wrapper(t: TestContext): Promise<Wrapper> {
     else process.env.FAKE_SSH_ROUTES = saved;
   });
 
-  const remote = (url: string, path: string, headers: Record<string, string> = {}): Promise<number> => {
+  const remote = (url: string, path: string, headers: Record<string, string> = {}, method = 'GET'): Promise<number> => {
     const host = new URL(url).hostname;
     const port = existsSync(routes) ? (JSON.parse(readFileSync(routes, 'utf8')) as Record<string, number>)[host] : undefined;
     if (!port) return Promise.resolve(0);
     return new Promise((resolve) => {
-      const req = request({ host: '127.0.0.1', port, path, headers: { ...headers, host } }, (res) => {
+      const req = request({ host: '127.0.0.1', port, path, method, headers: { ...headers, host } }, (res) => {
         res.resume();
         resolve(res.statusCode ?? 0);
       });
@@ -127,6 +127,16 @@ test('the tunnel host is answered while active, and refused again once it stops'
     summaries.filter((s) => /tunnel/i.test(s)),
     ['Start the tunnel', `Tunnel host ${host} joined the allowlist`, `Tunnel host ${host} left the allowlist`, 'Stop the tunnel'],
   );
+});
+
+test('closing the tunnel from a page that came through it answers before the connection goes', async (t) => {
+  const w = await wrapper(t);
+  const token = await withToken(w.app);
+  const active = await openTunnel(w, token);
+  assert.ok(active.url);
+  // The reply travels back through the ssh that the stop kills: it has to leave first
+  assert.equal(await w.remote(active.url, '/api/tunnel/stop', { authorization: `Bearer ${token}` }, 'POST'), 200);
+  await until(async () => (await tunnel(w.app, token)).state === 'stopped', 'stopped');
 });
 
 test('switching the mode to none closes the tunnel before the switch lands', async (t) => {
