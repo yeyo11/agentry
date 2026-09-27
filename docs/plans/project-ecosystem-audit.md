@@ -263,6 +263,28 @@ Run on 2026-09-27 over `51170a3..2fe9a92` (104 files outside `docs/`), while orc
   files there; the owner keeps the four created on `claude-wrapper` during the trial untracked
   until the end.
 
+## Audit of orchestration 4, the assistant and the suggestions
+
+Run on 2026-09-27 over `24ecee1..bbc993c1` (88 files outside `docs/`), merged into the feature
+branch as `8dd45e7` while its verification's e2e still ran.
+
+- **Checks.** Every task finished on its first attempt and integrated with no conflict; install,
+  typecheck, the unit tests and the build passed in its verification.
+- **Rules.** No native control, no `any`, `@ts-ignore` or `console.log`, no raw colour outside
+  `tokens.css`, no SDK or HTTP call to Anthropic; every commit a Conventional Commit with no AI
+  attribution.
+- **The assistant as decided.** A run is a CLI chat with `--permission-mode dontAsk`, an
+  allow-list of read tools (`Read`, `Grep`, `Glob`, `LS` and `git log`, `git status`, `ls`) and a
+  deny-list, and `--json-schema` for its answer; `sonnet` by default; one run at a time per project
+  and kind, older proposals set aside as `superseded`, never deleted; on demand only, no timer.
+  Nothing is written before the person accepts a proposal.
+- **The audit of orchestration 2, closed.** Epics no longer count: on a seeded board, In progress
+  draws four cards (an epic and three tasks) and counts three against a limit of three, not over.
+- **Screens**, captured from the built app: the project assistant (desktop and phone), "Sugerir
+  tareas" over the board and the resources tab with "Sugerir" and "Crear con IA" follow their
+  references. A run with a real answer was not captured: the sandbox has no credentials, and the
+  accept paths are covered by the fake CLI in the unit and e2e tests.
+
 ## Related
 
 [[plans/project-ecosystem.md]] · [[design-system.md]] · [[work-items.md]] · [[projects.md]] ·
