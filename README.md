@@ -617,6 +617,22 @@ the auto-switch threshold as a reference line.
 | DELETE | `/projects/:id` | Remove a project from Agentry. Harmless: nothing on disk changes, and its settings and work items are kept for when it is imported again |
 | DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible, and separate from removing the project |
 
+### Team
+
+A project's team (Team module). Each member is a Claude Code agent file in the project's
+`.claude/agents/`, so it also works from a terminal, plus the role, model, responsibility and write
+paths Agentry keeps in the project's settings. Agentry writes a starting agent file only where there
+is none, and never overwrites one a person wrote or edited: that member is reported as `drifted` (or
+`missing` when the file was deleted). Changes need the module on (409 otherwise) and emit
+`team.changed`.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/projects/:id/team` | The members, each with its agent file's state, the columns it answers for under the flow and its flow runs, and the agent files no member uses |
+| POST | `/projects/:id/team/from-template` | `{ roles? }` — add the template's roles the person accepted, each with its agent file (an existing file is kept) |
+| PUT | `/projects/:id/team/:agent` | `{ role, model, responsibility, writes?, createFile? }` — create or replace a member's metadata. Two members may not share a role. The file itself goes through `/config/resources/agents/:name?project=` |
+| DELETE | `/projects/:id/team/:agent` | Take a member off the team; its agent file stays |
+
 ### Work items
 
 A project's board. Changing anything needs the project imported and its **Board** module on (409
