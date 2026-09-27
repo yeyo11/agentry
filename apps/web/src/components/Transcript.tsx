@@ -1,19 +1,24 @@
 import type { ChatWorkflow, ChatWorkflowAgent, ContentBlock, TranscriptEntry } from '@agentry/shared';
-import { Brain, CircleAlert, CircleStop, Check, ChevronRight, Info, PanelRightOpen, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
+import { Brain, CircleAlert, CircleStop, Check, ChevronRight, Copy, Info, PanelRightOpen, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
 import { lazy, memo, Suspense, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
 import { justStreamed } from '../lib/chat-stream';
 import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, transcriptRows, type StepCall, type StepPart, type TranscriptRow } from '../lib/chat-steps';
 import { formatDuration, formatClock, formatDateTime, truncate } from '../lib/format';
+import { NARROW, useMediaQuery } from '../lib/media';
 import type { ProgressStatus } from '../lib/progress';
 import { AttachedFiles, MediaBlock, splitAttached } from './Attachments';
 import { CodeBlock } from './CodeBlock';
 import { ProgressBar } from './ProgressBar';
 import { Collapsible } from './controls/Collapsible';
+import type { MenuEntry } from './controls/Menu';
+import { MoreActions } from './controls/MoreActions';
 import { Tooltip } from './controls/Tooltip';
 import { BrandMark, ICON_SM, toolIcon } from './icons';
 import { Spinner } from './Spinner';
+import { useToast } from './Toast';
+import { CopyButton } from './ui';
 import { VirtualList } from './VirtualList';
 
 const RESULT_PREVIEW_CHARS = 6000;
@@ -172,7 +177,83 @@ function readEntry(entry: TranscriptEntry): { blocks: ContentBlock[]; notices: N
   return { blocks, notices };
 }
 
-export const EntryView = memo(function EntryView({ entry, continued = false, fresh = false }: { entry: TranscriptEntry; continued?: boolean; /** Said a moment ago: the row rises into place once */ fresh?: boolean }) {
+/** What the chat page lets a person do with one message: where its menu comes from. */
+export interface MessageActions {
+  /** "Create a task from this message": in Backlog of the chat's project, linked to the chat */
+  createTask: {
+    run: (text: string) => void;
+    /** Where the task will land, said under the item */
+    hint: string;
+    /** Why there is nowhere to put one now; the item stays, and says so */
+    disabledReason?: string;
+  };
+}
+
+/** A message's words as it was written, without the files listed after them: what copying it or making a task of it takes. */
+function messageText(blocks: readonly ContentBlock[]): string {
+  return blocks
+    .flatMap((block) => (block.type === 'text' ? [splitAttached(block.text).text.trim()] : []))
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+const QUOTE_CHARS = 120;
+
+/**
+ * The `⋯` of a message: copy it, or make a task of it. It shows while the message is pointed at or
+ * focused, beside a copy button on a desktop; on a phone it is always there and opens a sheet that
+ * quotes the message it acts on.
+ */
+function MessageMenu({ text, actions }: { text: string; actions: MessageActions }) {
+  const { t } = useTranslation('chat');
+  const toast = useToast();
+  const narrow = useMediaQuery(NARROW);
+  const { createTask } = actions;
+  const entries: MenuEntry[] = [
+    {
+      id: 'copy',
+      icon: Copy,
+      label: t('messageMenu.copy'),
+      onSelect: () => void navigator.clipboard?.writeText(text).then(() => toast.success(t('messageMenu.copied'))),
+    },
+    { id: 'task-separator', separator: true },
+    {
+      id: 'task',
+      icon: SquareCheck,
+      label: createTask.disabledReason ? (
+        t('messageMenu.createTask')
+      ) : (
+        <span className="msg-menu-task">
+          {t('messageMenu.createTask')}
+          <span className="msg-menu-hint">{createTask.hint}</span>
+        </span>
+      ),
+      onSelect: () => createTask.run(text),
+      disabled: Boolean(createTask.disabledReason),
+      disabledReason: createTask.disabledReason,
+    },
+  ];
+  return (
+    <div className="msg-actions" data-find-ignore>
+      {!narrow && <CopyButton text={text} label={t('messageMenu.copy')} />}
+      <MoreActions entries={entries} label={t('messageMenu.label')} title={`«${truncate(text.replace(/\s+/g, ' '), QUOTE_CHARS)}»`} />
+    </div>
+  );
+}
+
+export const EntryView = memo(function EntryView({
+  entry,
+  continued = false,
+  fresh = false,
+  actions,
+}: {
+  entry: TranscriptEntry;
+  continued?: boolean;
+  /** Said a moment ago: the row rises into place once */
+  fresh?: boolean;
+  /** The chat page's menu for a message; left out, a message has none (a subagent's transcript) */
+  actions?: MessageActions;
+}) {
   const { t } = useTranslation('components');
   const { blocks, notices } = useMemo(() => readEntry(entry), [entry]);
   const onlyToolResults = entry.role === 'user' && entry.blocks.every((b) => b.type === 'tool_result');
@@ -210,10 +291,16 @@ export const EntryView = memo(function EntryView({ entry, continued = false, fre
         {notices.map((notice, i) => (
           <NoticeRow key={`notice-${i}`} notice={notice} />
         ))}
+        {actions && !onlyToolResults && <EntryMenu blocks={blocks} actions={actions} />}
       </div>
     </article>
   );
 });
+
+function EntryMenu({ blocks, actions }: { blocks: ContentBlock[]; actions: MessageActions }) {
+  const text = useMemo(() => messageText(blocks), [blocks]);
+  return text ? <MessageMenu text={text} actions={actions} /> : null;
+}
 
 function Avatar({ role }: { role: 'user' | 'assistant' }) {
   return (
@@ -477,6 +564,7 @@ export function Transcript({
   working = false,
   subagents,
   workflows,
+  messages,
 }: {
   entries: TranscriptEntry[];
   /** The rows of `entries`, when the caller has already worked them out */
@@ -489,6 +577,8 @@ export function Transcript({
   subagents?: SubagentLink;
   /** Workflows the chat started: each shows as a card under the step that started it */
   workflows?: WorkflowLaunches;
+  /** What a message's menu offers; stable across renders, or every message is drawn again */
+  messages?: MessageActions;
 }) {
   const own = useMemo(() => rows ?? transcriptRows(entries), [rows, entries]);
   const target = focus ? rowOf(own, focus.item) : undefined;
@@ -509,7 +599,7 @@ export function Transcript({
       {(row) =>
         row.kind === 'entry' ? (
           // Only what a person sent: an answer of Claude's was already on screen as it was written
-          <EntryView entry={row.entry} continued={row.continued} fresh={row.entry.role === 'user' && justStreamed(row.entry)} />
+          <EntryView entry={row.entry} continued={row.continued} fresh={row.entry.role === 'user' && justStreamed(row.entry)} actions={messages} />
         ) : (
           <StepView
             row={row}

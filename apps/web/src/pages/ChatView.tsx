@@ -10,22 +10,25 @@ import { useDeleteChat } from '../components/ChatDelete';
 import { PermissionPrompts } from '../components/PermissionPrompts';
 import { ICON, ICON_SM } from '../components/icons';
 import { AnimatePresence, motion } from '../components/motion';
-import { endsWithAssistant, StreamingEntry, Transcript, type SubagentLink, type WorkflowLaunches } from '../components/Transcript';
+import { useToast } from '../components/Toast';
+import { endsWithAssistant, StreamingEntry, Transcript, type MessageActions, type SubagentLink, type WorkflowLaunches } from '../components/Transcript';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind } from '../components/TranscriptSearch';
 import { Empty, ErrorBox, Loading, PageHeader, Skeleton, usePageTitle } from '../components/ui';
-import { api, ApiRequestError, keys } from '../api';
+import { api, ApiRequestError, keys, useProjects } from '../api';
 import { tickerActivity } from '../lib/chat-live';
 import { displayTitle } from '../lib/chat-model';
 import { subagentFor, transcriptRows } from '../lib/chat-steps';
 import type { ChatStreamStore } from '../lib/chat-stream';
 import { useChatStream, useChatTranscript, useStreamSnapshot } from '../lib/chats';
 import { useDetailPanel } from '../lib/detail';
+import { taskPath } from '../lib/work-items';
 import { Composer, type ComposerKind } from './chat/Composer';
 import { ChatHeader, type HeaderActions } from './chat/Header';
 import { Inspector, useInspector } from './chat/Inspector';
 import { PartOf } from './chat/PartOf';
 import { useQueuedMessages } from './chat/queued';
 import { useStickToBottom } from './chat/stick-to-bottom';
+import { useChatItemLinks, WorkItemPartOf } from './chat/WorkItemLinks';
 
 /**
  * The end of the conversation that moves while Claude writes: the block being streamed and the
@@ -135,6 +138,34 @@ export function ChatView() {
     [workflowList, showInspector],
   );
 
+  // "Create a task from this message": in Backlog of the chat's project, then offered to open
+  const toast = useToast();
+  const projects = useProjects(false);
+  const itemLinks = useChatItemLinks(id);
+  const chatProject = chat?.project ?? null;
+  const project = chatProject ? projects.data?.find((p) => p.id === chatProject.id) : undefined;
+  const { mutate: createTask } = useMutation({
+    mutationFn: (text: string) => api.workItemFromMessage(id, { text }),
+    onSuccess: (item) => {
+      void queryClient.invalidateQueries({ queryKey: keys.chatWorkItems(id) });
+      toast.show({
+        tone: 'ok',
+        title: t('messageMenu.created', { key: item.key }),
+        detail: t('messageMenu.createdDetail'),
+        action: { label: t('messageMenu.openTask'), onClick: () => navigate(taskPath(item.key)) },
+      });
+    },
+    onError: (error) => toast.error(t('messageMenu.createFailed'), error),
+  });
+  // Read before the project list arrives, the item is offered: the server has the last word
+  const noBoard = project && !project.modules.includes('board');
+  const taskDisabled = !chatProject ? t('messageMenu.noProject') : noBoard ? t('messageMenu.noBoard', { project: chatProject.name }) : undefined;
+  const taskHint = chatProject ? t('messageMenu.createTaskHint', { project: chatProject.name }) : '';
+  const messages = useMemo<MessageActions>(
+    () => ({ createTask: { run: (text) => createTask(text), hint: taskHint, disabledReason: taskDisabled } }),
+    [createTask, taskHint, taskDisabled],
+  );
+
   const { open: findOpen, show: findShow, close: findClose } = find;
   const actions = useMemo<HeaderActions>(
     () => ({
@@ -204,6 +235,9 @@ export function ChatView() {
           </div>
         )}
         {chat.orchestration && <PartOf link={chat.orchestration} />}
+        {itemLinks.map((link) => (
+          <WorkItemPartOf key={link.item.id} link={link} />
+        ))}
         <FindBar find={find} />
 
         <div className="run-stage">
@@ -242,6 +276,7 @@ export function ChatView() {
                 working={stepCurrent}
                 subagents={subagents}
                 workflows={workflows}
+                messages={messages}
               />
             )}
             {/* Pinned under the transcript: a chat waiting on a decision is stuck until it gets one */}
