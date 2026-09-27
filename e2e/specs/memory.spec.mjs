@@ -67,7 +67,7 @@ export default async ({ page, api, check, dirs }) => {
     const journal = await page.text('.journal-list');
     check(journal.includes('Per-project settings in a JSON') && /closed/.test(journal), `the closed item is in the journal (${journal.slice(0, 200)})`);
     check(journal.includes('Tasks carry no dates or estimates'), 'the decision written by hand is there');
-    check(/Today/.test(journal), 'entries are grouped by day');
+    check(await page.eval(`return [...document.querySelectorAll('.journal-list .journal-day-label')].some((h) => h.textContent === 'Today')`), 'entries are grouped by day');
     await page.click('.memory-intro .btn', 'Add to the journal', 500);
     await page.fill('.dialog textarea', 'Documents live under docs/');
     await page.click('.dialog-foot .btn-primary', 'Add', 800);
