@@ -1501,6 +1501,62 @@ export interface Board {
   columns: BoardColumn[];
 }
 
+// ---------- Work items with chats and orchestrations ----------
+//
+// "Work on it" starts a chat on an item, "Orchestrate" turns a selection into a graph, and "Create a
+// task from this message" turns a chat's message into an item. The item then follows what works on
+// it: it enters `in_progress` when the chat's turn or the node starts and `in_review` when it ends
+// well. Only forward, never out of `done`, and never over a person who moved the item since the
+// work began: those moves are recorded in its history with the chat or the node as the cause.
+
+/**
+ * What a chat started on a work item may be given. The prompt is built from the item (its title,
+ * description and acceptance criteria) and the directory is its worktree, so neither is taken here.
+ */
+export type WorkOnWorkItemRequest = ChatStartOptions;
+
+export interface WorkOnWorkItemResult {
+  /** The item as it is once the chat started: in its worktree, and in `in_progress` unless a person had it elsewhere */
+  item: WorkItem;
+  chat: ChatSummary;
+  link: WorkItemLink;
+}
+
+/** A selection of work items of one project to orchestrate, in the order they were picked. */
+export interface OrchestrateWorkItemsRequest {
+  itemIds: string[];
+}
+
+/**
+ * A graph to review, not a launched one: one node per item, each naming its item in `workItemId`,
+ * and `dependsOn` from the `blocks` relations inside the selection. `POST /orchestrations` launches it.
+ */
+export interface WorkItemOrchestrationDraft {
+  spec: OrchestrationSpec;
+  /** Items outside the selection, not done yet, that block an item of it: the graph cannot wait for them */
+  externalBlockers: WorkItemRef[];
+}
+
+/** Creates a work item in `backlog` from a message of a chat, linked to that chat. */
+export interface CreateWorkItemFromMessageRequest {
+  /** The message, which becomes the description */
+  text: string;
+  /** Default: the message's first line */
+  title?: string;
+  /** Default `task` */
+  type?: WorkItemType;
+  /** Default `medium` */
+  priority?: WorkItemPriority;
+}
+
+/** What the item's own branch changed, read from git the way a chat's worktree is. */
+export interface WorkItemChanges {
+  worktree: string | null;
+  branch: string | null;
+  /** Null while nothing has worked on it in a worktree, or once its branch is gone */
+  summary: ChangeSummary | null;
+}
+
 // ---------- What changed on disk ----------
 //
 // An agent's real output is the diff, not its report. Everything here comes from `git` (`log`,
@@ -1637,6 +1693,12 @@ export interface OrchestrationTaskSpec {
   model?: string;
   /** What this worker may spend before Agentry stops it; the graph's default when absent */
   limits?: TaskLimits;
+  /**
+   * The work item this node works on, as a draft built from a selection names it. Launching links
+   * the node to the item, which then follows the node's status. Must be a work item of a project
+   * whose Board module is on, and at most one node per item.
+   */
+  workItemId?: string;
 }
 
 /**

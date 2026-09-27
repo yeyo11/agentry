@@ -22,8 +22,9 @@ const pathOf = (path: string | undefined): string => {
 export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.get('/orchestrations', () => core.orchestrator.list().map((o) => core.orchestrator.view(o)));
 
+  // Through core rather than the orchestrator: a node that names a work item is checked and linked
   app.post<{ Body: OrchestrationSpec }>('/orchestrations', async (req, reply) =>
-    reply.status(201).send(core.orchestrator.create(req.body ?? ({} as OrchestrationSpec))),
+    reply.status(201).send(await core.launchOrchestration(req.body ?? ({} as OrchestrationSpec))),
   );
 
   // Runs a planner agent with structured output; can take a couple of minutes.

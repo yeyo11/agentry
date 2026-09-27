@@ -609,6 +609,7 @@ event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `l
 | GET | `/projects/:id/work-items?status=&type=&…` | The project's work items in board order, filtered |
 | POST | `/projects/:id/work-items` | `{ title, type?, description?, status?, priority?, labels?, assignee?, epicId?, milestoneId?, acceptanceCriteria? }` — create one; it takes the next number of the project, never reused. Emits `workitem.created` |
 | GET | `/projects/:id/work-items/board?…` | The five columns, each with its limit, its real count, whether it is over the limit, and the items that pass the filter in rank order |
+| POST | `/projects/:id/work-items/orchestrate` | `{ itemIds }` — a draft orchestration to review, not launched: one node per item, `dependsOn` from `blocks` inside the selection, and the blockers left outside it. `POST /orchestrations` launches it |
 | GET | `/projects/:id/milestones` | The project's milestones, each with its progress derived from its items |
 | POST | `/projects/:id/milestones` | `{ name, description? }` — create a milestone, open, with no date. Emits `milestone.changed` |
 | GET | `/work-items?…` | Every work item of the imported projects with the Board module on: the All projects view |
@@ -626,6 +627,11 @@ event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `l
 | POST | `/work-items/:itemId/links` | `{ kind, role, chatId?, orchestrationId?, taskId? }` — tie a chat or an orchestration task to the item |
 | DELETE | `/work-items/:itemId/links/:linkId` | Untie it; the chat or orchestration is not touched |
 | GET | `/work-items/:itemId/history` | Every change to the item, oldest first, with who made it and why |
+| POST | `/work-items/:itemId/work` | "Work on it": a chat prompted with the item, in its own worktree on `task/<key>`, with the options a new chat takes. The item enters `in_progress` when a turn starts and `in_review` when one ends well |
+| GET | `/work-items/:itemId/changes` | What the item's branch changed: commits, files and what is not committed yet |
+| GET | `/work-items/:itemId/changes/diff?path=` | One file's diff on the item's branch |
+| POST | `/chats/:id/work-items` | `{ text, title?, type?, priority? }` — create a task in `backlog` from a chat's message, linked to the chat |
+| GET | `/chats/:id/work-items` | The work items a chat works on or was the origin of |
 | GET | `/milestones/:milestoneId` | One milestone with its progress |
 | PATCH | `/milestones/:milestoneId` | `{ name?, description?, state? }` — edit, close or reopen a milestone |
 | DELETE | `/milestones/:milestoneId` | Delete a milestone; its items stay, without it |
@@ -800,7 +806,7 @@ every 3 s and only while a client listens.
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/orchestrations` | List |
-| POST | `/orchestrations` | Launch. Body: `OrchestrationSpec` |
+| POST | `/orchestrations` | Launch. Body: `OrchestrationSpec`; a task naming a `workItemId` is linked to that item, which follows its status |
 | POST | `/orchestrations/plan/start` | `{ objective, cwd?, model?, maxTasks? }` → the planner chat (housekeeping), returned at once so it can be streamed at `/chats/:id/stream` |
 | GET | `/orchestrations/plans` | Plans generated but not launched; each is kept when its planner finishes |
 | GET | `/orchestrations/plans/:runId` | The draft `OrchestrationSpec` a planner chat produced (`:runId` is the planner chat's id) |

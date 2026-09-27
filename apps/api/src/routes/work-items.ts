@@ -5,13 +5,16 @@ import type {
   CheckAcceptanceCriterionRequest,
   CreateMilestoneRequest,
   CreateWorkItemCommentRequest,
+  CreateWorkItemFromMessageRequest,
   CreateWorkItemLinkRequest,
   CreateWorkItemRelationRequest,
   CreateWorkItemRequest,
   MoveWorkItemRequest,
+  OrchestrateWorkItemsRequest,
   UpdateMilestoneRequest,
   UpdateWorkItemRequest,
   WorkItemFilter,
+  WorkOnWorkItemRequest,
 } from '@agentry/shared';
 
 /** A filter as a query string carries it: every list comma separated. */
@@ -88,6 +91,11 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     return core.workItems.board(req.params.id, filterOf(req.query));
   });
 
+  // A draft to review, not a launched graph: `POST /orchestrations` launches it
+  app.post<{ Params: { id: string }; Body: OrchestrateWorkItemsRequest }>('/projects/:id/work-items/orchestrate', (req) =>
+    core.orchestrateWorkItems(req.params.id, bodyOf(req.body)),
+  );
+
   app.get<{ Params: { id: string } }>('/projects/:id/milestones', async (req) => {
     await core.workItemProject(req.params.id, 'read');
     return core.workItems.milestones(req.params.id);
@@ -107,10 +115,7 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
 
   // ---- one item
 
-  app.get<{ Params: { itemId: string } }>('/work-items/:itemId', async (req) => {
-    await core.workItemAccess(req.params.itemId, 'read');
-    return core.workItems.get(req.params.itemId);
-  });
+  app.get<{ Params: { itemId: string } }>('/work-items/:itemId', (req) => core.workItemDetail(req.params.itemId));
 
   app.patch<{ Params: { itemId: string }; Body: UpdateWorkItemRequest }>('/work-items/:itemId', async (req) => {
     await core.workItemAccess(req.params.itemId, 'write');
@@ -156,10 +161,7 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     return core.workItems.unrelate(req.params.itemId, req.params.otherId);
   });
 
-  app.get<{ Params: { itemId: string } }>('/work-items/:itemId/links', async (req) => {
-    await core.workItemAccess(req.params.itemId, 'read');
-    return core.workItems.links(req.params.itemId);
-  });
+  app.get<{ Params: { itemId: string } }>('/work-items/:itemId/links', (req) => core.workItemLinks(req.params.itemId));
 
   app.post<{ Params: { itemId: string }; Body: CreateWorkItemLinkRequest }>('/work-items/:itemId/links', async (req, reply) => {
     await core.workItemAccess(req.params.itemId, 'write');
@@ -178,6 +180,25 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     await core.workItemAccess(req.params.itemId, 'read');
     return core.workItems.history(req.params.itemId);
   });
+
+  // ---- what works on an item
+
+  app.post<{ Params: { itemId: string }; Body: WorkOnWorkItemRequest }>('/work-items/:itemId/work', async (req, reply) =>
+    reply.status(201).send(await core.workOnItem(req.params.itemId, bodyOf(req.body))),
+  );
+
+  app.get<{ Params: { itemId: string } }>('/work-items/:itemId/changes', (req) => core.workItemChanges(req.params.itemId));
+
+  app.get<{ Params: { itemId: string }; Querystring: { path?: string } }>('/work-items/:itemId/changes/diff', (req) => {
+    if (!req.query.path) throw new Error('path is required');
+    return core.workItemDiff(req.params.itemId, req.query.path);
+  });
+
+  app.post<{ Params: { id: string }; Body: CreateWorkItemFromMessageRequest }>('/chats/:id/work-items', async (req, reply) =>
+    reply.status(201).send(await core.workItemFromMessage(req.params.id, bodyOf(req.body))),
+  );
+
+  app.get<{ Params: { id: string } }>('/chats/:id/work-items', (req) => core.workItemsOfChat(req.params.id));
 
   // ---- one milestone
 

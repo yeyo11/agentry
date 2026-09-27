@@ -2254,6 +2254,10 @@
         "$ref": "#/components/schemas/TaskLimits",
         "description": "What this worker may spend before Agentry stops it; the graph's default when absent"
       },
+      "workItemId": {
+        "type": "string",
+        "description": "The work item this node works on, as a draft built from a selection names it. Launching links the node to the item, which then follows the node's status. Must be a work item of a project whose Board module is on, and at most one node per item."
+      },
       "status": {
         "$ref": "#/components/schemas/OrchestrationTaskStatus"
       },
@@ -2981,6 +2985,10 @@
       "limits": {
         "$ref": "#/components/schemas/TaskLimits",
         "description": "What this worker may spend before Agentry stops it; the graph's default when absent"
+      },
+      "workItemId": {
+        "type": "string",
+        "description": "The work item this node works on, as a draft built from a selection names it. Launching links the node to the item, which then follows the node's status. Must be a work item of a project whose Board module is on, and at most one node per item."
       }
     },
     "required": [
@@ -11375,5 +11383,187 @@
       "overLimit",
       "status"
     ]
+  },
+  "WorkOnWorkItemRequest": {
+    "$ref": "#/components/schemas/ChatStartOptions",
+    "description": "What a chat started on a work item may be given. The prompt is built from the item (its title, description and acceptance criteria) and the directory is its worktree, so neither is taken here."
+  },
+  "ChatStartOptions": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "type": "string"
+      },
+      "effort": {
+        "type": "string"
+      },
+      "permissionMode": {
+        "$ref": "#/components/schemas/PermissionMode"
+      },
+      "appendSystemPrompt": {
+        "type": "string"
+      },
+      "allowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "disallowedTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "toolPreset": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Id of a stored  {@link  ToolPreset } ; an explicit `allowedTools` wins over it. A new chat that names neither this nor `allowedTools` takes the default preset; `null` opts out of it (and, on a resume or a fork, drops the preset the chat had)."
+      },
+      "mcp": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/McpSelection"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "MCP servers this chat starts with; absent keeps what it has, `null` goes back to what the CLI loads on its own"
+      },
+      "maxBudgetUsd": {
+        "type": "number",
+        "description": "Ceiling on what this execution may spend"
+      },
+      "permissionPrompts": {
+        "type": "string",
+        "enum": [
+          "host",
+          "none"
+        ],
+        "description": "`host` sends permissions, questions and plans to the panel; `none`, the default, denies them"
+      },
+      "account": {
+        "type": "string",
+        "description": "Pin it to a claude-swap account (slot number, email or alias) instead of the active one"
+      }
+    },
+    "description": "What can be chosen when a process starts on a chat, whether it is new, resumed or a fork."
+  },
+  "WorkOnWorkItemResult": {
+    "type": "object",
+    "properties": {
+      "item": {
+        "$ref": "#/components/schemas/WorkItem",
+        "description": "The item as it is once the chat started: in its worktree, and in `in_progress` unless a person had it elsewhere"
+      },
+      "chat": {
+        "$ref": "#/components/schemas/ChatSummary"
+      },
+      "link": {
+        "$ref": "#/components/schemas/WorkItemLink"
+      }
+    },
+    "required": [
+      "item",
+      "chat",
+      "link"
+    ]
+  },
+  "OrchestrateWorkItemsRequest": {
+    "type": "object",
+    "properties": {
+      "itemIds": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "itemIds"
+    ],
+    "description": "A selection of work items of one project to orchestrate, in the order they were picked."
+  },
+  "WorkItemOrchestrationDraft": {
+    "type": "object",
+    "properties": {
+      "spec": {
+        "$ref": "#/components/schemas/OrchestrationSpec"
+      },
+      "externalBlockers": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkItemRef"
+        },
+        "description": "Items outside the selection, not done yet, that block an item of it: the graph cannot wait for them"
+      }
+    },
+    "required": [
+      "spec",
+      "externalBlockers"
+    ],
+    "description": "A graph to review, not a launched one: one node per item, each naming its item in `workItemId`, and `dependsOn` from the `blocks` relations inside the selection. `POST /orchestrations` launches it."
+  },
+  "CreateWorkItemFromMessageRequest": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "The message, which becomes the description"
+      },
+      "title": {
+        "type": "string",
+        "description": "Default: the message's first line"
+      },
+      "type": {
+        "$ref": "#/components/schemas/WorkItemType",
+        "description": "Default `task`"
+      },
+      "priority": {
+        "$ref": "#/components/schemas/WorkItemPriority",
+        "description": "Default `medium`"
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "description": "Creates a work item in `backlog` from a message of a chat, linked to that chat."
+  },
+  "WorkItemChanges": {
+    "type": "object",
+    "properties": {
+      "worktree": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "branch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "summary": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChangeSummary"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null while nothing has worked on it in a worktree, or once its branch is gone"
+      }
+    },
+    "required": [
+      "worktree",
+      "branch",
+      "summary"
+    ],
+    "description": "What the item's own branch changed, read from git the way a chat's worktree is."
   }
 }

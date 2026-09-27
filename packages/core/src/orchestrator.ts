@@ -556,6 +556,8 @@ export class Orchestrator {
         dependsOn: t.dependsOn ?? [],
         cwd: t.cwd,
         model: t.model,
+        // Kept on the node so a relaunch carries it: the link to the item is made from it
+        ...(t.workItemId ? { workItemId: t.workItemId } : {}),
         status: 'pending',
         attempts: 0,
         runId: null,

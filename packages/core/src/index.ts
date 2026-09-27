@@ -29,19 +29,31 @@ import type {
   SystemInfo,
   UpdateProjectRequest,
   Board,
+  CreateWorkItemFromMessageRequest,
   Milestone,
+  OrchestrateWorkItemsRequest,
+  Orchestration,
+  OrchestrationSpec,
   WorkflowDefinition,
   WorkItem,
+  WorkItemCause,
+  WorkItemChanges,
+  WorkItemDetail,
   WorkItemFilter,
   WorkItemLink,
+  WorkItemOrchestrationDraft,
+  WorkOnWorkItemRequest,
+  WorkOnWorkItemResult,
+  FileDiff,
 } from '@agentry/shared';
 import { WORK_ITEM_STATUSES } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { stateFromRun } from './chat-model.ts';
 import { WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
+import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { ChatService, type Placement } from './chat-service.ts';
-import { ChatManager, type ChatRuntime } from './chats.ts';
+import { ChatManager, type ChatRuntime, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
@@ -121,6 +133,7 @@ export {
   type WorkItemProject,
   type WorkItemServiceDeps,
 } from './work-items.ts';
+export { orchestrationDraft, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt, type WorkItemAutomationDeps } from './work-links.ts';
 export { AuthStore } from './security/auth.ts';
 export { OidcVerifier, type FetchLike } from './security/oidc.ts';
 export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
@@ -198,6 +211,8 @@ export class Core {
    * `workItemProject` and friends first: the store itself knows nothing of modules.
    */
   readonly workItems: WorkItemService;
+  /** Moves items as the chats and nodes linked to them work, from the feed and the runtime's results */
+  private readonly workLinks: WorkItemAutomation;
   private readonly startedAt = Date.now();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
@@ -328,6 +343,14 @@ export class Core {
       emit: (event) => this.events.emit(event),
       linkState: (link) => this.workItemLinkState(link),
     });
+    this.workLinks = new WorkItemAutomation({
+      items: this.workItems,
+      writable: (id) => !!this.projectStore.get(id) && !!this.projectSettingsStore.stored(id)?.modules.includes('board'),
+      orchestration: (id) => this.orchestrator.get(id),
+    });
+    this.events.observe((event) => this.workLinks.observe(event));
+    // Every result, not only a run's first: a chat worked on by hand ends many turns
+    this.runtime.on('chat-result', (chatId: string, result: RunResult) => this.workLinks.chatResult(chatId, result));
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
     // Started last of all, once the chats it may resume or start are restored, so a slot judged at
     // boot finds the runtime it launches into ready
@@ -969,6 +992,150 @@ export class Core {
       return { name: task?.name ?? null, taskStatus: task?.status ?? null, chatState };
     }
     return { name: chat?.name ?? null, chatState };
+  }
+
+  /**
+   * A chat link this process does not run (a terminal chat an item was created from, say) read from
+   * the chat list, which is asynchronous and so cannot be what the store fills links with.
+   */
+  private async namedLinks(links: WorkItemLink[]): Promise<WorkItemLink[]> {
+    return Promise.all(
+      links.map(async (link) => {
+        if (link.kind !== 'chat' || !link.chatId || link.name) return link;
+        const chat = await this.chats.summaryOf(link.chatId).catch(() => null);
+        return chat ? { ...link, name: chat.title, chatState: chat.state } : link;
+      }),
+    );
+  }
+
+  /** The item's page, with every link named. */
+  async workItemDetail(itemId: string): Promise<WorkItemDetail> {
+    await this.workItemAccess(itemId, 'read');
+    const detail = this.workItems.get(itemId);
+    return { ...detail, links: await this.namedLinks(detail.links) };
+  }
+
+  async workItemLinks(itemId: string): Promise<WorkItemLink[]> {
+    await this.workItemAccess(itemId, 'read');
+    return this.namedLinks(this.workItems.links(itemId));
+  }
+
+  /**
+   * "Work on it": a chat in the project, in the item's own worktree (made the first time, found
+   * again after), prompted with the item. The chat is linked in the tick it is spawned, before any
+   * of its output can arrive, so the item follows it from its very first status.
+   */
+  async workOnItem(itemId: string, request?: WorkOnWorkItemRequest): Promise<WorkOnWorkItemResult> {
+    const item = await this.workItemAccess(itemId, 'write');
+    const record = this.requireProject(item.projectId);
+    if (item.type === 'epic') throw new WorkItemError('an epic groups work items: work on one of them instead', 400);
+    if (!existsSync(record.path)) throw new WorkItemError(`the project's directory ${record.path} is missing`, 409);
+    const busy = this.workItems.links(itemId).find((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
+    if (busy) throw new WorkItemError(`${item.key} is already being worked on${busy.name ? ` by ${busy.name}` : ''}`, 409);
+    const place = itemWorktree(record.path, item);
+    if (place && (place.worktree !== item.worktree || place.branch !== item.branch)) {
+      this.workItems.setWorktree(itemId, { worktree: place.worktree, branch: place.branch });
+    }
+    const linked: { link?: WorkItemLink } = {};
+    const chat = await this.chats.create({ ...startOptions(request), prompt: workItemPrompt(item), cwd: place?.cwd ?? record.path }, (started) => {
+      linked.link = this.workItems.link(itemId, { kind: 'chat', role: 'work', chatId: started.id });
+      this.workLinks.chatStarted(started.id);
+    });
+    if (!linked.link) throw new Error('the chat started without being linked to its work item');
+    return { item: this.workItems.find(itemId) ?? item, chat, link: linked.link };
+  }
+
+  /**
+   * The graph a selection of one project's items becomes, for the person to review: nothing is
+   * launched. The existing launch route takes it as it is and links each node to its item.
+   */
+  async orchestrateWorkItems(projectId: string, request?: OrchestrateWorkItemsRequest): Promise<WorkItemOrchestrationDraft> {
+    await this.workItemProject(projectId, 'write');
+    const record = this.requireProject(projectId);
+    const ids: unknown = request?.itemIds;
+    if (!Array.isArray(ids) || !ids.length || ids.some((id) => typeof id !== 'string')) {
+      throw new WorkItemError('itemIds must list the work items to orchestrate', 400);
+    }
+    if (new Set(ids).size !== ids.length) throw new WorkItemError('a work item is selected twice', 400);
+    const items = (ids as string[]).map((id) => {
+      const item = this.workItems.find(id);
+      if (!item || item.projectId !== projectId) throw new WorkItemError(`${id} is not a work item of this project`, 400);
+      if (item.type === 'epic') throw new WorkItemError(`${item.key} is an epic, which groups work: select its items instead`, 400);
+      if (item.status === 'done') throw new WorkItemError(`${item.key} is already done`, 400);
+      return item;
+    });
+    return orchestrationDraft(record, items, canBranch(record.path));
+  }
+
+  /**
+   * Launches a graph. A node that names a work item must name one that may be changed, and only one
+   * node per item: the item follows its node, and two nodes would pull it two ways.
+   */
+  async launchOrchestration(spec: OrchestrationSpec): Promise<Orchestration> {
+    const tasks: unknown = spec?.tasks;
+    const seen = new Set<string>();
+    for (const task of Array.isArray(tasks) ? (tasks as Array<Partial<OrchestrationSpec['tasks'][number]> | null>) : []) {
+      const itemId: unknown = task?.workItemId;
+      if (itemId === undefined) continue;
+      const label = `task '${String(task?.id)}'`;
+      if (typeof itemId !== 'string' || !itemId) throw new WorkItemError(`${label}: workItemId must name a work item`, 400);
+      if (seen.has(itemId)) throw new WorkItemError(`${label}: another node already works on that work item`, 400);
+      seen.add(itemId);
+      const item = this.workItems.find(itemId);
+      if (!item) throw new WorkItemError(`${label}: work item ${itemId} not found`, 400);
+      await this.ownerAccess(item.projectId, 'write');
+    }
+    return this.orchestrator.create(spec);
+  }
+
+  /** "Create a task from this message": an item in `backlog` of the chat's project, linked to the chat it came from. */
+  async workItemFromMessage(chatId: string, request?: CreateWorkItemFromMessageRequest): Promise<WorkItem> {
+    const text: unknown = request?.text;
+    if (typeof text !== 'string' || !text.trim()) throw new WorkItemError('text is required: the message the task is made from', 400);
+    const chat = await this.chats.summaryOf(chatId);
+    if (!chat) throw new Error('chat not found');
+    const projectId = chat.project?.id;
+    if (!projectId) throw new WorkItemError('this chat is not in an imported project, so there is no board to add the task to', 409);
+    await this.workItemProject(projectId, 'write');
+    const cause: WorkItemCause = {
+      kind: 'chat',
+      chatId,
+      orchestrationId: chat.orchestration?.id ?? null,
+      taskId: chat.orchestration?.taskId ?? null,
+      event: WORK_CAUSE.message,
+    };
+    const item = this.workItems.create(
+      projectId,
+      {
+        title: typeof request?.title === 'string' && request.title.trim() ? request.title : titleFromMessage(text),
+        description: text,
+        status: 'backlog',
+        ...(request?.type !== undefined ? { type: request.type } : {}),
+        ...(request?.priority !== undefined ? { priority: request.priority } : {}),
+      },
+      { cause },
+    );
+    this.workItems.link(item.id, { kind: 'chat', role: 'origin', chatId }, { cause });
+    return this.workItems.find(item.id) ?? item;
+  }
+
+  /** The items a chat worked on or created, for its header. Those of projects no longer imported are left out. */
+  workItemsOfChat(chatId: string): WorkItem[] {
+    const imported = new Set(this.projectStore.list().map((p) => p.id));
+    const ids = [...new Set(this.workItems.linksOfChat(chatId).map((l) => l.itemId))];
+    return ids.map((id) => this.workItems.find(id)).filter((item): item is WorkItem => !!item && imported.has(item.projectId));
+  }
+
+  /** What the item's own branch changed, read as a chat's worktree is. */
+  async workItemChanges(itemId: string): Promise<WorkItemChanges> {
+    const item = await this.workItemAccess(itemId, 'read');
+    const path = this.projectStore.get(item.projectId)?.path ?? item.worktree ?? '';
+    return { worktree: item.worktree, branch: item.branch, summary: this.changes.itemChanges(path, item) };
+  }
+
+  async workItemDiff(itemId: string, path: string): Promise<FileDiff> {
+    const item = await this.workItemAccess(itemId, 'read');
+    return this.changes.itemDiff(this.projectStore.get(item.projectId)?.path ?? item.worktree ?? '', item, path);
   }
 
   /**
