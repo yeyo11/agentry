@@ -9,12 +9,16 @@ import type {
   ApiError,
   AuditFilter,
   AuditPage,
+  AppSettings,
   AuthConfig,
   AuthMode,
   AuthStatus,
   AuthTokenResult,
   SetAuthTokenRequest,
   UpdateAuthConfigRequest,
+  UpdateAppSettingsRequest,
+  TunnelStatus,
+  UpdateTunnelSettingsRequest,
   AuthVerification,
   AutoSwitchEvent,
   AutoSwitchSettings,
@@ -185,6 +189,9 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     if (err instanceof DOMException && err.name === 'TimeoutError') {
       throw new ApiRequestError(i18n.t('common:requestTimeout'), 408);
     }
+    // fetch rejects with a bare TypeError ("Failed to fetch", "NetworkError…") when no answer came
+    // back at all: the browser's wording, in the browser's language, and nothing a person can act on
+    if (err instanceof TypeError) throw new ApiRequestError(i18n.t('common:networkError'), 0, err.message);
     throw err;
   }
   const text = await res.text();
@@ -199,7 +206,10 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     // The guard refused the credential: every page is about to fail the same way, so the app
     // shows one sign-in screen instead of an error on each of them
     if (res.status === 401) setChallenge(err?.mode ?? 'token');
-    throw new ApiRequestError(err?.error ?? `HTTP ${res.status} ${res.statusText}`, res.status, err?.detail);
+    // No JSON error means Agentry did not write this answer (a proxy's or a tunnel's page): say so in
+    // the person's language and keep the status line as the detail
+    if (!err?.error) throw new ApiRequestError(i18n.t('common:httpError', { status: res.status }), res.status, `HTTP ${res.status} ${res.statusText}`.trim());
+    throw new ApiRequestError(err.error, res.status, err.detail);
   }
   return json as T;
 }
@@ -465,6 +475,13 @@ export const api = {
   /** The only answer that ever carries the token; it cannot be read back afterwards. */
   setSecurityToken: (body: SetAuthTokenRequest = {}) => request<AuthTokenResult>('/security/token', { method: 'POST', body }),
   clearSecurityToken: () => request<AuthConfig>('/security/token', { method: 'DELETE' }),
+  /** The settings that change at runtime; a key the environment set is refused, so send only what changed */
+  appSettings: (o: ReadOptions = {}) => request<AppSettings>('/settings/app', o),
+  updateAppSettings: (body: UpdateAppSettingsRequest) => request<AppSettings>('/settings/app', { method: 'PUT', body }),
+  tunnel: (o: ReadOptions = {}) => request<TunnelStatus>('/tunnel', o),
+  updateTunnelSettings: (body: UpdateTunnelSettingsRequest) => request<TunnelStatus>('/tunnel/settings', { method: 'PUT', body }),
+  startTunnel: () => request<TunnelStatus>('/tunnel/start', { method: 'POST' }),
+  stopTunnel: () => request<TunnelStatus>('/tunnel/stop', { method: 'POST' }),
   audit: (page: AuditFilter & { limit?: number; from?: number } = {}) =>
     request<AuditPage>(`/audit${qs({ limit: num(page.limit), from: num(page.from), path: page.path, method: page.method, status: page.status })}`),
   setAccountConfig: (number: number, body: UpdateAccountConfigRequest) =>
@@ -564,6 +581,9 @@ export const keys = {
   audit: (page: AuditFilter & { from?: number }) =>
     ['security', 'audit', page.from ?? 0, page.path ?? '', page.method ?? '', page.status ?? ''] as const,
   pushSubscriptions: ['push', 'subscriptions'] as const,
+  // Both are written whole from their events (lib/events.ts), never refetched for them
+  appSettings: ['settings', 'app'] as const,
+  tunnel: ['tunnel'] as const,
   availablePlugins: (q: string) => ['plugins', 'available', q] as const,
   pluginDetails: (plugin: string) => ['plugins', 'details', plugin] as const,
 };

@@ -369,6 +369,12 @@ Rules:
   surface, so it takes no gradient and no energy; the segments carry the only live colour. The
   name is the link and its box covers the row, so the whole line is the touch target. The
   synthesis chat reads "· synthesis" instead of a stage.
+- Settings → Remote access draws a tunnel's open address as `.tunnel-address` (`.tunnel-address` and
+  `.qr` in `agentry-ds.css`): the URL in mono with copy, beside a QR code drawn in-house
+  (`components/QrCode.tsx`). The block takes `.grad-border` while the tunnel is open, because it is
+  what the screen is about; the start button is the gradient action only while there is no address.
+  The QR code is dark on light in both themes (`--qr-ink`, `--qr-paper`), since not every camera
+  reads an inverted one.
 - Badges are mono uppercase through CSS, so specs that read a badge's word match it
   case-insensitively or read it from the DOM.
 

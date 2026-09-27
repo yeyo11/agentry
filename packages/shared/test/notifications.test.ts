@@ -255,3 +255,33 @@ test('a chat named by Agentry is told by its first prompt, a name someone chose 
   assert.equal(displayTitle({ ...generated, title: 'Release checklist' }), 'Release checklist');
   assert.equal(displayTitle({ ...generated, firstPrompt: null }), 'harbor-api-b1c2d3');
 });
+
+test('a setting or the tunnel changing refreshes the page but never wakes anyone', () => {
+  // A tunnel's address is a way into the machine: it has no place on a lock screen or in a push
+  // service Agentry does not run, and a setting someone just changed is not news to them
+  const settings: AgentryEvent = {
+    ...base('Settings changed'),
+    type: 'settings.changed',
+    settings: {
+      allowedHosts: [],
+      maxConcurrentRuns: 8,
+      defaultPermissionMode: 'acceptEdits',
+      sources: { allowedHosts: 'default', maxConcurrentRuns: 'env', defaultPermissionMode: 'file' },
+    },
+  };
+  const tunnel: AgentryEvent = {
+    ...base('Tunnel active'),
+    type: 'tunnel.changed',
+    tunnel: {
+      state: 'active',
+      url: 'https://abc123.lhr.life',
+      since: AT,
+      reason: null,
+      enabled: true,
+      sshAvailable: true,
+      settings: { startWithAgentry: false },
+    },
+  };
+  assert.deepEqual(notificationsFor(settings), []);
+  assert.deepEqual(notificationsFor(tunnel), []);
+});

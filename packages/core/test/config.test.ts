@@ -140,6 +140,24 @@ test('an allowed-hosts pattern that guards nothing stops the wrapper instead of 
   }
 });
 
+test('the tunnel is offered by default, except in the Docker image, where the operator turns it on', () => {
+  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'agentry-switch', 'claude'), AGENTRY_DATA_DIR: join(tmpdir(), 'agentry-switch', 'data'), AGENTRY_WORKSPACE_DIR: join(tmpdir(), 'agentry-switch', 'workspace') };
+  const docker = { ...base, AGENTRY_DISTRIBUTION: 'docker' };
+
+  assert.equal(loadConfig(base).tunnelEnabled, true);
+  assert.equal(loadConfig(docker).tunnelEnabled, false);
+  // Compose passes `AGENTRY_TUNNEL=${AGENTRY_TUNNEL:-}` through: empty is the default, not "off"
+  assert.equal(loadConfig({ ...docker, AGENTRY_TUNNEL: '' }).tunnelEnabled, false);
+  assert.equal(loadConfig({ ...base, AGENTRY_TUNNEL: ' ' }).tunnelEnabled, true);
+  for (const on of ['on', 'ON', '1', 'true']) assert.equal(loadConfig({ ...docker, AGENTRY_TUNNEL: on }).tunnelEnabled, true, on);
+  for (const off of ['off', '0', 'false']) assert.equal(loadConfig({ ...base, AGENTRY_TUNNEL: off }).tunnelEnabled, false, off);
+
+  // The switch that opens a public address is not guessed at
+  for (const value of ['yes', 'enabled', 'of']) {
+    assert.throws(() => loadConfig({ ...base, AGENTRY_TUNNEL: value }), /AGENTRY_TUNNEL/, value);
+  }
+});
+
 test('two panels asking for MCP health at once share one connection check', async () => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-mcp-'));
   const log = join(root, 'invocations');

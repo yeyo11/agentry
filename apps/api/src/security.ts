@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { Core } from '@agentry/core';
+import type { Core, RuntimeHosts } from '@agentry/core';
 import { ROUTE_DOCS } from './openapi/routes.ts';
 
 /**
@@ -85,10 +85,29 @@ function allowlist(patterns: readonly string[]): { names: ReadonlySet<string>; s
  * A request with no `Host` at all passes: HTTP/1.1 requires one and every browser sends one, so it
  * cannot be the rebinding case, and refusing it would only cost an HTTP/1.0 probe.
  */
-function hostAllowed(authority: string | undefined, allowed: ReturnType<typeof allowlist>): boolean {
+function hostAllowed(authority: string | undefined, allowed: ReturnType<typeof allowlist>, runtime: RuntimeHosts): boolean {
   if (authority === undefined) return true;
   const name = hostNameOf(authority);
-  return LOOPBACK.test(name) || allowed.names.has(name) || allowed.suffixes.some((suffix) => name.endsWith(suffix));
+  return LOOPBACK.test(name) || allowed.names.has(name) || allowed.suffixes.some((suffix) => name.endsWith(suffix)) || runtime.get(name) !== undefined;
+}
+
+/**
+ * The key `FailureBackoff` counts a request under. Everything through a tunnel arrives from
+ * loopback, so keyed by `req.ip` a stranger's ten wrong guesses would make the owner wait too.
+ * A request on a runtime host is keyed by the header its owner said carries the client's address,
+ * and only there: on any other host nobody vouches for that header, and anybody on the machine
+ * could set it to spend someone else's budget. Without a header, or without a value in it, the
+ * host's traffic still gets a bucket of its own, apart from loopback.
+ */
+function backoffKey(req: FastifyRequest, runtime: RuntimeHosts): string {
+  // No `Host` is no runtime host: the empty name is never one
+  const name = req.headers.host === undefined ? '' : hostNameOf(req.headers.host);
+  const host = runtime.get(name);
+  if (!host) return req.ip;
+  const header = host.clientIpHeader ? req.headers[host.clientIpHeader] : undefined;
+  // The last hop is the one the provider added; whatever comes before it the client could write
+  const client = (Array.isArray(header) ? header.at(-1) : header)?.split(',').at(-1)?.trim();
+  return client ? `runtime:${name}:${client}` : `runtime:${name}`;
 }
 
 /** Failed authentications a client address gets for free before it is asked to wait. */
@@ -207,9 +226,16 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
   // `null` and not a string: Fastify v5 refuses a shared reference, and the value is per request
   app.decorateRequest('actor', null);
 
-  // Read once and not per request: the allowlist is deployment configuration. It comes from the
-  // core's config rather than from `process.env`, so a test can build a wrapper with its own.
-  const allowedHosts = allowlist(core.config.allowedHosts);
+  // Read on every request, because the settings page can change it, but only rebuilt when it did:
+  // the store hands out the same array until then. It comes from the core rather than from
+  // `process.env`, so a test can build a wrapper with its own.
+  let configured = { from: core.appSettings.allowedHosts, allowed: allowlist(core.appSettings.allowedHosts) };
+  const allowedHosts = (): ReturnType<typeof allowlist> => {
+    const from = core.appSettings.allowedHosts;
+    if (from !== configured.from) configured = { from, allowed: allowlist(from) };
+    return configured.allowed;
+  };
+  const runtimeHosts = core.appSettings.runtimeHosts;
   const backoff = new FailureBackoff();
 
   app.addHook('onRequest', async (req, reply) => {
@@ -220,7 +246,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
     const mode = core.security.mode;
     // Before the credential, because an authority this wrapper does not serve is refused whether
     // or not the caller holds one: under `mode: 'none'` there is no credential to refuse it by
-    if (guarded && !hostAllowed(req.headers.host, allowedHosts)) {
+    if (guarded && !hostAllowed(req.headers.host, allowedHosts(), runtimeHosts)) {
       req.actor = 'anonymous';
       void reply.status(421).send({
         error: 'this wrapper does not answer to that host. Reach it on localhost, or name the host in AGENTRY_ALLOWED_HOSTS.',
@@ -228,7 +254,8 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       return reply;
     }
     if (guarded && mode !== 'none') {
-      const wait = backoff.retryAfter(req.ip);
+      const client = backoffKey(req, runtimeHosts);
+      const wait = backoff.retryAfter(client);
       if (wait > 0) {
         req.actor = 'anonymous';
         // Not counted as another failure: a client that kept trying would never serve its wait
@@ -237,7 +264,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
       }
       const actor = await core.security.actorFor(credentialOf(req, path));
       if (!actor) {
-        backoff.fail(req.ip);
+        backoff.fail(client);
         // Still audited when it is a write, and as what it was: nobody we could name
         req.actor = 'anonymous';
         // The mode travels with the refusal: it is what tells the UI whether to ask for a token
@@ -248,7 +275,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): void {
           .send({ error: 'authentication required', mode });
         return reply;
       }
-      backoff.succeed(req.ip);
+      backoff.succeed(client);
       req.actor = actor;
     }
     req.actor ??= 'local';

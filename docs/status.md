@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-09-25T18:55:39Z
+updated_at: 2026-09-27T18:00:00Z
 tags:
     - status
     - project-state
@@ -44,7 +44,9 @@ orchestration with a task DAG, parallel workers and a verification phase on the 
 observability that reconstructs what an agent did from git and the transcript; several accounts
 rotated before they run out; schedules; configuration and MCP servers per scope; tool presets per
 chat; authentication as none, bearer token or OIDC; a progressive web app with push for phones; a
-Linux desktop app; and a Docker image with a Kubernetes manifest.
+Linux desktop app; a Docker image with a Kubernetes manifest; and remote access through a
+localhost.run tunnel over settings that change at runtime ([tunnel.md](tunnel.md),
+[layered-settings.md](layered-settings.md)).
 
 ## What is open
 
@@ -76,6 +78,7 @@ Linux desktop app; and a Docker image with a Kubernetes manifest.
 | [`plans/spanish-copy.md`](plans/spanish-copy.md) | Landed (#94) — see [Outcome](plans/spanish-copy.md#outcome) |
 | [`plans/app-updates.md`](plans/app-updates.md) | Landed (#95) — see [Outcome](plans/app-updates.md#outcome) |
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Every task landed; the merged branch's e2e verification runs in the orchestration — see [Outcome](plans/redesign-night-shift.md#outcome) |
+| [`plans/tunnel.md`](plans/tunnel.md) | Built by the orchestration `tunnel` on `feat/tunnel`, one pull request; the merged branch's e2e verification runs in the orchestration — see [Outcome](plans/tunnel.md#outcome) and [tunnel.md](tunnel.md) |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.

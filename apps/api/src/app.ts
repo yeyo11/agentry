@@ -14,6 +14,8 @@ import { chatRoutes } from './routes/chats.ts';
 import { configRoutes } from './routes/config.ts';
 import { connectorRoutes } from './routes/connectors.ts';
 import { editorRoutes } from './routes/editor.ts';
+import { appSettingsRoutes } from './routes/app-settings.ts';
+import { tunnelRoutes } from './routes/tunnel.ts';
 import { eventRoutes } from './routes/events.ts';
 import { memoryRoutes } from './routes/memory.ts';
 import { orchestrationRoutes } from './routes/orchestrations.ts';
@@ -137,6 +139,8 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(configRoutes, { core });
       await api.register(toolPresetRoutes, { core });
       await api.register(editorRoutes, { core });
+      await api.register(appSettingsRoutes, { core });
+      await api.register(tunnelRoutes, { core });
       await api.register(pluginRoutes, { core });
       await api.register(connectorRoutes, { core });
       await api.register(memoryRoutes, { core });

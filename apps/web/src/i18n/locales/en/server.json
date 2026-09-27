@@ -71,5 +71,14 @@
       "web-artifacts": "Web artifacts",
       "claude-ai-memory": "claude.ai memory"
     }
+  },
+  "tunnel": {
+    "authRequired": "The tunnel needs authentication: turn on a token or OIDC in Security first.",
+    "disabled": "This Agentry does not offer the tunnel. Whoever runs it can turn it on with AGENTRY_TUNNEL=on.",
+    "noPort": "Agentry is not listening yet, so there is nothing to open a tunnel to.",
+    "sshMissing": "No ssh was found to run. Install the OpenSSH client (openssh-client) and try again.",
+    "hostKey": "localhost.run answered with a host key that is not the one Agentry pins, so the tunnel was not opened.",
+    "unverified": "localhost.run handed out {{host}}, but Agentry could not reach itself through it.",
+    "exited": "ssh ended before localhost.run handed out an address: {{detail}}"
   }
 }

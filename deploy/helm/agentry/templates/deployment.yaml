@@ -52,6 +52,9 @@ spec:
               value: {{ $mode | quote }}
             - name: AGENTRY_READ_ONLY
               value: {{ ternary "1" "0" .Values.auth.readOnly | quote }}
+            # Always written, so the pod says what the release decided whatever the image defaults to
+            - name: AGENTRY_TUNNEL
+              value: {{ ternary "on" "off" .Values.tunnel.enabled | quote }}
             {{- if eq $mode "token" }}
             - name: AGENTRY_AUTH_TOKEN
               valueFrom:

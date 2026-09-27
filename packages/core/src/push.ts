@@ -86,14 +86,36 @@ export type PushTransport = (
 
 const defaultTransport: PushTransport = (subscription, payload, options) => webpush.sendNotification(subscription, payload, options);
 
-/** A payload travels through a relay we do not run, so it carries only what a lock screen shows anyway. */
-export function payloadOf(draft: NotificationDraft): PushPayload {
+/**
+ * `href` on the tunnel's public address, or null when there is no tunnel or the path is not one of
+ * ours. Only an https origin is used: the worker that follows it refuses anything else anyway.
+ */
+export function absoluteOn(publicUrl: string | null, href: string | null): string | null {
+  if (!publicUrl) return null;
+  const path = href ?? '/';
+  // A path that is not rooted here, or `//host`, would resolve to somewhere that is not the tunnel
+  if (!path.startsWith('/') || path.startsWith('//')) return null;
+  try {
+    const base = new URL(publicUrl);
+    return base.protocol === 'https:' ? new URL(path, base.origin).href : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A payload travels through a relay we do not run, so it carries only what a lock screen shows
+ * anyway. The tunnel's address is shown on the settings page and in the QR code, so it adds nothing
+ * the relay could not already learn by following the notification.
+ */
+export function payloadOf(draft: NotificationDraft, publicUrl: string | null = null): PushPayload {
   return {
     kind: draft.kind,
     key: draft.key,
     title: draft.title,
     body: draft.body,
     href: draft.href,
+    url: absoluteOn(publicUrl, draft.href),
     at: draft.at,
     priority: draft.priority,
     runId: draft.runId,
@@ -196,6 +218,12 @@ export class PushService {
   private readonly file: string;
   private readonly unobserve: () => void;
   private doc: PushDoc | null = null;
+  /**
+   * The tunnel's public address while it is active, followed on the bus rather than asked of the
+   * tunnel, so the sender needs nothing wired to it. Every push carries it, and a phone that
+   * installed Agentry on an earlier address opens this one instead of its own.
+   */
+  private publicUrl: string | null = null;
   /** In flight while the keypair is being made, so a burst of events cannot each make their own */
   private making: Promise<PushDoc | null> | null = null;
   /** Keyed by the draft's dedupe key: the same news inside its window is not pushed twice. */
@@ -276,6 +304,7 @@ export class PushService {
       title: 'Agentry push works',
       body: 'This is the test notification you asked for.',
       href: null,
+      url: absoluteOn(this.publicUrl, null),
       at,
       priority: 'normal',
       runId: null,
@@ -339,6 +368,8 @@ export class PushService {
 
   /** Every event on the bus, read through the same function the browser reads it through. */
   private onEvent(event: AgentryEvent): void {
+    // Null while reconnecting too: the address being replaced is the one that stopped answering
+    if (event.type === 'tunnel.changed') this.publicUrl = event.tunnel.state === 'active' ? event.tunnel.url : null;
     const drafts = notificationsFor(event);
     if (!drafts.length) return;
     // Nothing is claimed before this: an event that arrives with nobody subscribed must not spend
@@ -351,7 +382,7 @@ export class PushService {
       if (!targets.length) continue;
       // The bus calls this synchronously: the sending is deliberately not awaited, and every
       // failure inside it is already a log line rather than a rejection.
-      this.track(this.deliver(targets, payloadOf(draft)));
+      this.track(this.deliver(targets, payloadOf(draft, this.publicUrl)));
     }
   }
 

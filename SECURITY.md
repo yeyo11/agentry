@@ -20,6 +20,14 @@ What is and is not protected:
   to `127.0.0.1` and then drives Agentry from the browser of whoever visited it. `GET /api/health`
   stays open regardless, so a probe is unaffected, and a request carrying no `Host` at all passes:
   HTTP/1.1 requires one and every browser sends one, so it cannot be the rebinding case.
+  Without the variable the list is editable in Settings → Security, under the same rule (a
+  `*.com` is refused from the file too). A running tunnel adds its own exact host, never a pattern,
+  in memory only, and only once the address has answered.
+- **The tunnel refuses to exist without the guard.** Settings → Remote access (localhost.run over
+  ssh) will not start while the mode is `none`, and turning the mode to `none` closes it first. The
+  provider's host key is pinned, `~/.ssh` is never read, and in the Docker image and the Helm chart
+  the tunnel is off unless the operator sets `AGENTRY_TUNNEL=on`. See
+  [docs/tunnel.md](docs/tunnel.md).
 - **The configuration explorer hides the credentials by path, not by the kind of scope.**
   `.credentials.json`, `.claude.json` and the transcripts are refused whenever the root being read
   resolves to the CLI's own configuration directory — symlinks included. It used to depend on the
@@ -83,6 +91,11 @@ What is and is not protected:
   reverse proxy counts as the same client: someone guessing through that proxy can make it answer
   `429` to everyone else for up to a minute. The cap is what keeps that to a minute rather than a
   lockout, and it is why the wait is not a substitute for a long token.
+- **Through the tunnel, the provider sees everything.** localhost.run terminates TLS, so every
+  request and answer, the bearer token included, is readable there. It passes no client address, so
+  all tunnel traffic shares one failed-authentication wait, kept apart from loopback: a stranger's
+  guesses can make your phone wait for up to a minute, never the desk. In a container, the tunnel
+  goes around the published port, the proxy and the Ingress, which is why it is off there by default.
 - **The token can travel in a query string** on the five GETs a browser makes without headers
   (`/api/events`, `/api/chats/:id/stream`, `/api/uploads/:id/content`, `/api/chats/:id/export` and
   `/api/projects/:id/export`), so a proxy's access log may record it.

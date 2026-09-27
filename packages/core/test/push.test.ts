@@ -3,10 +3,11 @@ import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import webpush from 'web-push';
-import type { AgentryEvent, PushPayload } from '@agentry/shared';
+import type { AgentryEvent, PushPayload, TunnelState } from '@agentry/shared';
 import { Db } from '../src/db.ts';
 import { EventBus, type AgentryEventInput } from '../src/events.ts';
-import { PushService, idOfEndpoint, truncateEndpoint, type PushTransport } from '../src/push.ts';
+import { PushService, absoluteOn, idOfEndpoint, truncateEndpoint, type PushTransport } from '../src/push.ts';
+import { parseTunnelUrl } from '../src/tunnel.ts';
 import { tempConfig } from './helpers.ts';
 
 const ENDPOINT = 'https://updates.push.services.mozilla.com/wpush/v2/gAAAAABsubscription-one';
@@ -312,4 +313,72 @@ test('a closed service stops hearing the bus', async () => {
   events.emit(waitingEvent);
   await push.idle();
   assert.equal(sent.length, 0);
+});
+
+// ---------- The tunnel's current address ----------
+
+const TUNNEL = 'https://9f8e7d6c5b4a30.lhr.life';
+
+function tunnelEvent(state: TunnelState, url: string | null): AgentryEventInput {
+  return {
+    type: 'tunnel.changed',
+    title: `Tunnel ${state}`,
+    tunnel: { state, url, since: url ? new Date().toISOString() : null, reason: null, sshAvailable: true, enabled: true, settings: { startWithAgentry: false } },
+  };
+}
+
+test('while a tunnel is active every push carries its path on the current address', async () => {
+  const { transport, sent } = fakeTransport();
+  const { push, events } = harness(transport);
+  push.register({ endpoint: ENDPOINT, keys, level: 'all', label: 'phone' });
+
+  events.emit(waitingEvent);
+  await push.idle();
+  assert.equal(sent.at(-1)?.payload.url, null, 'no tunnel, no address: the install opens its own origin');
+
+  events.emit(tunnelEvent('active', TUNNEL));
+  events.emit(endedEvent);
+  await push.idle();
+  assert.equal(sent.at(-1)?.payload.href, '/chats/chat-2');
+  assert.equal(sent.at(-1)?.payload.url, `${TUNNEL}/chats/chat-2`);
+
+  // The domain changed: the next push names the new address, which is the whole point
+  const moved = 'https://0a1b2c3d4e5f60.lhr.life';
+  events.emit(tunnelEvent('starting', null));
+  events.emit(tunnelEvent('verifying', null));
+  events.emit(tunnelEvent('active', moved));
+  assert.deepEqual(await push.test({ endpoint: ENDPOINT }), { sent: 1, removed: 0, failed: 0 });
+  assert.equal(sent.at(-1)?.payload.url, `${moved}/`, 'the test notification too, and with no path it opens the app');
+});
+
+test('a reconnecting or stopped tunnel takes its address out of the payload', async () => {
+  const { transport, sent } = fakeTransport();
+  const { push, events } = harness(transport);
+  push.register({ endpoint: ENDPOINT, keys, label: 'phone' });
+  for (const state of ['starting', 'stopping', 'stopped', 'failed'] as const) {
+    events.emit(tunnelEvent('active', TUNNEL));
+    events.emit(tunnelEvent(state, null));
+    await push.test({ endpoint: ENDPOINT });
+    // The address being replaced is the one that stopped answering: better the old origin than a guess
+    assert.equal(sent.at(-1)?.payload.url, null, state);
+  }
+});
+
+test('only a path of ours on an https address becomes an absolute URL', () => {
+  assert.equal(absoluteOn(TUNNEL, '/chats/a?prompt=b'), `${TUNNEL}/chats/a?prompt=b`);
+  assert.equal(absoluteOn(`${TUNNEL}/`, null), `${TUNNEL}/`);
+  assert.equal(absoluteOn(null, '/chats/a'), null);
+  assert.equal(absoluteOn('http://9f8e7d6c5b4a30.lhr.life', '/chats/a'), null);
+  assert.equal(absoluteOn(TUNNEL, '//evil.example/x'), null);
+  assert.equal(absoluteOn(TUNNEL, 'https://evil.example/x'), null);
+  assert.equal(absoluteOn('not a url', '/x'), null);
+});
+
+test('the worker follows only the kind of address the tunnel hands out', () => {
+  // sw.js is a plain file with no imports: the suffix it trusts is read from its source
+  const worker = readFileSync(join(import.meta.dirname, '../../../apps/web/public/sw.js'), 'utf8');
+  const suffix = /const TUNNEL_SUFFIX = '([^']+)';/.exec(worker)?.[1];
+  assert.ok(suffix, 'sw.js names the suffix it follows');
+  const url = parseTunnelUrl('9f8e7d6c5b4a30.lhr.life tunneled with tls termination, https://9f8e7d6c5b4a30.lhr.life');
+  assert.ok(url && new URL(url).hostname.endsWith(suffix), `${String(url)} ends with ${suffix}`);
 });
