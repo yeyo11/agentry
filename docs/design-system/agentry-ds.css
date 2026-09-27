@@ -389,3 +389,275 @@
 .il .f-accent { fill: var(--accent); }
 .il .glyph { font-family: var(--mono); font-size: 17px; font-weight: 600; fill: url(#il-grad); }
 .il .glyph-white { font-family: var(--mono); font-size: 15px; font-weight: 600; fill: #fff; }
+
+/* ---------- 15. Proyectos, tablero y tareas (proto-foundation) ----------
+   The project ecosystem of docs/plans/project-ecosystem.md: module and template cards, the project
+   tab strip, the board and its work item cards ("tareas" in the UI), milestones, and the pieces of
+   the work item detail. Classes start with wi- because .board and .board-task already belong to
+   the orchestration board. Nothing here loops: a card that is live borrows .rail-live and
+   .spin-ring from §11, and a card at rest stands still. */
+
+/* Toggle controls the app already has (components/controls/Toggle: .switch, .checkbox). Drawn here
+   so the prototypes stop mocking them with native inputs. Checked takes the rose, as in the app; the
+   #fff on it is the app's --on-accent. */
+.switch { position: relative; flex-shrink: 0; display: inline-flex; align-items: center; width: 34px; height: 20px; padding: 2px; border-radius: var(--r-full); border: 1px solid var(--line-2); background: var(--bg-4); cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast); }
+.switch::after { content: ''; width: 14px; height: 14px; border-radius: var(--r-full); background: var(--fg-2); transition: transform var(--dur) var(--ease-out), background var(--dur-fast); }
+.switch.on { background: var(--accent-2); border-color: var(--accent-2); }
+.switch.on::after { background: #fff; transform: translateX(14px); }
+.switch-lg { width: 44px; height: 26px; padding: 3px; }
+.switch-lg::after { width: 18px; height: 18px; }
+.switch-lg.on::after { transform: translateX(18px); }
+.checkbox { flex-shrink: 0; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: var(--r-xs); border: 1.5px solid var(--line-3); background: var(--bg-2); color: #fff; }
+.checkbox.on { background: var(--accent-2); border-color: var(--accent-2); }
+.checkbox.on::after { content: ''; width: 8px; height: 4px; border: solid currentColor; border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
+.radio { flex-shrink: 0; display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line-3); background: var(--bg-2); }
+.radio.on { border-color: var(--accent-2); background: var(--accent-2); }
+.radio.on::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+
+/* Dialog over a page (the app's .dialog, .dialog-head, .dialog-body, .dialog-foot). */
+.scrim { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(3px); }
+.dialog { width: 640px; max-height: calc(100% - 64px); display: flex; flex-direction: column; background: var(--bg-2); border-radius: var(--r-xl); box-shadow: var(--shadow-pop); overflow: hidden; animation: pop-in var(--dur) var(--ease-out); }
+.dialog-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.dialog-body { display: flex; flex-direction: column; gap: 16px; padding: 18px; overflow: hidden; }
+.dialog-foot { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); background: var(--bg-1); }
+
+/* A labelled form row: mono section label above the control, the hint under it. */
+.form-row { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.form-row > .t-label { color: var(--fg-2); }
+.form-hint { font-size: 12px; color: var(--fg-3); line-height: 1.45; }
+.field.mono input, .field-mono { font-family: var(--mono); }
+.field-area { height: auto; align-items: flex-start; }
+.field-area textarea { padding: 9px 0; line-height: 1.55; }
+
+/* Module switch card: one module of a project, its switch, and what switching it off means. */
+.module-card { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-2); transition: border-color var(--dur-fast); }
+.module-card:hover { border-color: var(--line-3); }
+.module-ico { flex-shrink: 0; width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--r); background: var(--bg-3); color: var(--fg-3); }
+.module-card.on .module-ico { background: var(--accent-soft); color: var(--accent); }
+.module-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.module-name { font-size: 14px; font-weight: 600; }
+.module-card:not(.on) .module-name { color: var(--fg-2); }
+.module-desc { font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.module-note { display: inline-flex; align-items: center; gap: 6px; margin-top: 3px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.module-note .ico { width: 12px; height: 12px; }
+.module-card > .switch { margin-top: 6px; }
+
+/* Template card: a radio card. The chosen one takes the accent ring, never the gradient, because the
+   wizard's gradient belongs to its primary action. */
+.tpl-card { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-2); text-align: left; cursor: pointer; transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
+.tpl-card:hover { border-color: var(--line-3); }
+.tpl-card.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.tpl-card > .radio { position: absolute; top: 14px; right: 14px; }
+.tpl-ico { width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--r); background: var(--bg-3); color: var(--fg-2); }
+.tpl-card.on .tpl-ico { background: var(--accent-soft); color: var(--accent); }
+.tpl-name { font-size: 13.5px; font-weight: 600; }
+.tpl-desc { font-size: 12px; line-height: 1.45; color: var(--fg-2); }
+.tpl-mods { display: flex; gap: 4px; margin-top: auto; }
+.tpl-mod { width: 22px; height: 22px; display: grid; place-items: center; border-radius: var(--r-xs); border: 1px dashed var(--line-2); color: var(--fg-3); }
+.tpl-mod.on { border: 1px solid transparent; background: var(--bg-4); color: var(--fg); }
+.tpl-mod .ico { width: 13px; height: 13px; }
+
+/* Wizard steps: a neutral stepper. Nothing in a wizard is live or failed, so no status colour. */
+.steps { display: flex; gap: 6px; }
+.step { flex: 1 1 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.step::before { content: ''; height: 3px; border-radius: var(--r-full); background: var(--bg-4); }
+.step.done::before { background: var(--fg-3); }
+.step.on::before { background: var(--fg); }
+.step-name { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--fg-3); }
+.step-name .n { font-family: var(--mono); font-size: 11px; }
+.step.on .step-name { color: var(--fg); font-weight: 500; }
+.step.done .step-name { color: var(--fg-2); }
+
+/* Project header and tab strip. A tab exists only while its module is on; its count is mono. */
+.proj-head { display: flex; align-items: center; gap: 14px; }
+.proj-head .proj { width: 44px; height: 44px; border-radius: var(--r-lg); font-size: 14px; }
+.proj-tabs { gap: 22px; }
+.proj-tabs .tab { height: 42px; font-size: 13.5px; }
+.proj-tabs .tab .ico { color: var(--fg-3); }
+.proj-tabs .tab.on .ico { color: var(--fg); }
+.proj-tabs .tab .count { margin-left: 1px; }
+
+/* Work item key (AGN-12), type icon and priority mark. */
+.wi-key { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.01em; color: var(--fg-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wi-key.boxed { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: var(--r-xs); border: 1px solid var(--line); background: var(--bg-3); color: var(--fg-2); }
+.wi-type { flex-shrink: 0; width: 14px; height: 14px; fill: none; stroke: var(--fg-3); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.wi-type.lg { width: 16px; height: 16px; }
+/* Priority is not a status: three neutral bars, and urgent the only mark with a colour, the accent,
+   which no status uses. It always carries its word in aria-label and title. */
+.wi-prio { flex-shrink: 0; display: inline-flex; align-items: flex-end; gap: 1.5px; width: 14px; height: 12px; }
+.wi-prio > i { display: block; width: 3px; border-radius: var(--r-xs); background: var(--bg-4); }
+.wi-prio > i:nth-child(1) { height: 5px; } .wi-prio > i:nth-child(2) { height: 8px; } .wi-prio > i:nth-child(3) { height: 11px; }
+.wi-prio.p-low > i:nth-child(1), .wi-prio.p-medium > i:nth-child(-n+2), .wi-prio.p-high > i { background: var(--fg-2); }
+.wi-prio.p-urgent { height: 14px; align-items: center; justify-content: center; border-radius: var(--r-xs); background: var(--accent-soft); color: var(--accent); font-family: var(--mono); font-size: 11px; font-weight: 700; line-height: 1; }
+.wi-prio.p-urgent::before { content: '!'; }
+.wi-prio.p-urgent > i { display: none; }
+
+/* Epic label: neutral, with the epic's own hue only on its diamond (from --hue, like .proj.monogram),
+   so a board full of one epic does not turn the colour of the brand. Free labels, assignee. */
+.wi-epic { display: inline-block; min-width: 0; max-width: 100%; height: 20px; line-height: 20px; padding: 0 7px 0 6px; border-radius: var(--r-xs); background: var(--bg-3); color: var(--fg-2); font-size: 11.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wi-epic::before { content: ''; display: inline-block; margin-right: 6px; vertical-align: 1px; width: 6px; height: 6px; transform: rotate(45deg); border-radius: var(--r-xs); background: color-mix(in oklab, hsl(var(--hue, 20) 70% 55%), var(--fg) 25%); }
+.wi-label { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border-radius: var(--r-xs); border: 1px solid var(--line-2); font-family: var(--mono); font-size: 10.5px; color: var(--fg-3); white-space: nowrap; }
+.wi-assignee { width: 20px; height: 20px; font-size: 9.5px; border-radius: 50%; }
+.wi-assignee.none { background: transparent; border: 1.5px dashed var(--line-3); }
+
+/* Column glyphs: a column is told by shape, never by colour, except done, which is ok and named. */
+.wi-status { flex-shrink: 0; width: 14px; height: 14px; fill: none; stroke: var(--fg-3); stroke-width: 1.8; }
+.wi-status .fill { fill: var(--fg-3); stroke: none; }
+.wi-status.s-done { stroke: var(--ok); }
+.wi-status.s-done .fill { fill: var(--ok); }
+.wi-status .tick { stroke: var(--bg-2); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Board: five fixed columns. A column over its limit takes a warn hairline and says so in words; the
+   move is never blocked. */
+.wi-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: start; min-height: 0; }
+.wi-col { display: flex; flex-direction: column; gap: 8px; min-height: 0; padding: 6px 6px 8px; border-radius: var(--r-xl); border: 1px solid var(--line); background: var(--bg-1); }
+.wi-col-head { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 2px 0 8px; }
+.wi-col-head .t-label { color: var(--fg-2); }
+.wi-col-count { font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.wi-col-count b { font-weight: 500; color: var(--fg-2); }
+.wi-col-limit { display: flex; align-items: center; gap: 6px; margin: -2px 0 0; padding: 6px 8px; border-radius: var(--r-sm); background: var(--warn-soft); color: var(--warn); font-size: 12px; font-weight: 500; }
+.wi-col-limit .ico { width: 13px; height: 13px; }
+.wi-col.over { border-color: color-mix(in srgb, var(--warn) 38%, transparent); }
+.wi-col.over .wi-col-count, .wi-col.over .wi-col-count b { color: var(--warn); }
+.wi-col-body { display: flex; flex-direction: column; gap: 8px; }
+.wi-col-slot { display: grid; place-items: center; height: 44px; border-radius: var(--r-lg); border: 1px dashed var(--line-2); color: var(--fg-3); font-size: 12px; }
+
+/* Work item card. */
+.wi-card { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 11px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-2); box-shadow: var(--shadow); cursor: grab; transition: border-color var(--dur-fast), transform var(--dur) var(--ease-out); }
+.wi-card:hover { border-color: var(--line-3); }
+.wi-card-top { display: flex; align-items: center; gap: 7px; min-height: 16px; }
+.wi-card-title { margin: 0; font-size: 13.5px; font-weight: 500; line-height: 1.38; letter-spacing: -0.005em; color: var(--fg); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wi-card-meta { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.wi-card-meta > .wi-label { flex-shrink: 0; }
+.wi-card-foot { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.wi-card-foot .ico { width: 12px; height: 12px; }
+.wi-fact { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.wi-card.done .wi-card-title { color: var(--fg-2); }
+.wi-card.rail-live { padding-left: 14px; }
+/* Selection mode ("Orquestar"): the chosen cards take the accent ring and a checked box. */
+.wi-card.sel { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow); }
+/* The live line of a card whose chat or orchestration node is running: the same shape as the live
+   row of an orchestration task card. */
+.wi-card-live { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 6px 8px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg); font-size: 12px; }
+.wi-card-live .segbar { flex: 1 1 auto; height: 4px; min-width: 32px; }
+/* An epic's card counts its children instead of carrying an epic label. */
+.wi-card-epic { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.wi-card-epic .ms-bar { flex: 1 1 auto; height: 4px; }
+
+/* Selection bar: floats over the board while cards are chosen. */
+.select-bar { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: var(--r-lg); background: var(--bg-2); box-shadow: var(--shadow-pop); font-size: 13px; white-space: nowrap; }
+
+/* Rows of the list view (and of the board on a phone). */
+.wi-group { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-bottom: 1px solid var(--line); background: var(--bg-1); }
+.wi-group .t-label { color: var(--fg-2); }
+.wi-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 13.5px; transition: background var(--dur-fast); cursor: pointer; }
+.wi-row:hover { background: var(--bg-3); }
+.wi-row .wi-key { width: 52px; flex-shrink: 0; }
+.wi-row.rail-live::before { top: 8px; bottom: 8px; }
+.wi-row-title { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wi-row.done .wi-row-title { color: var(--fg-2); }
+/* Phone: a column jump control (glyph and count; the chosen one says its name) and two-line rows. */
+.wi-jump { display: flex; width: 100%; }
+.wi-jump > * { flex: 1 1 auto; justify-content: center; height: 38px; padding: 0 6px; font-family: var(--mono); font-size: 12px; }
+.wi-jump > .on { flex: 2.4 1 auto; font-family: var(--sans); font-size: 13px; }
+.wi-jump > .over, .wi-jump > .over .wi-status { color: var(--warn); stroke: var(--warn); }
+.wi-mrow { position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 64px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.wi-mrow:last-child { border-bottom: 0; }
+.wi-mrow.rail-live { padding-left: 16px; }
+
+/* Milestone: a name in mono and a bar of its work items (done in ok, the ones in flight in a neutral
+   tone, the rest as track). No dates, ever. */
+.ms-bar { position: relative; display: flex; height: 6px; border-radius: var(--r-full); background: var(--bg-4); overflow: hidden; }
+.ms-bar > i { display: block; height: 100%; }
+.ms-bar > i.done { background: var(--ok); }
+.ms-bar > i.doing { background: var(--fg-3); }
+.ms-name { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+.ms-legend { display: flex; align-items: center; gap: 14px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.ms-legend i { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: var(--r-xs); vertical-align: -0.5px; background: var(--bg-4); }
+.ms-legend i.done { background: var(--ok); } .ms-legend i.doing { background: var(--fg-3); }
+
+/* Work item detail: property rows, acceptance checklist, relations, links, changes, activity. */
+.prop-row { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 4px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.prop-row > .k { width: 92px; flex-shrink: 0; color: var(--fg-3); }
+.prop-row > .v { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ac-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 13.5px; line-height: 1.45; }
+.ac-row:last-child { border-bottom: 0; }
+.ac-row > .checkbox { margin-top: 2px; }
+.ac-text { flex: 1 1 auto; min-width: 0; }
+.ac-row.on .ac-text { color: var(--fg-2); }
+.ac-by { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; }
+.rel-row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 6px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.rel-row:last-child { border-bottom: 0; }
+.rel-kind { width: 110px; flex-shrink: 0; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-3); }
+/* A chat or orchestration task that worked on the item, the role it played and its state, as a badge
+   with its word. The running one carries the live rail. */
+.link-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 9px 12px; border-radius: var(--r); border: 1px solid var(--line); background: var(--bg-2); transition: border-color var(--dur-fast); }
+.link-row:hover { border-color: var(--line-3); }
+.link-row.rail-live { padding-left: 16px; }
+.link-ico { flex-shrink: 0; width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--bg-3); color: var(--fg-2); }
+.link-ico .ico { width: 15px; height: 15px; }
+.diff-file { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 12px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12px; }
+.diff-file:last-child { border-bottom: 0; }
+.diff-file .path { flex: 1 1 auto; min-width: 0; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.diff-file .n { color: var(--fg-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Diffstat without status colours: added lines in --fg-2, removed ones in --line-3. */
+.diffstat { display: inline-flex; gap: 1.5px; }
+.diffstat > i { display: block; width: 6px; height: 6px; border-radius: var(--r-xs); background: var(--bg-4); }
+.diffstat > i.add { background: var(--fg-2); } .diffstat > i.del { background: var(--line-3); }
+/* Activity: comments (the person's and an agent's) interleaved with the automatic history. */
+.activity { position: relative; display: flex; flex-direction: column; gap: 14px; }
+.activity::before { content: ''; position: absolute; left: 13.5px; top: 8px; bottom: 8px; width: 1px; background: var(--line); }
+.hist { position: relative; display: flex; align-items: center; gap: 10px; min-height: 24px; font-size: 12.5px; color: var(--fg-2); }
+.hist-ico { flex-shrink: 0; width: 28px; display: grid; place-items: center; }
+.hist-ico > span { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: var(--bg-3); border: 1px solid var(--line); color: var(--fg-3); }
+.hist-ico .ico { width: 11px; height: 11px; }
+.hist b { font-weight: 500; color: var(--fg); }
+.hist .cause { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.hist time, .comment-head time { margin-left: auto; flex-shrink: 0; font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.comment { position: relative; display: flex; align-items: flex-start; gap: 10px; }
+.comment > .avatar, .comment > .agent-mark { width: 28px; height: 28px; }
+.comment-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 5px; padding: 10px 12px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-2); font-size: 13.5px; line-height: 1.55; }
+.comment-head { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.comment-head b { font-weight: 600; }
+.comment.agent .comment-body { background: var(--bg-1); }
+/* An agent's mark: the terminal prompt on a neutral tile. The gradient stays on the person's own
+   active avatar. */
+.agent-mark { flex-shrink: 0; display: inline-grid; place-items: center; border-radius: var(--r-sm); background: var(--bg-3); border: 1px solid var(--line-2); font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--fg-2); }
+
+/* A column whose children keep their height and let the column scroll, instead of squeezing a card
+   with overflow: hidden (.m-body, a detail's main column). */
+.stack > * { flex-shrink: 0; }
+/* Phone: a bottom bar that holds a detail screen's main action, above the safe area. */
+.m-foot { flex-shrink: 0; display: flex; gap: 8px; padding: 10px 16px 28px; border-top: 1px solid var(--line); background: var(--bg-1); }
+.m-foot .btn { flex: 1 1 auto; }
+
+/* ---------- end of 15 ---------- */
+
+
+
+/* ==========================================================================
+   16. Reserved for proto-team: the team, flow, memory and documents screens
+   (role avatar, flow row, proposal row). proto-foundation leaves it empty.
+   ========================================================================== */
+
+/* ---------- 16. Equipo, flujo, memoria y documentos (proto-team) ---------- */
+
+/* ---------- end of 16 ---------- */
+
+
+
+/* --------------------------------------------------------------------------
+   Keep these lines: they separate the two reserved sections, so the tasks
+   that fill 16 and 17 never edit adjacent lines of this file.
+   -------------------------------------------------------------------------- */
+
+
+
+/* ==========================================================================
+   17. Reserved for proto-ai: the project assistant, the suggestions and the
+   resources with AI. proto-foundation leaves it empty.
+   ========================================================================== */
+
+/* ---------- 17. Asistente y sugerencias (proto-ai) ---------- */
+
+/* ---------- end of 17 ---------- */

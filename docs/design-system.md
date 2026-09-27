@@ -17,7 +17,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Reference stylesheet (tokens and every component class, as designed) | [`design-system/agentry-ds.css`](design-system/agentry-ds.css) |
 | Static prototypes of every screen (open `index.html`) | [`design-system/reference/`](design-system/reference/index.html) |
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
-| The 13 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
+| The 14 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
 | The tokens the app actually uses | `apps/web/src/styles/tokens.css` |
 
 The app reached this design in the `night-shift` orchestration. Where the implementation settled a
@@ -214,6 +214,57 @@ The phone is the top bar, the page and a tab bar.
 - **Detail screens** (chat, new chat, orchestration detail) hide the tab bar and put the composer
   or the main action at the bottom.
 
+### Projects, board and work items
+
+The project ecosystem ([plans/project-ecosystem.md](plans/project-ecosystem.md)) is drawn in
+section 15 of `agentry-ds.css` and on the `Desktop*`/`Mobile*` screens whose names start with
+`NuevoProyecto`, `Proyecto`, `Tablero`, `Tarea`, `NuevaTarea`, `Hitos` and `ChatTarea`. The app has
+none of these classes yet: orchestration 2 builds them, and the right-hand column is the name each
+one should take there. The reference classes start with `wi-` because `.board` and `.board-task`
+already belong to the orchestration board.
+
+| Reference class | App class or component | Rule |
+|---|---|---|
+| `.switch`, `.switch-lg`, `.checkbox`, `.radio` | `Toggle` in `components/controls` (`.switch`, `.checkbox`) | drawn so prototypes stop mocking native inputs. Checked is the rose |
+| `.scrim`, `.dialog`, `.dialog-head`, `-body`, `-foot` | `.dialog*` (overlays.css) | New task is a dialog on a desktop and a full screen on a phone |
+| `.form-row`, `.form-hint`, `.field-area` | `.field` and the form rows of the editors | mono section label above the control, hint under it |
+| `.module-card` (`.on`), `.module-ico`, `.module-note` | new `.module-card` | one module, its switch, and what switching it off means ("oculto · 14 documentos conservados"). Off hides, never deletes |
+| `.tpl-card` (`.on`), `.tpl-mods`, `.tpl-mod` | new `.template-card` | a radio card. The chosen one takes the accent ring, never the gradient: the wizard's gradient is its primary action |
+| `.steps`, `.step` (`.on`, `.done`) | `Stepper` | a neutral stepper; nothing in a wizard is live or failed |
+| `.proj-head`, `.proj-tabs` | the project page header and `Tabs` | a tab exists only while its module is on. On a phone the tabs become a card of cells |
+| `.wi-board`, `.wi-col` (`.over`), `.wi-col-head`, `.wi-col-count`, `.wi-col-limit`, `.wi-col-slot` | new `.workitem-board`, `.workitem-col*` | five fixed columns. Over its limit a column takes a warn hairline and says "Sobre el límite: 4 de 3"; the move is never blocked |
+| `.wi-status` (`.s-done`) | new `WorkItemStatusIcon` | a column is told by shape; only done is coloured (ok) and it is always named |
+| `.wi-card` (`.done`, `.sel`, `.rail-live`), `.wi-card-top`, `-title`, `-meta`, `-foot`, `.wi-fact`, `.wi-card-live`, `.wi-card-epic` | new `.workitem-card*` | a card at rest is still. A card whose chat or orchestration node runs carries `.rail-live`, the ring spinner and the live line. Selection mode gives the chosen cards the accent ring and a checked box, and never shows a box on a phone |
+| `.wi-key` (`.boxed`) | new `.workitem-key` | `AGN-12` in mono, tabular |
+| `.wi-type` | new `WorkItemTypeIcon` | epic, story, task and bug by shape, all neutral |
+| `.wi-prio` (`.p-low`, `.p-medium`, `.p-high`, `.p-urgent`) | new `PriorityMark` | priority is not a status: three neutral bars, and urgent the only mark with a colour, the accent. Always with its word in `aria-label` |
+| `.wi-epic`, `.wi-label`, `.wi-assignee` (`.none`) | new `.workitem-epic`, `.workitem-label`, `.monogram` | the epic is neutral, with its own `--hue` only on the diamond, so a board of one epic does not turn the brand's colour |
+| `.select-bar` | new `.selection-bar` | floats over the board while cards are chosen; holds "Orquestar" |
+| `.wi-group`, `.wi-row`, `.wi-row-title` | `.list-row` variants | the list view, grouped by column |
+| `.wi-jump`, `.wi-mrow` | `.seg` variant, `.list-row` variant | the phone board: columns are sections of one list, and the jump control shows each column's glyph and count, the chosen one with its name |
+| `.ms-bar` (`.done`, `.doing`), `.ms-name`, `.ms-legend` | `ProgressBar` variant | done in ok, the ones in flight in a neutral tone, the rest as track. No dates anywhere |
+| `.prop-row` | the chat inspector's rows | the work item's properties |
+| `.ac-row` (`.on`), `.ac-by` | new `.criterion-row` | each criterion checked on its own, with who checked it (the person or an agent's chat) |
+| `.rel-row`, `.rel-kind` | new `.relation-row` | `blocks` and `blocked by` only |
+| `.link-row` (`.rail-live`), `.link-ico` | new `.work-link-row` | a chat or orchestration task that worked on the item, the role it played, and its state as a badge with its word |
+| `.diff-file`, `.diffstat` | the Changes tab of the chat | what changed in the item's worktree. The diffstat has no status colours |
+| `.activity`, `.hist`, `.hist-ico`, `.cause` | new `.history-entry` | automatic history interleaved with comments; an automatic move names its cause |
+| `.comment` (`.agent`), `.comment-body`, `.agent-mark` | new `.comment` | the person's comment carries their monogram; an agent's carries the `›_` mark and the chat it came from |
+| `.part-of` with a `.wi-key` | `.chat-part-of` | a chat that works on an item names it under its header: "Trabaja en AGN-28 *title* · En curso" |
+| `.stack`, `.m-foot` | layout helpers | a column whose cards keep their height; a phone detail's bottom action bar |
+
+The sidebar gains **Tareas** between Chats and Orchestrations, with the open count of the selected
+project. On a phone it lives in the More sheet, and the board, the list and the milestones share a
+three-way segmented control under the title. A new task on a phone is the gradient FAB.
+
+<!-- Reserved for proto-team: the team, flow, memory and documents components go in their own
+     subsection here. -->
+
+
+
+<!-- Reserved for proto-ai: the assistant, suggestion and resources components go in their own
+     subsection here. -->
+
 ---
 
 ## 3. Live states and motion
@@ -240,7 +291,7 @@ Every loop respects the motion setting:
 
 ## 4. Illustrations
 
-Agentry has its own set of 13 SVG illustrations, drawn in the interface's language: hairline strokes,
+Agentry has its own set of 14 SVG illustrations, drawn in the interface's language: hairline strokes,
 nodes and graphs, terminal windows, and the brand gradient on one element. There is no library
 dependency and no third-party licence. The reference is `design-system/illustrations/*.svg` (each
 file carries its styles, with dark fallbacks, so it previews on its own). The catalogue is on the
@@ -253,6 +304,7 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
 | `orchestrations` | empty orchestration list, no templates | accent |
 | `schedules` | no schedules, a schedule that never fired | accent |
 | `projects` | no projects, a project without worktrees | accent |
+| `board` | a project's board without work items, the task list without items | accent |
 | `no-results` | search or filters without matches, an empty usage range | accent |
 | `not-found` | 404, a chat or orchestration that no longer exists | accent |
 | `install` | Settings → Install, turning push on | accent |
