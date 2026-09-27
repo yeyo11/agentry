@@ -8,7 +8,7 @@ import { join } from 'node:path';
 
 /** The column a card is drawn in, by its key, on the desktop board */
 const columnOf = (key) =>
-  `[...document.querySelectorAll('.workitem-col')].find((c) => [...c.querySelectorAll('.workitem-key')].some((k) => k.textContent === ${JSON.stringify(key)}))?.dataset.status ?? null`;
+  `([...document.querySelectorAll('.workitem-col')].find((c) => [...c.querySelectorAll('.workitem-key')].some((k) => k.textContent === ${JSON.stringify(key)}))?.dataset.status ?? null)`;
 /** The keys drawn in a column, top to bottom */
 const keysIn = (status) => `[...document.querySelectorAll('.workitem-col[data-status="${status}"] [data-item-id] .workitem-key')].map((k) => k.textContent)`;
 

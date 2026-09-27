@@ -64,7 +64,8 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.text('main .workitem-head .workitem-key.boxed')).trim() === main.key, 'the key heads the page, boxed');
     check((await page.text('main .workitem-status-badge')).trim().toLowerCase() === 'backlog', 'its column is a badge with its word');
     check((await page.text('main .workitem-description-text')).includes('template'), 'the description is rendered Markdown');
-    check(await page.eval(`return !!document.querySelector('main .workitem-description-text strong')`), 'Markdown marks render');
+    // The Markdown renderer is its own chunk: the plain text stands in until it has loaded
+    await page.waitFor(`return !!document.querySelector('main .workitem-description-text strong')`, { label: 'Markdown marks render' });
     check(await page.eval(`return !document.querySelector('.tabbar')`), 'no tab bar on a desktop');
 
     // Every field edits in place and persists
@@ -144,7 +145,7 @@ export default async ({ page, api, check, dirs }) => {
     chatId = await page.waitFor(`const m = location.pathname.match(/^\\/chats\\/([^/]+)$/); return m ? m[1] : null`, { label: 'the chat opens', timeout: 20_000 });
     await until(async () => (await item(main.id)).links.some((l) => l.chatId === chatId && l.role === 'work'), 'the chat is linked to the item');
     await until(async () => (await item(main.id)).status === 'in_review', 'the turn ended well and the item is in review', 30_000);
-    const prompt = await until(async () => (await api.get(`/chats/${chatId}`)).body?.firstPrompt ?? null, 'the chat has its prompt');
+    const prompt = await until(async () => (await api.get(`/chats/${chatId}`)).body?.chat?.firstPrompt ?? null, 'the chat has its prompt');
     check(String(prompt).startsWith(`${main.key}: `), `the chat was prompted with the item (${String(prompt).slice(0, 60)})`);
     await page.goto(`/tasks/${main.key}`, 1500);
     await page.waitFor(`return document.querySelectorAll('main .work-link-row').length === 1`, { label: 'the chat is listed on the item' });

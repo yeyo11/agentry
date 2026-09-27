@@ -441,7 +441,8 @@ function AuditCard() {
         </Empty>
       ) : (
         <>
-          <div className="table-wrap">
+          {/* The log outgrows its box as requests pile up: a keyboard has to be able to scroll it */}
+          <div className="table-wrap" role="group" aria-label={t('config:security.audit.title')} tabIndex={0}>
             <table className="table" aria-label={t('config:security.audit.title')}>
               <thead>
                 <tr>

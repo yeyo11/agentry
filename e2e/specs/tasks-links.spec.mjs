@@ -57,9 +57,9 @@ export default async ({ page, api, check, dirs }) => {
     const hidden = await page.eval(`return getComputedStyle(document.querySelector('.msg-assistant .msg-actions')).opacity`);
     check(hidden === '0', `a message's actions wait out of sight until it is pointed at or focused (opacity ${hidden})`);
     await page.focus('.msg-assistant .msg-actions button[aria-label="Message actions"]');
-    const shown = await page.eval(`return getComputedStyle(document.querySelector('.msg-assistant .msg-actions')).opacity`);
-    check(shown === '1', `focus shows them (opacity ${shown})`);
-    check(!!(await page.eval(`return document.querySelector('.msg-assistant .msg-actions button[aria-label="Copy the message"]')`)), 'a desktop has a copy button beside the ⋯');
+    // They fade in over --dur-fast: read once the fade is over, not in the middle of it
+    await page.waitFor(`return getComputedStyle(document.querySelector('.msg-assistant .msg-actions')).opacity === '1'`, { label: 'focus shows them' });
+    check(!!(await page.eval(`return !!document.querySelector('.msg-assistant .msg-actions button[aria-label="Copy the message"]')`)), 'a desktop has a copy button beside the ⋯');
     await page.key('Enter');
     await page.waitFor(`return !!document.querySelector('[role=menu][aria-label="Message actions"]')`, { label: 'the message menu' });
     const menu = await page.text('[role=menu][aria-label="Message actions"]');
@@ -85,7 +85,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.viewport(390, 844);
     await page.goto(`/chats/${SESSION}`, 1500);
     await page.waitFor(`return !!document.querySelector('.msg-assistant .msg-actions')`, { label: 'the message actions on a phone' });
-    check(!(await page.eval(`return document.querySelector('.msg-assistant .msg-actions button[aria-label="Copy the message"]')`)), 'a phone has no separate copy button');
+    check(!(await page.eval(`return !!document.querySelector('.msg-assistant .msg-actions button[aria-label="Copy the message"]')`)), 'a phone has no separate copy button');
     await page.click('.msg-assistant .msg-actions button[aria-label="Message actions"]', undefined, 700);
     const sheet = await page.waitFor(`const s=document.querySelector('[role=dialog]');return s?s.innerText:null`, { label: 'the message sheet' });
     check(sheet.includes('«Moving a card') && sheet.includes('Create a task from this message'), `the sheet quotes the message and offers the task (${sheet})`);
