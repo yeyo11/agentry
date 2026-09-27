@@ -292,6 +292,155 @@ that repeated orchestration 3's fixes identical and conflict-free), the feature 
 was checked as a whole, alone on the machine's e2e port range (`E2E_PORT=8811`, clean
 environment): typecheck, 1,476 unit tests, the build and all 47 e2e spec files pass.
 
+## Review of the whole feature before the pull request
+
+Run on 2026-09-28 over `origin/main...849b0ff` by five reviewers on Opus, one per area (the store
+and the automation; the modules that launch agents; the API; the web wiring; a hands-on walkthrough
+of the built app with the fake CLI), each reproducing what it could. The most serious items were
+checked again by hand in the code. Nothing was fixed yet: this section is the list of work.
+
+### Cost, safety and data
+
+1. **A flow run cut by a restart can start over in a fresh chat with no item context.** When the
+   cut run's chat cannot be resumed, `launchFlowRun` falls back to a new chat with only the prompt
+   "Agentry restarted while you were on this run…" (`flow.ts:495`, `index.ts:1230`). The structured
+   result still moves the card. Reproduced. The flow also has no restart counter, unlike the
+   assistant. Fix: build the full prompt in the fallback (or fail the run) and bound restarts.
+2. **Flow members get unrestricted `Bash`, `WebFetch` and `WebSearch` in every stage**, and no run
+   sets `--max-budget-usd` (`flow.ts:80`). A Product Owner or QA run can push, delete or fetch.
+   Fix: tool sets per stage, deny `Bash(git push *)`, a per-run budget setting.
+3. **The assistant is not strictly read-only.** `--allowedTools` adds to the rules of the user,
+   project and local settings, `Bash(git log *)` admits `git log --output=<path>` (writes a file),
+   every chat gets `--add-dir <uploads>`, and a bare `Read` is not scoped to the project
+   (`assistant.ts:152`, `chats.ts:1325`). Fix: `--tools Read,Grep,Glob`, restrict setting sources,
+   hand git facts in the prompt, deny `Read(./.env*)` and credential files, skip uploads.
+4. **The Documents folder may itself be a symlink out of the project** (`documents.ts:103,240,268`):
+   the file is checked against the folder, the folder never against the project. Reproduced:
+   read and write through `linked -> /tmp/outside`. Fix: the resolved folder must be inside the
+   resolved project.
+5. **"Retry clean" on a failed orchestration node can delete "Work on it" work.** `recordPlace`
+   adopts the node's worktree for the item; `startOver` then force-removes that worktree and
+   branch (`work-links.ts:385`, `orchestrator.ts:1849`). Fix: keep "Work on it" on its own
+   `task/<key>` worktree, or refuse to remove a worktree an item holds.
+6. **"Work on it" branches from the main checkout's HEAD, not the project's**, when the project is
+   a linked worktree (`work-links.ts:169`, and `changes.ts:173` diffs the same way). Reproduced.
+   A submodule project gets its worktree under `.git/modules/…`. Fix: `headCommit(projectPath)` as
+   the base, and the main worktree from `git worktree list`.
+7. **A chat the flow ran keeps the member's options when a person continues it**: `dontAsk`, the
+   member's allow-list, `keepAlive: false`, model and system prompt persist after `resume`
+   (`chat-service.ts:519`). Reproduced from the spawn arguments. The person's own "Work on it" chat
+   then silently denies their edits outside `writes`. Fix: snapshot and restore, or never resume a
+   person's chat for a member.
+8. **Two processes opening a pre-feature database at once: one crashes on the migrations**
+   (`db.ts:450`: `user_version` read outside a deferred transaction). Reproduced (5 of 18).
+   Predates the feature, which added five migrations. Fix: `BEGIN IMMEDIATE` and re-read inside.
+9. **A "suggest again" run that fails to start buries the previous proposals for good**
+   (`assistant.ts:329` supersedes before launching; `restore` refuses superseded). Reproduced.
+
+### Decisions not met, and data shown wrong
+
+10. **QA does not check the acceptance criteria one by one** (decision 18): the verify schema has
+    only `verdict`, and `apply()` never marks a criterion (`flow.ts:201`). An item reaches `done`
+    with every criterion unchecked. Fix: `criteria: [{ id, met, note }]` in the schema, checked as
+    the agent.
+11. **Epics still count with All projects** (`index.ts:1335`) and in the List view's group counts,
+    while the per-project board leaves them out: the sidebar and the More sheet change their
+    figure when the scope changes. Reproduced on the app.
+12. **Events can reach the web out of order and be dropped.** A handler that emits while an event
+    is being delivered has its event sent first; the web discards the earlier id
+    (`core/events.ts:43`, `web/lib/events.ts:476`). Seen: `journal.changed` before
+    `workitem.moved` on a move to `done`, so other tabs never see the move; the same for
+    `flow.run` and `assistant.run`. Fix: queue nested emits until the current delivery ends.
+13. **The Product Owner's write permission reads two opposite ways**: "escribe: nada, solo tareas"
+    in the proposal and the template list, "En todo el proyecto" on the member card
+    (`writeRules([])` gives no edit rule but the card says the opposite). And the flow prompt asks
+    the Product Owner to write a spec and QA a report under `documents.path` while `writes: []`
+    denies it silently (`assistant.ts:174`, `flow.ts`).
+14. **A failed flow run is invisible on the task**: the chat shows "COMPLETADA · no movió la tarea",
+    no comment, no reason; only the Team tab says "fallida".
+15. **Before the flow is saved, the Team screen draws a flow that does not exist** (columns per
+    role shown while `settings.flow` is null).
+16. **Documents between 1 MiB and 2 MiB open but never save**: the core allows 2 MB, Fastify's body
+    limit is 1 MiB (`routes/documents.ts:17`).
+
+### Bugs a user hits
+
+17. **"Crear otra" in New task is ignored**: `Board.tsx:350` passes `onCreated={() => closeNew()}`,
+    overriding the keep-open branch. Reproduced.
+18. **Escape in a dialog opened from the item panel also closes the panel** (and the New task form
+    from its relation picker), because every `Dialog` listens on `document` in capture phase.
+19. **An API blip unmounts open editors and loses unsaved text**: Documents, the item page and the
+    panel replace their content with an error box while a fallback poll fails
+    (`Documents.tsx:67`, `Pane.tsx:168`, `Panel.tsx:32`). No dirty guard on the item's title and
+    description either.
+20. **The wizard only rejects names with spaces or accents after "Crear proyecto", in English**
+    ("invalid project name (letters, digits, _ . - only)"), while Settings accepts such a rename.
+21. **Filters of one project survive a project switch** (`projects=`, `epic=`, `milestone=` in the
+    address), leaving "0 of N" with no chip to remove.
+22. **New task can be a dead end** when the selected project's Board is off: the palette and the
+    FAB open the form with no picker and a disabled Create.
+23. **Deleting an item or going back drops the board's context** (filters, view, project tab).
+24. **A document tied to a task cannot be untied from the UI**; deleting the file is the only way.
+25. **Assistant chats are titled with their English system prompt** in the chat list, the sidebar
+    and "Retomar"; the "Trabajar en ella" prompt and the orchestration draft's prompts are in
+    English too.
+26. **"Sugerir" on the Resources tab gives no feedback** when pressed from a kind section with a
+    file open.
+27. **Malformed bodies answer 500** (`acceptanceCriteria: "abc"`, `epicId: true`, repeated query
+    parameters, writing a document "under" a file), and `description`, criteria and milestone
+    descriptions have no length cap, which makes every board read heavy.
+28. **A `task/<key>` branch checked out elsewhere gives git's raw error as a 400**, not the
+    documented 409.
+29. **Phone**: the label input is 12 px (iOS zooms) and the label controls are 24 px; the FAB covers
+    a column header's role label; the sheet's close button is 30 px.
+30. **Wrong save shortcut on Linux** ("⌘S" hard-coded in the document and resource editors).
+
+### Inconsistencies and drift
+
+- The project header says "0 chats" on projects with assistant, flow and work chats.
+- The docs overstate a key prefix change: recorded branches, worktree paths, chat titles, node ids
+  and `/tasks/<old key>` links keep the old key; two projects can derive the same `task-<key>` path.
+- The re-import comment says the opposite of the code (modules replaced, not merged); a stale
+  "orchestration 3" comment in `project-settings.ts` and `ProjectGeneral.tsx`; docs say
+  "unlocked and pruned" where the code removes; OpenAPI for settings omits team, flow and documents;
+  `docs/team-and-flow.md` says only Edit/Write are allowed with `writes`.
+- Status codes differ for the same situation across routes (journal 404 vs relations 400 for a
+  foreign item; `from-template` 200 vs 201 elsewhere; `PATCH {status}` silently ignored).
+- Two routes tie a document (`/documents` and `/links` with `kind=document`); `itemId` vs
+  `otherId`; `/memory-proposals/:id` vs `/assistant/proposals/:id`.
+- No `project.created` / `project.removed` events; `GET /projects/:id/settings` can write.
+- The Spanish glossary was not extended (Backlog, Épica, Historia, Hito, Responsable, Flujo…) and
+  "tarea" now names both a work item and an orchestration node; "No se pudo…" and "No se ha
+  podido…" both in use; "Arquitecto · Descartada"; toasts and prompts with English left in.
+- Unused: `AssistantService.ownsChat`, `TeamService.memberForRole`, core's `FLOW_COLUMNS`, the
+  `work_item_labels_label` index, and eight i18n keys; five web files over 400 lines.
+- Approved memory files get an unquoted YAML `description`; memory proposals are never
+  de-duplicated; a flow result path like `./docs/x.md` is refused silently.
+
+### Improvements a user would want
+
+- Warn when "Mover a Hecho" leaves criteria unchecked, and when deleting an item a chat is working
+  on.
+- Every backlog card costs two back-to-back runs (refine in `backlog`, then the `todo` check);
+  "Crear las seleccionadas" on eight suggestions queues eight runs with no word.
+- Page the Done column and the unbounded lists; leave descriptions out of board payloads; stop
+  refetching `changes` (a git diff) on every run event.
+- Keep the Tasks filters when leaving and coming back; remove or explain the Done column limit;
+  validate agent-file frontmatter before saving; let "Crear con IA" pick a free name.
+
+### Verified as sound
+
+Every store write in `BEGIN IMMEDIATE` with events after commit; deletes cascade; keys never reused;
+the forward-only automation and its guards; worktree recovery; settings reads never write over a
+broken file; all SQL bound and git called with argument arrays. The flow is off by default, driven
+by events only, one run and one queued per item, stopped when its module or the flow goes off; the
+journal's closed entry written once; agent-file frontmatter safe against newlines and `---`; the
+assistant one run per project and kind. Every route behind the global guard and audited, OpenAPI and
+README complete with no drift, module-off refusals and cross-project refusals correct. Every new
+event type wired to the queries it affects; Markdown never renders raw HTML and links are sanitised;
+no new raw colour or keyframe; keyboard drag announced. No console error on any page of the
+walkthrough, and every core journey could be finished.
+
 ## Related
 
 [[plans/project-ecosystem.md]] · [[design-system.md]] · [[work-items.md]] · [[projects.md]] ·
