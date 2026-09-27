@@ -53,7 +53,7 @@ import { WORK_ITEM_STATUSES } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { stateFromRun } from './chat-model.ts';
-import { WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
+import { chatLinkName, WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
 import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsPlace } from './documents.ts';
 import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { ChatService, type Placement } from './chat-service.ts';
@@ -1207,7 +1207,7 @@ export class Core {
       const task = this.orchestrator.get(link.orchestrationId)?.tasks.find((t) => t.id === link.taskId);
       return { name: task?.name ?? null, taskStatus: task?.status ?? null, chatState };
     }
-    return { name: chat?.name ?? null, chatState };
+    return { name: chat ? chatLinkName(chat) : null, chatState };
   }
 
   /**

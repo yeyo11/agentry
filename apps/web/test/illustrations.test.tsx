@@ -88,3 +88,12 @@ test('the board and team drawings of the project ecosystem join the set in the a
   // The board's card carries a key, not a word: it reads the same in every language
   assert.match(renderToStaticMarkup(<Illustration name="board" />), />AGN-1</);
 });
+
+test("the board draws the key it is given, the project's own first one, and fits a long one in its card", () => {
+  assert.match(renderToStaticMarkup(<Illustration name="board" />), />AGN-1</, 'the catalogue keeps its own key');
+  const own = renderToStaticMarkup(<Empty title="No tasks yet" illustration="board" illustrationText="SHOP-1" />);
+  assert.match(own, />SHOP-1</);
+  assert.doesNotMatch(own, /AGN-1/);
+  assert.doesNotMatch(own, /textLength/);
+  assert.match(renderToStaticMarkup(<Illustration name="board" text="LONGPREFIX-1" />), /textLength="40"/);
+});

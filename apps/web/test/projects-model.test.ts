@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import en from '../src/i18n/locales/en/projects.json' with { type: 'json' };
+import es from '../src/i18n/locales/es/projects.json' with { type: 'json' };
 import { asProjectView, projectViews } from '../src/pages/dashboard/views.ts';
 import { deriveKeyPrefix, limitedColumns, normalizePrefix, prefixProblem, sameModules, toggleModule } from '../src/pages/projects/model.ts';
 
@@ -52,4 +54,12 @@ test('a tab exists only while its module is on', () => {
   assert.equal(asProjectView('documents'), 'documents');
   assert.equal(asProjectView('board'), 'board');
   assert.equal(asProjectView('team'), 'team');
+});
+
+test("the wizard's team line says the roles become agent files once accepted, now that the Team module writes them", () => {
+  // Orchestration 2 wrote it while nothing created agents: "nothing is written to .claude/agents/ yet"
+  for (const hint of [en.wizard.teamHint, es.wizard.teamHint]) {
+    assert.match(hint, /\.claude\/agents\//);
+    assert.doesNotMatch(hint, /\byet\b|todavía|nothing is written|no se escribe/i);
+  }
 });

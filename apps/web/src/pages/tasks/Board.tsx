@@ -8,7 +8,7 @@ import { useWorkItemBoard } from '../../api';
 import { ICON_SM } from '../../components/icons';
 import { Card, Empty, ErrorBox, Skeleton } from '../../components/ui';
 import { NARROW, useMediaQuery } from '../../lib/media';
-import { boardColumns, filtersToSearch, NEW_TASK_PARAM, openCount, taskPath, TASKS_PATH, VIEW_PARAM, viewFromSearch } from '../../lib/work-items';
+import { boardColumns, filtersToSearch, firstKey, NEW_TASK_PARAM, openCount, taskPath, TASKS_PATH, VIEW_PARAM, viewFromSearch } from '../../lib/work-items';
 import { BoardColumns, type BoardSelection } from './board/BoardColumns';
 import { useLiveSources } from './board/LiveLine';
 import { BoardTeamProvider, FlowButton, useBoardTeamData } from './board/team';
@@ -153,6 +153,7 @@ export function Board() {
       <section className="card glow-top workitem-empty">
         <Empty
           illustration="board"
+          illustrationText={firstKey(scope.project)}
           size={phone ? 'md' : 'lg'}
           title={t('empty.offTitle')}
           action={
@@ -195,6 +196,7 @@ export function Board() {
       <section className="card glow-top workitem-empty">
         <Empty
           illustration="board"
+          illustrationText={firstKey(scope.project)}
           size={phone ? 'md' : 'lg'}
           title={t('empty.title')}
           action={
