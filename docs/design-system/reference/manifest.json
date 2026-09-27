@@ -264,6 +264,12 @@
     "h": 1024
   },
   {
+    "file": "DesktopTareasTodos.html",
+    "title": "Desktop · Tareas de todos los proyectos",
+    "w": 1440,
+    "h": 1024
+  },
+  {
     "file": "DesktopTarea.html",
     "title": "Desktop · Tarea (detalle)",
     "w": 1440,
@@ -288,6 +294,12 @@
     "h": 1024
   },
   {
+    "file": "MobileNuevoProyectoOrigen.html",
+    "title": "Móvil · Nuevo proyecto · origen",
+    "w": 390,
+    "h": 844
+  },
+  {
     "file": "MobileNuevoProyecto.html",
     "title": "Móvil · Nuevo proyecto",
     "w": 390,
@@ -296,6 +308,12 @@
   {
     "file": "MobileNuevoProyectoModulos.html",
     "title": "Móvil · Nuevo proyecto · módulos",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileNuevoProyectoResumen.html",
+    "title": "Móvil · Nuevo proyecto · resumen",
     "w": 390,
     "h": 844
   },
@@ -318,6 +336,18 @@
     "h": 844
   },
   {
+    "file": "MobileTableroSeleccion.html",
+    "title": "Móvil · Tablero · selección para orquestar",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTableroFiltros.html",
+    "title": "Móvil · Tablero · filtros",
+    "w": 390,
+    "h": 844
+  },
+  {
     "file": "MobileTableroVacio.html",
     "title": "Móvil · Tablero vacío",
     "w": 390,
@@ -330,8 +360,26 @@
     "h": 844
   },
   {
+    "file": "MobileTareasTodos.html",
+    "title": "Móvil · Tareas de todos los proyectos",
+    "w": 390,
+    "h": 844
+  },
+  {
     "file": "MobileTarea.html",
     "title": "Móvil · Tarea (detalle)",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTareaActividad.html",
+    "title": "Móvil · Tarea · actividad",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileTareaCambios.html",
+    "title": "Móvil · Tarea · cambios",
     "w": 390,
     "h": 844
   },
@@ -390,6 +438,12 @@
     "h": 1024
   },
   {
+    "file": "DesktopDocumentoEditar.html",
+    "title": "Desktop · Documento en el editor",
+    "w": 1440,
+    "h": 1024
+  },
+  {
     "file": "DesktopTableroEquipo.html",
     "title": "Desktop · Tablero trabajado por roles",
     "w": 1440,
@@ -426,6 +480,18 @@
     "h": 844
   },
   {
+    "file": "MobileMemoriaDiario.html",
+    "title": "Móvil · Memoria · diario",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileMemoriaCLI.html",
+    "title": "Móvil · Memoria · del CLI",
+    "w": 390,
+    "h": 844
+  },
+  {
     "file": "MobileDocumentos.html",
     "title": "Móvil · Documentos",
     "w": 390,
@@ -434,6 +500,12 @@
   {
     "file": "MobileDocumento.html",
     "title": "Móvil · Documento",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileDocumentoEditar.html",
+    "title": "Móvil · Documento en el editor",
     "w": 390,
     "h": 844
   },
@@ -456,8 +528,20 @@
     "h": 1024
   },
   {
+    "file": "DesktopAsistenteVacio.html",
+    "title": "Desktop · Asistente sin nada que leer",
+    "w": 1440,
+    "h": 1024
+  },
+  {
     "file": "DesktopSugerirTareas.html",
     "title": "Desktop · Sugerir tareas",
+    "w": 1440,
+    "h": 1024
+  },
+  {
+    "file": "DesktopSugerirTareasEnCurso.html",
+    "title": "Desktop · Sugerir tareas, en curso",
     "w": 1440,
     "h": 1024
   },
@@ -492,8 +576,32 @@
     "h": 844
   },
   {
+    "file": "MobileAsistenteEquipo.html",
+    "title": "Móvil · Asistente · equipo propuesto",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileAsistenteRecursos.html",
+    "title": "Móvil · Asistente · recursos propuestos",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileAsistenteVacio.html",
+    "title": "Móvil · Asistente sin nada que leer",
+    "w": 390,
+    "h": 844
+  },
+  {
     "file": "MobileSugerirTareas.html",
     "title": "Móvil · Sugerir tareas",
+    "w": 390,
+    "h": 844
+  },
+  {
+    "file": "MobileSugerirTareasEnCurso.html",
+    "title": "Móvil · Sugerir tareas, en curso",
     "w": 390,
     "h": 844
   },

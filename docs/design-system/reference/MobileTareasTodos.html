@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Tareas de todos los proyectos (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
+<div class="app m-screen has-fab" data-theme="dark">
+<header class="m-head" style="padding-left: 4px"><a href="MobileMas.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2"><path d="m15 6-6 6 6 6"></path></svg></a><span class="col grow" style="gap: 1px"><h1 class="t-h1">Tareas</h1></span><button type="button" class="chip project-selector" style="font-size: 14px">Todos los proyectos<svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button><span style="width: 8px"></span></header>
+<div class="m-body stack" style="gap: 12px; margin-bottom: 76px">
+<div class="seg" role="tablist" aria-label="Vista" style="display: flex"><a href="MobileTablero.html" role="tab" aria-selected="true" class="on" style="flex: 1 1 0; justify-content: center">Tablero</a><a href="MobileTareasLista.html" role="tab" aria-selected="false" class="" style="flex: 1 1 0; justify-content: center">Lista</a><a href="MobileHitos.html" role="tab" aria-selected="false" class="" style="flex: 1 1 0; justify-content: center">Hitos</a></div>
+<div class="callout" style="padding: 12px"><svg class="ico fg-3" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span>18 abiertas en 2 proyectos. Sin límites por columna: cada proyecto tiene los suyos.</span></div>
+<section class="col" style="gap: 8px" aria-label="Por hacer">
+<div class="row" style="gap: 8px; padding: 0 2px"><svg class="wi-status" viewBox="0 0 16 16" role="img" aria-label="Por hacer"><title>Por hacer</title><circle cx="8" cy="8" r="6"></circle></svg><span class="t-label" style="color: var(--fg-2)">Por hacer</span><span class="wi-col-count"><b>5</b></span><span class="t-xs fg-3">en 2 proyectos</span></div>
+<div class="card" style="overflow: hidden"><a href="MobileTarea.html" class="wi-mrow">
+<span class="row" style="gap: 8px"><svg class="wi-type" viewBox="0 0 24 24" role="img" aria-label="Historia"><title>Historia</title><path d="M7 3.5h10v17l-5-3.8-5 3.8z"></path></svg><span class="wi-key">GDM-7</span><span class="grow"></span><span class="wi-prio p-medium" role="img" aria-label="Prioridad media" title="Prioridad media"><i></i><i></i><i></i></span></span>
+<span style="font-weight: 500; font-size: 15px; line-height: 1.35">Crear documentos desde una plantilla</span>
+<span class="row t-xs fg-2" style="gap: 6px"><span class="proj monogram" style="--hue: 200; width: 18px; height: 18px; border-radius: var(--r-xs); font-size: 11px">G</span>google-docs-mcp</span>
+
+</a><a href="MobileTarea.html" class="wi-mrow">
+<span class="row" style="gap: 8px"><svg class="wi-type" viewBox="0 0 24 24" role="img" aria-label="Épica"><title>Épica</title><path d="M12 3l9 9-9 9-9-9zM12 8.5l3.5 3.5-3.5 3.5L8.5 12z"></path></svg><span class="wi-key">AGN-47</span><span class="grow"></span><span class="wi-prio p-medium" role="img" aria-label="Prioridad media" title="Prioridad media"><i></i><i></i><i></i></span></span>
+<span style="font-weight: 500; font-size: 15px; line-height: 1.35">Asistente de proyecto</span>
+<span class="row t-xs fg-2" style="gap: 6px"><span class="proj monogram" style="--hue: 20; width: 18px; height: 18px; border-radius: var(--r-xs); font-size: 11px">C</span>claude-wrapper</span>
+
+</a><a href="MobileTarea.html" class="wi-mrow">
+<span class="row" style="gap: 8px"><svg class="wi-type" viewBox="0 0 24 24" role="img" aria-label="Bug"><title>Bug</title><path d="M9 7a3 3 0 0 1 6 0M8 9h8v5a4 4 0 0 1-8 0zM12 9v9M4 13h4M16 13h4M5 7.5l3 2M19 7.5l-3 2M5.5 19l2.8-2.4M18.5 19l-2.8-2.4"></path></svg><span class="wi-key">AGN-39</span><span class="grow"></span><span class="wi-prio p-urgent" role="img" aria-label="Prioridad urgente" title="Prioridad urgente"><i></i><i></i><i></i></span><span class="proj monogram wi-assignee" style="--hue: 24" title="yeyo">Y</span></span>
+<span style="font-weight: 500; font-size: 15px; line-height: 1.35">La barra de uso no se actualiza al cambiar de cuenta</span>
+<span class="row t-xs fg-2" style="gap: 6px"><span class="proj monogram" style="--hue: 20; width: 18px; height: 18px; border-radius: var(--r-xs); font-size: 11px">C</span>claude-wrapper</span>
+
+</a><a href="MobileTarea.html" class="wi-mrow">
+<span class="row" style="gap: 8px"><svg class="wi-type" viewBox="0 0 24 24" role="img" aria-label="Tarea"><title>Tarea</title><path d="M5 5h14v14H5zM9 12l2 2 4-4.5"></path></svg><span class="wi-key">AGN-36</span><span class="grow"></span><span class="wi-prio p-high" role="img" aria-label="Prioridad alta" title="Prioridad alta"><i></i><i></i><i></i></span></span>
+<span style="font-weight: 500; font-size: 15px; line-height: 1.35">Tablas de tareas en SQLite</span>
+<span class="row t-xs fg-2" style="gap: 6px"><span class="proj monogram" style="--hue: 20; width: 18px; height: 18px; border-radius: var(--r-xs); font-size: 11px">C</span>claude-wrapper</span>
+
+</a><a href="MobileTarea.html" class="wi-mrow">
+<span class="row" style="gap: 8px"><svg class="wi-type" viewBox="0 0 24 24" role="img" aria-label="Historia"><title>Historia</title><path d="M7 3.5h10v17l-5-3.8-5 3.8z"></path></svg><span class="wi-key">AGN-33</span><span class="grow"></span><span class="wi-prio p-high" role="img" aria-label="Prioridad alta" title="Prioridad alta"><i></i><i></i><i></i></span></span>
+<span style="font-weight: 500; font-size: 15px; line-height: 1.35">Enlazar tareas con chats y orquestaciones</span>
+<span class="row t-xs fg-2" style="gap: 6px"><span class="proj monogram" style="--hue: 20; width: 18px; height: 18px; border-radius: var(--r-xs); font-size: 11px">C</span>claude-wrapper</span>
+
+</a></div>
+</section>
+<section class="col" style="gap: 8px" aria-label="En curso">
+<div class="row" style="gap: 8px; padding: 0 2px"><svg class="wi-status" viewBox="0 0 16 16" role="img" aria-label="En curso"><title>En curso</title><circle cx="8" cy="8" r="6"></circle><path class="fill" d="M8 4a4 4 0 0 1 0 8z"></path></svg><span class="t-label" style="color: var(--fg-2)">En curso</span><span class="wi-col-count"><b>6</b></span><span class="t-xs fg-3">en 2 proyectos</span></div>
+<div class="card" style="overflow: hidden"><a href="MobileTarea.html" class="wi-mrow">
+<span class="row" style="gap: 8px"><svg class="wi-type" viewBox="0 0 24 24" role="img" aria-label="Bug"><title>Bug</title><path d="M9 7a3 3 0 0 1 6 0M8 9h8v5a4 4 0 0 1-8 0zM12 9v9M4 13h4M16 13h4M5 7.5l3 2M19 7.5l-3 2M5.5 19l2.8-2.4M18.5 19l-2.8-2.4"></path></svg><span class="wi-key">GDM-9</span><span class="grow"></span><span class="wi-prio p-high" role="img" aria-label="Prioridad alta" title="Prioridad alta"><i></i><i></i><i></i></span><span class="proj monogram wi-assignee" style="--hue: 24" title="yeyo">Y</span></span>
+<span style="font-weight: 500; font-size: 15px; line-height: 1.35">El token caduca a mitad de una exportación</span>
+<span class="row t-xs fg-2" style="gap: 6px"><span class="proj monogram" style="--hue: 200; width: 18px; height: 18px; border-radius: var(--r-xs); font-size: 11px">G</span>google-docs-mcp</span>
+
+</a><a href="MobileTarea.html" class="wi-mrow rail-live">
+<span class="row" style="gap: 8px"><span class="spin-ring" style="width: 14px; height: 14px" role="img" aria-label="Trabajando"></span><span class="wi-key">AGN-28</span><span class="grow"></span><span class="wi-prio p-high" role="img" aria-label="Prioridad alta" title="Prioridad alta"><i></i><i></i><i></i></span><span class="proj monogram wi-assignee" style="--hue: 24" title="yeyo">Y</span></span>
+<span style="font-weight: 500; font-size: 15px; line-height: 1.35">Tablero con columnas fijas y límites</span>
+<span class="row t-xs fg-2" style="gap: 6px"><span class="proj monogram" style="--hue: 20; width: 18px; height: 18px; border-radius: var(--r-xs); font-size: 11px">C</span>claude-wrapper</span>
+<span class="row t-xs" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">Ejecutando</span><span class="mono fg-3 grow">pnpm test</span><span class="mono fg-3">4:12</span></span>
+</a></div>
+</section>
+</div>
+<a href="MobileNuevaTarea.html" class="fab" aria-label="Nueva tarea" style="padding: 0; width: 56px"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2.2"><path d="M12 5v14M5 12h14"></path></svg></a>
+<nav class="app tabbar" data-theme="dark" aria-label="Principal" style="width: 390px">
+<a href="MobileInicio.html" class="tab-m"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg></span>Inicio</a>
+<a href="MobileChats.html" class="tab-m"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg></span>Chats</a>
+<a href="MobileOrquestaciones.html" class="tab-m"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM20.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM14.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM7.5 8 11 15.5M16.5 8 13 15.5"></path></svg></span>Orquestaciones<span class="count-pill live">1</span></a>
+<a href="MobileMas.html" class="tab-m on"><span class="pill"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg></span>Más</a>
+</nav>
+</div>
+<script>t()</script>
+</body></html>
