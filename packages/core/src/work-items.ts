@@ -29,14 +29,12 @@ import {
   type UpdateWorkItemRequest,
   type WorkItem,
   type WorkItemActor,
-  type WorkItemAssignee,
   type WorkItemCause,
   type WorkItemChange,
   type WorkItemComment,
   type WorkItemDetail,
   type WorkItemFilter,
   type WorkItemHistoryEntry,
-  type WorkItemHistoryValue,
   type WorkItemLink,
   type WorkItemPriority,
   type WorkItemRef,
@@ -48,6 +46,33 @@ import {
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
 import { RANK_REBALANCE_LENGTH, rankBetween, spreadRanks } from './work-item-rank.ts';
+import {
+  actorOf,
+  assigneeOf,
+  commentOf,
+  emptyProgress,
+  emptySource,
+  inList,
+  isLive,
+  linkOf,
+  milestoneOf,
+  readValue,
+  sourceOf,
+  statusIndex,
+  textMatches,
+  type CommentRow,
+  type CriterionRow,
+  type HistoryRow,
+  type ItemRow,
+  type LinkRow,
+  type MilestoneRow,
+  type PendingEntry,
+  type StoredHistoryValue,
+  type StoredItemRef,
+} from './work-item-rows.ts';
+import { CRITERIA_MAX, WorkItemError, actorFrom, assignee, criterionText, labels, milestoneName, oneOf, text, title } from './work-item-validation.ts';
+
+export { WorkItemError } from './work-item-validation.ts';
 
 /**
  * The work items of every project: the store behind the board, with no HTTP in it.
@@ -64,16 +89,6 @@ import { RANK_REBALANCE_LENGTH, rankBetween, spreadRanks } from './work-item-ran
  * transaction: it takes the write lock before reading the counter or the neighbours' ranks, so two
  * processes cannot read the same last number or the same gap and both write into it.
  */
-
-/** A refusal the caller can show as it is; `statusCode` is what the API answers with. */
-export class WorkItemError extends Error {
-  constructor(
-    message: string,
-    readonly statusCode: 400 | 404 | 409,
-  ) {
-    super(message);
-  }
-}
 
 /** What the store needs to know about a project, from its settings document. */
 export interface WorkItemProject {
@@ -113,18 +128,11 @@ export interface WorkItemCommentContext extends WorkItemContext {
   source?: WorkItemSource | null;
 }
 
-const PERSON: WorkItemActor = { kind: 'person', role: null };
 /** Agentry recording a fact about an item (its worktree, a link's chat), not anyone editing it */
 const SYSTEM: WorkItemActor = { kind: 'system', role: null };
 
 /** The prefix a key is composed with when the project's settings cannot be read at all. */
 const FALLBACK_PREFIX = 'ITEM';
-
-const TITLE_MAX = 500;
-const LABEL_MAX = 64;
-const LABELS_MAX = 20;
-const CRITERIA_MAX = 100;
-const ROLE_MAX = 64;
 
 const COLUMN_NAMES: Record<WorkItemStatus, string> = {
   backlog: 'Backlog',
@@ -133,190 +141,6 @@ const COLUMN_NAMES: Record<WorkItemStatus, string> = {
   in_review: 'In review',
   done: 'Done',
 };
-
-// ---------- rows ----------
-
-interface ItemRow {
-  id: string;
-  project_id: string;
-  number: number;
-  type: string;
-  title: string;
-  description: string;
-  status: string;
-  priority: string;
-  assignee_kind: string | null;
-  assignee_role: string | null;
-  epic_id: string | null;
-  milestone_id: string | null;
-  rank: string;
-  worktree: string | null;
-  branch: string | null;
-  created_at: string;
-  updated_at: string;
-  closed_at: string | null;
-}
-
-interface CriterionRow {
-  id: string;
-  item_id: string;
-  position: number;
-  text: string;
-  checked: number;
-  checked_by_kind: string | null;
-  checked_by_role: string | null;
-}
-
-interface LinkRow {
-  id: string;
-  item_id: string;
-  kind: string;
-  role: string;
-  chat_id: string | null;
-  orchestration_id: string | null;
-  task_id: string | null;
-  created_at: string;
-}
-
-interface MilestoneRow {
-  id: string;
-  project_id: string;
-  name: string;
-  description: string;
-  state: string;
-  created_at: string;
-  updated_at: string;
-  closed_at: string | null;
-}
-
-interface HistoryRow {
-  id: string;
-  item_id: string;
-  change: string;
-  from_value: string | null;
-  to_value: string | null;
-  actor_kind: string;
-  actor_role: string | null;
-  cause_kind: string | null;
-  cause_event: string | null;
-  cause_chat_id: string | null;
-  cause_orchestration_id: string | null;
-  cause_task_id: string | null;
-  created_at: string;
-}
-
-interface CommentRow {
-  id: string;
-  item_id: string;
-  author_kind: string;
-  author_role: string | null;
-  source_kind: string | null;
-  source_chat_id: string | null;
-  source_orchestration_id: string | null;
-  source_task_id: string | null;
-  body: string;
-  created_at: string;
-  updated_at: string;
-}
-
-/**
- * A history value as it is stored. A work item is kept by its number, not its key, so the entry
- * reads with the project's current prefix like every other key.
- */
-type StoredItemRef = { id: string; number: number; title: string; type: WorkItemType; status: WorkItemStatus };
-type StoredHistoryValue =
-  | string
-  | string[]
-  | WorkItemAssignee
-  | { id: string; label: string; number?: number }
-  | { id: string; text: string; checked: boolean }
-  | { type: WorkItemRelation['type']; item: StoredItemRef }
-  | null;
-
-interface PendingEntry {
-  itemId: string;
-  change: WorkItemChange;
-  from: StoredHistoryValue;
-  to: StoredHistoryValue;
-}
-
-/** A list bound as one parameter: `IN (SELECT value FROM json_each(?))` has no limit on its length. */
-const inList = (values: readonly string[]): string => JSON.stringify(values);
-
-const statusIndex = (status: string): number => WORK_ITEM_STATUSES.indexOf(status as WorkItemStatus);
-
-function actorOf(kind: string | null, role: string | null): WorkItemActor {
-  const k = kind === 'agent' || kind === 'system' ? kind : 'person';
-  return { kind: k, role: role ?? null };
-}
-
-function sourceOf(kind: string | null, chatId: string | null, orchestrationId: string | null, taskId: string | null): WorkItemSource | null {
-  if (kind !== 'chat' && kind !== 'orchestration') return null;
-  return { kind, chatId, orchestrationId, taskId };
-}
-
-function assigneeOf(row: ItemRow): WorkItemAssignee | null {
-  if (row.assignee_kind === 'person') return { kind: 'person' };
-  if (row.assignee_kind === 'role' && row.assignee_role) return { kind: 'role', role: row.assignee_role };
-  return null;
-}
-
-// ---------- validation ----------
-
-function oneOf<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
-  if (typeof value !== 'string' || !allowed.includes(value as T)) throw new WorkItemError(`${field} must be one of ${allowed.join(', ')}`, 400);
-  return value as T;
-}
-
-function title(value: unknown): string {
-  if (typeof value !== 'string' || !value.trim()) throw new WorkItemError('title is required', 400);
-  const t = value.trim();
-  if (t.length > TITLE_MAX) throw new WorkItemError(`title is longer than ${String(TITLE_MAX)} characters`, 400);
-  return t;
-}
-
-function text(value: unknown, field: string): string {
-  if (typeof value !== 'string') throw new WorkItemError(`${field} must be text`, 400);
-  return value;
-}
-
-/** Trimmed, blanks dropped, and a label repeated in another case kept once, as first written. */
-function labels(value: unknown): string[] {
-  if (!Array.isArray(value)) throw new WorkItemError('labels must be a list', 400);
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of value) {
-    if (typeof raw !== 'string') throw new WorkItemError('a label must be text', 400);
-    const label = raw.trim();
-    if (!label) continue;
-    if (label.length > LABEL_MAX) throw new WorkItemError(`a label is longer than ${String(LABEL_MAX)} characters`, 400);
-    if (seen.has(label.toLowerCase())) continue;
-    seen.add(label.toLowerCase());
-    out.push(label);
-  }
-  if (out.length > LABELS_MAX) throw new WorkItemError(`an item carries at most ${String(LABELS_MAX)} labels`, 400);
-  return out;
-}
-
-function assignee(value: unknown): WorkItemAssignee | null {
-  if (value === null) return null;
-  if (typeof value === 'object' && value !== null) {
-    const v = value as { kind?: unknown; role?: unknown };
-    if (v.kind === 'person') return { kind: 'person' };
-    if (v.kind === 'role' && typeof v.role === 'string' && v.role.trim() && v.role.trim().length <= ROLE_MAX) return { kind: 'role', role: v.role.trim() };
-  }
-  throw new WorkItemError('assignee must be the person or a role', 400);
-}
-
-function criterionText(value: unknown): string {
-  if (typeof value !== 'string' || !value.trim()) throw new WorkItemError('an acceptance criterion needs its text', 400);
-  return value.trim();
-}
-
-function actorFrom(ctx: WorkItemContext | undefined): WorkItemActor {
-  const actor = ctx?.actor ?? PERSON;
-  return { kind: actor.kind, role: actor.role ?? null };
-}
 
 // ---------- the service ----------
 
@@ -1454,95 +1278,10 @@ function unique<T>(values: readonly T[]): T[] {
   return [...new Set(values)];
 }
 
-function emptySource(): WorkItemSource {
-  return { kind: 'chat', chatId: null, orchestrationId: null, taskId: null };
-}
-
 function sourcePart(cause: WorkItemCause): WorkItemSource {
   return { kind: cause.kind, chatId: cause.chatId, orchestrationId: cause.orchestrationId, taskId: cause.taskId };
 }
 
 function eventRef(item: WorkItem): { projectId: string; itemId: string; key: string } {
   return { projectId: item.projectId, itemId: item.id, key: item.key };
-}
-
-function emptyProgress(): MilestoneProgress {
-  return { total: 0, done: 0, byStatus: { backlog: 0, todo: 0, in_progress: 0, in_review: 0, done: 0 } };
-}
-
-function milestoneName(value: unknown): string {
-  if (typeof value !== 'string' || !value.trim()) throw new WorkItemError('a milestone needs a name', 400);
-  if (value.trim().length > TITLE_MAX) throw new WorkItemError(`a milestone name is longer than ${String(TITLE_MAX)} characters`, 400);
-  return value.trim();
-}
-
-function textMatches(row: ItemRow, q: string): boolean {
-  const needle = q.toLowerCase();
-  return row.title.toLowerCase().includes(needle) || row.description.toLowerCase().includes(needle);
-}
-
-function isLive(link: WorkItemLink): boolean {
-  return link.role === 'work' && (link.chatState === 'working' || link.taskStatus === 'running');
-}
-
-function linkOf(row: LinkRow): WorkItemLink {
-  return {
-    id: row.id,
-    itemId: row.item_id,
-    kind: row.kind === 'orchestration' ? 'orchestration' : 'chat',
-    role: row.role === 'origin' ? 'origin' : 'work',
-    chatId: row.chat_id,
-    orchestrationId: row.orchestration_id,
-    taskId: row.task_id,
-    createdAt: row.created_at,
-  };
-}
-
-function commentOf(row: CommentRow): WorkItemComment {
-  return {
-    id: row.id,
-    itemId: row.item_id,
-    author: actorOf(row.author_kind, row.author_role),
-    source: sourceOf(row.source_kind, row.source_chat_id, row.source_orchestration_id, row.source_task_id),
-    body: row.body,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function milestoneOf(row: MilestoneRow, progress: MilestoneProgress): Milestone {
-  return {
-    id: row.id,
-    projectId: row.project_id,
-    name: row.name,
-    description: row.description,
-    state: row.state === 'closed' ? 'closed' : 'open',
-    progress,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    closedAt: row.closed_at,
-  };
-}
-
-/** A stored history value back as the contract has it: numbers become keys with today's prefix. */
-function readValue(raw: string | null, prefix: string): WorkItemHistoryValue {
-  if (raw === null) return null;
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (value === null || typeof value === 'string') return value;
-  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
-  if (typeof value !== 'object') return null;
-  const v = value as Record<string, unknown>;
-  if (typeof v.item === 'object' && v.item !== null && (v.type === 'blocks' || v.type === 'blocked_by')) {
-    const item = v.item as StoredItemRef;
-    return { type: v.type, item: { id: item.id, key: workItemKey(prefix, item.number), title: item.title, type: item.type, status: item.status } };
-  }
-  if (typeof v.id === 'string' && typeof v.label === 'string') {
-    return typeof v.number === 'number' ? { id: v.id, label: v.label, key: workItemKey(prefix, v.number) } : { id: v.id, label: v.label };
-  }
-  return value as WorkItemHistoryValue;
 }
