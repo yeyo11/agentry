@@ -301,6 +301,12 @@
   color: var(--fg-2);
 }
 
+.assistant-waiting-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .assistant-waiting-row:last-child {
   border-bottom: 0;
 }
@@ -333,15 +339,15 @@
 }
 
 .assistant-foot {
-  /* Above the tab bar, as the board's selection bar: the page scrolls under it */
+  /* The page hides the tab bar, as the wizard it follows does: the page scrolls under this bar */
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  bottom: 0;
   z-index: 25;
   display: flex;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border);
   background: var(--bg);
 }

@@ -1,7 +1,7 @@
 import type { AssistantRun, AssistantRunDetail, Project, ProjectModule } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, CircleAlert, CircleX, Info, RefreshCw, Sparkle, X } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { ChevronLeft, ChevronRight, CircleAlert, CircleX, Clock, Info, RefreshCw, Sparkle, X } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, keys, useAssistantRun, useAssistantRuns, useProjects } from '../../api';
@@ -12,6 +12,7 @@ import { useToast } from '../../components/Toast';
 import { Empty, ErrorBox, Segmented, Skeleton, usePageTitle } from '../../components/ui';
 import { formatNumber } from '../../lib/format';
 import { NARROW, useMediaQuery } from '../../lib/media';
+import { useProjectScope } from '../../lib/project-scope';
 import { localized } from '../../lib/server-strings';
 import { followingRun, latestRun, projectPath, proposalsOf, readSummary, stageOf, tally } from './model';
 import { MemberProposalRow, ResourceProposalRow, SECTION_ICON, SectionHead, useDecide, WorkItemProposalRow } from './proposals';
@@ -69,6 +70,10 @@ function ProjectAssistant({ project }: { project: Project }) {
   const following = followingRun(run, tasksRuns.data);
   const followingDetail = useAssistantRun(following?.id ?? null);
   const actions = useRunActions(project.id);
+  // The page is about one project, so the top bar's selector names it, as a project page's
+  // `?project=` does. Once, on arrival: choosing another project afterwards is the person's choice
+  const { select } = useProjectScope();
+  useEffect(() => select(project.id), [project.id]);
 
   if (runs.error && !runs.data) return <ErrorBox error={runs.error} />;
   if (!runs.data || (run && !detail.data)) return <Skeleton rows={6} height={20} />;
@@ -574,7 +579,10 @@ function PhoneRunning({ project, run }: { project: Project; run: AssistantRunDet
             <li key={section} className="assistant-waiting-row">
               <Icon {...ICON} className="muted" />
               <span className="grow">{t(`section.${section}`)}</span>
-              <span className="mono small muted assistant-waiting-state">{t('waiting')}</span>
+              <span className="mono small muted assistant-waiting-state">
+                <Clock {...ICON_SM} />
+                {t('waiting')}
+              </span>
             </li>
           );
         })}

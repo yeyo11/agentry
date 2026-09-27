@@ -154,18 +154,23 @@ export function liveSummary({
  * orchestration's summary) take the whole height on a phone, so the tab bar steps aside there.
  */
 export function hidesTabBar(pathname: string, search = ''): boolean {
-  // A team member, the flow and an open document end in their own Save bar, as their references do
+  // A team member, the flow, an open document and an open resource end in their own Save bar, as
+  // their references do
   if (pathname === '/' && search) {
     const params = new URLSearchParams(search);
     const view = params.get('view');
     if (view === 'team' && (params.has('member') || params.get('section') === 'flow')) return true;
     if (view === 'documents' && params.has('doc')) return true;
+    // So does a resource or an assistant's proposal open in the editor (MobileRecursoPropuesta)
+    if (view === 'resources' && (params.has('res') || params.has('proposal'))) return true;
   }
   // A new chat is the same page as the chat it becomes — a box at the bottom of the window — and
   // the bar would sit over it; its header carries the way back instead
   if (/^\/chats\/[^/]+\/?$/.test(pathname)) return true;
   // The new project wizard walks its steps with a bar of its own at the bottom, as a new chat does
   if (/^\/projects\/new\/?$/.test(pathname)) return true;
+  // The project assistant, which the wizard hands off to, ends in its own bar ("Ir al proyecto")
+  if (/^\/projects\/[^/]+\/assistant\/?$/.test(pathname)) return true;
   // A work item's page on a phone ends in its own bar ("Work on it", or the comment box)
   if (/^\/tasks\/[^/]+\/?$/.test(pathname) && !/^\/tasks\/milestones\/?$/.test(pathname)) return true;
   return /^\/orchestration\/[^/]+\/?$/.test(pathname);
