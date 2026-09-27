@@ -1,4 +1,4 @@
-/* ---------- what an agent is really doing: changes, checklist, health, editor links ---------- */
+/* ---------- what an agent is really doing: changes, checklist, health ---------- */
 
 .obs-panel {
   scroll-margin-top: calc(var(--topbar-h) + 12px);
@@ -40,8 +40,7 @@
 }
 
 .obs-checklist,
-.obs-signals,
-.obs-hunks {
+.obs-signals {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -278,17 +277,6 @@
   }
 }
 
-.obs-hunks {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-}
-.obs-hunks li {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
 /* The worker's own plan */
 .obs-check {
   display: flex;
@@ -375,23 +363,6 @@
 }
 .obs-signal-bad .obs-signal-line svg {
   color: var(--bad);
-}
-
-/* The editor settings */
-.obs-map {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-width: 0;
-}
-.obs-map-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.obs-map-row input {
-  flex: 1 1 0;
-  min-width: 0;
 }
 
 @media (pointer: coarse) {

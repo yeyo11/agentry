@@ -109,10 +109,8 @@ import type {
   SwitchAccountRequest,
   SwitchResult,
   SettingsDoc,
-  EditorSettingsDoc,
   SupervisorConfig,
   SupervisorProposal,
-  UpdateEditorSettingsRequest,
   UpdateSupervisorConfigRequest,
   RunWorkflowRequest,
   WorkflowDefinition,
@@ -455,8 +453,6 @@ export const api = {
   deleteToolPreset: (id: string) => request<{ ok: true }>(`/config/tool-presets/${enc(id)}`, { method: 'DELETE' }),
   supervisorConfig: (o: ReadOptions = {}) => request<SupervisorConfig>('/settings/supervisor', o),
   putSupervisorConfig: (config: UpdateSupervisorConfigRequest) => request<SupervisorConfig>('/settings/supervisor', { method: 'PUT', body: config }),
-  editorSettings: (o: ReadOptions = {}) => request<EditorSettingsDoc>('/settings/editor', o),
-  putEditorSettings: (settings: UpdateEditorSettingsRequest) => request<EditorSettingsDoc>('/settings/editor', { method: 'PUT', body: settings }),
   resources: (scope: Scope, kind: ResourceKind) =>
     request<ConfigResource[]>(`/config/resources/${kind}${scoped(scope)}`),
   resource: (scope: Scope, kind: ResourceKind, name: string) =>
@@ -601,7 +597,6 @@ export const keys = {
   mcp: (scope: Scope) => ['config', 'mcp', scope.projectId ?? 'user'] as const,
   toolPresets: ['config', 'tool-presets'] as const,
   supervisor: ['settings', 'supervisor'] as const,
-  editor: ['settings', 'editor'] as const,
   resources: (scope: Scope, kind: ResourceKind) => ['config', 'resources', scope.projectId ?? 'user', kind] as const,
   fileRoots: ['config', 'files', 'roots'] as const,
   fileTree: (root: string) => ['config', 'files', 'tree', root] as const,
