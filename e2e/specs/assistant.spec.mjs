@@ -145,6 +145,16 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     const heights = await page.eval(`return [...document.querySelectorAll('.suggestion-card .suggestion-acts .btn')].map((b) => b.getBoundingClientRect().height)`);
     check(heights.length > 0 && heights.every((h) => h >= 44), `a phone's proposal buttons are 44 px targets (${heights})`);
     check(!(await page.eval(`return !!document.querySelector('.suggestion-card input[type=checkbox], .suggestion-card .checkbox')`)), 'no checkboxes on a phone');
+    // A flow screen of its own, as the wizard before it: its footer, and no tab bar under it
+    check(!(await page.eval(`return !!document.querySelector('nav.tabbar')`)), 'the assistant hides the tab bar on a phone');
+    const scoped = await page.eval(`return document.querySelector('.topbar .project-selector')?.textContent ?? ''`);
+    check(scoped.includes(READ), `the top bar names the assistant's project (${scoped})`);
+    // Review opens the proposal in the editor, whose Create sits at the foot of the screen
+    await page.goto(review, 1500);
+    await page.waitFor(`return !!document.querySelector('.resource-proposal-editor.is-phone .resource-proposal-actions .btn-primary')`, { label: 'the proposal in the phone editor' });
+    check(!(await page.eval(`return !!document.querySelector('nav.tabbar')`)), 'an open proposal hides the tab bar');
+    const create = await page.eval(`const r = document.querySelector('.resource-proposal-actions .btn-primary').getBoundingClientRect(); return { h: r.height, bottom: r.bottom }`);
+    check(create.h >= 44 && create.bottom <= 844, `Create is a 44 px target in view (${JSON.stringify(create)})`);
     check(page.takeErrors().length === 0, 'no console errors');
   } finally {
     await page.viewport(1440, 1024);
