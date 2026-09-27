@@ -17,6 +17,7 @@ import { Activity, CommentBox } from './Activity';
 import { Changes } from './Changes';
 import { Criteria } from './Criteria';
 import { Description, Title } from './Description';
+import { ItemDocuments } from './Documents';
 import {
   AssigneeMark,
   NONE,
@@ -35,6 +36,7 @@ import { workOnBlocker } from './model';
 import { Picker } from './Picker';
 import { LabelsEditor, Properties } from './Properties';
 import { Relations } from './Relations';
+import { WaitingState } from './Waiting';
 import { WorkOnDialog } from './WorkOn';
 
 /** Where a work item is shown: its own page, or the panel the board opens beside itself. */
@@ -179,6 +181,7 @@ function Wide({ item, actions, person, variant }: { item: WorkItemDetail; action
     <>
       {head}
       {buttons.refusal}
+      <WaitingState item={item} actions={actions} />
       <div className="workitem-heading">
         <Title item={item} actions={actions} />
         <Description item={item} actions={actions} />
@@ -197,6 +200,7 @@ function Wide({ item, actions, person, variant }: { item: WorkItemDetail; action
     <>
       <Properties item={item} actions={actions} person={person} />
       <Links item={item} />
+      <ItemDocuments item={item} />
       <Changes item={item} />
     </>
   );
@@ -360,6 +364,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
         {section === 'detail' && (
           <>
             {buttons.refusal}
+            <WaitingState item={item} actions={actions} />
             <Description item={item} actions={actions} />
             <Criteria item={item} actions={actions} person={person} compact />
             <Relations
@@ -371,6 +376,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
               compact
             />
             <Links item={item} />
+            <ItemDocuments item={item} />
           </>
         )}
         {section === 'activity' && <Activity item={item} actions={actions} person={person} compact />}
