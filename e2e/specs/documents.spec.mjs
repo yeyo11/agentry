@@ -42,7 +42,7 @@ export default async ({ page, api, check, dirs }) => {
     // A tied document opens rendered, with the role and the task it came from
     await page.click('.doc-tied .doc-row', 'Board with fixed columns and limits', 1200);
     await page.waitFor(`return ${param('doc')} === 'docs/specs/board.md'`, { label: 'the address names the document' });
-    await page.waitFor(`return document.querySelector('.doc-view h1')?.textContent === 'Board with fixed columns and limits'`, { label: 'the document renders' });
+    await page.waitFor(`return document.querySelector('.doc-view .md-h1')?.textContent === 'Board with fixed columns and limits'`, { label: 'the document renders' });
     const origin = await page.text('.doc-origin');
     check(origin.includes('Architect') && origin.includes(seeded.board.key), `the document says who wrote it and from which task (${origin})`);
     check(await page.eval(`return !!document.querySelector('.doc-tree .tree-row-on')`), 'the open file is marked in the tree');
@@ -113,7 +113,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.click('.doc-cell', 'specs/', 800);
     await page.waitFor(`return ${param('dir')} === 'docs/specs'`, { label: 'the folder opens' });
     await page.click('.doc-cell', 'board.md', 1200);
-    await page.waitFor(`return !!document.querySelector('.doc-phone-head h2') && !!document.querySelector('.doc-view')`, { label: 'the document screen' });
+    await page.waitFor(`return !!document.querySelector('.doc-phone-head h1') && !!document.querySelector('.doc-view')`, { label: 'the document screen' });
     check(await page.eval(`return !document.querySelector('.project-head-phone')`), "the document heads its own screen, without the tab's bar");
     await page.click('.doc-phone-foot .btn', 'Edit', 1200);
     await page.waitFor(`return !!document.querySelector('.doc-phone-edit .cm-content')`, { label: 'the editor on a phone' });
