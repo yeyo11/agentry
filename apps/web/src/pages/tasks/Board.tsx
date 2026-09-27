@@ -21,7 +21,9 @@ import { NewTask } from './NewTask';
 import { useFacets } from './toolbar/facets';
 import { ActiveFilterChips, FacetChips, FilterSheetButton, SearchField } from './toolbar/Filters';
 import { useScopeMilestones, useTasksScope } from './toolbar/scope';
-import { NewTaskButton, PhoneTasksHeader, SelectButton, TasksHeader } from './toolbar/TasksHeader';
+import { NewTaskButton, PhoneTasksHeader, SelectButton, SuggestButton, TasksHeader } from './toolbar/TasksHeader';
+import { SUGGEST_PARAM } from './suggest/model';
+import { SuggestTasks } from './suggest/SuggestTasks';
 import { useTaskFilters } from './toolbar/useTaskFilters';
 
 /** Keys a person may be typing into: a shortcut never fires from inside them. */
@@ -100,6 +102,19 @@ export function Board() {
         { replace: true },
       );
   };
+
+  // ---- Suggest tasks: `?suggest=1`, so the palette and a link reach it and a reload keeps it open ----
+  const suggesting = params.get(SUGGEST_PARAM) === '1' && Boolean(scope.project) && !scope.boardOff;
+  const setSuggesting = (on: boolean) =>
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        if (on) next.set(SUGGEST_PARAM, '1');
+        else next.delete(SUGGEST_PARAM);
+        return next;
+      },
+      { replace: !on },
+    );
 
   useEffect(() => {
     if (phone) return;
@@ -268,7 +283,12 @@ export function Board() {
         <>
           <PhoneTasksHeader
             view={view}
-            action={canSelect && view === 'board' ? <SelectButton icon on={selecting} onChange={(on) => (on ? setSelecting(true) : stopSelecting())} /> : undefined}
+            action={
+              <>
+                {scope.project && !scope.boardOff && !selecting && <SuggestButton icon onClick={() => setSuggesting(true)} />}
+                {canSelect && view === 'board' && <SelectButton icon on={selecting} onChange={(on) => (on ? setSelecting(true) : stopSelecting())} />}
+              </>
+            }
             selecting={selecting ? { count: picked.length, project: scope.project?.name ?? t('header.allProjects'), onClose: stopSelecting } : undefined}
           />
           {!selecting && !scope.boardOff && !empty && (
@@ -298,6 +318,7 @@ export function Board() {
               <>
                 {team && scope.project && <FlowButton team={team} projectId={scope.project.id} />}
                 {canSelect && <SelectButton on={selecting} onChange={(on) => (on ? setSelecting(true) : stopSelecting())} />}
+                {scope.project && !scope.boardOff && <SuggestButton onClick={() => setSuggesting(true)} />}
                 {!scope.boardOff && newTask}
               </>
             }
@@ -318,6 +339,8 @@ export function Board() {
       {selecting && (phone ? <PhoneSelectionFoot projectId={selectionProject} selected={selectedItems} /> : <SelectionBar projectId={selectionProject} selected={selectedItems} onCancel={stopSelecting} />)}
 
       <WorkItemPanelHost />
+
+      {suggesting && scope.project && <SuggestTasks project={scope.project} onClose={() => setSuggesting(false)} />}
 
       {creating && (
         <NewTask
