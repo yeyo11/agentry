@@ -632,6 +632,7 @@ is none, and never overwrites one a person wrote or edited: that member is repor
 | POST | `/projects/:id/team/from-template` | `{ roles? }` — add the template's roles the person accepted, each with its agent file (an existing file is kept) |
 | PUT | `/projects/:id/team/:agent` | `{ role, model, responsibility, writes?, createFile? }` — create or replace a member's metadata. Two members may not share a role. The file itself goes through `/config/resources/agents/:name?project=` |
 | DELETE | `/projects/:id/team/:agent` | Take a member off the team; its agent file stays |
+| GET | `/projects/:id/flow` | The flow by column's runs going and queued, each with its item, role, stage and chat; `enabled` and the per-project cap `maxParallel` |
 
 ### Work items
 
