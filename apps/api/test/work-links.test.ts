@@ -236,6 +236,14 @@ test('a selection becomes a draft, and launching it makes each item follow its n
       ],
     );
   }
+
+  // Each item shows what its node changed, in the node's own worktree
+  const node = done?.tasks.find((t) => t.workItemId === api.id);
+  const changes = (await app.inject(`/api/work-items/${api.id}/changes`)).json<WorkItemChanges>();
+  assert.equal(changes.branch, node?.branch);
+  assert.equal(changes.worktree, node?.worktree);
+  const files = [...(changes.summary?.uncommitted ?? []), ...(changes.summary?.files ?? [])].map((f) => f.path);
+  assert.ok(files.includes('api.txt'), `api.txt among ${files.join(', ')}`);
 });
 
 test('a relaunch keeps each node on its item and is checked as a launch is; a template keeps no item', async () => {

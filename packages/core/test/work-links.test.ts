@@ -65,7 +65,7 @@ function created(orchestrationId: string): AgentryEvent {
 }
 
 /** Only the fields the automation reads: the id, where it came from and the nodes' items. */
-function graph(id: string, tasks: Array<{ id: string; workItemId?: string }>, templateId: string | null = null): Orchestration {
+function graph(id: string, tasks: Array<{ id: string; workItemId?: string; worktree?: string; branch?: string }>, templateId: string | null = null): Orchestration {
   return { id, templateId, tasks } as unknown as Orchestration;
 }
 
@@ -207,6 +207,17 @@ test('the nodes of a new graph are linked to their items, which follow the node 
   s.automation.observe(taskEvent('o1', 'agn-2', 'running', 'worker-2'));
   for (const status of ['failed', 'stopped', 'blocked', 'skipped', 'interrupted'] as const) s.automation.observe(taskEvent('o1', 'agn-2', status, 'worker-2'));
   assert.equal(statusOf(s, b.id), 'in_progress');
+});
+
+test("an item worked by a node records the node's worktree and branch, where its changes are", () => {
+  const s = setup();
+  const a = s.items.create('p1', { title: 'API' });
+  const node = { id: 'agn-1', workItemId: a.id, worktree: '/repo/.claude/worktrees/o1-agn-1', branch: 'agentry/o1/agn-1' };
+  s.orchestrations.set('o1', graph('o1', [node]));
+  s.automation.observe(created('o1'));
+  s.automation.observe(taskEvent('o1', 'agn-1', 'running', 'worker-1'));
+  const worked = s.items.get(a.id);
+  assert.deepEqual([worked.worktree, worked.branch], [node.worktree, node.branch]);
 });
 
 test('a person who moves a node\'s item while it runs keeps it there', () => {

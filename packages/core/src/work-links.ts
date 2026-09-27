@@ -293,14 +293,26 @@ export class WorkItemAutomation {
     if (!links.length) return;
     const attempt = `${orchestrationId}/${taskId}`;
     if (status === 'running') this.attempts.set(attempt, at);
+    const node = this.deps.orchestration(orchestrationId)?.tasks.find((t) => t.id === taskId);
     for (const link of links) {
       if (runId && link.chatId !== runId) this.deps.items.setLinkChat(link.id, runId);
+      if (node?.worktree && node.branch) this.recordPlace(link.itemId, node.worktree, node.branch);
       const cause = (event: string): WorkItemCause => ({ kind: 'orchestration', chatId: runId ?? link.chatId, orchestrationId, taskId, event });
       const since = this.attempts.get(attempt) ?? link.createdAt;
       if (status === 'running') this.advance(link, 'in_progress', cause(WORK_CAUSE.taskStarted), since);
       else if (status === 'completed') this.advance(link, 'in_review', cause(WORK_CAUSE.taskCompleted), since);
     }
     if (status !== 'running' && status !== 'pending') this.attempts.delete(attempt);
+  }
+
+  /**
+   * Where a node works is where the item's changes are, as for "Work on it": the item reports the
+   * last place that worked on it, and "Work on it" afterwards continues there.
+   */
+  private recordPlace(itemId: string, worktree: string, branch: string): void {
+    const item = this.deps.items.find(itemId);
+    if (!item || !this.deps.writable(item.projectId)) return;
+    if (item.worktree !== worktree || item.branch !== branch) this.deps.items.setWorktree(item.id, { worktree, branch });
   }
 
   /**
