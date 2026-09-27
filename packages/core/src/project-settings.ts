@@ -349,6 +349,18 @@ export class ProjectSettingsStore {
   }
 
   /**
+   * The stored document as it is, without deriving or writing anything: the work item store reads
+   * keys and limits synchronously, inside its transactions. Null when there is no usable document,
+   * which `read` fixes; removed projects' documents still answer, so their items keep their keys.
+   */
+  stored(projectId: string): ProjectSettings | null {
+    if (!ID.test(projectId)) return null;
+    const doc = this.readDoc(projectId);
+    const prefix = doc && this.prefixOf(doc);
+    return doc && prefix ? sanitizeSettings(doc.settings, prefix) : null;
+  }
+
+  /**
    * The project's settings. A project with none gets its document now, every module off and a
    * prefix derived from its name, so the prefix stays the same from then on. `active` is every
    * project imported now: a stored prefix that clashes with one of theirs is derived again.

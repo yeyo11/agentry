@@ -26,6 +26,7 @@ import { supervisorRoutes } from './routes/supervisor.ts';
 import { systemRoutes } from './routes/system.ts';
 import { toolPresetRoutes } from './routes/tool-presets.ts';
 import { uploadRoutes } from './routes/uploads.ts';
+import { workItemRoutes } from './routes/work-items.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -131,6 +132,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(securityRoutes, { core });
       await api.register(accountRoutes, { core });
       await api.register(projectRoutes, { core });
+      await api.register(workItemRoutes, { core });
       await api.register(chatRoutes, { core });
       await api.register(eventRoutes, { core });
       await api.register(orchestrationRoutes, { core });
