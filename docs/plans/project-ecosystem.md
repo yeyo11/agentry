@@ -514,6 +514,186 @@ Bring `docs/projects.md`, `docs/work-items.md`, the README and `docs/status.md` 
 complete the plan's Outcome with what orchestration 1 left undrawn and what this one fixed, and
 mark in the audit which findings are closed and which stay open.
 
+## Orchestration 2: `ecosystem-board-web`
+
+The web of what orchestrations 1 and 1b built: creating and editing a project with its template and
+modules, the project page and its tabs, the Tasks board and list, a work item, milestones, and the
+entry points from chats and orchestrations. It starts from `feat/project-ecosystem` and is merged
+back into it. The prototypes it builds from were **validated by the owner on 2026-09-27**: the 66
+new screens in `docs/design-system/reference/` are the target, screen by screen, in both themes and
+both sizes.
+
+The rules of orchestration 1 apply, except the one that kept `apps/web/src` out of scope, plus:
+
+- **The prototype is the specification of the screen.** Open `<Screen>.html` and its two
+  screenshots before building a screen, and compare your build against them before you finish:
+  capture your screen at 1440 x 1024 and 390 x 844, dark and light, with headless Chrome against the
+  sandbox `e2e/run.mjs` builds (or `pnpm dev` with scratch `CLAUDE_CONFIG_DIR` and data directory),
+  seeding work items through the API. Look at yours next to the reference and fix what drifts. The
+  reference's data is illustrative; structure, hierarchy, spacing, colour use and motion are not.
+- **Restyle, don't duplicate.** The prototype's class names (`.wi-card`, `.wi-jump` …) are mapped to
+  app classes in §2 of `docs/design-system.md`: build those app classes, in the stylesheet the task
+  owns. Tokens only: `apps/web/test/design-tokens.test.ts` must pass.
+- **UI controls come from `apps/web/src/components/controls`**, never native select, checkbox or
+  range. Icon-only buttons carry an `aria-label`. Status is never colour alone. Phone: 44 px
+  targets, 16 px inputs, "…" menus as a `Sheet`.
+- **Copy through i18n with `en`/`es` parity** (`i18n.test.ts`, `hardcoded-strings.test.ts`,
+  `parity.test.ts`). The prototypes carry the `es` copy; write the `en`. Keys, ids, paths and counts
+  in Geist Mono; numbers tabular.
+- **Only live things move**, and every animation stops under the motion levels, reduced motion and a
+  hidden tab: `e2e/specs/motion.spec.mjs` stays green.
+- **Data through the API only**, with TanStack Query keys from `api.ts` and invalidation from the
+  event feed (`lib/events.ts`): a work item moved by an agent shows on an open board without a reload.
+- **Every screen gets an e2e spec** under `e2e/specs/`, written by the task that builds it. Do NOT
+  run `pnpm e2e`: it runs once, in the verification, on the merged branch. Keep the classes the
+  existing specs select (`grep e2e/specs` before renaming anything).
+- **Team and Documents tabs are orchestration 3.** Their module switches exist and save, but the
+  project page shows their tabs only once orchestration 3 builds them. The assistant, "Suggest
+  tasks" and resources with AI are orchestration 4: no button for them in this one.
+
+### Contract between the tasks
+
+- `web-foundation` creates every new route and page file as a stub, so the screen tasks never edit
+  `App.tsx`: `/tasks` (board and list of the selected project, or of all projects), `/tasks/:key`
+  (a work item, by its key), `/tasks/milestones`, `/projects/new` (the wizard). Its stubs render
+  a heading and nothing else; the owning task replaces the file whole.
+- "Orchestrate" on the board calls `POST /projects/:id/work-items/orchestrate` and navigates to
+  `/orchestration` with the draft in the router state: `navigate('/orchestration', { state: {
+  workItemDraft } })`. The orchestration editor opens that draft as it opens a planner's, with each
+  node showing the key of its item.
+
+### File ownership
+
+All paths under `apps/web/` unless they say otherwise.
+
+| Task | Owns |
+|---|---|
+| `web-foundation` | `src/api.ts`, `src/lib/events.ts`, new `src/lib/work-items.ts`, `src/App.tsx`, `src/components/shell/**`, `src/components/icons.tsx`, `src/components/illustrations/**` and `src/styles/illustrations.css`, `src/styles/tokens.css`, `src/i18n/index.ts` and `src/i18n/locales/*/shell.json`, the new empty namespaces, the stub pages, their tests |
+| `web-projects` | `src/pages/Projects.tsx`, `src/pages/Home.tsx`, `src/pages/home/**`, `src/pages/dashboard/views.ts`, new `src/pages/projects/**`, new `src/styles/projects.css`, `locales/*/projects.json` and `home.json`, `e2e/specs/projects-*.spec.mjs` |
+| `web-board` | new `src/pages/tasks/Board.tsx`, `List.tsx`, `Milestones.tsx`, `toolbar/**`, `board/**`, new `src/styles/board.css`, `locales/*/tasks.json`, `e2e/specs/tasks-board*.spec.mjs` |
+| `web-item` | new `src/pages/tasks/WorkItem.tsx`, `NewTask.tsx`, `item/**`, new `src/styles/work-item.css`, `locales/*/workItem.json`, `e2e/specs/tasks-item*.spec.mjs` |
+| `web-links` | `src/components/Transcript.tsx` (the message menu only), `src/pages/chat/**`, `src/pages/Orchestration.tsx`, `src/pages/OrchestrationDetail.tsx`, `src/components/OrchestrationBoard.tsx`, `src/components/TaskEditor.tsx`, `locales/*/chat.json`, `orchestration.json`, `orchestrationDetail.json`, `e2e/specs/tasks-links.spec.mjs` |
+| `web-review` | any web file, for cross-screen fixes only, after every other task has landed |
+| `docs-web` | `docs/**` except `docs/design-system/reference/**`, `README.md`, `ROADMAP.md` |
+
+### `web-foundation`
+
+- **API client**: every route of projects (templates, settings, modules, key), work items, board,
+  milestones, comments, criteria, relations, links, history, changes, "Work on it", orchestrate and
+  a task from a message, typed with the shared types, and their query keys.
+- **Events**: `workitem.*`, `milestone.changed` and `project.updated` invalidate exactly the queries
+  they affect (the board of that project, the item, the all-projects board, the counts). Replace the
+  empty cases orchestration 1 left in `lib/events.ts`.
+- **`lib/work-items.ts`**: the pure model the screens share: columns in order with their icon and
+  label key, types and priorities with their marks, filters to and from the URL, grouping a board,
+  the open count, whether an item is live (its chat or node running). Unit tests.
+- **Shell**: "Tareas" in the sidebar between Chats and Orquestaciones, with the open count of the
+  selected project (none with All projects, as the prototype); on the phone, "Tareas" in the More
+  sheet with its count; the command palette entries "Nueva tarea" and "Ir a tareas". Update
+  `shell.spec.mjs` and `mobile.spec.mjs` without loosening them.
+- **Illustrations**: port `board.svg` and `team.svg` from `docs/design-system/illustrations/` into
+  the set, as the other thirteen were, with their names in `IllustrationName`, and extend
+  `illustrations.test.tsx`.
+- **Tokens**: the light `--live` becomes `#0b6680`, the value the reference moved to for contrast
+  (audit, "What stays open"). Add the tokens the reference added (`--on-accent` for text on the
+  accent, the hue token of the epic mark and role avatar).
+- **Routes and stubs** as the contract says; the new i18n namespaces (`tasks`, `workItem`) created
+  with parity and registered.
+- **Done when**: typecheck and tests pass, the sidebar and More sheet show Tareas, and every new
+  route renders its stub.
+
+### `web-projects` (depends on `web-foundation`)
+
+References: `DesktopNuevoProyecto`, `MobileNuevoProyecto*`, `DesktopProyecto`, `MobileProyecto`,
+`DesktopProyectoAjustes`, `MobileProyectoAjustes`, the Proyectos screens.
+
+- **The wizard** at `/projects/new`, replacing today's create dialog: name, and directory or git URL;
+  the five template cards; the module switches the template preselected; a summary with "Crear
+  proyecto". Import of an existing directory offers the same template and modules steps.
+- **Project settings**: name, key prefix (validated as the API does, a clash shown in the field),
+  modules with their switches and what switching one off means (hidden, data kept), board column
+  limits. Replaces `pages/home/ProjectSettings.tsx`'s content where it overlaps, keeps what it
+  already edits.
+- **The project page tabs**: Resumen (today's dashboard), Tablero (the board of the project), Memoria,
+  Recursos, Ajustes, plus Worktrees where it is today. A tab exists only while its module is on;
+  Board off hides Tablero. Old `?view=` links keep working.
+- **Projects list**: each card shows its key and its modules.
+- **Done when**: a project is created and edited through the wizard and the settings, the tabs
+  follow its modules, and its e2e spec covers both.
+
+### `web-board` (depends on `web-foundation`)
+
+References: `DesktopTablero`, `DesktopTableroVacio`, `DesktopTableroEquipo` (only the parts that do
+not need a team), `DesktopTareasLista`, `DesktopTareasTodos`, `DesktopHitos`, and their `Mobile*`
+screens with `MobileTableroSeleccion` and `MobileTableroFiltros`.
+
+- **Board**: five columns with icon, mono label, count and optional limit (over it: warn colour and a
+  word, never blocking); cards with key, type, priority mark (only urgent coloured), title, epic,
+  labels, assignee, checklist progress, relation mark; a card whose chat or node is running carries
+  the live rail and a ring spinner with what it is doing; "y N más" in Hecho.
+- **Moving**: drag and drop between and inside columns on desktop, keyboard accessible, and a move
+  menu on the phone; each move calls the API with `afterId` so the order survives; an optimistic
+  update that rolls back on error with a toast.
+- **Toolbar**: search, the filters (type, priority, label, assignee, epic, milestone) kept in the
+  URL, the Board / List / Milestones switch, "Seleccionar", "Nueva tarea" as the one primary action.
+- **Phone**: no horizontal board. Columns are sections of one list with the segmented column jump;
+  the filters in a sheet; selection with a bottom bar.
+- **Selection and "Orquestar"**: pick items, see which blocks which, and hand the draft to the
+  editor as the contract says.
+- **List**, **All projects** (every project's items, the project named on each) and **Milestones**
+  (open and closed, progress bars, no dates).
+- **Empty board**: `Empty` with the `board` illustration and "Crear la primera tarea".
+- **Done when**: the board, list, all-projects view and milestones match their references in both
+  themes and sizes, a move persists across a reload, a move made by the API while the board is open
+  shows without a reload, and the e2e specs cover it.
+
+### `web-item` (depends on `web-foundation`)
+
+References: `DesktopTarea`, `MobileTarea`, `MobileTareaActividad`, `MobileTareaCambios`,
+`DesktopNuevaTarea`, `MobileNuevaTarea`.
+
+- **The work item** at `/tasks/:key`, as a page and in the detail panel from the board: key and
+  title, type, status, priority, labels, assignee, epic, milestone, all editable in place; the
+  description in Markdown with the existing editor; the acceptance checklist, each criterion checked
+  with who and when, the whole row the control on a phone; relations (bloquea, bloqueada por) with
+  add and remove; linked chats and orchestrations with their live state; what changed in its worktree
+  (the existing diff components); history and comments, the person's and the agents'.
+- **"Trabajar en ella"** as the primary action: starts the chat through the API, with the start
+  options a new chat offers, and opens it. Refused on an item in Hecho, with the reason shown.
+- **Mover a Hecho** is the person's approval, a secondary action.
+- **New task**: a dialog on desktop, a full screen on the phone, with type, title, description,
+  priority, labels, epic, milestone, criteria and relations.
+- **Done when**: every field edits and persists, the checklist, relations, comments and "Trabajar en
+  ella" work end to end against the fake CLI, and the e2e specs cover them.
+
+### `web-links` (depends on `web-foundation`)
+
+References: `DesktopChatTarea`, `MobileChatTarea`, and the orchestration screens.
+
+- **A chat**: "Crear una tarea con este mensaje" in the message menu (a sheet on the phone), which
+  creates the item in Backlog and offers to open it; the chat header names the work item it works
+  on, as the `PartOf` row does for an orchestration, the whole row a target.
+- **The orchestration editor** opens a draft handed over by the board, each node showing its item's
+  key; launching sends `workItemId` per node. `externalBlockers` from the draft are shown as a
+  warning before launching.
+- **An orchestration's detail**: each node linked to an item shows its key, linking to it.
+- **Done when**: a task created from a message, a chat started from an item and a graph launched from
+  a selection each show their links both ways, and the e2e spec covers them.
+
+### `web-review` (depends on `web-projects`, `web-board`, `web-item`, `web-links`)
+
+Every new screen side by side with its reference, both themes, both sizes, and against each other:
+the same component drawn the same way, the same figure the same everywhere, copy by the glossary,
+one primary gradient per zone, one energy border per screen, motion off under every motion level.
+Run `pnpm typecheck` and `pnpm test`; fix what differs. Update `a11y.spec.mjs` and `motion.spec.mjs`
+to cover the new screens without loosening them. End your report with what you fixed and what you
+left, screen by screen.
+
+### `docs-web` (depends on `web-review`)
+
+`docs/projects.md` and `docs/work-items.md` describe the screens as built; README's feature list and
+screenshots of the board (`docs/media/`); `docs/status.md`; this plan's Outcome for orchestration 2.
+
 ## Verification
 
 Once the graph is integrated: `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm e2e`, with a fixer.
