@@ -90,6 +90,7 @@ import { attachProject, projectCandidates, ProjectStore, type ChatPlace, type Pr
 import { AuthStore } from './security/auth.ts';
 import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
+import { TeamService } from './team.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
@@ -123,6 +124,7 @@ export { usageBreakdown, usageSeries } from './usage-series.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './project-settings.ts';
 export { PROJECT_TEMPLATES } from './project-templates.ts';
+export { agentFileContent, TeamError, TeamService, templateTeam, type TeamRunSource } from './team.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
 export {
@@ -214,6 +216,8 @@ export class Core {
   readonly workItems: WorkItemService;
   /** Moves items as the chats and nodes linked to them work, from the feed and the runtime's results */
   private readonly workLinks: WorkItemAutomation;
+  /** Each project's team: its members' agent files plus the metadata in `settings.team` */
+  readonly team: TeamService;
   private readonly startedAt = Date.now();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
@@ -244,6 +248,15 @@ export class Core {
     this.release = new ReleaseWatch(config, { current: AGENTRY_VERSION, events: this.events });
     this.projectStore = new ProjectStore(config);
     this.projectSettingsStore = new ProjectSettingsStore(config);
+    this.team = new TeamService({
+      dataDir: config.dataDir,
+      project: async (id) => {
+        const record = this.requireProject(id);
+        return { ...record, settings: await this.projectSettings(id) };
+      },
+      saveSettings: (id, settings) => this.saveProjectSettings(id, settings),
+      emit: (event) => this.events.emit(event),
+    });
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db);
     this.runtime.permissions = this.permissions;
