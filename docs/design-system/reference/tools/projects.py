@@ -265,7 +265,7 @@ def project_page_mobile():
   inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px">
 <a href="MobileProyectos.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
 <span class="proj monogram" style="--hue: 20; width: 36px; height: 36px; border-radius: var(--r)">CW</span>
-<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 6px"><h1 class="t-h1" style="font-size: 24px">claude-wrapper</h1><span class="mono t-xs fg-3">AGN · ~/Escritorio/claude-wrapper</span></span>
+<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 6px"><h1 class="t-h1">claude-wrapper</h1><span class="mono t-xs fg-3">AGN · ~/Escritorio/claude-wrapper</span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">{ico('more', 'ico ico-lg', 'stroke-width: 3')}</button>
 </header>
 <div class="m-body stack" style="gap: 14px">

@@ -98,7 +98,7 @@ def list_mobile():
       w = W[k]
       live = w.get('live')
       lead = '<span class="spin-ring" style="width: 14px; height: 14px" role="img" aria-label="Trabajando"></span>' if live else tico(w['t'])
-      rows += f'<a href="MobileTarea.html" class="wi-row{" rail-live" if live else ""}{" done" if s == "done" else ""}" style="min-height: 52px; font-size: 15px; align-items: flex-start; padding-top: 14px; padding-bottom: 14px">{lead}<span class="wi-key" style="width: 50px; margin-top: 2px">{k}</span><span class="wi-row-title" style="white-space: normal; line-height: 1.35">{w["title"]}</span>{prio(w["p"])}</a>'
+      rows += f'<a href="MobileTarea.html" class="wi-row{" rail-live" if live else ""}{" done" if s == "done" else ""}" style="min-height: 52px; font-size: 15px; align-items: flex-start; padding-top: 14px; padding-bottom: 14px">{lead}<span class="wi-key" style="width: 50px; margin-top: 2px">{k}</span><span class="wi-row-title">{w["title"]}</span>{prio(w["p"])}</a>'
     secs += f'<section class="col" style="gap: 6px"><div class="row" style="gap: 8px; padding: 0 2px">{sico(s)}<span class="t-label" style="color: var(--fg-2)">{n}</span><span class="wi-col-count"><b>{len(ks)}</b></span><span class="grow"></span>{warn}</div><div class="card" style="overflow: hidden">{rows}</div></section>'
   inner = f'''{mhead('Tareas', None, 'MobileMas.html', mproject_chip() + '<span style="width: 8px"></span>')}
 <div class="m-body stack" style="gap: 12px; margin-bottom: 76px">
@@ -176,9 +176,6 @@ def activity(compact=False):
   return out
 
 
-# Not in agentry-ds.css yet (for proto-fix-review): a path in a narrow column wraps after a slash
-# instead of losing its file name to an ellipsis
-PATH_CSS = '.diff-file .path.wrap{white-space:normal;padding:6px 0}'
 
 
 def wrap_paths(html):
@@ -232,7 +229,7 @@ def detail_desktop():
 </div>
 {aside}
 </div>'''
-  write('DesktopTarea.html', desktop('Tarea', 'tasks', '<a href="DesktopTablero.html" class="fg-2">Tareas</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">AGN-26</span>', main, css=PATH_CSS))
+  write('DesktopTarea.html', desktop('Tarea', 'tasks', '<a href="DesktopTablero.html" class="fg-2">Tareas</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">AGN-26</span>', main))
 
 
 def mcrit_rows():
@@ -255,7 +252,7 @@ MRELS = [('Bloquea', 'todo', 'AGN-33', 'Enlazar tareas con chats y orquestacione
 def mrel_rows():
   out = ''
   for kind, s, k, t, word in MRELS:
-    out += f'<a href="MobileTarea.html" class="cell" style="flex-direction: column; align-items: stretch; gap: 4px; padding: 10px 14px"><span class="row" style="gap: 8px"><span class="rel-kind" style="width: auto">{kind}</span><span class="grow"></span><span class="row t-xs{" c-ok" if s == "done" else " fg-2"}" style="gap: 5px">{sico(s)}{word}</span></span><span class="row" style="gap: 8px; align-items: baseline"><span class="wi-key">{k}</span><span style="font-size: 14px; line-height: 1.4">{t}</span></span></a>'
+    out += f'<a href="MobileTarea.html" class="cell stacked"><span class="row" style="gap: 8px"><span class="rel-kind" style="width: auto">{kind}</span><span class="grow"></span><span class="row t-xs{" c-ok" if s == "done" else " fg-2"}" style="gap: 5px">{sico(s)}{word}</span></span><span class="row" style="gap: 8px; align-items: baseline"><span class="wi-key">{k}</span><span style="font-size: 14px; line-height: 1.4">{t}</span></span></a>'
   return out
 
 
@@ -279,7 +276,7 @@ def mtask_top(tab):
   # What every tab of the work item shares: title, state, priority, assignee, and the three tabs.
   tabs = [('detail', 'MobileTarea.html', 'Detalle'), ('activity', 'MobileTareaActividad.html', 'Actividad <span class="count">6</span>'), ('changes', 'MobileTareaCambios.html', 'Cambios <span class="count">4</span>')]
   seg = ''.join(f'<a href="{h}" role="tab" aria-selected="{"true" if k == tab else "false"}" class="{"on" if k == tab else ""}" style="flex: 1 1 0; justify-content: center">{n}</a>' for k, h, n in tabs)
-  return f'''<h1 class="t-h1" style="font-size: 24px">Plantillas de proyecto</h1>
+  return f'''<h1 class="t-h1">Plantillas de proyecto</h1>
 <div class="row" style="gap: 6px; flex-wrap: wrap"><button type="button" class="chip">{sico('in_review')}En revisión{ico('down', 'ico ico-sm')}</button><button type="button" class="chip">{prio('medium')}Media</button><button type="button" class="chip">{av()}yeyo</button></div>
 <div class="row" style="gap: 6px; flex-wrap: wrap">{epic('eco')}<span class="ms-name" style="font-size: 12px">v0.20</span>{label('core')}{label('api')}</div>
 <div class="seg" role="tablist" aria-label="Secciones" style="display: flex">{seg}</div>'''
@@ -344,7 +341,7 @@ def new_task_desktop():
 <div class="dialog-foot"><label class="row t-sm fg-2" style="gap: 8px; cursor: pointer"><span class="checkbox" role="checkbox" aria-checked="false"></span>Crear otra</label><span class="grow"></span><button type="button" class="btn btn-ghost">Cancelar</button><button type="button" class="btn btn-primary">{ico('plus')}Crear tarea</button></div>
 </div>
 </div>'''
-  write('DesktopNuevaTarea.html', desktop('Nueva tarea', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, overlay=f'<div style="position: absolute; inset: 0; z-index: 30">{dialog}</div>', css=CARD_CSS))
+  write('DesktopNuevaTarea.html', desktop('Nueva tarea', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, overlay=f'<div style="position: absolute; inset: 0; z-index: 30">{dialog}</div>'))
 
 
 def new_task_mobile():
@@ -431,7 +428,7 @@ def milestones_desktop():
 <div class="card" style="overflow: hidden"><div class="wi-row" style="min-height: 48px">{ico('flag', 'ico fg-3')}<span class="wi-row-title">4 tareas abiertas no están en ningún hito</span><span class="row" style="gap: 12px">{''.join(f'<span class="row" style="gap: 5px">{sico(s)}<span class="mono t-xs fg-2">{n}</span></span>' for s, n in (('backlog', 0), ('todo', 1), ('in_progress', 2), ('in_review', 1), ('done', 0)))}</span><span style="width: 1px; height: 18px; background: var(--line-2)"></span><a href="DesktopTareasLista.html" class="btn btn-sm btn-ghost">Ver en la lista</a></div></div>
 </section>
 </main>'''
-  write('DesktopHitos.html', desktop('Hitos', 'tasks', '<a href="DesktopTablero.html" class="fg-2">Tareas</a><span class="fg-3">/</span><span style="font-weight: 500">Hitos</span>', main))
+  write('DesktopHitos.html', desktop('Hitos', 'tasks', '<span style="font-weight: 500">Tareas</span>', main))
 
 
 def milestones_mobile():
@@ -443,6 +440,8 @@ def milestones_mobile():
 {ms_card(MS_OPEN[1], False, True)}
 <div class="row" style="padding: 4px 4px 0; gap: 8px"><span class="t-label">Cerrados</span><span class="count">2</span></div>
 <div class="card" style="overflow: hidden">{closed_rows(True)}</div>
+<div class="row" style="padding: 4px 4px 0; gap: 8px"><span class="t-label">Sin hito</span><span class="count">4</span></div>
+<div class="card" style="overflow: hidden"><a href="MobileTareasLista.html" class="cell" style="min-height: 56px; padding-top: 10px; padding-bottom: 10px"><span class="col grow" style="gap: 6px; min-width: 0"><span class="t-sm" style="line-height: 1.4">4 tareas abiertas no están en ningún hito</span><span class="row" style="gap: 12px">{''.join(f'<span class="row" style="gap: 5px">{sico(s)}<span class="mono t-xs fg-2">{n}</span></span>' for s, n in (('todo', 1), ('in_progress', 2), ('in_review', 1)))}</span></span>{ico('right', 'ico fg-3')}</a></div>
 </div>
 {tabbar('more')}'''
   write('MobileHitos.html', mobile('Hitos', inner))

@@ -215,17 +215,6 @@ STATUSBAR = '''<footer class="app statusbar" data-theme="dark" style="width: 118
 </footer>'''
 
 
-# Rules a desktop screen needs that agentry-ds.css does not have yet. They live in the page until
-# proto-fix-review moves them into the stylesheet (the fix tasks may not edit it).
-# A card's title and its epic say what the card is about, so they wrap instead of being cut; the
-# live line of a card goes on two lines (verb and time, then the command) so the command is not cut.
-CARD_CSS = ('.wi-card-title{-webkit-line-clamp:unset}'
-            '.wi-card-live.two{flex-wrap:wrap;row-gap:3px}.wi-card-live.two .detail{flex-basis:100%;padding-left:18px}'
-            '.wi-card-meta{flex-wrap:wrap;row-gap:5px}'
-            # The board fills the page and a long column scrolls on its own, as the app's board does,
-            # so no card ever sits under the status bar or the selection bar
-            '.wi-board{flex:1 1 auto;grid-template-rows:minmax(0,1fr)}.wi-col{max-height:100%}'
-            '.wi-col-head,.wi-col-limit{flex-shrink:0}.wi-col-body{min-height:0;overflow-y:auto;scrollbar-width:none}.page.selecting{padding-bottom:84px}')
 
 
 def pcrumb(project, *parts):

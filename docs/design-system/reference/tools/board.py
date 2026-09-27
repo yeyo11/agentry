@@ -62,13 +62,13 @@ def board_desktop():
 <a href="DesktopOrquestacion.html" class="btn btn-primary btn-sm">{ico('orch', 'ico ico-sm')}Orquestar</a>
 </div>
 </main>'''
-  write('DesktopTablero.html', desktop('Tablero', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, css=CARD_CSS))
+  write('DesktopTablero.html', desktop('Tablero', 'tasks', '<span style="font-weight: 500">Tareas</span>', main))
 
 
 def mhead(title, sub=None, back=None, right=''):
   b = f'<a href="{back}" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico("left", "ico ico-lg", "stroke-width: 2")}</a>' if back else ''
   s = f'<span class="mono t-xs fg-3">{sub}</span>' if sub else ''
-  return f'<header class="m-head" style="padding-left: {4 if back else 16}px">{b}<span class="col grow" style="gap: 1px"><h1 class="t-h1" style="font-size: 24px">{title}</h1>{s}</span>{right}</header>'
+  return f'<header class="m-head" style="padding-left: {4 if back else 16}px">{b}<span class="col grow" style="gap: 1px"><h1 class="t-h1">{title}</h1>{s}</span>{right}</header>'
 
 
 def mrow(k, show_status=False):

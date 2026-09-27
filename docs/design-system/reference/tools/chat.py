@@ -5,7 +5,7 @@ def part_of(mobile=False):
   # The chat header's context row: the work item this chat works on (the app's .chat-part-of).
   if mobile:
     # On a phone the row itself is the link, so the whole line is the 44 px target, and the title wraps
-    return f'''<a href="MobileTarea.html" class="part-of" style="margin: 0 16px; min-height: 52px; align-items: flex-start">{ico('tasks', 'ico fg-3', 'margin-top: 2px')}<span class="col grow" style="gap: 2px; min-width: 0"><span class="row t-xs" style="gap: 6px"><span>Trabaja en</span><span class="wi-key">AGN-28</span><span class="grow"></span><span class="row" style="gap: 5px">{sico('in_progress')}En curso</span></span><span style="font-size: 14px; font-weight: 600; color: var(--fg)">Tablero con columnas fijas y límites</span></span></a>'''
+    return f'''<a href="MobileTarea.html" class="part-of" style="margin: 0 16px">{ico('tasks', 'ico fg-3', 'margin-top: 2px')}<span class="col grow" style="gap: 2px; min-width: 0"><span class="row t-xs" style="gap: 6px"><span>Trabaja en</span><span class="wi-key">AGN-28</span><span class="grow"></span><span class="row" style="gap: 5px">{sico('in_progress')}En curso</span></span><span style="font-size: 14px; font-weight: 600; color: var(--fg)">Tablero con columnas fijas y límites</span></span></a>'''
   return f'''<div class="part-of" style="white-space: nowrap">{ico('tasks', 'ico fg-3')}<span>Trabaja en</span><span class="wi-key boxed">AGN-28</span><a href="DesktopTarea.html" class="ellipsis">Tablero con columnas fijas y límites</a><span class="grow"></span><span class="row t-xs" style="gap: 6px">{sico('in_progress')}En curso</span><span class="mono t-xs fg-3">criterios 2/5</span></div>'''
 
 
@@ -89,7 +89,7 @@ def chat_mobile():
 <div class="col" style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px 16px 0; gap: 14px; font-size: 15px; line-height: 1.6">
 <div class="row t-xs" style="gap: 8px; font-family: var(--mono); color: var(--fg-3)">{ico('check', 'ico ico-sm c-ok', 'stroke-width: 2.4')}<span>5 herramientas · 2 min 10 s</span></div>
 <p style="margin: 0; padding: 10px 12px; border-radius: var(--r-lg); background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-2)">Las columnas ya salen en orden. He visto otra cosa que no es de esta tarea: <b>mover una tarjeta con el teclado no anuncia la columna nueva</b> a un lector de pantalla.</p>
-<p style="margin: 0" class="fg-2">Sigo con el criterio 3: la cabecera en ámbar cuando…</p>
+<p style="margin: 0" class="fg-2">Sigo con el criterio 3: la cabecera en el color de aviso cuando…</p>
 </div>
 <div style="position: absolute; inset: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 60%, transparent)"></div>
 <div class="sheet" role="dialog" aria-label="Acciones del mensaje" style="z-index: 11; padding-bottom: 34px">

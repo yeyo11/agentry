@@ -43,7 +43,8 @@ def wizard_origin():
 
 def wizard_summary():
   pro = next(t for t in TPLS if t[0] == 'pro')
-  mods = ''.join(f'<span class="row t-sm" style="gap: 7px">{ico("check", "ico ico-sm c-ok")}{n}</span>' for _, _, n, _ in MODS)
+  # Step 3 (MobileNuevoProyectoModulos) switched Documentos off, so the summary says so in words
+  mods = ''.join(f'<span class="row t-sm fg-3" style="gap: 7px">{ico("x", "ico ico-sm")}{n} · desactivado</span>' if k == 'documents' else f'<span class="row t-sm" style="gap: 7px">{ico("check", "ico ico-sm c-ok")}{n}</span>' for k, _, n, _ in MODS)
   team = ''.join(f'<span class="row t-sm" style="gap: 8px">{role(ab, n, "sm")}{n}<span class="model-tag{" opus" if m == "opus" else ""}">{m}</span></span>' for ab, n, m in TEMPLATE_TEAM)
 
   def prow(k, v, top=False):
@@ -87,13 +88,13 @@ def selection():
     if w.get('epic'): meta.append(epic(w['epic']))
     if w.get('blocked'): meta.append(f'<span class="row mono t-xs fg-2" style="gap: 4px">{ico("block", "ico", "width: 12px; height: 12px")}bloqueada por {w["blocked"]}</span>')
     state = f'<span class="row t-xs c-accent" style="gap: 5px; font-weight: 600">{ico("check", "ico ico-sm")}Elegida</span>' if on else '<span class="t-xs fg-3">Tocar para elegir</span>'
-    return f'''<button type="button" class="wi-mrow{" sel" if on else ""}" aria-pressed="{"true" if on else "false"}" style="width: 100%; border-width: 0 0 1px; border-style: solid; border-color: var(--line); background: {"var(--sel-bg)" if on else "none"}; color: inherit; font: inherit; text-align: left">
+    return f'''<button type="button" class="wi-mrow{" sel" if on else ""}" aria-pressed="{"true" if on else "false"}">
 <span class="row" style="gap: 8px">{tico(w['t'])}<span class="wi-key">{k}</span>{prio(w['p'])}<span class="grow"></span>{state}</span>
 <span style="font-weight: 500; font-size: 15px; line-height: 1.35">{w['title']}</span>
 {f'<span class="row" style="gap: 5px; flex-wrap: wrap">{"".join(meta)}</span>' if meta else ''}
 </button>'''
   rows = ''.join(srow(k) for k in by_col('todo'))
-  inner = f'''<header class="m-head" style="padding-left: 4px"><a href="MobileTablero.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Salir de la selección">{ico('x', 'ico ico-lg')}</a><span class="col grow" style="gap: 1px"><h1 class="t-h1" style="font-size: 24px">2 elegidas</h1><span class="mono t-xs fg-3">claude-wrapper · para orquestar</span></span></header>
+  inner = f'''<header class="m-head" style="padding-left: 4px"><a href="MobileTablero.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Salir de la selección">{ico('x', 'ico ico-lg')}</a><span class="col grow" style="gap: 1px"><h1 class="t-h1">2 elegidas</h1><span class="mono t-xs fg-3">claude-wrapper · para orquestar</span></span></header>
 <div class="m-body stack" style="gap: 12px">
 {jump('todo')}
 <section class="col" style="gap: 8px" aria-label="Por hacer">
@@ -151,7 +152,7 @@ def task_changes():
   rows = ''
   for p, a, d, bar in FILES:
     cells = ''.join(f'<i class="{"add" if c == "a" else "del"}"></i>' for c in bar) + '<i></i>' * (5 - len(bar))
-    rows += f'<a href="#" class="cell" style="flex-direction: column; align-items: stretch; gap: 4px; padding: 10px 14px"><span class="mono" style="font-size: 13px; overflow-wrap: anywhere">{p}</span><span class="row mono t-xs fg-3" style="gap: 10px"><span>+{a} −{d}</span><span class="diffstat" aria-hidden="true">{cells}</span></span></a>'
+    rows += f'<a href="#" class="cell stacked"><span class="mono" style="font-size: 13px; overflow-wrap: anywhere">{p}</span><span class="row mono t-xs fg-3" style="gap: 10px"><span>+{a} −{d}</span><span class="diffstat" aria-hidden="true">{cells}</span></span></a>'
   inner = f'''{mtask_head()}
 <div class="m-body stack" style="gap: 14px">
 {mtask_top('changes')}
@@ -159,7 +160,7 @@ def task_changes():
 <div class="row" style="gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line)">{ico('branch', 'ico fg-3')}<span class="mono t-sm">task/agn-26</span><span class="mono t-xs fg-3 grow">desde main</span><span class="mono t-xs fg-2">+214 −37</span></div>
 {rows}
 </div>
-<p class="t-xs fg-3" style="margin: 0; padding: 0 4px; line-height: 1.5">Lo que cambió en el worktree de la tarea, <span class="mono">.claude/worktrees/task-AGN-26</span>. Nada se fusiona ni abre una pull request solo.</p>
+<p class="t-xs fg-3" style="margin: 0; padding: 0 4px; line-height: 1.5">Lo que cambió en el worktree de la tarea, <span class="mono">.claude/worktrees/task-agn-26</span>. Nada se fusiona ni abre una pull request solo.</p>
 <a href="#" class="btn btn-lg">{ico('git', 'ico')}Ver el diff</a>
 </div>
 {mtask_foot()}'''
@@ -232,7 +233,7 @@ def assistant_team():
     tag = '<span class="badge">fuera de la plantilla</span>' if x.get('extra') else ''
     acts = f'<div class="row"><span class="sug-done">{ico("check", "ico ico-sm")}añadido · <span class="mono">.claude/agents/</span></span></div>' if x['st'] == 'accepted' else accept_pair(x['role'])
     cards += f'''<div class="sug-card">
-<span class="row" style="gap: 10px"><span class="role-av" style="--hue: {x['hue']}" role="img" aria-label="{x['role']}">{x['ab']}</span><span class="col grow" style="gap: 4px; min-width: 0"><span class="row" style="gap: 8px; flex-wrap: wrap"><span class="sug-title" style="font-size: 15px">{x['role']}</span>{tag}</span><span class="sug-meta"><span class="model-tag{' opus' if x['model'] == 'opus' else ''}">{x['model']}</span><span>escribe: <span class="mono">{x['writes']}</span></span></span></span></span>
+<span class="row" style="gap: 10px"><span class="role-av" style="--hue: {x['hue']}" role="img" aria-label="{x['role']}">{x['ab']}</span><span class="col grow" style="gap: 4px; min-width: 0"><span class="row" style="gap: 8px; flex-wrap: wrap"><span class="sug-title">{x['role']}</span>{tag}</span><span class="sug-meta"><span class="model-tag{' opus' if x['model'] == 'opus' else ''}">{x['model']}</span><span>escribe: <span class="mono">{x['writes']}</span></span></span></span></span>
 {acts}
 </div>'''
   inner = f'''{mhead_proj('Asistente de proyecto', 'MobileNuevoProyecto.html', more_btn())}
@@ -255,7 +256,7 @@ def assistant_resources():
       acts = f'<div class="row"><span class="sug-done">{ico("check", "ico ico-sm")}guardada · <span class="mono">{where}</span></span></div>'
     else:
       acts = f'<div class="sug-acts"><button type="button" class="btn btn-ghost btn-lg" aria-label="Descartar {x["name"]}">{ico("x", "ico ico-sm")}Descartar</button><a href="MobileRecursoPropuesta.html" class="btn btn-lg">{ico("edit", "ico ico-sm")}Revisar</a></div>'
-    reason = f'<p class="sug-reason" style="font-size: 14px">{x["why"]}</p>' if x.get('why') else ''
+    reason = f'<p class="sug-reason">{x["why"]}</p>' if x.get('why') else ''
     cards += f'''<div class="sug-card">
 <span class="row" style="gap: 10px; align-items: flex-start">{kind_ico(x['k'])}<span class="col grow" style="gap: 4px; min-width: 0"><span class="row" style="gap: 8px"><span class="mono" style="font-weight: 600; font-size: 15px">{x['name']}</span><span class="badge">{word}</span></span><span class="t-sm fg-2" style="line-height: 1.45">{x['desc']}</span>{'' if x['st'] == 'accepted' else f'<span class="mono t-xs fg-3">proyecto · {where}</span>'}</span></span>
 {reason}{acts}
@@ -287,17 +288,19 @@ def assistant_empty():
 <div class="card col" style="padding: 14px; gap: 10px">
 <span class="t-sm fg-2" style="line-height: 1.5">Cuéntame qué vas a construir y te propongo las primeras tareas. También puedes crearlas tú.</span>
 <label class="field field-area"><textarea rows="2" aria-label="Qué vas a construir" placeholder="Una app de notas con etiquetas y búsqueda…" style="font-size: 16px"></textarea></label>
-<button type="button" class="btn btn-lg">{ico('sparkle', 'ico')}Pedir propuesta</button>
+<button type="button" class="btn btn-primary btn-lg">{ico('sparkle', 'ico')}Proponer tareas</button>
 </div>
 </div>
-<div class="m-foot"><a href="MobileProyecto.html" class="btn btn-primary btn-lg">{ico('right', 'ico ico-lg')}Ir al proyecto</a></div>'''
+<div class="m-foot"><a href="MobileProyecto.html" class="btn btn-lg">{ico('right', 'ico ico-lg')}Ir al proyecto</a></div>'''
   write('MobileAsistenteVacio.html', mobile('Asistente de proyecto, sin nada que leer', inner))
 
 
 # ---------- Suggest tasks while it runs ----------
 def suggest_running():
-  items = [('done', 'docs', '<span class="path">docs/plans/</span>', '12 documentos'), ('done', 'tasks', 'Las tareas del tablero', '27 tareas'),
-           ('now', None, 'Los chats de las últimas dos semanas', '14 de 40'), ('todo', 'git', 'El historial de git', 'después')]
+  # The same reading as DesktopSugerirTareasEnCurso, so the two sizes show one run
+  items = [('done', 'board', 'El tablero', '27 tareas'), ('done', 'flag', 'Los hitos abiertos', 'v0.20 · v0.21'),
+           ('done', 'docs', '<span class="path">docs/plans/</span>', '12 documentos'), ('now', None, 'Los últimos 20 commits', '14 de 20'),
+           ('todo', 'chats', 'Los chats de esta semana', 'después')]
   steps = steps_html(items).replace('<span class="ellipsis">', '<span>')
   inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 8px; gap: 4px; min-height: 60px">
 <a href="MobileTablero.html" class="btn btn-ghost btn-lg" style="padding: 0 10px">Cancelar</a>
@@ -307,7 +310,7 @@ def suggest_running():
 <div class="m-body stack" style="gap: 12px">
 <label class="field field-lg">{ico('search', 'ico ico-lg')}<input value="lo que falta para v0.20" aria-label="Qué buscar (opcional)" style="font-size: 16px"></label>
 <section class="ai-run live energy" aria-label="Sugerencia en curso" style="padding: 14px">
-<div class="ai-run-head">{mark()}<div class="col grow" style="gap: 3px; min-width: 0"><h2 class="ai-run-title">Buscando tareas que falten</h2>{live_verb('Leyendo', 'chats', '0:22')}</div></div>
+<div class="ai-run-head">{mark()}<div class="col grow" style="gap: 3px; min-width: 0"><h2 class="ai-run-title">Leyendo el proyecto</h2>{live_verb('Leyendo', 'git log -20', '0:22')}</div></div>
 {facts(f('Sonnet 5'), f('0,02 US$ hasta ahora', 'cost'), f('chat 7c2e1a'))}
 <hr class="divider">
 {steps}
