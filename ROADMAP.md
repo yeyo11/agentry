@@ -149,10 +149,29 @@
   (restart now, or update when you quit). A page that outlived a deploy notices from the version in
   `stream.hello`, or from a lazy chunk that is gone, and offers a reload that goes through the service
   worker. See [docs/plans/app-updates.md](docs/plans/app-updates.md).
+- **The project ecosystem's foundation: modules and the board, server side** — a settings document
+  per project with modules (Board, Team, Documents, Shared memory) switched on from one of five
+  built-in templates, and switched off without losing data; work items with a key per project
+  (`AGN-12`, never reused), five fixed columns with optional limits, epics, milestones without
+  dates, acceptance checklists, `blocks` relations, comments and a history the server writes, safe
+  across several wrapper processes. "Work on it" runs a chat on an item in its own worktree, a
+  selection becomes a draft orchestration with its dependencies, a chat's message becomes a task,
+  and the item follows that work, forward only and never over a person's move. The screens are
+  static prototypes in `docs/design-system/reference/`, waiting for the owner's validation. See
+  [docs/projects.md](docs/projects.md), [docs/work-items.md](docs/work-items.md) and
+  [docs/plans/project-ecosystem.md](docs/plans/project-ecosystem.md).
 
 ## Next
 
 ### Planned
+
+- **The project ecosystem, orchestrations 2 to 4** ([docs/plans/project-ecosystem.md](docs/plans/project-ecosystem.md)).
+  2, `ecosystem-board-web`: the project wizard and settings, the project's tabs, the board, the
+  list, a work item's page, and the entry points in chats and orchestrations, built from the
+  prototypes once they are validated. 3, `ecosystem-team`: a team of agents with roles as CLI agent
+  files, the flow by column with QA sending items back, the project journal and memory proposals,
+  and documents. 4, `ecosystem-assistant`: the project assistant, suggested work items, and
+  resources with AI, all through CLI chats with `--json-schema`.
 
 - **Dashboard: editable layout persisted per project; Documents and Flows widgets.** Home already
   renders any layout that passes validation, from a registry of widget types, so adding, removing,

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T01:59:47.104538408Z
-updated_at: 2026-09-27T01:59:47.104538408Z
+updated_at: 2026-09-27T06:00:00Z
 tags:
     - plan
     - projects
@@ -23,8 +23,8 @@ CONTRIBUTING.md and [docs/design-system.md](../design-system.md). Where a task p
 disagree, the plan wins; where the plan and the design system disagree on a visual detail, the
 design system wins.
 
-Status: **orchestration 1 (`ecosystem-foundation`) launched on 2026-09-27**. Orchestrations 2 to 4
-are described here and get their task sections before each is launched.
+Status: **orchestration 1 (`ecosystem-foundation`) built on 2026-09-27**, see [Outcome](#outcome).
+Orchestrations 2 to 4 are described here and get their task sections before each is launched.
 
 ## Why
 
@@ -413,9 +413,78 @@ Once the graph is integrated: `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm
 
 ## Outcome
 
-To be written by the `docs` task.
+Orchestration 1 (`ecosystem-foundation`) delivered every task of Stages 0 to 4 on its integration
+branch. What it built is described in [projects.md](../projects.md) and
+[work-items.md](../work-items.md); this section says what each task delivered and where it went past
+or around the text above. The merged branch's `pnpm build` and `pnpm e2e` run in the verification
+phase, after this was written.
+
+**`types`** — the contract as planned, plus `packages/shared/src/work-items.ts` with the fixed
+orders (modules, templates, columns, types, priorities), the key pattern and the key and branch
+helpers, so core, the API and the web share them. Went past the plan: `Project.key` and
+`Project.modules` are optional in the type, only until core fills them; modules and board types are
+lists rather than booleans, so a later member is absent from old documents; a rank is opaque, and a
+move names the item it goes after (`afterId`) instead. Went around it: the web's exhaustive event
+map (`apps/web/src/lib/events.ts`) gained the six events, the one file under `apps/web/src` this
+orchestration touched, because without it the workspace did not type check. Work item events
+refetch nothing there until the board exists.
+
+**`project-modules`** — as planned: `data/project-settings/<id>.json` written whole, every module off
+and a derived prefix on first read (written at once, derivation serialized), five templates as data,
+the routes, `project.updated`. Went past it: the document records the project's path, so importing a
+removed project's directory again takes its old id back, which is how its settings and work items
+return. A derived prefix is two to five letters, but an edited one may be up to ten letters or
+digits. A template's `board.types` narrows the types its board offers; the store does not enforce it.
+
+**`work-items`** — the migration, the service and every rule, as planned. Went past it: writes run in
+`BEGIN IMMEDIATE` (a deferred transaction fails with `SQLITE_BUSY` instead of waiting), proven by a
+four-process test; ranks are fractional strings respread past 24 characters; the history stores
+snapshots of what it references, so it reads after a rename, a delete or a new prefix; `Db` exposes
+its connection so the store keeps its queries in its own module.
+
+**`work-items-api`** — the routes, events, audit and README rows as planned. Went past it:
+`GET /work-items/board` is the All projects board, with no column limits and counts recomputed over
+the projects shown; items of a removed project stay readable by id but leave every list; core owns
+the `WorkItemService` wired to the event bus and to each project's settings.
+
+**`work-links`** — "Work on it", the orchestration draft, the item from a message, and the automation,
+as planned. Went past it: `GET /work-items/:itemId/changes` and `…/changes/diff` read the item's
+branch; `GET /chats/:id/work-items` lists a chat's items for its header; the draft returns
+`externalBlockers` (blockers outside the selection that are not done); `POST /orchestrations` now
+goes through core, which checks each node's `workItemId` and allows one node per item; a graph
+launched from a saved template is not linked. The plan's "a person's move always wins" is kept as
+three rules: forward only, never out of `done`, and never over a person who moved the item after
+the turn or the node's attempt began. Epics cannot be worked on or orchestrated, and an item already
+being worked on refuses a second "Work on it" (409). The item's worktree lives at
+`<main checkout>/.claude/worktrees/task-<key>`, locked. `ChatService.create` gained an `onStart`
+callback so the link exists before the chat's first status reaches the feed. The task's two commits
+carry only a generic subject, not a Conventional Commits one with a body; the squash-merged pull
+request gets its own message.
+
+**`proto-foundation`, `proto-team`, `proto-ai`** — 48 static screens (23 desktop, 25 phone), each
+captured dark and light: the project wizard, settings and page; the board (also empty, and worked
+by roles), the list, a work item, a new task, milestones and a chat working on an item; the team
+(also empty), a member, the flow, memory and documents; the assistant (reading, then its
+proposals), suggested tasks, and resources with Suggest and Create with AI. Sections 15, 16 and 17
+of `agentry-ds.css` hold their components, §2 of [design-system.md](../design-system.md) maps each
+to the app class it should become, and two illustrations joined the set: `board.svg` and `team.svg`.
+Went past the plan: section 15 also draws the switch, checkbox, radio and dialog the app already
+has, so prototypes stop mocking them with native inputs; the phone gets two extra screens
+(`MobileNuevoProyectoModulos`, `MobileDocumento`); a role is drawn as a neutral squircle and a person
+stays round; every suggestion run shows a facts line with model, time, cost and chat, which is where
+the cost of each run shows.
+
+**`proto-index`** — every new screen in `index.html` and `manifest.json`, cross-screen fixes across
+fourteen new screens and the illustrations sheet, and §2 completed. Its commit, like
+`work-links`', has a generic subject.
+
+**`docs`** — [projects.md](../projects.md), [work-items.md](../work-items.md), the README's feature
+list (its REST tables were already complete from the API tasks), the ROADMAP (a Done entry and
+orchestrations 2 to 4 under Next), [status.md](../status.md) and this section.
+
+What is next is unchanged: the owner validates the prototypes, then orchestration 2 builds the web.
 
 ## Related
 
-[[status.md]] · [[design-system.md]] · [[plans/agents-redesign.md]] ·
+[[status.md]] · [[projects.md]] · [[work-items.md]] · [[design-system.md]] · [[plans/agents-redesign.md]] ·
 [[plans/redesign-night-shift.md]] · [[knowledge-base.md]]
