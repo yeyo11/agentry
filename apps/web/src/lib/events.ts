@@ -7,12 +7,16 @@ import type {
   ChatDetail,
   ChatState,
   ChatSummary,
+  FlowRun,
+  MemoryProposalEvent,
   Orchestration,
   Overview,
+  ProjectFlow,
   RunStatus,
   RunUpdatedEvent,
   StreamHelloEvent,
   StreamResyncEvent,
+  Team,
   WorkItemChange,
 } from '@agentry/shared';
 import { keys } from '../api';
@@ -96,6 +100,11 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'workitem.removed': true,
   'milestone.changed': true,
   'project.updated': true,
+  'team.changed': true,
+  'journal.changed': true,
+  'memory.proposal': true,
+  'document.changed': true,
+  'flow.run': true,
 };
 
 type Target = readonly [QueryKey, number];
@@ -151,6 +160,24 @@ const liveCards: Target[] = [
   [keys.workItems, LISTS],
   [keys.workItemDetails, LISTS],
 ];
+
+// What the team's pages show of the flow: who works on what now (the members, the Flow screen)
+const flowViews = (projectId: string): Target[] => [
+  [keys.team(projectId), NOW],
+  [keys.flow(projectId), NOW],
+];
+
+/** What an approved proposal wrote: the CLI's memory files, the project's `CLAUDE.md`, or the journal. */
+function approvedTarget(event: MemoryProposalEvent): Target[] {
+  switch (event.target.kind) {
+    case 'memory':
+      return [[keys.memoryProjects, NOW]];
+    case 'instructions':
+      return [[['config', 'instructions', event.projectId], NOW]];
+    case 'journal':
+      return [[keys.journal(event.projectId), NOW]];
+  }
+}
 
 /** The cached queries an event makes stale, and how soon each should be refetched. */
 export function targetsFor(event: AgentryEvent): Target[] {
@@ -232,9 +259,10 @@ export function targetsFor(event: AgentryEvent): Target[] {
         [keys.projects, NOW], [keys.overview, OVERVIEW], [keys.projectSettings(event.projectId), NOW],
         // Keys are composed with the prefix when read, so every one of the project's is renamed
         ...(event.changes.includes('key') ? [...workItemViews(event.projectId), [keys.workItemDetails, NOW], [keys.workItemKeys, NOW]] as Target[] : []),
-        // Column limits live in the settings; a module switched on or off changes what is counted
+        // Column limits, the team's metadata and the flow live in the settings; a module switched on
+        // or off changes what is counted and whether the team and the flow are on
         ...(event.changes.includes('settings') || event.changes.includes('modules')
-          ? ([[keys.workItemBoards(event.projectId), NOW], [keys.workItemBoards(null), NOW]] as Target[])
+          ? ([[keys.workItemBoards(event.projectId), NOW], [keys.workItemBoards(null), NOW], ...flowViews(event.projectId)] as Target[])
           : []),
       ];
     case 'workitem.created':
@@ -256,6 +284,29 @@ export function targetsFor(event: AgentryEvent): Target[] {
         [keys.milestones(event.projectId), NOW], [keys.milestoneEach, NOW],
         // Deleting one takes it off its items, which the cards and pages show
         ...(event.action === 'deleted' ? [...workItemViews(event.projectId), [keys.workItemDetails, NOW]] as Target[] : []),
+      ];
+    case 'team.changed':
+      // A member is an agent file too, which the project's Resources list, and the template writes them
+      return [[keys.team(event.projectId), NOW], [keys.resources({ projectId: event.projectId }, 'agents'), NOW]];
+    case 'journal.changed':
+      return [[keys.journal(event.projectId), NOW]];
+    case 'memory.proposal':
+      return [[keys.memoryProposalsOf(event.projectId), NOW], ...(event.action === 'approved' ? approvedTarget(event) : [])];
+    case 'document.changed':
+      return [
+        [keys.documentTree(event.projectId), NOW],
+        [keys.documentFile(event.projectId, event.path), NOW],
+        // A tie is a `document` link of the item, which its page lists
+        ...(event.itemId ? ([[keys.workItem(event.itemId), NOW]] as Target[]) : []),
+      ];
+    case 'flow.run':
+      // What the run does to its item (a comment, a move, the waiting state) comes as `workitem.*`;
+      // this only changes who is working, which the card shows live
+      return [
+        ...flowViews(event.projectId),
+        [keys.workItemBoards(event.projectId), NOW],
+        [keys.workItemLists(event.projectId), NOW],
+        [keys.workItem(event.itemId), NOW],
       ];
   }
 }
@@ -280,6 +331,16 @@ export function patchActivity(client: QueryClient, event: ChatActivityEvent): vo
   }
   client.setQueriesData<Overview>({ queryKey: keys.overview }, (overview) =>
     overview?.recentChats.some((chat) => chat.id === chatId) ? { ...overview, recentChats: overview.recentChats.map(patchChat) } : overview,
+  );
+  // A team member at work shows its chat's line, as the Flow screen does for each running run
+  const patchRuns = (runs: FlowRun[]): FlowRun[] => (runs.some((run) => run.chatId === chatId) ? runs.map((run) => (run.chatId === chatId ? { ...run, activity } : run)) : runs);
+  client.setQueriesData<Team>({ queryKey: ['team'] }, (team) =>
+    team?.members.some((member) => member.running.some((run) => run.chatId === chatId))
+      ? { ...team, members: team.members.map((member) => ({ ...member, running: patchRuns(member.running) })) }
+      : team,
+  );
+  client.setQueriesData<ProjectFlow>({ queryKey: ['flow'] }, (flow) =>
+    flow?.running.some((run) => run.chatId === chatId) ? { ...flow, running: patchRuns(flow.running) } : flow,
   );
   if (!event.orchestrationId || !event.taskId) return;
   const patchGraph = (orch: Orchestration): Orchestration =>
