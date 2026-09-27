@@ -10,7 +10,7 @@ import type { ReviewMode } from '../../lib/review-state';
 import { Checkbox, MoreActions, type MenuEntry } from '../controls';
 import { ICON_SM } from '../icons';
 import { ErrorBox, Segmented, Skeleton, Tag } from '../ui';
-import { BlockRail, useRailView } from './BlockRail';
+import { ScrollingBlockRail } from './BlockRail';
 import { DiffView } from './DiffView';
 import { Counts } from './FileMap';
 import { hourMinute, reviewKey, scopeQuery, splitPath, type ReviewScope } from './review-model';
@@ -170,7 +170,6 @@ export function FileReview({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const view = useRailView(scrollRef, contentRef);
 
   const { dir, name } = splitPath(file.path);
   const latest = steps && steps.length > 0 ? steps[steps.length - 1]! : null;
@@ -292,7 +291,7 @@ export function FileReview({
           </div>
         </div>
         {!phone && marks.length > 0 && (
-          <BlockRail marks={marks} total={Math.max(shown.newLength, 1)} current={current} view={view} onJump={(b) => setCurrent(b)} />
+          <ScrollingBlockRail scroller={scrollRef} content={contentRef} marks={marks} total={Math.max(shown.newLength, 1)} current={current} onJump={(b) => setCurrent(b)} />
         )}
       </div>
     );

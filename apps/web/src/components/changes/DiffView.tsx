@@ -1,7 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronsUpDown } from 'lucide-react';
 import type { TFunction } from 'i18next';
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import {
   readingRows,
@@ -143,7 +143,7 @@ export function DiffView({
         </div>
       )}
       {virtual ? (
-        <VirtualRows rows={rows} draw={draw} host={host} scrollRef={scrollRef} wrap={wrap} currentIndex={currentIndex} />
+        <VirtualRows rows={rows} draw={draw} scrollRef={scrollRef} wrap={wrap} currentIndex={currentIndex} />
       ) : (
         rows.map((row) => <Fragment key={row.key}>{draw(row)}</Fragment>)
       )}
@@ -155,33 +155,39 @@ export function DiffView({
 function VirtualRows({
   rows,
   draw,
-  host,
   scrollRef,
   wrap,
   currentIndex,
 }: {
   rows: (DiffRow | SplitRow)[];
   draw: (row: DiffRow | SplitRow) => ReactNode;
-  host: RefObject<HTMLDivElement | null>;
   scrollRef?: RefObject<HTMLElement | null>;
   wrap: boolean;
   currentIndex: number;
 }) {
+  // Its own box, not the diff's: a parent's ref is attached only after its children's layout
+  // effects have run, so on the first mount the diff's element is not there to measure yet
+  const box = useRef<HTMLDivElement>(null);
   const [scroller, setScroller] = useState<HTMLElement | null>(null);
-  // The diff rarely starts at the top of its scroller: a header and a why line sit above it
+  // The rows rarely start at the top of their scroller: a header and a why line sit above them
   const [margin, setMargin] = useState(0);
   useLayoutEffect(() => {
-    const el = host.current;
+    const el = box.current;
     if (!el) return;
     const found = scrollRef?.current ?? el.closest<HTMLElement>('[data-scroll-root], .main');
     setScroller(found);
     if (found) setMargin(el.getBoundingClientRect().top - found.getBoundingClientRect().top + found.scrollTop);
-  }, [host, scrollRef]);
+  }, [scrollRef]);
+  // Stable callbacks: the virtualizer measures every row again whenever one of them changes, which
+  // on a 20 000-line diff is the whole frame budget of every scroll
+  const estimateSize = useCallback((i: number) => rowHeight(rows[i], wrap), [rows, wrap]);
+  const getItemKey = useCallback((i: number) => rows[i]?.key ?? i, [rows]);
+  const getScrollElement = useCallback(() => scroller, [scroller]);
   const virtualizer = useVirtualizer({
     count: rows.length,
-    getScrollElement: () => scroller,
-    estimateSize: (i) => rowHeight(rows[i], wrap),
-    getItemKey: (i) => rows[i]?.key ?? i,
+    getScrollElement,
+    estimateSize,
+    getItemKey,
     overscan: 20,
     scrollMargin: margin,
   });
@@ -189,7 +195,7 @@ function VirtualRows({
     if (currentIndex >= 0) virtualizer.scrollToIndex(currentIndex, { align: 'center' });
   }, [currentIndex, virtualizer]);
   return (
-    <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+    <div ref={box} style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
       {virtualizer.getVirtualItems().map((item) => (
         <div
           key={item.key}
