@@ -249,6 +249,9 @@
 .part-of:hover { background: var(--bg-3); }
 .part-of a { color: var(--fg); font-weight: 600; }
 .part-of a::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+/* On a phone the row is the link itself, so the whole 52 px row is the target */
+a.part-of { color: inherit; text-decoration: none; }
+.m-screen a.part-of { min-height: 52px; align-items: flex-start; }
 .part-of .segbar { flex: 0 1 160px; min-width: 64px; }
 
 /* ---------- 10. Datos ---------- */
@@ -350,6 +353,9 @@
 .sheet .grab { width: 38px; height: 5px; border-radius: 5px; background: var(--line-3); margin: 0 auto 12px; }
 .cell { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 14px; border-bottom: 1px solid var(--line); }
 .cell:last-child { border-bottom: 0; }
+/* A cell whose content stacks in lines (a relation, a changed file, a flow row, a journal entry):
+   nothing in it is cut, and the cell grows with it */
+.cell.stacked { flex-direction: column; align-items: stretch; gap: 4px; padding-top: 10px; padding-bottom: 10px; }
 /* Phone targets: whatever a finger presses is at least --touch high. min-height wins over an inline
    height, so a screen that still sets 32 or 36 px gets the full target anyway. */
 .m-screen .seg > *, .m-screen .chip, .m-screen .btn, .m-screen .part-of { min-height: var(--touch); }
@@ -560,14 +566,25 @@
 .wi-col.over { border-color: color-mix(in srgb, var(--warn) 38%, transparent); }
 .wi-col.over .wi-col-count, .wi-col.over .wi-col-count b { color: var(--warn); }
 .wi-col-body { display: flex; flex-direction: column; gap: 8px; }
+/* The board fills the page and a long column scrolls on its own, as the app's board does, so no card
+   sits under the status bar or the selection bar. A page in selection mode keeps room for the bar. */
+.page > .wi-board { flex: 1 1 auto; grid-template-rows: minmax(0, 1fr); }
+.page > .wi-board > .wi-col { max-height: 100%; }
+.wi-col-head, .wi-col-limit { flex-shrink: 0; }
+.page > .wi-board .wi-col-body { min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.page.selecting { padding-bottom: 84px; }
+/* The project a card belongs to, on Tasks with All projects selected */
+.wi-proj { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: var(--fg-2); white-space: nowrap; }
+.wi-proj .ico { width: 13px; height: 13px; color: var(--fg-3); }
 .wi-col-slot { display: grid; place-items: center; height: 44px; border-radius: var(--r-lg); border: 1px dashed var(--line-2); color: var(--fg-3); font-size: 12px; }
 
 /* Work item card. */
 .wi-card { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 11px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-2); box-shadow: var(--shadow); cursor: grab; transition: border-color var(--dur-fast), transform var(--dur) var(--ease-out); }
 .wi-card:hover { border-color: var(--line-3); }
 .wi-card-top { display: flex; align-items: center; gap: 7px; min-height: 16px; }
-.wi-card-title { margin: 0; font-size: 13px; font-weight: 500; line-height: 1.38; letter-spacing: -0.005em; color: var(--fg); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.wi-card-meta { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.wi-card-title { margin: 0; font-size: 13px; font-weight: 500; line-height: 1.38; letter-spacing: -0.005em; color: var(--fg); }
+/* The meta row wraps instead of cutting the epic or a label */
+.wi-card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; row-gap: 5px; min-width: 0; }
 .wi-card-meta > .wi-label { flex-shrink: 0; }
 .wi-card-foot { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .wi-card-foot .ico { width: 12px; height: 12px; }
@@ -580,6 +597,10 @@
    row of an orchestration task card. */
 .wi-card-live { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 6px 8px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg); font-size: 12px; }
 .wi-card-live .segbar { flex: 1 1 auto; height: 4px; min-width: 32px; }
+/* A live line with a command takes two lines: the verb and the time, then the command, so the command
+   is not cut on a 220 px card */
+.wi-card-live.two { flex-wrap: wrap; row-gap: 3px; }
+.wi-card-live.two .detail { flex-basis: 100%; padding-left: 18px; }
 /* An epic's card counts its children instead of carrying an epic label. */
 .wi-card-epic { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
 .wi-card-epic .ms-bar { flex: 1 1 auto; height: 4px; }
@@ -604,6 +625,12 @@
 .wi-mrow { position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 64px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
 .wi-mrow:last-child { border-bottom: 0; }
 .wi-mrow.rail-live { padding-left: 16px; }
+.m-screen .wi-row-title { white-space: normal; line-height: 1.35; }
+/* Selection on a phone: the whole row is a pressed button, never a checkbox. Chosen rows take the
+   selected-row look (.sel) and say "Elegida" in words. */
+button.wi-mrow { width: 100%; border-width: 0 0 1px; border-style: solid; border-color: var(--line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+button.wi-mrow:last-child { border-bottom-width: 0; }
+button.wi-mrow.sel { background: var(--sel-bg); }
 
 /* Milestone: a name in mono and a bar of its work items (done in ok, the ones in flight in a neutral
    tone, the rest as track). No dates, ever. */
@@ -644,6 +671,7 @@
 .diff-file { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 12px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12px; }
 .diff-file:last-child { border-bottom: 0; }
 .diff-file .path { flex: 1 1 auto; min-width: 0; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.diff-file .path.wrap { white-space: normal; padding: 6px 0; }
 .diff-file .n { color: var(--fg-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* Diffstat without status colours: added lines in --fg-2, removed ones in --line-3. */
 .diffstat { display: inline-flex; gap: 1.5px; }
@@ -717,7 +745,7 @@
 .member-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .member-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
 .member-file { font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.member-desc { margin: 0; font-size: 13px; line-height: 1.5; color: var(--fg-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.member-desc { margin: 0; font-size: 13px; line-height: 1.5; color: var(--fg-2); }
 .member-facts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--fg-3); }
 /* What the member is doing now: the live line (shape of .wi-card-live) or, at rest, its last work. */
 .member-now { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 32px; padding: 6px 10px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg); font-size: 12px; color: var(--fg-3); }
@@ -899,6 +927,9 @@
 .sug-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-bottom: 1px solid var(--line); }
 .sug-card:last-child { border-bottom: 0; }
 .sug-card .sug-acts > .btn { flex: 1 1 0; }
+/* A phone reads a proposal at the scale's h2 and its reason at body size */
+.m-screen .sug-title { font-size: 15px; }
+.m-screen .sug-reason { font-size: 14px; }
 
 /* The resource editor as the app draws it (CodeEditor over CodeMirror): gutter and text in mono,
    syntax kept neutral so no status colour means "key" or "string". One grid row per line, so a line

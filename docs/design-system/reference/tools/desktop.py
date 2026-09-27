@@ -118,7 +118,7 @@ def team_board_desktop():
 {board_toolbar()}
 <div class="wi-board">{board}</div>
 </main>'''
-  write('DesktopTableroEquipo.html', desktop('Tablero con equipo', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, live=TEAM_LIVE, agents=3, running=3, css=CARD_CSS))
+  write('DesktopTableroEquipo.html', desktop('Tablero con equipo', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, live=TEAM_LIVE, agents=3, running=3))
 
 
 # ---------------------------------------------------------------- Tasks with All projects selected
@@ -129,10 +129,6 @@ GDM = {
   'GDM-6': dict(t='task', title='Tests de la exportación a PDF', s='done', p='medium', crit=(2, 2)),
 }
 PROJ = {'AGN': ('claude-wrapper', 'CW', 20), 'GDM': ('google-docs-mcp', 'GD', 200)}
-# Not in agentry-ds.css yet (for proto-fix-review): the project a card belongs to, named in full at the
-# head of its meta row when the board shows every project
-PROJ_CSS = ('.wi-proj{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;color:var(--fg-2);white-space:nowrap}'
-            '.wi-proj .ico{width:13px;height:13px;color:var(--fg-3)}')
 
 
 def with_proj(html, k):
@@ -183,7 +179,7 @@ def _all_projects_desktop():
 <div class="row t-xs fg-3" style="gap: 6px; margin-top: -4px">{ico('info', 'ico ico-sm')}<span>Cada tarjeta dice su proyecto. Sin límites por columna: cada proyecto pone los suyos, y se ven al elegirlo. pagos-api aún no tiene tareas.</span></div>
 <div class="wi-board">{cols}</div>
 </main>'''
-  write('DesktopTareasTodos.html', desktop('Tareas de todos los proyectos', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, project='Todos los proyectos', css=CARD_CSS + PROJ_CSS))
+  write('DesktopTareasTodos.html', desktop('Tareas de todos los proyectos', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, project='Todos los proyectos'))
 
 
 # ---------------------------------------------------------------- Suggest tasks while it runs
@@ -231,7 +227,7 @@ def suggest_running_desktop():
 </div>
 </div>'''
   write('DesktopSugerirTareasEnCurso.html', desktop('Sugerir tareas, en curso', 'tasks', '<span style="font-weight: 500">Tareas</span>', main,
-        overlay=f'<div style="position: absolute; inset: 0; z-index: 30">{dialog}</div>', live=SUGG_LIVE, agents=3, running=3, css=CARD_CSS))
+        overlay=f'<div style="position: absolute; inset: 0; z-index: 30">{dialog}</div>', live=SUGG_LIVE, agents=3, running=3))
 
 
 # ---------------------------------------------------------------- The assistant on an empty project

@@ -262,7 +262,7 @@ def assistant_done_desktop():
 def mhead_proj(title, back, right=''):
   return f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px; min-height: 60px">
 <a href="{back}" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
-<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 2px"><h1 class="t-h1" style="font-size: 24px">{title}</h1><span class="mono t-xs fg-3 ellipsis">pagos-api · PAG</span></span>
+<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 2px"><h1 class="t-h1">{title}</h1><span class="mono t-xs fg-3 ellipsis">pagos-api · PAG</span></span>
 {right}
 </header>'''
 
@@ -298,7 +298,7 @@ def msug_task(x):
     acts = f'<div class="row" style="gap: 8px"><span class="t-xs fg-3 grow">Descartada</span><button type="button" class="btn btn-ghost btn-lg" style="height: 44px">{ico("undo", "ico ico-sm")}Deshacer</button></div>'
   else:
     acts = f'<div class="sug-acts">{accept_btns(False)}</div>'
-  reason = f'<p class="sug-reason" style="font-size: 14px">{x["why"]}</p>' if x.get('why') and st != 'discarded' else ''
+  reason = f'<p class="sug-reason">{x["why"]}</p>' if x.get('why') and st != 'discarded' else ''
   meta = task_meta(x) if st != 'discarded' else ''
   title_style = 'font-size: 15px' + ('; color: var(--fg-3); text-decoration: line-through; text-decoration-color: var(--line-3)' if st == 'discarded' else '')
   return f'<div class="sug-card"><span class="sug-title" style="{title_style}">{x["title"]}</span>{meta}{reason}{acts}</div>'
@@ -371,13 +371,13 @@ def suggest_desktop():
 <div class="dialog-foot"><span class="t-sm" style="white-space: nowrap"><b class="t-num">3</b> <span class="fg-2">de 6 seleccionadas</span></span><span class="grow"></span><button type="button" class="btn btn-ghost">Cancelar</button><button type="button" class="btn btn-primary">{ico('plus')}Crear las seleccionadas</button></div>
 </div>
 </div>'''
-  write('DesktopSugerirTareas.html', desktop('Sugerir tareas', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, overlay=f'<div style="position: absolute; inset: 0; z-index: 30">{dialog}</div>', css=CARD_CSS))
+  write('DesktopSugerirTareas.html', desktop('Sugerir tareas', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, overlay=f'<div style="position: absolute; inset: 0; z-index: 30">{dialog}</div>'))
 
 
 def msugg_card(x):
   pressed = 'true' if x['on'] else 'false'
   btn = f'<button type="button" class="btn btn-lg sug-pick" aria-pressed="{pressed}" style="height: 44px">{ico("check", "ico") if x["on"] else ico("plus", "ico")}{"Incluida" if x["on"] else "Incluir"}</button>'
-  return f'<div class="sug-card"><span class="sug-title" style="font-size: 15px">{x["title"]}</span>{task_meta(x)}<p class="sug-reason" style="font-size: 14px">{x["why"]}</p><div class="sug-acts">{btn}</div></div>'
+  return f'<div class="sug-card"><span class="sug-title">{x["title"]}</span>{task_meta(x)}<p class="sug-reason">{x["why"]}</p><div class="sug-acts">{btn}</div></div>'
 
 
 def suggest_mobile():
@@ -597,7 +597,7 @@ def resources_mobile():
     return f'<a href="#" class="cell">{ico(KIND[k][0], "ico fg-3")}<span class="col grow" style="gap: 1px; min-width: 0"><span class="mono" style="font-weight: 500; font-size: 14px">{n}</span><span class="t-xs fg-3">{d}</span></span>{ico("right", "ico fg-3")}</a>'
   inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px; min-height: 60px">
 <a href="MobileProyecto.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
-<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 2px"><h1 class="t-h1" style="font-size: 24px">Recursos</h1><span class="mono t-xs fg-3 ellipsis">claude-wrapper · .claude/</span></span>
+<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 2px"><h1 class="t-h1">Recursos</h1><span class="mono t-xs fg-3 ellipsis">claude-wrapper · .claude/</span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Nuevo recurso">{ico('plus', 'ico ico-lg')}</button>
 </header>
 <div class="m-body stack" style="gap: 12px">
@@ -617,7 +617,7 @@ def resources_mobile():
 def proposal_mobile():
   inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px; min-height: 60px">
 <a href="MobileRecursos.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
-<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 2px"><h1 class="t-h1 mono" style="font-size: 24px">migration-reviewer</h1><span class="t-xs fg-3">Agente · propuesta del asistente</span></span>
+<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 2px"><h1 class="t-h1 mono">migration-reviewer</h1><span class="t-xs fg-3">Agente · propuesta del asistente</span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">{ico('more', 'ico ico-lg', 'stroke-width: 3')}</button>
 </header>
 <div class="m-body stack" style="gap: 12px">
