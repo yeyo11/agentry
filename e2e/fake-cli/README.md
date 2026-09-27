@@ -62,6 +62,12 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
   `tool_name`, `elapsed_time_seconds`), and ends with a `user` event holding the `tool_result`:
   the output (or `Exit code N` / the signal), `is_error` when it did not exit 0.
 - `say: <text>` — one assistant text block, in its place among the calls.
+- `read: <path>` — one `Read` call (`input: { file_path }`, the path resolved against the working
+  directory), held open for `AGENTRY_FAKE_CLI_READ_MS` (default 400) and answered with the file's
+  first 4000 characters, or `(file not found)`. It is what makes a page say "Reading <path>".
+- `json: <JSON on one line>` — the turn's `structured_output`, what `--json-schema` makes the CLI
+  return beside its text: an assistant run's answer. A turn with a `json:` line and no `say:` ends
+  with an empty `result` text.
 - `elapsed: <seconds>` — sets the heartbeat offset for this process from now on: a command then
   reports it has run that long, which is how a spec makes `hung-command` fire at once.
 - A turn with `run:` lines and no `say:` line starts with the text `Running N commands.` and ends
