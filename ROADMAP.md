@@ -158,19 +158,34 @@
   selection becomes a draft orchestration with its dependencies, a chat's message becomes a task,
   and the item follows that work, forward only and never over a person's move. The screens are
   static prototypes in `docs/design-system/reference/` (66 of them, with the states an audit found
-  missing), waiting for the owner's validation; the fixes of that audit are in, in orchestration 1b.
+  missing), which the owner validated on 2026-09-27; the fixes of that audit are in, in
+  orchestration 1b.
   See
   [docs/projects.md](docs/projects.md), [docs/work-items.md](docs/work-items.md) and
   [docs/plans/project-ecosystem.md](docs/plans/project-ecosystem.md).
+- **The board's web: projects, Tasks and work items on screen** — orchestration 2 of the project
+  ecosystem built the screens from the prototypes the owner validated. It has:
+  - the project wizard, with a template and module switches;
+  - the project page as tabs that follow its modules, and its settings (key prefix, modules, column
+    limits);
+  - the Tasks board, dragged by pointer or keyboard, with limits that warn and never block, and live
+    cards;
+  - the list, All projects and milestones;
+  - a work item as a page and as a panel beside the board, with "Work on it" and "Move to Done";
+  - New task;
+  - on a phone, a board as one list with a jump between columns;
+  - tasks created from a chat's message, a chat naming the task it works on, and a board selection
+    opened as a draft graph whose nodes carry their keys.
+
+  Both themes and both sizes, checked against the references. See [docs/work-items.md](docs/work-items.md#the-screens)
+  and [docs/projects.md](docs/projects.md#the-screens).
 
 ## Next
 
 ### Planned
 
-- **The project ecosystem, orchestrations 2 to 4** ([docs/plans/project-ecosystem.md](docs/plans/project-ecosystem.md)).
-  2, `ecosystem-board-web`: the project wizard and settings, the project's tabs, the board, the
-  list, a work item's page, and the entry points in chats and orchestrations, built from the
-  prototypes once they are validated. 3, `ecosystem-team`: a team of agents with roles as CLI agent
+- **The project ecosystem, orchestrations 3 and 4** ([docs/plans/project-ecosystem.md](docs/plans/project-ecosystem.md)).
+  3, `ecosystem-team`: a team of agents with roles as CLI agent
   files, the flow by column with QA sending items back, the project journal and memory proposals,
   and documents. 4, `ecosystem-assistant`: the project assistant, suggested work items, and
   resources with AI, all through CLI chats with `--json-schema`.

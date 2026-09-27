@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-09-27T12:00:00Z
+updated_at: 2026-09-27T18:00:00Z
 tags:
     - work-items
     - board
@@ -22,16 +22,18 @@ Built by orchestration 1 of the [project ecosystem](plans/project-ecosystem.md) 
 after [its audit](plans/project-ecosystem-audit.md): the contract in `packages/shared`, the store in
 `packages/core/src/work-items.ts` (with its rows in `work-item-rows.ts` and its checks in
 `work-item-validation.ts`), the links and automation in
-`packages/core/src/work-links.ts`, and the routes in `apps/api/src/routes/work-items.ts`. There is
-no screen yet: the board, the list, the item's page and the entry points in a chat are prototyped in
-`docs/design-system/reference/` and orchestration 2 builds them once the owner validates them.
+`packages/core/src/work-links.ts`, and the routes in `apps/api/src/routes/work-items.ts`.
+Orchestration 2 (`ecosystem-board-web`) built the screens from the prototypes the owner validated on
+2026-09-27: the board, the list, All projects, milestones, the item's page and panel, New task, and
+the entry points in chats and orchestrations. See [The screens](#the-screens).
 
 A board belongs to a project whose **Board** module is on; see [projects.md](projects.md).
 
 ## Why `WorkItem`
 
 "Task" already means an orchestration task and a background command (`GET /tasks`), so the model is
-`WorkItem` everywhere in code and the API. The interface will say "Task" / "Tarea".
+`WorkItem` everywhere in code and the API. The interface says "Task" / "Tarea", and its routes are
+`/tasks`.
 
 ## The model
 
@@ -272,6 +274,170 @@ criteria emits `workitem.updated` naming `criterion` and returns the new `update
 history entry: the history records what the checklist says, not its order. The audit log records the writes
 as it does every route's, named by their OpenAPI summary.
 
+## The screens
+
+Orchestration 2 built these from the validated prototypes (`DesktopTablero`, `DesktopTableroVacio`,
+`DesktopTareasLista`, `DesktopTareasTodos`, `DesktopHitos`, `DesktopTarea`, `DesktopNuevaTarea`,
+`DesktopChatTarea` and their `Mobile*` screens), for desktop and phone, in dark and light. They read
+everything through the API with TanStack Query. The event feed (`lib/events.ts`) refreshes
+exactly what `workitem.*`, `milestone.changed` and `project.updated` touch, so an item an agent moves
+shows up on an open board without a reload. Run events refresh the boards too: a failed turn
+changes no item, but it does end a live card.
+
+`apps/web/src/lib/work-items.ts` is the model every screen reads from:
+
+- the columns in order, with their glyph and label;
+- the types and priorities, with their marks;
+- the filters, read from and written to the address;
+- grouping by column, and the open count;
+- what makes an item live: its chat or node `working` (the rail and the spinner), or `waiting` for
+  the person.
+
+![The Tasks board of harbor-api in the dark theme: five columns, In progress over its limit of 3 with the words "Over the limit: 4 of 3", a live card with its ring spinner, live rail and the command its chat is running, an epic counting its tasks, a card blocked by another, and "and 2 more" in Done](media/board.png)
+
+### Where Tasks is
+
+- **Sidebar.** Tareas sits between Chats and Orquestaciones, with the open count of the selected
+  project. With All projects selected it shows the total, as the validated prototypes draw it (the
+  plan had said no count).
+- **Phone.** Tareas is first in the More sheet, with "N open", and a New task FAB appears on Tasks.
+- **Command palette.** It has "New task" and "Go to tasks".
+
+The routes:
+
+- `/tasks`: the board, or `?view=list`;
+- `/tasks/milestones`;
+- `/tasks/:key`: one item;
+- `?new=1` on any of them opens New task.
+
+The API has no route by key, so `/tasks/:key` finds the item with a `q=<key>` search and keeps only
+the exact match.
+
+### The board
+
+- **Columns.** There are five, each with its glyph, mono label, count and optional limit. A column
+  over its limit gets the warn hairline and the words "Over the limit: 4 of 3". It never refuses a
+  card. Done shows its first three cards and then "and N more".
+- **Cards** show:
+  - the key and the type;
+  - the priority mark (only `urgent` has a colour);
+  - the title;
+  - the epic and the labels;
+  - the assignee;
+  - the checklist's progress;
+  - what blocks the item.
+
+  An epic card counts its items instead. A card whose chat or node is working gets the live rail,
+  the ring spinner, and a line saying what the agent is doing (from the shell's own queries).
+- **Moving a card.** On a desktop, drag it with the pointer, between columns or within one. From the
+  keyboard: Space picks the card up, the arrows carry it, Space drops it and Escape cancels, and each
+  step is announced. Every move names the card it lands after (`afterId`), so the order survives a
+  reload. The move is drawn at once in every cached board and list. If the API refuses it, the card
+  goes back and a toast says so.
+- **Toolbar.**
+  - Search: `/` focuses it.
+  - Filters: type, priority, label, assignee, epic and milestone, plus project on All projects. They
+    are kept in the address.
+  - The Board / List / Milestones switch.
+  - Select.
+  - New task: the zone's one primary action. `N` opens it, and so does a column's `+`.
+- **Selection and "Orquestar".** An epic, a done item and another project's item cannot be picked,
+  and each says why. The selection bar says which picked item blocks which. Orchestrate asks the API
+  for the draft and hands it to the orchestration editor
+  (`navigate('/orchestration', { state: { workItemDraft } })`).
+- **A card opens its item.** On a desktop it opens in a 760 px panel beside the board (`?item=KEY`).
+  On a phone it opens the item's page.
+- **Empty board.** It shows `Empty` with the `board` illustration and "Create the first task". The
+  FAB hides while that button is on screen, so the screen has only one gradient.
+
+### List, All projects and milestones
+
+- **List** (`?view=list`): the items grouped by column in board order. `J` and `K` move between rows.
+- **All projects**: with All projects selected, every card names its project and no column shows a
+  limit, as `GET /work-items/board` answers.
+- **Milestones** (`/tasks/milestones`):
+  - the open milestones as cards with their progress; the first one gets the screen's `grad-border`;
+  - the closed ones as rows, with Reopen;
+  - the open items that have no milestone.
+
+  There are no dates anywhere. The page title stays Tasks, and the view switch shows which view is
+  on.
+
+### On a phone
+
+There is no horizontal board. The columns become sections of one list, and a segmented control
+jumps between them, showing the current column's name and every column's count (the warn colour for
+one over its limit). Other differences from the desktop:
+
+- the filters open in a sheet;
+- each row has a move sheet;
+- selection turns rows into pressed toggles, with a bottom bar;
+- the page holds the project chip, so the top bar leaves out its own selector on `/tasks`
+  (`pageHoldsScope`);
+- Milestones has no FAB, because its header already has New milestone.
+
+<p align="center"><img src="media/board-mobile.png" alt="The same board on a phone: the column jump on In progress, the section marked over the limit, and the live card first, with the command its chat is running" width="320"></p>
+
+### A work item
+
+The same view (`apps/web/src/pages/tasks/item/`) is the page at `/tasks/:key` and the panel beside
+the board. It shows:
+
+- **The header**: the key, the type, the column and the title.
+- **The description**, in Markdown. It is edited in the app's `CodeEditor` and read through the
+  Markdown renderer, so the app still has one editor.
+- **Properties**, each edited in place from a menu on a desktop or a sheet on a phone: column,
+  priority, type, assignee, epic, milestone and labels.
+- **The acceptance checklist.** The whole row is the checkbox's label, so the row is the control on
+  a phone too. Each checked row says who checked it and when, read from the history.
+- **Relations** (*blocks*, *blocked by*), with add and remove.
+- **Links**: the chats and orchestration nodes that worked on the item, with the chat list's own
+  state badges and what each did to the item.
+- **Changes**: the item's worktree, through the chat inspector's `SummaryView`.
+- **Activity**: the history told in sentences and interleaved with the comments. An automatic move
+  names its cause.
+
+On a phone, Detalle, Actividad and Cambios are tabs. The page keeps its own bottom bar (the actions,
+or the comment box on Actividad), so `/tasks/:key` hides the tab bar, as a chat does.
+
+**"Trabajar en ella"** is the item's primary action. It opens the start options New chat offers (same
+fields, same copy), calls `POST /work-items/:itemId/work` and opens the chat.
+
+- On an epic or an item in Done, the item says why the action is not offered.
+- While a chat is already working on the item, the action is "Open its chat" instead of a second
+  chat.
+
+**Mover a Hecho** is a plain secondary button: it is the person's approval.
+
+![A work item in the panel beside the board: its key, column and title, the acceptance checklist with the first criterion checked by you, its relations and its properties, with Move to Done and Open its chat, since a chat is working on it](media/work-item.png)
+
+### New task
+
+On a desktop New task is a dialog. On a phone it is a full screen. It has these fields:
+
+- type, title and description;
+- column and priority;
+- assignee;
+- epic and milestone;
+- labels;
+- relations;
+- acceptance criteria.
+
+Relations are added once the item exists, since the API relates two existing items.
+
+### From a chat and an orchestration
+
+- **A message's menu** (a sheet on a phone) has "Copy" and "Create a task from this message". The new
+  task goes to Backlog, linked to the chat, and a toast offers to open it. When the chat is in no
+  project, or its project's Board is off, the menu item says why.
+- **The chat's header** names the item the chat works on, the way `PartOf` names an orchestration,
+  and the whole row is the link. A chat that an item was created from says so. The inspector's
+  Summary shows the item's card.
+- **The orchestration editor** opens the draft the board hands over in the router state. Each node
+  shows its item's key, and blockers left outside the selection appear as a warning before launch.
+  The nodes keep their `workItemId`, so launching links them.
+- **An orchestration's page** names each node's item by its key, linked to the item.
+
 ## Routes
 
 The README's [Work items](../README.md#work-items) table lists every route, with the filters (`status`,
@@ -280,10 +446,11 @@ key). The OpenAPI descriptions in `apps/api/src/openapi/routes.ts` carry the det
 
 ## Not built yet
 
-- Every screen: orchestration 2, once the prototypes are validated.
 - Assigning to a team role does nothing yet; the roles, the flow by column (a role that acts when a
   card enters its column, QA sending an item back) and the approval of `done` are orchestration 3.
-- Suggested work items are orchestration 4.
+- On the board, the parts of `DesktopTableroEquipo` that need a team (role avatars, a column's
+  responsible role) wait for orchestration 3, and so do the project's Team and Documents tabs.
+- Suggested work items are orchestration 4, and the web has no "Suggest tasks" button until then.
 
 ## Known gaps
 
@@ -298,6 +465,18 @@ Left open by the fixes of 1b, each for its owner to decide:
   writing them.
 - A generic error thrown while "Work on it" creates its chat reaches the client as a 400, not a
   500: that is the API's shared error handler.
+
+Left open by the web of orchestration 2 (its `web-review` report):
+
+- **A link in the history names the chat by its name**, not its first prompt ("Linked with
+  task-agn-12-…"). Core stores the chat's name when the link is made (`linkLabel` in
+  `packages/core/src/work-items.ts`). The glossary says a chat is named by its first prompt, so this
+  needs a change in core.
+- **The empty board's illustration always draws "AGN-1"**, not the project's own key.
+- **Phone headers**: Tasks and the other phone screens keep the app's top bar, not the prototypes'
+  back arrow. That is how the shell works on every screen.
+- **No route by key.** `/tasks/:key` resolves through a search. A `GET` by key would save a request
+  and the exact-match filter.
 
 ## Related
 
