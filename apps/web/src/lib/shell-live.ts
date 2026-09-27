@@ -159,6 +159,8 @@ export function hidesTabBar(pathname: string): boolean {
   if (/^\/chats\/[^/]+\/?$/.test(pathname)) return true;
   // The new project wizard walks its steps with a bar of its own at the bottom, as a new chat does
   if (/^\/projects\/new\/?$/.test(pathname)) return true;
+  // A work item's page on a phone ends in its own bar ("Work on it", or the comment box)
+  if (/^\/tasks\/[^/]+\/?$/.test(pathname) && !/^\/tasks\/milestones\/?$/.test(pathname)) return true;
   return /^\/orchestration\/[^/]+\/?$/.test(pathname);
 }
 

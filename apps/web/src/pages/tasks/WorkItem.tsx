@@ -1,12 +1,17 @@
 import { useParams } from 'react-router-dom';
-import { PageHeader } from '../../components/ui';
+import { useWorkItemByKey } from '../../api';
+import { usePageTitle } from '../../components/ui';
 import { normalizeKey } from '../../lib/work-items';
+import { ItemByKey } from './item/Panel';
 
 /**
- * `/tasks/:key`: one work item, by its key (`useWorkItemByKey` resolves it). A stub until web-item
- * replaces this file whole.
+ * `/tasks/:key`: one work item, by its key. The top bar reads "Tasks / AGN-12"; the page is the
+ * item's content and, on a desktop, its properties in a column of their own beside it.
  */
 export function WorkItemPage() {
   const { key = '' } = useParams();
-  return <PageHeader title={normalizeKey(key) ?? key} />;
+  const item = useWorkItemByKey(key);
+  const shown = normalizeKey(key) ?? key;
+  usePageTitle(item.data ? `${item.data.key} · ${item.data.title}` : shown);
+  return <ItemByKey itemKey={key} variant="page" />;
 }
