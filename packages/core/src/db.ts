@@ -445,9 +445,11 @@ export class Db {
   constructor(config: CoreConfig) {
     this.db = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
     // WAL lets readers run while a writer holds the lock; busy_timeout absorbs the contention
-    // between processes instead of throwing SQLITE_BUSY at whoever lost the race.
-    this.db.exec('PRAGMA journal_mode = WAL');
+    // between processes instead of throwing SQLITE_BUSY at whoever lost the race. It goes first:
+    // switching the journal mode takes a lock too, and a process opening the file while another
+    // writes would otherwise fail on the spot with "database is locked".
     this.db.exec('PRAGMA busy_timeout = 5000');
+    this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec('PRAGMA foreign_keys = ON');
     migrate(this.db);
     this.pruneRotationEvents();
