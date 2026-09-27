@@ -31,6 +31,7 @@ import { toolPresetRoutes } from './routes/tool-presets.ts';
 import { uploadRoutes } from './routes/uploads.ts';
 import { workItemRoutes } from './routes/work-items.ts';
 import { documentRoutes } from './routes/documents.ts';
+import { assistantRoutes } from './routes/assistant.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -140,6 +141,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(teamRoutes, { core });
       await api.register(flowRoutes, { core });
       await api.register(documentRoutes, { core });
+      await api.register(assistantRoutes, { core });
       await api.register(chatRoutes, { core });
       await api.register(eventRoutes, { core });
       await api.register(orchestrationRoutes, { core });
