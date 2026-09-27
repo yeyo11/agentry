@@ -28,6 +28,7 @@ import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { AppSettingsStore } from './app-settings.ts';
 import { stateFromRun } from './chat-model.ts';
+import { TunnelManager } from './tunnel.ts';
 import { ChatService, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatRuntime } from './chats.ts';
 import { Connectors } from './connectors.ts';
@@ -74,6 +75,7 @@ export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
+export { LOCALHOST_RUN_KNOWN_HOSTS, TunnelManager, TunnelRefusedError, parseTunnelUrl, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
 export { ChatConflictError, DEFAULT_ORIGINS, type ChatFilter, type Placement } from './chat-service.ts';
 export { compareVersions } from './version-check.ts';
@@ -165,6 +167,8 @@ export class Core {
    * hosts answered beside the allowlist. What applies now is read here, never from `config`
    */
   readonly appSettings: AppSettingsStore;
+  /** The tunnel through localhost.run: lends its verified host to `appSettings.runtimeHosts` */
+  readonly tunnel: TunnelManager;
   readonly uploads: UploadStore;
   readonly accounts: AccountManager;
   readonly cliVersion: CliVersionWatch;
@@ -205,6 +209,19 @@ export class Core {
         this.events.emit(event);
       },
     });
+    this.tunnel = new TunnelManager({
+      dataDir: config.dataDir,
+      sshBin: config.sshBin,
+      security: this.security,
+      hosts: this.appSettings.runtimeHosts,
+      emit: (event) => this.events.emit(event),
+      // What the tunnel does by itself; what a person asks for is audited by the API's own hook
+      audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'agentry', status: 200, ...row }),
+    });
+    // The tunnel never outlives the guard: it is closed before the first unguarded request
+    this.security.beforeUnguarded = async () => {
+      await this.tunnel.stop('unguarded');
+    };
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
     this.release = new ReleaseWatch(config, { current: AGENTRY_VERSION, events: this.events });
@@ -836,6 +853,8 @@ export class Core {
   }
 
   shutdown(): void {
+    // First, while the database is still open for the row that says its host left
+    this.tunnel.shutdown();
     this.cliVersion.stop();
     this.release.stop();
     this.healthMonitor.stop();

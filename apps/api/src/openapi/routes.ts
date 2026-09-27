@@ -33,6 +33,11 @@ export const TAGS = [
   { name: 'Uploads', description: 'Files to attach to a message. Images and PDFs reach Claude as content blocks, any other file by its path.' },
   { name: 'Security', description: 'Who may call this API, whether it accepts changes, and the trail every change leaves.' },
   {
+    name: 'Remote access',
+    description:
+      "A tunnel through localhost.run over the system's own `ssh`, so a phone or another network can reach this wrapper. Only opens while the API asks for authentication. localhost.run terminates TLS, so it sees every request, and its free address changes.",
+  },
+  {
     name: 'Push',
     description:
       'Web Push over VAPID, signed and sent by this server: a chat that stops for a permission prompt reaches a phone whose app is closed. There is no third-party push account — the payload goes out to whatever endpoint the browser handed us. A subscription belongs to an install, not to a person, so every install that registered gets the same notifications.',
@@ -333,6 +338,12 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /security/token': d('Security', 'Set or rotate the bearer token', { description: 'Returns the token once and keeps only its SHA-256. Omit `token` to have one generated. Send it as `Authorization: Bearer …`; `GET /events`, `GET /chats/{id}/stream` and `GET /uploads/{id}/content` also accept `?token=`, because a browser cannot set a header on those.', body: ref('SetAuthTokenRequest'), ok: ref('AuthTokenResult') }),
   'DELETE /security/token': d('Security', 'Remove the bearer token', { description: 'Refused while the mode is `token`.', ok: ref('AuthConfig') }),
   'GET /audit': d('Security', 'Mutating requests, newest first', { description: 'When, who (token id, OIDC subject, `local`, or `env` for a token reset from the environment), method, path, status and a one-line summary built from the route. Bodies are never recorded: they carry prompts and secrets.', querystring: obj({ limit: str('1-500, default 50'), from: str('Offset within the filtered set'), path: str('Matches anywhere in the path; `%`, `_` and `\\` are taken literally'), method: str('Exact, case-insensitive: `POST`'), status: str('A code (`404`) or a class (`4xx`)') }), ok: ref('AuditPage') }),
+
+  // ---- Remote access
+  'GET /tunnel': d('Remote access', 'The tunnel', { description: 'Its state (`stopped`, `starting`, `verifying`, `active`, `stopping`, `failed`), the public address and since when it works (only while `active`), why it failed (only while `failed`, with a `code` to translate), whether an `ssh` was found, and its settings.', ok: ref('TunnelStatus') }),
+  'PUT /tunnel/settings': d('Remote access', 'Change the tunnel settings', { description: '`startWithAgentry` opens the tunnel whenever Agentry starts; off by default. Emits `tunnel.changed`.', body: ref('UpdateTunnelSettingsRequest'), ok: ref('TunnelStatus') }),
+  'POST /tunnel/start': d('Remote access', 'Start the tunnel', { description: 'Refused with `409` while the auth mode is `none`: the address would hand the machine to whoever has it. Answers at once, in `starting`; the address is only shown once `GET /api/health` answers through it, and only then does its exact host join the allowlist. Without `ssh` the answer is `failed` with `tunnel.sshMissing`. Emits `tunnel.changed` on every move.', ok: ref('TunnelStatus') }),
+  'POST /tunnel/stop': d('Remote access', 'Stop the tunnel', { description: 'Takes its host off the allowlist, then ends the `ssh` process. Turning the auth mode to `none` does this first by itself.', ok: ref('TunnelStatus') }),
 
   // ---- Uploads
   'POST /uploads': d('Uploads', 'Upload a file to attach', { description: 'The request body is the file itself, sent as `application/octet-stream`; `name` is its file name. The type is read from the bytes. Limits: images (PNG, JPEG, GIF, WebP) 5 MB, PDFs 32 MB, anything else 50 MB. Files are kept in the data dir, outside every project, and every run can read them.', querystring: obj({ name: str('File name') }), ok: ref('Attachment'), created: true }),
