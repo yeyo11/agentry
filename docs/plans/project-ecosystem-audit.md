@@ -203,6 +203,35 @@ passed in full: install, typecheck, 1,260 tests, build and all 36 e2e specs.
   "Work on it" refuse when the graph ran in another repository; the Orchestrations badge reads 2 on
   the More sheet and 1 elsewhere; and the prototype items listed above.
 
+## Audit of orchestration 2, the web of the board
+
+Run on 2026-09-27 over `0140e52..4ba3d49` (116 files, all under `apps/web`, `e2e` and `docs`), while
+orchestration 3 ran, without audit agents to spare the accounts' quota.
+
+- **Checks.** Typecheck and 1,314 unit tests pass. The full e2e suite, run alone on its own port
+  (`E2E_PORT=8811`) from a clean environment, passes all 40 spec files. The verification's own e2e
+  had failed three times only because its test server was killed from outside: by the audit's
+  preview cleanup and by another session's e2e on port 8799. Its fixer confirmed every failing spec
+  passes on its own.
+- **Rules.** No native select, checkbox or range; no `any`, `@ts-ignore` or `console.log`; no raw
+  colour outside `tokens.css` (the light `--live` is `#0b6680`, and the hue tokens are there); every
+  commit is a Conventional Commit with no AI attribution; nothing for orchestration 4 (assistant,
+  suggestions) is drawn.
+- **Contract between the tasks.** The four routes exist (`/tasks`, `/tasks/:key`,
+  `/tasks/milestones`, `/projects/new`); the board hands its draft to the orchestration editor in
+  the router state; filters live in the URL; cards move by keyboard as well as by drag.
+- **Screens against their references**, captured from the built app on a seeded project (desktop
+  and phone, dark and light): the board, the work item, the wizard and the project page follow their
+  prototypes closely, in structure, spacing and colour use. The phone board has no horizontal
+  columns and jumps between sections; the item page puts its two actions at the bottom.
+- **Open, for the owner** (none blocks orchestration 3):
+  - An epic counts as an open item and against its column's limit (the prototypes drew it that way:
+    "5 de 3" with the epic inside). Whether an epic should count is a product decision.
+  - The wizard's summary says the template's team is "kept for when the Team module can create its
+    agents"; orchestration 3 must change that line once it creates them.
+  - Already listed by `web-review`: the history names a chat by its session name rather than its
+    first prompt (a change in core), and the empty board's illustration always says "AGN-1".
+
 ## Related
 
 [[plans/project-ecosystem.md]] · [[design-system.md]] · [[work-items.md]] · [[projects.md]] ·
