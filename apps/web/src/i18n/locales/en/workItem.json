@@ -1,5 +1,215 @@
 {
+  "page": {
+    "notFound": "No task has the key {{key}}",
+    "notFoundBody": "It may have been deleted, or its project's key prefix changed. The board lists every task there is."
+  },
+  "props": {
+    "label": "Task properties"
+  },
+  "fields": {
+    "title": "Title",
+    "description": "Description",
+    "status": "Status",
+    "statusIs": "Status: {{status}}",
+    "priority": "Priority",
+    "priorityIs": "Priority: {{priority}}",
+    "type": "Type",
+    "typeIs": "Type: {{type}}",
+    "assignee": "Assignee",
+    "assigneeIs": "Assignee: {{assignee}}",
+    "noAssignee": "No assignee",
+    "epic": "Epic",
+    "epicIs": "Epic: {{epic}}",
+    "noEpic": "No epic",
+    "epicUnderEpic": "It is under an epic, and an epic has none",
+    "children": "Tasks",
+    "childrenCount_one": "{{count}} task",
+    "childrenCount_other": "{{count}} tasks",
+    "milestone": "Milestone",
+    "milestoneIs": "Milestone: {{milestone}}",
+    "noMilestone": "No milestone",
+    "labels": "Labels",
+    "addLabel": "Add a label",
+    "removeLabel": "Remove the label {{label}}",
+    "labelPlaceholder": "label",
+    "created": "Created",
+    "createdBy": "{{when}} · {{who}}"
+  },
+  "actor": {
+    "agent": "Agent",
+    "agentBadge": "agent",
+    "system": "automatic",
+    "person": "the person"
+  },
+  "person": {
+    "you": "you"
+  },
+  "description": {
+    "empty": "No description yet.",
+    "placeholder": "What needs doing and why, in Markdown",
+    "markdown": "Markdown"
+  },
+  "criteria": {
+    "title": "Acceptance criteria",
+    "progress": "{{done}} of {{total}} checked",
+    "add": "Add criterion",
+    "edit": "Edit the criteria",
+    "none": "No acceptance criteria yet.",
+    "nth": "Criterion {{n}}",
+    "removeNth": "Remove criterion {{n}}",
+    "byChat": "chat {{chat}}"
+  },
+  "relations": {
+    "title": "Relations",
+    "add": "Relate",
+    "addTitle": "Relate to another task",
+    "kind": "How they relate",
+    "blocks": "Blocks",
+    "blockedBy": "Blocked by",
+    "search": "Search by key or title",
+    "searching": "Searching…",
+    "noMatch": "No task matches.",
+    "results": "Tasks to relate to",
+    "remove": "Remove the relation with {{key}}",
+    "none": "It blocks nothing, and nothing blocks it."
+  },
+  "links": {
+    "title": "Chats and orchestrations",
+    "none": "No chat or orchestration has worked on it yet."
+  },
+  "link": {
+    "chat": "chat {{id}}",
+    "node": "graph node",
+    "document": "document",
+    "unnamed": "Chat {{id}}",
+    "origin": "created it",
+    "moved": "took it to {{to}}",
+    "noMove": "did not move it",
+    "noCost": "no cost"
+  },
+  "changes": {
+    "title": "Changes in its worktree",
+    "none": "Nothing has worked on it in a worktree yet. \"Work on it\" makes one, on its own branch.",
+    "nothingYet": "Its branch has no changes yet.",
+    "detached": "detached",
+    "from": "from {{base}}",
+    "counts": "{{additions}} lines added, {{deletions}} removed",
+    "viewDiff": "View the diff",
+    "note": "What changed in the task's worktree. Nothing is merged and no pull request opens on its own:"
+  },
+  "activity": {
+    "title": "Activity",
+    "filter": "Show",
+    "all": "All",
+    "comments": "Comments",
+    "history": "History",
+    "none": "Nothing has happened yet.",
+    "noComments": "No comments yet.",
+    "write": "Write a comment",
+    "placeholder": "Write a comment",
+    "send": "Send"
+  },
+  "history": {
+    "created": "Created",
+    "status": "Moved from {{from}} to",
+    "type": "Type changed to",
+    "title": "Renamed to",
+    "description": "Description edited",
+    "priority": "Priority changed to",
+    "labels": "Labels changed to",
+    "labelsCleared": "Labels removed",
+    "unassigned": "Assignee removed",
+    "assignedRole": "Assigned to",
+    "assignedPerson": "Assigned to",
+    "epic": "Added to the epic",
+    "epicRemoved": "Taken out of the epic",
+    "milestone": "Added to the milestone",
+    "milestoneRemoved": "Taken out of the milestone",
+    "criterionAdded": "Criterion added:",
+    "criterionRemoved": "Criterion removed:",
+    "criterionChecked": "Criterion checked:",
+    "criterionUnchecked": "Criterion unchecked:",
+    "criterionEdited": "Criterion edited:",
+    "blocks": "Now blocks",
+    "blockedBy": "Now blocked by",
+    "unblocks": "No longer blocks",
+    "unblockedBy": "No longer blocked by",
+    "relation": "Relations changed",
+    "linked": "Linked to",
+    "unlinked": "Unlinked from",
+    "waitingApproval": "Waiting for your approval to move to Done",
+    "waitingBounces": "Waiting for you: sent back too many times",
+    "waitingEnded": "No longer waiting",
+    "comment": "Comment"
+  },
+  "cause": {
+    "chatStarted": "chat {{chat}} started",
+    "turnCompleted": "the chat's turn ended well",
+    "message": "from a message of chat {{chat}}",
+    "taskStarted": "the graph's node started",
+    "taskCompleted": "the graph's node completed",
+    "other": "a chat or an orchestration did it"
+  },
+  "sections": {
+    "label": "Sections",
+    "detail": "Detail",
+    "activity": "Activity",
+    "changes": "Changes"
+  },
+  "actions": {
+    "workOn": "Work on it",
+    "openChat": "Open its chat",
+    "moveToDone": "Move to Done",
+    "copyLink": "Copy the link",
+    "copied": "Link copied",
+    "more": "More actions",
+    "openPage": "Open as a page",
+    "delete": "Delete the task",
+    "back": "Back to the board",
+    "cancel": "Cancel",
+    "save": "Save",
+    "editTitle": "Rename the task",
+    "editDescription": "Edit the description"
+  },
+  "delete": {
+    "title": "Delete {{key}}?",
+    "body": "Its history, comments and links go with it. Its number is never given to another task."
+  },
+  "workOn": {
+    "title": "Work on {{key}}",
+    "intro": "A chat starts in the task's own worktree, on the branch {{branch}}, prompted with its description and acceptance criteria. The task moves to In progress when it starts, and to In review when its turn ends well.",
+    "start": "Start the chat",
+    "starting": "Starting…",
+    "failed": "Could not start the chat",
+    "blocked": {
+      "epic": "An epic groups work and is not worked on itself: work on one of its tasks.",
+      "done": "The task is in Done, and nothing an agent does takes it out of there. Move it back to work on it again."
+    }
+  },
+  "errors": {
+    "save": "Could not save the change",
+    "move": "Could not move the task",
+    "relate": "Could not add the relation",
+    "comment": "Could not send the comment",
+    "create": "Could not create the task",
+    "delete": "Could not delete the task"
+  },
   "newTask": {
-    "title": "New task"
+    "title": "New task",
+    "into": "{{project}} · {{prefix}}",
+    "project": "Project",
+    "pickProject": "Choose the project",
+    "titlePlaceholder": "What needs doing",
+    "descriptionPlaceholder": "Why and how, in Markdown",
+    "column": "Column",
+    "relations": "Relations",
+    "noRelations": "None",
+    "labelsPlaceholder": "Add…",
+    "another": "Create another",
+    "create": "Create task",
+    "creating": "Creating…",
+    "created": "{{key}} created",
+    "open": "Open",
+    "noBoard": "No project has its Board module on. Switch it on in a project's settings to create tasks."
   }
 }

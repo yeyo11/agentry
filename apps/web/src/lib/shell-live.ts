@@ -157,6 +157,8 @@ export function hidesTabBar(pathname: string): boolean {
   // A new chat is the same page as the chat it becomes — a box at the bottom of the window — and
   // the bar would sit over it; its header carries the way back instead
   if (/^\/chats\/[^/]+\/?$/.test(pathname)) return true;
+  // A work item's page on a phone ends in its own bar ("Work on it", or the comment box)
+  if (/^\/tasks\/[^/]+\/?$/.test(pathname) && !/^\/tasks\/milestones\/?$/.test(pathname)) return true;
   return /^\/orchestration\/[^/]+\/?$/.test(pathname);
 }
 
