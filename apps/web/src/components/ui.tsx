@@ -252,15 +252,17 @@ export function Segmented<T extends string>({
   options,
   onChange,
   label,
+  disabled = false,
 }: {
   value: T;
   options: ReadonlyArray<{ value: T; label: ReactNode; title?: string }>;
   onChange: (value: T) => void;
   label: string;
+  disabled?: boolean;
 }) {
   const indicator = useIndicatorId('segment');
   return (
-    <div className="segmented" role="radiogroup" aria-label={label}>
+    <div className={`segmented ${disabled ? 'is-disabled' : ''}`.trim()} role="radiogroup" aria-label={label} aria-disabled={disabled || undefined}>
       {options.map((option) => (
         <Tooltip key={option.value} content={option.title}>
           <button
@@ -268,6 +270,7 @@ export function Segmented<T extends string>({
             role="radio"
             aria-checked={option.value === value}
             tabIndex={option.value === value ? 0 : -1}
+            disabled={disabled}
             className={`segment ${option.value === value ? 'segment-on' : ''}`}
             onClick={() => option.value !== value && onChange(option.value)}
             onKeyDown={(event) => {

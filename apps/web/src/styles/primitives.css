@@ -496,7 +496,16 @@ input.is-invalid {
   transition: color var(--dur-fast);
 }
 
-.segment:hover {
+/* Nothing to choose between yet: the group stays in place, dimmed like a disabled control */
+.segmented.is-disabled {
+  opacity: 0.55;
+}
+
+.segment:disabled {
+  cursor: not-allowed;
+}
+
+.segment:hover:not(:disabled) {
   color: var(--text);
 }
 
@@ -1135,7 +1144,16 @@ button.step:hover {
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
 
-.list-toolbar-search:hover {
+.list-toolbar-search.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.list-toolbar-search.is-disabled input {
+  cursor: not-allowed;
+}
+
+.list-toolbar-search:hover:not(.is-disabled) {
   border-color: var(--line-3);
 }
 

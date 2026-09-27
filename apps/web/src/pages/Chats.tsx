@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useChats, useProjects } from '../api';
 import { ActivityTicker } from '../components/ActivityTicker';
+import { FabStandIn } from '../components/shell/Fab';
 import { ContextBar } from '../components/ChatBadges';
 import { Checkbox, hasOpenLayer } from '../components/controls';
 import { useConfirm } from '../components/Dialog';
@@ -632,6 +633,8 @@ export function Chats() {
         chips={chips}
         onReset={reset}
         active={filtersActive}
+        // No chat at all, and not because of a filter: nothing to search, sort or narrow yet
+        disabled={answered && all.length === 0 && !filtersActive}
       />
 
       <ErrorBox error={chats.error} />
@@ -659,6 +662,7 @@ export function Chats() {
         ) : (
           // Nothing to list at all: the page is the empty state, the one place the halo goes
           <section className="card glow-top chats-empty">
+            <FabStandIn />
             <Empty
               illustration="chats"
               size={compact ? 'md' : 'lg'}

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useOrchestrations, useProjects } from '../api';
 import { ActivityTicker } from '../components/ActivityTicker';
+import { FabStandIn } from '../components/shell/Fab';
 import { Collapsible, Combobox, NumberInput, Select, Switch } from '../components/controls';
 import { DefaultLimits, VerificationFields } from '../components/GraphExtras';
 import { ListToolbar } from '../components/ListToolbar';
@@ -671,6 +672,8 @@ export function Orchestration() {
           </>
         }
       />
+      {/* The form is open: a button to open it again would float over it */}
+      {creating && <FabStandIn />}
       {creating && <CreateForm key={editing?.n ?? 'blank'} template={editing?.template} onDone={closeForm} />}
       <div className="stack">
         {tab === 'templates' ? (
@@ -709,30 +712,35 @@ export function Orchestration() {
               }}
               onReset={listState.reset}
               active={query !== '' || status !== 'all' || sort !== 'recent'}
+              // No orchestration at all (the search is applied after this list): nothing to narrow yet
+              disabled={emptyList}
             />
             <ErrorBox error={error} />
             {isLoading ? (
               <Loading />
             ) : list.length === 0 ? (
-              <Empty
-                illustration="orchestrations"
-                size={narrow ? 'sm' : undefined}
-                title={t('config:orchestration.none')}
-                action={
-                  <>
-                    <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-                      <Plus size={14} strokeWidth={2} aria-hidden />
-                      {t('config:orchestration.new')}
-                    </button>
-                    <button type="button" className="btn" onClick={openTemplates}>
-                      <LayoutTemplate size={14} strokeWidth={2} aria-hidden />
-                      {t('list.templates')}
-                    </button>
-                  </>
-                }
-              >
-                {t('list.emptyBody')}
-              </Empty>
+              <>
+                <FabStandIn />
+                <Empty
+                  illustration="orchestrations"
+                  size={narrow ? 'sm' : undefined}
+                  title={t('config:orchestration.none')}
+                  action={
+                    <>
+                      <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+                        <Plus size={14} strokeWidth={2} aria-hidden />
+                        {t('config:orchestration.new')}
+                      </button>
+                      <button type="button" className="btn" onClick={openTemplates}>
+                        <LayoutTemplate size={14} strokeWidth={2} aria-hidden />
+                        {t('list.templates')}
+                      </button>
+                    </>
+                  }
+                >
+                  {t('list.emptyBody')}
+                </Empty>
+              </>
             ) : shown.length === 0 ? (
               <Empty
                 illustration="no-results"

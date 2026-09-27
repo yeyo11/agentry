@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fabFor } from '../../lib/shell-live';
 
@@ -37,6 +37,37 @@ export function useHideOnScroll(scroller: RefObject<HTMLElement | null>, resetKe
   return hidden;
 }
 
+/*
+ * How many things on the page stand in for the button right now: an empty state whose own primary
+ * action is the one the button would start, a form already open for it, or a state where nothing
+ * can be started at all. While any is mounted the button is not drawn.
+ */
+let standIns = 0;
+const listeners = new Set<() => void>();
+const emit = () => {
+  for (const listener of [...listeners]) listener();
+};
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+
+/**
+ * Render it inside a page's empty state (or open form) that already offers what the FAB would
+ * start: the same action twice on one screen, one of them floating over the other, is noise.
+ */
+export function FabStandIn(): null {
+  useEffect(() => {
+    standIns += 1;
+    emit();
+    return () => {
+      standIns -= 1;
+      emit();
+    };
+  }, []);
+  return null;
+}
+
 /**
  * The phone's floating "start something" button, in the brand gradient above the tab bar. What it
  * starts depends on the page (`fabFor`); where there is nothing to start from here, it is not
@@ -58,7 +89,8 @@ export function Fab({
   const plan = fabFor(pathname);
   const hidden = useHideOnScroll(scroller, pathname);
   const [focused, setFocused] = useState(false);
-  if (!plan) return null;
+  const stoodIn = useSyncExternalStore(subscribe, () => standIns > 0);
+  if (!plan || stoodIn) return null;
   const label = plan.action === 'chat' ? t('components:shell.newChat') : t('shell:topbar.newOrchestration');
   // A keyboard that reaches it brings it back: a control is never focused while out of sight
   const away = hidden && !focused;
