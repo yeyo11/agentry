@@ -28,7 +28,7 @@ DONE_MORE = 9
 
 def by_col(s, keys=None):
   ks = keys or W.keys()
-  return [k for k in ks if W[k]['s'] == s and k != 'AGN-12']
+  return [k for k in ks if W[k]['s'] == s]
 
 
 def card(k, sel=None):

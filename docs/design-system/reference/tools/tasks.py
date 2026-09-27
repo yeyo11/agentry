@@ -24,7 +24,7 @@ def empty_mobile():
 {mview_seg('board')}
 <section class="empty-state" style="flex: 1 1 auto; justify-content: center; padding: 16px 8px 40px; gap: 14px">
 <div class="app" data-theme="dark" style="display: inline-block; background: transparent">{empty_board_svg('')}</div>
-<h2 class="t-h1" style="font-size: 22px">Aún no hay tareas</h2>
+<h2 class="t-h1" style="font-size: 24px">Aún no hay tareas</h2>
 <p>El tablero de pagos-api está vacío. Crea la primera tarea aquí, o desde un mensaje de cualquier chat.</p>
 <a href="MobileNuevaTarea.html" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 4px">{ico('plus', 'ico ico-lg')}Crear la primera tarea</a>
 </section>
@@ -96,13 +96,13 @@ def list_mobile():
       w = W[k]
       live = w.get('live')
       lead = '<span class="spin-ring" style="width: 14px; height: 14px" role="img" aria-label="Trabajando"></span>' if live else tico(w['t'])
-      rows += f'<a href="MobileTarea.html" class="wi-row{" rail-live" if live else ""}{" done" if s == "done" else ""}" style="min-height: 52px; font-size: 15px">{lead}<span class="wi-key" style="width: 50px">{k}</span><span class="wi-row-title">{w["title"]}</span>{prio(w["p"])}</a>'
+      rows += f'<a href="MobileTarea.html" class="wi-row{" rail-live" if live else ""}{" done" if s == "done" else ""}" style="min-height: 52px; font-size: 15px; align-items: flex-start; padding-top: 14px; padding-bottom: 14px">{lead}<span class="wi-key" style="width: 50px; margin-top: 2px">{k}</span><span class="wi-row-title" style="white-space: normal; line-height: 1.35">{w["title"]}</span>{prio(w["p"])}</a>'
     secs += f'<section class="col" style="gap: 6px"><div class="row" style="gap: 8px; padding: 0 2px">{sico(s)}<span class="t-label" style="color: var(--fg-2)">{n}</span><span class="wi-col-count"><b>{len(ks)}</b></span><span class="grow"></span>{warn}</div><div class="card" style="overflow: hidden">{rows}</div></section>'
   inner = f'''{mhead('Tareas', None, 'MobileMas.html', mproject_chip() + '<span style="width: 8px"></span>')}
-<div class="m-body stack" style="gap: 12px">
+<div class="m-body stack" style="gap: 12px; margin-bottom: 76px">
 {mview_seg('list')}
 {mtoolbar(1)}
-<div class="row" style="gap: 6px"><button type="button" class="chip on" style="height: 36px; font-size: 13.5px">Épica: Ecosistema de proyectos<span aria-label="Quitar filtro">{ico('x', 'ico ico-sm')}</span></button><span class="mono t-xs fg-3">11 de 27</span></div>
+<div class="row" style="gap: 6px"><button type="button" class="chip on">Épica: Ecosistema de proyectos<span aria-label="Quitar filtro">{ico('x', 'ico ico-sm')}</span></button><span class="mono t-xs fg-3">11 de 27</span></div>
 {secs}
 </div>
 <a href="MobileNuevaTarea.html" class="fab" aria-label="Nueva tarea" style="padding: 0; width: 56px">{ico('plus', 'ico ico-lg', 'stroke-width: 2.2')}</a>
@@ -125,16 +125,16 @@ def crit_rows(mobile=False):
   for on, t, who, when in CRIT:
     by = ''
     if on:
-      mark = av(cls='wi-assignee') if who == 'yeyo' else '<span class="agent-mark" style="width: 18px; height: 18px; font-size: 8.5px">›_</span>'
+      mark = av(cls='wi-assignee') if who == 'yeyo' else '<span class="agent-mark" style="width: 18px; height: 18px">›_</span>'
       by = f'<span class="ac-by">{mark}{who} · {when}</span>' if not mobile else f'<span class="ac-by">{mark}{when}</span>'
     out += f'<div class="ac-row{" on" if on else ""}"{" style=\"min-height: 52px\"" if mobile else ""}><span class="checkbox{" on" if on else ""}" role="checkbox" aria-checked="{"true" if on else "false"}"></span><span class="ac-text">{t}</span>{by}</div>'
   return out
 
 
 LINKS = [
-  ('chats', 'Trabaja en AGN-26: plantillas de proyecto', 'chat 4c1d0e · la llevó a revisión', '<span class="badge b-ok">' + '✓ terminado</span>', '1,84 US$'),
-  ('orch', 'ecosystem-foundation › project-modules', 'nodo del grafo · la tarea siguió su estado', '<span class="badge b-ok">✓ hecha</span>', '3,12 US$'),
-  ('chats', 'Trabaja en AGN-26: plantillas de proyecto', 'chat 91ab22 · no movió la tarea', '<span class="badge b-bad">interrumpido</span>', '0,41 US$'),
+  ('chats', 'Trabaja en AGN-26: plantillas de proyecto', 'chat 4c1d0e · la llevó a revisión', '<span class="badge b-ok">' + '✓ completada</span>', '1,84 US$'),
+  ('orch', 'ecosystem-foundation › project-modules', 'nodo del grafo · la tarea siguió su estado', '<span class="badge b-ok">✓ completada</span>', '3,12 US$'),
+  ('chats', 'Trabaja en AGN-26: plantillas de proyecto', 'chat 91ab22 · no movió la tarea', '<span class="badge b-bad">interrumpida</span>', '0,41 US$'),
 ]
 
 
@@ -220,24 +220,73 @@ def detail_desktop():
   write('DesktopTarea.html', desktop('Tarea', 'tasks', '<a href="DesktopTablero.html" class="fg-2">Tareas</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">AGN-26</span>', main))
 
 
-def detail_mobile():
-  inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px">
+def mcrit_rows():
+  # On a phone the whole row is the control (44 px or more): the check mark stays visible, the one
+  # place the design system allows it, because a checklist is read by its marks.
+  out = ''
+  for on, t, who, when in CRIT:
+    by = ''
+    if on:
+      mark = av(cls='wi-assignee') if who == 'yeyo' else '<span class="agent-mark" role="img" aria-label="Agente" style="width: 18px; height: 18px; font-size: 11px">›_</span>'
+      by = f'<span class="ac-by">{mark}{when}</span>'
+    out += f'<button type="button" role="checkbox" aria-checked="{"true" if on else "false"}" class="ac-row{" on" if on else ""}"><span class="checkbox{" on" if on else ""}" aria-hidden="true"></span><span class="ac-text">{t}</span>{by}</button>'
+  return out
+
+
+MRELS = [('Bloquea', 'todo', 'AGN-33', 'Enlazar tareas con chats y orquestaciones', 'Por hacer'),
+         ('Bloqueada por', 'done', 'AGN-24', 'Ajustes por proyecto en un JSON', 'Hecha')]
+
+
+def mrel_rows():
+  out = ''
+  for kind, s, k, t, word in MRELS:
+    out += f'<a href="MobileTarea.html" class="cell" style="flex-direction: column; align-items: stretch; gap: 4px; padding: 10px 14px"><span class="row" style="gap: 8px"><span class="rel-kind" style="width: auto">{kind}</span><span class="grow"></span><span class="row t-xs{" c-ok" if s == "done" else " fg-2"}" style="gap: 5px">{sico(s)}{word}</span></span><span class="row" style="gap: 8px; align-items: baseline"><span class="wi-key">{k}</span><span style="font-size: 14px; line-height: 1.4">{t}</span></span></a>'
+  return out
+
+
+def mlink_rows():
+  # The same three links as the desktop, with the title and the cause wrapping instead of cut.
+  out = ''
+  for i, t, m, b, c in LINKS:
+    out += f'<a href="{"MobileOrquestacion.html" if i == "orch" else "MobileChat.html"}" class="link-row" style="align-items: flex-start"><span class="link-ico">{ico(i)}</span><span class="col grow" style="gap: 4px; min-width: 0"><span class="t-sm" style="font-weight: 500">{t}</span><span class="row" style="gap: 8px">{b}<span class="mono t-xs fg-3">{c}</span></span><span class="mono t-xs fg-3">{m}</span></span></a>'
+  return out
+
+
+def mtask_head():
+  return f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px">
 <a href="MobileTablero.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
 <span class="row grow" style="gap: 8px">{tico('story', True)}<span class="wi-key boxed">AGN-26</span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">{ico('more', 'ico ico-lg', 'stroke-width: 3')}</button>
-</header>
+</header>'''
+
+
+def mtask_top(tab):
+  # What every tab of the work item shares: title, state, priority, assignee, and the three tabs.
+  tabs = [('detail', 'MobileTarea.html', 'Detalle'), ('activity', 'MobileTareaActividad.html', 'Actividad <span class="count">6</span>'), ('changes', 'MobileTareaCambios.html', 'Cambios <span class="count">4</span>')]
+  seg = ''.join(f'<a href="{h}" role="tab" aria-selected="{"true" if k == tab else "false"}" class="{"on" if k == tab else ""}" style="flex: 1 1 0; justify-content: center">{n}</a>' for k, h, n in tabs)
+  return f'''<h1 class="t-h1" style="font-size: 24px">Plantillas de proyecto</h1>
+<div class="row" style="gap: 6px; flex-wrap: wrap"><button type="button" class="chip">{sico('in_review')}En revisión{ico('down', 'ico ico-sm')}</button><button type="button" class="chip">{prio('medium')}Media</button><button type="button" class="chip">{av()}yeyo</button></div>
+<div class="row" style="gap: 6px; flex-wrap: wrap">{epic('eco')}<span class="ms-name" style="font-size: 12px">v0.20</span>{label('core')}{label('api')}</div>
+<div class="seg" role="tablist" aria-label="Secciones" style="display: flex">{seg}</div>'''
+
+
+def mtask_foot():
+  return f'<div class="m-foot"><button type="button" class="btn btn-lg" style="flex: 0 0 auto">{ico("check", "ico ico-lg")}Mover a Hecho</button><a href="MobileChatTarea.html" class="btn btn-primary btn-lg">{ico("play", "ico ico-lg")}Trabajar en ella</a></div>'
+
+
+def detail_mobile():
+  inner = f'''{mtask_head()}
 <div class="m-body stack" style="gap: 14px">
-<h1 class="t-h1" style="font-size: 24px">Plantillas de proyecto</h1>
-<div class="row" style="gap: 6px; flex-wrap: wrap"><button type="button" class="chip" style="height: 36px">{sico('in_review')}En revisión{ico('down', 'ico ico-sm')}</button><button type="button" class="chip" style="height: 36px">{prio('medium')}Media</button><button type="button" class="chip" style="height: 36px">{av()}yeyo</button></div>
-<div class="row" style="gap: 6px">{epic('eco')}<span class="ms-name" style="font-size: 12px">v0.20</span>{label('core')}{label('api')}</div>
-<p class="t-sm fg-2" style="margin: 0; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden">Un proyecto nuevo elige una plantilla que preselecciona módulos, tipos de tarea, límites por columna y el equipo inicial con el modelo de cada rol. Cinco plantillas integradas.</p>
-<div class="seg" role="tablist" aria-label="Secciones" style="display: flex"><button type="button" class="on" style="flex: 1 1 0; justify-content: center; height: 36px; font-size: 14px">Detalle</button><button type="button" style="flex: 1 1 0; justify-content: center; height: 36px; font-size: 14px">Actividad <span class="count">6</span></button><button type="button" style="flex: 1 1 0; justify-content: center; height: 36px; font-size: 14px">Cambios</button></div>
+{mtask_top('detail')}
+<p class="t-sm fg-2" style="margin: 0; line-height: 1.55">Un proyecto nuevo elige una plantilla que preselecciona módulos, tipos de tarea, límites por columna y el equipo inicial con el modelo de cada rol. Cinco plantillas integradas.</p>
 <div class="row" style="gap: 8px; padding: 0 2px"><span class="t-label grow">Criterios de aceptación</span><span class="mono t-xs fg-3">4/5</span></div>
-<div class="card" style="overflow: hidden">{crit_rows(True)}</div>
+<div class="card" style="overflow: hidden">{mcrit_rows()}</div>
+<div class="row" style="gap: 8px; padding: 0 2px"><span class="t-label grow">Relaciones</span><button type="button" class="btn btn-ghost btn-lg" style="margin: -8px -8px -8px 0">{ico('plus', 'ico')}Relacionar</button></div>
+<div class="card" style="overflow: hidden">{mrel_rows()}</div>
 <div class="row" style="gap: 8px; padding: 0 2px"><span class="t-label grow">Chats y orquestaciones</span><span class="count">3</span></div>
-<div class="col" style="gap: 8px">{link_rows()}</div>
+<div class="col" style="gap: 8px">{mlink_rows()}</div>
 </div>
-<div class="m-foot"><button type="button" class="btn btn-lg btn-icon" aria-label="Mover a Hecho" style="flex: 0 0 auto">{ico('check', 'ico ico-lg')}</button><a href="MobileChatTarea.html" class="btn btn-primary btn-lg">{ico('play', 'ico ico-lg')}Trabajar en ella</a></div>'''
+{mtask_foot()}'''
   write('MobileTarea.html', mobile('Tarea', inner))
 
 
@@ -281,7 +330,7 @@ def new_task_desktop():
 
 
 def new_task_mobile():
-  types = ''.join(f'<button type="button" role="radio" aria-checked="{"true" if t == "task" else "false"}" class="{"on" if t == "task" else ""}" style="flex: 1 1 0; justify-content: center; height: 40px; font-size: 13.5px">{tico(t)}{TYPE_WORD[t]}</button>' for t in ('epic', 'story', 'task', 'bug'))
+  types = ''.join(f'<button type="button" role="radio" aria-checked="{"true" if t == "task" else "false"}" class="{"on" if t == "task" else ""}" style="flex: 1 1 0; justify-content: center; font-size: 13px; padding: 0 6px">{tico(t)}{TYPE_WORD[t]}</button>' for t in ('epic', 'story', 'task', 'bug'))
 
   def cell(k, v):
     return f'<button type="button" class="cell" style="width: 100%; min-height: 52px; background: none; border-left: 0; border-right: 0; border-top: 0; text-align: left"><span class="fg-3" style="width: 104px">{k}</span><span class="row grow" style="gap: 8px; min-width: 0">{v}</span>{ico("right", "ico fg-3")}</button>'
@@ -300,6 +349,7 @@ def new_task_mobile():
 {cell('Épica', epic('eco'))}
 {cell('Hito', '<span class="mono">v0.20</span>')}
 {cell('Responsable', '<span class="fg-2">Sin responsable</span>')}
+{cell('Relaciones', '<span class="col" style="gap: 2px; min-width: 0; padding: 8px 0"><span class="row" style="gap: 8px"><span class="rel-kind" style="width: auto">Bloqueada por</span><span class="wi-key">AGN-28</span></span><span class="t-sm" style="line-height: 1.4">Tablero con columnas fijas y límites</span></span>')}
 </div>
 <div class="row" style="padding: 0 4px"><span class="t-label grow">Criterios de aceptación</span><span class="mono t-xs fg-3">1</span></div>
 <div class="card" style="overflow: hidden"><div class="cell" style="min-height: 52px"><span class="grow t-sm">Pasarse del límite no bloquea el movimiento</span><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Quitar criterio">{ico('x', 'ico')}</button></div><button type="button" class="cell c-accent" style="width: 100%; min-height: 52px; background: none; border: 0; font-weight: 500">{ico('plus')}Añadir criterio</button></div>
@@ -311,9 +361,10 @@ def new_task_mobile():
 # ---------- Milestones ----------
 MS_OPEN = [
   ('v0.20', 'Ecosistema de proyectos', 'Módulos, plantillas, el tablero y el enlace de las tareas con chats y orquestaciones.', 7, 4, 15, {'backlog': 2, 'todo': 2, 'in_progress': 3, 'in_review': 1, 'done': 7}),
-  ('v0.21', 'Equipo y memoria', 'Roles con su modelo, flujo por columna, diario del proyecto y propuestas de memoria.', 0, 0, 9, {'backlog': 9, 'todo': 0, 'in_progress': 0, 'in_review': 0, 'done': 0}),
+  ('v0.21', 'Equipo y memoria', 'Roles con su modelo, flujo por columna, diario del proyecto y propuestas de memoria.', 0, 0, 3, {'backlog': 2, 'todo': 1, 'in_progress': 0, 'in_review': 0, 'done': 0}),
 ]
-MS_CLOSED = [('v0.19', 'Night Shift', 12), ('v0.18', 'Slash commands en el compositor', 6), ('v0.17', 'Programaciones', 8)]
+# With v0.20's 7, the closed milestones hold the project's 12 done items; 4 open items have no milestone
+MS_CLOSED = [('v0.19', 'Night Shift', 3), ('v0.18', 'Slash commands en el compositor', 2)]
 
 
 def ms_card(ms, current=False, mobile=False):
@@ -321,7 +372,7 @@ def ms_card(ms, current=False, mobile=False):
   pct = round(d / n * 100)
   counts = ''.join(f'<span class="row" style="gap: 5px">{sico(s)}<span class="mono t-xs fg-2">{cols[s]}</span></span>' for s, _ in COLS)
   cls = 'card col' + (' grad-border' if current else '')
-  big = f'<span class="t-num{" grad-text" if current else ""}" style="font-size: {28 if mobile else 30}px; font-weight: 600; letter-spacing: -0.035em">{pct} %</span>'
+  big = f'<span class="t-num{" grad-text" if current else ""}" style="font-size: 34px; font-weight: 600; letter-spacing: -0.035em">{pct} %</span>'
   if mobile:
     return f'''<a href="MobileTablero.html" class="{cls}" style="padding: 16px; gap: 10px">
 <span class="row" style="gap: 8px">{ico('flag', 'ico fg-3')}<span class="ms-name">{name}</span><span class="grow"></span><span class="badge">abierto</span></span>
@@ -341,7 +392,7 @@ def closed_rows(mobile=False):
   out = ''
   for name, title, n in MS_CLOSED:
     if mobile:
-      out += f'<div class="cell" style="min-height: 56px"><span class="ms-name" style="width: 52px">{name}</span><span class="grow t-sm ellipsis">{title}</span><span class="badge b-ok">✓ cerrado</span></div>'
+      out += f'<div class="cell" style="min-height: 56px; padding-top: 10px; padding-bottom: 10px"><span class="ms-name" style="width: 52px; flex-shrink: 0">{name}</span><span class="grow t-sm" style="line-height: 1.4">{title}</span><span class="badge b-ok" style="flex-shrink: 0">✓ cerrado</span></div>'
     else:
       out += f'<div class="wi-row" style="min-height: 48px">{ico("flag", "ico fg-3")}<span class="ms-name" style="width: 56px">{name}</span><span class="wi-row-title">{title}</span><span class="ms-bar" style="width: 180px"><i class="done" style="width: 100%"></i></span><span class="mono t-xs fg-2" style="width: 96px; white-space: nowrap">{n}/{n} · 100 %</span><span class="badge b-ok">✓ cerrado</span><button type="button" class="btn btn-sm btn-ghost">Reabrir</button></div>'
   return out
@@ -369,7 +420,7 @@ def milestones_mobile():
 <div class="row" style="padding: 0 4px; gap: 8px"><span class="t-label">Abiertos</span><span class="count">2</span></div>
 {ms_card(MS_OPEN[0], True, True)}
 {ms_card(MS_OPEN[1], False, True)}
-<div class="row" style="padding: 4px 4px 0; gap: 8px"><span class="t-label">Cerrados</span><span class="count">3</span></div>
+<div class="row" style="padding: 4px 4px 0; gap: 8px"><span class="t-label">Cerrados</span><span class="count">2</span></div>
 <div class="card" style="overflow: hidden">{closed_rows(True)}</div>
 </div>
 {tabbar('more')}'''
