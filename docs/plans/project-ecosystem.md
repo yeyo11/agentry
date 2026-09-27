@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T01:59:47.104538408Z
-updated_at: 2026-09-27T20:00:00Z
+updated_at: 2026-09-27T21:30:00Z
 tags:
     - plan
     - projects
@@ -23,9 +23,12 @@ CONTRIBUTING.md and [docs/design-system.md](../design-system.md). Where a task p
 disagree, the plan wins; where the plan and the design system disagree on a visual detail, the
 design system wins.
 
-Status: **orchestration 1 (`ecosystem-foundation`) built on 2026-09-27, and fixed by orchestration
-1b (`ecosystem-fixes`) the same day** after [its audit](project-ecosystem-audit.md), see
-[Outcome](#outcome). The prototypes wait for the owner's validation. Orchestrations 2 to 4 are described here and get their task sections before each is launched.
+Status: **every orchestration built, on 2026-09-27.** Orchestration 1 (`ecosystem-foundation`) was
+fixed by 1b (`ecosystem-fixes`) after [its audit](project-ecosystem-audit.md). The owner validated
+the prototypes, and orchestrations 2 (`ecosystem-board-web`), 3 (`ecosystem-team`) and 4
+(`ecosystem-assistant`) built the web, the team and the assistant on them. Everything is on
+`feat/project-ecosystem`, waiting for the owner to try the whole feature before its one pull request
+to `main`. See [Outcome](#outcome).
 
 ## Why
 
@@ -1353,7 +1356,115 @@ through the fake CLI, and added `team-review.spec.mjs`.
 - "Pedir propuesta" (orchestration 4), "Ver todo" on the team's activity, and a few small
   differences from the references.
 
+### Orchestration 4: `ecosystem-assistant`
+
+Orchestration 4 built the project assistant, suggested tasks and resources with AI, core and web, on
+2026-09-27, and closed what the audit of orchestration 2 had left for the owner. What it built is
+described in [assistant.md](../assistant.md). The merged branch's `pnpm build` and `pnpm e2e` run in
+the verification phase, after this was written. Only `web-review-4`'s report reached the
+documentation task, so the other tasks' parts below are written from their commits and the code.
+
+**`board-fixes`** — the four open items, each with a test:
+
+- epics no longer count as open items nor against a column's limit (the owner's option B), in core
+  and in the board's optimistic redraw;
+- the history names a chat link by its first prompt;
+- the empty board draws the project's own first key;
+- the wizard's team line no longer says the agent files come later.
+
+**`assistant-types`** — the contract as planned: runs with their kind, status, model, cost,
+duration, what they read and what they found; three kinds of proposal and their status; the two
+events; the web client, the query keys and each event's invalidation. Nothing existing changed shape.
+
+Where it went past the plan:
+
+- A `superseded` status, and `supersede` on the start request, so "Volver a sugerir" sets the
+  pending proposals aside instead of deleting them.
+- `assistant.run` has a throttled `read` action, so what a run reads fills in without polling.
+- `assistant.proposal` names the saved resource, since resources have no event of their own.
+- The value lists and the two rules both ends apply live in the new
+  `packages/shared/src/assistant.ts`.
+
+**`assistant-core`** — `AssistantService` in `assistant.ts`, with `assistant-answer.ts` (the prompt,
+the schema and the defensive reading of the answer) and `assistant-sources.ts` (what it read), one
+migration and the routes, as the decisions say.
+
+Where it went past the plan:
+
+- The writing, delegating and web tools are also denied outright, beside `dontAsk`.
+- A project with nothing to read and no description starts no chat. It completes at once, offering
+  its template's team.
+- An accept claims the proposal first, and hands it back if the write fails.
+- A member the run wrote instructions for gets those instructions in its agent file, removed again
+  if the team refuses the member.
+- A proposal of what the project already has is left out; a work item that resembles an existing
+  one says so.
+- A run cut by a restart continues once, in its own chat. A partial unique index holds one running
+  run per project and kind.
+
+**`web-assistant`** — the assistant's page at `/projects/:id/assistant`, with the live run, the
+three sections of proposals, the empty project's template team and description, and the failed and
+stopped states. Also the wizard's "Proponer equipo, recursos y tareas", "Pedir propuesta" on the
+empty Team, the crumbs, and `assistant.spec.mjs`.
+
+**`web-suggest`** — "Sugerir tareas" on the board (`?suggest=1`), and the project's Resources tab with
+"Sugerir", "Crear con IA" and the proposal editor, plus `suggest.spec.mjs`. Where it went past the
+plan: the inline editor of `pages/config/ResourcesTab.tsx` became `ResourceEditor`, shared by the
+settings and the project tab, and New task's phone full screen became its own component, reused by
+both suggestion screens.
+
+Both web tasks wrote the shared parts every run draws (`components/assistant/run.tsx`,
+`styles/suggestion.css`) and the fake CLI's structured answers. They landed as twin commits, merged
+by `web-review-4`.
+
+**`web-review-4`** compared every assistant screen with its reference, at 1440 × 1024 and
+390 × 844, dark and light, in Spanish. It fixed what sat between the two web tasks:
+
+- the phone's "Incluida" button, nearly invisible in light;
+- one task's stylesheet restyling the other's discarded and accepted proposals;
+- the tab bar on the phone's assistant page and on an open resource or proposal, now hidden, with
+  the editor's actions in a sticky footer of 44 px buttons;
+- the top bar's project selector on the assistant page;
+- the phone's clock icon on waiting rows, and the phone Resources row's short label.
+
+It extended `a11y.spec.mjs`, `motion.spec.mjs` and `assistant.spec.mjs`, and did not run them. Two
+of its captures did not complete: Suggest tasks while running, and the light phone Resources after
+"Sugerir".
+
+**`docs-4`** — this section, and:
+
+- the new [assistant.md](../assistant.md);
+- [projects.md](../projects.md), [work-items.md](../work-items.md) and
+  [team-and-flow.md](../team-and-flow.md) where the assistant touches them;
+- the README's feature list, events and UI table (the REST rows came with `assistant-core`);
+- the ROADMAP;
+- [status.md](../status.md), closed for the whole ecosystem;
+- the audit's open items of orchestration 2, marked closed.
+
+**What orchestration 4 left open**, listed in [assistant.md](../assistant.md#known-gaps):
+
+- an assistant chat is titled by its prompt ("You are Agentry's project assi…");
+- `CLAUDE.md` can show twice in what a run read;
+- "Crear con IA" does not stream the file;
+- "Sugerir tareas"' focus travels as the run's `description`;
+- once a project has a team, nothing on its page links to the assistant;
+- a few small differences from the references.
+
+### The ecosystem as a whole
+
+The four orchestrations delivered all 40 decisions. Some things stay open, each listed where its
+area is documented:
+
+- **A card being refined or verified is not live.** This is the only open item that shows on the
+  board ([team-and-flow.md](../team-and-flow.md#known-gaps)).
+- **Orchestration 3** left the Flow screen's `maxParallel` control and the template's English
+  responsibilities.
+- **Orchestration 4** left the gaps above.
+- **The whole feature has not yet been verified end to end on `feat/project-ecosystem`.** Each
+  orchestration's `pnpm e2e` runs in its own verification phase. After that, the owner tries the
+  feature and opens its one pull request to `main`.
+
 ## Related
 
-[[status.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[design-system.md]] · [[plans/agents-redesign.md]] ·
+[[status.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[design-system.md]] · [[plans/agents-redesign.md]] ·
 [[plans/redesign-night-shift.md]] · [[knowledge-base.md]]

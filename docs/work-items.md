@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-09-27T20:00:00Z
+updated_at: 2026-09-27T21:30:00Z
 tags:
     - work-items
     - board
@@ -481,9 +481,11 @@ members and draw a role as its squircle avatar with its translated name, where a
 monogram. A task also shows the documents tied to it and its waiting panel, with "Aprobar y pasar a
 Hecho" and "Volver a En curso". See [team-and-flow.md](team-and-flow.md#the-screens).
 
-## Not built yet
+## Suggested tasks
 
-- Suggested work items are orchestration 4, and the web has no "Suggest tasks" button until then.
+Orchestration 4 added "Sugerir tareas" to the board (`?suggest=1`): a `work-items` run of the project
+assistant reads the project and proposes work items, each created in Backlog on its own, with its
+reason as its first comment, and nothing written before. See [assistant.md](assistant.md).
 
 ## Known gaps
 
@@ -513,4 +515,4 @@ first prompt, and the empty board's illustration draws the project's own first k
 
 ## Related
 
-[[projects.md]] · [[team-and-flow.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
