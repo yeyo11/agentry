@@ -502,7 +502,86 @@ stopped answering.
 
 ## Answer: the tunnel in Docker
 
-To be written by `packaging`.
+**The image offers the tunnel only when the operator turns it on**, with `AGENTRY_TUNNEL=on` in
+`.env` for Compose, or `tunnel.enabled: true` in the Helm chart. Everywhere else (a source install,
+the desktop app) it is on by default, and `AGENTRY_TUNNEL=off` turns it off there too.
+
+### The evidence
+
+Measured on 2026-09-27 with Docker 29.8.0 on the default `bridge` network, following decision 5.
+The container was a throwaway `node:22-bookworm-slim` with `openssh-client` added. Inside it, a
+throwaway server listened on `127.0.0.1:9999` and answered a fixed text. The container published
+**no port at all**: `docker port` printed nothing.
+
+- **Port 22 is open by default.** A TCP connect to `localhost.run:22` from the container succeeded.
+  The container's ssh (OpenSSH 9.2p1, Debian 12, the same base as the image) then opened the tunnel
+  with the exact options `TunnelManager` passes, including the pinned key and
+  `StrictHostKeyChecking=yes`. The banner line gave a `<id>.lhr.life` address.
+- **The tunnel goes around everything the operator put in front.** A `GET` of that public address,
+  sent from the host over the internet, answered `200` with the throwaway text. So a server inside a
+  container with nothing published was reachable from anywhere. That is also what happens to the
+  real image's Compose setup:
+  - Compose publishes only `127.0.0.1:${PORT}`.
+  - The `tls` profile puts Caddy, with its own certificate, in front.
+  - The tunnel skips both. It reaches `127.0.0.1:8787` from inside the container, and
+    localhost.run's TLS and certificate replace the operator's.
+- **Cleanup:** the ssh and the server were killed inside the container, the container was removed
+  (`--rm`), and nothing from it was printed except the lines above. Its stderr holds the public IP.
+
+### Why off in Docker
+
+- **Docker and Kubernetes operators decide ingress outside the process.** In Compose they do it
+  with `ports:` and a proxy; in Helm with a `ClusterIP` Service, an Ingress and NetworkPolicies. A
+  Helm operator expects every way into a pod to appear in the manifests. A pod that dials out and
+  opens a public way in of its own looks like a backdoor to a security review. A button in the UI
+  that does this, where anyone who can sign in can press it, is not something to switch on by
+  default.
+- **Nothing in the network stops it.** The measurement shows that Docker's default bridge lets the
+  container out on port 22, so the only thing between the image and a public address is Agentry's
+  own switch. On a cluster with egress NetworkPolicies, or behind a firewall that blocks outbound
+  22, turning it on is not enough either. The chart says so.
+- **On a desktop the person is the operator.** The machine is theirs, nothing stands in front of
+  the port, and the tunnel is the feature's whole point, so it stays on by default there.
+
+### What was built
+
+- `CoreConfig.tunnelEnabled` (`packages/core/src/paths.ts`), from `AGENTRY_TUNNEL`. It is decided
+  the same way as `cswapManaged`: on by default, and off by default when
+  `AGENTRY_DISTRIBUTION=docker`.
+  - `on`, `1` and `true` turn it on; `off`, `0` and `false` turn it off.
+  - Empty or unset means the default, because Compose passes empty variables through.
+  - Any other value stops the wrapper at startup. A typo in the switch that opens a public address
+    is not something to guess about.
+- `TunnelStatus.enabled` (`packages/shared/src/types.ts`, schemas regenerated), so the UI can say
+  who can turn the tunnel on instead of offering a button.
+- `TunnelManager` with `enabled: false`:
+  - `start` is refused with `409` and `tunnel.disabled`.
+  - A "start with Agentry" saved earlier does not open the tunnel. The state stays `stopped`, not
+    `failed`: nothing went wrong.
+- Compose: `.env.example` documents `AGENTRY_TUNNEL=on` and what it goes around. `env_file: .env`
+  already hands it to the container, so `docker-compose.yml` did not change.
+- Helm: `tunnel.enabled: false` in `values.yaml`. The deployment always writes `AGENTRY_TUNNEL` as
+  `on` or `off`, so the release decides whatever the image defaults to. `NOTES.txt` warns when it
+  is on. The chart does not refuse `tunnel.enabled` with `auth.mode: none`, because `auth.mode`
+  only seeds a fresh volume, and the UI's value wins after that. The tunnel checks the live mode
+  itself.
+- The Dockerfile only gained comments. `openssh-client` was already there, and
+  `AGENTRY_DISTRIBUTION=docker` is what keeps the tunnel off.
+- The `.deb` declares `openssh-client` (`apps/desktop/electron-builder.yml`).
+
+Turned on, the image's tunnel is the same as everywhere else: it refuses under `mode: 'none'`, only
+its exact host joins the allowlist, and it opens only when someone starts it or turns on "start with
+Agentry".
+
+Changed outside `packaging`'s ownership, because the answer needed them:
+
+- `packages/shared/src/types.ts` (`TunnelStatus.enabled`) and the regenerated
+  `apps/api/src/openapi/schemas.json`.
+- `packages/core/src/tunnel.ts` and the wiring in `packages/core/src/index.ts`.
+- The `GET` and `POST /tunnel/start` descriptions in `apps/api/src/openapi/routes.ts`.
+- `.env.example`.
+- One field added to the `TunnelStatus` literals in `packages/shared/test/notifications.test.ts`
+  and `apps/api/test/tunnel.test.ts`.
 
 ## Outcome
 

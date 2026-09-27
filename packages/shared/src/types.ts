@@ -1736,6 +1736,13 @@ export interface TunnelStatus {
   since: string | null;
   /** Why the tunnel failed, with a code a client translates; null unless `state` is `failed` */
   reason: Localized | null;
+  /**
+   * Whether this deploy offers the tunnel at all (`AGENTRY_TUNNEL`). Off by default in the Docker
+   * image and the Helm chart: the tunnel reaches the server from inside the container, around the
+   * published port, the operator's proxy and its TLS, so opening that path is the operator's call.
+   * While false, `start` is refused and the UI says who can turn it on instead of offering a button
+   */
+  enabled: boolean;
   /** An `ssh` was found to run; without one the tunnel cannot start, and the UI says how to install it */
   sshAvailable: boolean;
   settings: TunnelSettings;

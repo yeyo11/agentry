@@ -69,7 +69,7 @@ interface Rig {
   routes: string;
 }
 
-function rig(t: TestContext, options: { mode?: AuthMode; sshBin?: string; fakeMode?: string; verify?: TunnelDeps['verify']; root?: string; timing?: TunnelDeps['timing'] } = {}): Rig {
+function rig(t: TestContext, options: { mode?: AuthMode; enabled?: boolean; sshBin?: string; fakeMode?: string; verify?: TunnelDeps['verify']; root?: string; timing?: TunnelDeps['timing'] } = {}): Rig {
   const root = options.root ?? mkdtempSync(join(tmpdir(), 'agentry-tunnel-'));
   const log = join(root, 'ssh.log');
   const routes = join(root, 'routes.json');
@@ -86,6 +86,7 @@ function rig(t: TestContext, options: { mode?: AuthMode; sshBin?: string; fakeMo
   const manager = new TunnelManager({
     dataDir: join(root, 'data'),
     sshBin: options.sshBin ?? FAKE_SSH,
+    ...(options.enabled === undefined ? {} : { enabled: options.enabled }),
     security,
     hosts,
     emit: (event: AgentryEventInput) => {
@@ -128,6 +129,33 @@ test('start is refused under mode none, and no ssh is run', async (t) => {
   manager.attach(await healthServer(t));
   await assert.rejects(manager.start(), (error: unknown) => error instanceof TunnelRefusedError && error.reason.code === 'tunnel.authRequired' && error.statusCode === 409);
   assert.equal(manager.status().state, 'stopped');
+  assert.deepEqual(starts(), []);
+});
+
+test('where the deploy does not offer the tunnel, start is refused and no ssh is run', async (t) => {
+  const { manager, starts, hosts } = rig(t, { enabled: false });
+  assert.equal(manager.status().enabled, false);
+  manager.attach(await healthServer(t));
+  await assert.rejects(manager.start(), (error: unknown) => error instanceof TunnelRefusedError && error.reason.code === 'tunnel.disabled' && error.statusCode === 409);
+  assert.equal(manager.status().state, 'stopped');
+  assert.deepEqual(hosts.list(), []);
+  assert.deepEqual(starts(), []);
+});
+
+test('start with Agentry, saved before the operator turned the tunnel off, does not open it', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'agentry-tunnel-'));
+  const first = rig(t, { root });
+  await first.manager.updateSettings({ startWithAgentry: true });
+  first.manager.shutdown();
+
+  const { manager, starts } = rig(t, { root, enabled: false });
+  assert.equal(manager.status().settings.startWithAgentry, true);
+  manager.attach(await healthServer(t));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const status = manager.status();
+  // Stopped, not failed: nothing went wrong, the deploy simply does not offer it
+  assert.equal(status.state, 'stopped');
+  assert.equal(status.reason, null);
   assert.deepEqual(starts(), []);
 });
 

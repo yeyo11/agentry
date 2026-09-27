@@ -72,6 +72,11 @@ const DEFAULT_TIMING: TunnelTiming = {
 export interface TunnelDeps {
   dataDir: string;
   sshBin: string;
+  /**
+   * Whether this deploy offers the tunnel (`CoreConfig.tunnelEnabled`); true when left out. False
+   * refuses every start, "start with Agentry" included, and the status says so.
+   */
+  enabled?: boolean;
   /** Read on every decision rather than copied: the mode can change while the tunnel is open */
   security: { readonly mode: AuthMode };
   /** Where the verified host is registered for the guard, and removed from again */
@@ -97,6 +102,7 @@ export class TunnelRefusedError extends Error {
 const reason = (code: string, text: string, params?: LocalizedParams): Localized => (params ? { code, params, text } : { code, text });
 
 const REASONS = {
+  disabled: () => reason('tunnel.disabled', 'This Agentry does not offer the tunnel. Whoever runs it can turn it on with AGENTRY_TUNNEL=on.'),
   authRequired: () => reason('tunnel.authRequired', 'The tunnel needs authentication: turn on a token or OIDC in Security first.'),
   noPort: () => reason('tunnel.noPort', 'Agentry is not listening yet, so there is nothing to open a tunnel to.'),
   sshMissing: () => reason('tunnel.sshMissing', 'No ssh was found to run. Install the OpenSSH client (openssh-client) and try again.'),
@@ -213,9 +219,14 @@ export class TunnelManager {
       url: active ? this.address : null,
       since: active ? this.since : null,
       reason: this.state === 'failed' ? this.reason : null,
+      enabled: this.enabled,
       sshAvailable: this.sshAvailable,
       settings: { ...this.settings },
     };
+  }
+
+  private get enabled(): boolean {
+    return this.deps.enabled ?? true;
   }
 
   /** The PID of the ssh child, while there is one; for tests and diagnostics */
@@ -229,7 +240,8 @@ export class TunnelManager {
    */
   attach(port: number, host = '127.0.0.1'): void {
     this.target = { host, port };
-    if (!this.settings.startWithAgentry) return;
+    // A setting saved before the operator turned the tunnel off is not a reason to open it
+    if (!this.settings.startWithAgentry || !this.enabled) return;
     this.start('agentry').catch((error: unknown) => {
       // Not thrown at startup: a tunnel that cannot open must not keep Agentry from starting
       if (error instanceof TunnelRefusedError) this.fail(error.reason);
@@ -238,9 +250,11 @@ export class TunnelManager {
 
   /**
    * Opens the tunnel. Refused under `mode: 'none'`: the tunnel would turn "whoever reaches the port
-   * owns the machine" into "whoever has the URL does". A missing `ssh` is a state, not an error.
+   * owns the machine" into "whoever has the URL does". Refused as well where the deploy does not offer
+   * it: in Docker the operator decides whether the container may open a way in of its own. A missing `ssh` is a state, not an error.
    */
   async start(actor: 'request' | 'agentry' = 'request'): Promise<TunnelStatus> {
+    if (!this.enabled) throw new TunnelRefusedError(REASONS.disabled());
     if (this.deps.security.mode === 'none') throw new TunnelRefusedError(REASONS.authRequired());
     if (!this.target) throw new TunnelRefusedError(REASONS.noPort());
     await this.stopping;
