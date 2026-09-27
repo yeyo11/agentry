@@ -3,16 +3,17 @@
 // around, and the contrast of the theme tokens (which axe cannot judge over gradients and tints).
 // Findings are gathered and reported together, so one run says everything that is wrong.
 //
-// It seeds a chat (with a subagent and a background task), a project and an orchestration whose
-// workers fail in the sandbox, so the pages are scanned with content in them, and removes all of it
-// afterwards because the chats spec counts what the sandbox holds.
+// It seeds a chat (with a subagent and a background task), a project with its board (an epic, work
+// items with criteria and a relation, a milestone) and an orchestration whose workers fail in the
+// sandbox, so the pages are scanned with content in them, and removes all of it afterwards because
+// the chats spec counts what the sandbox holds.
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Two themes, a phone and a dozen pages, plus the overlays and the keyboard walk
-export const timeout = 420_000;
+// Two themes, a phone and two dozen pages, plus the overlays and the keyboard walk
+export const timeout = 540_000;
 
 const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), '../../packages/core/test/fixtures');
 const PROJECT = '-work-e2e-a11y';
@@ -136,6 +137,7 @@ export default async ({ page, api, check, dirs }) => {
   const workspace = join(dirs.workspaceDir, 'e2e-a11y');
   let projectId = null;
   let orchestrationId = null;
+  const workItems = [];
   const orchestrationChats = [];
 
   try {
@@ -170,9 +172,40 @@ export default async ({ page, api, check, dirs }) => {
     writeFileSync(join(tasksRoot, SESSION, 'tasks', 'bg-sub-1.output'), 'watching the build\nrebuilt in 12ms\n');
 
     mkdirSync(workspace, { recursive: true });
-    const imported = await api.post('/projects/import', { path: workspace, name: 'e2e-a11y' });
+    // Every module on, so the project page has its Board and Memory tabs to scan
+    const imported = await api.post('/projects/import', { path: workspace, name: 'e2e-a11y', template: 'software' });
     check(imported.status === 201, `the project was imported (${imported.status})`);
     projectId = imported.body.id;
+    // A board with something on every kind of mark: types, an urgent priority, an epic, labels, a
+    // checklist half done, a blocker, a milestone, and a column over its limit
+    const settings = (await api.get(`/projects/${projectId}/settings`)).body;
+    await api.put(`/projects/${projectId}/settings`, { ...settings, board: { ...settings.board, columnLimits: { in_progress: 1 } } });
+    const milestone = (await api.post(`/projects/${projectId}/milestones`, { name: 'v1.0', description: 'The first release' })).body;
+    const make = async (body) => {
+      const made = await api.post(`/projects/${projectId}/work-items`, body);
+      check(made.status === 201, `"${body.title}" was created (${made.status})`);
+      workItems.push(made.body.id);
+      return made.body;
+    };
+    const epic = await make({ title: 'Accessible board', type: 'epic', status: 'in_progress' });
+    const story = await make({
+      title: 'Read the board with a screen reader',
+      type: 'story',
+      status: 'in_progress',
+      priority: 'urgent',
+      labels: ['a11y'],
+      epicId: epic.id,
+      milestoneId: milestone.id,
+      description: 'Every card says its **key**, its column and its priority in words.',
+      acceptanceCriteria: [{ text: 'Cards are named', checked: true }, { text: 'Moves are announced' }],
+    });
+    const blocker = await make({ title: 'Name the columns', type: 'task', status: 'todo', milestoneId: milestone.id });
+    await make({ title: 'Focus ring on cards', type: 'bug', status: 'done', milestoneId: milestone.id });
+    await api.post(`/work-items/${blocker.id}/relations`, { type: 'blocks', itemId: story.id });
+    await api.post(`/work-items/${story.id}/comments`, { body: 'Check it with the keyboard only.' });
+    const board = `/tasks?project=${projectId}`;
+    const itemPage = `/tasks/${story.key}?project=${projectId}`;
+    const milestones = `/tasks/milestones?project=${projectId}`;
 
     // Nothing is logged in inside the sandbox, so the first task fails, the one behind it is blocked
     // and the graph waits for a decision: the states the board has to show without colour alone
@@ -211,7 +244,13 @@ export default async ({ page, api, check, dirs }) => {
       '/connectors',
       ...['account', 'instructions', 'settings', 'mcp', 'agents', 'skills', 'commands', 'output-styles', 'rules', 'files', 'memory', 'plugins', 'supervisor', 'security', 'install', 'notifications'].map((tab) => `/settings?tab=${tab}`),
       `/?project=${projectId}`,
-      ...['settings', 'memory', 'resources', 'worktrees'].map((view) => `/?project=${projectId}&view=${view}`),
+      ...['board', 'settings', 'memory', 'resources', 'worktrees'].map((view) => `/?project=${projectId}&view=${view}`),
+      '/projects/new',
+      board,
+      `${board}&view=list`,
+      '/tasks?project=all',
+      milestones,
+      itemPage,
     ];
     for (const theme of ['dark', 'light']) {
       // Home is the selected project's page: both themes start from All projects
@@ -226,7 +265,24 @@ export default async ({ page, api, check, dirs }) => {
     // ---------- axe: phone width ----------
     await page.eval(`localStorage.setItem('agentry-theme', 'dark'); return true`);
     await page.viewport(420, 900);
-    const narrow = ['/', '/chats', '/chats/new', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/settings?tab=settings', '/settings?tab=install', '/settings?tab=notifications', `/?project=${projectId}`, `/?project=${projectId}&view=settings`];
+    const narrow = [
+      '/',
+      '/chats',
+      '/chats/new',
+      `/chats/${SESSION}`,
+      `/orchestration/${orchestrationId}`,
+      '/settings?tab=settings',
+      '/settings?tab=install',
+      '/settings?tab=notifications',
+      `/?project=${projectId}`,
+      `/?project=${projectId}&view=settings`,
+      `/?project=${projectId}&view=board`,
+      '/projects/new',
+      board,
+      `${board}&view=list`,
+      milestones,
+      itemPage,
+    ];
     for (const path of narrow) {
       await settle(page, path);
       await scan(page, `420px ${path}`);
@@ -234,7 +290,7 @@ export default async ({ page, api, check, dirs }) => {
       if (overflow > 1) problems.push(`[420px ${path}] the page scrolls sideways by ${overflow}px`);
     }
     await page.viewport(768, 900);
-    for (const path of ['/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/', `/?project=${projectId}`]) {
+    for (const path of ['/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/', `/?project=${projectId}`, board, itemPage]) {
       await settle(page, path);
       const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
       if (overflow > 1) problems.push(`[768px ${path}] the page scrolls sideways by ${overflow}px`);
@@ -344,8 +400,22 @@ export default async ({ page, api, check, dirs }) => {
     await page.sleep(400);
     await scan(page, 'new orchestration form');
 
+    // The board's own overlays: New task, a work item in its panel, and a move menu on a phone
+    await page.goto(`${board}&new=1`, 800);
+    await page.waitFor(`return !!document.querySelector('[role=dialog] .newtask-form, [role=dialog] form')`, { label: 'the New task dialog' });
+    await scan(page, 'new task dialog', { rules: OVERLAY_RULES });
+    await page.key('Escape');
+    await page.goto(`${board}&item=${story.key}`, 800);
+    await page.waitFor(`return document.querySelector('[role=dialog]')?.innerText.includes(${JSON.stringify(story.title)})`, { label: 'the work item panel' });
+    await scan(page, 'work item panel', { rules: OVERLAY_RULES });
+    await page.key('Escape');
+    await page.viewport(420, 900);
+    await settle(page, `${board}&new=1`);
+    await scan(page, '420px new task screen', { rules: OVERLAY_RULES });
+    await page.viewport(1440, 900);
+
     // ---------- status is never colour alone ----------
-    for (const path of ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/accounts', '/connectors']) {
+    for (const path of ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/accounts', '/connectors', board, `${board}&view=list`, milestones, itemPage]) {
       await settle(page, path);
       const bare = await page.eval(`
         const bare = [];
@@ -430,6 +500,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.eval(`localStorage.removeItem('agentry-theme'); localStorage.removeItem('agentry:project'); return true`).catch(() => {});
     if (orchestrationId) await api.del(`/orchestrations/${orchestrationId}`).catch(() => {});
     for (const id of orchestrationChats) await api.del(`/chats/${id}`).catch(() => {});
+    for (const id of workItems.reverse()) await api.del(`/work-items/${id}`).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
     rmSync(projectDir, { recursive: true, force: true });
     rmSync(tasksRoot, { recursive: true, force: true });
