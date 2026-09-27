@@ -21,5 +21,6 @@
 @import './styles/orchestration.css';
 @import './styles/dashboard.css';
 @import './styles/editors.css';
+@import './styles/diff.css';
 @import './styles/overlays.css';
 @import './styles/motion.css';

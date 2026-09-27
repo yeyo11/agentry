@@ -474,5 +474,27 @@
   "slashMenu": {
     "label": "Slash commands",
     "skill": "skill"
+  },
+  "diff": {
+    "lineUnchanged": "line {{n}}",
+    "lineAdded": "line {{n}} added",
+    "lineChanged": "line {{n}} changed",
+    "lineRemoved": "line {{n}} removed",
+    "removed_one": "{{count}} line removed",
+    "removed_other": "{{count}} lines removed",
+    "unchanged_one": "{{count}} unchanged line",
+    "unchanged_other": "{{count}} unchanged lines",
+    "inWhere": "· in <where>{{where}}</where>",
+    "show": "Show",
+    "before": "Before",
+    "after": "After",
+    "binary": "Binary file: there is no text to compare.",
+    "tooLarge": "This diff is too large to show.",
+    "truncated": "The diff is cut here: the rest is too long to show.",
+    "onlyRenamed": "Only renamed: no line changed.",
+    "noChanges": "No line changed.",
+    "fingerprint": "Change fingerprint: each file as wide as what changed in it",
+    "fingerprintFile": "{{path}}: {{additions}} added, {{deletions}} removed",
+    "fingerprintFileSeen": "{{path}}: {{additions}} added, {{deletions}} removed, seen"
   }
 }
