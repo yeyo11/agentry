@@ -12,6 +12,7 @@ import { Card, CopyButton, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } fr
 import { getToken, setChallenge, setToken } from '../../lib/auth';
 import { formatDateTime, formatNumber } from '../../lib/format';
 import { reveal, useRevealedToken } from '../../lib/revealed-token';
+import { AppSettingsCards } from './AppSettingsCards';
 
 const MODES: AuthMode[] = ['none', 'token', 'oidc'];
 const MIN_OWN_TOKEN = 16;
@@ -49,6 +50,7 @@ export function SecurityTab() {
           <TokenCard auth={auth} />
         </>
       )}
+      <AppSettingsCards />
       <AuditCard />
       <p className="small muted">{t('security.footnote')}</p>
     </>

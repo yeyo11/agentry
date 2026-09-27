@@ -333,7 +333,8 @@
       "files": "Files",
       "workflows": "Workflows",
       "memory": "Memory",
-      "plugins": "Plugins"
+      "plugins": "Plugins",
+      "remote": "Remote access"
     },
     "noProject": "no project",
     "projectPage": "{{name}} — {{page}}",

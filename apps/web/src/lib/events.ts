@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import type {
   AgentryEvent,
   AgentryEventType,
+  AppSettings,
   ChatActivityEvent,
   ChatDetail,
   ChatState,
@@ -11,8 +12,11 @@ import type {
   Overview,
   RunStatus,
   RunUpdatedEvent,
+  SettingsChangedEvent,
   StreamHelloEvent,
   StreamResyncEvent,
+  TunnelChangedEvent,
+  TunnelStatus,
 } from '@agentry/shared';
 import { keys } from '../api';
 import { withToken } from './auth';
@@ -199,8 +203,11 @@ export function targetsFor(event: AgentryEvent): Target[] {
       // Reading it back costs nothing: the server answers from release.json, not from GitHub
       return [[keys.release, NOW]];
     case 'settings.changed':
+      // The event carries the document, which `patchSettings` writes; what applies to the next run
+      // reaches New chat and Home through the overview's `system.defaultPermissionMode`
+      return [[keys.overview, NOW]];
     case 'tunnel.changed':
-      // Nothing reads the layered settings or the tunnel yet; the Remote access tab brings their queries
+      // The event carries the whole status, which `patchSettings` writes
       return [];
   }
 }
@@ -231,6 +238,16 @@ export function patchActivity(client: QueryClient, event: ChatActivityEvent): vo
     orch.id === event.orchestrationId ? { ...orch, tasks: orch.tasks.map((task) => (task.id === event.taskId ? { ...task, activity } : task)) } : orch;
   client.setQueriesData<Orchestration>({ queryKey: keys.orchestration(event.orchestrationId) }, (orch) => (orch ? patchGraph(orch) : orch));
   client.setQueriesData<Orchestration[]>({ queryKey: keys.orchestrations }, (list) => list?.map(patchGraph));
+}
+
+/**
+ * Writes the layered settings and the tunnel's status into their caches, from the event that
+ * carries each one whole. A tunnel moving through its states in a few seconds would otherwise cost
+ * a request per step, and a refetch could land between two steps and show one already gone.
+ */
+export function patchSettings(client: QueryClient, event: SettingsChangedEvent | TunnelChangedEvent): void {
+  if (event.type === 'settings.changed') client.setQueryData<AppSettings>(keys.appSettings, event.settings);
+  else client.setQueryData<TunnelStatus>(keys.tunnel, event.tunnel);
 }
 
 /** A chat's state while a run of ours drives it: `stateFromRun` in core, which the lists are built with. */
@@ -329,6 +346,7 @@ function startEventFeed(client: QueryClient): () => void {
     if (event.id <= lastId) return;
     lastId = event.id;
     if (event.type === 'chat.activity') patchActivity(client, event);
+    if (event.type === 'settings.changed' || event.type === 'tunnel.changed') patchSettings(client, event);
     if (event.type === 'run.updated' && event.previousStatus === null && patchRun(client, event)) {
       invalidations.schedule([[keys.chats, LISTS], [keys.overview, OVERVIEW]]);
     }

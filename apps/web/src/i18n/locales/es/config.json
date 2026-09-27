@@ -30,7 +30,8 @@
       "tools": "Presets de herramientas",
       "security": "Seguridad",
       "install": "Instalar",
-      "notifications": "Notificaciones"
+      "notifications": "Notificaciones",
+      "remote": "Acceso remoto"
     },
     "groups": {
       "agentry": "Agentry",
@@ -1037,5 +1038,80 @@
     "ring": "anillo",
     "dots": "puntos",
     "thinking": "Pensando"
+  },
+  "remote": {
+    "title": "Túnel por localhost.run",
+    "intro": "Abre una dirección HTTPS pública para este Agentry, para llegar a él desde un móvil u otra red. Pasa por localhost.run con el ssh de esta máquina: sin cuenta y sin instalar nada.",
+    "states": {
+      "stopped": "cerrado",
+      "starting": "abriendo",
+      "verifying": "comprobando",
+      "active": "abierto",
+      "stopping": "cerrando",
+      "failed": "fallido"
+    },
+    "progress": {
+      "starting": "Esperando a que localhost.run dé una dirección…",
+      "verifying": "Comprobando que Agentry responde por la nueva dirección antes de mostrarla…",
+      "stopping": "Cerrando el túnel…"
+    },
+    "start": "Abrir el túnel",
+    "stop": "Cerrar el túnel",
+    "retry": "Reintentar",
+    "caveat": "La dirección gratuita cambia de vez en cuando. localhost.run termina el TLS, así que ve cada petición que cruza el túnel, tu token incluido.",
+    "failedTitle": "El túnel ha fallado",
+    "authRequired": {
+      "title": "Activa antes la autenticación",
+      "body": "Mientras Agentry no pida ninguna credencial, cualquiera con la dirección controlaría esta máquina, así que el túnel sigue cerrado. Activa un token u OIDC en Seguridad.",
+      "action": "Abrir Seguridad"
+    },
+    "sshMissing": {
+      "tag": "sin ssh",
+      "title": "No se encuentra ssh",
+      "body": "El túnel pasa por el ssh de esta máquina y no se ha encontrado ninguno. Instala el cliente de OpenSSH ({{package}} en Debian y Ubuntu) y vuelve a intentarlo."
+    },
+    "address": {
+      "label": "Dirección pública",
+      "copy": "Copiar la dirección",
+      "since": "Abierta {{time}}",
+      "scan": "Escanea el código con la cámara del móvil para abrirla allí.",
+      "qr": "Código QR de {{url}}"
+    },
+    "startWith": {
+      "title": "Al arrancar",
+      "label": "Abrir el túnel al arrancar Agentry",
+      "hint": "Desactivado por defecto. Sigue necesitando la autenticación activada y ssh instalado."
+    },
+    "stopConfirm": {
+      "title": "¿Cerrar el túnel que usa esta página?",
+      "body": "Esta página llegó a Agentry por el túnel, así que cerrarlo también la deja sin conexión. Para volver a abrirlo, usa Agentry en su propia máquina."
+    },
+    "footnote": "Cada dirección nueva es un sitio nuevo para el navegador: inicia sesión allí una vez. Una app instalada desde una dirección antigua sigue abriendo esa; si vuelves a activar las notificaciones en la nueva, quita el dispositivo antiguo en Notificaciones.",
+    "startFailed": "No se ha podido abrir el túnel",
+    "stopFailed": "No se ha podido cerrar el túnel",
+    "saveFailed": "No se ha podido guardar el ajuste del túnel"
+  },
+  "appSettings": {
+    "fromEnv": "fijado por el entorno",
+    "envHint": "Lo fija el entorno ({{variable}}): cámbialo donde se despliega Agentry.",
+    "saveFailed": "No se ha podido guardar el ajuste",
+    "hosts": {
+      "title": "Hosts permitidos",
+      "intro": "Los nombres a los que responde este wrapper además de localhost. Una petición para cualquier otro host se rechaza, lo que impide que una página web llegue a Agentry por un nombre que controla. La dirección de un túnel se añade sola mientras el túnel está abierto.",
+      "label": "Hosts",
+      "hint": "Uno por línea: un nombre, o *.example.com para los nombres que cuelgan de él. Sin puertos.",
+      "placeholder": "agentry.example.com",
+      "none": "Solo localhost",
+      "saved": "Hosts permitidos guardados"
+    },
+    "runs": {
+      "title": "Ejecuciones",
+      "intro": "Lo que recibe una ejecución nueva si no pide otra cosa. Un cambio se aplica a la siguiente ejecución, sin reiniciar.",
+      "mode": "Modo de permisos por defecto",
+      "modeHint": "El --permission-mode de un chat, programación u orquestación que no elige ninguno.",
+      "concurrent": "Ejecuciones a la vez",
+      "concurrentHint": "De {{min}} a {{max}}. Un chat nuevo por encima del límite se rechaza hasta que termine otro, y una orquestación no ejecuta más workers que estos a la vez.",
+      "saved": "Valores por defecto de las ejecuciones guardados"
+    }
   }
 }

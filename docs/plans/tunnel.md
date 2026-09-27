@@ -344,11 +344,161 @@ fixer.
 
 ## What `tunnel-core` found
 
-To be written by `tunnel-core`.
+Measured on 2026-09-27 against the real localhost.run, from OpenSSH 9.6p1, with the tunnel pointed
+at a throwaway server on `127.0.0.1` that answered a fixed text (decision 5). The ssh process and
+the server were killed by PID afterwards.
+
+1. **The host key.** `ssh-keyscan localhost.run` prints nothing: the server (`lhr-2.0`) does not
+   send its version until the client does, which `ssh-keyscan` does not wait for. The key was read
+   from a real `ssh` session with a scratch `known_hosts` (`StrictHostKeyChecking=accept-new`). The
+   name resolves to three addresses; the session reached one of them, and the later run with the
+   pin and `StrictHostKeyChecking=yes` connected again:
+
+   ```
+   localhost.run ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILVqOuSMnyeGDVO1lG6EaG5In/dXABCchhmHKkuRU2s9
+   SHA256:pG6qrBxubYfWa1Zadu/V0NUgjEDiBds/7e2xzte/QNM
+   ```
+
+   It is `LOCALHOST_RUN_KNOWN_HOSTS` in `packages/core/src/tunnel.ts`, written to
+   `<dataDir>/tunnel/known_hosts` (mode `0600`) before every attempt, and ssh runs with
+   `StrictHostKeyChecking=yes`, `UpdateHostKeys=no` and `GlobalKnownHostsFile=none`. A key that
+   changes fails the tunnel with `tunnel.hostKey` and no retry, rather than being learned.
+2. **The banner line.** The address arrives on **stdout**, after `authn: authenticated as anonymous
+   user`, as `<id>.lhr.life tunneled with tls termination, https://<id>.lhr.life` (the id was 14
+   hex characters, lines end in `\r\n`). The same output carries two other `https://` links (the
+   docs and the "forever free" page), and stderr carries a welcome box and a line with the
+   caller's **public IP** (`your connection id is <ip>:<port>`). So the parser matches that one line
+   only, and requires the same name on both sides of it; and the IP line is never used as a failure
+   reason shown on screen.
+3. **The client's address.** localhost.run **adds no forwarding header at all**: no
+   `X-Forwarded-For`, `X-Real-IP`, `Forwarded` or `X-Forwarded-Proto`. It keeps the public `Host`
+   and passes the request's own headers through untouched, so an `X-Forwarded-For: 6.6.6.6` sent by
+   the client arrived as exactly that. Keying the backoff by such a header would let a stranger
+   pick whose budget they spend. The tunnel's host is therefore registered **without**
+   `clientIpHeader` (`TUNNEL_HOST_OPTIONS`), and all tunnel traffic shares one backoff bucket of its
+   own, apart from loopback: ten wrong guesses through the tunnel make the tunnel wait, never the
+   owner at the desk. The cost is that a stranger can make the owner's phone wait too, for as long
+   as the backoff lasts.
+
+Also measured, and what it changed:
+
+- **`/api/health` answers before the host is allowed.** The route is open and outside the host
+  check, so verification goes through the public URL while the host is still off the allowlist.
+  The host joins only after that first `200`. It took 2.3 s from `start` to `active`.
+- **ssh never reads `~/.ssh`:** `-F none`, `BatchMode=yes`, `PubkeyAuthentication=no`,
+  `IdentityAgent=none` and `IdentityFile=none`. The `nokey` user authenticates with `none`. The
+  real run reached `active` with all of these options set.
+- **The manual run:** the real `TunnelManager`, the system `ssh` and localhost.run, pointed at the
+  throwaway server. It went `starting → verifying → active` in 2.3 s, and the public URL answered
+  `200`. On `stop` it went `stopping → stopped`, the host left the list, and the ssh PID was gone.
+
+Three places where this task changed a file outside the ownership table, because nothing else
+could do it:
+
+- `packages/core/src/paths.ts` (`settings-layers`) gained `sshBin`, read from `SSH_BIN` with `ssh`
+  as the default.
+
+- `packages/core/src/security/auth.ts` gained `beforeUnguarded`, which the store awaits before the
+  mode turns to `none`. `Core` points it at `tunnel.stop('unguarded')`, so the answer to that `PUT`
+  already finds the tunnel closed.
+- `apps/api/src/server.ts` calls `core.tunnel.attach(port, host)` with the port it actually bound
+  to.
 
 ## Answer: notifications after a domain change
 
-To be written by `push-current-url`.
+**Yes, on Chrome (desktop and Android) it can: a push sent after the address changed opens the new
+address. On iOS it is built the same way but could not be verified**, for lack of a device. Answered
+by `push-current-url` on 2026-09-27.
+
+### What happened before
+
+`notificationclick` in `apps/web/public/sw.js` resolved `href` (a path such as
+`/chats/<id>?prompt=<id>`) against `self.location.origin`, which is the origin the worker was
+installed from. A phone that installed Agentry on `https://a….lhr.life` therefore opened
+`https://a….lhr.life/chats/…` for every notification, including ones sent long after that address
+stopped answering.
+
+### The evidence
+
+1. **The subscription survives the change.** A push subscription belongs to the service worker
+   registration it was made from, not to the server that uses it. The
+   [Push API](https://w3c.github.io/push-api/) deactivates one only when "its associated service
+   worker registration is unregistered" or it expires, and the push service delivers by endpoint
+   ([RFC 8030](https://www.rfc-editor.org/rfc/rfc8030)), with the VAPID key as the only binding to the
+   server. Nothing in the protocol looks at the origin, so the server keeps reaching the phone and the
+   phone keeps running the *old* origin's worker. When that worker checks for an update and gets a
+   network error or a page with the wrong MIME type, the
+   [Service Workers](https://w3c.github.io/ServiceWorker/) Update algorithm rejects the update and
+   removes the registration only "if newestWorker is null". An installed worker is not null, so it
+   stays.
+2. **`clients.openWindow` accepts another origin.** The spec's steps parse the URL, refuse only
+   `about:blank` and calls without transient activation, and open the URL in a new top-level browsing
+   context. When that context's storage key is not the worker's, the promise "resolve[s] with null".
+   So the URL is opened, and the worker just gets no client for it.
+   [MDN](https://developer.mozilla.org/en-US/docs/Web/API/Clients/openWindow) agrees ("resolves to
+   a WindowClient … if the URL is from the same origin … or a null value otherwise") and notes that
+   Chrome for Android may open it in an installed app whose scope covers it. `WindowClient.navigate`
+   has the same shape: it navigates a controlled window across origins and resolves with null.
+3. **A run in real Chrome.** Chrome 152, headless, with a scratch profile. Two HTTPS servers on
+   `127.0.0.1` played the old and the new address, `https://0a1b….lhr.life` and
+   `https://9f8e….lhr.life`, through `--host-resolver-rules` and a self-signed certificate, so
+   nothing left the machine and Agentry was not involved. The built `sw.js` was served from both.
+   - The page installed on the old address, and then the old server was shut down.
+   - `ServiceWorker.deliverPushMessage` delivered a payload carrying the new address to the old
+     registration. The old worker showed the notification, and its `data` held the new URL.
+   - The old address's shell still painted from the worker's cache, controlled, with its server
+     gone.
+   - With that window open, the click's own code, `openUrl(destination(data))`, navigated it to
+     `https://9f8e….lhr.life/chats/run1?prompt=p1`.
+   - One thing could not be exercised: tapping a notification. CDP has no way to do it, and outside a
+     tap `openWindow` is refused with `InvalidAccessError: Not allowed to open a window`, which is
+     the spec's activation rule. That branch rests on the spec and MDN (point 2) and on the unit
+     tests.
+4. **iOS** (Web Push only reaches Home Screen apps, from 16.4). Tapping a notification launches
+   the app on its start URL. Reports say that `openWindow` then does not navigate to the path it was
+   given, while `client.navigate` on the window that was launched does
+   ([Apple forums 733604](https://developer.apple.com/forums/thread/733604),
+   [WebKit 252544](https://bugs.webkit.org/show_bug.cgi?id=252544): that window is inert for a
+   moment, [WebKit 259212](https://bugs.webkit.org/show_bug.cgi?id=259212)). No source says what a
+   standalone app does with a URL on *another* origin, and no iPhone was available to try. The likely
+   outcome is Safari's in-app browser, as for any link out of the app's scope. **This is not
+   verified.**
+
+### What was built
+
+- `PushPayload.url` (`packages/shared/src/types.ts`): the notification's path as an absolute URL
+  on the tunnel's current address, or null while no tunnel is active.
+  - `PushService` follows `tunnel.changed` on the bus, so nothing has to be wired to it. The address
+    counts only while the state is `active`; while reconnecting, `url` is null.
+  - The test notification carries it too.
+  - `absoluteOn` only builds `https` URLs from rooted paths, so `//host` or an absolute `href` never
+    becomes a URL on another site.
+- The worker follows `url` only when **both** its own origin and `url` are tunnel addresses
+  (`*.lhr.life`, `TUNNEL_SUFFIX` in `sw.js`), `url` is `https`, and it is on a different origin.
+  - A phone installed on the LAN or at the desk keeps opening its own origin while a tunnel happens
+    to be open, rather than being sent through the provider.
+  - A test in core checks that the suffix matches what `parseTunnelUrl` produces.
+- For another origin, the worker navigates the first open window (the iOS path, and what the Chrome
+  run confirmed). With no window, or one it may not navigate, it calls `openWindow`. It never hands a
+  cross-origin URL to the old page's router, which can only route within its own origin.
+
+### What it cannot do, and what the person still sees
+
+- **The new address is a new origin**, so the browser keeps its storage apart from the old one. It
+  has no token in `localStorage` yet, so the person signs in again there once. It has no worker, no
+  installed app and no push subscription of its own either.
+- **Duplicates.** If the person enables notifications again on the new address, the phone holds two
+  subscriptions, one per origin. It then receives each push twice until the old one is removed in
+  Settings → Notifications. Tags only collapse within one origin. The server cannot tell that two
+  endpoints are the same phone.
+- **The old worker's `pushsubscriptionchange`** posts to its own origin, which no longer answers, so
+  a rotation on an old install is lost until the person opens the current address.
+- **The address in a push is the one current when it was sent.** The push service keeps a message
+  for up to an hour while the phone is offline, and a change in that window makes the address stale.
+  It is null when no tunnel was active at the time.
+- **The notification does not say that the address changed.** The worker has no translations, and
+  the payload's words are the server's, which already say what happened. Once opened, the new address
+  explains itself.
 
 ## Answer: the tunnel in Docker
 
