@@ -158,8 +158,15 @@ export class ProjectStore {
    * would make the same work appear twice. A directory that is, or holds, the Claude configuration
    * directory is refused too: its project root would be the real `~/.claude`, whose credentials and
    * transcripts the config explorer hides for exactly that reason.
+   *
+   * `idFor` hands back the id the directory had when it was last a project, so what Agentry keeps
+   * under that id (its settings, its work items) comes back with it.
    */
-  async add(input: { path: string; name?: string }, worktreeOf: (dir: string) => WorktreeFacts | null): Promise<ProjectRecord> {
+  async add(
+    input: { path: string; name?: string },
+    worktreeOf: (dir: string) => WorktreeFacts | null,
+    idFor: (path: string) => string | null = () => null,
+  ): Promise<ProjectRecord> {
     if (typeof input.path !== 'string' || !input.path.trim()) throw new Error('path is required');
     const path = resolve(input.path.trim());
     if (!isDirectory(path)) throw new Error(`${path} is not a directory`);
@@ -170,7 +177,9 @@ export class ProjectStore {
     if (inside(real, realConfigDir)) {
       throw new Error(`${path} is or contains the Claude configuration directory ${this.configDir}; importing it would expose the account credentials`);
     }
-    const record = { id: randomUUID(), name: this.cleanName(input.name) ?? (basename(path) || path), path };
+    const previous = idFor(path);
+    const id = previous && !this.get(previous) ? previous : randomUUID();
+    const record = { id, name: this.cleanName(input.name) ?? (basename(path) || path), path };
     this.records = [...this.records, record];
     await this.save();
     return record;

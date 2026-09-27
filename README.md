@@ -586,11 +586,14 @@ the auto-switch threshold as a reference line.
 | --- | --- | --- |
 | GET | `/projects` | The projects you imported, each with its worktrees and the number of chats under it |
 | GET | `/projects/candidates` | Directories chats have run in that are not projects yet, the busiest first: what a first start offers to import |
-| POST | `/projects/import` | `{ path, name? }` — import a directory; every chat under it is adopted, retroactively. A git worktree is refused |
-| POST | `/projects` | `{ name, gitUrl? }` — create an empty project in the workspace or clone a repository into it, and import it |
-| PATCH | `/projects/:id` | `{ name }` — rename a project |
+| GET | `/projects/templates` | The five built-in project templates: the modules each switches on, its board's work item types and column limits, and the team it offers |
+| POST | `/projects/import` | `{ path, name?, template?, modules? }` — import a directory; every chat under it is adopted, retroactively. A git worktree is refused. Without a template or modules every module is off; a directory that was a project before gets its settings back |
+| POST | `/projects` | `{ name, gitUrl?, template?, modules? }` — create an empty project in the workspace or clone a repository into it, and import it |
+| PATCH | `/projects/:id` | `{ name?, key?, modules? }` — rename a project, change its work item key prefix or the modules that are on. Switching a module off hides it and keeps its data |
+| GET | `/projects/:id/settings` | The project's settings document (modules, template, key prefix, board). Created on first read with every module off |
+| PUT | `/projects/:id/settings` | Replace the settings document whole, validated. Emits `project.updated` |
 | GET | `/projects/:id/export?format=markdown\|json` | Download every chat of the project, streamed. `markdown` (default): a header with the dates, models and the cost the CLI reported, then each chat, oldest first, as `/chats/:id/export` renders it. `json`: a `ProjectExport` |
-| DELETE | `/projects/:id` | Remove a project from Agentry. Harmless: nothing on disk changes |
+| DELETE | `/projects/:id` | Remove a project from Agentry. Harmless: nothing on disk changes, and its settings and work items are kept for when it is imported again |
 | DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible, and separate from removing the project |
 
 ### Events
