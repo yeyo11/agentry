@@ -58,6 +58,10 @@ const ROOT_TYPES = [
   // Work items with chats and orchestrations
   'WorkOnWorkItemRequest', 'WorkOnWorkItemResult', 'OrchestrateWorkItemsRequest', 'WorkItemOrchestrationDraft', 'CreateWorkItemFromMessageRequest',
   'WorkItemChanges',
+  // Team, flow by column, journal, memory proposals and documents
+  'Team', 'TeamMember', 'TeamFromTemplateRequest', 'PutTeamMemberRequest', 'ProjectFlow', 'FlowRun', 'FlowRunResult',
+  'JournalPage', 'JournalEntry', 'CreateJournalEntryRequest', 'MemoryProposal', 'ApproveMemoryProposalRequest', 'RejectMemoryProposalRequest',
+  'ProjectDocuments', 'DocumentFile', 'WriteDocumentRequest', 'TieDocumentRequest',
 ];
 
 const generator = createGenerator({

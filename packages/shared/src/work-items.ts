@@ -1,4 +1,16 @@
 import type {
+  DocumentChangeAction,
+  DocumentKind,
+  FlowRunAction,
+  FlowRunOutcome,
+  FlowRunState,
+  FlowStage,
+  FlowVerdict,
+  JournalChangeAction,
+  JournalEntryKind,
+  MemoryProposalAction,
+  MemoryProposalStatus,
+  MemoryProposalTargetKind,
   MilestoneState,
   ProjectChange,
   ProjectModule,
@@ -11,6 +23,9 @@ import type {
   WorkItemSourceKind,
   WorkItemStatus,
   WorkItemType,
+  TeamAgentDriftField,
+  TeamAgentFileState,
+  TeamChangeAction,
   WorkItemWaitReason,
 } from './types.ts';
 
@@ -57,6 +72,51 @@ export const WORK_ITEM_RELATION_TYPES = valuesOf<WorkItemRelationType>()(['block
 export const WORK_ITEM_WAIT_REASONS = valuesOf<WorkItemWaitReason>()(['approval', 'bounces']);
 
 export const MILESTONE_STATES = valuesOf<MilestoneState>()(['open', 'closed']);
+
+// ---- team, flow, journal, memory proposals and documents (orchestration 3)
+
+export const TEAM_AGENT_FILE_STATES = valuesOf<TeamAgentFileState>()(['ok', 'missing', 'drifted']);
+
+export const TEAM_AGENT_DRIFT_FIELDS = valuesOf<TeamAgentDriftField>()(['name', 'description', 'model']);
+
+export const TEAM_CHANGE_ACTIONS = valuesOf<TeamChangeAction>()(['created', 'updated', 'removed', 'template', 'file']);
+
+/** In the order of an item's life on the board */
+export const FLOW_STAGES = valuesOf<FlowStage>()(['refine', 'work', 'verify']);
+
+/** The stage a column's responsible role acts in; `done` has none, since only a person moves an item there. */
+export const FLOW_STAGE_OF_COLUMN = {
+  backlog: 'refine',
+  todo: 'refine',
+  in_progress: 'work',
+  in_review: 'verify',
+  done: null,
+} as const satisfies Record<WorkItemStatus, FlowStage | null>;
+
+export const FLOW_RUN_STATES = valuesOf<FlowRunState>()(['queued', 'running', 'ended']);
+
+export const FLOW_RUN_OUTCOMES = valuesOf<FlowRunOutcome>()(['passed', 'rejected', 'failed', 'cancelled']);
+
+export const FLOW_RUN_ACTIONS = valuesOf<FlowRunAction>()(['queued', 'started', 'ended']);
+
+export const FLOW_VERDICTS = valuesOf<FlowVerdict>()(['pass', 'fail']);
+
+/** Flow runs of a project at once when its settings leave `flow.maxParallel` out */
+export const DEFAULT_FLOW_MAX_PARALLEL = 2;
+
+export const JOURNAL_ENTRY_KINDS = valuesOf<JournalEntryKind>()(['closed', 'decision', 'memory', 'note']);
+
+export const JOURNAL_CHANGE_ACTIONS = valuesOf<JournalChangeAction>()(['added', 'removed']);
+
+export const MEMORY_PROPOSAL_TARGET_KINDS = valuesOf<MemoryProposalTargetKind>()(['instructions', 'memory', 'journal']);
+
+export const MEMORY_PROPOSAL_STATUSES = valuesOf<MemoryProposalStatus>()(['pending', 'approved', 'rejected']);
+
+export const MEMORY_PROPOSAL_ACTIONS = valuesOf<MemoryProposalAction>()(['created', 'approved', 'rejected']);
+
+export const DOCUMENT_KINDS = valuesOf<DocumentKind>()(['spec', 'adr', 'report', 'doc']);
+
+export const DOCUMENT_CHANGE_ACTIONS = valuesOf<DocumentChangeAction>()(['written', 'removed', 'tied', 'untied']);
 
 /**
  * A key prefix: upper case letters and digits, starting with a letter, two to ten characters. The
