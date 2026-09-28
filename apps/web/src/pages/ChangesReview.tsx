@@ -74,7 +74,7 @@ export function ChatChangesReview() {
       kind: 'chat',
       storageKey: `chat:${id}`,
       // Under the chat's key, beside the summary's own: this one keeps only the git half
-      summary: (scope) => ({ queryKey: [...keys.chatChanges(id, scope), 'review'], queryFn: () => api.chatChanges(id, scope).then((c) => c.summary) }),
+      summary: (scope) => ({ queryKey: keys.chatChangesReview(id, scope), queryFn: () => api.chatChanges(id, scope).then((c) => c.summary) }),
       diff: (path, opts) => ({ queryKey: keys.chatDiff(id, path, opts), queryFn: () => api.chatDiff(id, path, opts) }),
       steps: { queryKey: keys.chatSteps(id), queryFn: () => api.chatSteps(id) },
       conversation: id,
@@ -159,7 +159,7 @@ export function WorkItemChangesReview() {
     () => ({
       kind: 'workItem',
       storageKey: `work-item:${itemId}`,
-      summary: (scope) => ({ queryKey: keys.workItemChanges(itemId, scope), queryFn: () => api.workItemChanges(itemId, scope).then((c) => c.summary) }),
+      summary: (scope) => ({ queryKey: keys.workItemChangesReview(itemId, scope), queryFn: () => api.workItemChanges(itemId, scope).then((c) => c.summary) }),
       diff: (path, opts) => ({ queryKey: keys.workItemDiff(itemId, path, opts), queryFn: () => api.workItemDiff(itemId, path, opts) }),
       steps: null,
       conversation: null,
