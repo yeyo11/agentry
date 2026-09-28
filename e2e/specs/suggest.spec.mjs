@@ -92,6 +92,21 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.click('.dialog .suggestion-row.is-discarded button', 'Undo', 800);
     await page.waitFor(`return document.querySelectorAll('.dialog .suggestion-row.is-discarded').length === 0`, { label: 'and restored' });
 
+    // With the flow on, creating them in Backlog queues a refine run each: the dialog says how many
+    // before anyone presses Create, and says nothing while the flow is off
+    check(!(await page.eval(`return !!document.querySelector('.dialog .suggest-flow-note')`)), 'with the flow off, no run is announced');
+    await api.request('PUT', `/projects/${projectId}/team/product-owner`, { role: 'product-owner', model: 'opus', responsibility: 'Refines the backlog' });
+    const settingsNow = (await api.get(`/projects/${projectId}/settings`)).body;
+    const modules = [...new Set([...settingsNow.modules, 'board', 'team'])];
+    const withFlow = { ...settingsNow, modules, flow: { enabled: true, columns: { backlog: 'product-owner' }, maxBounces: 3 } };
+    check((await api.request('PUT', `/projects/${projectId}/settings`, withFlow)).status === 200, 'the flow was switched on');
+    await page.waitFor(`return document.querySelector('.dialog .suggest-flow-note')?.textContent.includes('The flow will queue 2 runs, 2 at a time: Product Owner refines each task in Backlog')`, {
+      label: 'the dialog says how many flow runs creating them queues',
+    });
+    // Off again, so this spec creates cards without starting runs
+    await api.request('PUT', `/projects/${projectId}/settings`, { ...withFlow, flow: { ...withFlow.flow, enabled: false } });
+    await page.waitFor(`return !document.querySelector('.dialog .suggest-flow-note')`, { label: 'and nothing once the flow is off' });
+
     await page.click('.dialog .suggest-create', 'Create the selected', 1000);
     await until(async () => (await itemCount()) === before + 2, 'the two selected tasks were created');
     const created = (await api.get(`/projects/${projectId}/work-items`)).body.find((w) => w.title === 'Undo the last move of a card');
@@ -150,6 +165,14 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     // migration-reviewer is proposed again, and a file has that name now: the editor offers a free one
     await page.click('.resources-proposals .suggestion-row button', 'Review', 1000);
     await page.waitFor(`return document.querySelector('.resource-proposal-name-input')?.value === 'migration-reviewer-2'`, { label: 'a taken name becomes the first free one' });
+    // On a phone the name is a 44 px target at 16 px, so iOS does not zoom into it
+    await page.viewport(390, 844);
+    await page.waitFor(`return !!document.querySelector('.resource-proposal-editor.is-phone .resource-proposal-name-input')`, { label: 'the proposal editor on a phone' });
+    const nameBox = await page.eval(
+      `const input = document.querySelector('.resource-proposal-name-input'); return { height: input.getBoundingClientRect().height, font: getComputedStyle(input).fontSize }`,
+    );
+    check(nameBox.height >= 44 && nameBox.font === '16px', `the phone's name field is a 44 px target at 16 px (${JSON.stringify(nameBox)})`);
+    await page.viewport(1440, 1000);
 
     // ---- On a phone: the same suggestion as Include buttons, no checkboxes ----
     // The desktop created the first two by title, which now makes them "similar" too: the new run

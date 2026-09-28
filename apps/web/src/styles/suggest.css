@@ -494,6 +494,7 @@
 
 .resource-proposal-editor.is-phone .resource-proposal-name-input {
   flex-basis: 100%;
+  min-height: 44px;
   font-size: 16px;
 }
 
