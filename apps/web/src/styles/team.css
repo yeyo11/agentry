@@ -164,11 +164,12 @@
   flex-wrap: wrap;
 }
 
+/* The muted grey, not the faint one: on the count's pill the faint grey falls under 4.5:1 in both themes */
 .team-switch .count {
   margin-left: 6px;
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--fg-3);
+  color: var(--fg-2);
   font-variant-numeric: tabular-nums;
 }
 
