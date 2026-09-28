@@ -45,13 +45,15 @@ import type {
   WorkItemChanges,
   WorkItemDetail,
   WorkItemFilter,
+  WorkItemPage,
+  WorkItemPageQuery,
+  BoardQuery,
   WorkItemLink,
   WorkItemOrchestrationDraft,
   WorkOnWorkItemRequest,
   WorkOnWorkItemResult,
   FileDiff,
 } from '@agentry/shared';
-import { WORK_ITEM_STATUSES } from '@agentry/shared';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountManager } from './accounts.ts';
 import { AppSettingsStore } from './app-settings.ts';
@@ -1444,30 +1446,38 @@ export class Core {
     else if (access === 'write') throw new WorkItemError('its project is not imported: import the directory again to change it', 409);
   }
 
-  /** The All projects list: the items of every imported project whose Board module is on. */
+  /**
+   * The All projects list: the items of every imported project whose Board module is on, as cards
+   * (descriptions left out).
+   */
   async allWorkItems(filter: Omit<WorkItemFilter, 'projectId'> = {}): Promise<WorkItem[]> {
-    const shown = await this.boardProjects();
-    return this.workItems.list(filter).filter((item) => shown.has(item.projectId));
+    return this.workItems.cards(filter, await this.boardProjects());
+  }
+
+  /** The All projects list a page at a time. */
+  async allWorkItemsPage(filter: Omit<WorkItemFilter, 'projectId'> = {}, query: WorkItemPageQuery = {}): Promise<WorkItemPage> {
+    return this.workItems.page(filter, query, await this.boardProjects());
   }
 
   /**
-   * The All projects board. Counted again over the projects shown, since the store's own counts
-   * take in the hidden ones: projects removed, or with their board off.
+   * The All projects board, counted over the projects shown only: the store's own counts would take
+   * in the hidden ones, projects removed or with their board off.
    */
-  async allWorkItemsBoard(filter: Omit<WorkItemFilter, 'projectId'> = {}): Promise<Board> {
-    const shown = await this.boardProjects();
-    const board = this.workItems.board(null, filter);
-    const counts = new Map(WORK_ITEM_STATUSES.map((status) => [status, 0]));
-    // Epics group work rather than being work, and the project board leaves them out of its counts too
-    for (const item of this.workItems.list()) if (item.type !== 'epic' && shown.has(item.projectId)) counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
-    return {
-      projectId: null,
-      columns: board.columns.map((column) => ({
-        ...column,
-        count: counts.get(column.status) ?? 0,
-        items: column.items.filter((item) => shown.has(item.projectId)),
-      })),
-    };
+  async allWorkItemsBoard(filter: Omit<WorkItemFilter, 'projectId'> = {}, query: BoardQuery = {}): Promise<Board> {
+    return this.workItems.board(null, filter, query, await this.boardProjects());
+  }
+
+  /**
+   * The item a key names, with its page. An imported project's item wins over a removed project's
+   * that had the same prefix; a removed project's item is still found when it is the only one, as
+   * it is still readable by id.
+   */
+  async workItemByKey(key: string): Promise<WorkItemDetail> {
+    const imported = new Set(this.projectStore.list().map((p) => p.id));
+    const found = this.workItems.withKey(key);
+    const item = found.find((i) => imported.has(i.projectId)) ?? found[0];
+    if (!item) throw new WorkItemError('work item not found', 404);
+    return this.workItemDetail(item.id);
   }
 
   private async boardProjects(): Promise<Set<string>> {
@@ -1678,7 +1688,7 @@ export class Core {
   workItemsOfChat(chatId: string): WorkItem[] {
     const imported = new Set(this.projectStore.list().map((p) => p.id));
     const ids = [...new Set(this.workItems.linksOfChat(chatId).map((l) => l.itemId))];
-    return ids.map((id) => this.workItems.find(id)).filter((item): item is WorkItem => !!item && imported.has(item.projectId));
+    return this.workItems.cardsOf(ids).filter((item) => imported.has(item.projectId));
   }
 
   /** What the item's own branch changed, read as a chat's worktree is. */

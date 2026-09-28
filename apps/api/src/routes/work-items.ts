@@ -34,6 +34,15 @@ interface FilterQuery {
   q?: Param;
 }
 
+interface PageQuery extends FilterQuery {
+  limit?: Param;
+  cursor?: Param;
+}
+
+interface BoardQueryString extends FilterQuery {
+  doneLimit?: Param;
+}
+
 const csv = (value: Param): string[] | undefined => {
   const items = (Array.isArray(value) ? value : [value])
     .flatMap((v) => (typeof v === 'string' ? v.split(',') : []))
@@ -79,6 +88,28 @@ function filterOf(query: FilterQuery): Omit<WorkItemFilter, 'projectId'> {
   };
 }
 
+/**
+ * A count in a query string. Anything but digits is refused here, since `Number('')` and
+ * `Number('1e2')` would read as counts; the store checks the range.
+ */
+function count(value: Param, field: string): number | undefined {
+  const text = single(value, field);
+  if (text === undefined) return undefined;
+  if (!/^\d{1,9}$/.test(text)) throw new WorkItemError(`${field} must be a whole number`, 400);
+  return Number(text);
+}
+
+function pageOf(query: PageQuery): { limit?: number; cursor?: string } {
+  const limit = count(query.limit, 'limit');
+  const cursor = single(query.cursor, 'cursor');
+  return { ...(limit === undefined ? {} : { limit }), ...(cursor ? { cursor } : {}) };
+}
+
+function boardOf(query: BoardQueryString): { doneLimit?: number } {
+  const doneLimit = count(query.doneLimit, 'doneLimit');
+  return doneLimit === undefined ? {} : { doneLimit };
+}
+
 // A missing body reaches core as an empty object, so its own validation names the field that is missing
 const bodyOf = <T>(body: T | undefined): T => (body ?? {}) as T;
 
@@ -90,9 +121,15 @@ const bodyOf = <T>(body: T | undefined): T => (body ?? {}) as T;
 export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   // ---- a project's collection
 
+  // Cards, as every list: an item's description is read on its own page
   app.get<{ Params: { id: string }; Querystring: FilterQuery }>('/projects/:id/work-items', async (req) => {
     await core.workItemProject(req.params.id, 'read');
-    return core.workItems.list({ ...filterOf(req.query), projectId: req.params.id });
+    return core.workItems.cards({ ...filterOf(req.query), projectId: req.params.id });
+  });
+
+  app.get<{ Params: { id: string }; Querystring: PageQuery }>('/projects/:id/work-items/page', async (req) => {
+    await core.workItemProject(req.params.id, 'read');
+    return core.workItems.page({ ...filterOf(req.query), projectId: req.params.id }, pageOf(req.query));
   });
 
   app.post<{ Params: { id: string }; Body: CreateWorkItemRequest }>('/projects/:id/work-items', async (req, reply) => {
@@ -100,9 +137,9 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     return reply.status(201).send(core.workItems.create(req.params.id, bodyOf(req.body)));
   });
 
-  app.get<{ Params: { id: string }; Querystring: FilterQuery }>('/projects/:id/work-items/board', async (req) => {
+  app.get<{ Params: { id: string }; Querystring: BoardQueryString }>('/projects/:id/work-items/board', async (req) => {
     await core.workItemProject(req.params.id, 'read');
-    return core.workItems.board(req.params.id, filterOf(req.query));
+    return core.workItems.board(req.params.id, filterOf(req.query), boardOf(req.query));
   });
 
   // A draft to review, not a launched graph: `POST /orchestrations` launches it
@@ -122,10 +159,15 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
 
   // ---- every project
 
-  // Registered before `/work-items/:itemId`, which would otherwise take "board" for an id
-  app.get<{ Querystring: FilterQuery }>('/work-items/board', (req) => core.allWorkItemsBoard(filterOf(req.query)));
+  // Beside `/work-items/:itemId`: a static segment wins over the parameter, so "board", "page" and
+  // "by-key" are never taken for an id
+  app.get<{ Querystring: BoardQueryString }>('/work-items/board', (req) => core.allWorkItemsBoard(filterOf(req.query), boardOf(req.query)));
 
   app.get<{ Querystring: FilterQuery }>('/work-items', (req) => core.allWorkItems(filterOf(req.query)));
+
+  app.get<{ Querystring: PageQuery }>('/work-items/page', (req) => core.allWorkItemsPage(filterOf(req.query), pageOf(req.query)));
+
+  app.get<{ Params: { key: string } }>('/work-items/by-key/:key', (req) => core.workItemByKey(req.params.key));
 
   // ---- one item
 

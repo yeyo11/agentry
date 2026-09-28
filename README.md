@@ -749,14 +749,17 @@ event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `l
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/projects/:id/work-items?status=&type=&…` | The project's work items in board order, filtered |
+| GET | `/projects/:id/work-items?status=&type=&…` | The project's work items in board order, filtered, descriptions left out (`hasDescription`) |
+| GET | `/projects/:id/work-items/page?…&limit=&cursor=` | The same list a page at a time (100 by default, 500 at most): `{ items, total, nextCursor }` |
 | POST | `/projects/:id/work-items` | `{ title, type?, description?, status?, priority?, labels?, assignee?, epicId?, milestoneId?, acceptanceCriteria? }` — create one; it takes the next number of the project, never reused. Emits `workitem.created` |
-| GET | `/projects/:id/work-items/board?…` | The five columns, each with its limit, its real count, whether it is over the limit, and the items that pass the filter in rank order |
+| GET | `/projects/:id/work-items/board?…&doneLimit=` | The five columns, each with its limit, its real count, whether it is over the limit, and the items that pass the filter in rank order, descriptions left out. Done holds its newest `doneLimit` items (20 by default) and `more` counts the rest |
 | POST | `/projects/:id/work-items/orchestrate` | `{ itemIds }` — a draft orchestration to review, not launched: one node per item, `dependsOn` from `blocks` inside the selection, and the blockers left outside it. `POST /orchestrations` launches it |
 | GET | `/projects/:id/milestones` | The project's milestones, each with its progress derived from its items |
 | POST | `/projects/:id/milestones` | `{ name, description? }` — create a milestone, open, with no date. Emits `milestone.changed` |
-| GET | `/work-items?…` | Every work item of the imported projects with the Board module on: the All projects view |
-| GET | `/work-items/board?…` | The All projects board, with no column limits |
+| GET | `/work-items?…` | Every work item of the imported projects with the Board module on: the All projects view, descriptions left out |
+| GET | `/work-items/page?…&limit=&cursor=` | The All projects list a page at a time: `{ items, total, nextCursor }` |
+| GET | `/work-items/board?…&doneLimit=` | The All projects board, with no column limits; Done paged as on a project's board |
+| GET | `/work-items/by-key/:key` | The item a key names (`AGN-12`, any case), as `/work-items/:itemId` answers it; 404 when none has it |
 | GET | `/work-items/:itemId` | One item with its children, links, comments and history |
 | PATCH | `/work-items/:itemId` | Change any field but the status; `acceptanceCriteria` replaces the checklist, keeping the check of entries sent with their `id`. Emits `workitem.updated` |
 | DELETE | `/work-items/:itemId` | Delete an item for good; its number is not reused. Emits `workitem.removed` |
@@ -774,7 +777,7 @@ event feed. Filters take comma-separated lists: `status`, `type`, `priority`, `l
 | GET | `/work-items/:itemId/changes` | What the item's branch changed: commits, files and what is not committed yet. The branch is the last chat's or orchestration node's that worked on the item. `?commit=`/`?uncommitted=1` scope it as `/chats/:id/changes` does |
 | GET | `/work-items/:itemId/changes/diff?path=` | One file's diff on the item's branch, with `?context=`, `?commit=` and `?uncommitted=1` as `/chats/:id/changes/diff` takes them |
 | POST | `/chats/:id/work-items` | `{ text, title?, type?, priority? }` — create a task in `backlog` from a chat's message, linked to the chat |
-| GET | `/chats/:id/work-items` | The work items a chat works on or was the origin of |
+| GET | `/chats/:id/work-items` | The work items a chat works on or was the origin of, descriptions left out |
 | GET | `/milestones/:milestoneId` | One milestone with its progress |
 | PATCH | `/milestones/:milestoneId` | `{ name?, description?, state? }` — edit, close or reopen a milestone |
 | DELETE | `/milestones/:milestoneId` | Delete a milestone; its items stay, without it |
