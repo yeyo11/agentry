@@ -109,8 +109,9 @@ export default async ({ page, api, check }) => {
     // The branch, its base, the commits and the diff are on the review screen
     await page.click('.changes-review-link');
     await page.waitFor(`return location.pathname === ${JSON.stringify(`/chats/${SESSION}/changes`)} && !!document.querySelector('.changes-head')`, { label: 'the review opens' });
+    // The header is drawn before the summary it reads has arrived
+    await page.waitFor(`return document.querySelector('.changes-head')?.textContent.includes('feature/greeting')`, { label: 'the review names the branch' });
     const head = await page.text('.changes-head');
-    check(head.includes('feature/greeting'), 'the review names the branch');
     check(/from [0-9a-f]{7}/.test(head), 'the commit it branched from is named');
     check(head.includes('1 commit'), 'how far ahead it is is said');
     await page.focus('.changes-scope');
