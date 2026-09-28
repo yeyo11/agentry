@@ -8,21 +8,27 @@ import { MoreActions } from '../controls/MoreActions';
 import type { MenuEntry } from '../controls/Menu';
 import { ICON } from '../icons';
 import { BackButton } from './BackButton';
-import { phoneHeaderOf } from './phone-header';
+import { phoneHeaderOf, type PhoneHeaderMark } from './phone-header';
 
 /** Inside the desktop app the top bar is the window's title bar, so it stays at any width. */
 const inDesktopApp = () => typeof document !== 'undefined' && document.documentElement.classList.contains('is-desktop');
 
+/** Who heads the current route on a phone (phone-header.ts), with a project's page resolved from the scope. */
+export function usePhoneHeaderMark(): PhoneHeaderMark {
+  const { pathname } = useLocation();
+  const { project } = useProjectScope();
+  return phoneHeaderOf(pathname, pathname === '/' && Boolean(project));
+}
+
 /**
  * Whether this page heads itself right now: a phone, in a browser, on a route the shell marked
- * `phoneHeader: 'page'` (phone-header.ts). The shell hid its top bar under the same condition, so a
+ * `phoneHeader: 'page'` (phone-header.ts). The shell hides its top bar from this same hook, so a
  * page that draws `PhoneHeader` when this is true is never headed twice, nor left without a head.
  */
 export function useOwnPhoneHeader(): boolean {
   const narrow = useMediaQuery(NARROW);
-  const { pathname } = useLocation();
-  const { project } = useProjectScope();
-  return narrow && !inDesktopApp() && phoneHeaderOf(pathname, pathname === '/' && Boolean(project)) === 'page';
+  const mark = usePhoneHeaderMark();
+  return narrow && !inDesktopApp() && mark === 'page';
 }
 
 /** How a modal flow is left: "Cancelar" as a word (a new task, editing a document), or "Cerrar" as ✕ (the wizard). */

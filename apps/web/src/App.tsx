@@ -28,7 +28,7 @@ import { NotificationHost } from './components/Notifications';
 import { PageTransition, SlidingIndicator, StatusDot } from './components/motion';
 import { lazyPage, ReloadBanner } from './components/ReloadOffer';
 import { Fab } from './components/shell/Fab';
-import { phoneHeaderOf } from './components/shell/phone-header';
+import { useOwnPhoneHeader, usePhoneHeaderMark } from './components/shell/PhoneHeader';
 import { LiveSection, useLive } from './components/shell/live';
 import { AccountCard, StatusBar, useConnection } from './components/shell/StatusBar';
 import { useRailCollapsed } from './components/shell/rail';
@@ -101,6 +101,11 @@ function Shell() {
   const navigate = useNavigate();
   const { project, settled } = useProjectScope();
   const { pathname, search } = useLocation();
+  // A phone's detail screens are headed by the page itself, by route (components/shell/phone-header.ts).
+  // `bare` is `useOwnPhoneHeader`, the condition PhoneHeader.tsx defines for a page heading itself, so
+  // the shell hiding its top bar and a page drawing its own cannot drift apart.
+  const phoneHeader = usePhoneHeaderMark();
+  const bare = useOwnPhoneHeader();
   const { t } = useTranslation(['components', 'connectors', 'shell', 'home']);
   // The same queries the Home usage widgets read, so the status bar never fetches its own
   const now = useUsageNow();
@@ -215,9 +220,6 @@ function Shell() {
   );
 
   const tabBar = !hidesTabBar(pathname, search);
-  // A phone's detail screens are headed by the page itself, by route (components/shell/phone-header.ts)
-  const phoneHeader = phoneHeaderOf(pathname, projectPage);
-  const bare = phoneHeader === 'page';
   const fab = fabFor(pathname, search) !== null;
 
   // In the icon rail the labels are hidden, so they move into tooltips
