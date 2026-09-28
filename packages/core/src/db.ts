@@ -438,6 +438,9 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // run's chat is titled in, so a run started again after a restart is worded as it was first
   `ALTER TABLE assistant_runs ADD COLUMN focus TEXT;
    ALTER TABLE assistant_runs ADD COLUMN language TEXT;`,
+  // The language a flow run's chat is titled in, taken when the run is queued: after a restart the
+  // person's language is unknown until their next request, and a queued run would be titled in English
+  `ALTER TABLE flow_runs ADD COLUMN language TEXT;`,
 ];
 
 /**

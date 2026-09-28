@@ -9,6 +9,7 @@ import {
   FLOW_RUNS_PAGE,
   FLOW_RUNS_PAGE_MAX,
   FLOW_STAGE_OF_COLUMN,
+  AGENTRY_LANGUAGES,
   isTeamCommandPattern,
   MAX_FLOW_RESTARTS,
   type AgentryEvent,
@@ -250,6 +251,8 @@ interface RunRow {
   started_at: string | null;
   ended_at: string | null;
   restarts: number;
+  /** Null on a run stored before it was kept */
+  language: string | null;
 }
 
 /** The structured result, read defensively: the CLI checks it against the schema, but a result can still be anything. */
@@ -448,6 +451,11 @@ export function testCommandRules(dir: string): string[] {
     rules.push('Bash(pytest)', 'Bash(pytest *)', 'Bash(python -m pytest *)');
   }
   return [...new Set(rules)];
+}
+
+/** The language a run's chat is titled in, as it was stored; English for a run stored before it was kept. */
+function runLanguage(row: Pick<RunRow, 'language'>): AgentryLanguage {
+  return AGENTRY_LANGUAGES.find((language) => language === row.language) ?? 'en';
 }
 
 /**
@@ -692,10 +700,10 @@ export class FlowService {
       if (replaced) this.endRow(replaced.id, 'cancelled', null, 'the item moved again before it started', now);
       this.sql
         .prepare(
-          `INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, queued_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
+          `INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, queued_at, language)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`,
         )
-        .run(id, item.projectId, itemId, member.role, member.agent, member.model, stage, column, now);
+        .run(id, item.projectId, itemId, member.role, member.agent, member.model, stage, column, now, this.deps.language?.() ?? 'en');
     });
     if (replaced) this.announce(replaced.id, 'ended');
     this.announce(id, 'queued');
@@ -837,7 +845,7 @@ export class FlowService {
         : flowPrompt(stage, row.column_name as WorkItemStatus, item, member, {
             documentsPath,
             rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,
-            language: this.deps.language?.() ?? 'en',
+            language: runLanguage(row),
           }),
       appendSystemPrompt: this.deps.handoff(item.projectId),
       jsonSchema: flowResultSchema(stage),
@@ -1205,6 +1213,7 @@ export class FlowService {
       summary: row.summary,
       error: row.error,
       restarts: row.restarts ?? 0,
+      ...(row.language ? { language: runLanguage(row) } : {}),
       queuedAt: row.queued_at,
       startedAt: row.started_at,
       endedAt: row.ended_at,

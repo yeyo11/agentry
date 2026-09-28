@@ -180,7 +180,9 @@ Each run is a chat, started by `launchFlowRun` in `packages/core/src/index.ts`:
   and its title ("Desarrollador · AGN-12 · Fix the cart"), since a chat is listed by the first line of
   its first prompt (orchestration 6, gap 13). A run starts with no request of the person's behind it,
   so the core keeps the language the panel last named in `Accept-Language`; a header that names none
-  of Agentry's languages leaves it as it was. The item follows, as "Work on it" gives it, then the
+  of Agentry's languages leaves it as it was. The run stores that language when it is queued
+  (`flow_runs.language`, `FlowRun.language`), so a run still queued when Agentry restarts, before the
+  person's next request names a language again, is titled as it would have been. The item follows, as "Work on it" gives it, then the
   stage's instructions in English (`flowPrompt`).
 
 **A member never takes over a person's chat.** A Developer's run continues **its own chat from an

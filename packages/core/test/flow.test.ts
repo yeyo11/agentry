@@ -150,11 +150,13 @@ test("a run's chat is titled in the person's language: the member's role, the it
   await item(s, 'in_progress', 'Guardar   las\nlíneas');
   assert.equal(s.launches.at(-1)?.prompt.split('\n')[0], 'Desarrollador · AGN-2 · Guardar las líneas');
 
-  // Two runs at once by default: the third starts once the first ends, in the language of then
+  // Two runs at once by default: the third starts once the first ends, in the language it was queued in
   s.state.language = 'en';
   await item(s, 'in_review', 'Keep the lines');
+  s.state.language = 'es';
   await s.answer(cart.id, ok('Refined'));
   assert.equal(s.launches.at(-1)?.prompt.split('\n')[0], 'QA · AGN-3 · Keep the lines');
+  assert.equal(s.launches.at(-1)?.run.language, 'en');
   assert.equal(flowTitle({ key: 'AGN-4', title: 'x' }, 'developer', 'en'), 'Developer · AGN-4 · x');
   // A role of the person's own reads as they named it, in either language
   assert.equal(flowTitle({ key: 'AGN-5', title: 'y' }, 'data-steward', 'es'), 'Data Steward · AGN-5 · y');
@@ -542,6 +544,24 @@ test('a restart puts cut-off runs back in the queue on their chat, and starts no
   await second.answer(a.id, ok());
   assert.equal(second.items.find(a.id)?.status, 'in_review');
   assert.equal(running(second)[0]?.itemId, b.id);
+});
+
+test("a queued run keeps the person's language across a restart, so its chat is titled as it would have been", async () => {
+  const first = setup({ settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxParallel: 1 } } });
+  first.state.language = 'es';
+  const a = await item(first, 'in_progress', 'A');
+  const b = await item(first, 'in_progress', 'Guardar el carrito');
+  assert.equal(queued(first)[0]?.language, 'es');
+
+  // A restarted wrapper knows no language until the person's next request, so it would say English
+  const second = setup({ db: first.db, settings: first.state.settings, recover: false });
+  assert.equal(second.state.language, 'en');
+  second.flow.recover();
+  await second.answer(a.id, ok());
+  const started = second.launches.find((l) => l.run.itemId === b.id);
+  assert.equal(started?.prompt.split('\n')[0], 'Desarrollador · AGN-2 · Guardar el carrito');
+  assert.equal(started?.run.language, 'es');
+  assert.equal(second.flow.runs('p1').find((r) => r.itemId === b.id)?.language, 'es');
 });
 
 test('the work-links automation leaves a running flow chat to the flow', async () => {
