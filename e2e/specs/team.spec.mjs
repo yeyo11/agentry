@@ -148,8 +148,9 @@ export default async ({ page, api, check, dirs }) => {
     check((await api.get(`/projects/${bare.id}/settings`)).body.flow == null, 'a member added by hand saves no flow');
     await page.goto(`/?project=${bare.id}&view=team`, 1500);
     await page.waitFor(`return document.querySelectorAll('.member-card[data-agent]').length === 1`, { label: 'the bare team' });
+    // innerText carries the badge's text-transform: uppercase
     const bareSummary = await page.text('.team-side-card');
-    check(bareSummary.includes('not set up') && !bareSummary.includes('Developer'), `the summary says there is no flow, and gives no column a role (${bareSummary})`);
+    check(bareSummary.toLowerCase().includes('not set up') && !bareSummary.includes('Developer'), `the summary says there is no flow, and gives no column a role (${bareSummary})`);
     await page.click('.team-side-card .team-link', 'Set up', 1000);
     await page.waitFor(`return !!document.querySelector('.flow-proposal')`, { label: "the template's proposal, said to be unsaved" });
     const proposedRole = await page.eval(`return document.querySelector('.flow-row[data-status="in_progress"] .flow-role')?.textContent`);

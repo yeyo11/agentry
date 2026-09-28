@@ -161,10 +161,20 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.waitFor(`return !!document.querySelector('.resources-editor')`, { label: 'a file open in the editor' });
     await page.click('.resources-toolbar .resources-suggest', undefined, 600);
     await page.waitFor(`return !document.querySelector('.resources-editor') && !!document.querySelector('.resources-proposals')`, { label: 'Suggest shows its run', timeout: 30_000 });
-    await page.waitFor(`return document.querySelectorAll('.resources-proposals .suggestion-row').length === 2`, { label: 'the new proposals', timeout: 30_000 });
-    // migration-reviewer is proposed again, and a file has that name now: the editor offers a free one
-    await page.click('.resources-proposals .suggestion-row button', 'Review', 1000);
-    await page.waitFor(`return document.querySelector('.resource-proposal-name-input')?.value === 'migration-reviewer-2'`, { label: 'a taken name becomes the first free one' });
+    // Suggest leaves out what the project already has: migration-reviewer is a file now
+    await page.waitFor(
+      `const rows = [...document.querySelectorAll('.resources-proposals .suggestion-row')]; return rows.length === 1 && rows[0].textContent.includes('openapi')`,
+      { label: 'the new proposal', timeout: 30_000 },
+    );
+    // "Create with AI" builds what it is asked for, a taken name included: the editor offers a free one
+    await page.click('.resources-toolbar .resources-create-ai', 'Create with AI', 800);
+    await page.waitFor(`return !!document.querySelector('.dialog .create-ai-description')`, { label: 'the Create with AI dialog, again' });
+    await page.fill('.dialog .create-ai-description', 'An agent that reads every new Spanish string against GLOSSARY.md');
+    await page.click('.dialog .create-ai-start', 'Create', 600);
+    await page.waitFor(`return !!document.querySelector('.dialog .create-ai-open:not([disabled])')`, { label: 'the resource is written again', timeout: 30_000 });
+    check((await page.text('.dialog .create-ai-result')).includes('glossary-reviewer-2'), 'it shows the free name it will be saved under');
+    await page.click('.dialog .create-ai-open', 'Open in the editor', 1000);
+    await page.waitFor(`return document.querySelector('.resource-proposal-name-input')?.value === 'glossary-reviewer-2'`, { label: 'a taken name becomes the first free one' });
     // On a phone the name is a 44 px target at 16 px, so iOS does not zoom into it
     await page.viewport(390, 844);
     await page.waitFor(`return !!document.querySelector('.resource-proposal-editor.is-phone .resource-proposal-name-input')`, { label: 'the proposal editor on a phone' });
