@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T07:12:38.39333137Z
-updated_at: 2026-09-28T22:00:00Z
+updated_at: 2026-09-28T23:30:00Z
 tags:
     - audit
     - plan
@@ -670,6 +670,67 @@ shows alone. Tested in `models.test.ts` (the rule, the document) and `chats.test
 
 `pnpm typecheck` and `pnpm test` pass on the integrated branch; `pnpm build` and `pnpm e2e` run in
 the verification phase, on the merged branch.
+
+## Audit of orchestration 7, the design pass
+
+Run on 2026-09-28 over orchestration 7 (`ecosystem-design`, the plan's
+[Orchestration 7](project-ecosystem.md#orchestration-7-ecosystem-design)), on a trial merge of its
+integration branch and its e2e fixer into `feat/project-ecosystem`, in two passes: a static one over
+the diff, then a visual one that captured the built app on a seeded project (desktop and phone, dark
+and light) and set each screen beside its reference in `docs/design-system/reference/` and
+[the ecosystem review](../design-system/ecosystem-review.md).
+
+**Static audit: no blockers.** Fixed on the trial merge:
+
+- A phone document's byline is one link to its task (`e2a05e04`).
+- The phone board's "show more" keeps its chevron on the text's row (`35627fbf`).
+- The app-only variants of the design pass are recorded in `agentry-ds.css` section 19 and in
+  `design-system.md` (`5a462f78`).
+- Dead CSS dropped: the bounces header and the old show-more slot (`9c06fba2`).
+- The shell decides its bare phone header through `useOwnPhoneHeader` (`1beab7cd`).
+- The es copy says a stopped run's cause as "se detuvo su chat", and the glossary records "en
+  marcha" as its exception (`c79ebe3f`).
+- A failed strip on the board no longer carries `role=status`, so loading a board does not announce
+  every failure (`9d520415`).
+
+**Merge notes.** Orchestration 7 branched before the last commits of the feature branch, and the
+merge kept both sides:
+
+- Both migrations stay, the feature branch's `flow_runs.language` before the design pass's `cause`
+  and `retry_of`; a retry stores the language of the run it retries.
+- A live card's stage verb wraps, as the reference draws it, instead of the ellipsis the feature
+  branch had given it (`e9277b78`).
+- On the phone's Ajustes and Recursos tabs, where the only header action is Asistente, it goes
+  under "⋯" to keep the reference's gap of 8.
+- Team activity's header has both the filter and "⋯".
+
+**Visual audit.** Screens that follow their reference closely: the board, the list, the card and its
+strip, the work item (waiting, running, failed, criteria), the team, a member, Team activity, the
+flow's model picker, the project, documents, memory, resources and the assistant. What differed, and
+how each was closed:
+
+| # | Finding | Kind | Fix |
+| --- | --- | --- | --- |
+| 1 | Done drew the three oldest of its 20 newest: core held the most recently closed, but in rank order, and a move to Done is ranked last | Blocker | `b64888ff`: the board's Done column comes newest first by closing time (`newestDone`), the list's Done group reads the same (joined by the board's newest once the open rows are read), and a card moved to Done heads it, on the desktop board, the phone board and the keyboard alike; nothing is reordered inside Done. `work-items.test.ts`, `tasks-board.test.ts`, `tasks-list-pages.test.ts` |
+| 2 | A flow run that failed before its chat started (no account with quota, a rate limit) left no trace on its item's page, only on the board strip and in Team activity | Blocker | `26e190a9`: the item's runs are read for every item, and a run no chat link stands for joins the links in the run-row style: its role, its outcome, its worded cause and "no chat" in place of a chat id. `work-item-runs-ui.test.tsx` |
+| 3 | Phone targets under 44 px: the task's pencils, "Relacionar" and "Ligar", the epic and milestone facts, and "Editar" on a member | Polish | `4858efdf`, with `--touch`. A label's "×" already had a 44 px target through its `::after`, which the capture measured as its 18 px box |
+| 4 | The member count in the team's switch at 4.46:1 dark and 4.43:1 light | Polish | `df3f28ca`: `--fg-2` on the count's pill, about 6:1 in both themes |
+| 5 | A document's list bullets in coral | Polish | `27c548a5`: `--fg-2` on the document page; the chat's Markdown keeps its bullets |
+| 6 | A flow that is off said "APAGADO" on the team and "DESACTIVADO" on the board | Polish | `538f33c5`: "desactivado" on both, as the glossary's Enabled / Disabled; en already said "off" on both |
+| 7 | The member page's back button unboxed on a desktop | Polish | `03edcb65`: boxed, with its tooltip, as the task page's |
+| 8 | Role hues hashed from the name, so a role could come out red, green or cyan | Polish | `18651632`: the template roles keep the design's hues (Product Owner 300, Architect 215, Developer 90, QA 330, Technical writer 45; Researcher 250, Reviewer 275), and a role someone named takes one of six free hues outside the status ones. `team-model.test.ts`; recorded in `design-system.md` |
+| 9 | "Tablero 0" and "Documentos 0" on the project's tabs | Polish | `3a8d436e`: a zero is left out, on the phone cells too |
+| 10 | The agent file editor painted keys red and headings green with CodeMirror's presets | Polish | `e6e8ec57`: its own highlight style from the tokens, the reference's greys for keys and punctuation, weight for headings and `--sx-*` for the rest, in both themes |
+
+**Stays open.**
+
+- Not verified in the capture, because the seed could not produce them: the team board view with the
+  flow on, a member's model with its resolved name, and run links with real chats.
+- Left as the reference review left them: the phone's "⋯" on every card and the "Flujo automático"
+  row, and the wider search field.
+
+`pnpm typecheck` and `pnpm test` pass after the fixes, and `pnpm build` succeeds; `pnpm e2e` runs
+once, in the verification before the pull request, since an orchestration held port 8799.
 
 ## Related
 
