@@ -1,4 +1,4 @@
-import type { Project, ProjectFlowSettings, Team, WorkItemStatus } from '@agentry/shared';
+import type { FlowWaiting, Project, ProjectFlowSettings, Team, WorkItemStatus } from '@agentry/shared';
 import { DEFAULT_FLOW_MAX_PARALLEL, MAX_FLOW_PARALLEL } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CornerDownLeft, Info, Lock, Undo2 } from 'lucide-react';
@@ -13,6 +13,7 @@ import { Tag } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { columnMeta } from '../../lib/work-items';
+import { FlowWaitingPrompt, switchesFlowOn, waitingToAsk } from './FlowWaiting';
 import { FLOW_COLUMNS, MAX_BOUNCES, memberBody, sameFlow, setColumnRole, settledFlow } from './model';
 import { PersonMark } from './parts';
 import { RoleAvatar, useRoleName } from './RoleAvatar';
@@ -75,6 +76,8 @@ export function FlowEditor({
   const next = settledFlow(flow);
   // The cost as typed ("0," on the way to "0,5"), while the field has it; the draft keeps the number
   const [costText, setCostText] = useState<string | null>(null);
+  // The cards already on the board when a save switched the flow on: asked about once, then gone
+  const [waiting, setWaiting] = useState<FlowWaiting | null>(null);
 
   const modelChanges = team.members.filter((member) => models[member.agent] !== undefined && models[member.agent]?.trim() !== member.model);
   // What saving would write, the proposal included; leaving only warns about what the person edited
@@ -92,18 +95,24 @@ export function FlowEditor({
   };
 
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{ switchedOn: boolean }> => {
+      let switchedOn = false;
       if (flowChanged) {
         // Read again right before writing: the settings are replaced whole, and another tab may have changed them
         const fresh = await api.projectSettings(project.id);
+        switchedOn = switchesFlowOn(saved, next);
         await api.putProjectSettings(project.id, { ...fresh, flow: next });
       }
       for (const member of modelChanges)
         await api.putTeamMember(project.id, member.agent, memberBody(member, { model: (models[member.agent] ?? member.model).trim() }));
+      return { switchedOn };
     },
-    onSuccess: () => {
+    onSuccess: ({ switchedOn }) => {
       discard();
       toast.success(t('flow.saved'));
+      // Switching the flow on starts only the cards that enter a column from now on: the ones already
+      // waiting start only if the person says so
+      if (switchedOn) void waitingToAsk(() => api.flowWaiting(project.id)).then((found) => found && setWaiting(found));
     },
     onError: (error) => toast.error(t('flow.saveFailed'), error),
     onSettled: () => {
@@ -350,6 +359,8 @@ export function FlowEditor({
     </section>
   );
 
+  const prompt = waiting && <FlowWaitingPrompt projectId={project.id} waiting={waiting} phone={phone} onClose={() => setWaiting(null)} />;
+
   if (phone)
     return (
       <div className="flow-page is-phone">
@@ -359,6 +370,7 @@ export function FlowEditor({
         <span className="section-label flow-limits-label">{t('flow.limitsTitle')}</span>
         {limitsCard}
         <div className="member-phone-foot">{actions}</div>
+        {prompt}
       </div>
     );
 
@@ -380,6 +392,7 @@ export function FlowEditor({
           {modelCard}
         </div>
       </div>
+      {prompt}
     </div>
   );
 }

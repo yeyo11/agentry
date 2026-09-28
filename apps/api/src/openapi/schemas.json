@@ -13457,6 +13457,71 @@
     ],
     "description": "A page of a project's flow runs, newest first."
   },
+  "FlowWaiting": {
+    "type": "object",
+    "properties": {
+      "total": {
+        "type": "number",
+        "description": "0 while the flow, the Team module or the Board module is off"
+      },
+      "columns": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowWaitingColumn"
+        },
+        "description": "In board order; only the columns with at least one waiting card"
+      }
+    },
+    "required": [
+      "total",
+      "columns"
+    ],
+    "description": "`GET /projects/:id/flow/waiting`: the cards a flow switched on would not start by itself. A card waits when it is not an epic nor done, its column has a role with a member playing it, it has no run queued or running, and, in todo, it was not refined and left unchanged since."
+  },
+  "FlowWaitingColumn": {
+    "type": "object",
+    "properties": {
+      "column": {
+        "$ref": "#/components/schemas/WorkItemStatus"
+      },
+      "role": {
+        "type": "string",
+        "description": "The team role that answers for the column, matching  {@link  ProjectTeamRole.role }"
+      },
+      "count": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "column",
+      "role",
+      "count"
+    ],
+    "description": "One column of  {@link  FlowWaiting } : how many of its cards wait, and the role that answers for it."
+  },
+  "FlowStartWaitingResult": {
+    "type": "object",
+    "properties": {
+      "queued": {
+        "type": "number",
+        "description": "Runs queued, one per waiting card"
+      },
+      "startingNow": {
+        "type": "number",
+        "description": "Of those, how many the project's `maxParallel` lets start now: `min(queued, maxParallel − running)`"
+      },
+      "waiting": {
+        "type": "number",
+        "description": "`queued − startingNow`: they start as places come free"
+      }
+    },
+    "required": [
+      "queued",
+      "startingNow",
+      "waiting"
+    ],
+    "description": "`POST /projects/:id/flow/start-waiting`: what queuing the waiting cards did."
+  },
   "FlowRunResult": {
     "type": "object",
     "properties": {

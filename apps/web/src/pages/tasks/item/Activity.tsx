@@ -75,8 +75,9 @@ function HistoryItem({ entry, person }: { entry: WorkItemHistoryEntry; person: s
 }
 
 /**
- * A person's retry of a failed flow run, as a history entry the core does not write: "Verification
- * retried · yeyo · QA started chat 7c2e01", or queued while no chat has started yet.
+ * A run a person started, as a history entry the core does not write: a retry of a failed run
+ * ("Verification retried · yeyo · QA started chat 7c2e01"), or a waiting card started when the flow
+ * was switched on ("Refinement started · yeyo · …"); queued while no chat has started yet.
  */
 function RetryItem({ run, person }: { run: FlowRun; person: string }) {
   const { t } = useTranslation('workItem');
@@ -91,7 +92,7 @@ function RetryItem({ run, person }: { run: FlowRun; person: string }) {
         </span>
       </span>
       <span className="history-text">
-        <span>{t(`run.retried.${runStep(run)}`)}</span>
+        <span>{run.retryOf === null && run.queuedBy === 'person' ? t(`run.startedWaiting.${runStep(run)}`) : t(`run.retried.${runStep(run)}`)}</span>
         <span className="history-cause">
           {person} · {what}
         </span>
@@ -159,7 +160,7 @@ function CommentItem({ comment, person, runs }: { comment: WorkItemComment; pers
 }
 
 /**
- * The item's flow runs, which tell its flow comments, and a person's retries among them, which are
+ * The item's flow runs, which tell its flow comments, and the runs a person started among them, which are
  * history of their own. Read for every item, as its links read them: a run that failed before its
  * chat started leaves no link, yet its comment is one of the flow's.
  */

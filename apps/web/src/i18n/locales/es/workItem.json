@@ -276,6 +276,12 @@
       "work": "Implementación reintentada",
       "verify": "Verificación reintentada"
     },
+    "startedWaiting": {
+      "refine": "Refinado puesto en marcha",
+      "check": "Comprobación puesta en marcha",
+      "work": "Implementación puesta en marcha",
+      "verify": "Verificación puesta en marcha"
+    },
     "retriedChat": "{{role}} empezó el chat {{chat}}",
     "retriedQueued": "en cola para {{role}}",
     "retriedLead": "Reintentada:",

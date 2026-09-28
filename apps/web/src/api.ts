@@ -161,6 +161,8 @@ import type {
   FlowRunPage,
   FlowRunQuery,
   ProjectFlow,
+  FlowStartWaitingResult,
+  FlowWaiting,
   PutTeamMemberRequest,
   RejectMemoryProposalRequest,
   Team,
@@ -724,6 +726,10 @@ export const api = {
    * step ran again). The new run comes back; `flow.run` refreshes the lists that show either.
    */
   retryFlowRun: (runId: string) => request<FlowRun>(`/flow-runs/${enc(runId)}/retry`, { method: 'POST' }),
+  /** The cards switching the flow on left waiting, per column; `total: 0` while the flow is off */
+  flowWaiting: (projectId: string, o?: ReadOptions) => request<FlowWaiting>(`/projects/${enc(projectId)}/flow/waiting`, o),
+  /** Queues one run per waiting card, as the person (409 once the flow is off); `flow.run` refreshes the lists */
+  startWaitingFlowRuns: (projectId: string) => request<FlowStartWaitingResult>(`/projects/${enc(projectId)}/flow/start-waiting`, { method: 'POST' }),
   journal: (projectId: string, page: JournalQuery = {}, o?: ReadOptions) =>
     request<JournalPage>(`/projects/${enc(projectId)}/journal${qs({ limit: num(page.limit), before: page.before })}`, o),
   addJournalEntry: (projectId: string, req: CreateJournalEntryRequest) =>

@@ -929,6 +929,13 @@ Variants the app drew where the reference had no class, mirrored in §19 of
 - `.comment-run-chat`: a failed run's comment in the item's activity links to the run's chat; on a
   phone it is a 44 px target of its own under the sentence.
 - `.flow-log-sheet` / `.flow-log-sheet-option`: Team activity's view picker as a sheet on a phone.
+- `.flow-waiting` (`.flow-waiting-list`, `.flow-waiting-row`, `.flow-waiting-col`,
+  `.flow-waiting-role`, `.flow-waiting-count`, `.flow-waiting-sheet`): the Flow screen's prompt after
+  a save switched the flow on while cards wait in columns with a responsible member
+  ([spec](plans/flow-start-waiting.md)). One row per column with its status icon, the role's squircle
+  and the count in mono; "Ponerlas en marcha" is the one primary button, "Solo las nuevas" the other.
+  Neutral and still: nothing is live until the person starts them. A `Dialog` on a desktop, a bottom
+  `Sheet` on a phone with both actions 44 px tall, the primary first.
 - `.chat-run-failed-quiet`: the failed run banner's secondary action, a ghost button; a phone hides
   it, since the item row above the banner already opens the item.
 - `.doc-origin-phone`: a phone document's byline (MobileDocumento), one touch-sized link to the task

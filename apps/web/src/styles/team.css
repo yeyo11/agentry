@@ -2169,3 +2169,70 @@ a.member-run:hover {
 .workitem-card-foot:has(.bounce) .grow {
   flex-basis: 0;
 }
+
+/* ---------- Waiting cards when the flow is switched on ---------- */
+/* Neutral: nothing is live until the person starts them, so no status colour, gradient or motion */
+.flow-waiting {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.flow-waiting p {
+  margin: 0;
+}
+
+.flow-waiting-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.flow-waiting-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.flow-waiting-row:first-child {
+  border-top: 0;
+}
+
+.flow-waiting-col,
+.flow-waiting-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.flow-waiting-col {
+  flex: 0 0 132px;
+  font-weight: 500;
+}
+
+.flow-waiting-role {
+  flex: 1 1 auto;
+  color: var(--fg-2);
+}
+
+.flow-waiting-count {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-2);
+}
+
+.flow-waiting-sheet .sheet-actions .btn {
+  min-height: var(--touch);
+  justify-content: center;
+}

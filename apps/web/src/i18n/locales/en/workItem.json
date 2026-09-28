@@ -276,6 +276,12 @@
       "work": "Implementation retried",
       "verify": "Verification retried"
     },
+    "startedWaiting": {
+      "refine": "Refinement started",
+      "check": "Check started",
+      "work": "Implementation started",
+      "verify": "Verification started"
+    },
     "retriedChat": "{{role}} started chat {{chat}}",
     "retriedQueued": "queued for {{role}}",
     "retriedLead": "Retried:",
