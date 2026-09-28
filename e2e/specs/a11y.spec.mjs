@@ -224,6 +224,7 @@ export default async ({ page, api, check, dirs }) => {
       `${project}&view=team`,
       `${project}&view=team&member=developer`,
       `${project}&view=team&section=flow`,
+      `${project}&view=team&section=activity`,
       `${project}&view=documents`,
       `${project}&view=documents&doc=${encodeURIComponent('docs/specs/board.md')}`,
       `${project}&view=documents&doc=${encodeURIComponent('docs/specs/board.md')}&mode=edit`,
