@@ -1611,6 +1611,11 @@ a.member-run:hover {
   font-size: 24px;
 }
 
+/* "Edit" beside the agent file is a finger's target too */
+.member-page.is-phone .member-field-head .btn {
+  min-height: var(--touch);
+}
+
 .member-page.is-phone .member-textarea,
 .member-page.is-phone .list-editor-add input {
   font-size: 16px;

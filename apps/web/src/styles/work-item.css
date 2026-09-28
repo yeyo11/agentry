@@ -1283,6 +1283,25 @@ input.workitem-label-input {
   min-height: 44px;
 }
 
+/* The pencils and a section's own actions take a finger's 44 px; the negative margin keeps the
+   30 px they are drawn at from pushing the rows apart */
+.is-phone .workitem-edit,
+.is-phone .workitem-section-head .icon-btn {
+  width: var(--touch);
+  height: var(--touch);
+  margin: -7px;
+}
+
+.is-phone .workitem-section-head .btn.workitem-add {
+  min-height: var(--touch);
+  margin-block: -7px;
+}
+
+/* Epic and milestone read as facts, and each is a target of its own */
+.is-phone .workitem-facts .workitem-fact {
+  min-height: var(--touch);
+}
+
 .workitem-mfoot {
   display: flex;
   align-items: center;
