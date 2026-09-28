@@ -563,11 +563,13 @@ async function chatScene(chatId, { record, navigate, stillName }) {
   if (stillName) await still(stillName);
   if (!record) return;
   await hold(2200);
-  // The diff of one file
-  await page.click('aside.chat-inspector button', 'src/middleware/rate-limit.js', 900);
+  // The diff of one file, on the review screen the summary opens
+  await page.click('aside.chat-inspector a.obs-file-row', 'rate-limit.js', 900);
+  await visible('.changes-review .diff-row');
+  await settle();
   await hold(2600);
-  await page.key('Escape');
-  await sleep(400);
+  await page.goto(`/chats/${chatId}`, 1500);
+  await visible('aside.chat-inspector');
   // Back to the Summary tab, so the stills taken after the tour start from the inspector's default
   await page.click('aside.chat-inspector [role=tab]', 'Summary', 300);
 }

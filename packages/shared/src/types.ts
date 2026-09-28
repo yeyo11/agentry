@@ -1116,32 +1116,6 @@ export interface Localized {
   text: string;
 }
 
-// ---------- Editor links ----------
-
-/**
- * How the panel turns a path and a line into something that opens the person's editor. It is a
- * setting because the wrapper often runs in a container while the editor does not, and because
- * nobody agrees on an editor: `vscode://file/{path}:{line}` is only the default.
- */
-export interface EditorSettings {
-  /** URL template; `{path}`, `{line}` and `{column}` are substituted */
-  template: string;
-  /** Command for a side-by-side diff, e.g. `code --diff {left} {right}`; no button when absent */
-  diffCommand?: string;
-  /** Container paths rewritten to host paths before the template is filled; first match wins */
-  pathMap?: Array<{ from: string; to: string }>;
-}
-
-/** Replaces the whole document (`PUT /settings/editor`): it is small and the form always holds all of it. */
-export type UpdateEditorSettingsRequest = EditorSettings;
-
-/** `GET /settings/editor` and the answer to a `PUT`: the settings, and whether any were ever saved. */
-export interface EditorSettingsDoc {
-  /** False until the first `PUT`: `settings` is then the shipped default, and a browser may migrate its own */
-  stored: boolean;
-  settings: EditorSettings;
-}
-
 // ---------- Orchestration ----------
 
 export interface OrchestrationTaskSpec {

@@ -8160,63 +8160,6 @@
     ],
     "description": "One item of a worker's own checklist, from its `TaskCreate`/`TaskUpdate`/`TodoWrite` calls."
   },
-  "EditorSettings": {
-    "type": "object",
-    "properties": {
-      "template": {
-        "type": "string",
-        "description": "URL template; `{path}`, `{line}` and `{column}` are substituted"
-      },
-      "diffCommand": {
-        "type": "string",
-        "description": "Command for a side-by-side diff, e.g. `code --diff {left} {right}`; no button when absent"
-      },
-      "pathMap": {
-        "type": "array",
-        "items": {
-          "type": "object",
-          "properties": {
-            "from": {
-              "type": "string"
-            },
-            "to": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "from",
-            "to"
-          ]
-        },
-        "description": "Container paths rewritten to host paths before the template is filled; first match wins"
-      }
-    },
-    "required": [
-      "template"
-    ],
-    "description": "How the panel turns a path and a line into something that opens the person's editor. It is a setting because the wrapper often runs in a container while the editor does not, and because nobody agrees on an editor: `vscode://file/{path}:{line}` is only the default."
-  },
-  "UpdateEditorSettingsRequest": {
-    "$ref": "#/components/schemas/EditorSettings",
-    "description": "Replaces the whole document (`PUT /settings/editor`): it is small and the form always holds all of it."
-  },
-  "EditorSettingsDoc": {
-    "type": "object",
-    "properties": {
-      "stored": {
-        "type": "boolean",
-        "description": "False until the first `PUT`: `settings` is then the shipped default, and a browser may migrate its own"
-      },
-      "settings": {
-        "$ref": "#/components/schemas/EditorSettings"
-      }
-    },
-    "required": [
-      "stored",
-      "settings"
-    ],
-    "description": "`GET /settings/editor` and the answer to a `PUT`: the settings, and whether any were ever saved."
-  },
   "DiffContext": {
     "anyOf": [
       {

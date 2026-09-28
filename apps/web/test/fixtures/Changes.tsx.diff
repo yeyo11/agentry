@@ -3,16 +3,16 @@ index 9a223f6..e8994e1 100644
 --- a/apps/web/src/components/observe/Changes.tsx
 +++ b/apps/web/src/components/observe/Changes.tsx
 @@ -1,9 +1,8 @@
--import { hunksOf, totalsOf } from '../../lib/observe';
--import { joinPath } from '../../lib/editor';
+-import { changesOf, totalsOf } from '../../lib/observe';
+-import { joinPath } from '../../lib/paths';
 -import { CodeBlock } from '../CodeBlock';
--import { DiffCommandButton, EditorLink, OpenWorktree } from './EditorLinks';
+-import { CopyButton, FileLink, OpenFolder } from './Links';
 +import { totalsOf } from '../../lib/observe';
 +import { parseDiff } from '../../lib/diff';
 +import { DiffView } from './DiffView';
  
 -export function DiffBody({ data }: { data: { diff: string } }) {
--  const hunks = hunksOf(data.diff);
+-  const hunks = changesOf(data.diff);
 -  return <CodeBlock code={data.diff} lang="diff" />;
 +export function DiffBody({ data }: { data: { diff: string; full: boolean } }) {
 +  const hunks = parseDiff(data.diff);
