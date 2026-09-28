@@ -6,6 +6,7 @@ import {
   groupByDir,
   liveFile,
   neighbour,
+  printSegments,
   reviewKey,
   scopeOf,
   scopeParam,
@@ -144,4 +145,27 @@ test('the review keys never fire while typing or with a modifier', () => {
   assert.equal(key('j', { tagName: 'DIV', isContentEditable: true }), null);
   assert.equal(key('j', null, { ctrlKey: true }), null);
   assert.equal(key('j', null, { defaultPrevented: true }), null);
+});
+
+test('the fingerprint folds the smallest files into one segment once they do not fit', () => {
+  const files = [
+    { path: 'a', additions: 1, deletions: 0 },
+    { path: 'b', additions: 40, deletions: 2 },
+    { path: 'c', additions: 3, deletions: 3 },
+    { path: 'd', additions: 90, deletions: 0 },
+    { path: 'e', additions: 2, deletions: 0 },
+  ];
+  // Room for all five (4 px each, 2 px between): nothing folds, and the order is kept
+  assert.deepEqual(printSegments(files, 28).shown.map((f) => f.path), ['a', 'b', 'c', 'd', 'e']);
+  assert.deepEqual(printSegments(files, 28).rest, []);
+  // Room for three segments: the two largest keep their own, in their order, and the rest share one
+  const split = printSegments(files, 16);
+  assert.deepEqual(split.shown.map((f) => f.path), ['b', 'd']);
+  assert.deepEqual(split.rest.map((f) => f.path), ['a', 'c', 'e']);
+  // Too narrow for anything: the one segment that fits is the folded one, never a lone file
+  assert.deepEqual(printSegments(files, 0).shown, []);
+  assert.equal(printSegments(files, 0).rest.length, 5);
+  // Ties fold the later file first
+  const tied = printSegments([{ path: 'x', additions: 1, deletions: 0 }, { path: 'y', additions: 1, deletions: 0 }, { path: 'z', additions: 1, deletions: 0 }], 10);
+  assert.deepEqual(tied.shown.map((f) => f.path), ['x']);
 });

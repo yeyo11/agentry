@@ -1,7 +1,7 @@
 import type { ChangedFile, ChangeSummary, EditStep } from '@agentry/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, ChevronLeft, Copy, Crosshair } from 'lucide-react';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, keys, useOrchestration } from '../api';
@@ -29,7 +29,7 @@ import '../components/changes/changes.css';
 import { Menu, MoreActions, Tooltip, type MenuEntry } from '../components/controls';
 import { ICON_SM } from '../components/icons';
 import { Spinner } from '../components/Spinner';
-import { Empty, ErrorBox, Skeleton, usePageTitle } from '../components/ui';
+import { Empty, ErrorBox, Segmented, Skeleton, usePageTitle } from '../components/ui';
 import { NARROW, useMediaQuery } from '../lib/media';
 import {
   effectiveMode,
@@ -614,39 +614,17 @@ function usePatchCopy(source: ReviewSource, files: ChangedFile[], scope: ReviewS
 function LensSwitch({ lens, noWorktree, hasSteps, hrefWith }: { lens: Lens; noWorktree: boolean; hasSteps: boolean; hrefWith: (changes: Record<string, string | null>) => string }) {
   const { t } = useTranslation('changes');
   const navigate = useNavigate();
-  const tab = (value: Lens, label: string, disabled: boolean, why?: string) => {
-    const on = lens === value;
-    const button = (
-      <button
-        type="button"
-        role="tab"
-        aria-selected={on}
-        aria-disabled={disabled || undefined}
-        tabIndex={on ? 0 : -1}
-        className={`segment ${on ? 'segment-on' : ''}`}
-        onClick={() => {
-          if (disabled || on) return;
-          navigate(hrefWith(value === 'steps' ? { lens: 'steps' } : { lens: null, step: null }), { replace: true });
-        }}
-      >
-        {on && <span className="segment-thumb" />}
-        <span className="segment-label">{label}</span>
-        {why && <span className="sr-only">. {why}</span>}
-      </button>
-    );
-    return why ? (
-      <Tooltip key={value} content={why}>
-        {button}
-      </Tooltip>
-    ) : (
-      <Fragment key={value}>{button}</Fragment>
-    );
-  };
   return (
-    <div className="segmented changes-lens" role="tablist" aria-label={t('lens.label')}>
-      {tab('result', t('lens.result'), noWorktree, noWorktree ? t('lens.noWorktree') : undefined)}
-      {tab('steps', t('lens.steps'), !hasSteps)}
-    </div>
+    <Segmented<Lens>
+      className="changes-lens"
+      label={t('lens.label')}
+      value={lens}
+      options={[
+        { value: 'result', label: t('lens.result'), disabled: noWorktree, title: noWorktree ? t('lens.noWorktree') : undefined },
+        { value: 'steps', label: t('lens.steps'), disabled: !hasSteps },
+      ]}
+      onChange={(value) => navigate(hrefWith(value === 'steps' ? { lens: 'steps' } : { lens: null, step: null }), { replace: true })}
+    />
   );
 }
 

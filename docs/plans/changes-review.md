@@ -572,6 +572,22 @@ the orchestration's verification.
 **Left for later**, as "Not in this orchestration" already said: comments on lines, staging or
 reverting from the UI, the edits of subagents in Step by step, and seen shared across browsers.
 
+**After landing.** A review of `main` on 2026-09-28 (headless Chrome over a copy of the real data,
+dev and build, desktop and phone) found the screen working as planned, and three things to fix in
+`fix/changes-review-polish`:
+
+- The fingerprint overflowed its box past ~50 files, since every segment kept its 4 px minimum:
+  it now measures the strip and folds the smallest files into one trailing segment
+  (`printSegments` in `review-model.ts`).
+- The compact summary's file list bled 8 px past the panel's right edge and scrolled it sideways.
+- The lens switch reimplemented `Segmented` without its keyboard handling; it is `Segmented` now,
+  with per-option `disabled` added to the control.
+
+What looked like two more failures was the environment: `pnpm dev` on a machine where another
+Agentry held `:8787` moved the API to a random port while Vite kept proxying `/api` to `:8787`, so
+the new UI talked to an older API without the `steps` route ("Not Found" on Step by step). The
+CLI entrypoint now refuses a taken port with the way out; the desktop shell keeps its fallback.
+
 ## Related
 
 - [Design system](../design-system.md), §5

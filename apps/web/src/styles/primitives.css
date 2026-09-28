@@ -501,8 +501,14 @@ input.is-invalid {
   opacity: 0.55;
 }
 
-.segment:disabled {
+.segment:disabled,
+.segment[aria-disabled='true'] {
   cursor: not-allowed;
+}
+
+/* One option out of reach while the others are not: it says why on hover and to a screen reader */
+.segment[aria-disabled='true'] {
+  opacity: 0.5;
 }
 
 .segment:hover:not(:disabled) {

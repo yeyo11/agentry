@@ -175,3 +175,32 @@ export function reviewKey(e: Pick<KeyboardEvent, 'key' | 'target' | 'ctrlKey' | 
   if (typeof document !== 'undefined' && document.querySelector('[data-escape-layer]')) return null;
   return e.key as ReviewKey;
 }
+
+/** A fingerprint segment is never thinner than this, with this much between two */
+export const PRINT_SEG_MIN = 4;
+export const PRINT_SEG_GAP = 2;
+
+export interface PrintSplit<T> {
+  /** The files that get a segment of their own, in the order they came */
+  shown: T[];
+  /** The files folded into the strip's last segment, in the order they came; empty when all fit */
+  rest: T[];
+}
+
+/**
+ * Which files the fingerprint draws on their own in `room` pixels. Every segment needs its minimum
+ * width, so past what fits the smallest files fold into one trailing segment, and the largest
+ * keep their place: a strip that grew past its box scrolled the whole panel sideways.
+ */
+export function printSegments<T extends { additions: number; deletions: number }>(files: readonly T[], room: number): PrintSplit<T> {
+  const fit = Math.max(1, Math.floor((room + PRINT_SEG_GAP) / (PRINT_SEG_MIN + PRINT_SEG_GAP)));
+  if (files.length <= fit) return { shown: [...files], rest: [] };
+  const keep = Math.max(0, fit - 1);
+  const byChurn = files
+    .map((file, at) => ({ file, at, churn: file.additions + file.deletions }))
+    .sort((a, b) => b.churn - a.churn || a.at - b.at)
+    .slice(0, keep)
+    .map((x) => x.at);
+  const kept = new Set(byChurn);
+  return { shown: files.filter((_, at) => kept.has(at)), rest: files.filter((_, at) => !kept.has(at)) };
+}

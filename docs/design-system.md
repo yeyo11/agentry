@@ -346,7 +346,10 @@ px rows instead of scrolling sideways.
   from git's hunk header) and a ghost "Show". Opening one asks for the whole file once
   (`context=full`) unless it is over 5 000 lines.
 - **Change fingerprint**: a 6 px strip, one segment per file as wide as its churn, split into added
-  and removed; the current file ringed, the seen ones at 18 %. It is also navigation.
+  and removed; the current file ringed, the seen ones at 18 %. It is also navigation. A segment is
+  never under 4 px: past what the strip's width holds, the smallest files share one neutral
+  segment at the end (`.fp > i.rest`), which opens the first of them and is ringed when the
+  current file is among them.
 - **Block rail**: 14 px at the right of the diff, the file to scale, a mark per block (added,
   removed, or both halves), the viewport as a box, the current block ringed.
 - **File map**: the tree by directory; a row is a status letter (M, A, D, R, B for binary), the
@@ -597,6 +600,17 @@ the file being edited is its only moving part.
 - "See it in the conversation" opens `/chats/:id?at=<entryIndex>`: the chat drops `?at=` from the
   address, turns subagent messages off (the index counts the main view) and marks the entry for a
   moment in the accent, where a search hit takes the warning colour.
+
+**Fixed after landing** (2026-09-28, `fix/changes-review-polish`)
+
+- The fingerprint measures its strip and folds the smallest files into one neutral segment once
+  the 4 px minimum per file stops fitting: with 87 files it was 520 px wide inside the 308 px
+  inspector, and 904 px on a phone for an integration branch, and the panel scrolled sideways.
+- The compact summary's file rows bleed only into the panel's left padding: bleeding right as well
+  made every summary 8 px wider than its panel.
+- The Result / Step by step switch is the app's `Segmented` control, so it takes the arrow keys and
+  the tab order like every other one; a lens out of reach is dimmed and says why.
+
 
 ## Related
 
