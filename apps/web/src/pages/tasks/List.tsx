@@ -1,17 +1,20 @@
-import type { BoardColumn, WorkItem } from '@agentry/shared';
+import type { BoardColumn, WorkItem, WorkItemPage } from '@agentry/shared';
+import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query';
 import { Check, ChevronDown, ListOrdered, TriangleAlert, User } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { hasOpenLayer } from '../../components/controls/layer';
 import { PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIcon } from '../../components/icons';
 import { Spinner } from '../../components/Spinner';
+import { Card, ErrorBox, Skeleton } from '../../components/ui';
 import { timeAgo } from '../../lib/format';
 import { useListKeys } from '../../lib/list-keys';
-import { columnMeta, countsInColumn, listRowStep, priorityMeta, taskPath, workItemLiveState } from '../../lib/work-items';
+import { columnMeta, listRowStep, priorityMeta, taskPath, workItemLiveState } from '../../lib/work-items';
 import type { BoardSelection } from './board/BoardColumns';
 import { LiveLine, type LiveSources } from './board/LiveLine';
-import { byRank, DONE_SHOWN, openBlockers } from './board/model';
+import { DONE_SHOWN, openBlockers } from './board/model';
+import { listGroups, listMore } from './list-model';
 import { Assignee } from './board/WorkItemCard';
 
 /**
@@ -21,9 +24,15 @@ import { Assignee } from './board/WorkItemCard';
  * answers to, `lib/list-keys.ts`); Enter opens one. A group counts what its board column counts,
  * epics left out. Done shows its first few, and the rest behind a button. On a phone each group is
  * a card of rows whose titles wrap.
+ *
+ * The rows come a page at a time (`pages`, 100 each, in the list's order); the board's columns give
+ * each group its figures, so a group counts what it holds before all of it is read. The next page
+ * loads as the end of the list comes into view, or from its button.
  */
 export function List({
   columns,
+  pages,
+  narrow,
   projectNames,
   live,
   selection,
@@ -31,6 +40,9 @@ export function List({
   onOpen,
 }: {
   columns: BoardColumn[];
+  pages: UseInfiniteQueryResult<InfiniteData<WorkItemPage>>;
+  /** What the filters narrow after the answer (`?milestone=none`), as the board's columns are */
+  narrow: (items: WorkItem[]) => WorkItem[];
   projectNames?: ReadonlyMap<string, string> | undefined;
   live: LiveSources;
   selection: BoardSelection | null;
@@ -39,7 +51,9 @@ export function List({
 }) {
   const { t } = useTranslation('tasks');
   const [allDone, setAllDone] = useState(false);
-  const groups = columns.filter((column) => column.items.length > 0);
+  const loaded = useMemo(() => narrow((pages.data?.pages ?? []).flatMap((page) => page.items)), [pages.data, narrow]);
+  const groups = useMemo(() => listGroups(columns, loaded), [columns, loaded]);
+  const more = listMore({ columns, loaded, total: pages.data?.pages.at(-1)?.total ?? 0, hasNext: pages.hasNextPage, allDone });
   const list = useRef<HTMLDivElement>(null);
 
   // A shortcut with a modifier (Ctrl+K is the palette), a letter typed in a field, and a dialog or a
@@ -67,6 +81,13 @@ export function List({
     () => hasOpenLayer() || document.querySelector('[role=dialog], [role=alertdialog]') !== null,
   );
 
+  if (pages.error && !pages.data) return <ErrorBox error={pages.error} />;
+  if (!pages.data)
+    return (
+      <Card>
+        <Skeleton rows={8} height={20} />
+      </Card>
+    );
   return (
     <div ref={list} className={phone ? 'workitem-mlist' : 'workitem-list-wrap'}>
       <div className={phone ? 'workitem-mlist-groups' : 'card workitem-list'}>
@@ -92,12 +113,10 @@ export function List({
             </span>
           </div>
         )}
-        {groups.map((column) => {
-          const items = byRank(column.items);
-          const counted = items.filter(countsInColumn).length;
+        {groups.map(({ column, items, counted, held }) => {
           const done = column.status === 'done';
           const shown = done && !allDone ? items.slice(0, DONE_SHOWN) : items;
-          const rest = items.length - shown.length;
+          const rest = held - shown.length;
           const over = !projectNames && column.overLimit && column.limit !== null;
           const head = (
             <div className="workitem-group">
@@ -124,7 +143,7 @@ export function List({
             </ul>
           );
           const toggle =
-            done && (rest > 0 || allDone) && items.length > DONE_SHOWN ? (
+            done && (rest > 0 || allDone) && held > DONE_SHOWN ? (
               <button type="button" className="workitem-list-more" aria-expanded={allDone} onClick={() => setAllDone((v) => !v)}>
                 <ChevronDown size={14} strokeWidth={1.75} aria-hidden className={allDone ? 'is-open' : ''} />
                 {allDone ? t('list.hideDone') : t('list.showDone', { count: rest })}
@@ -149,6 +168,7 @@ export function List({
           );
         })}
       </div>
+      {more > 0 && <LoadMore count={more} loading={pages.isFetchingNextPage} onLoad={() => void pages.fetchNextPage()} />}
       {!phone && (
         <p className="workitem-list-foot">
           <ListOrdered size={13} strokeWidth={1.75} aria-hidden />
@@ -156,6 +176,32 @@ export function List({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * The end of what is read: the next page loads as it comes into view, and its button does the same
+ * for a keyboard or a screen reader.
+ */
+function LoadMore({ count, loading, onLoad }: { count: number; loading: boolean; onLoad: () => void }) {
+  const { t } = useTranslation('tasks');
+  const button = useRef<HTMLButtonElement>(null);
+  const load = useRef(onLoad);
+  load.current = onLoad;
+  useEffect(() => {
+    const el = button.current;
+    if (!el || loading || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) load.current();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loading]);
+  return (
+    <button ref={button} type="button" className="workitem-list-load" disabled={loading} onClick={onLoad}>
+      {loading ? <Spinner /> : <ChevronDown size={14} strokeWidth={1.75} aria-hidden />}
+      {loading ? t('list.loading') : t('list.loadMore', { count })}
+    </button>
   );
 }
 

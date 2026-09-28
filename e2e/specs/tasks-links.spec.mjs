@@ -71,7 +71,9 @@ export default async ({ page, api, check, dirs }) => {
       const list = (await api.get(`/chats/${SESSION}/work-items`)).body;
       return Array.isArray(list) && list.length === 1 ? list[0] : null;
     }, 'the chat linked to its new task');
-    check(made.status === 'backlog' && made.description.includes('announce'), `the task is in Backlog with the message as its description (${made.status})`);
+    // The chat's list carries cards; the description is on the item's own page
+    const whole = (await api.get(`/work-items/${made.id}`)).body;
+    check(made.status === 'backlog' && made.hasDescription === true && whole.description.includes('announce'), `the task is in Backlog with the message as its description (${made.status})`);
     check(toast.includes(made.key), `the toast names the task (${toast})`);
     // Linked both ways: the chat names the item it was made from, the item keeps the chat
     const row = await page.waitFor(`const r=document.querySelector('.chat-part-of-item');return r?r.innerText:null`, { label: 'the chat names its task' });

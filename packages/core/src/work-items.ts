@@ -41,6 +41,7 @@ import {
   type WorkItemFilter,
   type WorkItemHistoryEntry,
   type WorkItemLink,
+  type WorkItemPage,
   type WorkItemPriority,
   type WorkItemRef,
   type WorkItemRelation,
@@ -52,6 +53,7 @@ import {
 import type { Db } from './db.ts';
 import { DocumentPathError, isMarkdown, pathSegments } from './document-paths.ts';
 import type { AgentryEventInput } from './events.ts';
+import { doneLimitOf, newestDone, pageOf } from './work-item-pages.ts';
 import { RANK_REBALANCE_LENGTH, rankBetween, spreadRanks } from './work-item-rank.ts';
 import {
   actorOf,
@@ -227,16 +229,65 @@ export class WorkItemService {
     return this.hydrate(this.filtered(filter));
   }
 
-  /** The five columns with their limits and real counts, and the items that pass the filter. */
-  board(projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}): Board {
+  /**
+   * The list as the API serves it: descriptions left out, `hasDescription` in their place. `within`
+   * narrows it to some projects (All projects shows only those with their board on).
+   */
+  cards(filter: WorkItemFilter = {}, within?: ReadonlySet<string>): WorkItem[] {
+    return this.hydrate(this.within(this.filtered(filter), within), { cards: true });
+  }
+
+  /** Some items as cards, in the order asked; an id that names none is left out. */
+  cardsOf(ids: readonly string[]): WorkItem[] {
+    const rows = this.sql.prepare('SELECT * FROM work_items WHERE id IN (SELECT value FROM json_each(?))').all(inList(ids)) as unknown as ItemRow[];
+    const byId = new Map(this.hydrate(rows, { cards: true }).map((item) => [item.id, item]));
+    return ids.flatMap((id) => byId.get(id) ?? []);
+  }
+
+  /** {@link cards} a page at a time, in the same order; `total` counts every page. */
+  page(filter: WorkItemFilter = {}, query: { limit?: unknown; cursor?: unknown } = {}, within?: ReadonlySet<string>): WorkItemPage {
+    const rows = this.within(this.filtered(filter), within);
+    const page = pageOf(rows, query);
+    return { items: this.hydrate(page.rows, { cards: true }), total: rows.length, nextCursor: page.nextCursor };
+  }
+
+  /**
+   * The five columns with their limits and real counts, and the items that pass the filter,
+   * descriptions left out. The Done column holds its `doneLimit` most recently closed items and
+   * counts the rest in `more`; the counts stay over every item, whatever the filter or the page.
+   * `within` narrows the All projects board (`projectId` null) to some projects, counts included.
+   */
+  board(projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, query: { doneLimit?: unknown } = {}, within?: ReadonlySet<string>): Board {
+    const doneLimit = doneLimitOf(query.doneLimit);
     const limits = projectId ? (this.deps.project(projectId)?.columnLimits ?? {}) : {};
-    const counts = this.counts(projectId);
-    const items = this.list({ ...filter, ...(projectId ? { projectId } : {}) });
+    const counts = this.counts(projectId, projectId ? undefined : within);
+    const rows = this.within(this.filtered({ ...filter, ...(projectId ? { projectId } : {}) }), projectId ? undefined : within);
+    const done = rows.filter((row) => row.status === 'done');
+    const kept = newestDone(done, doneLimit);
+    const items = this.hydrate(
+      rows.filter((row) => row.status !== 'done' || kept.has(row.id)),
+      { cards: true },
+    );
     const columns: BoardColumn[] = WORK_ITEM_STATUSES.map((status) => ({
       ...summary(status, projectId ? (limits[status] ?? null) : null, counts.get(status) ?? 0),
       items: items.filter((item) => item.status === status),
+      ...(status === 'done' && done.length > kept.size ? { more: done.length - kept.size } : {}),
     }));
     return { projectId, columns };
+  }
+
+  /**
+   * The items a key names (`AGN-12`, in any case), whole: one per project whose prefix it is. A
+   * prefix is unique among the projects imported, but a removed project keeps its items and its
+   * prefix, which a project imported later may take, so the caller picks.
+   */
+  withKey(key: string): WorkItem[] {
+    const parsed = parseWorkItemKey(key);
+    if (!parsed) return [];
+    const rows = (this.sql.prepare('SELECT * FROM work_items WHERE number = ? ORDER BY created_at, id').all(parsed.number) as unknown as ItemRow[]).filter(
+      (row) => this.prefixOf(row.project_id) === parsed.prefix,
+    );
+    return this.hydrate(rows);
   }
 
   /** Oldest first. */
@@ -1293,13 +1344,21 @@ export class WorkItemService {
    * A column's count leaves epics out: an epic groups the work rather than being some, so it is
    * neither an open item nor a place taken under the column's limit. It stays on the board.
    */
-  private counts(projectId: string | null): Map<string, number> {
+  private counts(projectId: string | null, within?: ReadonlySet<string>): Map<string, number> {
     const rows = (
       projectId
         ? this.sql.prepare("SELECT status, COUNT(*) AS n FROM work_items WHERE project_id = ? AND type != 'epic' GROUP BY status").all(projectId)
-        : this.sql.prepare("SELECT status, COUNT(*) AS n FROM work_items WHERE type != 'epic' GROUP BY status").all()
+        : within
+          ? this.sql
+              .prepare("SELECT status, COUNT(*) AS n FROM work_items WHERE type != 'epic' AND project_id IN (SELECT value FROM json_each(?)) GROUP BY status")
+              .all(inList([...within]))
+          : this.sql.prepare("SELECT status, COUNT(*) AS n FROM work_items WHERE type != 'epic' GROUP BY status").all()
     ) as Array<{ status: string; n: number }>;
     return new Map(rows.map((r) => [r.status, r.n]));
+  }
+
+  private within(rows: ItemRow[], projects: ReadonlySet<string> | undefined): ItemRow[] {
+    return projects ? rows.filter((row) => projects.has(row.project_id)) : rows;
   }
 
   private columnSummary(projectId: string, status: WorkItemStatus): BoardColumnSummary {
@@ -1337,8 +1396,12 @@ export class WorkItemService {
     };
   }
 
-  /** Everything a card needs, read for many items at once so a board costs a handful of queries. */
-  private hydrate(rows: readonly ItemRow[]): WorkItem[] {
+  /**
+   * Everything a card needs, read for many items at once so a board costs a handful of queries.
+   * `cards` leaves the description out, which may run to 100,000 characters and which no card
+   * shows: a board or a list would otherwise carry every one of them.
+   */
+  private hydrate(rows: readonly ItemRow[], opts: { cards?: boolean } = {}): WorkItem[] {
     if (!rows.length) return [];
     const ids = rows.map((r) => r.id);
     const prefixes = new Map<string, string>();
@@ -1394,7 +1457,7 @@ export class WorkItemService {
       key: workItemKey(prefix(row.project_id), row.number),
       type: row.type as WorkItemType,
       title: row.title,
-      description: row.description,
+      ...(opts.cards ? { description: '', hasDescription: row.description !== '' } : { description: row.description }),
       status: row.status as WorkItemStatus,
       priority: row.priority as WorkItemPriority,
       labels: labelMap.get(row.id) ?? [],

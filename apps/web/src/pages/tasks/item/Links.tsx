@@ -2,7 +2,7 @@ import type { ChatSummary, WorkItemDetail, WorkItemLink, WorkItemStatus } from '
 import { FileText, MessageSquare, TriangleAlert, Workflow } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { useChats, useTeam } from '../../../api';
+import { useChats, useWorkItemRuns } from '../../../api';
 import { OutcomeBadge, StateBadge } from '../../../components/ChatBadges';
 import { ICON_SM } from '../../../components/icons';
 import { StatusBadge } from '../../../components/ui';
@@ -90,10 +90,10 @@ export function Links({ item }: { item: WorkItemDetail }) {
   // A chat's badge and cost come from the project's chat list, which the Chats page reads too
   const chats = useChats({ project: item.projectId, enabled: item.links.some((link) => link.kind === 'chat') });
   const byId = new Map((chats.data ?? []).map((chat) => [chat.id, chat]));
-  // A flow run's outcome is the team's to tell (a failed one leaves its chat "completed")
+  // A flow run's outcome is its own to tell (a failed one leaves its chat "completed"): every run of
+  // the item, so an older failure stays on its link
   const flowMade = item.links.some((link) => link.kind === 'chat' && Boolean(link.teamRole));
-  const team = useTeam(flowMade ? item.projectId : null);
-  const members = team.data?.members ?? [];
+  const runs = useWorkItemRuns(item.id, flowMade).data ?? [];
   // Documents have their own section (Documents.tsx): this one is what acted on the item
   const links = sortLinks(item.links.filter((link) => link.kind !== 'document'));
   return (
@@ -114,7 +114,7 @@ export function Links({ item }: { item: WorkItemDetail }) {
               link={link}
               item={item}
               chat={link.chatId ? byId.get(link.chatId) : undefined}
-              failed={link.teamRole ? failedRunReason(linkRun(link, members)) : null}
+              failed={link.teamRole ? failedRunReason(linkRun(link, runs)) : null}
             />
           ))}
         </div>

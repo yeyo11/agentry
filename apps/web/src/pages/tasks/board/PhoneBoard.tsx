@@ -12,7 +12,7 @@ import { Segmented } from '../../../components/ui';
 import { columnMeta, taskPath, workItemLiveState } from '../../../lib/work-items';
 import type { BoardSelection } from './BoardColumns';
 import { LiveLine, type LiveSources } from './LiveLine';
-import { DONE_SHOWN, neighbourStatus } from './model';
+import { foldColumn, neighbourStatus } from './model';
 import { ColumnRole, WaitingNote } from './team';
 import { useMoveWorkItem } from './useMoveWorkItem';
 import { Assignee, CardFacts, EpicProgress } from './WorkItemCard';
@@ -29,14 +29,17 @@ export function PhoneBoard({
   epics,
   live,
   selection,
-  moreTo,
+  doneShown,
+  onMoreDone,
 }: {
   columns: BoardColumn[];
   projectNames?: ReadonlyMap<string, string> | undefined;
   epics: ReadonlyMap<string, { done: number; total: number }>;
   live: LiveSources;
   selection: BoardSelection | null;
-  moreTo: string;
+  /** How many Done rows are drawn; "and N more" asks for the next page of them */
+  doneShown: number;
+  onMoreDone: () => void;
 }) {
   const { t } = useTranslation('tasks');
   const move = useMoveWorkItem();
@@ -114,8 +117,7 @@ export function PhoneBoard({
       {WORK_ITEM_STATUSES.map((status) => {
         const column = byStatus.get(status) ?? { status, limit: null, count: 0, overLimit: false, items: [] };
         const over = !allProjects && column.overLimit;
-        const shown = status === 'done' ? column.items.slice(0, DONE_SHOWN) : column.items;
-        const hidden = column.items.length - shown.length;
+        const { shown, hidden } = foldColumn(column, doneShown);
         const projects = new Set(column.items.map((item) => item.projectId)).size;
         return (
           <section
@@ -174,9 +176,9 @@ export function PhoneBoard({
                   ),
                 )}
                 {hidden > 0 && (
-                  <Link to={moreTo} className="workitem-mrow-more-link">
+                  <button type="button" className="workitem-mrow-more-link" onClick={onMoreDone}>
                     {t('column.more', { count: hidden })}
-                  </Link>
+                  </button>
                 )}
               </div>
             ) : (

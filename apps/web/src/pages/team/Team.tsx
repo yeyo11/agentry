@@ -8,6 +8,7 @@ import { ICON, ICON_SM } from '../../components/icons';
 import { ErrorBox, Segmented, Skeleton } from '../../components/ui';
 import { useLeaveGuard } from '../../lib/dirty';
 import { NARROW, useMediaQuery } from '../../lib/media';
+import { PhoneAssistantLink } from '../home/ProjectHead';
 import { TeamActivityView } from './Activity';
 import { AddMemberDialog } from './AddMember';
 import { FlowEditor } from './Flow';
@@ -26,7 +27,7 @@ function summaryHref(params: URLSearchParams): string {
 }
 
 /** A phone's Team screen heads itself: the tab's name, the project and what it holds, and the way back. */
-function PhoneHead({ title, detail, backHref }: { title: string; detail: string; backHref: string }) {
+export function PhoneHead({ project, title, detail, backHref }: { project: Project; title: string; detail: string; backHref: string }) {
   const { t } = useTranslation('team');
   return (
     <header className="page-header project-head project-head-phone">
@@ -37,6 +38,7 @@ function PhoneHead({ title, detail, backHref }: { title: string; detail: string;
         <h1>{title}</h1>
         <span className="mono small muted ellipsis">{detail}</span>
       </div>
+      <PhoneAssistantLink project={project} />
     </header>
   );
 }
@@ -82,7 +84,7 @@ export function ProjectTeam({ project }: { project: Project }) {
     const membersHref = teamSearch(params, { section: 'members' });
     return (
       <>
-        {phone && <PhoneHead title={t('activity.title')} detail={project.name} backHref={membersHref} />}
+        {phone && <PhoneHead project={project} title={t('activity.title')} detail={project.name} backHref={membersHref} />}
         <TeamActivityView projectId={project.id} team={data} backHref={membersHref} phone={phone} />
       </>
     );
@@ -93,7 +95,7 @@ export function ProjectTeam({ project }: { project: Project }) {
       : section === 'flow' && flowChanges > 0
         ? `${project.name} · ${t('flow.changes', { count: flowChanges })}`
         : project.name;
-  const head = phone && <PhoneHead title={t('home:tabs.team')} detail={phoneDetail} backHref={back} />;
+  const head = phone && <PhoneHead project={project} title={t('home:tabs.team')} detail={phoneDetail} backHref={back} />;
   const addDialog = adding && (
     <AddMemberDialog
       projectId={project.id}

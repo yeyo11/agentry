@@ -14,7 +14,7 @@ import { Dashboard } from './dashboard/Dashboard';
 import { HomeHero } from './dashboard/Hero';
 import { defaultLayout } from './dashboard/registry';
 import { usePendingProposalCount } from './home/memory/Proposals';
-import { PhoneHead, ProjectHead } from './home/ProjectHead';
+import { PhoneHead, PhoneViewHead, ProjectHead } from './home/ProjectHead';
 import { asProjectView, legacyTabRedirect, projectViews, type ProjectViewId } from './dashboard/views';
 
 // The dashboard is what most visits are for; the project's other tabs load when opened
@@ -83,22 +83,6 @@ function TabCount({ id, count }: { id: TabId; count: number }) {
     <span className="count count-idle" title={label} aria-label={label}>
       {formatNumber(count)}
     </span>
-  );
-}
-
-/** On a phone a tab opens as its own screen, headed by its name and the project it belongs to. */
-function PhoneViewHead({ project, view, onBack }: { project: Project; view: ProjectViewId; onBack: () => void }) {
-  const { t } = useTranslation('home');
-  return (
-    <header className="page-header project-head project-head-phone">
-      <button type="button" className="icon-btn" aria-label={t('dashboard.back')} onClick={onBack}>
-        <ChevronLeft {...ICON} />
-      </button>
-      <div className="page-header-text project-head-text">
-        <h1>{t(`tabs.${view}`)}</h1>
-        <span className="mono small muted ellipsis">{project.name}</span>
-      </div>
-    </header>
   );
 }
 

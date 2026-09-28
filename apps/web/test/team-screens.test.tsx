@@ -122,6 +122,9 @@ test("the team's activity card leads to every run, and the whole view lists them
   assert.match(words, /SHOP-1 Item 1 worked/);
   // The live one carries the rail; the count is every run, and the rest load a page at a time
   assert.equal((html.match(/live-rail/g) ?? []).length, 1);
+  // Its ring sits in the avatar's slot, so its text starts where every other row's does
+  const firsts = [...html.matchAll(/<li class="team-activity-row[^"]*"[^>]*><span class="([^"]*)"/g)].map((m) => m[1]);
+  assert.deepEqual(firsts, ['team-activity-who', 'team-activity-who', 'team-activity-who']);
   assert.match(words, /60 runs/);
   assert.match(words, /Load more · 57 left/);
   // Filters by member and by state, with the controls of the design system

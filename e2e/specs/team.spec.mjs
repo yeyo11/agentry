@@ -137,6 +137,14 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return new URLSearchParams(location.search).get('member') === 'qa' && !!document.querySelector('.member-page.is-phone')`, { label: 'the phone member' });
     const target = await page.eval(`const b = document.querySelector('.member-phone-foot .btn-primary').getBoundingClientRect(); return b.height`);
     check(target >= 44, `the phone's Save is a 44 px target (${target})`);
+    // Without a top bar, the head's way back is the screen's only way out (MobileMiembro, gap 21)
+    const memberBack = await page.eval(`const r = document.querySelector('.member-page-head > .icon-btn').getBoundingClientRect(); return { w: r.width, h: r.height, top: r.top }`);
+    check(memberBack.w >= 44 && memberBack.h >= 44 && memberBack.top < 80, `the member's way back is a 44 px target at the top (${JSON.stringify(memberBack)})`);
+    check(!(await page.eval(`return document.querySelector('.topbar').getClientRects().length > 0`)), 'and no top bar sits over the member');
+    // Every tab's phone head leads to the assistant (gap 8)
+    await page.goto(`/?project=${project.id}&view=team`, 1200);
+    await page.waitFor(`return !!document.querySelector('.team-page .project-head-phone')`, { label: 'the phone Team head' });
+    check(await page.eval(`return !!document.querySelector('.project-head-phone .project-head-assistant')`), "the phone Team head leads to the project's assistant");
 
     // ---- a team whose flow was never saved: nothing is drawn as if it were in force ----
     await page.viewport(1440, 900);

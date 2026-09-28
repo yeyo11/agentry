@@ -147,8 +147,10 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     check(!(await page.eval(`return !!document.querySelector('.suggestion-card input[type=checkbox], .suggestion-card .checkbox')`)), 'no checkboxes on a phone');
     // A flow screen of its own, as the wizard before it: its footer, and no tab bar under it
     check(!(await page.eval(`return !!document.querySelector('nav.tabbar')`)), 'the assistant hides the tab bar on a phone');
-    const scoped = await page.eval(`return document.querySelector('.topbar .project-selector')?.textContent ?? ''`);
-    check(scoped.includes(READ), `the top bar names the assistant's project (${scoped})`);
+    // The screen heads itself, as MobileAsistente does: its header names the project, with no top bar over it
+    const scoped = await page.eval(`return document.querySelector('main .assistant-head-phone')?.textContent ?? ''`);
+    check(scoped.includes(READ), `the header names the assistant's project (${scoped})`);
+    check(!(await page.eval(`return document.querySelector('.topbar').getClientRects().length > 0`)), 'no top bar over the assistant on a phone');
     // Review opens the proposal in the editor, whose Create sits at the foot of the screen
     await page.goto(review, 1500);
     await page.waitFor(`return !!document.querySelector('.resource-proposal-editor.is-phone .resource-proposal-actions .btn-primary')`, { label: 'the proposal in the phone editor' });

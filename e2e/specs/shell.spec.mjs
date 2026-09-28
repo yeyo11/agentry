@@ -78,6 +78,16 @@ export default async ({ page, api, check, dirs }) => {
 
     // Every new route renders, under its crumb
     await page.goto(`/?project=${projectId}`, 900);
+    // A project's page lives at `/`, yet it is one of the projects: Projects is the current section (gap 22)
+    await page.waitFor(`return document.querySelector('#sidebar a.nav-link[href="/projects"]')?.classList.contains('is-active')`, { label: "Projects is current on a project's page" });
+    check(!(await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/"]').classList.contains('is-active')`)), "Home is not current on a project's page");
+    check((await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/projects"]').getAttribute('aria-current')`)) === 'page', 'and a screen reader hears it as the current page');
+    check((await page.eval(`return document.querySelectorAll('#sidebar .nav-link[aria-current=page]').length`)) === 1, 'one current section');
+    await page.goto(`/?project=${projectId}&view=board`, 900);
+    check(await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/projects"]').classList.contains('is-active')`), "and on the project's tabs");
+    await page.goto('/?project=all', 900);
+    await page.waitFor(`return document.querySelector('#sidebar a.nav-link[href="/"]')?.classList.contains('is-active')`, { label: 'Home is current on the Home of every project' });
+    await page.goto(`/?project=${projectId}`, 900);
     await page.click('#sidebar a.nav-link[href="/tasks"]', undefined, 900);
     check((await page.eval(`return location.pathname`)) === '/tasks', 'Tasks opens /tasks');
     await page.waitFor(`return ${pageHeading} === 'Tasks'`, { label: 'the Tasks page' });
@@ -180,6 +190,29 @@ export default async ({ page, api, check, dirs }) => {
     const tasksFab = await fab('/tasks');
     expectFab(tasksFab, '/tasks', 'New task');
     check((await page.eval(`return document.querySelector('.tabbar-more')?.classList.contains('is-active')`)) === true, '[390px /tasks] More is the current tab, where Tasks lives');
+    // A project's page is behind More too, where Projects lives (MobileProyecto), not under Home
+    await page.goto(`/?project=${projectId}`, 900);
+    await page.waitFor(`return document.querySelector('.tabbar-more')?.classList.contains('is-active') === true`, { label: "[390px a project's page] More is the current tab" });
+    check(!(await page.eval(`return document.querySelector('.tabbar a[href="/"]').classList.contains('is-active')`)), "[390px a project's page] Home is not");
+    // A phone's detail screens head themselves with a way back, as their references do: no top bar
+    // there, and the bar with the scope, search and the bell everywhere else (gap 21)
+    const topBarShown = `return document.querySelector('.topbar').getClientRects().length > 0`;
+    for (const path of [`/?project=${projectId}`, `/?project=${projectId}&view=team`, `/?project=${projectId}&view=documents`, `/tasks`, '/tasks/milestones', `/tasks/${key}`, `/projects/${projectId}/assistant`]) {
+      await page.goto(path, 1200);
+      await page.waitFor(`return !!document.querySelector('main h1')`, { label: `[390px ${path}] the page` });
+      check(!(await page.eval(topBarShown)), `[390px ${path}] no top bar over a screen that heads itself`);
+      const back = await page.eval(`const b = [...document.querySelectorAll('main button, main a')].find((e) => e.getAttribute('aria-label') && e.querySelector(':scope > svg.lucide-chevron-left')); if (!b) return null; const r = b.getBoundingClientRect(); return { top: r.top, h: r.height }`);
+      check(back !== null && back.top < 80 && back.h >= 44, `[390px ${path}] its header leads back, at the top, as a 44 px target (${JSON.stringify(back)})`);
+    }
+    // Tasks keeps the project scope, in its own header
+    await page.goto('/tasks', 1200);
+    check(await page.eval(`return !!document.querySelector('main .workitem-mhead .project-selector')?.getClientRects().length`), '[390px /tasks] the project scope is in the header');
+    for (const path of ['/chats', '/orchestration', '/projects', '/?project=all']) {
+      await page.goto(path, 1200);
+      check(await page.eval(topBarShown), `[390px ${path}] the top bar stays`);
+    }
+    await page.goto(`/?project=${projectId}`, 900);
+    await page.goto('/tasks', 900);
     if (tasksFab.shown) {
       await page.click('.fab', undefined, 900);
       check((await page.eval(`return location.pathname + location.search`)) === '/tasks?new=1', 'the Tasks FAB opens the New task form');

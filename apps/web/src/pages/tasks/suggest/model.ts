@@ -1,7 +1,26 @@
-import type { AssistantProposal, AssistantRun, AssistantSource, AssistantWorkItemProposal } from '@agentry/shared';
+import type { AssistantProposal, AssistantRun, AssistantSource, AssistantWorkItemProposal, StartAssistantRunRequest } from '@agentry/shared';
 
 /** `?suggest=1` opens Suggest tasks over the board of the selected project. */
 export const SUGGEST_PARAM = 'suggest';
+
+/**
+ * The request "Suggest tasks" starts a run with. The focus is its own field: sent as `description`
+ * the prompt would read it as what the project is for, not as the area to look in.
+ */
+export function suggestRequest(focus: string, again: boolean): StartAssistantRunRequest {
+  const trimmed = focus.trim();
+  return {
+    kind: 'work-items',
+    ...(trimmed ? { focus: trimmed } : {}),
+    // "Suggest again" sets the previous run's pending proposals aside; the first run has none
+    ...(again ? { supersede: true } : {}),
+  };
+}
+
+/** What the focus field starts with: what the latest run looked for, kept in `description` by a run stored before `focus`. */
+export function latestFocus(run: Pick<AssistantRun, 'focus' | 'description'>): string {
+  return run.focus ?? run.description ?? '';
+}
 
 /** The work item proposals of a run, in the order it proposed them; superseded ones are gone from view. */
 export function workItemProposals(proposals: readonly AssistantProposal[] | undefined): AssistantWorkItemProposal[] {

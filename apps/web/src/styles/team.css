@@ -475,6 +475,15 @@
   font-size: 13px;
 }
 
+/* One slot for the avatar or the running ring, so a live row's text starts where the others' does */
+.team-activity-who {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  min-height: 22px;
+}
+
 .team-activity-text {
   flex: 1 1 auto;
   display: flex;
@@ -1158,6 +1167,16 @@ a.member-run:hover {
   flex-wrap: nowrap;
 }
 
+/* The way back is the phone screen's only way out without a top bar: a full touch target */
+.member-page.is-phone .member-page-head > .icon-btn {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin-left: -10px;
+  justify-content: center;
+  align-items: center;
+}
+
 .member-page.is-phone .member-page-title h1 {
   font-size: 24px;
 }
@@ -1476,9 +1495,18 @@ a.member-run:hover {
 }
 
 .flow-limit-cost {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+/* A stepper takes only what its row leaves it, which squeezed "No limit" down to a glyph: both
+   limits get room for their placeholder and line up with each other */
+.flow-limit-row > .number-input,
+.flow-limit-cost > .number-input {
+  flex: none;
+  width: 9.5rem;
 }
 
 .flow-limit-unit {
