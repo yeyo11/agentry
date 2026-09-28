@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T21:30:00Z
-updated_at: 2026-09-27T21:30:00Z
+updated_at: 2026-09-28T22:00:00Z
 tags:
     - assistant
     - ai-suggestions
@@ -19,15 +19,17 @@ through the service that already owns that thing: the team, the resources or the
 It shows up in three places:
 
 - **The assistant's page**, `/projects/:id/assistant`. The wizard leads there after creating a
-  project, and the empty Team screen leads there through "Pedir propuesta". It proposes the team,
-  the resources and the first tasks together.
+  project, "Pedir propuesta" on the Team screen leads there, and so do the "Asistente" button of the
+  project header on every tab and the palette (see [How it is reached](#the-assistants-page-projectsidassistant)).
+  It proposes the team, the resources and the first tasks together.
 - **"Sugerir tareas"** on the board, which proposes work items.
 - **"Sugerir" and "Crear con IA"** on the project's Resources tab. The first proposes agents, skills
   and commands; the second writes one from a description.
 
 Orchestration 4 of the [project ecosystem](plans/project-ecosystem.md) (`ecosystem-assistant`)
 built this on 2026-09-27, core and web. It follows decisions 35 to 37 and the choices the planner
-wrote for that orchestration. The screens follow the prototypes the owner validated the same day
+wrote for that orchestration. Orchestrations 5 and 6 fixed it on 2026-09-28; what 6 changed is marked
+with its gap's number from [the plan](plans/project-ecosystem.md#orchestration-6-ecosystem-gaps). The screens follow the prototypes the owner validated the same day
 (`Asistente*`, `SugerirTareas*`, `Recurso*`). The team it proposes into is described in
 [team-and-flow.md](team-and-flow.md), the board in [work-items.md](work-items.md), and the wizard and
 the modules in [projects.md](projects.md).
@@ -51,11 +53,18 @@ is read in `assistant-answer.ts`, and "what it read" in `assistant-sources.ts`. 
 | Kind | Started by | Proposes |
 | --- | --- | --- |
 | `project` | the wizard, "Pedir propuesta" on the empty team, the assistant's page | team members, resources and work items |
-| `work-items` | "Sugerir tareas" on the board, or the empty assistant page's description | work items |
+| `work-items` | "Sugerir tareas" on the board (with an optional `focus`), or the empty assistant page's description | work items |
 | `resources` | "Sugerir" on the Resources tab, or "Crear con IA" with a description and a kind | resources; exactly one with a description |
 
 A `project` run leaves out any kind whose module is off: no team members without the Team module and
 no work items without the Board module. A `work-items` run is refused (409) while the Board is off.
+
+**"Sugerir tareas"'s focus is its own field** (orchestration 6, gap 9): `focus` in
+`StartAssistantRunRequest`, stored on the run (`AssistantRun.focus`) and worded in the prompt under
+"Where to look", as the area to read closely and propose work in. Before, it travelled as the run's
+`description`, which the prompt heads as what the project is for. Any other kind refuses a focus
+(400). On an empty project a focus is something to work from, as a description is, so it starts a
+chat.
 
 ### It can only read
 
@@ -101,13 +110,15 @@ the project already has:
 starts:
 
 - from a look at the directory (at most 10 files and 10 folders, skipping `node_modules`, build
-  output and lock files);
+  output and lock files, and `CLAUDE.md`, which has its own entry);
 - and from what Agentry handed it, with counts.
 
 The chat's own reads fill it in while it runs. They arrive on `chat.activity`, and the run announces
 them at most every 3 seconds (`READ_EVENT_MS`). The answer's own list of what it read is added at the
 end. Anything that was laid out and never read is dropped once the run ends, so the list it keeps is
-only what it read.
+only what it read. **`CLAUDE.md` shows once** (orchestration 6, gap 11): a read of it by the chat, or
+in its answer, counts toward the entry for what Agentry handed the run, instead of adding a second
+and a third.
 
 ### The answer
 
@@ -160,8 +171,9 @@ A run's chat is listed by its first prompt, so the prompt's first line is a shor
 person's language (`assistantTitle`): "Asistente de pagos-api" or "Assistant for pagos-api",
 "Sugerir tareas · …", "Sugerir recursos · …", "Crear agente con IA · …". The language comes from
 the request's `Accept-Language`, which the web sets to the language the person reads Agentry in;
-the instructions below the title stay in English. A run a restart finds without a chat is asked
-again in English, as its language is not kept.
+the instructions below the title stay in English. **The language is stored on the run**
+(`AssistantRun.language`, orchestration 6, gap 10), so a run a restart finds without a chat is asked
+again in the person's language, not in English.
 
 A run's error is a `Localized`: a stable code (`assistant.error.start`, `.chat`, `.unreadable`,
 `.ended`, `.restart`) that the web translates, plus English text.
@@ -190,9 +202,9 @@ Every proposal is a row in `assistant_proposals`, `pending` until the person dec
 
 | Method | Route |
 | --- | --- |
-| POST | `/projects/:id/assistant/runs` (`{ kind, model?, description?, resourceKind?, supersede? }`) |
+| POST | `/projects/:id/assistant/runs` (`{ kind, model?, description?, focus?, resourceKind?, supersede? }`) |
 | GET | `/projects/:id/assistant/runs?kind=` (latest first, 50 at most) |
-| GET | `/assistant/runs/:runId` (with every proposal it made) |
+| GET | `/assistant/runs/:runId` (with every proposal it made and, while "Crear con IA" writes, its `draft`) |
 | POST | `/assistant/runs/:runId/stop` |
 | POST | `/assistant/proposals/:proposalId/accept` (optional edits), `/discard`, `/restore` |
 
@@ -201,8 +213,8 @@ Every proposal is a row in `assistant_proposals`, `pending` until the person dec
 
 Events:
 
-- **`assistant.run`**: `started`, `read` (what it read or its cost changed, throttled), `ended` and
-  `failed`. An event for a run that superseded another also names that run, so a client reads it
+- **`assistant.run`**: `started`, `read` (what it read, its cost or its draft changed, throttled),
+  `ended` and `failed`. An event for a run that superseded another also names that run, so a client reads it
   again.
 - **`assistant.proposal`**: `accepted`, `discarded` and `restored`. An accepted resource names the
   saved file (kind, name, scope), because resources have no event of their own and the web
@@ -213,7 +225,9 @@ Events:
 What every run draws the same way lives in `apps/web/src/components/assistant/run.tsx`, styled by
 `styles/suggestion.css`:
 
-- the live head, with the verb, the braille spinner, the elapsed time and "Detener";
+- the live head, with the verb, the braille spinner, the elapsed time and "Detener". The time reads
+  as the references write it, `0:41`, counting minutes and seconds from the first second so its width
+  does not jump at the minute (`formatRunClock`, orchestration 6, gap 23);
 - the facts line: model · time · cost · chat;
 - "Lo que ha leído" and what it found;
 - the proposal rows and phone cards.
@@ -250,8 +264,15 @@ Asistente".
 - **The wizard.** "Proponer equipo, recursos y tareas" is on by default for every template but Simple
   (`assistantOnCreateByDefault`). With it on, creating the project starts a `project` run and leads
   here. If the run cannot start, the project still exists: the page offers to ask again.
-- **The empty Team screen.** "Pedir propuesta" is its primary action, and the template's team stays
-  beside it. If a run is already going (409), it leads to that run's page.
+- **The Team screen.** "Pedir propuesta" is the empty team's primary action, with the template's
+  team beside it, and sits beside "Añadir miembro" on a team that has members. If a run is already
+  going (409), it leads to that run's page.
+- **The project header, on every tab** (orchestration 6, gap 8). "Asistente" sits beside "Nuevo chat
+  aquí" and "Nueva tarea", as a plain button, since the gradient stays on the tab's own primary. On a
+  phone, every tab's head ends with the same link as a named icon button (`PhoneAssistantLink` in
+  `pages/home/ProjectHead.tsx`).
+- **The command palette.** "Asistente del proyecto" for the selected project, and
+  "<project> — asistente" among each project's entries.
 
 ### "Sugerir tareas" on the board
 
@@ -279,6 +300,15 @@ on a phone.
 - **"Crear con IA"** (`?ai=1`). The person picks the kind and says what it should do. The run writes
   one resource, and "Abrir en el editor" opens it in the chosen scope. A run still going when the
   dialog closes is picked up again.
+- **The file shows as it is written** (orchestration 6, gap 12). The CLI hands the result a
+  `--json-schema` asks for as the input of its `StructuredOutput` tool call, and with
+  `--include-partial-messages` that input streams as JSON deltas. The chat runtime gathers them and
+  emits `chat-structured`; the assistant keeps them for a running "Crear con IA" run and serves what
+  the chat has written so far as the run's `draft` (`assistant-draft.ts` reads JSON cut anywhere),
+  announced by `assistant.run` `read` events at most every 750 ms (`DRAFT_EVENT_MS`). The dialog
+  shows it at once in a read-only editor under the file's name. Nothing of the draft is saved or
+  proposed: the proposal is made from the whole result, "Abrir en el editor" waits for it, and the
+  save stays the person's.
 - **The editor.** A proposal (`?proposal=<id>`) opens unsaved, with its reason and where it will be
   saved. "Crear" saves it, which is the accept; "Descartar" sets it aside. Leaving loses only what the
   person typed: the proposal stays pending.
@@ -288,7 +318,10 @@ on a phone.
 ### On a phone
 
 The assistant's page, and a resource or proposal open in the editor, hide the tab bar and end in
-their own bar with 44 px buttons (`hidesTabBar` in `lib/shell-live.ts`). The proposals are cards with
+their own bar with 44 px buttons (`hidesTabBar` in `lib/shell-live.ts`). The assistant's page also
+drops the app's top bar and heads itself with a 44 px way back and its title, as `MobileAsistente`
+draws it (`hidesTopBar`, orchestration 6, gap 21). A one-word project's monogram takes two letters
+("NO", not "N"), on the header, the projects list, the wizard and here (gap 23). The proposals are cards with
 "Incluir" / "Incluida" in the accent, never checkboxes. The phone's Resources row keeps the short
 "Sugerir", because "Volver a sugerir" crowded out "Crear con IA".
 
@@ -317,29 +350,26 @@ had left for the owner:
     database.
 - `assistant-cli.test.ts` runs the fake CLI process itself.
 - `apps/api/test/assistant.test.ts` covers the routes.
-- The web has `assistant-model.test.ts`, `suggest-model.test.ts`, `assistant-events.test.ts` (each
-  event's invalidation) and the `hidesTabBar` cases in `shell-live.test.ts`.
-- E2E, run in the verification on the merged branch: `assistant.spec.mjs`, `suggest.spec.mjs`, and
-  the assistant screens in `a11y.spec.mjs` and `motion.spec.mjs`. The fake CLI now reads files and
-  answers with a structured result, from a scripts file each spec writes.
+- The web has `assistant-model.test.ts`, `suggest-model.test.ts` (the focus sent as its own field),
+  `assistant-events.test.ts` (each event's invalidation), `assistant-screens.test.tsx` (the streamed
+  draft and the `0:41` clock), `project-head.test.tsx` (the way to the assistant on every head) and
+  the `hidesTabBar` cases in `shell-live.test.ts`.
+- E2E, run in the verification on the merged branch: `assistant.spec.mjs`, `suggest.spec.mjs`,
+  `create-ai-stream.spec.mjs` (the file shown half-written, nothing saved), and the assistant
+  screens in `a11y.spec.mjs` and `motion.spec.mjs`. The fake CLI reads files and answers with a
+  structured result, from a scripts file each spec writes; its `stream:` step hands that result over
+  as the CLI does with `--json-schema`, and `hold:` waits for a file so a spec can keep it
+  half-written.
 
 ## Known gaps
 
-- **`CLAUDE.md` can show twice** in "Lo que ha leído": once as what Agentry laid out, once as the
-  chat's own read.
-- **"Crear con IA" does not stream** the file while it is written. The editor opens once the run
-  answers.
-- **"Sugerir tareas"'s focus travels as the run's `description`**, which the prompt heads as what the
-  project is for. It works, but the prompt words it as a project description rather than a focus. A
-  field of its own in `StartAssistantRunRequest` would say it plainly.
-- **Only the wizard and the empty Team screen lead to the assistant's page.** Decision 35 also asks
-  for "on demand from the project page", and the page can ask on its own. But once a project has a
-  team, nothing on the project page links to it; its address is the only way in.
-- **Small differences from the references**, left by the review:
-  - the elapsed time reads "12s" where the reference has "0:41" (the app's clock format);
-  - a one-word project shows a one-letter monogram ("N", not "NO");
-  - the empty Team title is smaller than the reference's;
-  - the project tabs highlight "Inicio" rather than "Proyectos", as in orchestrations 2 and 3.
+None of its own. Orchestration 6 (`ecosystem-gaps`, 2026-09-28) closed every gap this section listed,
+each described above where it now lives: `CLAUDE.md` shown once (gap 11), "Crear con IA" streaming
+(12), the focus as its own field (9), a way to the assistant from every tab and the palette (8), the
+`0:41` clock, the two-letter monogram, the empty Team title's size and the Projects highlight (23 and
+22). The run's facts line names the model as the CLI does ("Sonnet 5") only when the CLI's model list
+labels it, which it does not for the aliases; see
+[team-and-flow.md](team-and-flow.md#known-gaps).
 
 ## Related
 
