@@ -219,8 +219,7 @@
   language, a route by key, paged Done and lists, phone screens with their own heads, and the web
   files over 400 lines split
   ([the plan](docs/plans/project-ecosystem.md#orchestration-6-ecosystem-gaps)).
-  The whole ecosystem reaches `main` in one pull request from `feat/project-ecosystem`, once the
-  owner has tried it.
+  The whole ecosystem landed on `main` in one pull request, #118, on 2026-09-28.
 
 ## Next
 

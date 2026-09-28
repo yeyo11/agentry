@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T20:30:00Z
-updated_at: 2026-09-28T20:30:00Z
+updated_at: 2026-09-28T22:45:00Z
 tags:
     - plan
     - assistant
@@ -10,8 +10,8 @@ tags:
 ---
 # Plan: the Agentry assistant, a chat that knows Agentry
 
-Status: **proposed**, to build right after the project ecosystem (`feat/project-ecosystem`) is in
-main. Decided with the owner on 2026-09-28.
+Status: **proposed, next after the ecosystem**, which merged into main in #118 on 2026-09-28. Decided
+with the owner on 2026-09-28.
 
 ## What the owner asked for
 
@@ -24,7 +24,8 @@ and can act on them.
 
 ## Decisions (2026-09-28)
 
-1. **When:** a feature of its own, after the ecosystem PR is merged. It does not delay that PR.
+1. **When:** a feature of its own, after the ecosystem PR (#118, merged on 2026-09-28). It did not
+   delay that PR.
 2. **How it reaches Agentry:** Agentry ships **its own MCP server**, handed to the chat with
    `--mcp-config` and `--strict-mcp-config`. It talks to the REST API of the wrapper that spawned the
    chat (`AGENTRY_API_URL`, see [chat-environment.md](../chat-environment.md)). This keeps the one
