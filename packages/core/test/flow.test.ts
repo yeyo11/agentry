@@ -146,7 +146,7 @@ test("a run's chat is titled in the person's language: the member's role, the it
   const [first, ...rest] = s.launches[0]?.prompt.split('\n') ?? [];
   assert.equal(first, 'Product Owner · AGN-1 · Arreglar el carrito');
   // The instructions for Claude after it stay as they were
-  assert.match(rest.join('\n'), /AGN-1: Arreglar el carrito[^]*You are the Product Owner/);
+  assert.match(rest.join('\n'), /AGN-1 · Arreglar el carrito[^]*You are the Product Owner/);
   await item(s, 'in_progress', 'Guardar   las\nlíneas');
   assert.equal(s.launches.at(-1)?.prompt.split('\n')[0], 'Desarrollador · AGN-2 · Guardar las líneas');
 
