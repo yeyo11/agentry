@@ -1,10 +1,10 @@
-import { Check, ChevronDown, Flag, Kanban, List, Plus, Sparkle, SquareCheck, X } from 'lucide-react';
+import { Check, ChevronDown, Flag, Kanban, List, Plus, Sparkle, SquareCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Menu } from '../../../components/controls/Menu';
 import { ProjectSelector } from '../../../components/ProjectSelector';
-import { BackButton } from '../../../components/shell/BackButton';
+import { PhoneHeader } from '../../../components/shell/PhoneHeader';
 import { ICON_SM } from '../../../components/icons';
 import { Segmented, usePageTitle } from '../../../components/ui';
 import { MILESTONES_PATH, TASKS_PATH, VIEW_PARAM } from '../../../lib/work-items';
@@ -133,10 +133,11 @@ export function TasksHeader({ subtitle, view, actions }: { subtitle: ReactNode; 
 }
 
 /**
- * The phone's header, which stands for the top bar there (MobileTablero, MobileHitos): the way back,
- * the title, and beside it the project scope (the board and the list) or a line naming it (the
- * milestones), then an icon action, the views across the width under it. While choosing cards to
- * orchestrate it becomes "2 chosen" with a way out.
+ * The phone's header, which stands for the top bar there (MobileTablero, MobileHitos): the shell's
+ * `PhoneHeader` with the way back, the title, and beside it the project scope (the board and the
+ * list) or a line naming it (the milestones), then an icon action; the views go across the width
+ * under it. While choosing cards to orchestrate it becomes "2 chosen" with ✕ as the way out
+ * (MobileTableroSeleccion).
  */
 export function PhoneTasksHeader({
   view,
@@ -155,27 +156,27 @@ export function PhoneTasksHeader({
   usePageTitle(t('title'));
   if (selecting)
     return (
-      <header className="workitem-mhead is-selecting">
-        <button type="button" className="icon-btn workitem-mhead-close" aria-label={t('select.close')} onClick={selecting.onClose}>
-          <X {...ICON_SM} />
-        </button>
-        <div className="workitem-mhead-text">
-          <h1>{t('select.title', { count: selecting.count })}</h1>
-          <span className="mono muted">{t('select.subtitle', { project: selecting.project })}</span>
-        </div>
-      </header>
+      <PhoneHeader
+        className="tasks-phone-head is-selecting"
+        title={t('select.title', { count: selecting.count })}
+        subtitle={t('select.subtitle', { project: selecting.project })}
+        dismiss={{ kind: 'close', label: t('select.close'), onDismiss: selecting.onClose }}
+      />
     );
   return (
     <>
-      <header className="workitem-mhead">
-        <BackButton label={t('header.back')} />
-        <div className="workitem-mhead-text">
-          <h1>{title ?? t('title')}</h1>
-          {subtitle && <span className="mono muted">{subtitle}</span>}
-        </div>
-        {!subtitle && <ProjectSelector />}
-        {action}
-      </header>
+      <PhoneHeader
+        className={`tasks-phone-head ${subtitle ? '' : 'has-scope'}`.trim()}
+        title={title ?? t('title')}
+        subtitle={subtitle}
+        back={{ label: t('header.back') }}
+        actions={
+          <>
+            {!subtitle && <ProjectSelector />}
+            {action}
+          </>
+        }
+      />
       <ViewSwitch view={view} wide />
     </>
   );

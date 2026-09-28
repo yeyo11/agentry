@@ -1,15 +1,15 @@
 import type { WorkItem } from '@agentry/shared';
-import { Ban, Check, Folder, ListChecks } from 'lucide-react';
-import type { DragEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react';
+import { Ban, Check, Folder } from 'lucide-react';
+import type { CSSProperties, DragEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { EpicLabel, Monogram, PriorityMark, WorkItemKey, WorkItemTypeIcon } from '../../../components/icons';
-import { Spinner } from '../../../components/Spinner';
-import { taskPath, workItemLiveState } from '../../../lib/work-items';
+import { Monogram, nameHue, PriorityMark, WorkItemKey, WorkItemTypeIcon } from '../../../components/icons';
+import { stripNamesAssignee, taskPath, workItemLiveState, workItemStrip, type WorkItemStripState } from '../../../lib/work-items';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
-import { LiveLine, type LiveSources } from './LiveLine';
+import type { LiveSources } from './LiveLine';
 import { openBlockers, type NotSelectable } from './model';
-import { BounceFact, WaitingNote } from './team';
+import { BounceFact, useStripRuns } from './team';
+import { WorkItemStrip } from './WorkItemStrip';
 
 const FACT = { size: 12, strokeWidth: 1.75, 'aria-hidden': true } as const;
 
@@ -29,12 +29,30 @@ export function Assignee({ item }: { item: Pick<WorkItem, 'assignee'> }) {
   );
 }
 
-/** The checklist's progress and what the item waits for: the facts under a card or a row. */
+/** The checklist as a short bar and its figure: neutral while open, ok once every criterion is checked. */
+export function CriteriaFact({ item }: { item: Pick<WorkItem, 'acceptanceCriteria'> }) {
+  const { t } = useTranslation('tasks');
+  const total = item.acceptanceCriteria.length;
+  if (total === 0) return null;
+  const done = item.acceptanceCriteria.filter((criterion) => criterion.checked).length;
+  const said = t('card.criteria', { done, total });
+  return (
+    <span className={`workitem-fact workitem-criteria ${done === total ? 'is-full' : ''}`.trim()} title={said}>
+      <span className="workitem-criteria-bar" aria-hidden>
+        <i style={{ width: `${Math.round((done / total) * 100)}%` }} />
+      </span>
+      <span aria-hidden>
+        {done}/{total}
+      </span>
+      <span className="sr-only">{said}</span>
+    </span>
+  );
+}
+
+/** The facts under a card or a row: bounces, what it waits for, and the checklist. */
 export function CardFacts({ item, short = false }: { item: Pick<WorkItem, 'acceptanceCriteria' | 'relations' | 'bounces'>; short?: boolean }) {
   const { t } = useTranslation('tasks');
   const blockers = openBlockers(item);
-  const total = item.acceptanceCriteria.length;
-  const done = item.acceptanceCriteria.filter((criterion) => criterion.checked).length;
   const keys = blockers.map((blocker) => blocker.key).join(', ');
   return (
     <>
@@ -46,31 +64,74 @@ export function CardFacts({ item, short = false }: { item: Pick<WorkItem, 'accep
           {!short && <span className="sr-only">{t('card.blockedBy', { keys })}</span>}
         </span>
       )}
-      {total > 0 && (
-        <span className="workitem-fact" title={t('card.criteria', { done, total })}>
-          <ListChecks {...FACT} />
-          <span aria-hidden>
-            {done}/{total}
-          </span>
-          <span className="sr-only">{t('card.criteria', { done, total })}</span>
-        </span>
-      )}
+      <CriteriaFact item={item} />
     </>
   );
 }
 
+/** Whether a card has anything to say in its facts row. */
+export const hasFacts = (item: Pick<WorkItem, 'acceptanceCriteria' | 'relations' | 'bounces'>): boolean =>
+  openBlockers(item).length > 0 || item.acceptanceCriteria.length > 0 || (item.bounces ?? 0) > 0;
+
 /** An epic's card counts the items it groups, instead of carrying an epic label of its own. */
-export function EpicProgress({ progress, compact = false }: { progress: { done: number; total: number } | undefined; compact?: boolean }) {
+export function EpicProgress({ progress }: { progress: { done: number; total: number } | undefined }) {
   const { t } = useTranslation('tasks');
   const done = progress?.done ?? 0;
   const total = progress?.total ?? 0;
-  const share = total > 0 ? Math.round((done / total) * 100) : 0;
+  if (total === 0)
+    return (
+      <div className="workitem-card-epic">
+        <span>{t('card.noTasksYet')}</span>
+      </div>
+    );
+  const share = Math.round((done / total) * 100);
   return (
-    <div className={`workitem-card-epic ${compact ? 'is-compact' : ''}`.trim()}>
+    <div className="workitem-card-epic">
       <span className="workitem-ms-bar" role="img" aria-label={t('card.epicProgressLabel', { done, total })}>
         <i className="done" style={{ width: `${share}%` }} />
       </span>
       <span aria-hidden>{t('card.epicProgress', { done, total })}</span>
+    </div>
+  );
+}
+
+/**
+ * Where an item goes (`.wi-card-ctx`): its project on All projects, its epic without a box, and its
+ * labels as `#tags`. `trailing` ends the line (the assignee of a card with no facts row).
+ */
+export function CardContext({ item, project, trailing, className = '' }: { item: Pick<WorkItem, 'type' | 'epic' | 'labels'>; project?: string | undefined; trailing?: ReactNode; className?: string }) {
+  const { t } = useTranslation('tasks');
+  const labels = item.type === 'epic' ? [] : item.labels;
+  const epic = item.type === 'epic' ? null : item.epic;
+  if (!project && !epic && labels.length === 0 && !trailing) return null;
+  return (
+    <div className={`workitem-context ${className}`.trim()}>
+      {project && (
+        <span className="workitem-project" title={t('card.project')}>
+          <Folder size={13} strokeWidth={1.75} aria-hidden />
+          {project}
+        </span>
+      )}
+      {epic && (
+        <span className="workitem-epic is-bare" style={{ '--hue': nameHue(epic.id) } as CSSProperties}>
+          {epic.title}
+        </span>
+      )}
+      {labels.length > 0 && (
+        <span className="workitem-tags">
+          {labels.map((label) => (
+            <span key={label} className="workitem-tag">
+              {label}
+            </span>
+          ))}
+        </span>
+      )}
+      {trailing && (
+        <>
+          <span className="grow" />
+          {trailing}
+        </>
+      )}
     </div>
   );
 }
@@ -83,11 +144,12 @@ export interface CardSelection {
 }
 
 /**
- * One work item on the desktop board. At rest it is still; a card whose chat or node runs carries
- * the live rail, the ring spinner in place of its type and a line that says what it is doing.
- * The card itself is the focus stop: Enter opens the item, Space picks it up to move it with the
- * arrows (the board owns that), and a pointer drags it. In selection mode the whole card is a
- * checkbox instead.
+ * One work item on the desktop board, read in five rows (design system, decision 1): what it is,
+ * its title, where it goes, its facts, and the strip that says what happens to it now. A card at
+ * rest is still; one something works on carries the live rail and a live strip. A card in Done
+ * keeps only its first two rows. The card itself is the focus stop: Enter opens the item, Space
+ * picks it up to move it with the arrows (the board owns that), and a pointer drags it. In
+ * selection mode the whole card is a checkbox instead.
  */
 export function WorkItemCard({
   item,
@@ -118,14 +180,13 @@ export function WorkItemCard({
   onDragEnd?: () => void;
 }) {
   const { t } = useTranslation('tasks');
-  const state = workItemLiveState(item);
-  const working = state === 'working';
-  const facts = <CardFacts item={item} />;
-  const hasFacts = openBlockers(item).length > 0 || item.acceptanceCriteria.length > 0 || (item.bounces ?? 0) > 0;
-  const assignee = item.assignee ? <Assignee item={item} /> : null;
+  const runs = useStripRuns();
+  const strip: WorkItemStripState | null = workItemStrip(item, runs);
+  const done = item.status === 'done';
+  const working = !done && (workItemLiveState(item) === 'working' || strip?.kind === 'run');
   const classes = [
     'workitem-card',
-    item.status === 'done' && 'is-done',
+    done && 'is-done',
     working && 'live-rail',
     selection?.selected && 'is-selected',
     selection?.blocked && 'is-unselectable',
@@ -151,40 +212,9 @@ export function WorkItemCard({
     ? { role: 'checkbox', 'aria-checked': selection.selected, 'aria-disabled': selection.blocked ? true : undefined, 'aria-description': why }
     : { role: 'article', 'aria-roledescription': t('card.roledescription'), 'aria-description': t('card.hint') };
 
-  let meta: ReactNode = null;
-  // An epic's card counts its items instead; on All projects it still names its project
-  if (item.type === 'epic')
-    meta = project ? (
-      <div className="workitem-card-meta">
-        <span className="workitem-project" title={t('card.project')}>
-          <Folder size={13} strokeWidth={1.75} aria-hidden />
-          {project}
-        </span>
-      </div>
-    ) : null;
-  else if (project || item.epic || item.labels.length > 0 || (!hasFacts && assignee))
-    meta = (
-      <div className="workitem-card-meta">
-        {project && (
-          <span className="workitem-project" title={t('card.project')}>
-            <Folder size={13} strokeWidth={1.75} aria-hidden />
-            {project}
-          </span>
-        )}
-        {item.epic && <EpicLabel epic={item.epic} />}
-        {item.labels.map((label) => (
-          <span key={label} className="workitem-label">
-            {label}
-          </span>
-        ))}
-        {!hasFacts && assignee && (
-          <>
-            <span className="grow" />
-            {assignee}
-          </>
-        )}
-      </div>
-    );
+  // The strip names who acts: the foot does not say it again
+  const assignee = item.assignee && !stripNamesAssignee(item.assignee, strip) ? <Assignee item={item} /> : null;
+  const facts = item.type !== 'epic' && hasFacts(item);
 
   // A div with the role, not an <article>: while selecting, the card is a checkbox, and an article
   // may not take that role
@@ -211,17 +241,10 @@ export function WorkItemCard({
             <Check size={11} strokeWidth={3} />
           </span>
         )}
-        {working ? (
-          <>
-            <Spinner variant="ring" className="workitem-card-spin" />
-            <span className="sr-only">{t('card.working')}</span>
-          </>
-        ) : (
-          <WorkItemTypeIcon type={item.type} />
-        )}
+        <WorkItemTypeIcon type={item.type} />
         <WorkItemKey value={item.key} />
         <span className="grow" />
-        <PriorityMark priority={item.priority} />
+        {!done && <PriorityMark priority={item.priority} />}
       </div>
       <p className="workitem-card-title">
         {/* Out of the tab order: the card is the stop, and this is for a middle click or a new tab.
@@ -234,16 +257,18 @@ export function WorkItemCard({
           </Link>
         )}
       </p>
-      {meta}
-      {item.type === 'epic' && <EpicProgress progress={epic} />}
-      <LiveLine item={item} sources={live} />
-      <WaitingNote item={item} />
-      {hasFacts && (
-        <div className="workitem-card-foot">
-          {facts}
-          <span className="grow" />
-          {assignee}
-        </div>
+      {!done && (
+        <>
+          <CardContext item={item} project={project} trailing={!facts && item.type !== 'epic' ? assignee : null} />
+          {item.type === 'epic' && <EpicProgress progress={epic} />}
+          {facts && (
+            <div className="workitem-card-foot">
+              <CardFacts item={item} />
+              {assignee}
+            </div>
+          )}
+          <WorkItemStrip item={item} strip={strip} sources={live} />
+        </>
       )}
     </div>
   );

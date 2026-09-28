@@ -85,10 +85,11 @@
     "countLimit": "{{count}} de un límite de {{limit}}",
     "over": "Sobre el límite: {{count}} de {{limit}}",
     "overShort": "sobre el límite",
-    "more_one": "y {{count}} más",
-    "more_other": "y {{count}} más",
+    "more_one": "Mostrar {{count}} más",
+    "more_other": "Mostrar {{count}} más",
     "empty": "Sin tareas",
-    "drop": "Soltar aquí"
+    "drop": "Soltar aquí",
+    "loadingMore": "Cargando las siguientes tarjetas"
   },
   "card": {
     "criteria": "Criterios de aceptación: {{done}} de {{total}}",
@@ -105,7 +106,9 @@
     "selected": "Seleccionada",
     "roledescription": "tarjeta movible",
     "hint": "Espacio la coge para moverla con las flechas; Intro la abre",
-    "actions": "Acciones de {{key}}"
+    "actions": "Acciones de {{key}}",
+    "noTasksYet": "sin tareas todavía",
+    "doneApprover": "Tú apruebas el paso a Hecho"
   },
   "drag": {
     "picked": "{{key}} cogida en {{column}}, posición {{position}} de {{total}}. Las flechas la mueven, Espacio la suelta y Escape cancela.",
@@ -300,5 +303,54 @@
     "startFailed": "No se ha podido empezar la sugerencia",
     "stopFailed": "No se ha podido detener la sugerencia",
     "decideFailed": "No se ha podido cambiar la propuesta"
-  }
+  },
+  "strip": {
+    "doing": {
+      "refine": "Refinando",
+      "check": "Comprobando",
+      "work": "Implementando",
+      "verify": "Verificando"
+    },
+    "queued": {
+      "refine": "En cola: la refinará cuando quede sitio",
+      "check": "En cola: la comprobará cuando quede sitio",
+      "work": "En cola: la implementará cuando quede sitio",
+      "verify": "En cola: la verificará cuando quede sitio"
+    },
+    "queuedTitle": "Espera sitio bajo el límite de ejecuciones a la vez",
+    "failed": "Falló",
+    "failedStep": {
+      "refine": "al refinarla",
+      "check": "al comprobarla",
+      "work": "al implementarla",
+      "verify": "al verificarla"
+    },
+    "cause": {
+      "budget": "llegó al límite de coste por ejecución",
+      "no-account": "ninguna cuenta tenía cupo",
+      "rate-limit": "la cuenta llegó a su límite de uso",
+      "stopped": "se detuvo su chat",
+      "restarts": "Agentry se reinició demasiadas veces",
+      "unreadable": "no dejó un resultado legible",
+      "no-verdict": "terminó sin veredicto",
+      "not-started": "su chat no llegó a empezar",
+      "not-continued": "su chat no pudo seguir tras un reinicio",
+      "chat-ended": "su chat terminó sin resultado",
+      "chat-failed": "su chat terminó con un error"
+    },
+    "waitsForYou": "te espera",
+    "passed": "{{role}} la dio por buena",
+    "passedAnon": "La verificación la dio por buena",
+    "sentBack_one": "{{role}} la devolvió {{count}} vez",
+    "sentBack_other": "{{role}} la devolvió {{count}} veces",
+    "sentBackAnon_one": "Devuelta {{count}} vez",
+    "sentBackAnon_other": "Devuelta {{count}} veces",
+    "chatWaiting": "Tu chat espera tu respuesta",
+    "approve": "Aprobar y pasar a Hecho",
+    "yourChat": "Tu chat",
+    "orchestration": "Orquestación",
+    "quote": "«{{text}}»",
+    "sentBackBy": "{{role}} la devolvió"
+  },
+  "flowRow": "{{parallel}} a la vez, {{queued}} en cola"
 }

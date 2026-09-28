@@ -208,9 +208,10 @@
   background: var(--bg-1);
 }
 
-/* Over its limit a column takes a warn hairline and says so in words; the move is never blocked */
+/* Over its limit a column takes a 2 px warn hairline on top and says so in one line of words, with
+   no tinted box and no warn border on its cards (decision 1); the move is never blocked */
 .workitem-col.is-over {
-  border-color: color-mix(in srgb, var(--warn) 38%, transparent);
+  box-shadow: inset 0 2px 0 var(--warn);
 }
 
 .workitem-col-head {
@@ -262,13 +263,17 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: -2px;
-  padding: 6px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--warn-soft);
+  margin-top: -6px;
+  padding: 0 8px 2px;
   color: var(--warn);
   font-size: 12px;
   font-weight: 500;
+}
+
+/* The role, or the person, who answers for the column sits just before its "+" */
+.workitem-col-head .role-avatar,
+.workitem-col-head .team-person {
+  margin-right: 2px;
 }
 
 .workitem-col-body {
@@ -319,6 +324,48 @@ button.workitem-mrow-more-link {
   color: var(--fg);
 }
 
+/* "Mostrar 9 más": the next page of Done, loaded in place (decision 6) */
+.workitem-col-more {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 34px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg-2);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
+}
+
+.workitem-col-more:hover {
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+.workitem-col-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workitem-card.is-skeleton {
+  gap: 8px;
+  box-shadow: none;
+  cursor: default;
+}
+
+.workitem-card.is-skeleton .skeleton {
+  height: 10px;
+}
+
 /* Where a dragged card will land */
 .workitem-drop {
   flex-shrink: 0;
@@ -335,12 +382,14 @@ button.workitem-mrow-more-link {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   padding: 10px 12px 11px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: var(--bg-2);
   box-shadow: var(--shadow-sm);
+  /* The strip runs to the card's edges and takes its rounded corners */
+  overflow: hidden;
   cursor: grab;
   transition:
     border-color var(--dur-fast),
@@ -396,7 +445,7 @@ button.workitem-mrow-more-link {
 
 /* A card's rail stops short of its rounded corners */
 .workitem-card.live-rail::before {
-  inset: 10px auto 10px 0;
+  inset: 12px auto 12px 0;
 }
 
 .workitem-card-top {
@@ -410,17 +459,13 @@ button.workitem-mrow-more-link {
   cursor: inherit;
 }
 
-.workitem-card-spin {
-  width: 14px;
-  height: 14px;
-}
 
 .workitem-card-title {
   margin: 0;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 500;
   line-height: 1.38;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.01em;
   color: var(--fg);
   overflow-wrap: anywhere;
 }
@@ -432,27 +477,70 @@ button.workitem-mrow-more-link {
   cursor: inherit;
 }
 
+/* Done asks for no attention: what it is and its title, flat */
+.workitem-card.is-done {
+  gap: 5px;
+  box-shadow: none;
+}
+
 .workitem-card.is-done .workitem-card-title {
   color: var(--fg-2);
 }
 
-/* The meta row wraps instead of cutting the epic or a label */
-.workitem-card-meta {
+/* Where it goes (`.wi-card-ctx`): the project on All projects, the epic without a box, the labels as
+   #tags. It wraps instead of cutting any of them */
+.workitem-context {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 2px 10px;
   min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--fg-3);
 }
 
-.workitem-card-meta > .workitem-label {
-  flex-shrink: 0;
-}
-
-/* The spacer before an assignee takes what is left of the line: at its default 200 px basis it
-   wrapped onto a line of its own and left the avatar under it, at the start */
-.workitem-card-meta > .grow {
+/* The spacer before an assignee takes what is left of the line, not a line of its own */
+.workitem-context > .grow {
   flex-basis: 0;
+}
+
+.workitem-epic.is-bare {
+  display: inline-flex;
+  align-items: baseline;
+  height: auto;
+  line-height: inherit;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  white-space: normal;
+  overflow: visible;
+  font-weight: 500;
+}
+
+.workitem-epic.is-bare::before {
+  flex-shrink: 0;
+  margin-right: 6px;
+  vertical-align: 0;
+  transform: translateY(-1px) rotate(45deg);
+}
+
+.workitem-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+}
+
+.workitem-tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.workitem-tag::before {
+  content: '#';
+  color: var(--line-3);
 }
 
 .workitem-project {
@@ -471,15 +559,11 @@ button.workitem-mrow-more-link {
   color: var(--fg-3);
 }
 
-.workitem-project .monogram {
-  font-size: 11px;
-  border-radius: var(--radius-sm);
-}
-
 .workitem-card-foot {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--fg-3);
@@ -503,6 +587,36 @@ button.workitem-mrow-more-link {
 
 .workitem-fact.is-blocked {
   color: var(--fg-2);
+}
+
+/* The foot ends in who carries the item, unless the strip already names them */
+.workitem-card-foot > .workitem-assignee,
+.workitem-card-foot > .role-avatar {
+  margin-left: auto;
+}
+
+/* The checklist as a short bar: neutral ink while open, ok once every criterion is checked */
+.workitem-criteria {
+  gap: 5px;
+}
+
+.workitem-criteria-bar {
+  display: flex;
+  width: 28px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-4);
+  overflow: hidden;
+}
+
+.workitem-criteria-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--fg-2);
+}
+
+.workitem-criteria.is-full .workitem-criteria-bar > i {
+  background: var(--ok);
 }
 
 .workitem-assignee {
@@ -534,15 +648,6 @@ button.workitem-mrow-more-link {
   font-variant-numeric: tabular-nums;
 }
 
-.workitem-card-epic.is-compact {
-  font-size: 12px;
-  color: var(--fg-2);
-}
-
-.workitem-card-epic.is-compact .workitem-ms-bar {
-  flex: 0 0 48px;
-}
-
 .workitem-ms-bar {
   flex: 1 1 auto;
   display: flex;
@@ -559,114 +664,169 @@ button.workitem-mrow-more-link {
   background: var(--ok);
 }
 
-/* The live line: what the chat or node on the card is doing now, as an orchestration task card says it */
-.workitem-card-live {
+/* ---------- the strip (`.wi-strip`, WorkItemStrip) ----------
+   What happens to the item now, at the foot of its card, led by who acts. It runs to the card's
+   edges; live takes the live tint, a wait the idle one, a failure the bad one, the rest is neutral */
+.workitem-strip {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 3px 6px;
   min-width: 0;
-  padding: 6px 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--bg);
+  margin: 1px -12px -11px;
+  padding: 7px 12px 8px;
+  border-top: 1px solid var(--line);
   font-size: 12px;
+  line-height: 1.4;
 }
 
-.workitem-live-verb {
-  color: var(--live);
-  white-space: nowrap;
-  font-size: 12px;
+.workitem-card.live-rail .workitem-strip {
+  margin-left: -14px;
+  padding-left: 14px;
 }
 
-.workitem-live-spin {
-  color: var(--live);
-}
-
-.workitem-live-bar {
-  flex: 1 1 auto;
-  min-width: 32px;
-}
-
-.workitem-card-live.is-waiting {
-  border-color: color-mix(in srgb, var(--idle) 30%, transparent);
-}
-
-.workitem-live-idle {
-  color: var(--idle);
+.workitem-strip-verb {
+  flex: 1 1 0;
+  min-width: 0;
   font-weight: 500;
 }
 
-/* A ticker with a command takes two lines on a card: the verb and the time, then the command, so the
-   command is not cut on a narrow column */
-.workitem-card-live.has-ticker .ticker {
-  min-width: 0;
-  width: 100%;
+.workitem-strip-verb.is-node {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
 }
 
-.workitem-card-live.has-ticker .ticker-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  column-gap: 6px;
-  row-gap: 3px;
-  min-width: 0;
+.workitem-strip-verb.is-quiet {
+  color: var(--fg-2);
+  font-weight: 400;
 }
 
-.workitem-card-live.has-ticker .ticker-what {
-  display: contents;
+.workitem-strip time {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
 }
 
-.workitem-card-live.has-ticker .ticker-verb {
-  /* From no width up: however narrow the column, the verb gives way (in an ellipsis) and the time
-     stays on its line, as DesktopTableroEquipo draws it */
-  flex: 1 1 0;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.workitem-strip-detail {
+  flex-basis: 100%;
+  padding-left: 23px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+
+.workitem-strip-bar {
+  flex: 1 1 60px;
+}
+
+.workitem-strip svg {
+  flex-shrink: 0;
+}
+
+.workitem-strip > svg {
+  color: var(--fg-3);
+}
+
+.workitem-strip.is-live {
+  background: color-mix(in srgb, var(--live-soft) 45%, transparent);
+}
+
+.workitem-strip.is-live .workitem-strip-verb,
+.workitem-strip.is-live .workitem-strip-spin {
   color: var(--live);
 }
 
-.workitem-card-live.has-ticker .ticker-spinner {
-  flex: none;
+.workitem-strip.is-wait {
+  background: color-mix(in srgb, var(--idle-soft) 55%, transparent);
 }
 
-.workitem-card-live.has-ticker .ticker-elapsed {
-  order: 1;
-  flex: none;
-  margin-left: auto;
-  white-space: nowrap;
+.workitem-strip.is-wait .workitem-strip-verb {
+  color: var(--fg-2);
+  font-weight: 400;
 }
 
-.workitem-card-live.has-ticker .ticker-target {
-  order: 2;
+.workitem-strip.is-wait .workitem-approve {
   flex-basis: 100%;
-  padding-left: 18px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  justify-content: center;
+  margin-top: 5px;
 }
 
-/* In a row of the list or of the phone board the line is bare, one line */
-.workitem-card-live.is-inline,
-.workitem-card-live.is-row {
+.workitem-strip.is-fail {
+  background: color-mix(in srgb, var(--bad-soft) 55%, transparent);
+}
+
+.workitem-strip.is-fail .workitem-strip-verb {
+  color: var(--fg-2);
+  font-weight: 400;
+}
+
+.workitem-strip.is-fail .workitem-strip-verb b,
+.workitem-strip.is-fail .workitem-strip-fail-mark {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+/* The actor, smaller than the card's own marks so the words lead: a role's squircle at 18 px
+   (`.role-av.xs`), the person's round monogram, an orchestration's glyph */
+.workitem-strip-role {
+  width: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 2px;
+  border-radius: var(--radius-xs);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.workitem-strip-role::after {
+  width: 4px;
+  height: 4px;
+  border-width: 1px;
+  right: -1.5px;
+  bottom: -1.5px;
+}
+
+.workitem-strip-person .monogram {
+  font-size: 10px;
+}
+
+.workitem-strip-orch {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--fg-3);
+}
+
+/* In a list row the strip is one bare line: the actor and the words, no tint and no rule */
+.workitem-strip.is-inline {
+  flex-wrap: nowrap;
+  margin: 0;
   padding: 0;
   border: 0;
   background: none;
+  white-space: nowrap;
 }
 
-.workitem-card-live.is-inline.has-ticker .ticker-line {
-  flex-wrap: nowrap;
+.workitem-strip.is-inline .workitem-strip-verb {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.workitem-card-live.is-inline.has-ticker .ticker-target {
-  order: 0;
-  flex-basis: auto;
+.workitem-strip.is-inline .workitem-strip-detail {
+  flex: 0 1 auto;
   padding-left: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.workitem-card-live.is-inline.has-ticker .ticker-verb {
-  flex: none;
+.workitem-strip.is-inline time {
+  display: none;
 }
 
 /* ---------- selection ---------- */
@@ -1502,8 +1662,19 @@ button.workitem-mrow-more-link {
   color: var(--fg-3);
 }
 
-.workitem-msection .badge {
-  margin-left: auto;
+/* Over the limit, a section says so in one line of warn text at the end of its head */
+.workitem-msection-over {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.workitem-msection-head {
+  flex-wrap: wrap;
 }
 
 .workitem-mcard {
@@ -1512,8 +1683,91 @@ button.workitem-mrow-more-link {
   overflow: hidden;
 }
 
-.workitem-mcard.is-over {
-  border-color: color-mix(in srgb, var(--warn) 38%, transparent);
+/* A phone row's strip runs to the row's edges, a size up */
+.workitem-mrow .workitem-strip {
+  margin: 2px -14px -12px;
+  padding: 8px 14px 9px;
+  font-size: 13px;
+}
+
+.workitem-mrow.live-rail .workitem-strip {
+  margin-left: -16px;
+  padding-left: 16px;
+}
+
+.workitem-mrow .workitem-context {
+  font-size: 13px;
+}
+
+.workitem-mrow .workitem-card-foot {
+  font-size: 12px;
+}
+
+/* The flow's state under the views, the whole row a link to it (MobileTableroEquipo) */
+.board-flow-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--touch);
+  padding: 8px 14px;
+  color: var(--fg);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.board-flow-row > svg {
+  flex: none;
+  color: var(--fg-3);
+}
+
+.board-flow-row-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.board-flow-row-figures {
+  color: var(--fg-2);
+}
+
+/* The Tasks phone header: the title keeps its width, and the project's pill takes what is left */
+.tasks-phone-head.has-scope .phone-head-text {
+  flex: 0 0 auto;
+}
+
+.tasks-phone-head .phone-head-actions {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  min-width: 0;
+  gap: 6px;
+}
+
+.tasks-phone-head .project-scope {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.tasks-phone-head .project-scope .select-trigger {
+  max-width: 100%;
+}
+
+.tasks-phone-head .project-scope-icon {
+  display: none;
+}
+
+.tasks-phone-head .select-trigger.project-selector {
+  width: auto;
+  min-width: 0;
+  min-height: var(--touch);
+  padding: 0 12px 0 16px;
+  gap: 6px;
+  border-radius: var(--radius-pill);
+  font-size: 15px;
+}
+
+.tasks-phone-head .select-trigger.project-selector .select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* A row of the phone board: the title is the link, and its box covers the row */

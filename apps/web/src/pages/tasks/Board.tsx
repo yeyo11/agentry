@@ -21,7 +21,7 @@ import {
 import { BoardColumns, type BoardSelection } from './board/BoardColumns';
 import { BoardOff, EmptyBoard, NoBoards, NothingFiltered } from './board/EmptyBoards';
 import { useLiveSources } from './board/LiveLine';
-import { BoardTeamProvider, FlowButton, useBoardTeamData } from './board/team';
+import { BoardTeamProvider, FlowButton, PhoneFlowRow, useBoardTeamData } from './board/team';
 import { boardItems, boardTotal, DONE_SHOWN, doneLimitFor, holdsPart, NO_MILESTONE, nextDoneShown, notSelectable } from './board/model';
 import { useEpicProgress } from './board/useEpicProgress';
 import { PhoneBoard } from './board/PhoneBoard';
@@ -193,6 +193,9 @@ function TasksBoard() {
   const here = `${location.pathname}${location.search}`;
   const onOpen = (item: WorkItem) => (phone ? navigate(taskPath(item.key), { state: returnState(here) }) : setParams(itemPanelSearch(item.key, params)));
   const moreDone = () => setDoneShown(nextDoneShown);
+  // "Mostrar N más" asked the server for the next page of Done: its skeletons stand in until it lands
+  const doneHeld = columns.find((column) => column.status === 'done')?.items.length ?? 0;
+  const doneLoading = answer.isFetching && doneShown > doneHeld;
 
   // ---- what the header says ----
   // What Done leaves out counts too: the header speaks of the whole board
@@ -257,7 +260,16 @@ function TasksBoard() {
     );
   } else if (phone) {
     body = (
-      <PhoneBoard columns={columns} projectNames={scope.allProjects ? scope.projectNames : undefined} epics={epics} live={live} selection={selection} doneShown={doneShown} onMoreDone={moreDone} />
+      <PhoneBoard
+        columns={columns}
+        projectNames={scope.allProjects ? scope.projectNames : undefined}
+        epics={epics}
+        live={live}
+        selection={selection}
+        doneShown={doneShown}
+        doneLoading={doneLoading}
+        onMoreDone={moreDone}
+      />
     );
   } else {
     body = (
@@ -268,6 +280,7 @@ function TasksBoard() {
         live={live}
         selection={selection}
         doneShown={doneShown}
+        doneLoading={doneLoading}
         onMoreDone={moreDone}
         onOpen={onOpen}
         onNewTask={scope.allProjects ? undefined : (status) => openNew(null, status)}
@@ -292,12 +305,7 @@ function TasksBoard() {
         <>
           <PhoneTasksHeader
             view={view}
-            action={
-              <>
-                {scope.project && !scope.boardOff && !selecting && <SuggestButton icon onClick={() => setSuggesting(true)} />}
-                {canSelect && view === 'board' && <SelectButton icon on={selecting} onChange={(on) => (on ? setSelecting(true) : stopSelecting())} />}
-              </>
-            }
+            action={canSelect && view === 'board' ? <SelectButton icon on={selecting} onChange={(on) => (on ? setSelecting(true) : stopSelecting())} /> : undefined}
             selecting={selecting ? { count: picked.length, project: scope.project?.name ?? t('header.allProjects'), onClose: stopSelecting } : undefined}
           />
           {!selecting && !scope.boardOff && !empty && (
@@ -307,6 +315,7 @@ function TasksBoard() {
                 <FilterSheetButton facets={facets} state={filters} shown={shownTotal} />
               </div>
               <ActiveFilterChips facets={facets} state={filters} summary={filters.active ? t('header.shownOf', { shown: shownTotal, total }) : undefined} />
+              {team && scope.project && view === 'board' && <PhoneFlowRow team={team} projectId={scope.project.id} />}
               {scope.allProjects && total > 0 && (
                 <div className="card workitem-all-card">
                   <Info size={16} strokeWidth={1.75} aria-hidden />

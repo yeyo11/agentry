@@ -121,7 +121,7 @@ export default async ({ page, api, check, dirs }) => {
     check(bounce?.startsWith('QA sent it back 1 time out of'), `a bounced card says so in words (${bounce})`);
     const assignee = await page.eval(`return document.querySelector('[data-item-id="${bounced.id}"] .workitem-card-foot .role-avatar')?.textContent`);
     check(assignee === 'DEV', `a role's card carries its squircle, not a person's monogram (${assignee})`);
-    const waiting = await page.eval(`return document.querySelector('[data-item-id="${approve.id}"] .workitem-waiting')?.textContent ?? ''`);
+    const waiting = await page.eval(`return document.querySelector('[data-item-id="${approve.id}"] .workitem-strip.is-wait')?.textContent ?? ''`);
     check(waiting.includes('waits') && waiting.includes('QA passed it'), `an item waiting for approval says why (${waiting})`);
     await page.click(`[data-item-id="${approve.id}"] .workitem-approve`, undefined, 1500);
     await page.waitFor(`return document.querySelector('.workitem-col[data-status="done"] [data-item-id="${approve.id}"]') !== null`, { label: 'approving moves it to Done' });

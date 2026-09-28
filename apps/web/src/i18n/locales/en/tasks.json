@@ -85,10 +85,11 @@
     "countLimit": "{{count}} of a limit of {{limit}}",
     "over": "Over the limit: {{count}} of {{limit}}",
     "overShort": "over the limit",
-    "more_one": "and {{count}} more",
-    "more_other": "and {{count}} more",
+    "more_one": "Show {{count}} more",
+    "more_other": "Show {{count}} more",
     "empty": "No tasks",
-    "drop": "Drop it here"
+    "drop": "Drop it here",
+    "loadingMore": "Loading the next cards"
   },
   "card": {
     "criteria": "Acceptance criteria: {{done}} of {{total}}",
@@ -105,7 +106,9 @@
     "selected": "Selected",
     "roledescription": "movable card",
     "hint": "Space picks it up to move it with the arrows; Enter opens it",
-    "actions": "Actions of {{key}}"
+    "actions": "Actions of {{key}}",
+    "noTasksYet": "no tasks yet",
+    "doneApprover": "You approve the move to Done"
   },
   "drag": {
     "picked": "{{key}} picked up in {{column}}, position {{position}} of {{total}}. The arrows move it, Space drops it and Escape cancels.",
@@ -300,5 +303,54 @@
     "startFailed": "Could not start the suggestion",
     "stopFailed": "Could not stop the suggestion",
     "decideFailed": "Could not change the proposal"
-  }
+  },
+  "strip": {
+    "doing": {
+      "refine": "Refining",
+      "check": "Checking",
+      "work": "Implementing",
+      "verify": "Verifying"
+    },
+    "queued": {
+      "refine": "Queued: it will be refined when there is room",
+      "check": "Queued: it will be checked when there is room",
+      "work": "Queued: it will be implemented when there is room",
+      "verify": "Queued: it will be verified when there is room"
+    },
+    "queuedTitle": "Waiting for a place under the runs-at-once limit",
+    "failed": "Failed",
+    "failedStep": {
+      "refine": "to refine it",
+      "check": "to check it",
+      "work": "to implement it",
+      "verify": "to verify it"
+    },
+    "cause": {
+      "budget": "it reached the cost limit per run",
+      "no-account": "no account had quota left",
+      "rate-limit": "the account reached its usage limit",
+      "stopped": "its chat was stopped",
+      "restarts": "Agentry restarted too many times",
+      "unreadable": "it left no readable result",
+      "no-verdict": "it ended without a verdict",
+      "not-started": "its chat did not start",
+      "not-continued": "its chat could not go on after a restart",
+      "chat-ended": "its chat ended without a result",
+      "chat-failed": "its chat ended in an error"
+    },
+    "waitsForYou": "waits for you",
+    "passed": "{{role}} passed it",
+    "passedAnon": "Verification passed it",
+    "sentBack_one": "{{role}} sent it back {{count}} time",
+    "sentBack_other": "{{role}} sent it back {{count}} times",
+    "sentBackAnon_one": "Sent back {{count}} time",
+    "sentBackAnon_other": "Sent back {{count}} times",
+    "chatWaiting": "Your chat waits for your answer",
+    "approve": "Approve and move to Done",
+    "yourChat": "Your chat",
+    "orchestration": "Orchestration",
+    "quote": "“{{text}}”",
+    "sentBackBy": "{{role}} sent it back"
+  },
+  "flowRow": "{{parallel}} at once, {{queued}} queued"
 }

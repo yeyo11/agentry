@@ -212,7 +212,7 @@ export default async ({ page, api, check, dirs }) => {
     check(await page.eval(`const b = document.querySelector('main a[href="/projects"] svg.lucide-x, main button svg.lucide-x'); return !!b && b.closest('a, button').getBoundingClientRect().top < 80`), '[390px /projects/new] its header closes it, at the top');
     // Tasks keeps the project scope, in its own header
     await page.goto('/tasks', 1200);
-    check(await page.eval(`return !!document.querySelector('main .workitem-mhead .project-selector')?.getClientRects().length`), '[390px /tasks] the project scope is in the header');
+    check(await page.eval(`return !!document.querySelector('main .tasks-phone-head .project-selector')?.getClientRects().length`), '[390px /tasks] the project scope is in the header');
     for (const path of ['/chats', '/orchestration', '/projects', '/?project=all']) {
       await page.goto(path, 1200);
       check(await page.eval(topBarShown), `[390px ${path}] the top bar stays`);
