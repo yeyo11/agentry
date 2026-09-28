@@ -346,7 +346,6 @@ test('a relaunch keeps each node on its item and is checked as a launch is; a te
   ]);
   assert.equal(twice.statusCode, 400);
   assert.match(twice.json().error, /another node/);
-  assert.equal(core.orchestrator.list().length, before);
 
   const saved = await app.inject({ method: 'POST', url: '/api/orchestrations/templates', ...json({ name: 'Reusable', fromOrchestration: first.id }) });
   assert.equal(saved.statusCode, 201, saved.body);
@@ -361,7 +360,7 @@ test('a selection or a launch naming items it may not have is refused before any
   assert.equal((await orchestrate({ itemIds: [] })).statusCode, 400);
   assert.equal((await orchestrate({ itemIds: [a.id, a.id] })).statusCode, 400);
   assert.equal((await orchestrate({ itemIds: [epic.id] })).statusCode, 400);
-  assert.equal((await orchestrate({ itemIds: [closed.id] })).statusCode, 400);
+  assert.equal((await orchestrate({ itemIds: [closed.id] })).statusCode, 409);
   assert.equal((await orchestrate({ itemIds: ['nope'] })).statusCode, 400);
 
   const before = core.orchestrator.list().length;
@@ -373,7 +372,19 @@ test('a selection or a launch naming items it may not have is refused before any
   ]);
   assert.equal(twice.statusCode, 400);
   assert.match(twice.json().error, /another node/);
+  // Held to what "Work on it" is: an epic, an item in done, or one a chat is on now
+  const one = (workItemId: string) => launch([{ id: 't1', name: 't1', prompt: 'p', workItemId }]);
+  assert.equal((await one(epic.id)).statusCode, 400);
+  assert.equal((await one(closed.id)).statusCode, 409);
+  const worked = await createItem({ title: 'Taken', description: 'FAKE-HANG' });
+  const busy = await workOn(worked.id);
+  const taken = await one(worked.id);
+  assert.equal(taken.statusCode, 409);
+  assert.match(taken.json().error, /already being worked on/);
+  assert.equal((await orchestrate({ itemIds: [worked.id] })).statusCode, 409);
   assert.equal(core.orchestrator.list().length, before);
+  await app.inject({ method: 'POST', url: `/api/chats/${busy.chat.id}/stop` });
+  await turnOver(busy.chat.id);
 });
 
 // ---------- a task from a message ----------

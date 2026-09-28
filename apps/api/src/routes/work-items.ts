@@ -185,7 +185,7 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     if (kind === 'document') {
       return reply.status(201).send(await core.documents.tie(req.params.itemId, { path: documentPath ?? '' }, { role, chatId: chatId ?? null }));
     }
-    return reply.status(201).send(core.workItems.link(req.params.itemId, { kind, role, chatId, orchestrationId, taskId, documentPath }));
+    return reply.status(201).send(await core.linkWorkItem(req.params.itemId, { kind, role, chatId, orchestrationId, taskId, documentPath }));
   });
 
   app.delete<{ Params: { itemId: string; linkId: string } }>('/work-items/:itemId/links/:linkId', async (req) => {

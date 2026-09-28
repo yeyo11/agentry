@@ -32,6 +32,7 @@ import type {
   UpdateProjectRequest,
   Board,
   CreateWorkItemFromMessageRequest,
+  CreateWorkItemLinkRequest,
   Milestone,
   OrchestrateWorkItemsRequest,
   Orchestration,
@@ -1451,13 +1452,9 @@ export class Core {
   async workOnItem(itemId: string, request?: WorkOnWorkItemRequest): Promise<WorkOnWorkItemResult> {
     const item = await this.workItemAccess(itemId, 'write');
     const record = this.requireProject(item.projectId);
-    if (item.type === 'epic') throw new WorkItemError('an epic groups work items: work on one of them instead', 400);
-    // As "Orchestrate" refuses it: nothing an agent does may take an item out of done
-    if (item.status === 'done') throw new WorkItemError(`${item.key} is already done: move it back first to work on it again`, 409);
+    this.checkWorkable(item);
     const options = startOptions(request);
     if (!existsSync(record.path)) throw new WorkItemError(`the project's directory ${record.path} is missing`, 409);
-    const busy = this.workItems.links(itemId).find((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
-    if (busy) throw new WorkItemError(`${item.key} is already being worked on${busy.name ? ` by ${busy.name}` : ''}`, 409);
     const place = itemWorktree(record.path, item);
     if (place && (place.worktree !== item.worktree || place.branch !== item.branch)) {
       this.workItems.setWorktree(itemId, { worktree: place.worktree, branch: place.branch });
@@ -1478,6 +1475,18 @@ export class Core {
   }
 
   /**
+   * What "Work on it", a draft and a launch all refuse, the same way: an epic, which groups work
+   * rather than being it; an item in done, which nothing an agent does may take out of it; and an
+   * item a chat or a node is working on now, which a second one would pull two ways.
+   */
+  private checkWorkable(item: WorkItem, label = ''): void {
+    if (item.type === 'epic') throw new WorkItemError(`${label}${item.key} is an epic, which groups work items: work on one of them instead`, 400);
+    if (item.status === 'done') throw new WorkItemError(`${label}${item.key} is already done: move it back first to work on it again`, 409);
+    const busy = this.workItems.links(item.id).find((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
+    if (busy) throw new WorkItemError(`${label}${item.key} is already being worked on${busy.name ? ` by ${busy.name}` : ''}`, 409);
+  }
+
+  /**
    * The graph a selection of one project's items becomes, for the person to review: nothing is
    * launched. The existing launch route takes it as it is and links each node to its item.
    */
@@ -1492,8 +1501,7 @@ export class Core {
     const items = (ids as string[]).map((id) => {
       const item = this.workItems.find(id);
       if (!item || item.projectId !== projectId) throw new WorkItemError(`${id} is not a work item of this project`, 400);
-      if (item.type === 'epic') throw new WorkItemError(`${item.key} is an epic, which groups work: select its items instead`, 400);
-      if (item.status === 'done') throw new WorkItemError(`${item.key} is already done`, 400);
+      this.checkWorkable(item);
       return item;
     });
     return orchestrationDraft(record, items, canBranch(record.path));
@@ -1528,7 +1536,33 @@ export class Core {
       const item = this.workItems.find(itemId);
       if (!item) throw new WorkItemError(`${label}: work item ${itemId} not found`, 400);
       await this.ownerAccess(item.projectId, 'write');
+      // As "Work on it" is held to: a launch is the other way to put an agent on the item
+      this.checkWorkable(item, `${label}: `);
     }
+  }
+
+  /**
+   * A chat or a task linked to an item by hand. It must exist and belong to the item's project:
+   * a link to nothing reads as work that is not there, and one to another project's chat would move
+   * the item with work done elsewhere.
+   */
+  async linkWorkItem(itemId: string, request: CreateWorkItemLinkRequest): Promise<WorkItemLink> {
+    const item = await this.workItemAccess(itemId, 'write');
+    const input: Partial<Record<keyof CreateWorkItemLinkRequest, unknown>> = request && typeof request === 'object' && !Array.isArray(request) ? request : {};
+    if (input.kind === 'chat' && typeof input.chatId === 'string' && input.chatId) {
+      const chat = await this.chats.summaryOf(input.chatId);
+      if (!chat) throw new WorkItemError(`chat ${input.chatId} not found`, 400);
+      if (chat.project?.id !== item.projectId) throw new WorkItemError(`chat ${input.chatId} is not a chat of this item's project`, 400);
+    }
+    if (input.kind === 'orchestration' && typeof input.orchestrationId === 'string' && input.orchestrationId) {
+      const orch = this.orchestrator.get(input.orchestrationId);
+      if (!orch) throw new WorkItemError(`orchestration ${input.orchestrationId} not found`, 400);
+      if (typeof input.taskId === 'string' && !orch.tasks.some((t) => t.id === input.taskId)) {
+        throw new WorkItemError(`orchestration ${orch.name} has no task ${input.taskId}`, 400);
+      }
+      if (this.projectOf(orch.cwd).project?.id !== item.projectId) throw new WorkItemError(`orchestration ${orch.name} does not run in this item's project`, 400);
+    }
+    return this.workItems.link(itemId, request);
   }
 
   /** "Create a task from this message": an item in `backlog` of the chat's project, linked to the chat it came from. */

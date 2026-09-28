@@ -246,6 +246,17 @@ test('criteria, comments, relations and links are changed through their own rout
   const unrelated = await app.inject({ method: 'DELETE', url: `/api/work-items/${other.id}/relations/${item.id}` });
   assert.deepEqual([unrelated.statusCode, unrelated.json<WorkItem>().relations], [200, []]);
 
+  // A link names a chat that exists, in the item's project: this core has no CLI, so the chat list is stood in for
+  const nowhere = await app.inject({ method: 'POST', url: `/api/work-items/${item.id}/links`, ...json({ kind: 'chat', role: 'work', chatId: 'chat-1' }) });
+  assert.equal(nowhere.statusCode, 400);
+  assert.match(nowhere.json().error, /chat chat-1 not found/);
+  const summaryOf = core.chats.summaryOf.bind(core.chats);
+  const chatIn = (projectId: string) => (async (id: string) => ({ id, project: { id: projectId, name: 'p' } })) as unknown as typeof core.chats.summaryOf;
+  core.chats.summaryOf = chatIn('another-project');
+  const elsewhere = await app.inject({ method: 'POST', url: `/api/work-items/${item.id}/links`, ...json({ kind: 'chat', role: 'work', chatId: 'chat-1' }) });
+  assert.equal(elsewhere.statusCode, 400);
+  assert.match(elsewhere.json().error, /not a chat of this item's project/);
+  core.chats.summaryOf = chatIn(project.id);
   const linked = await app.inject({ method: 'POST', url: `/api/work-items/${item.id}/links`, ...json({ kind: 'chat', role: 'work', chatId: 'chat-1' }) });
   assert.equal(linked.statusCode, 201);
   const link = linked.json<WorkItemLink>();
@@ -253,7 +264,11 @@ test('criteria, comments, relations and links are changed through their own rout
   assert.deepEqual([link.chatId, link.name, link.chatState], ['chat-1', null, null]);
   const again = await app.inject({ method: 'POST', url: `/api/work-items/${item.id}/links`, ...json({ kind: 'chat', role: 'work', chatId: 'chat-1' }) });
   assert.equal(again.json<WorkItemLink>().id, link.id);
+  core.chats.summaryOf = summaryOf;
   assert.equal((await app.inject({ method: 'POST', url: `/api/work-items/${item.id}/links`, ...json({ kind: 'orchestration', role: 'work' }) })).statusCode, 400);
+  const noGraph = await app.inject({ method: 'POST', url: `/api/work-items/${item.id}/links`, ...json({ kind: 'orchestration', role: 'work', orchestrationId: 'o-1', taskId: 't1' }) });
+  assert.equal(noGraph.statusCode, 400);
+  assert.match(noGraph.json().error, /orchestration o-1 not found/);
   assert.deepEqual((await app.inject(`/api/work-items/${item.id}/links`)).json<WorkItemLink[]>().map((l) => l.id), [link.id]);
   // A link is only unlinked under its own item
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/work-items/${other.id}/links/${link.id}` })).statusCode, 404);
