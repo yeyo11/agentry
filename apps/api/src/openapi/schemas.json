@@ -13160,6 +13160,34 @@
     ],
     "description": "`GET /projects/:id/flow`: what the flow is doing in a project now."
   },
+  "FlowRunPage": {
+    "type": "object",
+    "properties": {
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowRun"
+        }
+      },
+      "total": {
+        "type": "number",
+        "description": "Every run that passes the filter, across the pages"
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Opaque: pass as `cursor` for the next page; null on the last"
+      }
+    },
+    "required": [
+      "runs",
+      "total",
+      "nextCursor"
+    ],
+    "description": "A page of a project's flow runs, newest first."
+  },
   "FlowRunResult": {
     "type": "object",
     "properties": {

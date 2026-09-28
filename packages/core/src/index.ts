@@ -12,6 +12,9 @@ import type {
   ChatWorktree,
   ConfigFileRoot,
   CreateProjectRequest,
+  FlowRun,
+  FlowRunPage,
+  FlowRunQuery,
   ImportProjectRequest,
   MemoryFile,
   MemoryProjectSummary,
@@ -155,7 +158,22 @@ export {
   type AssistantProject,
 } from './assistant.ts';
 export { assistantLanguage, assistantPrompt, assistantSchema, assistantTitle, parseAnswer, type AssistantAnswer, type AssistantBrief, type AssistantGit, type AssistantLanguage } from './assistant-answer.ts';
-export { FLOW_CAUSE, flowPrompt, flowResultSchema, FlowService, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowDeps, type FlowLaunch, type FlowProject, type FlowRules } from './flow.ts';
+export {
+  FLOW_CAUSE,
+  FlowError,
+  flowPrompt,
+  flowResultSchema,
+  FlowService,
+  parseFlowRunQuery,
+  parseResult,
+  stageRules,
+  testCommandRules,
+  type FlowChatResult,
+  type FlowDeps,
+  type FlowLaunch,
+  type FlowProject,
+  type FlowRules,
+} from './flow.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
 export {
@@ -1171,6 +1189,18 @@ export class Core {
   projectFlow(projectId: string) {
     this.requireProject(projectId);
     return this.flow.projectFlow(projectId);
+  }
+
+  /** `GET /projects/:id/flow/runs`: the team's activity, a page at a time; readable with the flow off. */
+  projectFlowRuns(projectId: string, query: FlowRunQuery = {}): FlowRunPage {
+    this.requireProject(projectId);
+    return this.flow.page(projectId, query);
+  }
+
+  /** `GET /work-items/:itemId/runs`: every flow run of an item, newest first, readable as the item is. */
+  async workItemRuns(itemId: string): Promise<FlowRun[]> {
+    await this.workItemAccess(itemId, 'read');
+    return this.flow.itemRuns(itemId);
   }
 
   // ---------- the project assistant ----------

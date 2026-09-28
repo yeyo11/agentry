@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
-import type { MemoryProposal, Project, ProjectFlow, ProjectSettings, Team, WorkItem, WorkItemDetail } from '@agentry/shared';
+import type { FlowRun, FlowRunPage, MemoryProposal, Project, ProjectFlow, ProjectSettings, Team, WorkItem, WorkItemDetail } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
 
 // The flow by column over HTTP and a real core, with the fake CLI standing in for Claude: it answers
@@ -185,6 +185,32 @@ test('a card entering in_progress is implemented by the developer, verified by Q
   assert.equal(team.members.find((m) => m.agent === 'qa')?.lastRun?.outcome, 'passed');
   const flow = await until(flowOf, (f) => !f.running.length && !f.queued.length, 'the flow to go quiet');
   assert.equal(flow.enabled, true);
+
+  // The item's own runs, newest first, each with its stage, member, outcome and chat
+  const itemRuns = await app.inject(`/api/work-items/${created.id}/runs`);
+  assert.equal(itemRuns.statusCode, 200, itemRuns.body);
+  const runs = itemRuns.json<FlowRun[]>();
+  assert.deepEqual(runs.map((r) => [r.stage, r.agent, r.outcome, r.item?.key]), [
+    ['verify', 'qa', 'passed', created.key],
+    ['work', 'developer', 'passed', created.key],
+  ]);
+  assert.ok(runs.every((r) => r.chatId && chats.some((l) => l.chatId === r.chatId)));
+  assert.equal((await app.inject('/api/work-items/nope/runs')).statusCode, 404);
+
+  // The team's activity: every run of the project, newest first, filtered and paged
+  const activity = (query = '') => app.inject(`/api/projects/${project.id}/flow/runs${query}`);
+  const all = (await activity()).json<FlowRunPage>();
+  assert.deepEqual([all.total, all.nextCursor, all.runs.map((r) => r.stage)], [2, null, ['verify', 'work']]);
+  const first = (await activity('?limit=1')).json<FlowRunPage>();
+  assert.deepEqual([first.total, first.runs.map((r) => r.agent)], [2, ['qa']]);
+  assert.ok(first.nextCursor);
+  const second = (await activity(`?limit=1&cursor=${first.nextCursor}`)).json<FlowRunPage>();
+  assert.deepEqual([second.runs.map((r) => r.agent), second.nextCursor], [['developer'], null]);
+  assert.deepEqual((await activity('?agent=developer')).json<FlowRunPage>().runs.map((r) => r.agent), ['developer']);
+  assert.equal((await activity('?status=running,failed')).json<FlowRunPage>().total, 0);
+  assert.equal((await activity(`?status=passed&itemId=${created.id}`)).json<FlowRunPage>().total, 2);
+  for (const bad of ['?status=lost', '?limit=0', '?limit=201', '?cursor=nonsense']) assert.equal((await activity(bad)).statusCode, 400, bad);
+  assert.equal((await app.inject('/api/projects/nope/flow/runs')).statusCode, 404);
 
   // The person approves: done, the wait cleared, nothing new started
   const before = argvs().length;

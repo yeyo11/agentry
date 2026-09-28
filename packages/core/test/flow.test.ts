@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { Worker } from 'node:worker_threads';
-import type { AgentryEvent, FlowRunDocument, FlowMemoryProposal, ProjectModule, ProjectSettings, WorkItemStatus } from '@agentry/shared';
+import { flowRunStatus, type AgentryEvent, type FlowRunDocument, type FlowMemoryProposal, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@agentry/shared';
 import { Db, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import { EventBus } from '../src/events.ts';
-import { flowResultSchema, FlowService, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowLaunch } from '../src/flow.ts';
+import { FlowError, flowResultSchema, FlowService, parseFlowRunQuery, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowLaunch } from '../src/flow.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -677,6 +677,67 @@ test('the cap holds against another process claiming at the same moment', async 
   await new Promise((r) => worker.once('exit', r));
   assert.equal(running(s).length, 1, 'two runs hold one place');
   assert.equal(queued(s).length, 1);
+});
+
+test("an item's runs are all served, newest first, so an older failed run still reads as failed", async () => {
+  const s = setup();
+  const it = await item(s, 'in_progress');
+  await s.answer(it.id, {}, true);
+  s.items.move(it.id, { status: 'in_review' }, person);
+  await s.flow.settled();
+  await s.answer(it.id, ok('Holds', { verdict: 'pass', criteria: [] }));
+  const other = await item(s, 'backlog', 'Another');
+  const runs = s.flow.itemRuns(it.id);
+  assert.deepEqual(
+    runs.map((r) => [r.stage, flowRunStatus(r)]),
+    [
+      ['verify', 'passed'],
+      ['work', 'failed'],
+    ],
+  );
+  assert.equal(runs.at(-1)?.error, 'it broke');
+  assert.ok(runs.every((r) => r.itemId === it.id));
+  assert.equal(s.flow.itemRuns(other.id).length, 1);
+  assert.deepEqual(s.flow.itemRuns('nope'), []);
+});
+
+test("the team's activity pages every run of the project, newest first, by member, state and item", async () => {
+  const s = setup();
+  const a = await item(s, 'in_progress', 'A');
+  await s.answer(a.id, {}, true);
+  const b = await item(s, 'backlog', 'B');
+  const c = await item(s, 'backlog', 'C');
+  // a's work failed; b's refine runs; c's refine waits for a place (two at most by default)
+  const all = s.flow.page('p1');
+  assert.equal(all.total, s.flow.runs('p1').length);
+  assert.deepEqual(all.runs.map((r) => r.queuedAt), [...all.runs.map((r) => r.queuedAt)].sort().reverse());
+  assert.deepEqual(s.flow.page('p1', { status: ['failed'] }).runs.map((r) => [r.itemId, r.stage]), [[a.id, 'work']]);
+  assert.deepEqual(s.flow.page('p1', { agent: ['product-owner'] }).runs.map((r) => r.itemId).sort(), [b.id, c.id].sort());
+  assert.deepEqual(s.flow.page('p1', { itemId: c.id }).runs.length, 1);
+  assert.equal(s.flow.page('p1', { status: ['running', 'queued'] }).total, s.flow.runs('p1').filter((r) => r.state !== 'ended').length);
+
+  // Paged by a cursor that a run queued meanwhile does not shift
+  const first = s.flow.page('p1', { limit: 2 });
+  assert.equal(first.runs.length, 2);
+  assert.ok(first.nextCursor);
+  await item(s, 'backlog', 'D');
+  const rest = s.flow.page('p1', { limit: 2, cursor: first.nextCursor });
+  assert.deepEqual([...first.runs, ...rest.runs].map((r) => r.id), all.runs.map((r) => r.id));
+  assert.equal(rest.nextCursor, null);
+  assert.equal(s.flow.page('p2').total, 0);
+});
+
+test('the query of the activity is checked', () => {
+  assert.deepEqual(parseFlowRunQuery({ agent: 'qa,developer, qa', status: 'failed,running', limit: '10', itemId: 'i1' }), {
+    agent: ['qa', 'developer'],
+    status: ['failed', 'running'],
+    limit: 10,
+    itemId: 'i1',
+  });
+  assert.deepEqual(parseFlowRunQuery({}), {});
+  for (const bad of [{ status: 'ended' }, { limit: '0' }, { limit: '2.5' }, { limit: '201' }, { cursor: 'abc' }]) {
+    assert.throws(() => parseFlowRunQuery(bad), (err: unknown) => err instanceof FlowError && err.statusCode === 400, JSON.stringify(bad));
+  }
 });
 
 test('a result is read defensively', () => {

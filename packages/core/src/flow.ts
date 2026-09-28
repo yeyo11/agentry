@@ -5,6 +5,9 @@ import type { DatabaseSync } from 'node:sqlite';
 import {
   DEFAULT_FLOW_MAX_PARALLEL,
   DOCUMENT_KINDS,
+  FLOW_RUN_STATUSES,
+  FLOW_RUNS_PAGE,
+  FLOW_RUNS_PAGE_MAX,
   FLOW_STAGE_OF_COLUMN,
   isTeamCommandPattern,
   MAX_FLOW_RESTARTS,
@@ -17,7 +20,10 @@ import {
   type FlowRunAction,
   type FlowRunDocument,
   type FlowRunOutcome,
+  type FlowRunPage,
+  type FlowRunQuery,
   type FlowRunState,
+  type FlowRunStatus,
   type FlowStage,
   type FlowVerdict,
   type MemoryProposalTargetKind,
@@ -98,6 +104,64 @@ const DENIED_TOOLS = ['Bash(git push)', 'Bash(git push *)'];
 const GIT_READS = ['status', 'diff', 'log', 'show'].flatMap((c) => [`Bash(git ${c})`, `Bash(git ${c} *)`]);
 /** `--output` makes those same commands write a file anywhere, so it is denied beside them */
 const GIT_OUTPUT_DENIED = ['diff', 'log', 'show'].map((c) => `Bash(git ${c} *--output*)`);
+
+/** A request the flow refuses, with the status the API answers it with. */
+export class FlowError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: 400 | 404,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * The query of `GET /projects/:id/flow/runs` as the query string carries it (lists comma separated),
+ * checked: an unknown status, a limit out of range or a cursor this service did not write is refused.
+ */
+export function parseFlowRunQuery(raw: Record<string, unknown> | undefined): FlowRunQuery {
+  const query: FlowRunQuery = {};
+  const list = (value: unknown, field: string): string[] | undefined => {
+    if (value === undefined || value === '') return undefined;
+    if (typeof value !== 'string' && !Array.isArray(value)) throw new FlowError(`${field} must be a comma separated list`, 400);
+    const values = (Array.isArray(value) ? value : [value]).flatMap((v) => (typeof v === 'string' ? v.split(',') : [])).map((v) => v.trim()).filter(Boolean);
+    return values.length ? [...new Set(values)] : undefined;
+  };
+  const agents = list(raw?.agent, 'agent');
+  if (agents) query.agent = agents;
+  const statuses = list(raw?.status, 'status');
+  if (statuses) {
+    const unknown = statuses.filter((v) => !(FLOW_RUN_STATUSES as readonly string[]).includes(v));
+    if (unknown.length) throw new FlowError(`unknown status ${unknown.join(', ')}; a run is ${FLOW_RUN_STATUSES.join(', ')}`, 400);
+    query.status = statuses as FlowRunStatus[];
+  }
+  if (typeof raw?.itemId === 'string' && raw.itemId) query.itemId = raw.itemId;
+  if (raw?.limit !== undefined && raw.limit !== '') {
+    const limit = Number(raw.limit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > FLOW_RUNS_PAGE_MAX) throw new FlowError(`limit must be a whole number from 1 to ${FLOW_RUNS_PAGE_MAX}`, 400);
+    query.limit = limit;
+  }
+  if (typeof raw?.cursor === 'string' && raw.cursor) {
+    cursorSeq(raw.cursor);
+    query.cursor = raw.cursor;
+  }
+  return query;
+}
+
+/** A page's cursor is the position of its last run, so the next page starts after it whatever was added since. */
+function cursorOf(seq: number): string {
+  return Buffer.from(JSON.stringify({ seq }), 'utf8').toString('base64url');
+}
+
+function cursorSeq(cursor: string): number {
+  try {
+    const seq = (JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { seq?: unknown }).seq;
+    if (typeof seq === 'number' && Number.isInteger(seq) && seq > 0) return seq;
+  } catch {
+    // refused below
+  }
+  throw new FlowError('cursor is not one this list gave out', 400);
+}
 
 /** What the flow knows of a project, read without waiting: its directory and its settings. */
 export interface FlowProject {
@@ -455,6 +519,59 @@ export class FlowService {
   run(runId: string): FlowRun | null {
     const row = this.row(runId);
     return row ? this.runOf(row) : null;
+  }
+
+  /**
+   * `GET /work-items/:itemId/runs`: every run of an item, newest first, whatever its state. The Team
+   * screen holds each member's latest run only, so an older failed run read as a normal one there.
+   */
+  itemRuns(itemId: string): FlowRun[] {
+    const rows = this.sql.prepare('SELECT * FROM flow_runs WHERE item_id = ? ORDER BY queued_at DESC, seq DESC').all(itemId) as unknown as RunRow[];
+    return rows.map((r) => this.runOf(r));
+  }
+
+  /**
+   * `GET /projects/:id/flow/runs`: the team's activity, every run of the project newest first, a page
+   * at a time. Newest first is the order they were queued in, `seq`, which the cursor carries, so a
+   * run queued while someone pages never shifts the pages after it.
+   */
+  page(projectId: string, query: FlowRunQuery = {}): FlowRunPage {
+    const where = ['project_id = ?'];
+    const params: Array<string | number> = [projectId];
+    if (query.agent?.length) {
+      where.push('agent IN (SELECT value FROM json_each(?))');
+      params.push(JSON.stringify(query.agent));
+    }
+    if (query.itemId) {
+      where.push('item_id = ?');
+      params.push(query.itemId);
+    }
+    if (query.status?.length) {
+      const states = query.status.filter((v): v is 'queued' | 'running' => v === 'queued' || v === 'running');
+      const outcomes = query.status.filter((v) => v !== 'queued' && v !== 'running');
+      const any: string[] = [];
+      if (states.length) {
+        any.push('state IN (SELECT value FROM json_each(?))');
+        params.push(JSON.stringify(states));
+      }
+      if (outcomes.length) {
+        // An ended run with no outcome, which the store never writes, reads as failed (`flowRunStatus`)
+        any.push(`(state = 'ended' AND (outcome IN (SELECT value FROM json_each(?))${outcomes.includes('failed') ? ' OR outcome IS NULL' : ''}))`);
+        params.push(JSON.stringify(outcomes));
+      }
+      where.push(`(${any.join(' OR ')})`);
+    }
+    const filter = where.join(' AND ');
+    const total = (this.sql.prepare(`SELECT COUNT(*) AS n FROM flow_runs WHERE ${filter}`).get(...params) as { n: number }).n;
+    const limit = Math.min(Math.max(1, query.limit ?? FLOW_RUNS_PAGE), FLOW_RUNS_PAGE_MAX);
+    const after = query.cursor ? cursorSeq(query.cursor) : null;
+    const rows = this.sql
+      .prepare(`SELECT * FROM flow_runs WHERE ${filter}${after !== null ? ' AND seq < ?' : ''} ORDER BY seq DESC LIMIT ?`)
+      .all(...params, ...(after !== null ? [after] : []), limit + 1) as unknown as RunRow[];
+    const more = rows.length > limit;
+    const runs = rows.slice(0, limit);
+    const last = runs[runs.length - 1];
+    return { runs: runs.map((r) => this.runOf(r)), total, nextCursor: more && last ? cursorOf(last.seq) : null };
   }
 
   /** A run's chat is the flow's while the run goes on: the work-links automation leaves it alone. */
