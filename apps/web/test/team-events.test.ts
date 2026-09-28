@@ -136,6 +136,8 @@ test("a member's live line follows its chat's activity, without a refetch", () =
     activity: null,
     outcome: null,
     summary: null,
+    error: null,
+    restarts: 0,
     queuedAt: base.at,
     startedAt: chatId ? base.at : null,
     endedAt: null,

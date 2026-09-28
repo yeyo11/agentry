@@ -13,7 +13,7 @@ import type {
   WorkItemStatus,
   WorkItemType,
 } from '@agentry/shared';
-import { PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
+import { MAX_FLOW_COST_USD, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import type { CoreConfig } from './paths.ts';
 import { projectTemplate } from './project-templates.ts';
@@ -223,6 +223,14 @@ function parseFlow(value: unknown): ProjectFlowSettings {
       throw new Error(`flow.maxParallel must be a whole number from 1 to ${MAX_FLOW_PARALLEL}`);
     }
     flow.maxParallel = maxParallel;
+  }
+  // What a run may spend: kept absent the same way, so the default can change later
+  const { maxCostUsd } = value;
+  if (maxCostUsd !== undefined && maxCostUsd !== null) {
+    if (typeof maxCostUsd !== 'number' || !Number.isFinite(maxCostUsd) || maxCostUsd <= 0 || maxCostUsd > MAX_FLOW_COST_USD) {
+      throw new Error(`flow.maxCostUsd must be a number of USD above 0 and at most ${MAX_FLOW_COST_USD}`);
+    }
+    flow.maxCostUsd = maxCostUsd;
   }
   return flow;
 }

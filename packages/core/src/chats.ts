@@ -100,6 +100,17 @@ export interface NewChat extends NewChatRequest {
    * way because the item's worktree only has the agent files that were committed.
    */
   agentsFile?: string;
+  /**
+   * `off` renders the system prompt fresh on every request instead of recording it on the first
+   * (`--system-prompt-snapshot off`). A member's run asks for it: its prompt is the agent's and the
+   * journal as they are now, and a recorded one would outlive the run into whoever continues the chat.
+   */
+  systemPromptSnapshot?: 'off';
+  /**
+   * `false` leaves the uploads directory out (`--add-dir`): a run Agentry starts on its own carries
+   * no attachment, and every person's uploads would otherwise be readable to it.
+   */
+  uploads?: false;
   /** Keep the process alive after each turn so more messages can be sent (default true) */
   keepAlive?: boolean;
   /** Housekeeping: no transcript is written (`--no-session-persistence`), so it cannot be resumed */
@@ -124,7 +135,16 @@ export interface ExecutionExtras {
   agent?: string | null;
   agentsFile?: string | null;
   jsonSchema?: unknown;
+  systemPromptSnapshot?: 'off' | null;
+  uploads?: false | null;
   keepAlive?: boolean;
+  /**
+   * The chat goes back to a person: whatever a member's run set (its mode, its allow and deny lists,
+   * its budget, the appended journal, `keepAlive: false`) is dropped before the request's own
+   * options apply, so the person's chat is not held to the rules of a run that already ended. The
+   * model stays: it is the chat's, shown on it and switchable.
+   */
+  handBack?: boolean;
 }
 
 export interface RunMeta {
@@ -984,6 +1004,12 @@ export class ChatManager extends EventEmitter {
   /** What a request chooses for the execution it starts, on top of what the chat already had. */
   private applyStartOptions(chat: LiveChat, options: ChatStartOptions & ResolvedTools & ExecutionExtras): void {
     const { opts } = chat;
+    if (options.handBack) {
+      for (const key of ['agent', 'agentsFile', 'jsonSchema', 'systemPromptSnapshot', 'uploads', 'keepAlive', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts', 'toolConfig', 'mcp'] as const) {
+        delete opts[key];
+      }
+      chat.setSettings({ permissionMode: options.permissionMode ?? this.defaults.defaultPermissionMode });
+    }
     if (options.agent !== undefined) {
       if (options.agent === null) delete opts.agent;
       else opts.agent = options.agent;
@@ -995,6 +1021,14 @@ export class ChatManager extends EventEmitter {
     if (options.jsonSchema !== undefined) {
       if (options.jsonSchema === null) delete opts.jsonSchema;
       else opts.jsonSchema = options.jsonSchema;
+    }
+    if (options.systemPromptSnapshot !== undefined) {
+      if (options.systemPromptSnapshot === null) delete opts.systemPromptSnapshot;
+      else opts.systemPromptSnapshot = options.systemPromptSnapshot;
+    }
+    if (options.uploads !== undefined) {
+      if (options.uploads === null) delete opts.uploads;
+      else opts.uploads = options.uploads;
     }
     if (options.keepAlive !== undefined) opts.keepAlive = options.keepAlive;
     chat.setSettings({ ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}), ...(options.model ? { model: options.model } : {}) });
@@ -1343,7 +1377,7 @@ export class ChatManager extends EventEmitter {
     // the variadic flag from taking whatever follows it as another file.
     if (opts.mcp?.config) args.push(`--mcp-config=${opts.mcp.config}`, '--strict-mcp-config');
     // Attached files live outside every project; this is what lets Claude open them by path
-    if (this.uploads) args.push('--add-dir', this.uploads.dir);
+    if (this.uploads && opts.uploads !== false) args.push('--add-dir', this.uploads.dir);
     // The CLI creates, names and locks the worktree itself, and works in it for the session
     if (opts.worktree) args.push('--worktree', opts.worktree);
     // The CLI stops the chat itself once the ceiling is reached, which no amount of watching from
@@ -1360,6 +1394,7 @@ export class ChatManager extends EventEmitter {
       args.push('--permission-prompts', 'none');
     }
     if (opts.jsonSchema) args.push('--json-schema', JSON.stringify(opts.jsonSchema));
+    if (opts.systemPromptSnapshot === 'off') args.push('--system-prompt-snapshot', 'off');
     if (opts.internal) args.push('--no-session-persistence');
     return args;
   }
@@ -1537,6 +1572,14 @@ export class ChatManager extends EventEmitter {
     if (!chat?.opts.account) return;
     delete chat.opts.account;
     this.persist();
+  }
+
+  /**
+   * The chat's turns are held to a structured result, which only a run Agentry started on its own
+   * asks for (a flow run, the assistant): whoever started it heard its result already.
+   */
+  heldToSchema(id: string): boolean {
+    return this.chats.get(id)?.opts.jsonSchema !== undefined;
   }
 
   /**
