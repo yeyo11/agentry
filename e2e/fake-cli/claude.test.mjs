@@ -55,6 +55,7 @@ function chat(env = {}, { args = [], setup } = {}) {
   const exited = new Promise((r) => proc.on('exit', r));
   return {
     proc,
+    dir,
     events,
     exited,
     log: () => (existsSync(logFile) ? readFileSync(logFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : []),
@@ -194,6 +195,30 @@ test('read: holds a Read call open, and json: is the structured output of the re
   const result = await c.next((e) => e.type === 'result');
   assert.deepEqual(result.structured_output, { summary: 'ok', workItems: [] });
   assert.equal(result.is_error, false);
+  await c.done();
+});
+
+test('stream: hands the structured output over as StructuredOutput deltas, and hold: keeps it half-written', async () => {
+  const c = chat();
+  const json = '{"resources":[{"kind":"agents","name":"glossary-reviewer","content":"---\\nname: glossary-reviewer\\n---\\n"}]}';
+  c.say(`stream: ${json}\nhold: release\nsay: Written.`);
+  const start = await c.next((e) => e.type === 'stream_event' && e.event.type === 'content_block_start');
+  assert.equal(start.event.content_block.name, 'StructuredOutput');
+  const partial = () =>
+    c.events
+      .filter((e) => e.type === 'stream_event' && e.event.delta?.type === 'input_json_delta')
+      .map((e) => e.event.delta.partial_json)
+      .join('');
+  await new Promise((r) => setTimeout(r, 300));
+  // Held: half the file is out, and no result yet
+  assert.equal(partial(), json.slice(0, Math.floor(json.length / 2)));
+  assert.ok(!c.events.some((e) => e.type === 'result'));
+  writeFileSync(join(c.dir, 'release'), '');
+  const result = await c.next((e) => e.type === 'result');
+  assert.equal(partial(), json);
+  assert.ok(c.events.some((e) => e.type === 'stream_event' && e.event.type === 'content_block_stop'));
+  assert.deepEqual(result.structured_output, JSON.parse(json));
+  assert.equal(result.result, 'Written.');
   await c.done();
 });
 

@@ -1,20 +1,19 @@
-import type { AssistantResourceKind, AssistantResourceProposal, ConfigResource, ConfigScopeKind, Project, ResourceKind } from '@agentry/shared';
-import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronLeft, Pencil, Plus, Sparkle } from 'lucide-react';
+import type { AssistantResourceKind, ConfigResource, ConfigScopeKind, Project } from '@agentry/shared';
+import { ChevronLeft, Pencil, Plus, Sparkle } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import { api, keys, useAssistantRuns, useTeam } from '../../api';
 import { Menu } from '../../components/controls/Menu';
 import { ICON_SM } from '../../components/icons';
 import { Spinner } from '../../components/Spinner';
-import { useToast } from '../../components/Toast';
-import { ErrorBox, Segmented, Tag } from '../../components/ui';
+import { ErrorBox } from '../../components/ui';
 import { useLeaveGuard } from '../../lib/dirty';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { NameForm, ResourceEditor, ResourcesTab } from '../config/ResourcesTab';
 import { CreateWithAI } from './resources/CreateWithAI';
-import { AI_KINDS, byDecision, isAiKind, OTHER_KINDS, proposalRuns, resourceProposals, sectionFrom, sectionKinds, type ResourceSection } from './resources/model';
+import { useResourcesData } from './resources/data';
+import { AI_KINDS, isAiKind, sectionFrom } from './resources/model';
+import { OtherKindsMenu, PendingProposalNav, SectionControl } from './resources/nav';
 import { InProjectList, ProposalsCard } from './resources/parts';
 import { ProposalEditor } from './resources/ProposalEditor';
 
@@ -30,9 +29,7 @@ const PARAMS = ['res', 'proposal', 'scope', 'ai'] as const;
 export function ProjectResources({ project }: { project: Project }) {
   const { t } = useTranslation(['config', 'projects']);
   const phone = useMediaQuery(NARROW);
-  const toast = useToast();
   const guard = useLeaveGuard();
-  const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const scope = useMemo(() => ({ projectId: project.id }), [project.id]);
 
@@ -58,69 +55,8 @@ export function ProjectResources({ project }: { project: Project }) {
   const go = (patch: Parameters<typeof update>[0]) => void guard().then((ok) => ok && update(patch));
   const closeEditor = { res: null, proposal: null, scope: null } as const;
 
-  // ---- the project's agents, skills and commands ----
-  const lists = useQueries({
-    queries: AI_KINDS.map((kind) => ({ queryKey: keys.resources(scope, kind), queryFn: () => api.resources(scope, kind) })),
-  });
-  const resources: Partial<Record<AssistantResourceKind, ConfigResource[]>> = {};
-  AI_KINDS.forEach((kind, i) => {
-    const data = lists[i]?.data;
-    if (data) resources[kind] = data;
-  });
-  const listsLoading = lists.some((q) => q.isLoading);
-  const listsError = lists.find((q) => q.error)?.error;
-  const count = (kind: AssistantResourceKind) => resources[kind]?.length ?? 0;
-
-  // ---- the assistant's runs and their proposals ----
-  const resourceRuns = useAssistantRuns(project.id, 'resources');
-  const projectRuns = useAssistantRuns(proposalId ? project.id : null, 'project');
-  const { suggest, ids } = proposalRuns(resourceRuns.data ?? [], projectRuns.data ?? [], proposalId !== null);
-  const details = useQueries({
-    queries: ids.map((id) => ({ queryKey: keys.assistantRun(id), queryFn: ({ signal }: { signal: AbortSignal }) => api.assistantRun(id, { signal }) })),
-  });
-  const runsById = new Map(details.flatMap((q) => (q.data ? [[q.data.id, q.data] as const] : [])));
-  const proposals = resourceProposals(details.flatMap((q) => q.data?.proposals ?? []));
-  const kinds = sectionKinds(section);
-  // The card: every proposal of the latest "Suggest", and what other runs left pending
-  const cardProposals = byDecision(proposals.filter((p) => kinds.includes(p.resource.kind) && (p.runId === suggest?.id || p.status === 'pending')));
-  const pendingProposals = cardProposals.filter((p) => p.status === 'pending');
-  const openProposal = proposalId ? (proposals.find((p) => p.id === proposalId) ?? null) : null;
-  const detailsLoading = details.some((q) => q.isLoading) || resourceRuns.isLoading || projectRuns.isLoading;
-
-  const team = useTeam(project.modules.includes('team') ? project.id : null);
-  const teamMembers = team.data?.enabled ? team.data.members.length : 0;
-
-  const refreshRun = (runId: string) => {
-    void queryClient.invalidateQueries({ queryKey: keys.assistantRun(runId) });
-    void queryClient.invalidateQueries({ queryKey: keys.assistantRunsOf(project.id) });
-  };
-  const suggestRun = useMutation({
-    mutationFn: () => api.startAssistantRun(project.id, { kind: 'resources', ...(suggest && suggest.status !== 'running' ? { supersede: true } : {}) }),
-    onSuccess: (started) => {
-      queryClient.setQueryData(keys.assistantRun(started.id), started);
-      refreshRun(started.id);
-    },
-    onError: (err) => toast.error(t('resourcesAi.startFailed'), err),
-  });
-  const stopRun = useMutation({
-    mutationFn: (runId: string) => api.stopAssistantRun(runId),
-    onSuccess: (stopped) => refreshRun(stopped.id),
-    onError: (err) => toast.error(t('resourcesAi.stopFailed'), err),
-  });
-  const decide = useMutation({
-    mutationFn: ({ proposal, action }: { proposal: AssistantResourceProposal; action: 'discard' | 'restore' }) =>
-      action === 'discard' ? api.discardAssistantProposal(proposal.id) : api.restoreAssistantProposal(proposal.id),
-    onSuccess: (_answer, { proposal }) => refreshRun(proposal.runId),
-    onError: (err) => toast.error(t('resourcesAi.decideFailed'), err),
-  });
-  // Each discarded on its own, as every decision on a proposal is (decision 36)
-  const discardAll = useMutation({
-    mutationFn: async (all: AssistantResourceProposal[]) => {
-      for (const proposal of all) await api.discardAssistantProposal(proposal.id);
-    },
-    onSettled: (_answer, _error, all) => new Set(all.map((p) => p.runId)).forEach(refreshRun),
-    onError: (err) => toast.error(t('resourcesAi.decideFailed'), err),
-  });
+  const { resources, listsLoading, listsError, count, suggest, runsById, kinds, cardProposals, pendingProposals, openProposal, detailsLoading, teamMembers, suggestRun, stopRun, decide, discardAll } =
+    useResourcesData(project, scope, section, proposalId);
 
   // ---- a new resource: its kind and name, then the editor with the kind's template ----
   const [naming, setNaming] = useState<{ kind: AssistantResourceKind; name: string } | null>(null);
@@ -135,53 +71,9 @@ export function ProjectResources({ project }: { project: Project }) {
     });
 
   // ---- the section: All, a kind the assistant handles, or one it does not ----
-  const kindLabel = (kind: ResourceKind, n?: number) => (
-    <span className="resources-seg-option">
-      {t(`config.tabs.${kind}`)}
-      {n !== undefined && <span className="count">{n}</span>}
-    </span>
-  );
   const aiSection: 'all' | AssistantResourceKind = isAiKind(section) ? section : 'all';
-  const sectionControl = (
-    <div className="resources-sections">
-      <Segmented<'all' | AssistantResourceKind>
-        label={t('projects:resources.sections')}
-        value={aiSection}
-        onChange={(next) => go({ section: next === 'all' ? null : next, ...closeEditor })}
-        options={[
-          {
-            value: 'all',
-            label: (
-              <span className="resources-seg-option">
-                {t('resourcesAi.all')}
-                <span className="count">{AI_KINDS.reduce((sum, kind) => sum + count(kind), 0)}</span>
-              </span>
-            ),
-          },
-          ...AI_KINDS.map((kind) => ({ value: kind, label: kindLabel(kind, count(kind)) })),
-        ]}
-      />
-    </div>
-  );
-  const otherOn = !isAiKind(section) && section !== 'all';
-  // A phone has no room beside the kinds, so the other kinds are a "⋯" beside "New"
-  const otherMenu = (
-    <Menu
-      label={t('resourcesAi.otherKinds')}
-      align={phone ? 'end' : 'start'}
-      entries={OTHER_KINDS.map((kind) => ({ id: kind, label: t(`config.tabs.${kind}`), onSelect: () => go({ section: kind, ...closeEditor }) }))}
-      {...(phone
-        ? {}
-        : {
-            trigger: (
-              <button type="button" className={`btn btn-quiet resources-other ${otherOn ? 'is-on' : ''}`.trim()}>
-                {otherOn ? t(`config.tabs.${section}`) : t('resourcesAi.otherKinds')}
-                <ChevronDown {...ICON_SM} />
-              </button>
-            ),
-          })}
-    />
-  );
+  const sectionControl = <SectionControl section={aiSection} count={count} onChange={(next) => go({ section: next === 'all' ? null : next, ...closeEditor })} />;
+  const otherMenu = <OtherKindsMenu section={section} phone={phone} onSelect={(kind) => go({ section: kind, ...closeEditor })} />;
   const newKinds = kinds.length > 0 ? kinds : [...AI_KINDS];
   const newButton =
     newKinds.length === 1 && newKinds[0] ? (
@@ -307,36 +199,7 @@ export function ProjectResources({ project }: { project: Project }) {
   if (!editor && naming) editor = <p className="resources-missing">{t('resourcesAi.nameFirst')}</p>;
 
   const proposalNav = pendingProposals.length > 0 && (
-    <div className="resources-group">
-      <div className="resources-group-head">
-        <Sparkle {...ICON_SM} />
-        <span className="section-label grow">{t('resourcesAi.proposalsShort')}</span>
-        <span className="mono small muted">{pendingProposals.length}</span>
-      </div>
-      <ul className="master-list" aria-label={t('resourcesAi.proposalsShort')}>
-        {pendingProposals.map((proposal) => (
-          <li key={proposal.id}>
-            <button
-              type="button"
-              aria-current={proposal.id === proposalId ? 'true' : undefined}
-              className={`master-item resource-item ${proposal.id === proposalId ? 'master-item-on' : ''}`.trim()}
-              onClick={() => go({ proposal: proposal.id, res: null, scope: null })}
-            >
-              <span className="master-item-head">
-                <span className="mono resource-item-name">{proposal.resource.kind === 'commands' ? `/${proposal.resource.name}` : proposal.resource.name}</span>
-                <span className="mono small muted">{t(`resourcesAi.kindLower.${proposal.resource.kind}`)}</span>
-              </span>
-              <span className="small muted resource-item-desc">{proposal.resource.description || proposal.reason}</span>
-              {proposal.id === proposalId && (
-                <span className="resource-item-badge">
-                  <Tag tone="warn">{t('resources.notSavedYet')}</Tag>
-                </span>
-              )}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <PendingProposalNav proposals={pendingProposals} current={proposalId} onOpen={(proposal) => go({ proposal: proposal.id, res: null, scope: null })} />
   );
 
   const master = (

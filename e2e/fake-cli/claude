@@ -227,12 +227,12 @@ function startTurn(message) {
   if (offset !== undefined) elapsedOffsetS = Number(offset);
   const steps = text
     .split('\n')
-    .map((l) => /^\s*(run|say|read|json):\s*(.+)$/.exec(l))
+    .map((l) => /^\s*(run|say|read|json|stream|hold):\s*(.+)$/.exec(l))
     .filter((m) => m?.[2]?.trim())
     .map((m) => ({ kind: m[1], text: m[2].trim() }));
   const commands = steps.filter((s) => s.kind === 'run').map((s) => s.text);
   // A turn that writes its own prose needs none of the fake's around it
-  const scripted = steps.some((s) => s.kind === 'say' || s.kind === 'json');
+  const scripted = steps.some((s) => s.kind === 'say' || s.kind === 'json' || s.kind === 'stream');
   turn = { steps, current: null, startedAt: Date.now(), interrupted: false, scripted, lastSaid: '', structured: undefined };
   log('turn', { text, commands });
   if (steps.length === 0) {
@@ -248,6 +248,8 @@ function nextStep() {
   const own = turn;
   if (!own) return;
   const step = own.steps.shift();
+  // What a `stream:` held back goes out before anything but the `hold:` that holds it
+  if (own.streamRest !== undefined && step?.kind !== 'hold') finishStream(own);
   if (step === undefined) {
     if (!own.scripted) assistant([{ type: 'text', text: 'All done.' }]);
     endTurn({ result: own.scripted ? own.lastSaid : 'All done.', structured: own.structured });
@@ -261,6 +263,29 @@ function nextStep() {
       own.structured = step.text;
     }
     setTimeout(() => turn === own && nextStep(), 0);
+    return;
+  }
+  if (step.kind === 'stream') {
+    // As the CLI hands a `--json-schema` result over: the input of its StructuredOutput tool call,
+    // streamed as input_json_delta events (it runs with --include-partial-messages). The first half
+    // goes out now, the rest before the next step, or once a `hold:` lets it
+    own.structured = JSON.parse(step.text);
+    const half = Math.floor(step.text.length / 2);
+    streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'toolu_fake_structured', name: 'StructuredOutput', input: {} } });
+    streamDeltas(step.text.slice(0, half));
+    own.streamRest = step.text.slice(half);
+    setTimeout(() => turn === own && nextStep(), SETTLE_MS);
+    return;
+  }
+  if (step.kind === 'hold') {
+    // Waits for <path> (against the working directory) to exist: a spec holds a turn in the middle
+    const path = resolve(process.cwd(), step.text);
+    const wait = setInterval(() => {
+      if (turn !== own) return clearInterval(wait);
+      if (!existsSync(path)) return;
+      clearInterval(wait);
+      nextStep();
+    }, 50);
     return;
   }
   if (step.kind === 'read') {
@@ -328,6 +353,20 @@ function nextStep() {
       nextStep();
     }, SETTLE_MS);
   });
+}
+
+function streamEvent(event) {
+  emit({ type: 'stream_event', parent_tool_use_id: null, event });
+}
+
+function streamDeltas(text) {
+  for (let i = 0; i < text.length; i += 24) streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: text.slice(i, i + 24) } });
+}
+
+function finishStream(own) {
+  streamDeltas(own.streamRest);
+  streamEvent({ type: 'content_block_stop', index: 0 });
+  own.streamRest = undefined;
 }
 
 function endTurn({ result = '', error = false, structured = undefined }) {
