@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { desktopClasses } from '../src/lib/desktop.ts';
-import { chatActivity, fabFor, hidesTabBar, liveSummary, moreNotes, orchestrationProgress, pickUsageWindows, swapUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
+import { chatActivity, fabFor, hidesTabBar, hidesTopBar, liveSummary, moreNotes, orchestrationProgress, pickUsageWindows, swapUsageWindows, type LiveChatInput, type LiveOrchestrationInput } from '../src/lib/shell-live.ts';
 
 // The shell is where a person sees at a glance what is alive. What it lists has to be in the order
 // that needs them most, never twice, and a shape it does not expect must not break a row.
@@ -203,4 +203,16 @@ test('Tasks in the More sheet says its open items with the word, and nothing whe
   assert.deepEqual(moreNotes({ tasks: 15 })['/tasks'], { kind: 'open', value: 15 });
   assert.deepEqual(moreNotes({ tasks: 0 })['/tasks'], { kind: 'open', value: 0 });
   assert.equal(moreNotes({ tasks: undefined })['/tasks'], undefined);
+});
+
+test("a phone's detail screens head themselves: no top bar on them, and the bar everywhere else (gap 21)", () => {
+  // A project's page and its tabs (a member, a document) live at `/` with a project in scope
+  assert.equal(hidesTopBar('/', true), true, "a project's page");
+  assert.equal(hidesTopBar('/', false), false, 'Home of every project keeps the scope in the bar');
+  for (const path of ['/tasks', '/tasks/', '/tasks/milestones', '/tasks/AGN-12', '/tasks/agn-12/', '/projects/p1/assistant', '/projects/p1/assistant/'])
+    assert.equal(hidesTopBar(path), true, path);
+  for (const path of ['/chats', '/chats/abc', '/orchestration', '/projects', '/projects/new', '/settings', '/usage', '/tasks/AGN-12/changes'])
+    assert.equal(hidesTopBar(path, false), false, path);
+  // The flag is about `/` alone: another page with a project in scope keeps its bar
+  assert.equal(hidesTopBar('/chats', true), false);
 });

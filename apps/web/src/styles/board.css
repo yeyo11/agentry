@@ -1243,6 +1243,42 @@ button.workitem-mrow-more-link {
   letter-spacing: -0.02em;
 }
 
+/* The project scope beside the title, as a pill (MobileTablero): the phone has no top bar here.
+   The title keeps its width and the project's name gives way, in an ellipsis */
+.workitem-mhead:has(.project-scope) .workitem-mhead-text {
+  flex: 0 0 auto;
+}
+
+.workitem-mhead .project-scope {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.workitem-mhead .project-scope .select-trigger {
+  max-width: 100%;
+}
+
+.workitem-mhead .project-scope-icon {
+  display: none;
+}
+
+.workitem-mhead .select-trigger.project-selector {
+  width: auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px 0 16px;
+  gap: 6px;
+  border-radius: var(--radius-pill);
+  font-size: 15px;
+}
+
+.workitem-mhead .select-trigger.project-selector .select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .workitem-mhead .icon-btn,
 .workitem-mhead-close {
   width: 44px;

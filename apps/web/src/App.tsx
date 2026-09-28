@@ -43,7 +43,7 @@ import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
-import { fabFor, hidesTabBar } from './lib/shell-live';
+import { fabFor, hidesTabBar, hidesTopBar } from './lib/shell-live';
 import { NEW_TASK_PATH, TASKS_PATH, normalizeKey } from './lib/work-items';
 import { Home } from './pages/Home';
 import { AssistantCrumbs, assistantProjectOf } from './pages/assistant/crumbs';
@@ -266,13 +266,15 @@ function Shell() {
   );
 
   const tabBar = !hidesTabBar(pathname, search);
+  // A phone's detail screens are headed by their own way back instead (styles/shell.css)
+  const bare = hidesTopBar(pathname, projectPage);
   const fab = fabFor(pathname, search) !== null;
 
   // In the icon rail the labels are hidden, so they move into tooltips
   const railTip = (label: string) => (collapsed ? label : undefined);
 
   return (
-    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${tabBar ? 'shell-has-tabbar' : ''} ${fab ? 'shell-has-fab' : ''}`}>
+    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${tabBar ? 'shell-has-tabbar' : ''} ${fab ? 'shell-has-fab' : ''} ${bare ? 'shell-bare' : ''}`}>
       <a
         href="#main"
         className="skip-link"

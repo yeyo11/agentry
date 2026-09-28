@@ -927,6 +927,13 @@ a.statusbar-item:focus-visible {
     display: none;
   }
 
+  /* A detail screen heads itself: a way back and its title, as its phone reference draws it
+     (lib/shell-live.ts, hidesTopBar). In the desktop app the bar is also the window's title bar, so
+     it stays there at any width. */
+  :root:not(.is-desktop) .shell-bare .topbar {
+    display: none;
+  }
+
   .reload-banner {
     margin: 8px 14px 0;
   }

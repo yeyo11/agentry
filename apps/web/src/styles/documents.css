@@ -565,6 +565,19 @@
   background: var(--bg);
 }
 
+/* Reading, "Edit" is the screen's bar at the bottom edge (MobileDocumento), however short the
+   document: the tab bar steps aside here, so nothing else holds that edge. Editing keeps the sticky
+   bar, which follows the keyboard up. */
+.doc-phone-view > .doc-phone-foot {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 25;
+  padding: 12px calc(16px + env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+  border-top: 1px solid var(--line);
+}
+
 .doc-phone-foot > .btn {
   flex: 1;
   min-height: 44px;

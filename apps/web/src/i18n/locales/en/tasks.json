@@ -43,7 +43,8 @@
     "inProjects_other": "in {{count}} projects with a board",
     "inProjectsShort_one": "in {{count}} project",
     "inProjectsShort_other": "in {{count}} projects",
-    "view": "View"
+    "view": "View",
+    "back": "Back"
   },
   "actions": {
     "select": "Select",
