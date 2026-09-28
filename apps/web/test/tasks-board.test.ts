@@ -164,3 +164,27 @@ test('labels are offered once whatever their case, and the list keeps the board 
     ['y', 'z', 'x'],
   );
 });
+
+test('Done is in closing order: a card moved there heads it, and nothing moves inside it', () => {
+  const start = board();
+  const done = start.columns[4];
+  if (!done) throw new Error('no done');
+  done.items = [item('d2', 'done', { closedAt: '2026-09-27T12:00:00Z' }), item('d1', 'done', { closedAt: '2026-09-27T11:00:00Z' })];
+  done.count = 2;
+  // Dropped below both, it still heads the column, closed now
+  const moved = moveOnBoard(start, 'b1', { status: 'done', index: 2 });
+  const column = moved.columns.find((c) => c.status === 'done');
+  assert.deepEqual(
+    column?.items.map((i) => i.id),
+    ['b1', 'd2', 'd1'],
+  );
+  assert.ok((column?.items[0]?.closedAt ?? '') > '2026-09-27T12:00:00Z');
+  // Inside Done there is no place to move to: the board is left as it was, and the server not asked
+  assert.equal(moveOnBoard(start, 'd1', { status: 'done', index: 0 }), start);
+  assert.equal(isSamePlace(start, 'd1', { status: 'done', index: 0 }), true);
+  // The keyboard carries a card into Done at its head, and not up or down inside it
+  const counts = { backlog: 2, todo: 1, in_progress: 2, in_review: 3, done: 2 };
+  assert.deepEqual(keyboardDrop({ status: 'in_review', index: 2 }, 'ArrowRight', counts), { status: 'done', index: 0 });
+  assert.equal(keyboardDrop({ status: 'done', index: 0 }, 'ArrowDown', counts), null);
+  assert.equal(keyboardDrop({ status: 'done', index: 1 }, 'ArrowUp', counts), null);
+});

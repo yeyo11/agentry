@@ -5,10 +5,11 @@
 import type { BoardColumn, WorkItem } from '@agentry/shared';
 import { WORK_ITEM_STATUSES } from '@agentry/shared';
 import { countsInColumn } from '../../lib/work-items';
+import { newestDoneFirst } from './board/model';
 
 export interface ListGroup {
   column: BoardColumn;
-  /** The rows read so far, in the list's order */
+  /** The rows read so far, in the list's order; Done's newest first */
   items: WorkItem[];
   /** What the group's head counts: its board column's figure, epics left out, read or not */
   counted: number;
@@ -22,8 +23,18 @@ export interface ListGroup {
  */
 export function listGroups(columns: readonly BoardColumn[], loaded: readonly WorkItem[]): ListGroup[] {
   const groups: ListGroup[] = [];
+  const open = columns.filter((column) => column.status !== 'done').reduce((sum, column) => sum + column.items.length, 0);
+  const openRead = loaded.filter((item) => item.status !== 'done').length >= open;
   for (const status of WORK_ITEM_STATUSES) {
-    const items = loaded.filter((item) => item.status === status);
+    let items = loaded.filter((item) => item.status === status);
+    if (status === 'done') {
+      // Done reads newest first, as the board draws it. Its rows come last in the pages' order, so
+      // once the open rows are read the board's newest Done items join those read, and the folded
+      // group shows the newest even before a page reaches them
+      const held = openRead ? (columns.find((c) => c.status === 'done')?.items ?? []) : [];
+      const read = new Set(items.map((item) => item.id));
+      items = newestDoneFirst([...items, ...held.filter((item) => !read.has(item.id))]);
+    }
     if (items.length === 0) continue;
     const column = columns.find((c) => c.status === status) ?? { status, limit: null, count: 0, overLimit: false, items: [] };
     const more = column.more ?? 0;

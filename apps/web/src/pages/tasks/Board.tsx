@@ -42,7 +42,7 @@ const TYPING = 'input, textarea, select, [contenteditable="true"], [role="dialog
 
 /**
  * `/tasks`: the board of the top bar's project, or of every project with a board, and the list at
- * `?view=list`. Both read one board answer (the columns in rank order), narrowed by the filters in
+ * `?view=list`. Both read one board answer (the columns in rank order, Done newest first), narrowed by the filters in
  * the address; the unfiltered board, which the sidebar's count already reads, gives the epics their
  * progress and the toolbar its options. On a phone there is no horizontal board: the columns are
  * sections of one list.

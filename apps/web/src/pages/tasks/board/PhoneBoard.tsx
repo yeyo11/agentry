@@ -78,13 +78,15 @@ export function PhoneBoard({
     const at = column.items.findIndex((entry) => entry.id === item.id);
     const to = (status: WorkItemStatus, index: number, list: readonly WorkItem[]) => move.mutate({ item, drop: { status, index }, column: list });
     const entries: MenuEntry[] = [];
-    if (at > 0) entries.push({ id: 'up', label: t('move.up'), icon: ArrowUp, onSelect: () => to(column.status, at - 1, column.items) });
-    if (at >= 0 && at < column.items.length - 1) entries.push({ id: 'down', label: t('move.down'), icon: ArrowDown, onSelect: () => to(column.status, at + 1, column.items) });
+    // Done is in closing order: no place in it to move a card to
+    const ranked = column.status !== 'done';
+    if (ranked && at > 0) entries.push({ id: 'up', label: t('move.up'), icon: ArrowUp, onSelect: () => to(column.status, at - 1, column.items) });
+    if (ranked && at >= 0 && at < column.items.length - 1) entries.push({ id: 'down', label: t('move.down'), icon: ArrowDown, onSelect: () => to(column.status, at + 1, column.items) });
     for (const status of WORK_ITEM_STATUSES) {
       if (status === column.status) continue;
       const list = byStatus.get(status)?.items ?? [];
       // Into the neighbouring columns at the top, where a card goes next; elsewhere at the end
-      const index = status === neighbourStatus(column.status, 1) || status === neighbourStatus(column.status, -1) ? 0 : list.length;
+      const index = status === 'done' || status === neighbourStatus(column.status, 1) || status === neighbourStatus(column.status, -1) ? 0 : list.length;
       entries.push({ id: status, label: t('move.to', { column: label(status) }), icon: CornerDownRight, onSelect: () => to(status, index, list) });
     }
     return entries;

@@ -73,10 +73,12 @@ export function pageOf(rows: readonly ItemRow[], query: { limit?: unknown; curso
 export const doneLimitOf = (value: unknown): number => pageSize(value, 'doneLimit', BOARD_DONE_PAGE, 0);
 
 /**
- * The Done rows a board holds: the `limit` most recently closed, kept in their rank order. A row
- * closed before `closedAt` was recorded falls back to its last update.
+ * The Done rows a board holds: the `limit` most recently closed, newest first. Done is read as a
+ * record of what was finished, so its order is when, not a rank a person keeps; "and N more" then
+ * reaches further back in time. A row closed before `closedAt` was recorded falls back to its last
+ * update.
  */
-export function newestDone(rows: readonly ItemRow[], limit: number): Set<string> {
+export function newestDone(rows: readonly ItemRow[], limit: number): ItemRow[] {
   const newest = [...rows].sort((a, b) => compareText(b.closed_at ?? b.updated_at, a.closed_at ?? a.updated_at) || compareText(a.id, b.id));
-  return new Set(newest.slice(0, limit).map((row) => row.id));
+  return newest.slice(0, limit);
 }

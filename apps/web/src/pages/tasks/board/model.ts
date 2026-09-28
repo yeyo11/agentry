@@ -32,6 +32,16 @@ export function doneLimitFor(shown: number): number | undefined {
 }
 
 /**
+ * Done reads as a record of what was finished, newest first by when it was closed (its last update
+ * for an item closed before that was recorded), as the server holds it. A card is never placed by
+ * hand inside Done: one moved there is the newest and heads the column.
+ */
+export function newestDoneFirst<T extends Pick<WorkItem, 'closedAt' | 'updatedAt' | 'id'>>(items: readonly T[]): T[] {
+  const when = (item: T) => item.closedAt ?? item.updatedAt;
+  return [...items].sort((a, b) => (when(a) > when(b) ? -1 : when(a) < when(b) ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/**
  * What a column draws of what it holds, and what its "and N more" counts: the cards it holds but
  * folds, plus those the server left out (`more`). Only Done folds.
  */
@@ -71,6 +81,8 @@ export function afterIdFor(column: readonly Pick<WorkItem, 'id'>[], itemId: stri
 export function isSamePlace(board: Pick<Board, 'columns'>, itemId: string, drop: Drop): boolean {
   const column = board.columns.find((c) => c.items.some((item) => item.id === itemId));
   if (!column || column.status !== drop.status) return false;
+  // Done is in closing order, so a card moved inside it stays where it is
+  if (column.status === 'done') return true;
   return column.items.findIndex((item) => item.id === itemId) === drop.index;
 }
 
@@ -86,7 +98,10 @@ export function moveOnBoard<T extends Pick<Board, 'columns'>>(board: T, itemId: 
   for (const column of board.columns) moving ??= column.items.find((item) => item.id === itemId);
   if (!moving) return board;
   const from = moving.status;
-  const moved: WorkItem = { ...moving, status: drop.status };
+  if (from === 'done' && drop.status === 'done') return board;
+  // Into Done it is the newest closed item, so it heads the column wherever it was dropped
+  const moved: WorkItem = drop.status === 'done' && from !== 'done' ? { ...moving, status: 'done', closedAt: new Date().toISOString() } : { ...moving, status: drop.status };
+  const index = drop.status === 'done' ? 0 : drop.index;
   const columns = board.columns.map((column): BoardColumn => {
     let items = column.items.filter((item) => item.id !== itemId);
     let count = column.count;
@@ -94,7 +109,7 @@ export function moveOnBoard<T extends Pick<Board, 'columns'>>(board: T, itemId: 
     if (column.status === from && crosses) count -= 1;
     if (column.status === drop.status) {
       if (crosses) count += 1;
-      const at = Math.max(0, Math.min(drop.index, items.length));
+      const at = Math.max(0, Math.min(index, items.length));
       items = [...items.slice(0, at), moved, ...items.slice(at)];
     }
     return { ...column, items, count, overLimit: overLimit(count, column.limit) };
@@ -113,11 +128,13 @@ export function keyboardDrop(
   counts: Readonly<Record<WorkItemStatus, number>>,
 ): Drop | null {
   const col = WORK_ITEM_STATUSES.indexOf(current.status);
+  // Done is in closing order: nothing to move up or down, and a card carried into it heads it
+  if (current.status === 'done' && (key === 'ArrowUp' || key === 'ArrowDown')) return null;
   if (key === 'ArrowUp') return current.index > 0 ? { ...current, index: current.index - 1 } : null;
   if (key === 'ArrowDown') return current.index < counts[current.status] ? { ...current, index: current.index + 1 } : null;
   const next = WORK_ITEM_STATUSES[col + (key === 'ArrowRight' ? 1 : -1)];
   if (!next) return null;
-  return { status: next, index: Math.min(current.index, counts[next]) };
+  return { status: next, index: next === 'done' ? 0 : Math.min(current.index, counts[next]) };
 }
 
 /** A column one step up or down the board's order, for the phone's move menu. */

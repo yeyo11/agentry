@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { BoardColumn, WorkItem, WorkItemStatus } from '@agentry/shared';
 import { BOARD_DONE_PAGE } from '@agentry/shared';
-import { boardTotal, childProgress, DONE_SHOWN, doneLimitFor, foldColumn, holdsPart, nextDoneShown } from '../src/pages/tasks/board/model.ts';
+import { boardTotal, childProgress, DONE_SHOWN, doneLimitFor, foldColumn, holdsPart, newestDoneFirst, nextDoneShown } from '../src/pages/tasks/board/model.ts';
 import { listGroups, listMore } from '../src/pages/tasks/list-model.ts';
 
 // The Done column and the lists are paged (gap 20 of orchestration 6): the board holds the newest
@@ -115,4 +115,34 @@ test('the next page is asked for while open rows are missing, and for Done only 
   assert.equal(listMore({ columns, loaded: open.slice(0, 150), total: 200, hasNext: true, allDone: false }), 0);
   assert.equal(listMore({ columns, loaded: open.slice(0, 150), total: 200, hasNext: true, allDone: true }), 50);
   assert.equal(listMore({ columns, loaded: open, total: 200, hasNext: false, allDone: true }), 0);
+});
+
+test('Done shows its newest first, on the board and in the list, whatever the rank', () => {
+  // Ranked a, b, c; closed c, then a, then b; an item closed before closedAt was recorded reads its last update
+  const a = item('a', 'done', { closedAt: '2026-09-27T11:00:00Z' });
+  const b = item('b', 'done', { closedAt: '2026-09-27T12:00:00Z' });
+  const c = item('c', 'done', { closedAt: '2026-09-27T10:00:00Z' });
+  const old = item('o', 'done', { updatedAt: '2026-09-01T10:00:00Z' });
+  assert.deepEqual(
+    newestDoneFirst([old, a, b, c]).map((i) => i.id),
+    ['b', 'a', 'c', 'o'],
+  );
+  // The board's Done column comes newest first from the server, and the fold keeps its head
+  assert.deepEqual(
+    foldColumn(column('done', [b, a, c, old], 9), 3).shown.map((i) => i.id),
+    ['b', 'a', 'c'],
+  );
+  // The list reads its pages in rank order; its Done group reads newest first, and once the open rows
+  // are read the board's newest join those a page brought
+  const columns = [column('todo', [item('t', 'todo')]), column('done', [b, a], 2)];
+  const groups = listGroups(columns, [item('t', 'todo'), c, a]);
+  assert.deepEqual(
+    groups.find((g) => g.column.status === 'done')?.items.map((i) => i.id),
+    ['b', 'a', 'c'],
+  );
+  // While open rows are still to come, Done holds only what was read
+  assert.equal(
+    listGroups([column('todo', [item('t', 'todo'), item('u', 'todo')]), column('done', [b, a], 2)], [item('t', 'todo')]).some((g) => g.column.status === 'done'),
+    false,
+  );
 });

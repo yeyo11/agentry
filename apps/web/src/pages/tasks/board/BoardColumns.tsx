@@ -160,7 +160,9 @@ export function BoardColumns({
   };
 
   // ---- a pointer drag, with the browser's own drag and drop ----
-  const dropIndex = (event: DragEvent<HTMLElement>): number => {
+  const dropIndex = (event: DragEvent<HTMLElement>, status: WorkItemStatus): number => {
+    // Done is in closing order: whatever lands there heads it
+    if (status === 'done') return 0;
     const cards = [...event.currentTarget.querySelectorAll<HTMLElement>('[data-item-id]')].filter((el) => el.dataset.itemId !== dragId);
     const at = cards.findIndex((el) => {
       const box = el.getBoundingClientRect();
@@ -174,14 +176,14 @@ export function BoardColumns({
       if (!dragId) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
-      const index = dropIndex(event);
+      const index = dropIndex(event, status);
       if (target?.status !== status || target.index !== index) setTarget({ status, index });
     },
     onDrop: (event: DragEvent<HTMLElement>) => {
       if (!dragId) return;
       event.preventDefault();
       const item = itemById(dragId);
-      const drop = { status, index: dropIndex(event) };
+      const drop = { status, index: dropIndex(event, status) };
       setDragId(null);
       setTarget(null);
       if (item) commit(item, drop);

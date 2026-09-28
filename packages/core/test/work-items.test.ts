@@ -1016,7 +1016,7 @@ test('a list is paged by a cursor in its own order: nothing repeats or is skippe
   assert.throws(() => service.page({}, { cursor: Buffer.from('[1,2]').toString('base64url') }), refusal(400));
 });
 
-test('the Done column holds its newest closed items in rank order, counts the rest in more, and counts stay whole', () => {
+test('the Done column holds its newest closed items newest first, counts the rest in more, and counts stay whole', () => {
   const { service, db } = setup();
   const closed = Array.from({ length: 25 }, (_, n) => service.create('p1', { title: `done ${String(n)}`, type: n === 0 ? 'bug' : 'task', status: 'done' }));
   // Closed a minute apart, oldest first, so "newest" does not hang on the clock
@@ -1030,10 +1030,13 @@ test('the Done column holds its newest closed items in rank order, counts the re
   assert.equal(done?.count, 25);
   assert.equal(done?.items.length, 20);
   assert.equal(done?.more, 5);
-  // The newest twenty, left in the order a person ranked them
+  // The newest twenty, newest first, whatever order a person ranked them in
   assert.deepEqual(
     done?.items.map((i) => i.id),
-    closed.slice(5).map((i) => i.id),
+    closed
+      .slice(5)
+      .reverse()
+      .map((i) => i.id),
   );
   const backlog = board.columns.find((c) => c.status === 'backlog');
   assert.equal(backlog?.items[0]?.id, open.id);
@@ -1048,10 +1051,10 @@ test('the Done column holds its newest closed items in rank order, counts the re
   const bugs = service.board('p1', { type: ['bug'] }, { doneLimit: 0 }).columns.find((c) => c.status === 'done');
   assert.equal(bugs?.more, 1);
   assert.equal(bugs?.count, 25);
-  // An item moved into Done is the newest: it shows at once, where the board's optimistic move put it
+  // An item moved into Done is the newest: it heads the column, where the board's optimistic move put it
   const moved = service.move(open.id, { status: 'done' });
   const after = service.board('p1').columns.find((c) => c.status === 'done');
-  assert.ok(after?.items.some((i) => i.id === moved.item.id));
+  assert.equal(after?.items[0]?.id, moved.item.id);
   assert.equal(after?.count, 26);
   assert.equal(after?.more, 6);
   assert.throws(() => service.board('p1', {}, { doneLimit: -1 }), refusal(400));

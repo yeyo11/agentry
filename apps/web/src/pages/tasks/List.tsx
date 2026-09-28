@@ -21,10 +21,10 @@ import { Assignee } from './board/WorkItemCard';
 
 /**
  * The list view of Tasks (`/tasks?view=list`): the same items as the board, grouped by column in
- * board order and ordered by their place in it, one row each: a list per column, each row a link
+ * board order and ordered by their place in it (Done by when it was closed, newest first), one row each: a list per column, each row a link
  * that says what it shows. J and K walk the rows from anywhere on the page (the keys every list
  * answers to, `lib/list-keys.ts`); Enter opens one. A group counts what its board column counts,
- * epics left out. Done shows its first few, and the rest behind a button. On a phone each group is
+ * epics left out. Done shows its newest few, and the rest behind a button. On a phone each group is
  * a card of rows whose titles wrap.
  *
  * The rows come a page at a time (`pages`, 100 each, in the list's order); the board's columns give

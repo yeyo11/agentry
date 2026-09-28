@@ -253,8 +253,8 @@ export class WorkItemService {
 
   /**
    * The five columns with their limits and real counts, and the items that pass the filter,
-   * descriptions left out. The Done column holds its `doneLimit` most recently closed items and
-   * counts the rest in `more`; the counts stay over every item, whatever the filter or the page.
+   * descriptions left out. The Done column holds its `doneLimit` most recently closed items, newest
+   * first, and counts the rest in `more`; the counts stay over every item, whatever the filter or the page.
    * `within` narrows the All projects board (`projectId` null) to some projects, counts included.
    */
   board(projectId: string | null, filter: Omit<WorkItemFilter, 'projectId'> = {}, query: { doneLimit?: unknown } = {}, within?: ReadonlySet<string>): Board {
@@ -264,14 +264,11 @@ export class WorkItemService {
     const rows = this.within(this.filtered({ ...filter, ...(projectId ? { projectId } : {}) }), projectId ? undefined : within);
     const done = rows.filter((row) => row.status === 'done');
     const kept = newestDone(done, doneLimit);
-    const items = this.hydrate(
-      rows.filter((row) => row.status !== 'done' || kept.has(row.id)),
-      { cards: true },
-    );
+    const items = this.hydrate([...rows.filter((row) => row.status !== 'done'), ...kept], { cards: true });
     const columns: BoardColumn[] = WORK_ITEM_STATUSES.map((status) => ({
       ...summary(status, projectId ? (limits[status] ?? null) : null, counts.get(status) ?? 0),
       items: items.filter((item) => item.status === status),
-      ...(status === 'done' && done.length > kept.size ? { more: done.length - kept.size } : {}),
+      ...(status === 'done' && done.length > kept.length ? { more: done.length - kept.length } : {}),
     }));
     return { projectId, columns };
   }

@@ -1611,7 +1611,7 @@ export interface BoardColumnSummary {
 export interface BoardColumn extends BoardColumnSummary {
   /**
    * The items that pass the filter, in rank order, descriptions left out. The Done column holds
-   * only the most recently closed of them, `doneLimit` ({@link BoardQuery}), still in rank order
+   * only the most recently closed of them, `doneLimit` ({@link BoardQuery}), newest first
    */
   items: WorkItem[];
   /**
