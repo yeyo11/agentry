@@ -48,6 +48,8 @@ import type {
   WorkItemCause,
   WorkItemChanges,
   WorkItemDetail,
+  WorkItemHistoryEntry,
+  WorkItemHistoryValue,
   WorkItemFilter,
   WorkItemLink,
   WorkItemOrchestrationDraft,
@@ -1579,11 +1581,45 @@ export class Core {
     );
   }
 
-  /** The item's page, with every link named. */
+  /**
+   * The history with every chat named by its title. A chat link's entry is written with the name
+   * this process knew, and a chat it does not run (a terminal chat an item was created from) had
+   * none then, so it was written as `chat <id>`: its title is looked up now, when it is read.
+   */
+  private async namedHistory(entries: WorkItemHistoryEntry[]): Promise<WorkItemHistoryEntry[]> {
+    const unnamed = (value: WorkItemHistoryValue): string | null => {
+      if (!value || typeof value !== 'object' || Array.isArray(value) || !('label' in value) || 'key' in value) return null;
+      return /^chat (\S+)$/.exec(value.label)?.[1] ?? null;
+    };
+    const ids = [...new Set(entries.filter((e) => e.change === 'link').flatMap((e) => [unnamed(e.from), unnamed(e.to)]).filter((id): id is string => !!id))];
+    if (!ids.length) return entries;
+    const titles = new Map<string, string>();
+    await Promise.all(
+      ids.map(async (id) => {
+        const title = (await this.chats.summaryOf(id).catch(() => null))?.title?.trim();
+        if (title) titles.set(id, title);
+      }),
+    );
+    const named = (value: WorkItemHistoryValue): WorkItemHistoryValue => {
+      const id = unnamed(value);
+      const title = id ? titles.get(id) : undefined;
+      return title && value && typeof value === 'object' && 'label' in value ? { ...value, label: title } : value;
+    };
+    return entries.map((e) => (e.change === 'link' ? { ...e, from: named(e.from), to: named(e.to) } : e));
+  }
+
+  /** `GET /work-items/:itemId/history`, with every chat named. */
+  async workItemHistory(itemId: string): Promise<WorkItemHistoryEntry[]> {
+    await this.workItemAccess(itemId, 'read');
+    return this.namedHistory(this.workItems.history(itemId));
+  }
+
+  /** The item's page, with every link and every chat of its history named. */
   async workItemDetail(itemId: string): Promise<WorkItemDetail> {
     await this.workItemAccess(itemId, 'read');
     const detail = this.workItems.get(itemId);
-    return { ...detail, links: await this.namedLinks(detail.links) };
+    const [links, history] = await Promise.all([this.namedLinks(detail.links), this.namedHistory(detail.history)]);
+    return { ...detail, links, history };
   }
 
   async workItemLinks(itemId: string): Promise<WorkItemLink[]> {
