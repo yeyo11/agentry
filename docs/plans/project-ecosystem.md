@@ -980,6 +980,99 @@ of orchestrations 1 to 4 apply, the web ones included. The numbers below are the
 
 Two tasks that need the same file touch only their own lines and say so in their result.
 
+## Orchestration 6: `ecosystem-gaps`
+
+Closes every gap the documents still list after orchestration 5: the "Known gaps" sections of
+`docs/work-items.md`, `docs/team-and-flow.md` and `docs/assistant.md`, and "Still open after
+orchestration 5" in [the audit](project-ecosystem-audit.md). The owner asked on 2026-09-28 for
+everything to be closed before the pull request is merged and released. It starts from
+`feat/project-ecosystem` at `ad1d6cf` (main 0.22.1 merged) and is merged back into it. The rules of
+orchestrations 1 to 5 apply, the web ones included; the prototypes stay the specification.
+
+### The gaps and how each is closed
+
+Decisions taken by the planner where a gap needed one; the owner can reopen them.
+
+**Live state and runs**
+1. **A card being refined or verified is live**: `isLive` counts `refine` and `verify` chat links,
+   so the card carries the live rail and spinner while a Product Owner or QA works on it.
+2. **An item's runs are served by core** (`GET /work-items/:itemId/runs`, every flow run of the
+   item with its stage, member, state, error and chat): the item shows every failed run, not only
+   each member's latest, and a failed run's chat page says why it failed and which item it was for.
+3. **A run that hits a rate limit waits for the account rotation** and continues in the same chat on
+   the next account, as the chats do; it fails only when no account is left.
+4. **A backlog card costs one refine run**: after the Product Owner refines it and moves it to
+   `todo`, the `todo` check does not start a second run for the same item unless something changed
+   since the refine.
+5. **The Flow screen edits `maxParallel` and `maxCostUsd`** (unlimited by default, as the owner
+   decided), with the stepper and field controls of the design system.
+6. **"Ver todo" in the team activity** opens a Team activity view (`?view=team&section=activity`):
+   every flow run of the project, newest first, filterable by member and state, paged.
+7. **The shell in the work stage**: a member may carry `commands`, an optional allow-list of shell
+   command patterns (`npm test`, `pnpm *`…). Absent means unrestricted `Bash`, as today; present
+   means only those. The member page edits it, and the team template's Developer gets none (the
+   owner's setting stays unlimited unless they choose).
+
+**The assistant**
+8. **A fixed entry to the assistant**: an "Asistente" button in the project header, next to "Nuevo
+   chat aquí" and "Nueva tarea", on every tab; also a palette entry "Asistente del proyecto".
+9. **"Sugerir tareas"'s focus is its own field** (`focus` in `StartAssistantRunRequest`), worded in
+   the prompt as what to look for, not as what the project is for.
+10. **An assistant run keeps its language** across a restart (stored on the run).
+11. **`CLAUDE.md` shows once** in "Lo que ha leído".
+12. **"Crear con IA" streams**: the editor opens at once with the file as it is being written, read
+    from the run's partial structured output or its stream; the save stays the person's.
+
+**Language**
+13. **Every prompt Agentry writes for a chat starts with a first line in the person's language**,
+    `KEY · title` for "Work on it" and each orchestration node, "Asistente de <project>" for the
+    assistant, "<Role> · <KEY>" for a flow run; the instructions for Claude after it may stay in
+    English. The orchestration draft's objective is in the person's language.
+14. **The team template's responsibilities are shown in the person's language**: core keeps English
+    in the agent file (Claude reads it), and the web translates a responsibility that is still the
+    template's by role; an edited one shows as written.
+15. **A chat Agentry does not run** is named in the history by its title, resolved when the history
+    is read, not by its id.
+
+**API and data**
+16. **`GET /work-items/by-key/:key`** (and the web uses it for `/tasks/:key`).
+17. **A generic error while "Work on it" creates its chat answers 500**, with a message; a known
+    refusal keeps its 4xx.
+18. **`POST /projects/:id/team/from-template` answers 201 when it created members and 200 when
+    nothing changed**, like the other creating routes.
+19. **The `file` team action is emitted**: saving an agent file through the resources route emits
+    `team.changed`.
+20. **Board and list payloads leave descriptions out** (a `hasDescription` flag instead); the item
+    fetches its own. **The Done column and the lists are paged**: the board shows the newest done
+    items and "y N más" loads the next page; the list and All projects page by 100 with a cursor.
+
+**Screens against the references**
+21. **Phone detail screens use the references' header**: a back arrow and the title, for a work
+    item, a member, a document and the assistant, instead of the app's top bar.
+22. **The sidebar highlights "Proyectos"** on a project's tabs, and the phone tab bar "Más", as the
+    references do.
+23. The model picker reads "sonnet · Sonnet 5"; the elapsed time of a run reads "0:41"; a one-word
+    project gets a two-letter monogram; the empty Team title takes the reference's size; "Ahora y
+    antes" counts tasks; a narrow card's live line does not wrap its time; the phone journal shows
+    "Tú"; the phone's "Editar" bar sits at the bottom.
+
+**Code health**
+24. **Web files over 400 lines are split** (`Assistant.tsx`, `NewTask.tsx`, `ProjectResources.tsx`,
+    `SuggestTasks.tsx`, `View.tsx` and any other of the feature), without changing behaviour.
+
+### File ownership
+
+| Task | Owns | Gaps |
+|---|---|---|
+| `gaps-shared` | `packages/shared/src/types.ts`, `work-items.ts`, the generated schemas, `apps/web/src/api.ts`, `lib/events.ts` | the contract for 2, 5, 6, 7, 9, 10, 16, 18, 19, 20 |
+| `gaps-flow` | `packages/core/src/flow.ts`, `team.ts`, `chats.ts`, `chat-service.ts`, `work-item-rows.ts`, the flow and team parts of `core/src/index.ts`, `apps/api/src/routes/{flow,team,chats}.ts`, their tests | 1, 2, 3, 4, 6 (core), 7 (core), 13 (flow runs), 15, 17, 18, 19 |
+| `gaps-assistant` | `packages/core/src/assistant*.ts`, `work-links.ts`, `orchestrator.ts` draft prompts, the assistant parts of `core/src/index.ts`, `apps/api/src/routes/assistant.ts`, their tests | 9, 10, 11, 12 (core), 13 (Work on it, nodes, draft) |
+| `gaps-data` | `packages/core/src/work-items*.ts`, `db.ts`, `apps/api/src/routes/work-items.ts`, `openapi/routes.ts`, README tables, their tests | 16, 20 (core and API) |
+| `gaps-web-work` | `pages/tasks/**`, `pages/documents/**`, `components/shell/**`, `App.tsx`, `lib/work-items.ts`, `styles/{board,work-item,shell}.css`, `locales/*/{tasks,workItem,documents,shell}.json`, their e2e specs | 2 (item), 16, 20 (web), 21, 22, 24 (tasks files) |
+| `gaps-web-team` | `pages/team/**`, `pages/assistant/**`, `pages/projects/**`, `pages/home/**`, `pages/config/ResourcesTab.tsx`, `components/CommandPalette.tsx`, `styles/{team,assistant,projects}.css`, `locales/*/{team,assistant,projects,home,config}.json`, their e2e specs | 1 (web), 5, 6, 7 (web), 8, 12 (web), 14, 23, 24 (the other files) |
+| `gaps-review` | any file, cross-task fixes only, after all | every gap re-checked on the integrated result, in both themes and both sizes |
+| `gaps-docs` | `docs/**` except `docs/design-system/reference/**`, `README.md`, `ROADMAP.md` | the "Known gaps" sections emptied or reduced to what is truly out of reach, with the reason; the audit and the plan's Outcome |
+
 ## Parked: a knowledge base and integrations
 
 Raised by the owner on 2026-09-27 after the four orchestrations, and parked the same day: the
