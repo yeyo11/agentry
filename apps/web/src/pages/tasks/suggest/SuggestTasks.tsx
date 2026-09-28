@@ -13,7 +13,7 @@ import { NARROW, useMediaQuery } from '../../../lib/media';
 import { backlogRunsFor } from '../../team/model';
 import { useRoleName } from '../../team/RoleAvatar';
 import { FullScreen } from '../FullScreen';
-import { initialSelection, isRunning, selectedPending, workItemProposals } from './model';
+import { initialSelection, isRunning, latestFocus, selectedPending, suggestRequest, workItemProposals } from './model';
 import { ProposalRow, RunLine } from './Results';
 
 /**
@@ -43,7 +43,7 @@ export function SuggestTasks({ project, onClose }: { project: Pick<Project, 'id'
   // The field says what the latest run looked for, until the person types something else
   useEffect(() => {
     if (latest && focusFor !== latest.id) {
-      setFocus(latest.description ?? '');
+      setFocus(latestFocus(latest));
       setFocusFor(latest.id);
     }
   }, [latest, focusFor]);
@@ -72,12 +72,7 @@ export function SuggestTasks({ project, onClose }: { project: Pick<Project, 'id'
 
   const start = useMutation({
     mutationFn: () =>
-      api.startAssistantRun(project.id, {
-        kind: 'work-items',
-        ...(focus.trim() ? { description: focus.trim() } : {}),
-        // "Suggest again" sets the previous run's pending proposals aside; the first run has none
-        ...(latest ? { supersede: true } : {}),
-      }),
+      api.startAssistantRun(project.id, suggestRequest(focus, latest !== null)),
     onSuccess: (started) => {
       queryClient.setQueryData(keys.assistantRun(started.id), started);
       setFocusFor(started.id);

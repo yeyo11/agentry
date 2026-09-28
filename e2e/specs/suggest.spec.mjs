@@ -73,6 +73,9 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.fill('.suggest-focus input', 'what is left for v0.20');
     await page.click('.dialog .suggest-again', 'Suggest', 600);
     await page.waitFor(`return !!document.querySelector('.dialog .suggest-line')`, { label: 'the run answered', timeout: 30_000 });
+    // The focus goes as its own field, which the prompt words as where to look, not as what the project is for
+    const suggestRun = (await api.get(`/projects/${projectId}/assistant/runs?kind=work-items`)).body[0];
+    check(suggestRun?.focus === 'what is left for v0.20' && !suggestRun.description, `the run keeps the focus as its focus (${JSON.stringify({ focus: suggestRun?.focus, description: suggestRun?.description })})`);
     const line = await page.text('.dialog .suggest-line');
     check(line.includes('3 proposals'), `the done line counts the proposals (${line})`);
     check((await page.eval(`return document.querySelectorAll('.dialog .suggestion-row').length`)) === 3, 'one row per proposal');
