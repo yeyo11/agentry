@@ -17,7 +17,7 @@
     "enable": "Verificar la rama de integración",
     "enableHint": "Los workers ejecutan el typecheck y los tests unitarios. Las comprobaciones lentas se ejecutan una sola vez aquí, sobre la rama ya fusionada, para no lanzar una suite entera en cada worktree a la vez.",
     "commands": "Comprobaciones",
-    "commandsHint": "Un comando por línea, ejecutados en orden sobre la rama de integración, cada uno con su timeout.",
+    "commandsHint": "Un comando por línea, ejecutados en orden sobre la rama de integración, cada uno con su tiempo límite.",
     "commandsPlaceholder": "pnpm build",
     "fixer": "Lanzar un agente que arregle lo que falle",
     "attempts": "Intentos del agente",
@@ -32,7 +32,7 @@
       "pending": "Las comprobaciones no han empezado: se ejecutan cuando el grafo está fusionado.",
       "running": "Las comprobaciones se están ejecutando sobre la rama de integración.",
       "passed": "Todas las comprobaciones han pasado sobre la rama de integración.",
-      "fixed": "Una comprobación falló, el agente la arregló y la repetición pasó.",
+      "fixed": "Una comprobación ha fallado, el agente la ha arreglado y la repetición ha pasado.",
       "failed": "Una comprobación sigue fallando. Lee lo que imprimió antes de abrir una pull request."
     },
     "attemptsSpent_one": "{{count}} intento del agente.",
@@ -83,7 +83,7 @@
     "runNameHint": "El de la plantilla si está vacío",
     "model": "Modelo",
     "modelDefault": "el de la plantilla",
-    "launchFailed": "No se pudo lanzar la plantilla",
+    "launchFailed": "No se ha podido lanzar la plantilla",
     "edit": "Editar el grafo",
     "editNamed": "Editar la plantilla {{name}}",
     "deleteNamed": "Eliminar la plantilla {{name}}",
@@ -104,14 +104,14 @@
     "saving": "Guardando…",
     "saved": "Plantilla {{name}} guardada",
     "updatedToast": "Plantilla {{name}} actualizada",
-    "saveFailed": "No se pudo guardar la plantilla",
+    "saveFailed": "No se ha podido guardar la plantilla",
     "rename": "Renombrar",
     "renameNamed": "Renombrar la plantilla {{name}}",
     "newName": "Nombre nuevo para {{name}}",
     "renameSave": "Guardar el nombre",
     "renameCancel": "Cancelar el cambio de nombre",
     "renamed": "La plantilla ahora se llama {{name}}",
-    "renameFailed": "No se pudo cambiar el nombre de la plantilla"
+    "renameFailed": "No se ha podido cambiar el nombre de la plantilla"
   },
   "origin": {
     "relaunched": "relanzada",
@@ -125,7 +125,7 @@
     "launch_one": "Relanzar {{count}} tarea",
     "launch_other": "Relanzar {{count}} tareas",
     "launching": "Relanzando…",
-    "failed": "No se pudo relanzar el grafo"
+    "failed": "No se ha podido relanzar el grafo"
   },
   "rerun": {
     "button": "Repetir",

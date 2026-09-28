@@ -99,7 +99,7 @@
       "needYou_one": "{{n}} te necesita",
       "needYou_other": "{{n}} te necesitan",
       "noActivity": "Trabajando",
-      "live": "en vivo",
+      "live": "en directo",
       "all": "Ver todo",
       "offline": "Agentry no responde",
       "offlineHint": "La página no llega al wrapper. Comprueba que está en marcha y vuelve a intentarlo.",

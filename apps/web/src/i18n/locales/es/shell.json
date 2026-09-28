@@ -97,12 +97,12 @@
     "preview": "Vista previa"
   },
   "reload": {
-    "updated": "Agentry se actualizó a la versión {{version}}.",
-    "stale": "Agentry se actualizó.",
+    "updated": "Agentry se ha actualizado a la versión {{version}}.",
+    "stale": "Agentry se ha actualizado.",
     "action": "Recargar",
     "reloading": "Recargando…",
     "dismiss": "Descartar",
     "stalePage": "Esta página es de una versión anterior de Agentry",
-    "stalePageHint": "El servidor se actualizó. Recarga para abrir la versión actual."
+    "stalePageHint": "El servidor se ha actualizado. Recarga para abrir la versión actual."
   }
 }

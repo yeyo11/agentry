@@ -27,6 +27,32 @@ for (const ns of Object.keys(en) as Array<keyof typeof en>) {
   });
 }
 
+/**
+ * Forms GLOSSARY.md replaced, which kept coming back with new screens: a failure that just happened
+ * is "No se ha podido …", a default is "predeterminado", the adverb is "solo", the CLI is masculine,
+ * and live is "en directo".
+ */
+const REPLACED: ReadonlyArray<[RegExp, string]> = [
+  [/\bNo se pudo\b/, 'No se ha podido'],
+  [/\bNo se pudieron\b/, 'No se han podido'],
+  [/\bpor defecto\b/i, 'predeterminado'],
+  [/\bsólo\b/i, 'solo'],
+  [/\bla CLI\b/i, 'el CLI'],
+  [/\ben vivo\b/i, 'en directo'],
+];
+
+test('Spanish copy keeps none of the forms the glossary replaced', () => {
+  const found: string[] = [];
+  for (const ns of Object.keys(es) as Array<keyof typeof es>) {
+    for (const key of keys(es[ns])) {
+      const value = key.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown>)[part], es[ns]);
+      if (typeof value !== 'string') continue;
+      for (const [form, instead] of REPLACED) if (form.test(value)) found.push(`${ns}:${key} "${value}" → ${instead}`);
+    }
+  }
+  assert.deepEqual(found, []);
+});
+
 test('Spanish many plurals are derived from other', () => {
   assert.deepEqual(withManyPlurals({ a: { n_one: 'una', n_other: 'varias' } }), {
     a: { n_one: 'una', n_other: 'varias', n_many: 'varias' },

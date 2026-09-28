@@ -74,7 +74,7 @@
     "environmentHint": "lo que Claude cargó realmente en el último chat de aquí",
     "sections": "Secciones de ajustes del proyecto",
     "cliTitle": "Claude Code",
-    "cliHint": "La configuración que la CLI lee en este proyecto: CLAUDE.md, ajustes, servidores MCP y archivos."
+    "cliHint": "La configuración que el CLI lee en este proyecto: CLAUDE.md, ajustes, servidores MCP y archivos."
   },
   "resources": {
     "sections": "Recursos del proyecto"
@@ -215,6 +215,6 @@
     "save": "Guardar los cambios",
     "saving": "Guardando…",
     "saved": "Ajustes del proyecto guardados",
-    "saveFailed": "No se pudieron guardar los ajustes del proyecto"
+    "saveFailed": "No se han podido guardar los ajustes del proyecto"
   }
 }

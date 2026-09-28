@@ -228,7 +228,7 @@
     "downloadProgress": "Descargando Agentry {{version}}",
     "restart": "Reiniciar para actualizar a {{version}}",
     "scheduled": "Agentry {{version}} se instalará la próxima vez que salgas.",
-    "desktopFailed": "La actualización no se completó",
+    "desktopFailed": "La actualización no se ha completado",
     "busyTitle": "¿Reiniciar para actualizar a {{version}}?",
     "busyBody": "{{live}}, y un reinicio los detiene. ¿Reiniciar ahora o actualizar al salir?",
     "cancel": "Cancelar",
@@ -373,7 +373,7 @@
     "retentionHint": "cleanupPeriodDays: se eliminan las transcripciones locales más antiguas que esto.",
     "coAuthored": "Co-authored-by en los commits",
     "coAuthoredLabel": "Incluir co-authored-by",
-    "apiKeyHelper": "Helper de clave de API",
+    "apiKeyHelper": "Script de clave de API",
     "apiKeyHelperHint": "apiKeyHelper: script que escribe una clave de API en stdout.",
     "statusLine": "Comando de la línea de estado",
     "statusLineHint": "statusLine: comando cuya salida se muestra como línea de estado.",
@@ -425,7 +425,7 @@
     "transports": {
       "stdio": "Proceso local que arranca Claude Code",
       "http": "Servidor remoto por HTTP con streaming",
-      "sse": "Servidor remoto por Server-Sent Events (heredado)"
+      "sse": "Servidor remoto por Server-Sent Events (obsoleto)"
     },
     "scopeHints": {
       "user": "Disponible en todos los proyectos de esta cuenta",
@@ -525,7 +525,7 @@
     "restoreTitle": "¿Restaurar los presets incluidos?",
     "restoreBody": "Read-only, No network y Everything vuelven a estar como vienen, y los que eliminaste vuelven. Tus propios presets y el preset predeterminado se quedan como están.",
     "restored": "Presets incluidos restaurados",
-    "restoreFailed": "No se pudieron restaurar los presets incluidos"
+    "restoreFailed": "No se han podido restaurar los presets incluidos"
   },
   "resources": {
     "kinds": {
@@ -1073,11 +1073,11 @@
     "discardName": "Descartar {{name}}",
     "review": "Revisar",
     "reviewName": "Revisar {{name}}",
-    "saved": "guardada",
+    "saved": "archivo guardado",
     "undo": "Deshacer",
     "reading": "Leyendo el proyecto",
-    "stopped": "Se detuvo antes de proponer nada.",
-    "failed": "Terminó sin una respuesta legible.",
+    "stopped": "Se ha detenido antes de proponer nada.",
+    "failed": "Ha terminado sin una respuesta legible.",
     "nothing": "Ha leído el proyecto y no ha encontrado nada nuevo que proponer.",
     "hint": "Cada propuesta se abre en el editor con su contenido. Nada se guarda hasta que pulses Crear, y va al proyecto salvo que elijas Usuario.",
     "more_one": "{{count}} más",
@@ -1090,7 +1090,7 @@
     "proposedBy": "Propuesto por el asistente",
     "nothingWritten": "Nada se escribe hasta que lo crees.",
     "alreadySaved": "Esta propuesta ya está guardada.",
-    "alreadyDiscarded": "Esta propuesta se descartó: restáurala desde las propuestas para crearla.",
+    "alreadyDiscarded": "Esta propuesta se ha descartado: restáurala desde las propuestas para crearla.",
     "proposalGone": "Esta propuesta ya no está.",
     "resourceGone": "Este recurso ya no está en el proyecto.",
     "nameFirst": "Ponle nombre a la izquierda para abrirlo en el editor.",
@@ -1103,7 +1103,7 @@
       "commands": "Un comando que pase las comprobaciones y resuma qué ha fallado"
     },
     "create": "Crear",
-    "again": "Volver a intentar",
+    "again": "Reintentar",
     "stop": "Detener",
     "cancel": "Cancelar",
     "openInEditor": "Abrir en el editor",
@@ -1161,7 +1161,7 @@
     "startWith": {
       "title": "Al arrancar",
       "label": "Abrir el túnel al arrancar Agentry",
-      "hint": "Desactivado por defecto. Sigue necesitando la autenticación activada y ssh instalado."
+      "hint": "Desactivado de forma predeterminada. Sigue necesitando la autenticación activada y ssh instalado."
     },
     "stopConfirm": {
       "title": "¿Cerrar el túnel que usa esta página?",
@@ -1192,11 +1192,11 @@
     "runs": {
       "title": "Ejecuciones",
       "intro": "Lo que recibe una ejecución nueva si no pide otra cosa. Un cambio se aplica a la siguiente ejecución, sin reiniciar.",
-      "mode": "Modo de permisos por defecto",
+      "mode": "Modo de permisos predeterminado",
       "modeHint": "El --permission-mode de un chat, programación u orquestación que no elige ninguno.",
       "concurrent": "Ejecuciones a la vez",
       "concurrentHint": "De {{min}} a {{max}}. Un chat nuevo por encima del límite se rechaza hasta que termine otro, y una orquestación no ejecuta más workers que estos a la vez.",
-      "saved": "Valores por defecto de las ejecuciones guardados"
+      "saved": "Valores predeterminados de las ejecuciones guardados"
     }
   }
 }

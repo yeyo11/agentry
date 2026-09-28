@@ -93,7 +93,7 @@
   "resources": {
     "saved": "{{accepted}} de {{total}} guardados",
     "reviewed": "se revisan en el editor",
-    "savedDone": "guardada",
+    "savedDone": "archivo guardado",
     "review": "Revisar",
     "reviewNamed": "Revisar {{name}}",
     "kind": {
