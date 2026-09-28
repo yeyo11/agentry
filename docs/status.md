@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-09-28T12:00:00Z
+updated_at: 2026-09-28T18:00:00Z
 tags:
     - status
     - project-state
@@ -70,7 +70,7 @@ tab ("Sugerir", "Crear con IA") ([assistant.md](assistant.md)).
 
 ## What is open
 
-- **The project ecosystem, waiting for the owner.** All four orchestrations are built, on
+- **The project ecosystem, waiting for the owner.** All five orchestrations are built, on
   `feat/project-ecosystem`, which reaches `main` in one pull request once the owner has tried the
   whole feature:
   - **1** (`ecosystem-foundation`, fixed by 1b after [its audit](plans/project-ecosystem-audit.md)):
@@ -80,15 +80,19 @@ tab ("Sugerir", "Crear con IA") ([assistant.md](assistant.md)).
   - **3** (`ecosystem-team`): the team, the flow by column, the journal and memory proposals, and
     documents;
   - **4** (`ecosystem-assistant`): the assistant, suggested tasks and resources with AI, and the four
-    items the audit of orchestration 2 had left for the owner.
+    items the audit of orchestration 2 had left for the owner;
+  - **5** (`ecosystem-review-fixes`): the fixes of the review of the whole feature, each finding
+    marked closed or open in [the audit](plans/project-ecosystem-audit.md#review-of-the-whole-feature-before-the-pull-request).
 
   Each orchestration's `pnpm build` and `pnpm e2e` run in its verification phase, on the merged
   branch. What stays open is listed per area:
   - [work-items.md](work-items.md#known-gaps);
   - [team-and-flow.md](team-and-flow.md#known-gaps). The one gap that shows on the board is there:
     a card being refined or verified by a team member is not drawn live;
-  - [assistant.md](assistant.md#known-gaps): an assistant chat is titled by its prompt, and once a
-    project has a team nothing on its page links to the assistant.
+  - [assistant.md](assistant.md#known-gaps): once a project has a team, nothing on its page links
+    to the assistant;
+  - [the audit](plans/project-ecosystem-audit.md#still-open-after-orchestration-5): what the review
+    of the whole feature left, parts of its findings 14 and 25 among them.
 
   See the plan's [Outcome](plans/project-ecosystem.md#the-ecosystem-as-a-whole).
 - **The editable dashboard.** Home renders any layout that validates, from a registry of widget
@@ -120,7 +124,7 @@ tab ("Sugerir", "Crear con IA") ([assistant.md](assistant.md)).
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Landed (#101) — see [Outcome](plans/redesign-night-shift.md#outcome) |
 | [`plans/tunnel.md`](plans/tunnel.md) | Landed (#110) — see [Outcome](plans/tunnel.md#outcome) and [tunnel.md](tunnel.md) |
 | [`plans/changes-review.md`](plans/changes-review.md) | Landed (#115) — see [Outcome](plans/changes-review.md#outcome) |
-| [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | All four orchestrations built: 1 (server side and prototypes, fixed by 1b after [its audit](plans/project-ecosystem-audit.md)), 2 (the board's web), 3 (the team, the flow, memory and documents) and 4 (the assistant). `main` (0.22.0) is merged into the branch; it awaits its e2e run on the merged branch, then the owner's trial and one pull request to `main` — see [Outcome](plans/project-ecosystem.md#outcome) |
+| [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | All five orchestrations built: 1 (server side and prototypes, fixed by 1b after [its audit](plans/project-ecosystem-audit.md)), 2 (the board's web), 3 (the team, the flow, memory and documents), 4 (the assistant) and 5 (the review's fixes). `main` (0.22.0) is merged into the branch; it awaits its e2e run on the merged branch, then the owner's trial and one pull request to `main` — see [Outcome](plans/project-ecosystem.md#outcome) |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.

@@ -209,8 +209,11 @@
   - the four items the audit of orchestration 2 left open, epics no longer counting against a
     column's limit among them.
 
-  See [docs/assistant.md](docs/assistant.md). The whole ecosystem reaches `main` in one pull request
-  from `feat/project-ecosystem`, once the owner has tried it.
+  See [docs/assistant.md](docs/assistant.md). A review of the whole feature followed, and a fifth
+  orchestration fixed its findings
+  ([the audit](docs/plans/project-ecosystem-audit.md#review-of-the-whole-feature-before-the-pull-request)).
+  The whole ecosystem reaches `main` in one pull request from `feat/project-ecosystem`, once the
+  owner has tried it.
 
 ## Next
 
