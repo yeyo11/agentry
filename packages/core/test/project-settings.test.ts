@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { AgentryEvent, ProjectSettings } from '@agentry/shared';
-import { PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN } from '@agentry/shared';
+import { MAX_FLOW_PARALLEL, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN } from '@agentry/shared';
 import { Core } from '../src/index.ts';
 import { deriveKeyPrefix, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from '../src/project-settings.ts';
 import { PROJECT_TEMPLATES, projectTemplate } from '../src/project-templates.ts';
@@ -127,6 +127,27 @@ test('a settings document is validated whole: a bad value is refused, not replac
   });
   assert.deepEqual(full.flow, { enabled: false, columns: { in_review: 'qa' }, maxBounces: 3 });
   assert.equal(full.team?.members[0]?.writes?.[0], 'tests');
+});
+
+test("a member's shell commands survive the settings document, and a pattern that would break its rule is refused", () => {
+  const member = { agent: 'developer', role: 'developer', model: 'sonnet', responsibility: 'Builds' };
+  const withCommands = (commands: unknown) => ({ ...valid(), team: { members: [{ ...member, commands }] } });
+
+  // Present means only these, [] means no shell, and absent or null leaves the shell unrestricted
+  assert.deepEqual(parseProjectSettings(withCommands(['pnpm *', 'npm test', 'pnpm *'])).team?.members[0]?.commands, ['pnpm *', 'npm test']);
+  assert.deepEqual(parseProjectSettings(withCommands([])).team?.members[0]?.commands, []);
+  assert.equal(parseProjectSettings(withCommands(null)).team?.members[0]?.commands, undefined);
+  assert.equal('commands' in (parseProjectSettings({ ...valid(), team: { members: [member] } }).team?.members[0] ?? {}), false);
+
+  for (const commands of ['pnpm *', ['npm test)'], ['npm test\nnpm publish'], ['*'], [12], Array.from({ length: 51 }, (_, i) => `make t${i}`)]) {
+    assert.throws(() => parseProjectSettings(withCommands(commands)), /commands/, JSON.stringify(commands));
+  }
+});
+
+test('the most parallel flow runs a project may set is the one the Flow screen offers', () => {
+  const flow = (maxParallel: number) => ({ ...valid(), flow: { enabled: true, columns: {}, maxBounces: 2, maxParallel } });
+  assert.equal(parseProjectSettings(flow(MAX_FLOW_PARALLEL)).flow?.maxParallel, MAX_FLOW_PARALLEL);
+  assert.throws(() => parseProjectSettings(flow(MAX_FLOW_PARALLEL + 1)), /maxParallel/);
 });
 
 test('what changed between two documents is named for the event', () => {
