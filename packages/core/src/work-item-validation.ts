@@ -23,6 +23,22 @@ export const CRITERIA_MAX = 100;
 export const ROLE_MAX = 64;
 /** Room for an agent's report with its logs, short of a body that would bloat every read of the item */
 export const COMMENT_MAX = 50_000;
+/** A long chat message made into a task still fits; a pasted log that would weigh on every board read does not */
+export const DESCRIPTION_MAX = 100_000;
+/** A criterion is a sentence someone checks, not a document */
+export const CRITERION_MAX = 2_000;
+export const MILESTONE_DESCRIPTION_MAX = 10_000;
+/** Longer than any id or key the app hands out */
+const ID_MAX = 200;
+
+/**
+ * The body of a request, which must be an object. Without this, a missing or JSON `null` body
+ * reads as a crash on its first field, and the API answers 500 for what is the caller's mistake.
+ */
+export function body<T extends object>(value: T | null | undefined): Partial<T> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new WorkItemError('the request body must be an object', 400);
+  return value;
+}
 
 export function oneOf<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
   if (typeof value !== 'string' || !allowed.includes(value as T)) throw new WorkItemError(`${field} must be one of ${allowed.join(', ')}`, 400);
@@ -36,8 +52,9 @@ export function title(value: unknown): string {
   return t;
 }
 
-export function text(value: unknown, field: string): string {
+export function text(value: unknown, field: string, max = DESCRIPTION_MAX): string {
   if (typeof value !== 'string') throw new WorkItemError(`${field} must be text`, 400);
+  if (value.length > max) throw new WorkItemError(`${field} is longer than ${String(max)} characters`, 400);
   return value;
 }
 
@@ -71,7 +88,22 @@ export function assignee(value: unknown): WorkItemAssignee | null {
 
 export function criterionText(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) throw new WorkItemError('an acceptance criterion needs its text', 400);
+  if (value.trim().length > CRITERION_MAX) throw new WorkItemError(`an acceptance criterion is longer than ${String(CRITERION_MAX)} characters`, 400);
   return value.trim();
+}
+
+/** The checklist as a caller sends it: a list of `{ id?, text }`, at most {@link CRITERIA_MAX} of them. */
+export function criteriaList(value: unknown): Array<{ id?: string; text: string }> {
+  if (!Array.isArray(value)) throw new WorkItemError('acceptanceCriteria must be a list', 400);
+  if (value.length > CRITERIA_MAX) throw new WorkItemError(`an item holds at most ${String(CRITERIA_MAX)} acceptance criteria`, 400);
+  return value.map((entry: unknown) => {
+    if (typeof entry !== 'object' || entry === null) throw new WorkItemError('an acceptance criterion must be an object with its text', 400);
+    const { id, text: t } = entry as { id?: unknown; text?: unknown };
+    const out = { text: criterionText(t) };
+    if (id === undefined || id === null) return out;
+    if (typeof id !== 'string' || !id) throw new WorkItemError("an acceptance criterion's id must be text", 400);
+    return { ...out, id };
+  });
 }
 
 /** A record rather than a list, so a kind added to the union fails to compile until it is here. */
@@ -88,7 +120,23 @@ function isActorKind(value: unknown): value is WorkItemActorKind {
 /** An id a caller hands in: absent is null, anything present must be non-empty text. */
 export function optionalId(value: unknown, field: string): string | null {
   if (value === undefined || value === null) return null;
-  if (typeof value !== 'string' || !value.trim()) throw new WorkItemError(`${field} must be a non-empty string`, 400);
+  if (typeof value !== 'string' || !value.trim() || value.length > ID_MAX) throw new WorkItemError(`${field} must be a non-empty string`, 400);
+  return value;
+}
+
+/**
+ * A filter as a caller builds it from a query string, where a field repeated or left bare can
+ * arrive as the wrong shape: lists must be lists of text, the rest text.
+ */
+export function filterOf<T extends object>(value: T | null | undefined): T {
+  if (value === undefined || value === null) return {} as T;
+  if (typeof value !== 'object' || Array.isArray(value)) throw new WorkItemError('the filter must be an object', 400);
+  const lists = new Set(['status', 'type', 'priority', 'labels', 'assignee']);
+  for (const [field, v] of Object.entries(value)) {
+    if (v === undefined) continue;
+    const ok = lists.has(field) ? Array.isArray(v) && v.every((e) => typeof e === 'string') : typeof v === 'string';
+    if (!ok) throw new WorkItemError(lists.has(field) ? `${field} must be a list of text` : `${field} must be text`, 400);
+  }
   return value;
 }
 

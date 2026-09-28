@@ -9,6 +9,7 @@ import type { WorkItemActor, WorkItemCause, WorkItemLink, WorkItemStatus } from 
 import { Db, WORK_ITEMS_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import type { AgentryEventInput } from '../src/events.ts';
 import { WorkItemError, WorkItemService, type WorkItemLinkState, type WorkItemProject } from '../src/work-items.ts';
+import { CRITERION_MAX, DESCRIPTION_MAX, MILESTONE_DESCRIPTION_MAX } from '../src/work-item-validation.ts';
 import { tempConfig } from './helpers.ts';
 
 type Emitted = AgentryEventInput;
@@ -101,6 +102,65 @@ test('several processes on one data dir never hand out the same number nor the s
 });
 
 // ---------- create and validation ----------
+
+test('a malformed body or filter is refused with 400, never a crash the API answers with 500', () => {
+  const { service } = setup();
+  const item = service.create('p1', { title: 'Target' });
+  const milestone = service.createMilestone('p1', { name: 'v1' });
+  const as = (value: unknown) => value as never;
+  const refusedWith400 = (label: string, run: () => unknown) => assert.throws(run, refusal(400), label);
+
+  for (const [label, run] of [
+    ['create', () => service.create('p1', as(undefined))],
+    ['update', () => service.update(item.id, as(null))],
+    ['move', () => service.move(item.id, as(undefined))],
+    ['comment', () => service.comment(item.id, as(undefined))],
+    ['relate', () => service.relate(item.id, as([]))],
+    ['link', () => service.link(item.id, as(undefined))],
+    ['check', () => service.checkCriterion(item.id, 'c', as(undefined))],
+    ['milestone', () => service.createMilestone('p1', as(undefined))],
+    ['milestone update', () => service.updateMilestone(milestone.id, as('x'))],
+  ] as const) {
+    refusedWith400(`no body: ${label}`, run);
+  }
+
+  for (const value of [true, 5, ['a'], { a: 1 }]) {
+    const shown = JSON.stringify(value);
+    refusedWith400(`create epicId ${shown}`, () => service.create('p1', { title: 't', epicId: as(value) }));
+    refusedWith400(`update epicId ${shown}`, () => service.update(item.id, { epicId: as(value) }));
+    refusedWith400(`create milestoneId ${shown}`, () => service.create('p1', { title: 't', milestoneId: as(value) }));
+    refusedWith400(`update milestoneId ${shown}`, () => service.update(item.id, { milestoneId: as(value) }));
+    refusedWith400(`move afterId ${shown}`, () => service.move(item.id, { status: 'todo', afterId: as(value) }));
+    refusedWith400(`relate itemId ${shown}`, () => service.relate(item.id, { type: 'blocks', itemId: as(value) }));
+  }
+  for (const value of ['abc', 5, { text: 'a' }, [null], [{ text: 5 }], [{ text: 'a', id: 5 }]]) {
+    const shown = JSON.stringify(value);
+    refusedWith400(`create criteria ${shown}`, () => service.create('p1', { title: 't', acceptanceCriteria: as(value) }));
+    refusedWith400(`update criteria ${shown}`, () => service.update(item.id, { acceptanceCriteria: as(value) }));
+  }
+  // A query string repeated or left bare can reach the filter in the wrong shape
+  for (const filter of [{ status: 'todo' }, { labels: 'ui' }, { assignee: [null] }, { epicId: ['a', 'b'] }, { milestoneId: true }, { q: ['a'] }, { projectId: 5 }]) {
+    refusedWith400(`filter ${JSON.stringify(filter)}`, () => service.list(as(filter)));
+    refusedWith400(`board ${JSON.stringify(filter)}`, () => service.board(null, as(filter)));
+  }
+  // Nothing was written by any of it
+  assert.equal(service.list({ projectId: 'p1' }).length, 1);
+  assert.equal(service.get(item.id).acceptanceCriteria.length, 0);
+});
+
+test('a description, a criterion and a milestone description are capped, so no read of the board carries a pasted log', () => {
+  const { service } = setup();
+  const long = (n: number) => 'x'.repeat(n + 1);
+  assert.throws(() => service.create('p1', { title: 't', description: long(DESCRIPTION_MAX) }), refusal(400));
+  const item = service.create('p1', { title: 't', description: 'x'.repeat(DESCRIPTION_MAX) });
+  assert.throws(() => service.update(item.id, { description: long(DESCRIPTION_MAX) }), refusal(400));
+  assert.throws(() => service.create('p1', { title: 't', acceptanceCriteria: [{ text: long(CRITERION_MAX) }] }), refusal(400));
+  assert.throws(() => service.update(item.id, { acceptanceCriteria: [{ text: long(CRITERION_MAX) }] }), refusal(400));
+  assert.throws(() => service.createMilestone('p1', { name: 'm', description: long(MILESTONE_DESCRIPTION_MAX) }), refusal(400));
+  const milestone = service.createMilestone('p1', { name: 'm', description: 'fits' });
+  assert.throws(() => service.updateMilestone(milestone.id, { description: long(MILESTONE_DESCRIPTION_MAX) }), refusal(400));
+  assert.equal(service.milestone(milestone.id).description, 'fits');
+});
 
 test('a new item takes the defaults, goes last in its column and opens its history', () => {
   const { service, events } = setup();
