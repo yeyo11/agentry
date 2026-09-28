@@ -1,5 +1,5 @@
-import type { FlowRun, FlowStage, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus } from '@agentry/shared';
-import { WORK_ITEM_STATUSES } from '@agentry/shared';
+import type { FlowRun, FlowStage, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus, WorkItemType } from '@agentry/shared';
+import { DEFAULT_FLOW_MAX_PARALLEL, WORK_ITEM_STATUSES } from '@agentry/shared';
 
 /**
  * The Team tab's pure model: role names and initials, the flow as the screens edit it, and what the
@@ -107,6 +107,31 @@ export function setColumnRole(flow: ProjectFlowSettings, status: WorkItemStatus,
 /** The columns a role answers for, in board order: what a member card says under "Answers for". */
 export function columnsOf(flow: Pick<ProjectFlowSettings, 'columns'>, role: string): WorkItemStatus[] {
   return FLOW_COLUMNS.filter((status) => flow.columns[status] === role);
+}
+
+/** What creating cards in Backlog sets off: the runs the flow queues at once, whose role, and how many go at a time. */
+export interface BacklogRuns {
+  count: number;
+  role: string;
+  parallel: number;
+}
+
+/**
+ * The flow runs that creating items of these types in Backlog queues, as core decides it (`flow.ts`,
+ * `trigger` on `workitem.created`): one refine run per item that is not an epic, while the flow is
+ * on, both the Board and Team modules are, and Backlog's role is a member. Null when none would be.
+ */
+export function backlogRunsFor(
+  settings: Pick<ProjectSettings, 'flow' | 'modules' | 'team'> | undefined,
+  types: readonly WorkItemType[],
+): BacklogRuns | null {
+  if (!settings) return null;
+  const flow = settings.flow;
+  if (!flow?.enabled || !settings.modules.includes('team') || !settings.modules.includes('board')) return null;
+  const role = flow.columns.backlog;
+  if (!role || !settings.team?.members.some((member) => member.role === role)) return null;
+  const count = types.filter((type) => type !== 'epic').length;
+  return count > 0 ? { count, role, parallel: flow.maxParallel ?? DEFAULT_FLOW_MAX_PARALLEL } : null;
 }
 
 /** Members at work now: the phone's "2 working now". */

@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { FlowRun, TeamMember } from '@agentry/shared';
 import {
   agentNameFor,
+  backlogRunsFor,
   cleanWrites,
   columnsOf,
   flowOf,
@@ -164,4 +165,25 @@ test('a project that never saved a flow has none: its columns answer to nobody u
   const flow = { enabled: true, columns: { in_progress: 'developer' }, maxBounces: 2 };
   assert.deepEqual(savedFlow({ flow }), flow);
   assert.notEqual(savedFlow({ flow }).columns, flow.columns);
+});
+
+test('creating suggestions in Backlog says how many flow runs it queues, as core decides it', () => {
+  // "Create the selected" on eight suggestions queued eight refine runs with no word
+  type Settings = NonNullable<Parameters<typeof backlogRunsFor>[0]>;
+  const on: Settings = {
+    modules: ['board', 'team'],
+    team: { members: [{ role: 'product-owner', agent: 'product-owner', model: 'opus', responsibility: '' }] },
+    flow: { enabled: true, columns: { backlog: 'product-owner' }, maxBounces: 3 },
+  };
+  const flow = on.flow ?? { enabled: false, columns: {}, maxBounces: 3 };
+  const types = ['task', 'story', 'bug', 'epic'] as const;
+  assert.deepEqual(backlogRunsFor(on, types), { count: 3, role: 'product-owner', parallel: 2 });
+  assert.equal(backlogRunsFor({ ...on, flow: { ...flow, maxParallel: 4 } }, ['task'])?.parallel, 4);
+  // Nothing is queued with the flow off, a module off, nobody on Backlog, a role with no member, or only epics
+  assert.equal(backlogRunsFor({ ...on, flow: { ...flow, enabled: false } }, types), null);
+  assert.equal(backlogRunsFor({ ...on, modules: ['board'] }, types), null);
+  assert.equal(backlogRunsFor({ ...on, flow: { ...flow, columns: { todo: 'product-owner' } } }, types), null);
+  assert.equal(backlogRunsFor({ ...on, team: { members: [] } }, types), null);
+  assert.equal(backlogRunsFor(on, ['epic']), null);
+  assert.equal(backlogRunsFor(undefined, types), null);
 });
