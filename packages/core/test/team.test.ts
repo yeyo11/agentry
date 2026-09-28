@@ -347,6 +347,32 @@ test('a member that writes nothing is told so, not told it has no limit; one wit
   assert.match(some, /`criteria`: when you verify the item/);
 });
 
+test("a member's shell commands are kept, checked and told to its agent file; null or none leaves the shell free", async () => {
+  await withCore(async (core) => {
+    const p = await project(core);
+    await core.team.fromTemplate(p.id, { roles: ['developer'] });
+    // The template's Developer gets no list: the owner's shell stays unlimited unless they choose
+    assert.equal((await core.projectSettings(p.id)).team?.members[0]?.commands, undefined);
+    const base = { role: 'developer', model: 'sonnet', responsibility: 'Implements' };
+    const listed = await core.team.putMember(p.id, 'developer', { ...base, commands: ['pnpm test', 'pnpm *', 'pnpm test'] });
+    assert.deepEqual(listed.commands, ['pnpm test', 'pnpm *']);
+    assert.deepEqual((await core.projectSettings(p.id)).team?.members[0]?.commands, ['pnpm test', 'pnpm *']);
+    // Agentry's own file follows, and says what the shell may run
+    assert.match(readFileSync(agentFile(p, 'developer'), 'utf8'), /## What you may run[^]*- `pnpm test`\n- `pnpm \*`/);
+
+    const none = await core.team.putMember(p.id, 'developer', { ...base, commands: [] });
+    assert.deepEqual(none.commands, []);
+    assert.match(readFileSync(agentFile(p, 'developer'), 'utf8'), /you have no shell/);
+    const free = await core.team.putMember(p.id, 'developer', { ...base, commands: null });
+    assert.equal(free.commands, undefined);
+    assert.doesNotMatch(readFileSync(agentFile(p, 'developer'), 'utf8'), /What you may run/);
+
+    for (const commands of ['pnpm test', ['*'], ['rm -rf (x)'], ['a\nb'], ['npm run a,b'], [1], Array.from({ length: 51 }, (_, i) => `cmd${i}`)]) {
+      await rejects(core.team.putMember(p.id, 'developer', { ...base, commands }), 400, /command/);
+    }
+  });
+});
+
 test('a list field of an agent file reads in every form the CLI takes', () => {
   const file = (fields: string) => `---\nname: qa\n${fields}\n---\nBody\n`;
   assert.deepEqual(readFrontmatterList(file('tools: Read, Grep'), 'tools'), ['Read', 'Grep']);

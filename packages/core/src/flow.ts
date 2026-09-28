@@ -6,6 +6,7 @@ import {
   DEFAULT_FLOW_MAX_PARALLEL,
   DOCUMENT_KINDS,
   FLOW_STAGE_OF_COLUMN,
+  isTeamCommandPattern,
   MAX_FLOW_RESTARTS,
   type AgentryEvent,
   type ChatActivity,
@@ -283,14 +284,20 @@ function editRules(paths: readonly string[]): string[] {
  * - **work** has the shell and the web, and writes the member's `writes` plus the documents folder.
  *   With no `writes`, edits are accepted anywhere in the place it works. With them the session runs
  *   in `dontAsk`, which denies whatever is not allowed outright: the CLI's rules cannot say "every
- *   path but these", so the paths are allowed rather than the rest denied. A shell command can
- *   still write files; `writes` bounds the edit tools, as the member's screen says;
+ *   path but these", so the paths are allowed rather than the rest denied. The shell is `Bash`
+ *   whole unless the member lists `commands`: then only `Bash(<pattern>)` for each, in `dontAsk`
+ *   too, and none at all for an empty list. A shell command can still write files; `writes` bounds
+ *   the edit tools, as the member's screen says, and `commands` is what bounds the shell;
  * - **verify** reads, asks git what changed, runs the test commands the project declares
  *   (`testCommandRules`), and writes only under the documents folder, where its report goes.
  *
  * Refining and verifying run in `dontAsk` whatever `writes` says, and `git push` is denied to all.
  */
-export function stageRules(stage: FlowStage, writes: readonly string[] | undefined, extra: { documentsPath: string; testCommands: readonly string[] }): FlowRules {
+export function stageRules(
+  stage: FlowStage,
+  writes: readonly string[] | undefined,
+  extra: { documentsPath: string; testCommands: readonly string[]; commands?: readonly string[] | undefined },
+): FlowRules {
   const documents = editRules([extra.documentsPath]);
   if (stage === 'refine') return { permissionMode: 'dontAsk', allowedTools: [...READ_TOOLS, ...documents], disallowedTools: [...DENIED_TOOLS] };
   if (stage === 'verify') {
@@ -300,9 +307,20 @@ export function stageRules(stage: FlowStage, writes: readonly string[] | undefin
       disallowedTools: [...DENIED_TOOLS, ...GIT_OUTPUT_DENIED],
     };
   }
-  const tools = [...READ_TOOLS, 'Bash', ...WEB_TOOLS];
-  if (!writes) return { permissionMode: 'acceptEdits', allowedTools: [...tools, ...WRITE_TOOLS], disallowedTools: [...DENIED_TOOLS] };
-  return { permissionMode: 'dontAsk', allowedTools: [...tools, ...editRules([...writes, extra.documentsPath])], disallowedTools: [...DENIED_TOOLS] };
+  const commands = extra.commands;
+  const tools = [...READ_TOOLS, ...(commands ? commandRules(commands) : ['Bash']), ...WEB_TOOLS];
+  if (!writes && !commands) return { permissionMode: 'acceptEdits', allowedTools: [...tools, ...WRITE_TOOLS], disallowedTools: [...DENIED_TOOLS] };
+  const edits = writes ? editRules([...writes, extra.documentsPath]) : WRITE_TOOLS;
+  return { permissionMode: 'dontAsk', allowedTools: [...tools, ...edits], disallowedTools: [...DENIED_TOOLS] };
+}
+
+/**
+ * A member's shell commands as the CLI's rules: `Bash(<pattern>)` each. A pattern the rule could not
+ * carry (a comma splits the flag's list, a parenthesis closes the rule, a newline starts another) is
+ * left out, which allows less, never more.
+ */
+function commandRules(commands: readonly string[]): string[] {
+  return [...new Set(commands.filter((c) => isTeamCommandPattern(c) && !c.includes(',')).map((c) => `Bash(${c})`))];
 }
 
 const SCRIPT_NAME = /^[A-Za-z0-9][\w:.-]{0,63}$/;
@@ -647,7 +665,7 @@ export class FlowService {
     const continuing = row.chat_id !== null;
     const resumeChatId = row.chat_id ?? (stage === 'work' ? this.workChat(item.id) : null);
     const documentsPath = project.settings.documents?.path ?? 'docs';
-    const rules = stageRules(stage, member.writes, { documentsPath, testCommands: stage === 'verify' ? testCommandRules(project.path) : [] });
+    const rules = stageRules(stage, member.writes, { documentsPath, testCommands: stage === 'verify' ? testCommandRules(project.path) : [], commands: member.commands });
     const launch: FlowLaunch = {
       run: this.runOf(row),
       item,

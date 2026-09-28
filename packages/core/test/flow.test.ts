@@ -466,6 +466,40 @@ test('each stage gets only its tools: refining and verifying write only document
   }
 });
 
+test("a member's commands bound the shell of the work stage: only those, none for an empty list, and the other stages keep theirs", () => {
+  const extra = { documentsPath: 'docs', testCommands: ['Bash(pnpm run test)'] };
+  const listed = stageRules('work', undefined, { ...extra, commands: ['pnpm test', 'pnpm *', 'a,b', 'x (y)'] });
+  // Denied rather than asked: whatever is not on the list does not run
+  assert.equal(listed.permissionMode, 'dontAsk');
+  assert.ok(!listed.allowedTools.includes('Bash'));
+  assert.deepEqual(listed.allowedTools.filter((r) => r.startsWith('Bash')), ['Bash(pnpm test)', 'Bash(pnpm *)']);
+  // Edits stay as free as they were without writes, and the web as it was
+  for (const tool of ['Edit', 'Write', 'WebFetch']) assert.ok(listed.allowedTools.includes(tool), tool);
+
+  const none = stageRules('work', ['src/'], { ...extra, commands: [] });
+  assert.equal(none.permissionMode, 'dontAsk');
+  assert.ok(!none.allowedTools.some((r) => r.startsWith('Bash')));
+  assert.ok(none.allowedTools.includes('Edit(src/**)'));
+
+  // No list is the shell whole, as before
+  assert.ok(stageRules('work', undefined, extra).allowedTools.includes('Bash'));
+  // Refining and verifying never take the member's list: their own sets hold
+  assert.ok(!stageRules('refine', undefined, { ...extra, commands: ['rm *'] }).allowedTools.some((r) => r.startsWith('Bash')));
+  assert.ok(!stageRules('verify', undefined, { ...extra, commands: ['rm *'] }).allowedTools.includes('Bash(rm *)'));
+  for (const rules of [listed, none]) assert.ok(rules.disallowedTools.includes('Bash(git push *)'));
+});
+
+test("a member's commands reach the work run it is launched with", async () => {
+  const settings = settingsWith();
+  settings.team = { members: settings.team!.members.map((m) => (m.agent === 'developer' ? { ...m, commands: ['npm test'] } : m)) };
+  const s = setup({ settings });
+  await item(s, 'in_progress');
+  const launch = s.launches.at(-1);
+  assert.equal(launch?.run.stage, 'work');
+  assert.equal(launch?.permissionMode, 'dontAsk');
+  assert.deepEqual(launch?.allowedTools.filter((r) => r.startsWith('Bash')), ['Bash(npm test)']);
+});
+
 test('the test commands a project declares are the only commands verifying may run', () => {
   const dir = mkdtempSync(join(tmpdir(), 'agentry-flow-tests-'));
   writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node --test', 'test:unit': 'x', typecheck: 'tsc', deploy: 'rm -rf /', 'bad name': 'x', build: 'tsc' } }));

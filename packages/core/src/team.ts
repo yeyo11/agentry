@@ -17,7 +17,7 @@ import type {
   TeamMember,
   WorkItemStatus,
 } from '@agentry/shared';
-import { WORK_ITEM_STATUSES } from '@agentry/shared';
+import { isTeamCommandPattern, MAX_TEAM_COMMANDS, WORK_ITEM_STATUSES } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import type { AgentryEventInput } from './events.ts';
 import { projectTemplate } from './project-templates.ts';
@@ -203,6 +203,23 @@ export function agentFileContent(member: ProjectTeamMember): string {
           '',
           'Agentry enforces this on the chats it starts for you; from a terminal, keep to it yourself.',
         ];
+  // Only said when the member has a list: a file written before the list existed reads the same
+  const commands = !member.commands
+    ? []
+    : [
+        '## What you may run',
+        '',
+        ...(member.commands.length
+          ? [
+              'When you work on an item, the shell runs only these commands (`*` stands for any arguments):',
+              '',
+              ...member.commands.map((c) => `- \`${c}\``),
+            ]
+          : ['When you work on an item, you have no shell: read, edit and write files only.']),
+        '',
+        'Agentry enforces this on the chats it starts for you; from a terminal, keep to it yourself.',
+        '',
+      ];
   return [
     '---',
     `name: ${yamlScalar(member.agent)}`,
@@ -219,6 +236,7 @@ export function agentFileContent(member: ProjectTeamMember): string {
     '',
     ...writes,
     '',
+    ...commands,
     '## How a flow run ends',
     '',
     "Agentry's flow starts you on a work item when its card enters a column you answer for. End every such run with the structured result it asks for:",
@@ -259,6 +277,17 @@ export function parseMemberRequest(agent: string, input: unknown): { member: Pro
     if (!Array.isArray(body.writes)) throw new TeamError('writes must be an array of paths', 400);
     if (body.writes.length > MAX_WRITES) throw new TeamError(`writes lists more than ${MAX_WRITES} paths`, 400);
     member.writes = [...new Set(body.writes.map((w) => text(w, 'writes', MAX_TEXT)))];
+  }
+  // null, like leaving it out, is an unrestricted shell; [] is no shell at all
+  if (body.commands !== undefined && body.commands !== null) {
+    if (!Array.isArray(body.commands)) throw new TeamError('commands must be an array of command patterns', 400);
+    if (body.commands.length > MAX_TEAM_COMMANDS) throw new TeamError(`commands lists more than ${MAX_TEAM_COMMANDS} patterns`, 400);
+    for (const command of body.commands as unknown[]) {
+      if (!isTeamCommandPattern(command)) throw new TeamError(`not a command pattern: ${JSON.stringify(command)} (one line, no parentheses, not only a wildcard)`, 400);
+      // The CLI's list of rules is comma separated, so a comma would cut the rule in two
+      if (command.includes(',')) throw new TeamError(`a command pattern cannot contain a comma: ${JSON.stringify(command)}`, 400);
+    }
+    member.commands = [...new Set(body.commands as string[])];
   }
   if (body.createFile !== undefined && typeof body.createFile !== 'boolean') throw new TeamError('createFile must be a boolean', 400);
   return { member, createFile: body.createFile === true };
