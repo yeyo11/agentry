@@ -47,8 +47,7 @@
   "failed": {
     "title": "No ha podido terminar",
     "stopped": "Detenido",
-    "stoppedBody": "Lo has detenido antes de que respondiera: no ha propuesto nada.",
-    "retry": "Volver a sugerir"
+    "stoppedBody": "Lo has detenido antes de que respondiera: no ha propuesto nada."
   },
   "empty": {
     "region": "Nada que leer",

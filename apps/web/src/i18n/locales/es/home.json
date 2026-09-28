@@ -88,7 +88,6 @@
     "label": "Panel de {{name}}",
     "labelAll": "Panel de todos los proyectos",
     "back": "Panel",
-    "projectSettings": "Ajustes de {{name}}",
     "widgetFailed": "No se ha podido mostrar el widget {{title}}"
   },
   "widgets": {

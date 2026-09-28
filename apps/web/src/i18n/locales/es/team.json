@@ -144,7 +144,6 @@
     "useTemplate": "Usar el de la plantilla",
     "templateBrings": "La plantilla {{name}} trae",
     "templateBringsShort": "La plantilla trae",
-    "foot": "Un archivo de agente que ya existe se queda como está",
     "applied_one": "{{count}} miembro se ha unido al equipo",
     "applied_other": "{{count}} miembros se han unido al equipo",
     "failed": "No se ha podido añadir el equipo de la plantilla"

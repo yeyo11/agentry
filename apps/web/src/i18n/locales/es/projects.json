@@ -14,24 +14,14 @@
   "page": {
     "subtitle_one": "{{n}} directorio importado. Sus worktrees le pertenecen.",
     "subtitle_other": "{{n}} directorios importados. Sus worktrees les pertenecen.",
-    "importDirectory": "Importar directorio",
     "emptyHint": "Importa un directorio para convertirlo en proyecto, o crea uno en el espacio de trabajo."
   },
   "importForm": {
-    "directory": "Directorio",
-    "directoryHint": "Una ruta absoluta. Todos los chats que se ejecutaron en ella pasan a formar parte del proyecto. Un worktree de git se rechaza: importa su repositorio.",
     "candidateHint_one": "{{n}} chat · {{path}}",
     "candidateHint_other": "{{n}} chats · {{path}}",
-    "nameOptional": "Nombre (opcional)",
-    "nameOptionalHint": "Si lo dejas vacío, se usa el nombre del directorio.",
-    "failed": "No se ha podido importar el directorio",
-    "importing": "Importando…",
     "import": "Importar"
   },
   "candidates": {
-    "imported": "{{name}} importado",
-    "adopted_one": "{{n}} chat adoptado",
-    "adopted_other": "{{n}} chats adoptados",
     "chats_one": "{{n}} chat",
     "chats_other": "{{n}} chats",
     "last": " · última vez {{ago}}",

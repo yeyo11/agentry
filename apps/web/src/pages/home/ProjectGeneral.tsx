@@ -179,7 +179,7 @@ export function ProjectGeneral({ project }: { project: Project }) {
       if (!on) return <HiddenNote empty={total === 0} />;
       return t('general.boardNote', { open: formatNumber(openCount(board) ?? 0), total: formatNumber(total) });
     }
-    // Team, Documents and the journal hold nothing Agentry can count until orchestration 3
+    // Only the board has a count worth a note; the other modules just say, when off, that they are hidden and kept
     return on ? undefined : <HiddenNote empty={!saved.modules.includes(module)} />;
   };
   const onCount = modules.length;

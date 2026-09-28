@@ -88,7 +88,6 @@
     "label": "Dashboard of {{name}}",
     "labelAll": "Dashboard of every project",
     "back": "Dashboard",
-    "projectSettings": "Settings of {{name}}",
     "widgetFailed": "The {{title}} widget could not be shown"
   },
   "widgets": {

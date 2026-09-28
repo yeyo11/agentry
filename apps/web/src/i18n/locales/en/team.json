@@ -144,7 +144,6 @@
     "useTemplate": "Use the template's",
     "templateBrings": "The {{name}} template brings",
     "templateBringsShort": "The template brings",
-    "foot": "An agent file that already exists is kept as it is",
     "applied_one": "{{count}} member joined the team",
     "applied_other": "{{count}} members joined the team",
     "failed": "Could not add the template's team"
