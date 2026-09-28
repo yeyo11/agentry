@@ -104,6 +104,12 @@ export const FLOW_VERDICTS = valuesOf<FlowVerdict>()(['pass', 'fail']);
 /** Flow runs of a project at once when its settings leave `flow.maxParallel` out */
 export const DEFAULT_FLOW_MAX_PARALLEL = 2;
 
+/** The highest `flow.maxCostUsd` a project may set */
+export const MAX_FLOW_COST_USD = 100;
+
+/** Times a flow run cut off by a restart is continued in its chat before it fails */
+export const MAX_FLOW_RESTARTS = 2;
+
 export const JOURNAL_ENTRY_KINDS = valuesOf<JournalEntryKind>()(['closed', 'decision', 'memory', 'note']);
 
 export const JOURNAL_CHANGE_ACTIONS = valuesOf<JournalChangeAction>()(['added', 'removed']);

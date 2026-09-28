@@ -107,6 +107,17 @@ test('the flow is read with the flow off, and its cap comes from the settings', 
   assert.deepEqual([on.enabled, on.maxParallel], [true, 1]);
   const bad = await app.inject({ method: 'PUT', url: `/api/projects/${project.id}/settings`, ...json({ ...(await app.inject(`/api/projects/${project.id}/settings`)).json<ProjectSettings>(), flow: { enabled: true, columns: {}, maxBounces: 1, maxParallel: 0 } }) });
   assert.equal(bad.statusCode, 400);
+  // A run has no budget unless the person sets one, and one that is set must be a real amount
+  const current = (await app.inject(`/api/projects/${project.id}/settings`)).json<ProjectSettings>();
+  assert.equal(current.flow?.maxCostUsd, undefined);
+  for (const maxCostUsd of [0, -1, 'two', 1000]) {
+    const refused = await app.inject({ method: 'PUT', url: `/api/projects/${project.id}/settings`, ...json({ ...current, flow: { ...current.flow!, maxCostUsd } }) });
+    assert.equal(refused.statusCode, 400, `${String(maxCostUsd)}: ${refused.body}`);
+  }
+  await settings((s) => ({ ...s, flow: { ...s.flow!, maxCostUsd: 1.5 } }));
+  assert.equal((await app.inject(`/api/projects/${project.id}/settings`)).json<ProjectSettings>().flow?.maxCostUsd, 1.5);
+  await settings((s) => ({ ...s, flow: { ...s.flow!, maxCostUsd: null as unknown as number } }));
+  assert.equal((await app.inject(`/api/projects/${project.id}/settings`)).json<ProjectSettings>().flow?.maxCostUsd, undefined);
 });
 
 test('a card entering in_progress is implemented by the developer, verified by QA, and waits for the person', async () => {
@@ -161,7 +172,10 @@ test('a card entering in_progress is implemented by the developer, verified by Q
   }
   assert.match(dev, /--permission-mode acceptEdits/);
   assert.match(qa, /--permission-mode dontAsk/);
-  assert.match(qa, /Edit\(docs\/reports\/\*\*\)/);
+  // QA writes only in the documents folder and pushes nothing; with no budget set, none is passed
+  assert.match(qa, /Edit\(docs\/\*\*\)/);
+  assert.match(qa, /--disallowedTools=Bash\(git push\)/);
+  assert.doesNotMatch(qa, /--max-budget-usd/);
   assert.doesNotMatch(qa, /--allowedTools=[^ ]*(^|,)Edit(,|$| )/);
 
   const proposals = (await app.inject(`/api/projects/${project.id}/memory/proposals?status=pending`)).json<MemoryProposal[]>();

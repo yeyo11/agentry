@@ -11048,6 +11048,10 @@
       "maxParallel": {
         "type": "number",
         "description": "Flow runs of the project at once; the rest wait in order, so the flow cannot drain the accounts' quota on its own. Absent reads as 2 (`DEFAULT_FLOW_MAX_PARALLEL`)."
+      },
+      "maxCostUsd": {
+        "type": "number",
+        "description": "What one run may spend, in USD, passed to the CLI as `--max-budget-usd`: the CLI stops the run once it is reached. Absent (the default) means no limit of Agentry's own."
       }
     },
     "required": [
@@ -12889,6 +12893,17 @@
         ],
         "description": "The result's summary, once it ended with one"
       },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Why it failed or was cancelled, in English; null otherwise"
+      },
+      "restarts": {
+        "type": "number",
+        "description": "Times a restart cut it off and it went on in its chat; past `MAX_FLOW_RESTARTS` it fails"
+      },
       "queuedAt": {
         "type": "string"
       },
@@ -12919,6 +12934,8 @@
       "chatId",
       "outcome",
       "summary",
+      "error",
+      "restarts",
       "queuedAt",
       "startedAt",
       "endedAt"
@@ -13024,6 +13041,13 @@
       "verdict": {
         "$ref": "#/components/schemas/FlowVerdict"
       },
+      "criteria": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FlowCriterionResult"
+        },
+        "description": "Verification only: every acceptance criterion of the item, each judged on its own"
+      },
       "memoryProposals": {
         "type": "array",
         "items": {
@@ -13051,6 +13075,28 @@
       "fail"
     ],
     "description": "QA's verdict: `pass` leaves the item waiting for the person's approval, `fail` sends it back to `in_progress`."
+  },
+  "FlowCriterionResult": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The criterion's id, as the run's prompt lists it"
+      },
+      "met": {
+        "type": "boolean"
+      },
+      "note": {
+        "type": "string",
+        "description": "What was checked, or what is missing"
+      }
+    },
+    "required": [
+      "id",
+      "met",
+      "note"
+    ],
+    "description": "QA's judgement of one acceptance criterion. A met criterion is checked on the item as the agent; the run passes only when every criterion of the item is met."
   },
   "FlowMemoryProposal": {
     "type": "object",
