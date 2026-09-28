@@ -861,3 +861,18 @@ test('a run keeps its language, so one started again after a restart is titled a
   db.connection.prepare('UPDATE assistant_runs SET language = NULL WHERE id = ?').run(run.id);
   assert.equal('language' in second.assistant.run(run.id), false);
 });
+
+test('CLAUDE.md shows once in what a run read, whether the chat opens it or not', async () => {
+  const dir = repo();
+  writeFileSync(join(dir, 'CLAUDE.md'), '# Pagos\n\nNever log a card.\n');
+  const s = setup({ dir });
+  const run = await projectRun(s);
+  const claudeMd = (r: AssistantRunDetail) => r.sources.filter((x) => x.path === 'CLAUDE.md');
+  assert.deepEqual(claudeMd(run).map((x) => [x.kind, x.state, x.count]), [['instructions', 'read', 3]]);
+  // The chat opens it too, by an absolute path, and says so in its answer
+  s.bus.emit({ type: 'chat.activity', title: '', runId: 'chat-1', runName: 'x', sessionId: 'chat-1', orchestrationId: null, internal: false, taskId: null, activity: { kind: 'tool', tool: 'Read', target: join(dir, 'CLAUDE.md'), since: new Date().toISOString() } });
+  assert.deepEqual(claudeMd(s.assistant.run(run.id)).map((x) => x.kind), ['instructions']);
+  const done = s.answer(s.assistant.run(run.id), { ...RESULT, read: [{ kind: 'file', path: './CLAUDE.md' }, { kind: 'file', path: 'README.md' }] });
+  assert.deepEqual(claudeMd(done).map((x) => [x.kind, x.state]), [['instructions', 'read']]);
+  assert.equal(done.sources.filter((x) => x.path === 'README.md').length, 1);
+});
