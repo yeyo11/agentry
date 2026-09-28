@@ -38,9 +38,9 @@ import { projectTemplate } from './project-templates.ts';
 
 /** The agent file names the CLI and the settings accept. */
 const AGENT_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
-const MAX_SHORT = 100;
-const MAX_TEXT = 500;
-const MAX_WRITES = 50;
+export const MAX_SHORT = 100;
+export const MAX_TEXT = 500;
+export const MAX_WRITES = 50;
 /** What a flow the template creates starts with; the person changes it on the Flow screen. */
 const DEFAULT_MAX_BOUNCES = 3;
 const ID = /^[A-Za-z0-9-]+$/;

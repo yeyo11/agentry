@@ -450,12 +450,14 @@ export class ChatService {
    * Starts a new chat. `onStart` hears of it in the same tick the process is spawned, before any of
    * its output can arrive: for a caller that has to tie the chat to something before it answers.
    */
-  async create(request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive'>, onStart?: (chat: ChatRuntime) => void): Promise<ChatSummary> {
+  async create(request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine'>, onStart?: (chat: ChatRuntime) => void): Promise<ChatSummary> {
     // `--agents` reads the file it is given: only the definitions the flow writes, never a path a
     // request body names, since the API hands its body here as it came
     if (request.agentsFile !== undefined && dirname(resolve(request.agentsFile)) !== resolve(this.deps.config.dataDir, 'flow-agents')) {
       throw new Error('agentsFile is not a file Agentry wrote');
     }
+    // For the same reason, each value of a confinement becomes a flag's argument only in its known shape
+    if (request.confine !== undefined && !confinementShape(request.confine)) throw new Error('confine is not a set of tool names and setting sources');
     // `toolPreset: null` is how a request says it wants no preset, the default included
     const fallback = request.toolPreset === undefined && request.allowedTools === undefined ? this.deps.tools.presets.defaultPreset() : null;
     const picked = fallback ? { ...request, toolPreset: fallback.id } : request;
@@ -535,6 +537,7 @@ export class ChatService {
         jsonSchema: extras.jsonSchema ?? null,
         systemPromptSnapshot: extras.systemPromptSnapshot ?? null,
         uploads: extras.uploads ?? null,
+        confine: extras.confine ?? null,
         ...(extras.keepAlive !== undefined ? { keepAlive: extras.keepAlive } : {}),
         ...(handBack ? { handBack } : {}),
       },
@@ -777,4 +780,15 @@ export class ChatService {
       live: await this.liveIn(id),
     });
   }
+}
+
+function confinementShape(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const { tools, settingSources } = value as Record<string, unknown>;
+  return (
+    Array.isArray(tools) &&
+    tools.every((t) => typeof t === 'string' && /^[A-Za-z]+$/.test(t)) &&
+    Array.isArray(settingSources) &&
+    settingSources.every((x) => x === 'user' || x === 'project' || x === 'local')
+  );
 }

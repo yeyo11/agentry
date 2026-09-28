@@ -6,7 +6,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { AgentryEvent, AssistantRunDetail } from '@agentry/shared';
+import { ChatManager } from '../src/chats.ts';
+import { Db } from '../src/db.ts';
+import { DENIED_TOOLS } from '../src/assistant.ts';
 import { Core } from '../src/index.ts';
+import { UploadStore } from '../src/uploads.ts';
 import { tempConfig } from './helpers.ts';
 
 // The assistant through the real core and the fake CLI (test/fixtures/fake-claude.mjs): the chat is
@@ -50,6 +54,24 @@ async function until(core: Core, runId: string): Promise<AssistantRunDetail> {
   throw new Error('the run did not end');
 }
 
+/** What makes an assistant chat read-only, as its spawned command line carries it. */
+function assertConfined(argv: string): void {
+  const args = argv.split(' ');
+  assert.ok(args.includes('--restricted'), 'the file tools are kept to the working directory');
+  assert.ok(args.includes('--tools=Read,Grep,Glob'), 'the only tools it has');
+  assert.ok(args.includes('--setting-sources='), 'no user, project or local settings file');
+  assert.ok(args.includes('--allowedTools=Read,Grep,Glob'), 'no Bash rule: git log --output writes a file');
+  assert.ok(!args.includes('--add-dir'), 'no uploads directory');
+  assert.ok(!args.includes('--allow-dangerously-skip-permissions'), 'never to be switched to bypass');
+  const denied = args.find((a) => a.startsWith('--disallowedTools='))?.split('=')[1]?.split(',') ?? [];
+  for (const rule of ['Bash', 'Edit', 'Write', 'WebFetch', 'Read(./**/.env)', 'Read(./**/.env.*)', 'Read(./**/*.pem)', 'Read(./**/credentials*)', 'Read(./.git/**)']) {
+    assert.ok(denied.includes(rule), `${rule} is denied`);
+  }
+  assert.match(argv, /--permission-mode dontAsk/);
+  assert.match(argv, /--permission-prompts none/);
+  assert.match(argv, /--strict-mcp-config/);
+}
+
 const ANSWER = {
   summary: 'A payments API.',
   findings: [{ kind: 'stack', label: 'TypeScript' }],
@@ -88,13 +110,11 @@ test('a run through the CLI reads only, answers with proposals, and each accept 
     assert.equal(byPath.get('src/'), 'read');
     assert.equal(byPath.get('git'), 'read');
 
-    // The flags the CLI was given: read tools only, in dontAsk, no MCP server, one structured answer
+    // The flags the CLI was given: three read tools and nothing else, kept to the directory, no
+    // settings file of the person's (their allow rules would add to these), no shell, no uploads
+    // directory, secrets denied, in dontAsk, no MCP server, one structured answer
     const argv = readFileSync(spawns, 'utf8').split('\n').find((l) => l.includes('--json-schema')) ?? '';
-    assert.match(argv, /--permission-mode dontAsk/);
-    assert.match(argv, /--allowedTools=Read,Grep,Glob,LS,Bash\(git log \*\),Bash\(git status \*\),Bash\(ls \*\)/);
-    assert.match(argv, /--disallowedTools=Edit,Write,MultiEdit,NotebookEdit,Task,Agent,WebFetch,WebSearch/);
-    assert.match(argv, /--permission-prompts none/);
-    assert.match(argv, /--strict-mcp-config/);
+    assertConfined(argv);
     assert.match(argv, /--model sonnet/);
 
     // Nothing was written by the run
@@ -147,6 +167,74 @@ test('through the CLI, a run that fails ends failed and a stopped one stops its 
     assert.equal(core.runtime.get(hanging.chatId ?? '')?.pid ?? null, null, 'its process is gone');
     assert.equal(core.assistant.run(hanging.id).status, 'stopped');
     assert.equal(existsSync(join(dir, '.claude')), false, 'nothing was written');
+  } finally {
+    core.shutdown();
+  }
+});
+
+test('a confined chat is confined again when it is continued, and a continuation without it is a chat as any other', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  mkdirSync(config.dataDir, { recursive: true });
+  const spawns = join(config.dataDir, 'spawns.log');
+  process.env.FAKE_CLAUDE_SPAWNS = spawns;
+  const db = new Db(config);
+  const runs = new ChatManager(config, db);
+  runs.uploads = new UploadStore(config.dataDir);
+  const confine = { tools: ['Read', 'Grep', 'Glob'], settingSources: [] };
+  const rules = { permissionMode: 'dontAsk' as const, allowedTools: ['Read', 'Grep', 'Glob'], disallowedTools: DENIED_TOOLS, permissionPrompts: 'none' as const };
+  const mcp = { servers: [], config: join(config.dataDir, 'no-servers.json') };
+  try {
+    const dir = repo();
+    const chat = runs.start({ prompt: 'look', cwd: dir, keepAlive: false, confine, mcp, ...rules });
+    const ended = async () => {
+      await runs.waitForResult(chat.id);
+      for (let i = 0; i < 200 && runs.get(chat.id)?.pid; i++) await new Promise((r) => setTimeout(r, 25));
+    };
+    await ended();
+    runs.resume(chat.id, { prompt: 'go on', keepAlive: false, confine, ...rules });
+    await ended();
+    runs.resume(chat.id, { prompt: 'a person goes on', keepAlive: false, confine: null });
+    await ended();
+    const [first, resumed, person] = readFileSync(spawns, 'utf8').split('\n').filter(Boolean);
+    assertConfined(first ?? '');
+    assertConfined(resumed ?? '');
+    assert.match(resumed ?? '', /--resume /);
+    const theirs = (person ?? '').split(' ');
+    assert.ok(theirs.includes('--add-dir'), 'a person continuing it has their uploads again');
+    assert.ok(!theirs.includes('--restricted') && !theirs.some((a) => a.startsWith('--tools')));
+  } finally {
+    delete process.env.FAKE_CLAUDE_SPAWNS;
+    db.close();
+  }
+});
+
+test('a member proposed past the team limits is held to them, so accepting it as proposed goes through the real team', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const core = new Core(config);
+  try {
+    const dir = repo();
+    const project = await core.importProject({ path: dir, name: 'pagos-api', template: 'software', modules: ['team'] });
+    const long = {
+      ...ANSWER,
+      teamMembers: [{ ...ANSWER.teamMembers[0], role: `payments ${'x'.repeat(150)}`, agent: 'payments', responsibility: 'Owns payments. '.repeat(60) }],
+      resources: [],
+      workItems: [],
+    };
+    const started = await core.assistant.start(project.id, { kind: 'project', description: `FAKE-RESULT-ASSISTANT ${JSON.stringify(long)}` });
+    const run = await until(core, started.id);
+    const [member] = run.proposals;
+    assert.ok(member?.kind === 'team-member');
+    assert.ok(member.member.role.length <= 100 && member.member.responsibility.length <= 500);
+    await core.assistant.accept(member.id);
+    assert.deepEqual((await core.team.team(project.id)).members.map((m) => m.agent), ['payments']);
+
+    // An edit past them is refused before anything is written, with the field it is about
+    const again = await core.assistant.start(project.id, { kind: 'project', description: `FAKE-RESULT-ASSISTANT ${JSON.stringify({ ...long, teamMembers: [{ ...long.teamMembers[0], role: 'qa', agent: 'qa' }] })}` });
+    const [qa] = (await until(core, again.id)).proposals;
+    assert.ok(qa);
+    await assert.rejects(core.assistant.accept(qa.id, { member: { responsibility: 'y'.repeat(501) } }), /member\.responsibility is longer than 500/);
+    assert.equal(existsSync(join(dir, '.claude', 'agents', 'qa.md')), false);
+    assert.equal(core.assistant.proposal(qa.id).status, 'pending');
   } finally {
     core.shutdown();
   }
