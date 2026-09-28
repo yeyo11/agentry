@@ -7,7 +7,7 @@ import test from 'node:test';
 import type { DocumentNode, WorkItemLink } from '@agentry/shared';
 import { DOCUMENT_LINKS_SCHEMA_VERSION, Db, migrate } from '../src/db.ts';
 import { documentPath, DocumentPathError } from '../src/document-paths.ts';
-import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, titleOf } from '../src/documents.ts';
+import { DEFAULT_DOCUMENTS_PATH, DOCUMENT_CONTENT_MAX, DocumentError, DocumentService, titleOf } from '../src/documents.ts';
 import type { AgentryEventInput } from '../src/events.ts';
 import { isLive, linkOf } from '../src/work-item-rows.ts';
 import { WorkItemError, WorkItemService } from '../src/work-items.ts';
@@ -146,6 +146,29 @@ test('a documents folder that is itself missing is created inside the project, n
   assert.equal(readFileSync(join(s.project, 'wiki', 'deep', 'er', 'a.md'), 'utf8'), '# A');
 });
 
+test('a documents folder that is a link out of the project is refused for every read and write', async () => {
+  const s = setup();
+  // The folder itself, and a folder on the way to it, each a link that leads out of the project
+  for (const [root, link] of [['linked', 'linked'], ['via/pages', 'via']] as const) {
+    s.root.path = root;
+    symlinkSync(s.outside, join(s.project, link));
+    const inFolder = `${root}/secret.md`;
+    if (root === 'via/pages') {
+      mkdirSync(join(s.outside, 'pages'));
+      writeFileSync(join(s.outside, 'pages', 'secret.md'), '# Secret\n');
+    }
+    await assert.rejects(s.docs.read('p1', inFolder), refused(400, /outside the project/), root);
+    await assert.rejects(s.docs.write('p1', `${root}/new.md`, { content: 'x' }), refused(400, /outside/), root);
+    await assert.rejects(s.docs.remove('p1', inFolder), refused(400, /outside the project/), root);
+    await assert.rejects(s.docs.tree('p1'), refused(400, /outside the project/), root);
+    const item = s.items.create('p1', { title: 'Tie' });
+    await assert.rejects(s.docs.tie(item.id, { path: inFolder }), refused(400, /outside the project/), root);
+  }
+  assert.equal(existsSync(join(s.outside, 'new.md')), false);
+  assert.equal(existsSync(join(s.outside, 'pages', 'new.md')), false);
+  assert.ok(existsSync(join(s.outside, 'secret.md')));
+});
+
 // ---------- the tree ----------
 
 test('the tree lists Markdown files only, directories first, with titles, counts and ties', async () => {
@@ -226,7 +249,9 @@ test('writing creates the file and its folders, and a stale base is refused inst
 test('what a write is given is checked', async () => {
   const s = setup();
   await assert.rejects(s.docs.write('p1', 'docs/a.md', { content: 42 as unknown as string }), refused(400, /content/));
-  await assert.rejects(s.docs.write('p1', 'docs/a.md', { content: 'x'.repeat(2 * 1024 * 1024 + 1) }), refused(400, /larger/));
+  // The API's body limit: a larger document would open in the editor and never save
+  await assert.rejects(s.docs.write('p1', 'docs/a.md', { content: 'x'.repeat(1024 * 1024 + 1) }), refused(400, /larger/));
+  assert.equal(DOCUMENT_CONTENT_MAX, 1024 * 1024);
   await assert.rejects(s.docs.write('p1', 'docs/a.md', { content: 'x', baseUpdatedAt: 5 as unknown as string }), refused(400));
   mkdirSync(join(s.project, 'docs', 'dir.md'));
   await assert.rejects(s.docs.write('p1', 'docs/dir.md', { content: 'x' }), refused(409, /not a file/));
