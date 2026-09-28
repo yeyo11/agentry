@@ -1,12 +1,12 @@
 import type { BoardColumn, WorkItem, WorkItemStatus } from '@agentry/shared';
 import { WORK_ITEM_STATUSES } from '@agentry/shared';
 import { ArrowDown, ArrowUp, Check, CornerDownRight, TriangleAlert } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { MoreActions } from '../../../components/controls/MoreActions';
 import type { MenuEntry } from '../../../components/controls/Menu';
-import { EpicLabel, PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIcon } from '../../../components/icons';
+import { nameHue, PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIcon } from '../../../components/icons';
 import { Segmented } from '../../../components/ui';
 import { columnMeta, stripNamesAssignee, taskPath, workItemLiveState, workItemStrip } from '../../../lib/work-items';
 import { DonePageSkeleton, MoreButton, type BoardSelection } from './BoardColumns';
@@ -266,9 +266,13 @@ function SelectRow({ item, selection, project }: { item: WorkItem; selection: Bo
       </span>
       <span className="workitem-mrow-title">{item.title}</span>
       {(project || item.epic) && (
-        <span className="workitem-mrow-meta">
+        <span className="workitem-context">
           {project && <span className="workitem-project">{project}</span>}
-          {item.epic && <EpicLabel epic={item.epic} />}
+          {item.epic && (
+            <span className="workitem-epic is-bare" style={{ '--hue': nameHue(item.epic.id) } as CSSProperties}>
+              {item.epic.title}
+            </span>
+          )}
         </span>
       )}
       {item.relations.some((r) => r.type === 'blocked_by' && r.item.status !== 'done') && (

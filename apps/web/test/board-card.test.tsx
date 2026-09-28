@@ -14,6 +14,7 @@ import { Illustration } from '../src/components/illustrations/Illustration';
 import { lastEndedRuns, stripActor, stripInList, stripNamesAssignee, stripTone, workItemStrip, type StripRuns } from '../src/lib/work-items';
 import { EmptyBoard } from '../src/pages/tasks/board/EmptyBoards';
 import { BoardColumns } from '../src/pages/tasks/board/BoardColumns';
+import { PhoneBoard } from '../src/pages/tasks/board/PhoneBoard';
 import { BoardTeamProvider, PhoneFlowRow, type BoardTeam } from '../src/pages/tasks/board/team';
 import { WorkItemCard } from '../src/pages/tasks/board/WorkItemCard';
 
@@ -336,4 +337,18 @@ test("a phone board worked by a team says the flow's state in one row", async ()
   assert.match(text(html), /Flujo automático · 2 a la vez, 1 en cola Activado/i);
   assert.match(html, /href="\/\?project=p&amp;view=team&amp;section=flow"/);
   await i18n.changeLanguage('en');
+});
+
+test('a phone row reads as the card does, and while choosing its epic stays bare', () => {
+  const epic = { id: 'e1', key: 'AGN-12', title: 'Ecosistema de proyectos', type: 'epic' as const, status: 'in_progress' as const };
+  const it = item('36', 'todo', { epic, labels: ['core'], acceptanceCriteria: criteria(0, 4) });
+  const failed = run('36', { state: 'ended', outcome: 'failed', role: 'product-owner', stage: 'refine', step: 'check', column: 'todo', cause: 'no-account' });
+  const cols = [column('backlog', []), column('todo', [it]), column('in_progress', []), column('in_review', []), column('done', [])];
+  const html = wrap(<PhoneBoard columns={cols} epics={new Map()} live={sources} selection={null} doneShown={3} onMoreDone={() => {}} />, team({ ended: new Map([['36', failed]]) }));
+  const order = ['workitem-mrow-top', 'workitem-mrow-title', 'workitem-context', 'workitem-card-foot', 'workitem-strip is-fail'].map((name) => html.indexOf(`class="${name}`));
+  assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > (order[i - 1] ?? 0))), `rows in order (${order})`);
+  const choosing = wrap(
+    <PhoneBoard columns={cols} epics={new Map()} live={sources} selection={{ selected: new Set(['36']), blockedReason: () => null, toggle: () => {} }} doneShown={3} onMoreDone={() => {}} />,
+  );
+  assert.match(choosing, /class="workitem-epic is-bare"/);
 });
