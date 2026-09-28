@@ -232,8 +232,15 @@ export function sameList(a: readonly string[] | undefined, b: readonly string[] 
   return x.length === y.length && x.every((value, i) => value === y[i]);
 }
 
-/** The Team tab's own address: `?view=team&section=flow`, `&member=<agent>` for one member. */
-export type TeamSection = 'members' | 'flow';
+/**
+ * The Team tab's own address: `?view=team&section=flow`, `&section=activity` for the team's whole
+ * activity, `&member=<agent>` for one member.
+ */
+export type TeamSection = 'members' | 'flow' | 'activity';
+
+export function teamSection(value: string | null): TeamSection {
+  return value === 'flow' || value === 'activity' ? value : 'members';
+}
 
 export function teamSearch(params: URLSearchParams, next: { section?: TeamSection; member?: string | null }): string {
   const query = new URLSearchParams(params);

@@ -500,6 +500,87 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- The team's activity, whole ("See all") ---------- */
+.team-log-heading {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.team-log-card {
+  gap: 14px;
+}
+
+.team-log-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.team-log-filter {
+  min-width: 190px;
+}
+
+.team-log-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.team-log {
+  gap: 0;
+}
+
+.team-log-row {
+  position: relative;
+  align-items: center;
+  min-height: 52px;
+  padding: 8px 0 8px 10px;
+  border-top: 1px solid var(--line);
+}
+
+.team-log-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.team-log-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--fg-2);
+}
+
+.team-run-status {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.team-run-status.is-live {
+  color: var(--live);
+}
+
+.team-log-chat {
+  flex-shrink: 0;
+}
+
+.team-log-more {
+  align-self: center;
+}
+
+.team-log-page.is-phone .team-log-filter {
+  flex: 1 1 100%;
+  min-height: 44px;
+}
+
+.team-log-page.is-phone .team-log-title {
+  display: none;
+}
+
 /* ---------- Empty team ---------- */
 .team-empty {
   align-items: center;

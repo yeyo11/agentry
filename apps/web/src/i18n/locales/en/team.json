@@ -245,7 +245,33 @@
   },
   "activity": {
     "title": "Team activity",
-    "none": "Nobody on the team has worked on a task yet."
+    "none": "Nobody on the team has worked on a task yet.",
+    "seeAll": "See all",
+    "back": "Back to the team",
+    "member": "Member",
+    "state": "State",
+    "allMembers": "Every member",
+    "allStates": "Every state",
+    "filter": {
+      "queued": "Queued",
+      "running": "Running",
+      "passed": "Done well",
+      "rejected": "Sent back",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "status": {
+      "queued": "queued",
+      "running": "running",
+      "rejected": "sent back",
+      "failed": "failed",
+      "cancelled": "cancelled"
+    },
+    "count_one": "{{n}} run",
+    "count_other": "{{n}} runs",
+    "noMatch": "No run of the team matches these filters.",
+    "more": "Load more · {{n}} left",
+    "openChat": "Open the chat of {{key}}"
   },
   "board": {
     "columnRole": "{{role}} answers for this column"

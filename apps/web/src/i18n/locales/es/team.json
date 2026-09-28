@@ -245,7 +245,33 @@
   },
   "activity": {
     "title": "Actividad del equipo",
-    "none": "Nadie del equipo ha trabajado aún en una tarea."
+    "none": "Nadie del equipo ha trabajado aún en una tarea.",
+    "seeAll": "Ver todo",
+    "back": "Volver al equipo",
+    "member": "Miembro",
+    "state": "Estado",
+    "allMembers": "Todos los miembros",
+    "allStates": "Todos los estados",
+    "filter": {
+      "queued": "En cola",
+      "running": "En marcha",
+      "passed": "Terminadas bien",
+      "rejected": "Devueltas",
+      "failed": "Fallidas",
+      "cancelled": "Canceladas"
+    },
+    "status": {
+      "queued": "en cola",
+      "running": "en marcha",
+      "rejected": "devuelta",
+      "failed": "fallida",
+      "cancelled": "cancelada"
+    },
+    "count_one": "{{n}} ejecución",
+    "count_other": "{{n}} ejecuciones",
+    "noMatch": "Ninguna ejecución del equipo coincide con estos filtros.",
+    "more": "Cargar más · quedan {{n}}",
+    "openChat": "Abrir el chat de {{key}}"
   },
   "board": {
     "columnRole": "{{role}} responde de esta columna"

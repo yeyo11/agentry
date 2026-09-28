@@ -151,14 +151,19 @@ export function FlowSummary({
   );
 }
 
-/** The team's latest work: each member's run going now, or its last. Rows lead to the item. */
-export function TeamActivity({ runs }: { runs: FlowRun[] }) {
+/** The team's latest work: each member's run going now, or its last. Rows lead to the item; "See all" to every run. */
+export function TeamActivity({ runs, allHref }: { runs: FlowRun[]; allHref: string }) {
   const { t } = useTranslation('team');
   const roleName = useRoleName();
   return (
     <section className="card team-side-card" aria-labelledby="team-activity">
       <div className="card-head">
         <h2 id="team-activity">{t('activity.title')}</h2>
+        {runs.length > 0 && (
+          <Link to={allHref} className="team-link">
+            {t('activity.seeAll')}
+          </Link>
+        )}
       </div>
       {runs.length === 0 ? (
         <p className="team-muted">{t('activity.none')}</p>

@@ -8,11 +8,12 @@ import { ICON, ICON_SM } from '../../components/icons';
 import { ErrorBox, Segmented, Skeleton } from '../../components/ui';
 import { useLeaveGuard } from '../../lib/dirty';
 import { NARROW, useMediaQuery } from '../../lib/media';
+import { TeamActivityView } from './Activity';
 import { AddMemberDialog } from './AddMember';
 import { FlowEditor } from './Flow';
 import { MemberPage } from './Member';
 import { MemberCells, MemberGrid, TeamEmpty } from './Members';
-import { proposedFlow, savedFlow, teamActivity, teamSearch, workingCount, type TeamSection } from './model';
+import { proposedFlow, savedFlow, teamActivity, teamSearch, teamSection, workingCount, type TeamSection } from './model';
 import { FlowSummary, TeamActivity } from './parts';
 
 /** Back from the Team tab on a phone: the project's page, with its selection kept. */
@@ -57,7 +58,7 @@ export function ProjectTeam({ project }: { project: Project }) {
   const [adding, setAdding] = useState<{ agent?: string } | null>(null);
   const [flowChanges, setFlowChanges] = useState(0);
 
-  const section: TeamSection = params.get('section') === 'flow' ? 'flow' : 'members';
+  const section: TeamSection = teamSection(params.get('section'));
   const memberId = params.get('member');
   const go = (next: { section?: TeamSection; member?: string | null }) => void guard().then((ok) => ok && navigate({ search: teamSearch(params, next) }));
   const memberHref = (agent: string) => teamSearch(params, { member: agent });
@@ -77,6 +78,15 @@ export function ProjectTeam({ project }: { project: Project }) {
   if (member) return <MemberPage key={member.agent} project={project} member={member} backHref={teamSearch(params, { member: null })} />;
 
   const count = members.length;
+  if (section === 'activity' && count > 0) {
+    const membersHref = teamSearch(params, { section: 'members' });
+    return (
+      <>
+        {phone && <PhoneHead title={t('activity.title')} detail={project.name} backHref={membersHref} />}
+        <TeamActivityView projectId={project.id} team={data} backHref={membersHref} phone={phone} />
+      </>
+    );
+  }
   const phoneDetail =
     section === 'members' && count > 0
       ? `${project.name} · ${t('members.count', { count })}`
@@ -177,7 +187,7 @@ export function ProjectTeam({ project }: { project: Project }) {
         </div>
         <div className="team-side">
           <FlowSummary columns={flow.columns} enabled={flow.enabled} saved={proposal === null} maxBounces={flow.maxBounces} editHref={teamSearch(params, { section: 'flow' })} />
-          <TeamActivity runs={teamActivity(members)} />
+          <TeamActivity runs={teamActivity(members)} allHref={teamSearch(params, { section: 'activity' })} />
         </div>
       </div>
       {addDialog}
