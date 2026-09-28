@@ -764,7 +764,22 @@ export class FlowService {
     const cause = (event: string): WorkItemCause => ({ ...source, event });
     const personSince = this.personMovedSince(item.id, row.started_at ?? row.queued_at);
 
-    if (board && result.summary) this.deps.items.comment(item.id, { body: commentOf(item, result) }, { actor, source, cause: cause(`flow.${row.stage}`) });
+    // Tied before the comment, so a document the run reported but that cannot be tied is named there
+    // rather than dropped without a word
+    const untied: string[] = [];
+    if (board && settings.modules.includes('documents')) {
+      const roots = [project.path, item.worktree ?? ''].filter(Boolean);
+      for (const document of result.documents) {
+        const path = documentPathOf(document.path, roots);
+        await this.deps
+          .tie(item.id, { ...document, path }, { role: row.stage as FlowStage, teamRole: row.role, chatId: row.chat_id, actor, cause: cause(`flow.${row.stage}`) })
+          .catch((err: unknown) => untied.push(`\`${document.path}\`: ${err instanceof Error ? err.message : String(err)}`));
+      }
+    }
+    if (board && (result.summary || untied.length)) {
+      const body = untied.length ? [commentOf(item, result), '', 'Documents not tied to the item:', ...untied.map((u) => `- ${u}`)].join('\n').trim() : commentOf(item, result);
+      this.deps.items.comment(item.id, { body }, { actor, source, cause: cause(`flow.${row.stage}`) });
+    }
     if (board && row.stage === 'verify') this.checkCriteria(item, result.criteria, actor, cause(`flow.${row.stage}`));
     if (board && row.stage === 'refine') this.refineItem(item, result, actor, cause(FLOW_CAUSE.refined), row.started_at ?? row.queued_at);
     if (settings.modules.includes('memory')) {
@@ -774,11 +789,6 @@ export class FlowService {
         } catch {
           // a target that could never be written: the others still go
         }
-      }
-    }
-    if (board && settings.modules.includes('documents')) {
-      for (const document of result.documents) {
-        await this.deps.tie(item.id, document, { role: row.stage as FlowStage, teamRole: row.role, chatId: row.chat_id, actor, cause: cause(`flow.${row.stage}`) }).catch(() => undefined);
       }
     }
 
@@ -1032,6 +1042,25 @@ function commentOf(item: WorkItem, result: ParsedResult): string {
     lines.push(`- [${mark}] ${criterion.text}${note}`);
   }
   return lines.join('\n');
+}
+
+/**
+ * A document's path as a run reported it, relative to the project. Agents write `./docs/x.md`, or
+ * the absolute path of the checkout or worktree they work in, and the documents service refuses a
+ * path that needs cleaning rather than guess at it; the flow knows where its run worked, so it can.
+ */
+function documentPathOf(path: string, roots: readonly string[]): string {
+  let rel = path.trim();
+  // The longest first: an item's worktree lives inside the project's checkout
+  for (const root of [...roots].sort((a, b) => b.length - a.length)) {
+    const prefix = `${root.replace(/\/+$/, '')}/`;
+    if (rel.startsWith(prefix)) {
+      rel = rel.slice(prefix.length);
+      break;
+    }
+  }
+  while (rel.startsWith('./')) rel = rel.slice(2);
+  return rel;
 }
 
 function memberOf(settings: ProjectSettings, role: string): ProjectTeamMember | null {

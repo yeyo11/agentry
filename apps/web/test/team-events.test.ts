@@ -14,7 +14,7 @@ import type {
   TeamChangedEvent,
 } from '@agentry/shared';
 import { keys } from '../src/api';
-import { patchActivity, targetsFor } from '../src/lib/events';
+import { patchActivity, targetMatches, targetsFor } from '../src/lib/events';
 
 // The team, the flow, the journal, the proposals and the documents of a project refresh from its
 // own events only, and each event reaches exactly the reads that show what it changed.
@@ -42,17 +42,17 @@ const CACHE: Record<string, QueryKey> = {
   boardP1: keys.workItemBoard('p1'),
   boardP2: keys.workItemBoard('p2'),
   item1: keys.workItem('i1'),
+  item1Changes: keys.workItemChanges('i1'),
+  item1Diff: keys.workItemDiff('i1', 'src/a.ts'),
   item2: keys.workItem('i2'),
   settingsP1: keys.projectSettings('p1'),
   projects: keys.projects,
 };
 
-const startsWith = (key: QueryKey, prefix: QueryKey) => prefix.every((part, i) => JSON.stringify(part) === JSON.stringify(key[i]));
-
 function refetched(event: AgentryEvent): string[] {
-  const targets = targetsFor(event).map(([key]) => key);
+  const targets = targetsFor(event);
   return Object.entries(CACHE)
-    .filter(([, key]) => targets.some((prefix) => startsWith(key, prefix)))
+    .filter(([, key]) => targets.some((target) => targetMatches(target, key)))
     .map(([name]) => name)
     .sort();
 }
@@ -170,4 +170,28 @@ test("a member's live line follows its chat's activity, without a refetch", () =
   assert.deepEqual(patched?.running[0]?.activity, activity);
   assert.equal(patched?.running[1]?.activity, null, 'another chat keeps its line');
   assert.equal(patched?.queued, flow.queued);
+});
+
+test("a flow run or a chat moving reads its item again, but not the git diff of the item's branch", () => {
+  // Every flow and run event refetched the item's changes, a `git diff`, though only a turn ending changes them
+  const queued: FlowRunEvent = {
+    ...base,
+    type: 'flow.run',
+    itemId: 'i1',
+    key: 'AGN-28',
+    runId: 'r1',
+    action: 'queued',
+    role: 'developer',
+    agent: 'developer',
+    stage: 'work',
+    chatId: null,
+    outcome: null,
+  };
+  const names = refetched(queued);
+  assert.ok(names.includes('item1'));
+  assert.ok(!names.includes('item1Changes') && !names.includes('item1Diff'), names.join());
+  const moving = { id: 5, at: base.at, type: 'run.updated', runId: 'c1', sessionId: 'c1', status: 'running', previousStatus: 'queued' } as unknown as AgentryEvent;
+  assert.ok(refetched(moving).includes('item1') && !refetched(moving).includes('item1Changes'));
+  const ended = { id: 6, at: base.at, type: 'run.ended', runId: 'c1', sessionId: 'c1', status: 'completed' } as AgentryEvent;
+  assert.ok(refetched(ended).includes('item1Changes'), 'a turn that ended may have changed files');
 });

@@ -59,7 +59,18 @@
     "consulted": "No column · consulted",
     "writes": "May write in",
     "writesAnywhere": "Anywhere in the project",
-    "writesHint": "Outside these paths the chats Agentry starts for it may not edit. From a terminal it is only what its agent file says.",
+    "writesDocuments": "Only the documents folder",
+    "writesNone": "No path: only the documents folder",
+    "scope": {
+      "anywhere": "Anywhere",
+      "documents": "Only documents",
+      "paths": "These paths"
+    },
+    "scopeHint": {
+      "anywhere": "Agentry sets no limit of its own on the chats it starts for it. From a terminal it is only what its agent file says.",
+      "documents": "None of the project's files: only documents in the documents folder, where specifications and reports go. From a terminal it is only what its agent file says.",
+      "paths": "Outside these paths and the documents folder, the chats Agentry starts for it may not edit. From a terminal it is only what its agent file says."
+    },
     "addPath": "Add a path…",
     "responsibility": "Responsibility",
     "responsibilityHint": "Goes at the start of every prompt the role gets.",
@@ -133,7 +144,6 @@
     "useTemplate": "Use the template's",
     "templateBrings": "The {{name}} template brings",
     "templateBringsShort": "The template brings",
-    "foot": "An agent file that already exists is kept as it is",
     "applied_one": "{{count}} member joined the team",
     "applied_other": "{{count}} members joined the team",
     "failed": "Could not add the template's team"
@@ -143,16 +153,20 @@
     "summaryTitle": "Flow by column",
     "on": "automatic",
     "off": "off",
+    "notSet": "not set up",
     "edit": "Edit",
+    "setUp": "Set up",
     "nobody": "Nobody",
     "you": "You",
     "youApprove": "You approve the move to Done",
     "youApproveShort": "You approve it",
     "bouncesLine_one": "Up to {{count}} bounce; then it waits for you",
     "bouncesLine_other": "Up to {{count}} bounces; then it waits for you",
+    "notSetLine": "No flow saved yet: no role acts on the board.",
     "auto": "Automatic flow",
     "autoBody": "When a task enters a column, the role that answers for it acts. The agents move the cards; you approve the move to Done.",
     "autoBodyShort": "When a task enters a column, the role that answers for it acts. You approve the move to Done.",
+    "proposalNote": "No flow is saved yet. This is what the template proposes for the team you have: save it to give each column its role.",
     "enabled": "On",
     "disabled": "Off",
     "stripLabel": "The columns and the role that acts in each",
@@ -193,7 +207,9 @@
     "modelsHint": "Opus for Product Owner and Architect, Sonnet for the rest, as the template brings.",
     "save": "Save the flow",
     "saved": "Flow saved",
-    "saveFailed": "Could not save the flow"
+    "saveFailed": "Could not save the flow",
+    "changes_one": "{{count}} unsaved change",
+    "changes_other": "{{count}} unsaved changes"
   },
   "activity": {
     "title": "Team activity",

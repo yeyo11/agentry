@@ -1,6 +1,8 @@
 import { readdirSync, readFileSync, statSync, type Dirent } from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import type { AssistantSource, AssistantSourceUnit } from '@agentry/shared';
+import type { AssistantGit } from './assistant-answer.ts';
+import { git, isGitRepo } from './git.ts';
 
 /**
  * "What it read": the list a run shows while it works and keeps once it ends. Agentry lays it out
@@ -114,7 +116,8 @@ export function initialSources(path: string, facts: AssistantFacts, empty: boole
   source(instructions === null ? { kind: 'instructions', path: 'CLAUDE.md', state: 'missing' } : { kind: 'instructions', path: 'CLAUDE.md', state: 'read', count: instructions, unit: 'lines' });
   if (facts.memoryFiles) source({ kind: 'memory', state: 'read', count: facts.memoryFiles, unit: 'files' });
   if (facts.chats) source({ kind: 'chats', state: 'read', count: facts.chats, unit: 'chats' });
-  if (facts.commits) source({ kind: 'git', state: 'pending', count: facts.commits, unit: 'commits' });
+  // Agentry reads the history and hands it in the prompt: the run has no shell to ask git
+  if (facts.commits) source({ kind: 'git', state: 'read', count: facts.commits, unit: 'commits' });
   else if (empty) source({ kind: 'git', state: 'missing' });
   if (facts.journalEntries) source({ kind: 'journal', state: 'read', count: facts.journalEntries, unit: 'entries' });
   if (facts.workItems) source({ kind: 'work-items', state: 'read', count: facts.workItems, unit: 'items' });
@@ -180,7 +183,8 @@ export function sourcesOf(base: readonly AssistantSource[], reads: AssistantRead
       else if (!finished) out.push(s);
       continue;
     }
-    if (s.kind === 'git' && s.state !== 'missing') {
+    // A run started before git was handed to it has its history still to read
+    if (s.kind === 'git' && s.state === 'pending') {
       if (reads.git) out.push({ ...s, state: 'read' });
       else if (now?.git) out.push({ ...s, state: 'reading' });
       else if (!finished) out.push(s);
@@ -191,4 +195,31 @@ export function sourcesOf(base: readonly AssistantSource[], reads: AssistantRead
   const extra = reads.files.filter((f) => !claimed.has(f)).slice(0, EXTRA_MAX);
   for (const f of extra) out.push({ kind: 'file', path: f, state: 'read', count: null, total: null, unit: null, names: [] });
   return out;
+}
+
+const COMMITS_HANDED = 30;
+const CHANGES_HANDED = 40;
+const LINE_MAX = 200;
+
+/**
+ * What a run would have asked git, asked by Agentry: the branch, the latest commits and the
+ * uncommitted changes. A part that fails counts as none; null outside a repository.
+ */
+export function assistantGit(path: string, timeout = 10_000): AssistantGit | null {
+  if (!isGitRepo(path)) return null;
+  const quiet = (args: string[]): string => {
+    try {
+      return git(path, args, timeout);
+    } catch {
+      return '';
+    }
+  };
+  const lines = (text: string) => text.split('\n').filter((l) => l.trim()).map((l) => l.slice(0, LINE_MAX));
+  const changes = lines(quiet(['status', '--short']));
+  return {
+    branch: quiet(['branch', '--show-current']) || null,
+    commits: lines(quiet(['log', `-n${String(COMMITS_HANDED)}`, '--format=%h %ad %s', '--date=short'])),
+    changes: changes.slice(0, CHANGES_HANDED),
+    moreChanges: Math.max(0, changes.length - CHANGES_HANDED),
+  };
 }

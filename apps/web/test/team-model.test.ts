@@ -3,17 +3,25 @@ import test from 'node:test';
 import type { FlowRun, TeamMember } from '@agentry/shared';
 import {
   agentNameFor,
+  backlogRunsFor,
   cleanWrites,
   columnsOf,
   flowOf,
+  memberBody,
+  proposedFlow,
   roleFallbackName,
   roleInitials,
+  runNote,
   sameFlow,
+  sameWrites,
+  savedFlow,
   setColumnRole,
   stageOf,
   teamActivity,
   teamSearch,
   workingCount,
+  writeScope,
+  writesFor,
 } from '../src/pages/team/model.ts';
 
 const run = (id: string, over: Partial<FlowRun> = {}): FlowRun => ({
@@ -115,4 +123,67 @@ test("the Team tab's address keeps the project and names the section and the mem
   assert.equal(teamSearch(new URLSearchParams('project=p1&view=team&section=flow'), { section: 'members' }), '?project=p1&view=team');
   assert.equal(teamSearch(params, { member: 'qa' }), '?project=p1&view=team&member=qa');
   assert.equal(teamSearch(new URLSearchParams('view=team&member=qa'), { member: null }), '?view=team');
+});
+
+test("a member's writes read three ways: no writes is anywhere, an empty list is only the documents folder", () => {
+  assert.equal(writeScope(undefined), 'anywhere');
+  assert.equal(writeScope([]), 'documents');
+  assert.equal(writeScope(['src/']), 'paths');
+  assert.equal(writesFor('anywhere', ['src/']), undefined);
+  assert.deepEqual(writesFor('documents', ['src/']), []);
+  assert.deepEqual(writesFor('paths', [' src/ ', '', 'src/']), ['src/']);
+  assert.ok(sameWrites(undefined, undefined));
+  assert.ok(!sameWrites(undefined, []));
+  assert.ok(sameWrites(['a'], ['a']));
+});
+
+test("saving a member's model keeps a member that may write anywhere writing anywhere", () => {
+  // The Flow screen saved `writes: member.writes ?? []`, which turned "anywhere" into "only documents"
+  const anywhere = member('developer', { model: 'sonnet' });
+  const body = memberBody(anywhere, { model: 'opus' });
+  assert.equal(body.model, 'opus');
+  assert.ok(!('writes' in body));
+  assert.deepEqual(memberBody(member('qa', { writes: [] })).writes, []);
+  assert.deepEqual(memberBody(member('dev', { writes: ['src/'] }), { writes: null }), { role: 'dev', model: 'sonnet', responsibility: '' });
+  assert.deepEqual(memberBody(anywhere, { writes: ['docs/'] }).writes, ['docs/']);
+});
+
+test('a failed run says why beside its outcome, and one that passed says what it did', () => {
+  // The Team screen said "failed" and nothing else, and the item said nothing at all
+  assert.equal(runNote(run('a', { outcome: 'failed', error: 'the account hit its rate limit', summary: null })), 'the account hit its rate limit');
+  assert.equal(runNote(run('b', { outcome: 'failed', error: null })), null);
+  assert.equal(runNote(run('c', { outcome: 'passed', summary: 'Wrote the criteria' })), 'Wrote the criteria');
+  assert.equal(runNote(run('d', { state: 'running', outcome: null, error: 'x' })), null);
+});
+
+test('a project that never saved a flow has none: its columns answer to nobody until the proposal is saved', () => {
+  // The Team screen drew the template's proposal as the flow, while the members said they answered for nothing
+  const members = [member('product-owner'), member('developer'), member('qa')];
+  assert.deepEqual(savedFlow({}).columns, {});
+  assert.equal(savedFlow({}).enabled, false);
+  assert.deepEqual(proposedFlow(members).columns, { backlog: 'product-owner', todo: 'product-owner', in_progress: 'developer', in_review: 'qa' });
+  const flow = { enabled: true, columns: { in_progress: 'developer' }, maxBounces: 2 };
+  assert.deepEqual(savedFlow({ flow }), flow);
+  assert.notEqual(savedFlow({ flow }).columns, flow.columns);
+});
+
+test('creating suggestions in Backlog says how many flow runs it queues, as core decides it', () => {
+  // "Create the selected" on eight suggestions queued eight refine runs with no word
+  type Settings = NonNullable<Parameters<typeof backlogRunsFor>[0]>;
+  const on: Settings = {
+    modules: ['board', 'team'],
+    team: { members: [{ role: 'product-owner', agent: 'product-owner', model: 'opus', responsibility: '' }] },
+    flow: { enabled: true, columns: { backlog: 'product-owner' }, maxBounces: 3 },
+  };
+  const flow = on.flow ?? { enabled: false, columns: {}, maxBounces: 3 };
+  const types = ['task', 'story', 'bug', 'epic'] as const;
+  assert.deepEqual(backlogRunsFor(on, types), { count: 3, role: 'product-owner', parallel: 2 });
+  assert.equal(backlogRunsFor({ ...on, flow: { ...flow, maxParallel: 4 } }, ['task'])?.parallel, 4);
+  // Nothing is queued with the flow off, a module off, nobody on Backlog, a role with no member, or only epics
+  assert.equal(backlogRunsFor({ ...on, flow: { ...flow, enabled: false } }, types), null);
+  assert.equal(backlogRunsFor({ ...on, modules: ['board'] }, types), null);
+  assert.equal(backlogRunsFor({ ...on, flow: { ...flow, columns: { todo: 'product-owner' } } }, types), null);
+  assert.equal(backlogRunsFor({ ...on, team: { members: [] } }, types), null);
+  assert.equal(backlogRunsFor(on, ['epic']), null);
+  assert.equal(backlogRunsFor(undefined, types), null);
 });

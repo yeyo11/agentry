@@ -382,6 +382,12 @@ test('a selection or a launch naming items it may not have is refused before any
   const one = (workItemId: string) => launch([{ id: 't1', name: 't1', prompt: 'p', workItemId }]);
   assert.equal((await one(epic.id)).statusCode, 400);
   assert.equal((await one(closed.id)).statusCode, 409);
+  // A graph that runs in one project does not move the items of another, as a link made by hand may not
+  const elsewhere = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: repoWithCommit(), name: 'Elsewhere', modules: ['board'] }) })).json<Project>();
+  const foreign = await one((await createItem({ title: 'Foreign' }, elsewhere.id)).id);
+  assert.equal(foreign.statusCode, 400);
+  assert.match(foreign.json().error, /does not run in its project/);
+  await app.inject({ method: 'DELETE', url: `/api/projects/${elsewhere.id}` });
   const worked = await createItem({ title: 'Taken', description: 'FAKE-HANG' });
   const busy = await workOn(worked.id);
   const taken = await one(worked.id);

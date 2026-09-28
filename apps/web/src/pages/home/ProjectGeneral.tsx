@@ -1,5 +1,4 @@
 import type { Project, ProjectModule, WorkItemStatus } from '@agentry/shared';
-import { WORK_ITEM_STATUSES } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -15,17 +14,17 @@ import { useDirty } from '../../lib/dirty';
 import { errorMessage, formatNumber } from '../../lib/format';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { columnMeta, openCount } from '../../lib/work-items';
-import { normalizePrefix, prefixProblem, PROJECT_MODULES, sameModules, toggleModule } from '../projects/model';
+import { columnLimitsOf, LIMIT_STATUSES, normalizePrefix, prefixProblem, PROJECT_MODULES, sameModules, toggleModule } from '../projects/model';
 import { HiddenNote, ModuleCard, ModulesOffNote } from '../projects/parts';
 
 type Limits = Partial<Record<WorkItemStatus, number>>;
 
-const sameLimits = (a: Limits, b: Limits): boolean => WORK_ITEM_STATUSES.every((s) => a[s] === b[s]);
+const sameLimits = (a: Limits, b: Limits): boolean => LIMIT_STATUSES.every((s) => a[s] === b[s]);
 
 /** The limits that are set, as the phone's cell says them: "in progress 3 · in review 3". */
 function useLimitsLine(limits: Limits): string {
   const { t } = useTranslation(['projects', 'tasks']);
-  const set = WORK_ITEM_STATUSES.flatMap((s) => {
+  const set = LIMIT_STATUSES.flatMap((s) => {
     const limit = limits[s];
     return limit === undefined ? [] : [`${t(`tasks:${columnMeta(s).label}`).toLocaleLowerCase()} ${formatNumber(limit)}`];
   });
@@ -36,7 +35,7 @@ function LimitFields({ limits, onChange }: { limits: Limits; onChange: (limits: 
   const { t } = useTranslation(['projects', 'tasks']);
   return (
     <div className="limit-grid">
-      {WORK_ITEM_STATUSES.map((status) => {
+      {LIMIT_STATUSES.map((status) => {
         const label = t(`tasks:${columnMeta(status).label}`);
         return (
           <div key={status} className="limit-field">
@@ -132,7 +131,7 @@ export function ProjectGeneral({ project }: { project: Project }) {
       if (changed.limits) {
         // Read again right before writing: the document is replaced whole, and the call above changed it
         const fresh = await api.projectSettings(project.id);
-        await api.putProjectSettings(project.id, { ...fresh, board: { ...fresh.board, columnLimits: limits } });
+        await api.putProjectSettings(project.id, { ...fresh, board: { ...fresh.board, columnLimits: columnLimitsOf(limits) } });
       }
     },
     onSuccess: () => toast.success(t('general.saved')),
@@ -180,7 +179,7 @@ export function ProjectGeneral({ project }: { project: Project }) {
       if (!on) return <HiddenNote empty={total === 0} />;
       return t('general.boardNote', { open: formatNumber(openCount(board) ?? 0), total: formatNumber(total) });
     }
-    // Team, Documents and the journal hold nothing Agentry can count until orchestration 3
+    // Only the board has a count worth a note; the other modules just say, when off, that they are hidden and kept
     return on ? undefined : <HiddenNote empty={!saved.modules.includes(module)} />;
   };
   const onCount = modules.length;

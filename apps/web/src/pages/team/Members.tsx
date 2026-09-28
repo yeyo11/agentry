@@ -11,6 +11,7 @@ import { useToast } from '../../components/Toast';
 import { Empty } from '../../components/ui';
 import { columnMeta } from '../../lib/work-items';
 import { assistantPath } from '../assistant/model';
+import { writeScope } from './model';
 import { MemberNow } from './parts';
 import { ModelTag, RoleAvatar, useRoleName } from './RoleAvatar';
 
@@ -24,6 +25,26 @@ export function AnswersFor({ columns }: { columns: WorkItemStatus[] }) {
         <span key={status} className="member-column">
           <WorkItemStatusIcon status={status} decorative />
           {t(`tasks:${columnMeta(status).label}`)}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Where a member may write, as the flow holds it to: its paths, only the documents folder (`[]`), or
+ * anywhere (no `writes`). The two last read opposite ways, so each has its own words.
+ */
+export function WritesFacts({ writes }: { writes: string[] | undefined }) {
+  const { t } = useTranslation('team');
+  const scope = writeScope(writes);
+  if (scope === 'anywhere') return <span className="team-muted">{t('member.writesAnywhere')}</span>;
+  if (scope === 'documents') return <span className="team-muted">{t('member.writesDocuments')}</span>;
+  return (
+    <>
+      {(writes ?? []).map((path) => (
+        <span key={path} className="scope-chip">
+          {path}
         </span>
       ))}
     </>
@@ -103,15 +124,7 @@ function MemberCard({ member, href, onRemove }: { member: TeamMember; href: stri
         </div>
         <div className="member-facts">
           <span className="section-label">{t('member.writes')}</span>
-          {member.writes && member.writes.length > 0 ? (
-            member.writes.map((path) => (
-              <span key={path} className="scope-chip">
-                {path}
-              </span>
-            ))
-          ) : (
-            <span className="team-muted">{t('member.writesAnywhere')}</span>
-          )}
+          <WritesFacts writes={member.writes} />
         </div>
       </div>
       <MemberNow member={member} />

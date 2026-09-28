@@ -10,6 +10,7 @@ import { useToast } from '../../components/Toast';
 import { Card, Empty, ErrorBox, PathLabel, Skeleton, Tag } from '../../components/ui';
 import { useDirty, useLeaveGuard } from '../../lib/dirty';
 import { timeAgo } from '../../lib/format';
+import { frontmatterProblem } from './frontmatter';
 
 // The starting file content is not translated: it is what the CLI reads, and the frontmatter keys are
 // the CLI's own. Every visible string about a kind lives in the `config` locale under resources.kinds.
@@ -246,6 +247,8 @@ export function ResourceEditor({
 
   const dirty = isNew || content !== saved;
   useDirty(kind, dirty);
+  // Said before saving: the CLI skips a file it cannot read without telling anyone
+  const problem = dirty ? frontmatterProblem(kind, content) : null;
 
   const save = useMutation({
     mutationFn: (text: string) => api.putResource(scope, kind, name, text),
@@ -271,7 +274,7 @@ export function ResourceEditor({
     onError: (err) => toast.error(k('deleteFailed'), err),
   });
 
-  const trySave = () => dirty && !save.isPending && save.mutate(content);
+  const trySave = () => dirty && problem === null && !save.isPending && save.mutate(content);
 
   return (
     <div className="form">
@@ -288,8 +291,13 @@ export function ResourceEditor({
         onChange={setContent}
         onSave={trySave}
       />
+      {problem && (
+        <span className="field-error" role="alert">
+          {t(`resources.frontmatter.${problem}`)}
+        </span>
+      )}
       <div className="form-actions">
-        <button className="btn btn-primary" disabled={!dirty || save.isPending} onClick={() => save.mutate(content)}>
+        <button className="btn btn-primary" disabled={!dirty || problem !== null || save.isPending} onClick={() => save.mutate(content)}>
           {save.isPending ? t('shared.saving') : isNew ? k('create') : t('shared.save')}
         </button>
         <button className="btn" disabled={!dirty} onClick={() => (isNew ? onClosed() : setContent(saved))}>

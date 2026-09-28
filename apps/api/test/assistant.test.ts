@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -12,6 +12,7 @@ import { buildApp } from '../src/app.ts';
 // nothing to read starts no chat, which is what lets these run without Claude: its run completes at
 // once with the template's team, and every decision route works on those proposals.
 let app: FastifyInstance;
+let core: Core;
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
@@ -24,7 +25,7 @@ async function importEmpty(modules: string[]): Promise<Project> {
 
 before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'agentry-api-assistant-root-'));
-  const core = new Core(
+  core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
       CSWAP_BIN: '/nonexistent/cswap',
@@ -92,4 +93,25 @@ test('the routes answer 400, 404 and 409 where they should', async () => {
   assert.equal((await post(`/api/assistant/runs/${run.id}/stop`)).statusCode, 409);
   const board = await importEmpty([]);
   assert.equal((await post(`/api/projects/${board.id}/assistant/runs`, { kind: 'work-items' })).statusCode, 409);
+});
+
+test("a run's chat is titled in the language the request says the person reads", async () => {
+  const titles: string[] = [];
+  for (const language of ['es-ES,es;q=0.9,en;q=0.8', 'en-GB', undefined]) {
+    const path = mkdtempSync(join(tmpdir(), 'agentry-api-assistant-lang-'));
+    // Something to read, so the run starts a chat (which then fails: there is no CLI here)
+    writeFileSync(join(path, 'README.md'), '# Notas\n');
+    const p = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path, name: 'Notas', template: 'software', modules: ['board'] }) })).json<Project>();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/projects/${p.id}/assistant/runs`,
+      payload: JSON.stringify({ kind: 'work-items' }),
+      headers: { 'content-type': 'application/json', ...(language ? { 'accept-language': language } : {}) },
+    });
+    assert.equal(res.statusCode, 201, res.body);
+    const chatId = res.json<AssistantRunDetail>().chatId;
+    assert.ok(chatId, 'its chat was started');
+    titles.push(core.runtime.get(chatId)?.prompt.split('\n')[0] ?? '');
+  }
+  assert.deepEqual(titles, ['Sugerir tareas · Notas', 'Suggest tasks · Notas', 'Suggest tasks · Notas']);
 });

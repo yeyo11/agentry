@@ -85,6 +85,8 @@
     "origin": "created it",
     "moved": "took it to {{to}}",
     "noMove": "did not move it",
+    "runFailed": "Run failed",
+    "failedNoMove": "its run failed and did not move it",
     "noCost": "no cost"
   },
   "changes": {

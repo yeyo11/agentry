@@ -38,9 +38,9 @@ import { projectTemplate } from './project-templates.ts';
 
 /** The agent file names the CLI and the settings accept. */
 const AGENT_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
-const MAX_SHORT = 100;
-const MAX_TEXT = 500;
-const MAX_WRITES = 50;
+export const MAX_SHORT = 100;
+export const MAX_TEXT = 500;
+export const MAX_WRITES = 50;
 /** What a flow the template creates starts with; the person changes it on the Flow screen. */
 const DEFAULT_MAX_BOUNCES = 3;
 const ID = /^[A-Za-z0-9-]+$/;
@@ -523,12 +523,6 @@ export class TeamService {
       await this.deps.saveSettings(project.id, { ...project.settings, team: { members: members.filter((m) => m !== member) } });
       this.emit(project, 'removed', [agent], `${project.name}: ${roleTitle(member.role)} left the team`);
     });
-  }
-
-  /** The member the flow runs for a role, with its model and write rules; null when nobody plays it. */
-  async memberForRole(projectId: string, role: string): Promise<ProjectTeamMember | null> {
-    const project = await this.deps.project(projectId);
-    return project.settings.team?.members.find((m) => m.role === role) ?? null;
   }
 
   private serialized<T>(fn: () => Promise<T>): Promise<T> {

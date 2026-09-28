@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import type {
   AccountsOverview,
   AuthVerification,
@@ -61,7 +61,7 @@ import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsP
 import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { TunnelManager } from './tunnel.ts';
 import { ChatService, type Placement } from './chat-service.ts';
-import { ChatManager, type ChatRuntime, type RunResult } from './chats.ts';
+import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
@@ -101,6 +101,7 @@ import { SessionStore } from './sessions.ts';
 import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
 import { FlowService, type FlowLaunch } from './flow.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
+import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo } from './git.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
@@ -153,7 +154,7 @@ export {
   type AssistantLaunch,
   type AssistantProject,
 } from './assistant.ts';
-export { assistantPrompt, assistantSchema, parseAnswer, type AssistantAnswer, type AssistantBrief } from './assistant-answer.ts';
+export { assistantLanguage, assistantPrompt, assistantSchema, assistantTitle, parseAnswer, type AssistantAnswer, type AssistantBrief, type AssistantGit, type AssistantLanguage } from './assistant-answer.ts';
 export { FLOW_CAUSE, flowPrompt, flowResultSchema, FlowService, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowDeps, type FlowLaunch, type FlowProject, type FlowRules } from './flow.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
@@ -324,7 +325,7 @@ export class Core {
         const record = this.requireProject(id);
         return { ...record, settings: await this.projectSettings(id) };
       },
-      saveSettings: (id, settings) => this.saveProjectSettings(id, settings),
+      saveSettings: (id, settings) => this.saveTeamSettings(id, settings),
       emit: (event) => this.events.emit(event),
     });
     this.uploads = new UploadStore(config.dataDir);
@@ -1104,6 +1105,25 @@ export class Core {
     return settings;
   }
 
+  /**
+   * What the team writes: only its team and its flow. The team hands back the whole document it
+   * read, and writing all of it would put back a module switched since that read, and replace a part
+   * a hand edit broke with the default the read answered for it.
+   */
+  private async saveTeamSettings(id: string, settings: ProjectSettings): Promise<ProjectSettings> {
+    const record = this.requireProject(id);
+    const { before, after } = await this.projectSettingsStore.update(
+      record,
+      (current) => {
+        const { team: _team, flow: _flow, ...rest } = current;
+        return parseProjectSettings({ ...rest, ...(settings.team ? { team: settings.team } : {}), ...(settings.flow ? { flow: settings.flow } : {}) });
+      },
+      this.projectStore.list(),
+    );
+    this.projectUpdated(record, settingsChanges(before, after), after.modules);
+    return after;
+  }
+
   private requireProject(id: string): ProjectRecord {
     const record = this.projectStore.get(id);
     if (!record) throw new Error('project not found');
@@ -1191,6 +1211,10 @@ export class Core {
     const milestones = await quiet(() => this.workItems.milestones(project.id).filter((m) => m.state === 'open').map((m) => m.name), [] as string[]);
     const commits = !isGitRepo(project.path) ? null : await quiet(() => Number(git(project.path, ['rev-list', '--count', 'HEAD'], 10_000)) || 0, 0);
     const chats = [...sessions].sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
+    const instructions = await quiet(async () => {
+      const file = join(project.path, 'CLAUDE.md');
+      return existsSync(file) ? await readFile(file, 'utf8') : null;
+    }, null);
     return {
       facts: {
         memoryFiles: memory.length,
@@ -1205,13 +1229,16 @@ export class Core {
       journal: journal.text,
       chats: chats.map((c) => (c.firstPrompt ?? c.title).replace(/\s+/g, ' ').trim().slice(0, 140)).filter(Boolean),
       resources: { agents, skills, commands },
+      instructions,
+      git: await quiet(() => assistantGit(project.path), null),
     };
   }
 
   /**
-   * Starts an assistant run's chat in the project's directory: read-only tools in `dontAsk`, no MCP
-   * server and no preset, the journal appended, the result held to the run's schema, and one turn.
-   * A run a restart cut off continues in its own chat.
+   * Starts an assistant run's chat in the project's directory: confined to the read tools (the only
+   * ones it has, kept to the directory) in `dontAsk`, with no settings source, MCP server, preset or
+   * uploads directory, the journal and CLAUDE.md appended but never recorded, the result held to the
+   * run's schema, and one turn. A run a restart cut off continues in its own chat, confined again.
    */
   private async launchAssistantRun(launch: AssistantLaunch, onStart: (chatId: string) => void): Promise<void> {
     const options = {
@@ -1224,12 +1251,16 @@ export class Core {
       mcp: { servers: [] },
       permissionPrompts: 'none' as const,
     };
+    const confine: ChatConfinement = { tools: launch.tools, settingSources: [] };
+    // Not recorded, as for a member's run: the CLI would otherwise send the run's prompt, rendered
+    // for a confined session, to a person who continues the chat after the run
+    const extras = { jsonSchema: launch.jsonSchema, keepAlive: false, confine, systemPromptSnapshot: 'off' as const };
     if (launch.resumeChatId) {
       onStart(launch.resumeChatId);
-      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, { jsonSchema: launch.jsonSchema, keepAlive: false });
+      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, extras);
       return;
     }
-    await this.chats.create({ ...options, prompt: launch.prompt, cwd: launch.cwd, jsonSchema: launch.jsonSchema, keepAlive: false }, (started) => onStart(started.id));
+    await this.chats.create({ ...options, ...extras, prompt: launch.prompt, cwd: launch.cwd }, (started) => onStart(started.id));
   }
 
   /**
@@ -1553,18 +1584,18 @@ export class Core {
    * node per item: the item follows its node, and two nodes would pull it two ways.
    */
   async launchOrchestration(spec: OrchestrationSpec): Promise<Orchestration> {
-    await this.checkWorkItemNodes(spec?.tasks);
+    await this.checkWorkItemNodes(spec?.tasks, spec?.cwd);
     return this.orchestrator.create(spec);
   }
 
   /** A relaunch names its items as the first launch did, and is held to the same checks. */
   async relaunchOrchestration(id: string, changes: RelaunchOrchestrationRequest = {}): Promise<Orchestration> {
     const spec = this.orchestrator.relaunchSpec(id, changes);
-    await this.checkWorkItemNodes(spec.tasks);
+    await this.checkWorkItemNodes(spec.tasks, spec.cwd);
     return this.orchestrator.create(spec, { relaunchedFrom: id });
   }
 
-  private async checkWorkItemNodes(tasks: unknown): Promise<void> {
+  private async checkWorkItemNodes(tasks: unknown, cwd: unknown): Promise<void> {
     const seen = new Set<string>();
     for (const task of Array.isArray(tasks) ? (tasks as Array<Partial<OrchestrationSpec['tasks'][number]> | null>) : []) {
       if (!task || typeof task !== 'object' || Array.isArray(task)) throw new WorkItemError('every task must be an object with an id and a prompt', 400);
@@ -1577,6 +1608,12 @@ export class Core {
       const item = this.workItems.find(itemId);
       if (!item) throw new WorkItemError(`${label}: work item ${itemId} not found`, 400);
       await this.ownerAccess(item.projectId, 'write');
+      // A node moves its item as it works, so it must work in the item's project: a link made by
+      // hand is held to the same
+      const dir = typeof task.cwd === 'string' && task.cwd ? task.cwd : typeof cwd === 'string' && cwd ? cwd : this.config.workspaceDir;
+      if (this.projectOf(resolve(dir)).project?.id !== item.projectId) {
+        throw new WorkItemError(`${label}: ${item.key} is a work item of another project, and the graph does not run in its project`, 400);
+      }
       // As "Work on it" is held to: a launch is the other way to put an agent on the item
       this.checkWorkable(item, `${label}: `);
     }

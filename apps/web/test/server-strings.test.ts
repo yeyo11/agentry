@@ -83,8 +83,8 @@ test('a code this build does not know shows the server’s text, never the key',
 
 test('Spanish picks the plural from the count and writes figures its own way', () => {
   inLanguage('es', () => {
-    assert.equal(serverText('health.branches', { count: 1 }, ''), 'Falló 1 rama.');
-    assert.equal(serverText('health.branches', { count: 2 }, ''), 'Fallaron 2 ramas.');
+    assert.equal(serverText('health.branches', { count: 1 }, ''), 'Ha fallado 1 rama.');
+    assert.equal(serverText('health.branches', { count: 2 }, ''), 'Han fallado 2 ramas.');
     assert.match(serverText('health.budget.cost', { spentUsd: 1.5, limitUsd: 2 }, ''), /1,50\s*US\$/);
   });
   assert.equal(shownParams({ usualSeconds: 30 }).usualSeconds, '30 s');

@@ -274,6 +274,8 @@
     "selectedOf": "of {{total}} selected",
     "create": "Create the selected",
     "createCount": "Create the selected ({{count}})",
+    "flowRuns_one": "The flow will queue {{count}} run: {{role}} refines the task in Backlog.",
+    "flowRuns_other": "The flow will queue {{count}} runs, {{parallel}} at a time: {{role}} refines each task in Backlog.",
     "include": "Include",
     "included": "Included",
     "includeTitle": "Include {{title}}",

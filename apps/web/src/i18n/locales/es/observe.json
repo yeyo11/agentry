@@ -10,7 +10,7 @@
       "renamed": "renombrado",
       "binary": "binario"
     },
-    "detached": "head desacoplado",
+    "detached": "HEAD separado",
     "nothing": "Aún no ha cambiado nada.",
     "files": "Archivos cambiados",
     "uncommitted": "Sin commit todavía",
@@ -53,7 +53,7 @@
       "looping": "En bucle"
     },
     "level": {
-      "warn": "Aviso",
+      "warn": "Advertencia",
       "bad": "Problema"
     },
     "cancel": "Cancelar el comando",

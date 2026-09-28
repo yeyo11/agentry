@@ -634,6 +634,13 @@
     },
     "exists": "Already exists",
     "nameRule": "Letters, digits, dashes and underscores only",
+    "frontmatter": {
+      "missing": "The file needs a frontmatter block between two --- lines, as the CLI reads it.",
+      "unclosed": "The frontmatter is not closed: add a --- line after its last field.",
+      "line": "A line of the frontmatter is not a \"key: value\" field, so the CLI would not read the block.",
+      "name": "The frontmatter needs a name: the CLI picks the agent by it.",
+      "description": "The frontmatter needs a description: it is what tells Claude when to use it."
+    },
     "newUnsaved": "new · unsaved",
     "noDescription": "No description",
     "pick": "Pick one from the list to view and edit it.",
@@ -915,17 +922,12 @@
     "launching": "Launching…",
     "launch_one": "Launch {{count}} task",
     "launch_other": "Launch {{count}} tasks",
-    "title": "Orchestration",
     "subtitle": "Split an objective into tasks and run them as parallel agents with dependencies",
-    "list_one": "Orchestrations ({{count}})",
-    "list_other": "Orchestrations ({{count}})",
     "none": "No orchestrations yet",
-    "completed": "{{done}}/{{total}} completed",
     "notRun_one": "{{count}} not run",
     "notRun_other": "{{count}} not run",
     "failed_one": "{{count}} failed",
     "failed_other": "{{count}} failed",
-    "resumable": "can be resumed",
     "concurrencyValue": "concurrency {{n}}"
   },
   "detail": {
@@ -984,7 +986,6 @@
     "defaultModel": "default model",
     "workflowEngine": "workflow engine",
     "worktreePerTask": "worktree per task",
-    "total": "total {{cost}}",
     "created": "created {{date}}",
     "stop": "Stop orchestration",
     "deleteBody": "Its record and its worktrees are removed. Branches are kept, so anything committed there survives.",
@@ -1047,6 +1048,7 @@
     "new": "New",
     "suggest": "Suggest",
     "suggestAgain": "Suggest again",
+    "suggesting": "Suggesting…",
     "createAi": "Create with AI",
     "kind": {
       "agents": "Agent",

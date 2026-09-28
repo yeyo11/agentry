@@ -205,3 +205,39 @@ test('each stage runs with its own rules, its budget and no recorded system prom
     delete process.env.FAKE_CLAUDE_SPAWNS;
   }
 });
+
+test("a run's documents are tied as the agent reports them, ./ or absolute, and one that cannot be tied is named in its comment", async () => {
+  const { config } = configWithFake();
+  const core = new Core(config);
+  try {
+    const dir = repo();
+    const project = await flowProject(core, dir, (s) => ({ ...s, flow: { ...s.flow!, columns: { in_progress: 'developer' } } }));
+    // In todo nobody answers, so the description can name the worktree before the run starts there
+    const item = core.workItems.create(project.id, { title: 'Keep the cart', status: 'todo', type: 'task' });
+    const work = {
+      ...WORK,
+      documents: [
+        { path: './docs/adr/0001-cart.md', kind: 'adr' },
+        { path: `${dir}/docs/notes.md`, kind: 'doc' },
+        { path: `${dir}/.claude/worktrees/task-${item.key.toLowerCase()}/docs/report.md`, kind: 'report' },
+        { path: 'src/outside.md', kind: 'doc' },
+      ],
+    };
+    core.workItems.update(item.id, { description: `FAKE-RESULT-WORK ${JSON.stringify(work)}` }, { actor: { kind: 'person' } });
+    core.workItems.move(item.id, { status: 'in_progress' }, { actor: { kind: 'person' } });
+    await until(() => core.workItems.find(item.id)?.status, (s) => s === 'in_review', 'the work run to move the item');
+    assert.equal(core.workItems.find(item.id)?.worktree, join(dir, '.claude', 'worktrees', `task-${item.key.toLowerCase()}`));
+    const tied = core.workItems
+      .links(item.id)
+      .filter((l) => l.kind === 'document')
+      .map((l) => l.documentPath)
+      .sort();
+    assert.deepEqual(tied, ['docs/adr/0001-cart.md', 'docs/notes.md', 'docs/report.md']);
+    const comment = core.workItems.comments(item.id).at(-1)?.body ?? '';
+    assert.match(comment, /Implemented/);
+    assert.match(comment, /not tied[^]*`src\/outside\.md`/);
+  } finally {
+    core.shutdown();
+    delete process.env.FAKE_CLAUDE_SPAWNS;
+  }
+});
