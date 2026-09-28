@@ -89,7 +89,7 @@
     "labelAll": "Panel de todos los proyectos",
     "back": "Panel",
     "projectSettings": "Ajustes de {{name}}",
-    "widgetFailed": "No se pudo mostrar el widget {{title}}"
+    "widgetFailed": "No se ha podido mostrar el widget {{title}}"
   },
   "widgets": {
     "kpis": {
@@ -252,9 +252,9 @@
       "from": "desde",
       "anAgent": "Un agente",
       "approved": "Aprobada y escrita",
-      "approveFailed": "No se pudo aprobar la propuesta",
+      "approveFailed": "No se ha podido aprobar la propuesta",
       "rejected": "Propuesta descartada",
-      "rejectFailed": "No se pudo descartar la propuesta"
+      "rejectFailed": "No se ha podido descartar la propuesta"
     },
     "journal": {
       "tab": "Diario",
@@ -285,11 +285,11 @@
       "delete": "Eliminar entrada",
       "deleteTitle": "¿Eliminar esta entrada del diario?",
       "deleteBody": "Los agentes dejan de recibirla. La tarea o la propuesta de la que salió no cambia.",
-      "deleteFailed": "No se pudo eliminar la entrada",
+      "deleteFailed": "No se ha podido eliminar la entrada",
       "addButton": "Añadir al diario",
       "addTitle": "Añadir al diario",
       "add": "Añadir",
-      "addFailed": "No se pudo añadir la entrada",
+      "addFailed": "No se ha podido añadir la entrada",
       "decisionLabel": "La decisión",
       "noteLabel": "La nota",
       "addHint": "Markdown. Cada agente del equipo la recibe con las últimas entradas."

@@ -118,7 +118,7 @@
     "acceptNamed": "Aceptar {{name}}",
     "discard": "Descartar",
     "discardNamed": "Descartar {{name}}",
-    "discarded": "Descartada",
+    "discarded": "Propuesta descartada",
     "undo": "Deshacer",
     "undoNamed": "Recuperar {{name}}",
     "failed": "No se ha podido hacer"

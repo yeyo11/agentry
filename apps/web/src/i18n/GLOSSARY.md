@@ -27,6 +27,12 @@ can search for it.
 - **Punctuation**: opening `¿` and `¡`; the ellipsis character `…` as in English; the same quotes the
   English string uses. No diacritic on the adverb *solo* ("sólo") and no accent on demonstratives
   ("éste", "ésta") — both are pre-2010 RAE spelling; write "solo", "este", "esta".
+- **Something that failed**: "No se ha podido …", the present perfect, since it just happened on
+  screen: "No se ha podido guardar el flujo". Not "No se pudo …", which both forms used to share.
+  The same for what the app did: "se ha creado", "se ha guardado".
+- **Agreement with an unnamed noun**: a status next to a name that has another gender names its
+  own noun rather than guess one. A discarded proposal of the Architect reads "Arquitecto ·
+  Propuesta descartada", not "Arquitecto · Descartada".
 - **Numbers, dates, durations, sizes and costs** never go into a translation by hand: pass them
   through `lib/format` (formatDuration, timeAgo, formatNumber, formatCost…) and interpolate the
   result, so Spanish gets `1.500`, `2 h 5 min`, `hace 5 min`, `1,50 US$`.
@@ -225,6 +231,35 @@ imperative forms wholesale (see "Terms that changed" for the full old → new li
 | Tab bar (a phone's bottom navigation) | Pestañas |
 | Notification kinds (what to notify about) | a plural noun phrase after "Avísame de": "Ejecuciones
   que me esperan" (was "Runs que me esperan" — see the `run` decision) |
+
+## Projects, tasks and the team
+
+The project ecosystem ([docs/plans/project-ecosystem.md](../../../../docs/plans/project-ecosystem.md))
+brought a board, a team and an assistant. Its words:
+
+| English | Spanish |
+|---|---|
+| Task (a work item, what the board holds) | Tarea, las tareas — feminine: "Tarea creada", "asignada a ti" |
+| Task (a node of an orchestration) | Tarea inside the orchestration screens, where nothing else is one. Where both meet (a work item's page naming the node that works on it, the draft an orchestration is made from) the node is a **nodo**: "nodo 2 de 5", "cada tarea elegida será un nodo" |
+| Backlog (the column) | Backlog — kept, as Spanish teams say it; the other columns are Por hacer, En curso, En revisión, Hecho |
+| Epic / Story / Bug | Épica / Historia / Bug |
+| Milestone | Hito, los hitos; "Sin hito" |
+| Assignee | Responsable; "Sin responsable", "Asignada a ti" |
+| Acceptance criteria | Criterios de aceptación, un criterio |
+| Label | Etiqueta |
+| Priority: low / medium / high / urgent | Prioridad: baja / media / alta / urgente |
+| Key (AGN-12) / Key prefix | Clave / Prefijo de clave |
+| Module (Board, Team, Documents, Shared memory) | Módulo (Tablero, Equipo, Documentos, Memoria compartida) |
+| Team / Member / Role | Equipo / Miembro / Rol — the built-in roles: Product Owner (kept), Arquitecto, Desarrollador, QA (kept), Investigador, Redactor técnico, Revisor |
+| Flow (by column) | Flujo (por columna) — not to be confused with `workflow`, which stays in English |
+| Answers for (a column) | Responde de |
+| Bounce (QA sends an item back) | Rebote; "devuelta" for the item |
+| Waits for you | Te espera |
+| Journal (the project's) | Diario |
+| Proposal (the assistant's, a memory entry's) | Propuesta; Aceptar / Descartar / Recuperar |
+| Suggest / Suggest again | Sugerir / Volver a sugerir |
+| Create with AI | Crear con IA |
+| Documents folder | Carpeta de documentos |
 
 ## Status names
 
