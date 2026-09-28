@@ -13,7 +13,8 @@ import { ConfirmProvider } from '../src/components/Dialog';
 import { ToastProvider } from '../src/components/Toast';
 import { DirtyProvider } from '../src/lib/dirty';
 import i18n from '../src/i18n';
-import { LiveLine } from '../src/pages/tasks/board/LiveLine';
+import { workItemStrip } from '../src/lib/work-items';
+import { WorkItemStrip } from '../src/pages/tasks/board/WorkItemStrip';
 import { TeamActivityView } from '../src/pages/team/Activity';
 import { FlowEditor } from '../src/pages/team/Flow';
 import { MemberPage } from '../src/pages/team/Member';
@@ -170,7 +171,7 @@ test("a member at work says its verb and how long it has gone, the time kept on 
   assert.equal((html.match(/live-rail/g) ?? []).length, 1);
 });
 
-test('a card a Product Owner refines or QA verifies is live, and says which with the stage verb', () => {
+test('a card a Product Owner refines or QA verifies is live, and says which with the stage verb, by its column', () => {
   // Core only counted `work` links as live; now `refine` and `verify` ones are, and the card said "Working"
   const link = (role: 'refine' | 'verify' | 'work') => ({
     id: `l-${role}`,
@@ -185,10 +186,15 @@ test('a card a Product Owner refines or QA verifies is live, and says which with
     createdAt: '2026-09-28T10:00:00.000Z',
   });
   const sources = { chats: [], orchestrations: [] };
-  const words = (role: 'refine' | 'verify' | 'work') => text(wrap(<LiveLine item={{ id: 'i', activeLink: link(role) }} sources={sources} />));
-  assert.match(words('refine'), /PO Refining/);
-  assert.match(words('verify'), /QA Verifying/);
-  assert.match(words('work'), /Working/);
+  const words = (role: 'refine' | 'verify' | 'work', status: 'backlog' | 'todo' | 'in_progress' | 'in_review') => {
+    const item = { id: 'i', key: 'SHOP-1', status, activeLink: link(role) };
+    return text(wrap(<WorkItemStrip item={item} strip={workItemStrip(item)} sources={sources} />));
+  };
+  assert.match(words('refine', 'backlog'), /PO.*Refining/);
+  // In To do the Product Owner only checks the item is ready
+  assert.match(words('refine', 'todo'), /PO.*Checking/);
+  assert.match(words('verify', 'in_review'), /QA.*Verifying/);
+  assert.match(words('work', 'in_progress'), /Implementing/);
 });
 
 test("a member's model reads as the alias and the CLI's name for it, as the reference writes it", () => {

@@ -11,9 +11,14 @@ import {
   WORK_ITEM_PRIORITIES,
   WORK_ITEM_STATUSES,
   WORK_ITEM_TYPES,
+  FLOW_STEP_OF_COLUMN,
   parseWorkItemKey,
   type Board,
   type BoardColumn,
+  type ChatActivity,
+  type FlowRun,
+  type FlowRunCause,
+  type FlowStep,
   type Project,
   type WorkItem,
   type WorkItemFilter,
@@ -365,3 +370,149 @@ export function workItemLiveState(item: Pick<WorkItem, 'activeLink'>): 'working'
 }
 
 export const isLive = (item: Pick<WorkItem, 'activeLink'>): boolean => workItemLiveState(item) === 'working';
+
+// ---------- the strip ----------
+
+/**
+ * Who a card's strip starts with, told by its shape before any word: a role's squircle, the
+ * person's round monogram, or an orchestration's glyph (design system, decision 2).
+ */
+export type StripActor = { kind: 'role'; role: string } | { kind: 'person' } | { kind: 'orchestration' };
+
+/**
+ * What happens to an item now, as the one strip at the foot of its card says it (decision 1). One
+ * state per card, and none when nothing is going on.
+ *
+ * - `run`: a team member works on it (live): its stage verb, its clock, what its chat is doing;
+ * - `chat`: the person's own chat ("Work on it") works on it (live);
+ * - `node`: an orchestration node works on it (live);
+ * - `chat-waiting`: the person's chat stopped to ask them something (idle);
+ * - `approval` and `bounces`: it waits for the person's move (idle);
+ * - `failed`: the last run of its column failed and nothing ran that step since (bad);
+ * - `rejected`: QA sent it back, in QA's words (neutral: a bounce is not a failure);
+ * - `queued`: a member waits for a place under the flow's limit (neutral).
+ */
+export type WorkItemStripState =
+  | { kind: 'run'; role: string; step: FlowStep; startedAt: string | null; activity: ChatActivity | null }
+  | { kind: 'chat'; chatId: string }
+  | { kind: 'node'; orchestrationId: string; taskId: string | null }
+  | { kind: 'chat-waiting' }
+  | { kind: 'approval' }
+  | { kind: 'bounces'; count: number }
+  | { kind: 'failed'; role: string; step: FlowStep; cause: FlowRunCause | null; error: string | null }
+  | { kind: 'rejected'; role: string; quote: string | null }
+  | { kind: 'queued'; role: string; step: FlowStep };
+
+/** The flow runs a board knows, by item id: working now, waiting for a place, and the last one that did not pass. */
+export interface StripRuns {
+  running?: ReadonlyMap<string, FlowRun>;
+  queued?: ReadonlyMap<string, FlowRun>;
+  /** The newest failed or rejected run of each item ({@link lastEndedRuns}) */
+  ended?: ReadonlyMap<string, FlowRun>;
+}
+
+type StripItem = Pick<WorkItem, 'id' | 'status' | 'activeLink' | 'waiting' | 'bounces'>;
+
+/** The step a flow link names, read by the column the item is in: the Product Owner only checks in Por hacer. */
+function linkStep(role: string | undefined, status: WorkItemStatus): FlowStep {
+  if (role === 'verify') return 'verify';
+  if (role === 'refine') return FLOW_STEP_OF_COLUMN[status] === 'check' ? 'check' : 'refine';
+  return 'work';
+}
+
+/**
+ * The one state a card's strip shows, most pressing first: something at work, then what waits for
+ * the person, then a failure, then QA's words on a card it sent back (which win over waiting for a
+ * place, as DSTablero draws it), then a place in the queue. A card in Done has none.
+ */
+export function workItemStrip(item: StripItem, runs: StripRuns = {}): WorkItemStripState | null {
+  if (item.status === 'done') return null;
+  const running = runs.running?.get(item.id);
+  if (running) return { kind: 'run', role: running.role, step: running.step, startedAt: running.startedAt, activity: running.activity ?? null };
+  const link = item.activeLink;
+  const live = workItemLiveState(item);
+  if (link && live === 'working') {
+    if (link.orchestrationId) return { kind: 'node', orchestrationId: link.orchestrationId, taskId: link.taskId };
+    if (link.teamRole) return { kind: 'run', role: link.teamRole, step: linkStep(link.role, item.status), startedAt: null, activity: null };
+    if (link.chatId) return { kind: 'chat', chatId: link.chatId };
+  }
+  if (live === 'waiting') return { kind: 'chat-waiting' };
+  if (item.waiting === 'approval') return { kind: 'approval' };
+  if (item.waiting === 'bounces') return { kind: 'bounces', count: item.bounces ?? 0 };
+  const ended = runs.ended?.get(item.id);
+  // A later run of the same step answers the failure, and a card that left the run's column moved on
+  if (ended && !ended.retriedBy) {
+    if (ended.outcome === 'failed' && item.status === ended.column)
+      return { kind: 'failed', role: ended.role, step: ended.step, cause: ended.cause, error: ended.error };
+    if (ended.outcome === 'rejected' && item.status === 'in_progress' && (item.bounces ?? 0) > 0) return { kind: 'rejected', role: ended.role, quote: ended.summary };
+  }
+  const queued = runs.queued?.get(item.id);
+  if (queued) return { kind: 'queued', role: queued.role, step: queued.step };
+  return null;
+}
+
+/** Who the strip starts with; null when it starts with a word ("te espera"). */
+export function stripActor(strip: WorkItemStripState | null): StripActor | null {
+  if (!strip) return null;
+  switch (strip.kind) {
+    case 'run':
+    case 'failed':
+    case 'rejected':
+    case 'queued':
+      return { kind: 'role', role: strip.role };
+    case 'chat':
+      return { kind: 'person' };
+    case 'node':
+      return { kind: 'orchestration' };
+    default:
+      return null;
+  }
+}
+
+/**
+ * Whether the card's foot leaves its assignee out because the strip already starts with the same
+ * role, or with the person (ecosystem review, "For development").
+ */
+export function stripNamesAssignee(assignee: WorkItem['assignee'], strip: WorkItemStripState | null): boolean {
+  const actor = stripActor(strip);
+  if (!assignee || !actor) return false;
+  if (assignee.kind === 'role') return actor.kind === 'role' && actor.role === assignee.role;
+  return actor.kind === 'person';
+}
+
+/** The strip's tone, which is its class: live moves, wait takes the idle colour, fail the bad one; the rest is neutral. */
+export function stripTone(strip: WorkItemStripState): 'live' | 'wait' | 'fail' | null {
+  switch (strip.kind) {
+    case 'run':
+    case 'chat':
+    case 'node':
+      return 'live';
+    case 'chat-waiting':
+    case 'approval':
+    case 'bounces':
+      return 'wait';
+    case 'failed':
+      return 'fail';
+    default:
+      return null;
+  }
+}
+
+/**
+ * Whether the list's "Now" column shows the strip: who runs the item now, or a run that failed on it
+ * (DesktopTareasLista). What waits for the person reads on the card and the item's page, where its
+ * button has room.
+ */
+export function stripInList(strip: WorkItemStripState | null): strip is WorkItemStripState {
+  return strip !== null && (stripTone(strip) === 'live' || strip.kind === 'failed');
+}
+
+/** The newest of each item's runs, from failed and rejected runs in any order: the one a card may still show. */
+export function lastEndedRuns(runs: readonly FlowRun[]): Map<string, FlowRun> {
+  const last = new Map<string, FlowRun>();
+  for (const run of runs) {
+    const seen = last.get(run.itemId);
+    if (!seen || seen.queuedAt < run.queuedAt) last.set(run.itemId, run);
+  }
+  return last;
+}

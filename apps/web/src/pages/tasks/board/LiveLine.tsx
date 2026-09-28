@@ -1,15 +1,8 @@
 import type { OrchestrationTaskStatus, WorkItem } from '@agentry/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
-import { ActivityTicker } from '../../../components/ActivityTicker';
-import { ProgressBar } from '../../../components/ProgressBar';
-import { Spinner } from '../../../components/Spinner';
 import { useFallbackInterval } from '../../../lib/feed';
-import { chatActivity, orchestrationProgress } from '../../../lib/shell-live';
 import { workItemLiveState } from '../../../lib/work-items';
-import { RoleAvatar } from '../../team/RoleAvatar';
-import { useRunRole } from './team';
 
 /** The same list the shell's Live section reads, so a board adds no request of its own. */
 const LIVE_LIMIT = 10;
@@ -20,9 +13,10 @@ export interface LiveSources {
 }
 
 /**
- * What the live cards need to say what they are doing: the working chats (for the tool and the time)
- * and the orchestrations (for the node and the graph's progress). Read only while a card is live,
- * with the shell's own query keys, so the sidebar and the board share one answer.
+ * What the live strips need to say what they are doing: the working chats (for the tool and the
+ * time) and the orchestrations (for the node and the graph's progress). Read only while a card is
+ * live, with the shell's own query keys, so the sidebar and the board share one answer. A team
+ * member's run carries its own activity (`FlowRun.activity`) and needs neither.
  */
 export function useLiveSources(items: readonly Pick<WorkItem, 'activeLink'>[]): LiveSources {
   const fallback = useFallbackInterval();
@@ -36,60 +30,4 @@ export function useLiveSources(items: readonly Pick<WorkItem, 'activeLink'>[]): 
   });
   const orchestrations = useQuery({ queryKey: keys.orchestrations, queryFn: api.orchestrations, enabled: nodes, refetchInterval: fallback });
   return { chats: chats ? (working.data ?? []) : [], orchestrations: nodes ? (orchestrations.data ?? []) : [] };
-}
-
-/**
- * The line a live card carries: a chat's verb, command and time, or an orchestration node's place
- * in its graph with the graph's segmented bar. A card whose chat waits for the person says so in
- * the idle tone and stands still. Nothing for an item at rest.
- */
-export function LiveLine({ item, sources, className = '' }: { item: Pick<WorkItem, 'id' | 'activeLink'>; sources: LiveSources; className?: string }) {
-  const { t } = useTranslation(['tasks', 'team']);
-  const state = workItemLiveState(item);
-  // A team member at work says which one, beside its verb
-  const role = useRunRole(item);
-  const who = role ? <RoleAvatar role={role} size="sm" /> : null;
-  const link = item.activeLink;
-  if (!state || !link) return null;
-
-  if (state === 'waiting')
-    return (
-      <div className={`workitem-card-live is-waiting ${className}`.trim()}>
-        <span className="dot dot-idle" aria-hidden />
-        <span className="workitem-live-idle">{t('card.waiting')}</span>
-      </div>
-    );
-
-  if (link.orchestrationId) {
-    const orchestration = sources.orchestrations.find((o) => o.id === link.orchestrationId);
-    const index = orchestration ? orchestration.tasks.findIndex((task) => task.id === link.taskId) + 1 : 0;
-    return (
-      <div className={`workitem-card-live ${className}`.trim()}>
-        <Spinner className="workitem-live-spin" />
-        <span className="workitem-live-verb mono">
-          {orchestration && index > 0 ? t('card.node', { index, total: orchestration.tasks.length }) : t('card.working')}
-        </span>
-        {orchestration && <ProgressBar variant="segments" size="sm" decorative counts={orchestrationProgress(orchestration.tasks)} className="workitem-live-bar" />}
-      </div>
-    );
-  }
-
-  const activity = chatActivity(sources.chats.find((chat) => chat.id === link.chatId) ?? {});
-  if (activity)
-    return (
-      <div className={['workitem-card-live has-ticker', who ? 'has-role' : '', className].filter(Boolean).join(' ')}>
-        {who}
-        <ActivityTicker activity={activity} className="workitem-live-ticker" />
-      </div>
-    );
-  // A Product Owner refining it or QA verifying it is live too (their links are `refine` and `verify`),
-  // and says so with the stage's own verb until its chat reports what it is doing
-  const verb = link.role === 'refine' || link.role === 'verify' ? t(`team:stage.${link.role}.doing`) : t('card.working');
-  return (
-    <div className={`workitem-card-live ${className}`.trim()}>
-      <Spinner className="workitem-live-spin" />
-      {who}
-      <span className="workitem-live-verb">{verb}</span>
-    </div>
-  );
 }

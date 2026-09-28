@@ -53,10 +53,14 @@ export default async ({ page, api, check, dirs }) => {
     const over = await page.eval(`const c = document.querySelector('.workitem-col[data-status="in_progress"]'); return { over: c.classList.contains('is-over'), note: c.querySelector('.workitem-col-limit')?.textContent.trim() ?? null, count: c.querySelector('.workitem-col-count [aria-hidden]')?.textContent }`);
     check(over.over && over.note === 'Over the limit: 2 of 1' && over.count === '2/1', `a column over its limit says so in words (${JSON.stringify(over)})`);
     const card = await page.eval(
-      `const c = document.querySelector('[data-item-id="${first.id}"]'); return { key: c.querySelector('.workitem-key')?.textContent, title: c.querySelector('.workitem-card-title')?.textContent, epic: c.querySelector('.workitem-epic')?.textContent, label: c.querySelector('.workitem-label')?.textContent, prio: c.querySelector('.priority-mark')?.getAttribute('aria-label'), criteria: c.querySelector('.workitem-fact')?.textContent }`,
+      `const c = document.querySelector('[data-item-id="${first.id}"]'); return { key: c.querySelector('.workitem-key')?.textContent, title: c.querySelector('.workitem-card-title')?.textContent, epic: c.querySelector('.workitem-epic')?.textContent, label: c.querySelector('.workitem-tag')?.textContent, prio: c.querySelector('.priority-mark')?.getAttribute('aria-label'), criteria: c.querySelector('.workitem-criteria')?.textContent, rows: [...c.children].map((row) => row.className.split(' ')[0]) }`,
     );
     check(card.key === first.key && card.title === 'First card' && card.epic === 'Board epic' && card.label === 'web', `a card shows its key, title, epic and labels (${JSON.stringify(card)})`);
     check(card.prio === 'Medium priority' && card.criteria?.startsWith('0/2'), `and its priority in words and its checklist (${JSON.stringify(card)})`);
+    // DSTablero: what it is, the title, where it goes, then its facts; no strip on a card at rest
+    check(JSON.stringify(card.rows) === JSON.stringify(['workitem-card-top', 'workitem-card-title', 'workitem-context', 'workitem-card-foot']), `a card reads in its rows, in order (${card.rows})`);
+    const limitLine = await page.eval(`const l = document.querySelector('.workitem-col.is-over .workitem-col-limit'); const s = getComputedStyle(l); return { bg: s.backgroundColor, rule: getComputedStyle(l.closest('.workitem-col')).boxShadow }`);
+    check(limitLine.bg === 'rgba(0, 0, 0, 0)' && limitLine.rule.includes('inset'), `the over-limit column is a hairline and a line of words, not a tinted box (${JSON.stringify(limitLine)})`);
     const urgent = await page.eval(`return getComputedStyle(document.querySelector('[data-item-id="${second.id}"] .priority-mark')).color`);
     const medium = await page.eval(`return getComputedStyle(document.querySelector('[data-item-id="${first.id}"] .priority-mark')).color`);
     check(urgent !== medium, 'urgent is the one priority drawn in a colour');
@@ -202,12 +206,12 @@ export default async ({ page, api, check, dirs }) => {
     check(pagedBoard.columns[0].items.every((i) => i.description === '' && i.hasDescription === true), 'cards leave their description out and say they have one');
     await page.goto(`/tasks?project=${paged.id}`, 1500);
     const doneCards = `document.querySelectorAll('.workitem-col[data-status="done"] [data-item-id]').length`;
-    const doneMore = `(document.querySelector('.workitem-col[data-status="done"] .is-more')?.textContent.trim() ?? null)`;
-    await page.waitFor(`return ${doneCards} === 3 && ${doneMore} === 'and 22 more'`, { label: 'Done draws its first three and counts every other one, loaded or not' });
-    check((await page.eval(`return document.querySelector('.workitem-col[data-status="done"] .is-more').tagName`)) === 'BUTTON', '"and N more" is a button that stays on the board');
-    await page.click('.workitem-col[data-status="done"] .is-more', undefined, 600);
-    await page.waitFor(`return ${doneCards} === 20 && ${doneMore} === 'and 5 more'`, { label: 'the page the board holds, then what the server left out' });
-    await page.click('.workitem-col[data-status="done"] .is-more', undefined, 1200);
+    const doneMore = `(document.querySelector('.workitem-col[data-status="done"] .workitem-col-more')?.textContent.trim() ?? null)`;
+    await page.waitFor(`return ${doneCards} === 3 && ${doneMore} === 'Show 22 more'`, { label: 'Done draws its first three and counts every other one, loaded or not' });
+    check((await page.eval(`return document.querySelector('.workitem-col[data-status="done"] .workitem-col-more').tagName`)) === 'BUTTON', '"Show N more" is a button that stays on the board');
+    await page.click('.workitem-col[data-status="done"] .workitem-col-more', undefined, 600);
+    await page.waitFor(`return ${doneCards} === 20 && ${doneMore} === 'Show 5 more'`, { label: 'the page the board holds, then what the server left out' });
+    await page.click('.workitem-col[data-status="done"] .workitem-col-more', undefined, 1200);
     await page.waitFor(`return ${doneCards} === 25 && ${doneMore} === null`, { label: 'the next page, asked of the server' });
     check((await page.eval(`return location.pathname + location.search`)) === `/tasks?project=${paged.id}`, 'and the board stays where it is');
     await page.goto(`/tasks?project=${paged.id}&view=list`, 1500);
@@ -233,6 +237,10 @@ export default async ({ page, api, check, dirs }) => {
     // To do holds the blocker, the first card (moved there by keyboard) and the epic
     check(jumpCounts[1] === '2', `the column jump leaves the epic out of To do (${jumpCounts})`);
     check((await page.eval(`return document.querySelectorAll('.workitem-msection input[type=checkbox], .workitem-msection .checkbox').length`)) === 0, 'no checkbox on a phone');
+    // The page heads itself with the shell's phone header, and an over-limit section says so in one line
+    check(await page.eval(`return !!document.querySelector('main .phone-head.tasks-phone-head h1') && !document.querySelector('.topbar')?.getClientRects().length`), 'the phone board heads itself, with no app top bar');
+    const overPhone = await page.eval(`return document.querySelector('.workitem-msection[data-status="in_progress"] .workitem-msection-over')?.textContent.trim() ?? null`);
+    check(/^Over the limit: \d+ of 1$/.test(overPhone ?? ''), `an over-limit section says so in its head (${overPhone})`);
     // A move through the row's sheet
     await page.click(`.workitem-mrow[data-item-id="${third.id}"] .workitem-mrow-more`, undefined, 600);
     await page.click('.sheet-actions .btn', 'Move to In review', 900);

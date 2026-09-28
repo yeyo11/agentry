@@ -1,21 +1,21 @@
 import type { BoardColumn, WorkItem, WorkItemStatus } from '@agentry/shared';
 import { WORK_ITEM_STATUSES } from '@agentry/shared';
 import { ArrowDown, ArrowUp, Check, CornerDownRight, TriangleAlert } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { MoreActions } from '../../../components/controls/MoreActions';
 import type { MenuEntry } from '../../../components/controls/Menu';
-import { EpicLabel, Monogram, PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIcon } from '../../../components/icons';
-import { Spinner } from '../../../components/Spinner';
+import { nameHue, PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkItemTypeIcon } from '../../../components/icons';
 import { Segmented } from '../../../components/ui';
-import { columnMeta, taskPath, workItemLiveState } from '../../../lib/work-items';
-import type { BoardSelection } from './BoardColumns';
-import { LiveLine, type LiveSources } from './LiveLine';
+import { columnMeta, stripNamesAssignee, taskPath, workItemLiveState, workItemStrip } from '../../../lib/work-items';
+import { DonePageSkeleton, MoreButton, type BoardSelection } from './BoardColumns';
+import type { LiveSources } from './LiveLine';
 import { foldColumn, neighbourStatus } from './model';
-import { ColumnRole, WaitingNote } from './team';
+import { ColumnRole, useStripRuns } from './team';
 import { useMoveWorkItem } from './useMoveWorkItem';
-import { Assignee, CardFacts, EpicProgress } from './WorkItemCard';
+import { Assignee, CardContext, CardFacts, EpicProgress, hasFacts } from './WorkItemCard';
+import { WorkItemStrip } from './WorkItemStrip';
 
 /**
  * The board on a phone: no columns side by side, but one list with a section per column, and the
@@ -30,6 +30,7 @@ export function PhoneBoard({
   live,
   selection,
   doneShown,
+  doneLoading = false,
   onMoreDone,
 }: {
   columns: BoardColumn[];
@@ -39,9 +40,11 @@ export function PhoneBoard({
   selection: BoardSelection | null;
   /** How many Done rows are drawn; "and N more" asks for the next page of them */
   doneShown: number;
+  doneLoading?: boolean;
   onMoreDone: () => void;
 }) {
   const { t } = useTranslation('tasks');
+  const runs = useStripRuns();
   const move = useMoveWorkItem();
   const byStatus = new Map(columns.map((column) => [column.status, column]));
   // The first column with work in it: an empty Backlog is not where a phone should open
@@ -138,17 +141,17 @@ export function PhoneBoard({
                 {!allProjects && column.limit !== null && `/${column.limit}`}
               </span>
               {allProjects && projects > 1 && <span className="workitem-msection-note">{t('header.inProjectsShort', { count: projects })}</span>}
-              {over && (
-                <span className="badge badge-warn">
-                  <TriangleAlert size={11} strokeWidth={2} aria-hidden />
-                  {t('column.overShort')}
-                </span>
-              )}
               {!allProjects && (
                 <>
                   <span className="grow" />
-                  <ColumnRole status={status} named={status !== 'done'} />
+                  <ColumnRole status={status} />
                 </>
+              )}
+              {over && column.limit !== null && (
+                <span className="workitem-msection-over">
+                  <TriangleAlert size={13} strokeWidth={1.75} aria-hidden />
+                  {t('column.over', { count: column.count, limit: column.limit })}
+                </span>
               )}
             </div>
             {shown.length > 0 ? (
@@ -157,28 +160,13 @@ export function PhoneBoard({
                   selection ? (
                     <SelectRow key={item.id} item={item} selection={selection} project={projectNames?.get(item.projectId)} />
                   ) : (
-                    <div key={item.id} className={`workitem-mrow ${workItemLiveState(item) === 'working' ? 'live-rail' : ''}`.trim()} data-item-id={item.id}>
-                      <div className="workitem-mrow-top">
-                        {workItemLiveState(item) === 'working' ? <Spinner variant="ring" className="workitem-card-spin" /> : <WorkItemTypeIcon type={item.type} />}
-                        <WorkItemKey value={item.key} />
-                        <span className="grow" />
-                        <PriorityMark priority={item.priority} />
-                        <Assignee item={item} />
-                        <MoreActions entries={moveEntries(item, column)} label={t('card.actions', { key: item.key })} title={t('move.title', { key: item.key })} className="workitem-mrow-more" />
-                      </div>
-                      <Link to={taskPath(item.key)} className="workitem-mrow-title">
-                        {item.title}
-                      </Link>
-                      <RowMeta item={item} project={projectNames?.get(item.projectId)} epic={epics.get(item.id)} />
-                      <LiveLine item={item} sources={live} className="is-row" />
-                      <WaitingNote item={item} />
-                    </div>
+                    <PhoneRow key={item.id} item={item} project={projectNames?.get(item.projectId)} epic={epics.get(item.id)} live={live} strip={workItemStrip(item, runs)} more={moveEntries(item, column)} />
                   ),
                 )}
-                {hidden > 0 && (
-                  <button type="button" className="workitem-mrow-more-link" onClick={onMoreDone}>
-                    {t('column.more', { count: hidden })}
-                  </button>
+                {status === 'done' && doneLoading && hidden > 0 ? (
+                  <DonePageSkeleton />
+                ) : (
+                  hidden > 0 && <MoreButton count={hidden} onClick={onMoreDone} className="workitem-mrow-more-link" />
                 )}
               </div>
             ) : (
@@ -191,39 +179,55 @@ export function PhoneBoard({
   );
 }
 
-/** Under a phone row's title: its project on All projects, its epic, labels and facts, wrapping. */
-function RowMeta({ item, project, epic }: { item: WorkItem; project?: string | undefined; epic?: { done: number; total: number } | undefined }) {
-  if (item.type === 'epic')
-    return (
-      <>
-        {project && (
-          <div className="workitem-mrow-meta">
-            <span className="workitem-project is-phone">
-              <Monogram name={project} size={20} />
-              {project}
-            </span>
-          </div>
-        )}
-        <EpicProgress progress={epic} compact />
-      </>
-    );
-  const facts = item.acceptanceCriteria.length > 0 || (item.bounces ?? 0) > 0 || item.relations.some((r) => r.type === 'blocked_by' && r.item.status !== 'done');
-  if (!project && !item.epic && item.labels.length === 0 && !facts) return null;
+/**
+ * A card as a phone row, in the card's five rows (MobileTablero): what it is with its "⋯" to move it,
+ * the title, where it goes, its facts, and the strip.
+ */
+function PhoneRow({
+  item,
+  project,
+  epic,
+  live,
+  strip,
+  more,
+}: {
+  item: WorkItem;
+  project?: string | undefined;
+  epic?: { done: number; total: number } | undefined;
+  live: LiveSources;
+  strip: ReturnType<typeof workItemStrip>;
+  more: MenuEntry[];
+}) {
+  const { t } = useTranslation('tasks');
+  const done = item.status === 'done';
+  const working = !done && (workItemLiveState(item) === 'working' || strip?.kind === 'run');
+  const assignee = item.assignee && !stripNamesAssignee(item.assignee, strip) ? <Assignee item={item} /> : null;
+  const facts = item.type !== 'epic' && hasFacts(item);
   return (
-    <div className="workitem-mrow-meta">
-      {project && (
-        <span className="workitem-project is-phone">
-          <Monogram name={project} size={20} />
-          {project}
-        </span>
+    <div className={`workitem-mrow ${working ? 'live-rail' : ''}`.trim()} data-item-id={item.id}>
+      <div className="workitem-mrow-top">
+        <WorkItemTypeIcon type={item.type} />
+        <WorkItemKey value={item.key} />
+        <span className="grow" />
+        {!done && <PriorityMark priority={item.priority} />}
+        <MoreActions entries={more} label={t('card.actions', { key: item.key })} title={t('move.title', { key: item.key })} className="workitem-mrow-more" />
+      </div>
+      <Link to={taskPath(item.key)} className="workitem-mrow-title">
+        {item.title}
+      </Link>
+      {!done && (
+        <>
+          <CardContext item={item} project={project} trailing={!facts && item.type !== 'epic' ? assignee : null} phone />
+          {item.type === 'epic' && <EpicProgress progress={epic} />}
+          {facts && (
+            <div className="workitem-card-foot">
+              <CardFacts item={item} short />
+              {assignee}
+            </div>
+          )}
+          <WorkItemStrip item={item} strip={strip} sources={live} />
+        </>
       )}
-      {item.epic && <EpicLabel epic={item.epic} />}
-      {item.labels.map((label) => (
-        <span key={label} className="workitem-label">
-          {label}
-        </span>
-      ))}
-      <CardFacts item={item} short />
     </div>
   );
 }
@@ -262,9 +266,13 @@ function SelectRow({ item, selection, project }: { item: WorkItem; selection: Bo
       </span>
       <span className="workitem-mrow-title">{item.title}</span>
       {(project || item.epic) && (
-        <span className="workitem-mrow-meta">
+        <span className="workitem-context">
           {project && <span className="workitem-project">{project}</span>}
-          {item.epic && <EpicLabel epic={item.epic} />}
+          {item.epic && (
+            <span className="workitem-epic is-bare" style={{ '--hue': nameHue(item.epic.id) } as CSSProperties}>
+              {item.epic.title}
+            </span>
+          )}
         </span>
       )}
       {item.relations.some((r) => r.type === 'blocked_by' && r.item.status !== 'done') && (
