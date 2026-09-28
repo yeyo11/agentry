@@ -147,6 +147,9 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.click('.resources-toolbar .resources-suggest', undefined, 600);
     await page.waitFor(`return !document.querySelector('.resources-editor') && !!document.querySelector('.resources-proposals')`, { label: 'Suggest shows its run', timeout: 30_000 });
     await page.waitFor(`return document.querySelectorAll('.resources-proposals .suggestion-row').length === 2`, { label: 'the new proposals', timeout: 30_000 });
+    // migration-reviewer is proposed again, and a file has that name now: the editor offers a free one
+    await page.click('.resources-proposals .suggestion-row button', 'Review', 1000);
+    await page.waitFor(`return document.querySelector('.resource-proposal-name-input')?.value === 'migration-reviewer-2'`, { label: 'a taken name becomes the first free one' });
 
     // ---- On a phone: the same suggestion as Include buttons, no checkboxes ----
     // The desktop created the first two by title, which now makes them "similar" too: the new run

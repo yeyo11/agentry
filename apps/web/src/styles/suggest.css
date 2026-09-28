@@ -485,6 +485,18 @@
   font-weight: 600;
 }
 
+/* The name it will be saved under, editable until it is: a free one when the proposed is taken */
+.resource-proposal-name-input {
+  flex: 0 1 240px;
+  min-width: 120px;
+  font-weight: 600;
+}
+
+.resource-proposal-editor.is-phone .resource-proposal-name-input {
+  flex-basis: 100%;
+  font-size: 16px;
+}
+
 .resource-proposal-editor .editor-meta .path {
   flex: 1 1 auto;
   min-width: 0;

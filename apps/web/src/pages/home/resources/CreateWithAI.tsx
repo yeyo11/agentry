@@ -16,6 +16,7 @@ import { NARROW, useMediaQuery } from '../../../lib/media';
 import { localized } from '../../../lib/server-strings';
 import { FullScreen } from '../../tasks/FullScreen';
 import { AI_KINDS, savePath } from './model';
+import { freeName, useTakenNames } from './names';
 import { KindIcon } from './parts';
 
 /**
@@ -61,6 +62,9 @@ export function CreateWithAI({
   const run = detail.data && detail.data.id === runId ? detail.data : null;
   const running = run?.status === 'running';
   const proposal = run?.proposals.find((p): p is AssistantResourceProposal => p.kind === 'resource') ?? null;
+  // The name it will be saved under: the proposed one, or the first free one where it goes
+  const taken = useTakenNames(project.id, proposal?.resource.kind ?? kind, scope);
+  const fileName = proposal ? (proposal.status === 'pending' ? freeName(proposal.resource.name, taken) : proposal.resource.name) : null;
 
   const start = useMutation({
     mutationFn: () => api.startAssistantRun(project.id, { kind: 'resources', description: description.trim(), resourceKind: kind }),
@@ -149,7 +153,7 @@ export function CreateWithAI({
       <section className="suggestion-run is-done create-ai-result" aria-label={t('resourcesAi.written')}>
         <div className="create-ai-result-head">
           <AssistantMark small />
-          <span className="mono create-ai-file">{savePath(proposal.resource.kind, proposal.resource.name, scope)}</span>
+          <span className="mono create-ai-file">{savePath(proposal.resource.kind, fileName ?? proposal.resource.name, scope)}</span>
           <RunFacts run={run} />
         </div>
         <CodeEditor language={RESOURCE_FORMATS[proposal.resource.kind]} ariaLabel={t(`resources.kinds.${proposal.resource.kind}.content`)} value={proposal.resource.content} readOnly minHeight="160px" maxHeight={phone ? '46vh' : '300px'} />
