@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useOverview } from '../../api';
 import { nameHue } from '../../components/icons';
 import type { TeamMember } from '@agentry/shared';
 import { isKnownRole, roleFallbackName, roleInitials, templateResponsibilityRole } from './model';
@@ -49,4 +50,19 @@ export function RoleAvatar({ role, size = 'md', label }: { role: string; size?: 
 /** The model a role runs on, in mono and neutral: a model is a choice, not a state. */
 export function ModelTag({ model }: { model: string }) {
   return <span className={`model-tag ${/opus/i.test(model) ? 'is-opus' : ''}`.trim()}>{model}</span>;
+}
+
+/**
+ * The CLI's own name for a model alias ("Sonnet 5" for `sonnet`), which the member page writes after
+ * the alias as the reference does; nothing for a model the CLI does not list, or names as typed.
+ */
+export function ModelName({ model }: { model: string }) {
+  const models = useOverview().data?.system.models;
+  const label = models?.find((option) => option.value === model.trim())?.label;
+  if (!label || label.toLowerCase() === model.trim().toLowerCase()) return null;
+  return (
+    <span className="member-model-name">
+      <span aria-hidden>·</span> {label}
+    </span>
+  );
 }

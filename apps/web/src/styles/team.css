@@ -931,6 +931,13 @@
   min-width: 0;
 }
 
+.member-model-name {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+
 .member-columns {
   display: inline-flex;
   flex-wrap: wrap;

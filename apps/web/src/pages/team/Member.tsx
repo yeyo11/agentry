@@ -31,7 +31,7 @@ import {
 } from './model';
 import { CommandsField, WritesField } from './MemberFields';
 import { NowAndBefore, RunRow } from './MemberRuns';
-import { RoleAvatar, useResponsibility, useRoleName } from './RoleAvatar';
+import { ModelName, RoleAvatar, useResponsibility, useRoleName } from './RoleAvatar';
 
 interface Draft {
   responsibility: string;
@@ -269,6 +269,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
         <span className="prop-key">{t('member.model')}</span>
         <span className="member-model">
           <ModelCombobox value={now.model} onChange={(model) => set({ model })} aria-label={t('member.model')} />
+          <ModelName model={now.model} />
         </span>
       </div>
       <div className="prop-row">

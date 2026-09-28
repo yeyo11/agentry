@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { FlowRun, FlowRunPage, Project, Team, TeamMember } from '@agentry/shared';
+import type { FlowRun, FlowRunPage, Overview, Project, Team, TeamMember } from '@agentry/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -153,4 +153,15 @@ test("a responsibility still the template's reads in the person's language, and 
   assert.match(words, /Implementa las tareas en su propio worktree/);
   assert.doesNotMatch(words, /Implements work items/);
   assert.match(words, /Checks the cart by hand/);
+});
+
+test("a member's model reads as the alias and the CLI's name for it, as the reference writes it", () => {
+  // The picker showed "sonnet" alone where the reference has "sonnet · Sonnet 5"
+  const client = new QueryClient();
+  client.setQueryData(keys.overview, { system: { models: [{ value: 'sonnet', label: 'Sonnet 5' }, { value: 'opus', label: 'Opus 5.5' }] } } as unknown as Overview);
+  const html = wrap(<MemberPage project={project} member={member('developer')} backHref="?view=team" />, client);
+  assert.match(html, /value="sonnet"/);
+  assert.match(text(html), /· Sonnet 5/);
+  // A model the CLI does not list is shown as typed, with nothing after it
+  assert.doesNotMatch(wrap(<MemberPage project={project} member={member('qa', { model: 'claude-custom' })} backHref="?view=team" />, client), /member-model-name/);
 });
