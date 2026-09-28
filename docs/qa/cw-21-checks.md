@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T23:30:00Z
-updated_at: 2026-09-28T23:30:00Z
+updated_at: 2026-09-29T00:30:00Z
 tags:
     - qa
     - report
@@ -37,6 +37,23 @@ both on the branch, for QA to check against the commit.
 No `not ok` line in the output. The core count includes the 9 tests in
 `packages/core/test/item-documents.test.ts` and the 3 CW-21 tests in
 `packages/core/test/flow-cli.test.ts` (QA bounce, restart, failed sync).
+
+### Run again at `51015143`
+
+The item came back to In progress with no code to change, so both checks ran again at `51015143`,
+which differs from `3f72f116` only by this file. `pnpm typecheck` exited 0.
+
+The first `pnpm test` there failed two `apps/web` tests, both on shiki's highlighting:
+- `highlight.test.ts`, "the first block in a grammar shiki compiles on the spot is still coloured";
+- `parity.test.ts`, "every language keeps shiki's colours over the frozen corpus".
+
+The branch changes nothing under `apps/`, and both tests passed in the runs before and after:
+- `pnpm --filter @agentry/web test` alone: 849/849;
+- `pnpm --filter @agentry/api test`, which the failed run never reached: 166/166;
+- the whole `pnpm test` again: exit 0, with the same counts as the table above and no `not ok`.
+
+They look sensitive to load, since shiki compiles a grammar on first use, and are worth their own
+item if they fail again on `main`.
 
 `pnpm build && pnpm e2e` were not run: the change is core-only and touches nothing a browser spec
 covers.
