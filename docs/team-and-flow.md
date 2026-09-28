@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T20:00:00Z
-updated_at: 2026-09-28T22:00:00Z
+updated_at: 2026-09-28T23:30:00Z
 tags:
     - team
     - flow
@@ -120,6 +120,37 @@ counts as entering:
 A move made by a chat or an orchestration following its own work (the work-links automation, actor
 `system`) starts nothing: that item is already being worked on, and a run would compete with it.
 Epics are never run on.
+
+**Switching the flow on is not an entry**, so the cards already on the board do not start by
+themselves. Instead, **with the person's consent**, they start as if they had just entered their
+columns (CW-9, [spec](plans/flow-start-waiting.md), option A of
+[the plan](plans/flow-start-and-chat-token.md)). When a save on the Flow screen takes the saved flow
+from `enabled: false` to `enabled: true`, the screen reads `GET /projects/:id/flow/waiting`. If any
+card waits, it asks "N tarjetas esperan en columnas con responsable", with one line per column and
+its role:
+
+- **"Ponerlas en marcha"** calls `POST /projects/:id/flow/start-waiting`. That queues one run per
+  waiting card in board order (backlog, todo, in progress, in review, then by rank, top card first)
+  through the same queue and limits as any other run. A toast says how many start now
+  (`min(queued, maxParallel − running)`) and how many wait.
+- **"Solo las nuevas"**, Escape or closing the dialog start nothing, as before.
+
+A card **waits** when all of these hold:
+
+- it is not an epic and not in `done`;
+- its column has a role with a member playing it;
+- it has no run queued or running;
+- in `todo`, it was not refined and left unchanged since (the one-refine rule below).
+
+The count and the queuing both come from core (`FlowService.waiting` and `startWaiting`), and the
+test runs again inside the write transaction, so two clicks or two tabs never queue a card twice.
+These runs keep `flow_runs.queued_by = 'person'` (`FlowRun.queuedBy`, and on the `flow.run` event),
+and the item's history says a person started them ("Refinado puesto en marcha · <person> · …"), as
+it does for a retry. Only the Flow screen asks: a raw `PUT /projects/:id/settings` that switches the
+flow on starts nothing, and a client can call `start-waiting` itself. It was not made a flag on the
+settings PUT, because that route replaces a whole document and should not start paid work as a side
+effect. Rejected: always starting them (it spends without asking), and only a per-card start (the
+surprise stays).
 
 The flow **starts paid runs on its own**, so what it will not do is part of the design:
 
@@ -472,7 +503,8 @@ Reads work with the module off; changes need it on.
 ## Routes and events
 
 Every route is in the README: [Team](../README.md#team) (with `GET /projects/:id/flow`, the team's
-activity `GET /projects/:id/flow/runs` and an item's runs `GET /work-items/:itemId/runs`),
+activity `GET /projects/:id/flow/runs`, the waiting cards `GET /projects/:id/flow/waiting` and
+`POST /projects/:id/flow/start-waiting`, and an item's runs `GET /work-items/:itemId/runs`),
 [Documents](../README.md#documents) and
 [Project journal and memory proposals](../README.md#project-journal-and-memory-proposals).
 
@@ -556,7 +588,9 @@ as written, and saving a member untouched keeps the English. A test reads core's
   drops `maxCostUsd`, and the default parallelism drops `maxParallel`, so nothing the person did not
   choose is saved. The field keeps the cost as typed, so "0." on the way to "0.5" is not wiped, and
   offers a decimal keypad on a phone. The list of items QA sent back moved to Team activity's
-  "Devueltas". The crumbs read "Equipo / Flujo".
+  "Devueltas". The crumbs read "Equipo / Flujo". A save that switches the flow on while cards wait
+  opens the prompt from [What starts a run](#what-starts-a-run): a `Dialog` on a desktop, a bottom
+  `Sheet` on a phone with both actions 44 px tall (`FlowWaiting.tsx`, `.flow-waiting`).
 - **Team activity** (`&section=activity`, `pages/team/Activity.tsx`). Every flow run of the project,
   from `GET /projects/:id/flow/runs`: "Ahora" on top with what runs and waits, then one group per day
   ("Hoy", "Ayer · domingo 27"), where a run shows its bare hour and, before today, the day heads the
@@ -687,4 +721,4 @@ described above where it now lives. The last detail, the model's name, was close
 
 ## Related
 
-[[projects.md]] · [[work-items.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]
+[[projects.md]] · [[work-items.md]] · [[plans/flow-start-waiting.md]] · [[plans/flow-start-and-chat-token.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

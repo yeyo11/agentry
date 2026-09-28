@@ -103,6 +103,13 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return document.querySelector('.team-toolbar .badge-warn')?.textContent.includes('unsaved changes')`, { label: 'the flow has unsaved changes' });
     await page.click('.team-toolbar .btn-primary', 'Save the flow', 1500);
     await page.waitFor(`return !document.querySelector('.team-toolbar .badge-warn')`, { label: 'the flow saved' });
+    // Switched on with two cards already in columns with a member: the screen asks, and "Only new
+    // ones" keeps them waiting (this spec runs on the real CLI, so nothing may start)
+    await page.waitFor(`return !!document.querySelector('[role=dialog] .flow-waiting')`, { label: 'the prompt about the waiting cards' });
+    check((await page.text('[role=dialog] h2')) === '2 cards are waiting in columns with a responsible role', 'the prompt counts the two cards');
+    await page.click('[role=dialog] .dialog-foot .btn', 'Only new ones', 600);
+    await page.waitFor(`return !document.querySelector('[role=dialog]')`, { label: '"Only new ones" closes the prompt' });
+    check((await api.get(`/projects/${project.id}/flow/runs`)).body.total === 0, '"Only new ones" starts nothing');
     const flow = (await api.get(`/projects/${project.id}/settings`)).body.flow;
     check(flow?.enabled === true && flow.columns.in_progress === 'developer' && Number.isInteger(flow.maxBounces), `the flow was saved on, with its roles (${JSON.stringify(flow)})`);
 
@@ -113,7 +120,8 @@ export default async ({ page, api, check, dirs }) => {
     db.prepare("UPDATE work_items SET waiting = 'approval' WHERE id = ?").run(approve.id);
     db.close();
     await page.goto(`/tasks?project=${project.id}`, 1500);
-    await page.waitFor(`return document.querySelectorAll('.workitem-col').length === 5 && !!document.querySelector('[data-item-id="${approve.id}"]')`, { label: 'the board' });
+    // The heads follow the project's settings, read beside the board: wait for them, not only the cards
+    await page.waitFor(`return document.querySelectorAll('.workitem-col').length === 5 && !!document.querySelector('[data-item-id="${approve.id}"]') && !!document.querySelector('.workitem-col-head .team-person')`, { label: 'the board' });
     const heads = await page.eval(`return [...document.querySelectorAll('.workitem-col')].map((c) => c.querySelector('.workitem-col-head .role-avatar, .workitem-col-head .team-person')?.getAttribute('aria-label') ?? null)`);
     check(heads[0] === 'Product Owner answers for this column' && heads[2] === 'Developer answers for this column' && heads[4] === 'You', `each column shows who acts in it (${heads})`);
     const state = await page.eval(`return document.querySelector('.board-flow-btn .badge')?.textContent`);
