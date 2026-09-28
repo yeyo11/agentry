@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import type {
   AccountsOverview,
   AuthVerification,
@@ -1584,18 +1584,18 @@ export class Core {
    * node per item: the item follows its node, and two nodes would pull it two ways.
    */
   async launchOrchestration(spec: OrchestrationSpec): Promise<Orchestration> {
-    await this.checkWorkItemNodes(spec?.tasks);
+    await this.checkWorkItemNodes(spec?.tasks, spec?.cwd);
     return this.orchestrator.create(spec);
   }
 
   /** A relaunch names its items as the first launch did, and is held to the same checks. */
   async relaunchOrchestration(id: string, changes: RelaunchOrchestrationRequest = {}): Promise<Orchestration> {
     const spec = this.orchestrator.relaunchSpec(id, changes);
-    await this.checkWorkItemNodes(spec.tasks);
+    await this.checkWorkItemNodes(spec.tasks, spec.cwd);
     return this.orchestrator.create(spec, { relaunchedFrom: id });
   }
 
-  private async checkWorkItemNodes(tasks: unknown): Promise<void> {
+  private async checkWorkItemNodes(tasks: unknown, cwd: unknown): Promise<void> {
     const seen = new Set<string>();
     for (const task of Array.isArray(tasks) ? (tasks as Array<Partial<OrchestrationSpec['tasks'][number]> | null>) : []) {
       if (!task || typeof task !== 'object' || Array.isArray(task)) throw new WorkItemError('every task must be an object with an id and a prompt', 400);
@@ -1608,6 +1608,12 @@ export class Core {
       const item = this.workItems.find(itemId);
       if (!item) throw new WorkItemError(`${label}: work item ${itemId} not found`, 400);
       await this.ownerAccess(item.projectId, 'write');
+      // A node moves its item as it works, so it must work in the item's project: a link made by
+      // hand is held to the same
+      const dir = typeof task.cwd === 'string' && task.cwd ? task.cwd : typeof cwd === 'string' && cwd ? cwd : this.config.workspaceDir;
+      if (this.projectOf(resolve(dir)).project?.id !== item.projectId) {
+        throw new WorkItemError(`${label}: ${item.key} is a work item of another project, and the graph does not run in its project`, 400);
+      }
       // As "Work on it" is held to: a launch is the other way to put an agent on the item
       this.checkWorkable(item, `${label}: `);
     }
