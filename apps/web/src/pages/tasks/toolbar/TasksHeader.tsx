@@ -63,7 +63,7 @@ export function SuggestButton({ onClick, icon = false }: { onClick: () => void; 
   const { t } = useTranslation('tasks');
   if (icon)
     return (
-      <button type="button" className="icon-btn workitem-suggest-icon" aria-label={t('suggest.button')} onClick={onClick}>
+      <button type="button" className="icon-btn workitem-suggest-icon" aria-label={t('suggest.button')} title={t('suggest.button')} onClick={onClick}>
         <Sparkle {...ICON_SM} />
       </button>
     );
@@ -114,8 +114,11 @@ export function NewTaskButton({
   );
 }
 
-/** The desktop header: the title and its line of figures, then the views and the page's actions. */
-export function TasksHeader({ subtitle, view, actions }: { subtitle: ReactNode; view: TasksViewName; actions: ReactNode }) {
+/**
+ * The desktop header: the title and its line of figures, then what leads the views (the flow's way,
+ * on a board worked by a team: DesktopTableroEquipo), the views and the page's actions.
+ */
+export function TasksHeader({ subtitle, view, lead, actions }: { subtitle: ReactNode; view: TasksViewName; lead?: ReactNode; actions: ReactNode }) {
   const { t } = useTranslation('tasks');
   usePageTitle(t('title'));
   return (
@@ -125,6 +128,7 @@ export function TasksHeader({ subtitle, view, actions }: { subtitle: ReactNode; 
         <div className="muted workitem-head-sub">{subtitle}</div>
       </div>
       <div className="page-actions">
+        {lead}
         <ViewSwitch view={view} />
         {actions}
       </div>

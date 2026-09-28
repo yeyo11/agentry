@@ -10,7 +10,7 @@ import { Spinner } from '../../components/Spinner';
 import { Card, ErrorBox, Skeleton } from '../../components/ui';
 import { timeAgo } from '../../lib/format';
 import { useListKeys } from '../../lib/list-keys';
-import { columnMeta, listRowStep, priorityMeta, taskPath, workItemLiveState, workItemStrip } from '../../lib/work-items';
+import { columnMeta, listRowStep, priorityMeta, stripInList, taskPath, workItemLiveState, workItemStrip } from '../../lib/work-items';
 import type { BoardSelection } from './board/BoardColumns';
 import type { LiveSources } from './board/LiveLine';
 import { useStripRuns } from './board/team';
@@ -252,7 +252,7 @@ function Row({
         {project && <span className="workitem-row-project"> · {project}</span>}
       </span>
       <span className="workitem-row-now">
-        {strip ? (
+        {stripInList(strip) ? (
           <WorkItemStrip item={item} strip={strip} sources={live} inline />
         ) : blockers.length > 0 ? (
           <span className="workitem-fact">{t('card.blockedByShort', { keys: blockers.map((b) => b.key).join(', ') })}</span>

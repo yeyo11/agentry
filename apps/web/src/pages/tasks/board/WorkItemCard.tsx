@@ -99,16 +99,27 @@ export function EpicProgress({ progress }: { progress: { done: number; total: nu
  * Where an item goes (`.wi-card-ctx`): its project on All projects, its epic without a box, and its
  * labels as `#tags`. `trailing` ends the line (the assignee of a card with no facts row).
  */
-export function CardContext({ item, project, trailing, className = '' }: { item: Pick<WorkItem, 'type' | 'epic' | 'labels'>; project?: string | undefined; trailing?: ReactNode; className?: string }) {
+export function CardContext({
+  item,
+  project,
+  trailing,
+  phone = false,
+}: {
+  item: Pick<WorkItem, 'type' | 'epic' | 'labels'>;
+  project?: string | undefined;
+  trailing?: ReactNode;
+  /** A phone row names the project by its monogram, as MobileTareasTodos does */
+  phone?: boolean;
+}) {
   const { t } = useTranslation('tasks');
   const labels = item.type === 'epic' ? [] : item.labels;
   const epic = item.type === 'epic' ? null : item.epic;
   if (!project && !epic && labels.length === 0 && !trailing) return null;
   return (
-    <div className={`workitem-context ${className}`.trim()}>
+    <div className="workitem-context">
       {project && (
-        <span className="workitem-project" title={t('card.project')}>
-          <Folder size={13} strokeWidth={1.75} aria-hidden />
+        <span className={`workitem-project ${phone ? 'is-phone' : ''}`.trim()} title={t('card.project')}>
+          {phone ? <Monogram name={project} size={20} project /> : <Folder size={13} strokeWidth={1.75} aria-hidden />}
           {project}
         </span>
       )}

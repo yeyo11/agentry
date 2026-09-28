@@ -9,10 +9,13 @@ import { firstKey } from '../../../lib/work-items';
 
 /** What Tasks shows instead of a board: the module off, no project with one, an empty board, a filter that finds nothing. */
 
+/** A desktop frames the state in a card under the page's glow; a phone draws it as the page itself. */
+const frame = (phone: boolean) => (phone ? 'workitem-empty is-phone' : 'card glow-top workitem-empty');
+
 export function BoardOff({ project, phone }: { project: Project; phone: boolean }) {
   const { t } = useTranslation('tasks');
   return (
-    <section className="card glow-top workitem-empty">
+    <section className={frame(phone)}>
       {/* Nothing can be started on a board that is off: no New task button floats over it */}
       <FabStandIn />
       <Empty
@@ -35,7 +38,7 @@ export function BoardOff({ project, phone }: { project: Project; phone: boolean 
 export function NoBoards({ phone }: { phone: boolean }) {
   const { t } = useTranslation('tasks');
   return (
-    <section className="card glow-top workitem-empty">
+    <section className={frame(phone)}>
       <FabStandIn />
       <Empty
         illustration="board"
@@ -56,7 +59,7 @@ export function NoBoards({ phone }: { phone: boolean }) {
 export function EmptyBoard({ project, phone, onNew }: { project: Project | null; phone: boolean; onNew: () => void }) {
   const { t } = useTranslation('tasks');
   return (
-    <section className="card glow-top workitem-empty">
+    <section className={frame(phone)}>
       {/* Its own primary is New task: the same action twice, one floating over the other, is noise */}
       <FabStandIn />
       <Empty
@@ -71,7 +74,7 @@ export function EmptyBoard({ project, phone, onNew }: { project: Project | null;
           </button>
         }
       >
-        {t('empty.body', { project: project?.name ?? '' })}
+        {t(phone ? 'empty.bodyShort' : 'empty.body', { project: project?.name ?? '' })}
       </Empty>
       {!phone && (
         <p className="workitem-empty-hint">

@@ -166,7 +166,8 @@
     "offAction": "Go to projects",
     "noneTitle": "No project has a board",
     "noneBody": "Switch on the Board module of a project to follow its tasks here.",
-    "noneAction": "Go to projects"
+    "noneAction": "Go to projects",
+    "bodyShort": "The board of {{project}} is empty. Create the first task here, or from a message in any chat."
   },
   "all": {
     "note": "Each card names its project. No limits per column: each project sets its own, and they show once you choose it.",

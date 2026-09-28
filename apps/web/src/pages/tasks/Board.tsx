@@ -1,6 +1,6 @@
 import type { BoardColumn, WorkItem, WorkItemStatus } from '@agentry/shared';
 import { WORK_ITEM_STATUSES } from '@agentry/shared';
-import { Info } from 'lucide-react';
+import { Folder, Info } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
@@ -318,7 +318,7 @@ function TasksBoard() {
               {team && scope.project && view === 'board' && <PhoneFlowRow team={team} projectId={scope.project.id} />}
               {scope.allProjects && total > 0 && (
                 <div className="card workitem-all-card">
-                  <Info size={16} strokeWidth={1.75} aria-hidden />
+                  <Folder size={16} strokeWidth={1.75} aria-hidden />
                   <span>
                     {`${t('header.open', { count: open })} ${t('header.inProjectsShort', { count: withBoard.size })}. ${t('all.noLimits')}`}
                   </span>
@@ -332,11 +332,12 @@ function TasksBoard() {
           <TasksHeader
             view={view}
             subtitle={subtitle}
+            lead={team && scope.project ? <FlowButton team={team} projectId={scope.project.id} /> : undefined}
             actions={
               <>
-                {team && scope.project && <FlowButton team={team} projectId={scope.project.id} />}
                 {canSelect && <SelectButton on={selecting} onChange={(on) => (on ? setSelecting(true) : stopSelecting())} />}
-                {scope.project && !scope.boardOff && <SuggestButton onClick={() => setSuggesting(true)} />}
+                {/* Beside the flow's button the row is full (DesktopTableroEquipo): Suggest keeps its sparkle and its name as a tooltip */}
+                {scope.project && !scope.boardOff && <SuggestButton icon={Boolean(team)} onClick={() => setSuggesting(true)} />}
                 {!scope.boardOff && newTask}
               </>
             }

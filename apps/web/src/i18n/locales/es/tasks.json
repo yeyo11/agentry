@@ -166,7 +166,8 @@
     "offAction": "Ir a proyectos",
     "noneTitle": "Ningún proyecto tiene tablero",
     "noneBody": "Enciende el módulo Tablero de un proyecto para seguir aquí sus tareas.",
-    "noneAction": "Ir a proyectos"
+    "noneAction": "Ir a proyectos",
+    "bodyShort": "El tablero de {{project}} está vacío. Crea la primera tarea aquí, o desde un mensaje de cualquier chat."
   },
   "all": {
     "note": "Cada tarjeta dice su proyecto. Sin límites por columna: cada proyecto pone los suyos, y se ven al elegirlo.",

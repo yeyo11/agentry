@@ -237,6 +237,10 @@ export default async ({ page, api, check, dirs }) => {
     // To do holds the blocker, the first card (moved there by keyboard) and the epic
     check(jumpCounts[1] === '2', `the column jump leaves the epic out of To do (${jumpCounts})`);
     check((await page.eval(`return document.querySelectorAll('.workitem-msection input[type=checkbox], .workitem-msection .checkbox').length`)) === 0, 'no checkbox on a phone');
+    // The page heads itself with the shell's phone header, and an over-limit section says so in one line
+    check(await page.eval(`return !!document.querySelector('main .phone-head.tasks-phone-head h1') && !document.querySelector('.topbar')?.getClientRects().length`), 'the phone board heads itself, with no app top bar');
+    const overPhone = await page.eval(`return document.querySelector('.workitem-msection[data-status="in_progress"] .workitem-msection-over')?.textContent.trim() ?? null`);
+    check(/^Over the limit: \d+ of 1$/.test(overPhone ?? ''), `an over-limit section says so in its head (${overPhone})`);
     // A move through the row's sheet
     await page.click(`.workitem-mrow[data-item-id="${third.id}"] .workitem-mrow-more`, undefined, 600);
     await page.click('.sheet-actions .btn', 'Move to In review', 900);

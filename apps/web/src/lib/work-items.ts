@@ -498,6 +498,15 @@ export function stripTone(strip: WorkItemStripState): 'live' | 'wait' | 'fail' |
   }
 }
 
+/**
+ * Whether the list's "Now" column shows the strip: who runs the item now, or a run that failed on it
+ * (DesktopTareasLista). What waits for the person reads on the card and the item's page, where its
+ * button has room.
+ */
+export function stripInList(strip: WorkItemStripState | null): strip is WorkItemStripState {
+  return strip !== null && (stripTone(strip) === 'live' || strip.kind === 'failed');
+}
+
 /** The newest of each item's runs, from failed and rejected runs in any order: the one a card may still show. */
 export function lastEndedRuns(runs: readonly FlowRun[]): Map<string, FlowRun> {
   const last = new Map<string, FlowRun>();

@@ -217,7 +217,7 @@ function PhoneRow({
       </Link>
       {!done && (
         <>
-          <CardContext item={item} project={project} trailing={!facts && item.type !== 'epic' ? assignee : null} />
+          <CardContext item={item} project={project} trailing={!facts && item.type !== 'epic' ? assignee : null} phone />
           {item.type === 'epic' && <EpicProgress progress={epic} />}
           {facts && (
             <div className="workitem-card-foot">

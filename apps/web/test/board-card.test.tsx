@@ -10,9 +10,11 @@ import { MemoryRouter } from 'react-router-dom';
 import { TooltipProvider } from '../src/components/controls/Tooltip';
 import { ToastProvider } from '../src/components/Toast';
 import i18n from '../src/i18n';
-import { lastEndedRuns, stripActor, stripNamesAssignee, stripTone, workItemStrip, type StripRuns } from '../src/lib/work-items';
+import { Illustration } from '../src/components/illustrations/Illustration';
+import { lastEndedRuns, stripActor, stripInList, stripNamesAssignee, stripTone, workItemStrip, type StripRuns } from '../src/lib/work-items';
+import { EmptyBoard } from '../src/pages/tasks/board/EmptyBoards';
 import { BoardColumns } from '../src/pages/tasks/board/BoardColumns';
-import { BoardTeamProvider, type BoardTeam } from '../src/pages/tasks/board/team';
+import { BoardTeamProvider, PhoneFlowRow, type BoardTeam } from '../src/pages/tasks/board/team';
 import { WorkItemCard } from '../src/pages/tasks/board/WorkItemCard';
 
 // The board's card as DSTablero draws it (design system, decisions 1, 2, 6 and 8): five rows, one
@@ -128,7 +130,7 @@ test('a strip says one thing, most pressing first: work, then the person, then a
   assert.equal(workItemStrip(item(id, 'todo', { waiting: 'approval' }), { running: new Map([[id, run(id)]]) })?.kind, 'run');
   // The person's chat at work, a node, and a flow chat before the flow's own answer arrives
   assert.equal(workItemStrip(item(id, 'in_progress', { activeLink: chatLink() }))?.kind, 'chat');
-  assert.equal(workItemStrip(item(id, 'in_progress', { activeLink: chatLink({ kind: 'task', orchestrationId: 'o1', taskId: 't3', chatState: null, taskStatus: 'running' }) }))?.kind, 'node');
+  assert.equal(workItemStrip(item(id, 'in_progress', { activeLink: chatLink({ kind: 'orchestration', orchestrationId: 'o1', taskId: 't3', chatState: null, taskStatus: 'running' }) }))?.kind, 'node');
   assert.deepEqual(workItemStrip(item(id, 'todo', { activeLink: chatLink({ role: 'refine', teamRole: 'product-owner' }) })), {
     kind: 'run',
     role: 'product-owner',
@@ -297,4 +299,41 @@ test('while the next page of Done arrives, two skeleton cards take its place', (
   assert.equal((html.match(/workitem-card is-skeleton/g) ?? []).length, 2);
   assert.match(html, /aria-busy="true"/);
   assert.doesNotMatch(html, /workitem-col-more/);
+});
+
+// ---------- the list, the empty board and the phone ----------
+
+test("the list's Now column says who runs an item or that its run failed, and nothing that waits for the person", () => {
+  assert.ok(stripInList({ kind: 'chat', chatId: 'c' }));
+  assert.ok(stripInList({ kind: 'node', orchestrationId: 'o', taskId: 't' }));
+  assert.ok(stripInList({ kind: 'failed', role: 'qa', step: 'verify', cause: null, error: null }));
+  assert.ok(!stripInList({ kind: 'approval' }));
+  assert.ok(!stripInList({ kind: 'queued', role: 'qa', step: 'verify' }));
+  assert.ok(!stripInList(null));
+});
+
+test('the empty board draws the five fixed columns with the project\'s first key, and no "+" disc', () => {
+  const html = renderToStaticMarkup(<Illustration name="board" text="PAG-1" />);
+  assert.equal((html.match(/rx="8" class="c0"/g) ?? []).length, 5);
+  assert.match(html, />PAG-1</);
+  assert.doesNotMatch(html, /ln-white|halo/);
+});
+
+test('on a phone the empty board is the page itself, with the shorter words', async () => {
+  await i18n.changeLanguage('es');
+  const project = { id: 'p', name: 'pagos-api', path: '/tmp/p', worktrees: [], exists: true, chatCount: 0, lastActivity: null, key: 'PAG', modules: ['board' as const] };
+  const phone = wrap(<EmptyBoard project={project} phone onNew={() => {}} />);
+  assert.match(phone, /class="workitem-empty is-phone"/);
+  assert.match(text(phone), /o desde un mensaje de cualquier chat\./);
+  const desktop = wrap(<EmptyBoard project={project} phone={false} onNew={() => {}} />);
+  assert.match(desktop, /class="card glow-top workitem-empty"/);
+  await i18n.changeLanguage('en');
+});
+
+test("a phone board worked by a team says the flow's state in one row", async () => {
+  await i18n.changeLanguage('es');
+  const html = wrap(<PhoneFlowRow team={{ ...team(), queuedCount: 1 }} projectId="p" />);
+  assert.match(text(html), /Flujo automático · 2 a la vez, 1 en cola Activado/i);
+  assert.match(html, /href="\/\?project=p&amp;view=team&amp;section=flow"/);
+  await i18n.changeLanguage('en');
 });
