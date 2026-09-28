@@ -52,11 +52,13 @@ test('the spinner walks its frames and holds still when motion is turned down', 
 });
 
 test('elapsed time keeps its width and stays short', () => {
-  assert.equal(formatElapsed(0), '0s');
-  assert.equal(formatElapsed(42_000), '42s');
+  assert.equal(formatElapsed(0), '0:00');
+  assert.equal(formatElapsed(42_000), '0:42');
+  // Under a minute it reads m:ss too, so the clock keeps its width from 0:59 to 1:00
+  assert.equal(formatElapsed(59_000).length, formatElapsed(60_000).length);
   assert.equal(formatElapsed(184_000), '3:04');
   assert.equal(formatElapsed(3_723_000), '1:02:03');
-  assert.equal(formatElapsed(-5), '0s');
+  assert.equal(formatElapsed(-5), '0:00');
 });
 
 test('a timestamp the CLI never wrote counts as no time at all rather than as 1970', () => {
