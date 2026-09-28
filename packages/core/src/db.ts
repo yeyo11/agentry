@@ -434,6 +434,10 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // A label filter folds case and accents in JS, so no query ever used this index: it only cost
   // every write of an item's labels
   `DROP INDEX IF EXISTS work_item_labels_label;`,
+  // What "Suggest tasks" is asked to look at, apart from what a project is for, and the language a
+  // run's chat is titled in, so a run started again after a restart is worded as it was first
+  `ALTER TABLE assistant_runs ADD COLUMN focus TEXT;
+   ALTER TABLE assistant_runs ADD COLUMN language TEXT;`,
 ];
 
 /**
