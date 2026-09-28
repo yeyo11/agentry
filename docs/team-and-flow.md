@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T20:00:00Z
-updated_at: 2026-09-28T18:00:00Z
+updated_at: 2026-09-28T22:00:00Z
 tags:
     - team
     - flow
@@ -26,7 +26,9 @@ Done. What the team learns goes through the person too:
 
 Orchestration 3 of the [project ecosystem](plans/project-ecosystem.md) (`ecosystem-team`) built this,
 core and web, on 2026-09-27, following decisions 26 to 34 and the choices the planner wrote for that
-orchestration. The screens follow the prototypes the owner validated the same day. The board this
+orchestration. The screens follow the prototypes the owner validated the same day. Orchestrations 5
+(`ecosystem-review-fixes`) and 6 (`ecosystem-gaps`) fixed it on 2026-09-28; the gaps 6 closed are
+named by their number in [the plan](plans/project-ecosystem.md#orchestration-6-ecosystem-gaps). The board this
 works on is in [work-items.md](work-items.md), and the modules and settings in
 [projects.md](projects.md).
 
@@ -43,7 +45,9 @@ HTTP call to Anthropic.
 - **An agent file**, `.claude/agents/<agent>.md` in the project. `claude --agent` reads it, so the
   same member works from a terminal.
 - **Metadata** in `settings.team.members` of the project's settings document: the `role`, its
-  `model`, its `responsibility`, and the paths it may write (`writes`).
+  `model`, its `responsibility`, the paths it may write (`writes`) and, optionally, the shell
+  commands it may run in the work stage (`commands`, see
+  [What a run may do](#what-a-run-may-do)).
 
 **The agent file belongs to the person.** Agentry writes a starting file only where there is none,
 with an exclusive create, so not even a race overwrites one. The file's frontmatter has `name`,
@@ -75,7 +79,8 @@ offers.
 Proposing a team by reading the project is the assistant's job ([assistant.md](assistant.md)). Since
 orchestration 4 the empty Team screen's primary action is "Pedir propuesta", which starts a `project`
 run and opens the assistant's page; beside it stay the **template's team** and "Add a member". `POST /projects/:id/team/from-template`
-adds the roles the person accepts. A project without a template (imported before modules existed),
+adds the roles the person accepts, and answers **201 when it added a member and 200 when every role
+was already on the team**, like the other creating routes (orchestration 6, gap 18). A project without a template (imported before modules existed),
 or whose template has no team (Simple), is offered the Custom template's team, which is the software
 one: switching Team on means wanting a team.
 
@@ -94,8 +99,10 @@ settings, `flow`:
 | `enabled` | The switch |
 | `columns` | The role that answers for each column |
 | `maxBounces` | How many times verification may send an item back in one round, 0 to 20 |
-| `maxParallel` | Runs of the project at once, 1 to 10. Absent reads as 2 (`DEFAULT_FLOW_MAX_PARALLEL`) |
+| `maxParallel` | Runs of the project at once, 1 to 10 (`MAX_FLOW_PARALLEL`). Absent reads as 2 (`DEFAULT_FLOW_MAX_PARALLEL`) |
 | `maxCostUsd` | What one run may spend, in USD, above 0 and up to 100. Optional: absent means no limit of Agentry's own |
+
+Both limits are edited on the Flow screen (see [Team](#team-viewteam)).
 
 The flow runs only while it is on **and** the Team and Board modules are on.
 
@@ -120,6 +127,13 @@ The flow **starts paid runs on its own**, so what it will not do is part of the 
   itself. The rest wait in order.
 - **One run at a time per item, and one queued run per item.** A second trigger replaces the queued
   run rather than adding one.
+- **A backlog card costs one refine run** (orchestration 6, gap 4). The Product Owner's move to `todo`
+  would start the `todo` check, a second paid run to say the same. That check now starts only when
+  the role's latest refine of the item did not pass, or when something changed on the item since that
+  refine started: an edit, a criterion, a relation, or a comment from anyone but that run. Moves and
+  links do not count. A check queued while the refine ran is cancelled when it claims its place, with
+  the reason. Putting a card back in `backlog` still refines it, and a different role answering for
+  `todo` still gives its own opinion.
 - **A queued run whose item has left its column is cancelled**, never started: a person's move wins.
   So is one whose column nobody answers for any more.
 - **A run is moot when a person is working in the item's chat**: it is cancelled rather than started
@@ -162,7 +176,12 @@ Each run is a chat, started by `launchFlowRun` in `packages/core/src/index.ts`:
 - the stage's rules (below), and `--max-budget-usd` when the project sets `flow.maxCostUsd`;
 - no `--add-dir` for the uploads directory: a run carries no attachment, and the people's uploads are
   not its to read;
-- a prompt with the item, as "Work on it" gives it, then the stage's instructions (`flowPrompt`).
+- a prompt whose **first line is a title in the person's language**: the member's role, the item's key
+  and its title ("Desarrollador · AGN-12 · Fix the cart"), since a chat is listed by the first line of
+  its first prompt (orchestration 6, gap 13). A run starts with no request of the person's behind it,
+  so the core keeps the language the panel last named in `Accept-Language`; a header that names none
+  of Agentry's languages leaves it as it was. The item follows, as "Work on it" gives it, then the
+  stage's instructions in English (`flowPrompt`).
 
 **A member never takes over a person's chat.** A Developer's run continues **its own chat from an
 earlier round** (the item's latest `work` run in `flow_runs`), and starts its own if that chat cannot
@@ -179,8 +198,8 @@ role as `teamRole`.
 | Stage | Mode | Allowed | Denied |
 | --- | --- | --- | --- |
 | refine | `dontAsk` | `Read`, `Glob`, `Grep`; edits under the documents folder | `git push` |
-| work, no `writes` | `acceptEdits` | the read tools, `Bash`, `WebFetch`, `WebSearch`, edits anywhere | `git push` |
-| work, with `writes` | `dontAsk` | the read tools, `Bash`, `WebFetch`, `WebSearch`; edits under `writes` and the documents folder | `git push` |
+| work, no `writes`, no `commands` | `acceptEdits` | the read tools, `Bash`, `WebFetch`, `WebSearch`, edits anywhere | `git push` |
+| work, with `writes` or `commands` | `dontAsk` | the read tools, `WebFetch`, `WebSearch`; `Bash` whole, or `Bash(<pattern>)` for each of `commands`; edits under `writes` and the documents folder, or anywhere without `writes` | `git push` |
 | verify | `dontAsk` | the read tools; `git status`, `diff`, `log`, `show`; the project's test commands; edits under the documents folder | `git push`; `--output` on those git commands, which writes a file |
 
 - **`git push` is denied** as `Bash(git push)` and `Bash(git push *)`: a member's work stays on the
@@ -198,8 +217,15 @@ role as `teamRole`.
   these", so the paths are allowed rather than the rest denied (the plan said `--disallowedTools`). A
   path the flag's syntax cannot carry (a comma, a parenthesis, a space, `..`, an absolute path) is
   left out, which allows less, never more.
-- **`writes` bounds the edit tools, not a shell command**, and from a terminal it is only the agent
-  file's instructions. The member's screen says so.
+- **`writes` bounds the edit tools; `commands` bounds the shell** (orchestration 6, gap 7). A member
+  without `commands` has the whole `Bash`, as before. With a list, each pattern (`npm test`,
+  `pnpm *`…) becomes a `Bash(<pattern>)` rule in `dontAsk`, so nothing else runs, and an empty list
+  means no shell at all. `PUT /projects/:id/team/:agent` checks each pattern
+  (`isTeamCommandPattern`) and refuses one with a comma, since the CLI's rule list is comma separated;
+  `null` there drops the list. The agent file Agentry owns says what the member may run. The
+  template's Developer gets no list, so the default stays unlimited unless the owner chooses.
+  Refining and verifying keep their own tool sets whatever `commands` says. From a terminal, both are
+  only the agent file's instructions.
 
 ### The structured result
 
@@ -253,8 +279,21 @@ moved nothing: <reason>", with the run's chat as its source. The run carries the
 `error`, in English. Before, the item only showed a chat that ended and moved nothing, and the reason
 was on the Team screen alone. The Team screens show the reason beside the outcome, in the bad
 colour, and the item's chat link reads "Ejecución fallida" with the reason. A run that ends on the CLI's budget says "it reached its budget of
-<n> USD (flow.maxCostUsd)", and one cut by the account's rate limit says so. A cancelled run is a
-person's doing, or the flow going off, and writes nothing.
+<n> USD (flow.maxCostUsd)", and one cut by the account's rate limit with no other account to take it
+over says so. A cancelled run
+is a person's doing, or the flow going off, and writes nothing.
+
+**Every run of an item is served by the core** (orchestration 6, gap 2):
+`GET /work-items/:itemId/runs` answers every flow run of the item, newest first, with its stage,
+member, outcome, error and chat. The item's links read it, each flow-made chat showing the newest run
+in it, so an older failed run stays failed after the member runs again (before, the web read the team
+data, which holds each member's latest run only). A chat a member ran for the flow says under its
+"Works on" row that the run for that item failed, and gives the reason.
+
+**The team's activity is paged** (gap 6): `GET /projects/:id/flow/runs` answers every run of the
+project, newest first, filtered by `agent`, `status` (`queued`, `running` or an outcome) and `itemId`,
+50 a page by default and 200 at most. Its cursor is the run's place in the queue rather than an offset, so a run queued
+meanwhile does not shift the pages after it.
 
 ### Runs are rows, and a restart picks them up
 
@@ -295,12 +334,17 @@ preset unless the person picks one. The model stays, because it is the chat's, s
 switchable. Before, a person continuing the Developer's chat was still in `dontAsk` with the member's
 allow list, and every edit outside `writes` was denied silently.
 
-**A rate limit does not replay a run's turn.** When an account hits its limit, the core rotates to
-another and replays the turn that died. A turn held to a schema (`ChatManager.heldToSchema`: a flow
-run's, or the assistant's) was already heard by the run that started it, which ended on the error.
-Replaying it would spend a second time on a result nobody reads, so the rotation happens and the
-replay does not. The run fails with "the account hit its rate limit", and moving the item again
-starts it over.
+**A run that hits a rate limit waits for the account rotation** (orchestration 6, gap 3). When an
+account hits its limit, the core rotates to another and replays the turn that died, as it does for a
+chat. When the rotation is on its way (rotation on, `claude-swap` managing the accounts, a turn left
+to replay, `FlowService.awaitsRotation`), the flow holds the run instead of failing it, ignores the
+process the limit took down, and hears from the core's `rotateAndResume` how it went. Resumed, the
+turn is replayed **in the same chat on the next account**, and the run ends as any other. With no
+account left, or a replay that failed, the run fails and says why on the item. A run stopped while it
+waits is never replayed. Each execution of a chat gets its own rotate-and-resume, so a member's chat
+continued by a later run is not left without one. An assistant run's turn, also held to a schema
+(`ChatManager.heldToSchema`), is still not replayed: the run that started it ended on the error, and
+replaying it would spend on a result nobody reads.
 
 ## The journal
 
@@ -399,7 +443,8 @@ Reads work with the module off; changes need it on.
 
 ## Routes and events
 
-Every route is in the README: [Team](../README.md#team) (with `GET /projects/:id/flow`),
+Every route is in the README: [Team](../README.md#team) (with `GET /projects/:id/flow`, the team's
+activity `GET /projects/:id/flow/runs` and an item's runs `GET /work-items/:itemId/runs`),
 [Documents](../README.md#documents) and
 [Project journal and memory proposals](../README.md#project-journal-and-memory-proposals).
 
@@ -408,11 +453,17 @@ Each change reaches the event feed, and the web refetches exactly what it touche
 
 | Event | Carries | The web refetches |
 | --- | --- | --- |
-| `team.changed` | `created`, `updated`, `removed`, `template` | The team and the project's agent files |
+| `team.changed` | `created`, `updated`, `removed`, `template`, `file` | The team, the agents list and the project's agent files |
 | `journal.changed` | `added`, `removed` | Every page of that journal |
 | `memory.proposal` | `created`, `approved`, `rejected` | The proposals and, once approved, what the approval wrote |
 | `document.changed` | `written`, `removed`, `tied`, `untied` | The tree, the file and the item it was tied to |
-| `flow.run` | `queued`, `started`, `ended` | Who works on what, and the card it makes live |
+| `flow.run` | `queued`, `started`, `ended` | Who works on what, the team's activity, an item's runs, and the card it makes live |
+
+**An agent file saved or deleted through the resources route announces itself** (orchestration 6,
+gap 19). `/config/resources/agents/:name?project=` tells a listener of every save and delete, and the
+core emits `team.changed` with action `file` when the file is a member's, or while the Team module is
+on (its unassigned agents changed). Before, the action was in the contract and nothing emitted it, so
+the Team screen went stale after an edit in Recursos.
 
 A settings change reads the team and the flow again, since both live in the settings. A member's live
 line is patched from `chat.activity`, as the chat lists are, instead of refetching the team every few
@@ -431,24 +482,43 @@ squircle with its initials in mono, and the role's own hue only on the diamond i
 person stays a round monogram, so a board never mixes the two up. The template's roles are
 translated; any other role is shown as written.
 
+**A responsibility that is still the template's is shown in the person's language** (orchestration
+6, gap 14). Core keeps English in the metadata and the agent file, since Claude reads them. The web
+translates a responsibility that is still the template's word for word, by role; an edited one shows
+as written, and saving a member untouched keeps the English. A test reads core's
+`project-templates.ts`, so the two lists cannot drift.
+
 ### Team: `/?view=team`
 
 - **Members.** Each member shows its role and agent file, the columns it answers for (or that it is
   only consulted), where it may write, and what it does now. A file that is `missing` or `drifted`
   says so in words, in warn. The member at work carries the live rail; the rest stand still. The
   last card offers the agent files no member plays. The flow shows at a glance, with the team's latest
-  work. The tab counts its members.
+  work. The tab counts its members. "Pedir propuesta" sits beside "Añadir miembro" on a team that has
+  members too, as `DesktopEquipo` and `MobileEquipo` draw it.
+- **The team's activity** (`&section=activity`), reached from the activity card's "Ver todo"
+  (orchestration 6, gap 6). Every flow run of the project, newest first, from
+  `GET /projects/:id/flow/runs`, filtered by member and by state with the design system's `Select`.
+  Each run says its state in words: failed in the bad colour with its reason, the running one on the
+  live rail with its ring spinner. Each links to its chat, and "Cargar más" follows while pages are
+  left. A phone heads it with its own title and way back.
 - **Empty team.** `Empty` with the `team` illustration, the template's team with the roles it brings,
   and "Add a member".
-- **A member** (`&member=<agent>`). Its responsibility, write paths and model, saved through the team
-  route. Its agent file in the existing editor, saved through the resources route, the file a
+- **A member** (`&member=<agent>`). Its responsibility, write paths, shell commands and model, saved
+  through the team route. The shell is any command, none, or the patterns listed, checked as the
+  route checks them. The model is a free-text combobox, followed by the CLI's own name for it when the
+  CLI names it (see [Known gaps](#known-gaps)). "Ahora y antes" reads the member's runs from the
+  team's activity, counts the tasks they worked on, and times the live row as `4:12`. Its agent file in the existing editor, saved through the resources route, the file a
   terminal reads. Beside them: its columns, what it runs now and ran before, and its memory. On a
   desktop it is a page of its own, without the project's header and tabs, and the crumbs read
   "Equipo / Desarrollador".
 - **The flow** (`&section=flow`). The switch, the role of each column, the bounce limit and each
   role's model, edited as one draft and saved together: the flow into the settings, each model into
-  its member. The crumbs read "Equipo / Flujo". `maxParallel` has no control yet: it is kept as the
-  settings hold it, and set through `PUT /projects/:id/settings`.
+  its member. The crumbs read "Equipo / Flujo". A **Limits** card (orchestration 6, gap 5) holds a
+  stepper for the runs of the project at once (1 to 10, 2 unless chosen) and a field for what one run
+  may spend. Unlimited stays the default: an empty field or zero drops `maxCostUsd`, and the default
+  parallelism drops `maxParallel`, so nothing the person did not choose is saved. The field keeps the
+  cost as typed, so "0." on the way to "0.5" is not wiped, and offers a decimal keypad on a phone.
 - **Add a member.** A role, the agent file that plays it (one already in `.claude/agents/` or a new
   one Agentry writes), its model and what it answers for.
 
@@ -457,7 +527,12 @@ translated; any other role is shown as written.
 On one project's board with the Team module on:
 
 - each column shows the role that answers for it while the flow is on;
-- a card at work names the member on it;
+- a card at work names the member on it. A card the Product Owner refines or QA verifies is live
+  too (orchestration 6, gap 1): `isLive` in `work-item-rows.ts` counts `refine` and `verify` chat
+  links as it counts `work` ones, so the card carries the live rail and the ring spinner, and its live
+  line says "Refinando" or "Verificando" until the chat reports an activity. Origin and reference
+  chats and document ties never make a card live. On a narrow column the verb gives way in an
+  ellipsis and the time stays beside it;
 - a card that QA sent back shows "rebote 1 de 3", neutral while it has bounces left;
 - an item waiting for the person says why, with "Aprobar y pasar a Hecho" when verification passed
   it.
@@ -509,41 +584,39 @@ A member, the flow and an open document end in their own Save bar and hide the t
 (`hidesTabBar` in `lib/shell-live.ts` reads the query string too). The empty team is drawn on the
 page with full-width actions.
 
+Since orchestration 6 the phone screens follow their references more closely:
+
+- **They head themselves** (gap 21). A project's tabs, a member, the flow, the team's activity and a
+  document drop the app's top bar below 900 px (`hidesTopBar` in `lib/shell-live.ts`) and start with
+  their own head: a 44 px way back and the title. The desktop app keeps the bar, which is also its
+  window's title bar.
+- **Every tab's head ends with a way to the assistant** (`PhoneAssistantLink`, gap 8).
+- **The shell marks where the person is** (gap 22): the tab bar marks "Más" on a project's page and
+  its tabs, where Projects lives, and the sidebar marks "Proyectos" on a desktop
+  (`components/shell/nav.ts`).
+- **A document's bars sit at the bottom edge** (gap 23). Reading, "Editar" is pinned there however
+  short the document, as `MobileDocumento` draws it. Editing, the screen takes the height the page
+  leaves, the editor fills it and scrolls a long file itself, and "Descartar" and "Guardar" reach the
+  edge above a divider, as `MobileDocumentoEditar` draws them.
+- **The journal says "Tú"** beside the person's monogram, as `MobileMemoriaDiario` does, and drops
+  "written by you", which would say it twice.
+
 ## Known gaps
 
-- **A card being refined or verified is not live.** `isLive` in
-  `packages/core/src/work-item-rows.ts` still counts only `work` links. So a Product Owner's or QA's
-  run gives the item no `activeLink`, and its card carries no live rail or spinner, although the Team
-  tab shows that member at work. [The audit](plans/project-ecosystem-audit.md) left this for
-  orchestration 3, and it is still open. Counting `refine` and `verify` chat links there is the likely
-  fix.
-- **`maxParallel` and `maxCostUsd` have no control** on the Flow screen: both are set through the
-  settings document (`PUT /projects/:id/settings`).
-- **Only a member's latest failed run shows on the item's link.** The web reads the runs from the
-  team data, which holds each member's latest run, so an older failed run's chat link reads as a
-  normal one again; its comment stays. A failed run's own chat page says nothing of the failure.
-  Serving an item's runs from the core would close both (finding 14 of
-  [the review](plans/project-ecosystem-audit.md#review-of-the-whole-feature-before-the-pull-request)).
-- **`POST /projects/:id/team/from-template` answers 200**, where other creating routes answer 201.
-  It answers the whole team, and sending it twice changes nothing, so it stays.
-- **A run that hits a rate limit fails** rather than waiting for the rotation to replay it. Moving
-  the item again starts it over.
-- **`writes` does not bound the shell** in the work stage: `Bash` is allowed whole there, as a
-  Developer builds and tests with it.
-- **The `file` team action** is in the contract (`TeamChangeAction`), but nothing emits it: an agent
-  file saved through the resources route does not emit `team.changed`.
-- **The template's responsibilities are English**, written by core into the metadata and the agent
-  file, so they show in English in the Spanish interface.
-- **Not built yet**: the team activity's "Ver todo" has no route to go to. ("Pedir propuesta" came
-  with the assistant in orchestration 4.)
-- **Small differences from the references**, left by the review:
-  - the model picker shows "sonnet", not "sonnet · Sonnet 5";
-  - "Ahora y antes" has no task count;
-  - a narrow card's live line wraps its time;
-  - the phone journal shows the person's monogram without "Tú";
-  - the phone's "Editar" bar sits under a short document rather than at the bottom;
-  - the shell highlights "Inicio" where the references highlight "Proyectos" or "Más", and the phone
-    project screens keep the app's top bar. These are shell choices from orchestration 2.
+Orchestration 6 (`ecosystem-gaps`, 2026-09-28) closed every gap this section listed; each is
+described above where it now lives. One detail is only partly closed:
+
+- **The member's model reads "sonnet · Sonnet 5" only when the CLI names the alias.** The member
+  page writes, after the model, the label the CLI gives it in the overview's `system.models`
+  (`ModelName` in `pages/team/RoleAvatar.tsx`). Those options come from the file the CLI writes
+  (`additionalModelOptionsCache` in `.claude.json`, read by `packages/core/src/models.ts`), which
+  lists only the models an account adds beyond the aliases, and the aliases themselves (`sonnet`,
+  `opus`…) carry no label. So with today's CLI a member on `sonnet` shows the alias alone, as before;
+  a model the CLI does list with a label (such as `claude-fable-5-1[1m]`, "Fable") shows it. Writing
+  "Sonnet 5" for `sonnet` would need a list of Agentry's own, which `models.ts` gave up on because it
+  went stale with every CLI release, and the one rule forbids asking Anthropic. The nearest faithful
+  source is the model a run's `system/init` event reports (`claude-sonnet-5`), which would name only
+  what a member has already run on; it is not built.
 
 ## Related
 
