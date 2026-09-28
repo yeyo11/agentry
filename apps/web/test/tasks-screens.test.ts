@@ -5,7 +5,8 @@ import { queryView } from '../src/lib/query-view';
 import { isApple, shortcut } from '../src/lib/shortcut';
 import { followedItem, listRowStep, newTaskProject, renamedKey, returnPath, returnState, staleFilters, TASKS_PATH } from '../src/lib/work-items';
 import { es } from '../src/i18n/resources';
-import { deleteWarning, failedRunReason, linkRun, uncheckedCriteria } from '../src/pages/tasks/item/model';
+import { deleteWarning, linkRun, uncheckedCriteria } from '../src/pages/tasks/item/model';
+import { failureReason } from '../src/pages/tasks/item/runs';
 import { NO_MILESTONE } from '../src/pages/tasks/board/model';
 
 // The Tasks, work item and Documents screens as the review of the whole feature found them: what
@@ -86,18 +87,19 @@ test('moving to Done asks while a criterion is unchecked; deleting says when a c
 });
 
 test("a link says when the flow run it was made for failed, and why, from every run of the item", () => {
-  const run = (over: Partial<FlowRun>) => ({ state: 'ended', outcome: 'passed', error: null, chatId: 'c1', ...over }) as FlowRun;
+  const run = (over: Partial<FlowRun>) => ({ state: 'ended', outcome: 'passed', error: null, cause: null, restarts: 0, stage: 'work', column: 'in_progress', chatId: 'c1', ...over }) as FlowRun;
+  const why = (r: FlowRun | null) => (r ? (failureReason(r)?.key ?? null) : null);
   const chat = { kind: 'chat', chatId: 'c1' } as const;
-  const failed = run({ outcome: 'failed', error: 'the chat ended without a result' });
-  assert.equal(failedRunReason(linkRun(chat, [failed])), 'the chat ended without a result');
-  assert.equal(failedRunReason(linkRun(chat, [run({ outcome: 'failed', error: null })])), '', 'failed, with no reason given');
-  assert.equal(failedRunReason(linkRun(chat, [run({})])), null, 'a run that passed');
+  const failed = run({ outcome: 'failed', error: 'the chat ended without a result', cause: 'chat-ended' });
+  assert.equal(why(linkRun(chat, [failed])), 'run.cause.chat-ended');
+  assert.equal(why(linkRun(chat, [run({ outcome: 'failed', error: null })])), 'run.cause.unknown', 'failed, with no reason given');
+  assert.equal(why(linkRun(chat, [run({})])), null, 'a run that passed');
   // Newest first: a new run going in the same chat is what the link shows, not the one that failed before it
-  assert.equal(failedRunReason(linkRun(chat, [run({ state: 'running', outcome: null }), failed])), null);
+  assert.equal(why(linkRun(chat, [run({ state: 'running', outcome: null }), failed])), null);
   // An older failed run stays failed on its own link after the member ended others elsewhere
   const older = { kind: 'chat', chatId: 'c0' } as const;
-  const runs = [run({ chatId: 'c2' }), run({ chatId: 'c1' }), run({ chatId: 'c0', outcome: 'failed', error: 'no account left' })];
-  assert.equal(failedRunReason(linkRun(older, runs)), 'no account left');
+  const runs = [run({ chatId: 'c2' }), run({ chatId: 'c1' }), run({ chatId: 'c0', outcome: 'failed', error: 'no account left', cause: 'no-account' })];
+  assert.equal(why(linkRun(older, runs)), 'run.cause.no-account');
   assert.equal(linkRun(chat, [run({ chatId: 'c2', outcome: 'failed' })]), null, "another chat's run");
   assert.equal(linkRun({ kind: 'orchestration', chatId: null }, [failed]), null);
 });

@@ -37,7 +37,6 @@
   },
   "actor": {
     "agent": "Agent",
-    "agentBadge": "agent",
     "system": "automatic",
     "person": "the person"
   },
@@ -219,5 +218,70 @@
     "title": "Move {{key}} to Done?",
     "body_one": "{{count}} of its {{total}} acceptance criteria is still unchecked. Done means every one is met.",
     "body_other": "{{count}} of its {{total}} acceptance criteria are still unchecked. Done means every one is met."
+  },
+  "waiting": {
+    "badge": "waits for you"
+  },
+  "run": {
+    "title": {
+      "refine": "{{role}} refines {{key}}",
+      "check": "{{role}} checks {{key}}",
+      "work": "{{role}} implements {{key}}",
+      "verify": "{{role}} verifies {{key}}"
+    },
+    "status": {
+      "running": "running",
+      "queued": "queued",
+      "passed": "passed",
+      "rejected": "sent back",
+      "failed": "failed",
+      "cancelled": "cancelled"
+    },
+    "flowRun": "flow run",
+    "noMove": "did not move the task",
+    "waitsApproval": "waits for you to move it to Done",
+    "failedHead": {
+      "refine": "This refinement failed and did not move the task.",
+      "check": "This check failed and did not move the task.",
+      "work": "This implementation failed and did not move the task.",
+      "verify": "This verification failed and did not move the task."
+    },
+    "stays": "The task stays in {{column}}.",
+    "commented": "{{role}} said so on {{key}}.",
+    "cause": {
+      "budget": "It reached the spending limit of a flow run.",
+      "no-account": "No account had quota left: each one reached its limit and there was none to switch to.",
+      "rate-limit": "The account reached its limit, and account rotation is off.",
+      "stopped": "Its chat was stopped before it finished.",
+      "restarts_one": "It was cut off: Agentry restarted while it {{doing}}.",
+      "restarts_other": "It was cut off {{count}} times: Agentry restarted while it {{doing}}.",
+      "unreadable": "It ended without a result Agentry could read.",
+      "no-verdict": "It ended without giving its verdict.",
+      "not-started": "Its chat did not start.",
+      "not-continued": "Its chat could not be picked up again after a restart.",
+      "chat-ended": "Its chat ended, or was deleted, without leaving a result.",
+      "chat-failed": "Its chat ended with an error from Claude Code.",
+      "unknown": "It gave no reason."
+    },
+    "doing": {
+      "refine": "refined it",
+      "check": "checked it",
+      "work": "worked on it",
+      "verify": "verified it"
+    },
+    "retried": {
+      "refine": "Refinement retried",
+      "check": "Check retried",
+      "work": "Implementation retried",
+      "verify": "Verification retried"
+    },
+    "retriedChat": "{{role}} started chat {{chat}}",
+    "retriedQueued": "queued for {{role}}",
+    "retriedLead": "Retried:",
+    "retriedWhen": "{{when}}, in chat {{chat}}.",
+    "retriedNoChat": "{{when}}.",
+    "seeChat": "See the chat",
+    "retry": "Retry",
+    "retryFailed": "Could not retry the run"
   }
 }

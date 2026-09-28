@@ -214,6 +214,11 @@
   min-height: 30px;
 }
 
+/* On a phone the Activity tab names the section: its heading is for screen readers only, and takes no room */
+.workitem-section-head.is-bare {
+  display: contents;
+}
+
 .workitem-h2 {
   margin: 0;
   font-size: 15px;
@@ -570,6 +575,18 @@ a.work-link-name:hover {
   overflow-wrap: anywhere;
 }
 
+/* A flow run's link leads with its role's squircle, where a chat's has its glyph */
+.work-link-row.is-run > .role-avatar {
+  flex-shrink: 0;
+}
+
+.work-link-raw {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+
 /* ---- what changed in its worktree (.diff-file) ----
    Under .workitem-card: the review screen has a .changes-head of its own (components/changes). */
 
@@ -820,6 +837,30 @@ a.work-link-name:hover {
 
 .comment-text {
   overflow-wrap: anywhere;
+}
+
+/* A role's squircle is opaque over the rail too */
+.comment > .role-avatar {
+  background: var(--bg-3);
+}
+
+.comment-text > p {
+  margin: 0;
+}
+
+/* A failed run's way to its chat, drawn from the run rather than from the core's English comment */
+.comment-run-chat {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* On a phone it is a target of its own, under the sentence */
+.workitem-layout.is-phone .comment-run-chat {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  min-height: var(--touch);
+  margin: 2px 0 -8px;
 }
 
 .comment-text .md > :first-child {
