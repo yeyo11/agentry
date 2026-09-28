@@ -8,6 +8,7 @@ import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import type { FlowRun, ProjectSettings } from '@agentry/shared';
 import { Core } from '../src/index.ts';
+import { itemWorktree } from '../src/work-links.ts';
 import { tempConfig } from './helpers.ts';
 
 // The flow through the real core and the fake CLI (test/fixtures/fake-claude.mjs): each run is a
@@ -320,6 +321,35 @@ test('a run a restart cut off brings the newer spec into its worktree before its
     core.shutdown();
     delete process.env.FAKE_CLAUDE_SPAWNS;
     delete process.env.FAKE_CLAUDE_PROMPTS;
+  }
+});
+
+test("a run whose documents cannot be brought into its worktree ends failed saying so, and starts no chat without its spec", async () => {
+  const { config, spawns } = configWithFake();
+  const core = new Core(config);
+  try {
+    const dir = repo();
+    const project = await flowProject(core, dir, (s) => ({ ...s, flow: { ...s.flow!, columns: { in_progress: 'developer' } } }));
+    const item = core.workItems.create(project.id, { title: 'Limit resumes', status: 'todo', type: 'task', description: `FAKE-RESULT-WORK ${JSON.stringify(WORK)}` });
+    mkdirSync(join(dir, 'docs', 'plans'), { recursive: true });
+    writeFileSync(join(dir, 'docs', 'plans', 'limit.md'), '# Limit\n');
+    await core.documents.tie(item.id, { path: 'docs/plans/limit.md', kind: 'spec' }, { role: 'refine', actor: { kind: 'person' } });
+    // The item's worktree made ahead, with its index held by another git process
+    const place = itemWorktree(dir, { key: item.key, worktree: null, branch: null, projectId: project.id });
+    assert.ok(place);
+    const gitDir = execFileSync('git', ['-C', place.cwd, 'rev-parse', '--absolute-git-dir'], { encoding: 'utf8' }).trim();
+    writeFileSync(join(gitDir, 'index.lock'), '');
+    const before = spawnsOf(spawns).filter((l) => l.includes('--json-schema')).length;
+    core.workItems.move(item.id, { status: 'in_progress' }, { actor: { kind: 'person' } });
+    const [run] = await until(() => core.flow.itemRuns(item.id), (r) => r[0]?.state === 'ended', 'the run to fail');
+    assert.equal(run?.outcome, 'failed');
+    assert.equal(run?.cause, 'not-started');
+    assert.match(run?.error ?? '', /^the item's documents could not be brought into its worktree: git [^]*index\.lock/);
+    assert.equal(run?.chatId, null);
+    assert.equal(spawnsOf(spawns).filter((l) => l.includes('--json-schema')).length, before, 'a chat started without its spec');
+  } finally {
+    core.shutdown();
+    delete process.env.FAKE_CLAUDE_SPAWNS;
   }
 });
 

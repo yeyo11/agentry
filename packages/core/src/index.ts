@@ -67,7 +67,7 @@ import { AppSettingsStore } from './app-settings.ts';
 import { stateFromRun } from './chat-model.ts';
 import { chatLinkName, WorkItemError, WorkItemService, type WorkItemLinkState } from './work-items.ts';
 import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsPlace } from './documents.ts';
-import { documentsLine, syncItemDocuments, withDocumentsLine } from './item-documents.ts';
+import { documentsLine, ItemDocumentsError, syncItemDocuments, withDocumentsLine } from './item-documents.ts';
 import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { TunnelManager } from './tunnel.ts';
 import { ChatService, ChatStartError, type Placement } from './chat-service.ts';
@@ -1423,6 +1423,8 @@ export class Core {
         projectPath: record.path,
         documentsRoot: settings.documents?.path ?? DEFAULT_DOCUMENTS_PATH,
         place,
+      }).catch((err: unknown) => {
+        throw new ItemDocumentsError(`the item's documents could not be brought into its worktree: ${err instanceof Error ? err.message : String(err)}`);
       });
       for (const s of sync.skipped) console.warn(`[flow] ${item.key}: document ${s.path} not brought into the worktree: ${s.reason}`);
       const line = documentsLine(sync.present);

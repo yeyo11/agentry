@@ -40,6 +40,14 @@ export interface ItemDocumentSyncInput {
   place: ItemPlace;
 }
 
+/**
+ * The item's documents could not be brought into its worktree, so its run must not start. Its own
+ * class so the flow names it as that, rather than as a chat that could not be continued.
+ */
+export class ItemDocumentsError extends Error {
+  override readonly name = 'ItemDocumentsError';
+}
+
 /** The message of the commit the sync makes, which is also how its own commits are told from the branch's. */
 export function documentSyncMessage(item: Pick<WorkItem, 'key'>): string {
   return `docs: bring ${item.key}'s specification into its branch`;

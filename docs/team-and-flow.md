@@ -212,9 +212,11 @@ created **or resumed**, `launchFlowRun` brings the item's documents across:
   worktree: `docs/plans/x.md`.`` A prompt with no tied document has no such line. A resumed
   Developer's chat gets it too; the short "Agentry restarted…" prompt of a continued run does not, but
   the sync still runs before it.
-- **Failure.** If copying or committing fails (a git error, an index lock), the launch throws with
-  git's message and the run ends failed like any launch that fails, rather than start without its
-  specification.
+- **Failure.** If copying or committing fails (a git error, an index lock), the launch throws
+  `ItemDocumentsError` with git's message, before any chat is created or resumed. The run ends failed
+  with the cause `not-started` and the error "the item's documents could not be brought into its
+  worktree: …", rather than start without its specification. A run continued after a restart fails
+  the same way, not as a chat that could not be continued.
 
 It runs on every work and verify launch, so a spec changed in the checkout between rounds reaches the
 branch before the Developer's chat is resumed after a QA bounce. A refine, which has no worktree, and a
