@@ -3,7 +3,7 @@ import test from 'node:test';
 import en from '../src/i18n/locales/en/projects.json' with { type: 'json' };
 import es from '../src/i18n/locales/es/projects.json' with { type: 'json' };
 import { asProjectView, projectViews } from '../src/pages/dashboard/views.ts';
-import { deriveKeyPrefix, FOLDER_NAME, folderNameFor, limitedColumns, normalizePrefix, prefixProblem, sameModules, toggleModule } from '../src/pages/projects/model.ts';
+import { columnLimitsOf, deriveKeyPrefix, FOLDER_NAME, LIMIT_STATUSES, folderNameFor, limitedColumns, normalizePrefix, prefixProblem, sameModules, toggleModule } from '../src/pages/projects/model.ts';
 
 // The wizard previews the prefix the server will derive, and the settings refuse what the API
 // would refuse before sending it, so both have to agree with core's rules.
@@ -74,4 +74,10 @@ test("a new project's folder takes what it can of the name, so a name with space
   assert.equal(folderNameFor('x'.repeat(80)).length, 64);
   for (const name of ['Mi proyecto', 'Página de pagos', 'api.v2', 'ñandú 2026', '.hidden', '_tmp', 'a/b\\c'])
     assert.match(folderNameFor(name), FOLDER_NAME, name);
+});
+
+test('Done takes no limit: it only grows, so a limit there would warn for good', () => {
+  assert.deepEqual(LIMIT_STATUSES, ['backlog', 'todo', 'in_progress', 'in_review']);
+  assert.deepEqual(columnLimitsOf({ in_review: 3, done: 10 }), { in_review: 3 });
+  assert.deepEqual(limitedColumns({ columnLimits: { done: 5, todo: 2 } }), [{ status: 'todo', limit: 2 }]);
 });

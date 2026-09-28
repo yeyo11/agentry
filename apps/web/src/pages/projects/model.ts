@@ -93,10 +93,26 @@ export function folderNameFor(name: string): string {
     .replace(/-+$/, '');
 }
 
+/**
+ * The columns a limit is for, in board order. Done is not one: it only grows, so a limit there
+ * would turn warn for good once reached, with nothing anyone could move out of it.
+ */
+export const LIMIT_STATUSES: readonly WorkItemStatus[] = WORK_ITEM_STATUSES.filter((status) => status !== 'done');
+
+/** Only the limits of the columns that take one: what the settings save. */
+export function columnLimitsOf(limits: Partial<Record<WorkItemStatus, number>>): Partial<Record<WorkItemStatus, number>> {
+  const out: Partial<Record<WorkItemStatus, number>> = {};
+  for (const status of LIMIT_STATUSES) {
+    const limit = limits[status];
+    if (limit !== undefined) out[status] = limit;
+  }
+  return out;
+}
+
 /** The columns that carry a limit, in board order. */
 export function limitedColumns(board: Pick<BoardSettings, 'columnLimits'> | undefined): Array<{ status: WorkItemStatus; limit: number }> {
   if (!board) return [];
-  return WORK_ITEM_STATUSES.flatMap((status) => {
+  return LIMIT_STATUSES.flatMap((status) => {
     const limit = board.columnLimits[status];
     return limit === undefined ? [] : [{ status, limit }];
   });

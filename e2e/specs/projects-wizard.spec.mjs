@@ -81,6 +81,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return /already used/.test(document.querySelector('main .project-prefix .field-error')?.textContent ?? '')`, { label: 'the clash in the field' });
     check(await page.eval(`return [...document.querySelectorAll('main .project-general-actions .btn-primary')].every((b) => b.disabled)`), 'a clashing prefix cannot be saved');
     await page.fill('main .project-prefix input', 'WZD');
+    check((await page.eval(`return document.querySelectorAll('main .limit-field').length`)) === 4, 'every column but Done takes a limit');
     await page.fill('main .limit-field input[aria-label="Limit of In review"]', '4');
     await page.click('main .module-card[data-module=board] [role=switch]', undefined, 300);
     check((await page.text('main .module-card[data-module=board] .module-note')).includes('hidden'), 'a module switched off says it is hidden and kept');
