@@ -48,6 +48,10 @@ import { Home } from './pages/Home';
 // Only the landing pages ship in the main bundle; everything else loads on first visit
 const Accounts = lazyPage(() => import('./pages/Accounts').then((m) => m.Accounts));
 const ChatView = lazyPage(() => import('./pages/ChatView').then((m) => m.ChatView));
+const loadChangesReview = () => import('./pages/ChangesReview');
+const ChatChangesReview = lazyPage(() => loadChangesReview().then((m) => m.ChatChangesReview));
+const TaskChangesReview = lazyPage(() => loadChangesReview().then((m) => m.TaskChangesReview));
+const IntegrationChangesReview = lazyPage(() => loadChangesReview().then((m) => m.IntegrationChangesReview));
 const Connectors = lazyPage(() => import('./pages/Connectors').then((m) => m.Connectors));
 // Loaded ahead of a visit too: the list is where most visits go after the landing page
 const loadChats = () => import('./pages/Chats');
@@ -338,9 +342,12 @@ function Shell() {
               <Route path="/chats" element={<Chats />} />
               <Route path="/chats/new" element={<NewChat />} />
               <Route path="/chats/:id" element={<ChatView />} />
+              <Route path="/chats/:id/changes" element={<ChatChangesReview />} />
               <Route path="/projects" element={<Projects />} />
               <Route path="/orchestration" element={<Orchestration />} />
               <Route path="/orchestration/:id" element={<OrchestrationDetail />} />
+              <Route path="/orchestration/:id/changes" element={<IntegrationChangesReview />} />
+              <Route path="/orchestration/:id/tasks/:taskId/changes" element={<TaskChangesReview />} />
               <Route path="/accounts" element={<Accounts />} />
               <Route path="/schedules" element={<Schedules />} />
               <Route path="/schedules/new" element={<ScheduleEditor />} />

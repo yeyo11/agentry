@@ -1,0 +1,1004 @@
+/* The review screen (docs/design-system.md §5; the Changes section of the reference): a header with
+   the fingerprint, the file map at 288 px on bg-1, and one file's diff with its block rail. The
+   page owns the window's height like a chat does: the map and the diff scroll, the page does not.
+   No energy border here: the live rail on the file being edited is the screen's only moving part. */
+
+.main:has(> .page > .changes-review) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.page:has(> .changes-review) {
+  height: 100%;
+  max-width: none;
+  gap: 0;
+}
+
+.changes-review {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* ---- header ---- */
+.changes-review .changes-head {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 12px;
+  padding: 12px 20px 12px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.changes-review .changes-head-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.changes-review .changes-head-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.changes-review .changes-subject {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--fg-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.changes-review .changes-title-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.changes-review .changes-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.changes-review .changes-meta {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.changes-review .changes-counts {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.changes-review .changes-counts .is-add {
+  color: var(--diff-add);
+}
+
+.changes-review .changes-counts .is-del {
+  color: var(--diff-del);
+}
+
+.changes-review .changes-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--live);
+  white-space: nowrap;
+}
+
+/* Each segment is a link: 24 px tall to hit (WCAG 2.2 target size), 6 px drawn, the strip where
+   the reference puts it */
+.changes-review .changes-head .changes-print {
+  height: 24px;
+  margin: -9px 0 -9px 42px;
+}
+
+.changes-review .changes-head .changes-print-seg {
+  position: relative;
+  height: 24px;
+  opacity: 1;
+  background: none;
+  box-shadow: none;
+}
+
+.changes-review .changes-head .changes-print-seg::before {
+  content: '';
+  position: absolute;
+  top: 9px;
+  right: 0;
+  left: 0;
+  height: 6px;
+  border-radius: var(--diff-rail-radius);
+  opacity: 0.5;
+  background: linear-gradient(90deg, var(--diff-add) var(--a, 50%), var(--diff-del) var(--a, 50%));
+}
+
+.changes-review .changes-head .changes-print-seg:hover::before {
+  opacity: 0.8;
+}
+
+.changes-review .changes-head .changes-print-seg.is-current::before {
+  opacity: 1;
+  box-shadow:
+    0 0 0 1.5px var(--bg),
+    0 0 0 2.5px var(--fg-2);
+}
+
+.changes-review .changes-head .changes-print-seg.is-seen::before {
+  opacity: 0.18;
+}
+
+.changes-review .changes-scope {
+  max-width: 260px;
+}
+
+.changes-review .changes-scope-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The lens switch: a segmented control whose disabled half still says why */
+.changes-review .changes-lens .segment[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- body: the map beside the file ---- */
+.changes-review .changes-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.changes-review .changes-map {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 288px;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.changes-review .changes-map-head {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 8px;
+  height: 46px;
+  padding: 0 12px 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.changes-review .changes-map-head .changes-seen-of {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.changes-review .changes-seen-bar {
+  width: 40px;
+  flex: none;
+}
+
+.changes-review .changes-filter {
+  flex: none;
+  padding: 10px 10px 4px;
+}
+
+.changes-review .changes-filter .list-toolbar-search {
+  min-height: 30px;
+  padding: 0 6px 0 10px;
+}
+
+.changes-review .changes-filter .list-toolbar-search input {
+  padding: 4px 0;
+  font-size: 12.5px;
+}
+
+.changes-review .changes-tree {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 0;
+  overflow: hidden auto;
+}
+
+.changes-review .changes-dir {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 12px;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.changes-review .changes-file {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  margin: 0 6px;
+  padding: 0 12px 0 20px;
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.changes-review .changes-file:hover {
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+.changes-review .changes-file:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.changes-review .changes-file.is-current {
+  background: var(--bg-3);
+}
+
+/* The selected file takes the gradient indicator, like the sidebar's current page */
+.changes-review .changes-file.is-current::before {
+  content: '';
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: -6px;
+  width: 3px;
+  border-radius: 0 var(--diff-rail-radius) var(--diff-rail-radius) 0;
+  background: var(--grad);
+}
+
+.changes-review .changes-file.is-seen .changes-file-name {
+  color: var(--fg-3);
+}
+
+/* The file the agent is editing right now */
+.changes-review .changes-file.is-live::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 6px;
+  width: 2px;
+  border-radius: var(--diff-rail-radius);
+  background: var(--live);
+  animation: rail-pulse var(--pulse-cycle) var(--ease-in-out) infinite;
+}
+
+:root[data-motion='subtle'] .changes-review .changes-file.is-live::after,
+:root[data-motion='off'] .changes-review .changes-file.is-live::after {
+  animation: none;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .changes-review .changes-file.is-live::after {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+.changes-review .changes-file-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.changes-review .changes-file-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.changes-review .changes-file-end {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-3);
+}
+
+.changes-review .changes-file-end .spinner-glyph {
+  color: var(--live);
+}
+
+.changes-review .changes-st {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--fg-2);
+}
+
+.changes-review .changes-st.is-a {
+  color: var(--diff-add);
+}
+
+.changes-review .changes-st.is-d {
+  color: var(--diff-del);
+}
+
+.changes-review .changes-st.is-r {
+  color: var(--info);
+}
+
+/* Not committed yet: a hollow dot */
+.changes-review .changes-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1.5px var(--fg-3);
+}
+
+.changes-review .changes-map-foot {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 8px;
+  padding: 12px 18px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.changes-review .changes-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.changes-review .changes-legend .spinner-glyph {
+  color: var(--live);
+}
+
+.changes-review .changes-legend-gap {
+  width: 8px;
+}
+
+.changes-review .changes-empty-map {
+  padding: 12px 18px;
+  font-size: 12.5px;
+  color: var(--fg-3);
+}
+
+/* Folded, the map is a 48 px rail of status letters */
+.changes-review .changes-map.is-folded {
+  width: 48px;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 0;
+}
+
+.changes-review .changes-map.is-folded .changes-tree {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0;
+}
+
+.changes-review .changes-rail-file {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+}
+
+.changes-review .changes-rail-file:hover {
+  background: var(--bg-3);
+}
+
+.changes-review .changes-rail-file.is-current {
+  background: var(--bg-3);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+.changes-review .changes-rail-file.is-live {
+  box-shadow: inset 2px 0 0 var(--live);
+}
+
+/* ---- one file ---- */
+.changes-review .changes-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.changes-review .changes-file-head {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 10px;
+  height: 46px;
+  padding: 0 12px 0 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.changes-review .changes-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.changes-review .changes-path-dir {
+  color: var(--fg-3);
+}
+
+.changes-review .changes-path-name {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.changes-review .changes-sep {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--line-2);
+}
+
+/* The mode switch: icons, only the active one labelled */
+.changes-review .changes-modes .segment {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+}
+
+.changes-review .changes-modes .segment-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.changes-review .changes-modes .segment:not(.segment-on) .changes-mode-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.changes-review .changes-blocks {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+
+.changes-review .changes-blocks .icon-btn {
+  width: 26px;
+  height: 26px;
+}
+
+.changes-review .changes-blocks-count {
+  padding: 0 2px;
+}
+
+/* "Seen" is a checkbox chip */
+.changes-review .changes-seen.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: 12.5px;
+  color: var(--fg-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.changes-review .changes-seen.check:hover {
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+
+.changes-review .changes-seen .palette-kbd {
+  min-width: 0;
+  padding: 0 4px;
+}
+
+.changes-review .changes-badge {
+  flex: none;
+}
+
+/* The why line: the sentence Claude wrote before its latest edit of the file */
+.changes-review .changes-why {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 8px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+
+.changes-review .changes-why-spark {
+  flex: none;
+  color: var(--accent);
+}
+
+.changes-review .changes-why-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.changes-review .changes-why-text q {
+  quotes: '«' '»';
+}
+
+.changes-review .changes-why-when {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.changes-review .changes-why-link {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.changes-review .changes-diff-box {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.changes-review .changes-diff-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.changes-review .changes-diff-content {
+  padding: 10px 0 24px;
+}
+
+.changes-review .changes-diff-note {
+  padding: 8px 18px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.changes-review .changes-pane-state {
+  padding: 24px;
+}
+
+/* ---- Step by step, until its lens lands ---- */
+.changes-review .changes-steps {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.changes-review .changes-steps-list {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 2px;
+  width: 340px;
+  padding: 10px;
+  overflow: auto;
+  border-right: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.changes-review .edit-step {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--fg-2);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.changes-review .edit-step:hover {
+  background: var(--bg-3);
+}
+
+.changes-review .edit-step.is-current {
+  background: var(--bg-2);
+  box-shadow: 0 0 0 1px var(--line-2);
+  color: var(--fg);
+}
+
+.changes-review .edit-step-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-3);
+}
+
+.changes-review .edit-step-path {
+  overflow: hidden;
+  color: var(--fg);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.changes-review .edit-step-intent {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.changes-review .changes-step-intent {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--fg);
+}
+
+.changes-review .changes-step-intent q {
+  quotes: '«' '»';
+}
+
+.changes-review .changes-step-detail {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px;
+  overflow: auto;
+}
+
+/* ---- phone ---- */
+@media (max-width: 900px) {
+  .changes-review .changes-head {
+    gap: 14px;
+    padding: 10px 16px 14px 8px;
+    border-bottom: 0;
+  }
+
+  .changes-review .changes-head .changes-print {
+    margin-left: 0;
+  }
+
+  .changes-review .changes-title {
+    font-size: 24px;
+  }
+
+  .changes-review .changes-head .changes-lens {
+    display: flex;
+    width: 100%;
+  }
+
+  .changes-review .changes-head .changes-lens .segment {
+    flex: 1;
+    min-height: 40px;
+    font-size: 15px;
+  }
+
+  .changes-review .changes-totals {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+  }
+
+  .changes-review .changes-totals .changes-counts {
+    font-size: 14px;
+  }
+
+  .changes-review .changes-totals .changes-live {
+    margin-left: auto;
+    font-size: 14px;
+  }
+
+  .changes-review .changes-cells {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    border-top: 1px solid var(--line);
+  }
+
+  .changes-review .changes-cells-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .changes-review .changes-cells-head .changes-seen-of {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--fg-3);
+  }
+
+  .changes-review .changes-cell {
+    position: relative;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 58px;
+    padding: 8px 16px 8px 10px;
+    border-bottom: 1px solid var(--line);
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .changes-review .changes-cell.is-live::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 2px;
+    background: var(--live);
+    animation: rail-pulse var(--pulse-cycle) var(--ease-in-out) infinite;
+  }
+
+  .changes-review .changes-cell .changes-st {
+    font-size: 13px;
+  }
+
+  .changes-review .changes-cell-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .changes-review .changes-cell-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-family: var(--mono);
+    font-size: 15px;
+  }
+
+  .changes-review .changes-cell.is-seen .changes-cell-name {
+    color: var(--fg-3);
+  }
+
+  .changes-review .changes-cell-dir {
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--fg-3);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .changes-review .changes-cell .changes-file-end .changes-counts {
+    font-size: 13px;
+  }
+
+  .changes-review .changes-cells .changes-map-foot {
+    border-top: 0;
+    padding: 16px;
+  }
+
+  /* One file as its own screen */
+  .changes-review .changes-phone-file {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .changes-review .changes-phone-head {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 8px;
+    padding: 8px 12px 10px 4px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .changes-review .changes-phone-head .icon-btn,
+  .changes-review .changes-phone-bar .icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .changes-review .changes-phone-name {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .changes-review .changes-phone-sub {
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--fg-3);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .changes-review .changes-phone-head .changes-seen.check {
+    min-height: 44px;
+    padding: 0 14px;
+    font-size: 15px;
+  }
+
+  .changes-review .changes-phone-modes {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 10px;
+    padding: 10px 16px 6px;
+  }
+
+  .changes-review .changes-phone-modes .segment {
+    min-height: 36px;
+    font-size: 14px;
+  }
+
+  .changes-review .changes-phone-hint {
+    margin-left: auto;
+    font-size: 12.5px;
+    color: var(--fg-3);
+    text-align: right;
+  }
+
+  .changes-review .changes-phone-hint .diff-fold-pill {
+    position: static;
+    margin: 0 2px;
+    transform: none;
+    vertical-align: 1px;
+    pointer-events: none;
+  }
+
+  .changes-review .changes-phone-file .changes-why {
+    align-items: flex-start;
+    padding: 8px 16px 12px;
+    font-size: 14px;
+  }
+
+  .changes-review .changes-phone-file .changes-why-spark {
+    margin-top: 3px;
+  }
+
+  .changes-review .changes-phone-file .changes-why-text {
+    white-space: normal;
+  }
+
+  .changes-review .changes-phone-file .changes-why-when {
+    font-family: var(--sans);
+    font-size: 13px;
+  }
+
+  .changes-review .changes-phone-sub {
+    display: flex;
+    gap: 6px;
+  }
+
+  .changes-review .changes-phone-dir {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .changes-review .changes-phone-sub .changes-counts {
+    flex: none;
+  }
+
+  .changes-review .changes-phone-bar {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 8px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--bg-1);
+  }
+
+  .changes-review .changes-phone-step {
+    display: inline-flex;
+    align-items: center;
+    flex: 1 1 0;
+    gap: 6px;
+    min-width: 0;
+    min-height: 44px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--fg-2);
+    text-decoration: none;
+  }
+
+  .changes-review .changes-phone-step.is-next {
+    justify-content: flex-end;
+  }
+
+  .changes-review .changes-phone-step > span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .changes-review .changes-phone-bar .changes-blocks {
+    margin: 0;
+    gap: 8px;
+  }
+
+  .changes-review .changes-phone-bar .changes-blocks .icon-btn {
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+
+  .changes-review .changes-steps {
+    flex-direction: column;
+  }
+
+  .changes-review .changes-steps-list {
+    width: auto;
+    max-height: 40%;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+}

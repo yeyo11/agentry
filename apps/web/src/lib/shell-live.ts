@@ -157,6 +157,10 @@ export function hidesTabBar(pathname: string): boolean {
   // A new chat is the same page as the chat it becomes — a box at the bottom of the window — and
   // the bar would sit over it; its header carries the way back instead
   if (/^\/chats\/[^/]+\/?$/.test(pathname)) return true;
+  // The review of a chat's, a task's or the integration branch's changes is a detail screen too:
+  // a file's own screen has a bar of its own at the bottom
+  if (/^\/chats\/[^/]+\/changes\/?$/.test(pathname)) return true;
+  if (/^\/orchestration\/[^/]+\/(?:tasks\/[^/]+\/)?changes\/?$/.test(pathname)) return true;
   return /^\/orchestration\/[^/]+\/?$/.test(pathname);
 }
 
