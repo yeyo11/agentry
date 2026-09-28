@@ -568,6 +568,8 @@ export class Core {
       void this.flow.chatResult(chatId, result);
       this.assistant.chatResult(chatId, result);
     });
+    // "Create with AI" shows the file while the chat writes it, from the result it is streaming
+    this.runtime.on('chat-structured', (chatId: string, raw: string) => this.assistant.chatStructured(chatId, raw));
     // The graphs a restart cut off go on in the chats it restores, so only once those are back
     // Started last of all, once the chats it may resume or start are restored, so a slot judged at
     // boot finds the runtime it launches into ready
@@ -1674,7 +1676,7 @@ export class Core {
    * The graph a selection of one project's items becomes, for the person to review: nothing is
    * launched. The existing launch route takes it as it is and links each node to its item.
    */
-  async orchestrateWorkItems(projectId: string, request?: OrchestrateWorkItemsRequest): Promise<WorkItemOrchestrationDraft> {
+  async orchestrateWorkItems(projectId: string, request?: OrchestrateWorkItemsRequest, language: AgentryLanguage = 'en'): Promise<WorkItemOrchestrationDraft> {
     await this.workItemProject(projectId, 'write');
     const record = this.requireProject(projectId);
     const ids: unknown = request?.itemIds;
@@ -1688,7 +1690,7 @@ export class Core {
       this.checkWorkable(item);
       return item;
     });
-    return orchestrationDraft(record, items, canBranch(record.path));
+    return orchestrationDraft(record, items, canBranch(record.path), language);
   }
 
   /**
