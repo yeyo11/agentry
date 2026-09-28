@@ -1,6 +1,6 @@
 import type { Dirent } from 'node:fs';
 import { lstat, mkdir, open, readdir, readFile, realpath, stat, unlink } from 'node:fs/promises';
-import { dirname, join, sep } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import type {
   DocumentFile,
   DocumentKind,
@@ -285,7 +285,12 @@ async function writableFile(place: DocumentsPlace, rel: string): Promise<string>
   const realProbe = await realpath(probe).catch(() => null);
   const realRoot = await resolvedRoot(place);
   const allowed = realProbe !== null && (realRoot ? inside(realProbe, realRoot) : inside(realProbe, realProject));
-  if (!allowed) throw outside;
+  if (!allowed || realProbe === null) throw outside;
+  // A file where a folder of the path should be: mkdir fails with ENOTDIR, which is the caller's path
+  // meeting what is on disk, not a fault of the server
+  if (!(await stat(realProbe).then((s) => s.isDirectory()).catch(() => false))) {
+    throw new DocumentError(`${relativeTo(place, probe)} is a file, so it cannot hold ${rel}`, 409);
+  }
   await mkdir(dirname(file), { recursive: true });
   // Checked again on what now exists: the folder the file goes in, and the file if it is a link
   const realDir = await realpath(dirname(file));
@@ -298,6 +303,10 @@ async function writableFile(place: DocumentsPlace, rel: string): Promise<string>
     if (!real || !inside(real, madeRoot)) throw outside;
   }
   return target;
+}
+
+function relativeTo(place: DocumentsPlace, path: string): string {
+  return relative(place.projectPath, path).split(sep).join('/');
 }
 
 // ---------- the tree ----------

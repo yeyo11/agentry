@@ -257,6 +257,11 @@ test('what a write is given is checked', async () => {
   await assert.rejects(s.docs.write('p1', 'docs/dir.md', { content: 'x' }), refused(409, /not a file/));
   await assert.rejects(s.docs.read('p1', 'docs/dir.md'), refused(404));
   await assert.rejects(s.docs.read('p1', 'docs/missing.md'), refused(404));
+  // A file where the path needs a folder: the caller's path meets the disk, it is not a server fault
+  writeFileSync(join(s.project, 'docs', 'a.md'), '# A');
+  await assert.rejects(s.docs.write('p1', 'docs/a.md/b.md', { content: 'x' }), refused(409, /is a file/));
+  await assert.rejects(s.docs.write('p1', 'docs/a.md/deeper/b.md', { content: 'x' }), refused(409, /docs\/a\.md is a file/));
+  await assert.rejects(s.docs.read('p1', 'docs/a.md/b.md'), refused(404));
 });
 
 test('with the Documents module off, reads go on and every change is refused', async () => {
