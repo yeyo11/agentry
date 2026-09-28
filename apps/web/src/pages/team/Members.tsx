@@ -189,11 +189,6 @@ export function MemberCells({ team, memberHref }: { team: Team; memberHref: (age
 }
 
 /**
- * A project with the Team module on and nobody on it. Proposing a team by reading the project is the
- * assistant's (orchestration 4), so here the template's team is the one offer, beside adding a
- * member by hand; the roles it brings are listed under it.
- */
-/**
  * "Ask for a proposal": the assistant reads the project and proposes the team on its own page. A
  * run already reading the project is where the proposal will be, so a 409 goes there too.
  */
@@ -228,6 +223,10 @@ export function ProposeButton({ projectId }: { projectId: string }) {
   );
 }
 
+/**
+ * A project with the Team module on and nobody on it: the assistant's proposal first, the template's
+ * team beside it with the roles it brings listed under, as DesktopEquipoVacio draws it.
+ */
 export function TeamEmpty({ projectId, roles, templateName, phone, onAdd }: { projectId: string; roles: ProjectTeamRole[]; templateName: string | null; phone: boolean; onAdd: () => void }) {
   const { t } = useTranslation(['team', 'assistant']);
   const roleName = useRoleName();
@@ -273,10 +272,13 @@ export function TeamEmpty({ projectId, roles, templateName, phone, onAdd }: { pr
               <button type="button" className="btn team-empty-template" disabled={apply.isPending || roles.length === 0} onClick={() => apply.mutate()}>
                 {t('empty.useTemplate')}
               </button>
-              <button type="button" className="btn btn-quiet" onClick={onAdd}>
-                <Plus {...ICON_SM} />
-                {t('add.title')}
-              </button>
+              {/* A phone reaches it through the header's "⋯", as MobileEquipoVacio has only the two */}
+              {!phone && (
+                <button type="button" className="btn btn-quiet" onClick={onAdd}>
+                  <Plus {...ICON_SM} />
+                  {t('add.title')}
+                </button>
+              )}
             </div>
           }
         >

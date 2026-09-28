@@ -1,5 +1,6 @@
-import type { FlowRun, FlowStage, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus, WorkItemType } from '@agentry/shared';
-import { DEFAULT_FLOW_MAX_PARALLEL, isTeamCommandPattern, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, WORK_ITEM_STATUSES } from '@agentry/shared';
+import type { FlowRun, FlowRunCause, FlowStage, FlowStep, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus, WorkItemType } from '@agentry/shared';
+import { DEFAULT_FLOW_MAX_PARALLEL, flowStepOf, isTeamCommandPattern, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, WORK_ITEM_STATUSES } from '@agentry/shared';
+import { daysAgo } from '../../lib/format';
 
 /**
  * The Team tab's pure model: role names and initials, the flow as the screens edit it, and what the
@@ -355,4 +356,86 @@ export const TEMPLATE_RESPONSIBILITIES: Readonly<Record<KnownRole, string>> = {
 /** The role whose template responsibility this still is, word for word, or null once someone edited it. */
 export function templateResponsibilityRole(member: Pick<TeamMember, 'role' | 'responsibility'>): KnownRole | null {
   return isKnownRole(member.role) && member.responsibility.trim() === TEMPLATE_RESPONSIBILITIES[member.role] ? member.role : null;
+}
+
+/** When a run last did something: it ended, it started, or it was queued. */
+export const runTimeOf = (run: Pick<FlowRun, 'endedAt' | 'startedAt' | 'queuedAt'>): string => run.endedAt ?? run.startedAt ?? run.queuedAt;
+
+/**
+ * How long an ended run took, from its start to its end; null for one that never started (queued,
+ * then cancelled) or has not ended. Said in words ("3 min 40 s"), never as a clock.
+ */
+export function runDuration(run: Pick<FlowRun, 'startedAt' | 'endedAt'>): number | null {
+  if (!run.startedAt || !run.endedAt) return null;
+  const ms = Date.parse(run.endedAt) - Date.parse(run.startedAt);
+  return Number.isFinite(ms) && ms >= 0 ? ms : null;
+}
+
+/**
+ * A group of Team activity: what runs or waits now, then the ended runs by the day they ended.
+ * `days` is 0 for today and 1 for yesterday, which the heads say as "Hoy" and "Ayer · domingo 27".
+ */
+export type RunGroup = { kind: 'now'; runs: FlowRun[] } | { kind: 'day'; days: number; at: string; runs: FlowRun[] };
+
+/** The activity's list as it is read: "Now" first (running, then queued), then one group per day, newest first. */
+export function groupRuns(runs: readonly FlowRun[], now: number = Date.now()): RunGroup[] {
+  const live = [...runs.filter((run) => run.state === 'running'), ...runs.filter((run) => run.state === 'queued')];
+  const groups: RunGroup[] = live.length > 0 ? [{ kind: 'now', runs: live }] : [];
+  for (const run of runs) {
+    if (run.state !== 'ended') continue;
+    const at = runTimeOf(run);
+    const days = daysAgo(at, now) ?? 0;
+    const last = groups[groups.length - 1];
+    if (last?.kind === 'day' && last.days === days) last.runs.push(run);
+    else groups.push({ kind: 'day', days, at, runs: [run] });
+  }
+  return groups;
+}
+
+/** A member's day, as "By member · today" counts it. */
+export interface MemberDay {
+  runs: number;
+  failed: number;
+}
+
+/** Today's figures: the activity's summary line and its "By member" card. */
+export interface RunDay {
+  runs: number;
+  running: number;
+  queued: number;
+  failed: number;
+  byAgent: Record<string, MemberDay>;
+}
+
+/**
+ * What the team did today, from the runs at hand: a run counts while it runs or waits, or when it
+ * ended today. The activity holds the newest runs, so today's are all in it unless the team ran
+ * more than a page of them in one day.
+ */
+export function runDay(runs: readonly FlowRun[], now: number = Date.now()): RunDay {
+  const day: RunDay = { runs: 0, running: 0, queued: 0, failed: 0, byAgent: {} };
+  for (const run of runs) {
+    if (run.state === 'ended' && daysAgo(runTimeOf(run), now) !== 0) continue;
+    day.runs += 1;
+    if (run.state === 'running') day.running += 1;
+    if (run.state === 'queued') day.queued += 1;
+    const failed = run.outcome === 'failed';
+    if (failed) day.failed += 1;
+    const member = (day.byAgent[run.agent] ??= { runs: 0, failed: 0 });
+    member.runs += 1;
+    if (failed) member.failed += 1;
+  }
+  return day;
+}
+
+/** The step of a run as the person reads it, by its column: a `refine` in Por hacer is a check. */
+export const runStep = (run: Pick<FlowRun, 'step' | 'stage' | 'column'>): FlowStep => run.step ?? flowStepOf(run.stage, run.column);
+
+/**
+ * What a run's reason is told from: its cause, or `unknown` for a failed or cancelled run stored
+ * before causes were kept (its raw error still shows under the words). Null for any other run.
+ */
+export function runReason(run: Pick<FlowRun, 'outcome' | 'cause'>): FlowRunCause | 'unknown' | null {
+  if (run.outcome !== 'failed' && run.outcome !== 'cancelled') return null;
+  return run.cause ?? 'unknown';
 }

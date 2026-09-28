@@ -1,50 +1,21 @@
 import type { FlowRun, TeamMember } from '@agentry/shared';
-import { useMemo } from 'react';
+import { Check, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { ActivityTicker } from '../../components/ActivityTicker';
 import { Monogram, WorkItemKey, WorkItemStatusIcon } from '../../components/icons';
-import { Spinner } from '../../components/Spinner';
 import { timeAgo } from '../../lib/format';
-import { elapsedSince, formatElapsed } from '../../lib/live';
-import { useClockTick } from '../../lib/motion';
-import { chatActivity } from '../../lib/shell-live';
 import { columnMeta, taskPath } from '../../lib/work-items';
-import { runNote } from './model';
+import { runNote, runStep, runTimeOf } from './model';
 import { RoleAvatar, useRoleName } from './RoleAvatar';
+import { RunClock, RunNow, useRunReason } from './runs';
 
-/** How long a run has gone, ticking each second, in the live line's own clock ("4:12"). */
-export function RunElapsed({ since }: { since: string }) {
-  const tick = useClockTick(1000);
-  const elapsed = useMemo(() => formatElapsed(elapsedSince(since)), [since, tick]);
-  return <span className="team-live-time">{elapsed}</span>;
-}
-
-/**
- * What a run is doing now, as the live line of a card says it: its verb, what it is on, and the time.
- * Before its chat reports an activity, the stage's verb and the time since it started; the time never
- * wraps under the verb, however narrow the card.
- */
-export function RunTicker({ run, className = '', showTime = true }: { run: FlowRun; className?: string; showTime?: boolean }) {
-  const { t } = useTranslation('team');
-  const activity = chatActivity(run);
-  if (activity) return <ActivityTicker activity={activity} className={className} showElapsed={showTime} />;
-  return (
-    <span className={`team-run-working ${className}`.trim()}>
-      <Spinner className="team-live-spin" />
-      <span className="team-live-verb">{t(`stage.${run.stage}.doing`)}</span>
-      {showTime && run.startedAt && <RunElapsed since={run.startedAt} />}
-    </span>
-  );
-}
-
-/** How a run that ended is told at rest: "refined", "sent back", "failed". */
+/** How a run that ended is told at rest: "refinada", "devuelta", "falló al comprobarla". */
 export function useRunDone(): (run: FlowRun) => string {
   const { t } = useTranslation('team');
   return (run) => {
     if (run.outcome === 'passed') return t(`stage.${run.stage}.done`);
     if (run.outcome === 'rejected') return t('outcome.rejected');
-    if (run.outcome === 'failed') return t('outcome.failed');
+    if (run.outcome === 'failed') return t(`step.${runStep(run)}.failed`).toLowerCase();
     if (run.outcome === 'cancelled') return t('outcome.cancelled');
     return t('outcome.queued');
   };
@@ -56,27 +27,46 @@ export function RunOutcome({ run }: { run: FlowRun }) {
   return <span className={run.outcome === 'failed' ? 'text-err' : undefined}>{done(run)}</span>;
 }
 
-/** When a run last did something: it ended, it started, or it was queued. */
-export const runTime = (run: FlowRun): string => run.endedAt ?? run.startedAt ?? run.queuedAt;
+/**
+ * The failed run that explains a member now: its last run failed and nothing has run that step on
+ * the item since. It outranks the queue, since it is what the person has to act on.
+ */
+export const memberFailure = (member: Pick<TeamMember, 'running' | 'lastRun'>): FlowRun | null =>
+  member.running.length === 0 && member.lastRun?.outcome === 'failed' && !member.lastRun.retriedBy ? member.lastRun : null;
 
 /**
- * What a member is doing now: the live line of its run (the one thing on the card that moves), or,
- * at rest, its last work, still. `compact` is the phone's line under a member's name.
+ * What a member does now: the live line of its run (the one thing on the card that moves), a failure
+ * in bad with its reason, or, at rest, its last work, still. `compact` is the phone's line under a
+ * member's name.
  */
 export function MemberNow({ member, compact = false }: { member: TeamMember; compact?: boolean }) {
   const { t } = useTranslation('team');
+  const reason = useRunReason();
   const run = member.running[0];
+  const base = compact ? 'member-now-line' : 'member-now';
   if (run)
     return (
-      <div className={compact ? 'member-now-line is-live' : 'member-now is-live'}>
-        {run.item && <WorkItemKey value={run.item.key} />}
-        <RunTicker run={run} className="member-now-ticker" />
+      <div className={`${base} is-live`}>
+        <RunNow run={run} lead={run.item && <WorkItemKey value={run.item.key} />} className="member-now-ticker" />
         {member.running.length > 1 && <span className="member-now-more">{t('member.more', { count: member.running.length - 1 })}</span>}
+        {!compact && run.startedAt && <RunClock since={run.startedAt} className="team-live-time" />}
+      </div>
+    );
+  const failed = memberFailure(member);
+  const why = failed && reason(failed);
+  if (failed && why)
+    return (
+      <div className={`${base} is-failed`} title={failed.error ?? undefined}>
+        <X size={13} strokeWidth={2} aria-hidden className="member-now-fail-icon" />
+        <span className="member-now-fail">{t('run.failed')}</span>
+        {failed.item && <WorkItemKey value={failed.item.key} />}
+        <span className="ellipsis member-now-why">{why.short}</span>
+        {!compact && <time className="team-live-time">{timeAgo(runTimeOf(failed))}</time>}
       </div>
     );
   const last = member.lastRun;
   return (
-    <div className={compact ? 'member-now-line' : 'member-now'}>
+    <div className={base}>
       <span>{t('member.idle')}</span>
       {member.queued > 0 && (
         <>
@@ -89,7 +79,7 @@ export function MemberNow({ member, compact = false }: { member: TeamMember; com
           <span aria-hidden>·</span>
           {last.item && <WorkItemKey value={last.item.key} />}
           <span className="ellipsis" title={runNote(last) ?? undefined}>
-            <RunOutcome run={last} /> {timeAgo(runTime(last))}
+            <RunOutcome run={last} /> {timeAgo(runTimeOf(last))}
           </span>
         </>
       )}
@@ -130,7 +120,10 @@ export function FlowSummary({
       <div className="card-head">
         <h2 id="team-flow-summary">{t('flow.summaryTitle')}</h2>
         <span className="team-side-head-end">
-          <span className="badge badge-muted team-flow-state">{!saved ? t('flow.notSet') : enabled ? t('flow.on') : t('flow.off')}</span>
+          <span className="badge badge-muted team-flow-state">
+            {saved && enabled && <Check size={11} strokeWidth={2.25} aria-hidden />}
+            {!saved ? t('flow.notSet') : enabled ? t('flow.on') : t('flow.off')}
+          </span>
           <Link to={editHref} className="team-link">
             {saved ? t('flow.edit') : t('flow.setUp')}
           </Link>
@@ -170,6 +163,7 @@ export function FlowSummary({
 export function TeamActivity({ runs, allHref }: { runs: FlowRun[]; allHref: string }) {
   const { t } = useTranslation('team');
   const roleName = useRoleName();
+  const reason = useRunReason();
   return (
     <section className="card team-side-card" aria-labelledby="team-activity">
       <div className="card-head">
@@ -184,25 +178,28 @@ export function TeamActivity({ runs, allHref }: { runs: FlowRun[]; allHref: stri
         <p className="team-muted">{t('activity.none')}</p>
       ) : (
         <ul className="team-activity">
-          {runs.map((run) => (
-            <li key={run.id} className="team-activity-row">
-              <RoleAvatar role={run.role} size="sm" />
-              <span className="team-activity-text">
-                <span>
-                  {run.item ? (
-                    <Link to={taskPath(run.item.key)} className="team-activity-key">
-                      {run.item.key}
-                    </Link>
-                  ) : null}{' '}
-                  {run.state === 'running' ? t(`stage.${run.stage}.doing`) : run.state === 'queued' ? t('outcome.queued') : <RunOutcome run={run} />}
+          {runs.map((run) => {
+            const note = reason(run)?.short ?? runNote(run) ?? t(`step.${runStep(run)}.name`);
+            return (
+              <li key={run.id} className="team-activity-row" data-status={run.outcome ?? run.state}>
+                <RoleAvatar role={run.role} size="sm" />
+                <span className="team-activity-text">
+                  <span>
+                    {run.item ? (
+                      <Link to={taskPath(run.item.key)} className="team-activity-key">
+                        {run.item.key}
+                      </Link>
+                    ) : null}{' '}
+                    {run.state === 'running' ? <span className="team-activity-live">{t(`step.${runStep(run)}.doing`)}</span> : run.state === 'queued' ? t('outcome.queued') : <RunOutcome run={run} />}
+                  </span>
+                  <span className="team-activity-cause" title={note}>
+                    {roleName(run.role)} · {note}
+                  </span>
                 </span>
-                <span className="team-activity-cause" title={runNote(run) ?? undefined}>
-                  {roleName(run.role)} · {runNote(run) ?? t(`stage.${run.stage}.name`)}
-                </span>
-              </span>
-              <time className="team-activity-time">{timeAgo(runTime(run))}</time>
-            </li>
-          ))}
+                <time className="team-activity-time">{timeAgo(runTimeOf(run))}</time>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

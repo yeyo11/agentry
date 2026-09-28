@@ -1,10 +1,12 @@
 import type { Project } from '@agentry/shared';
-import { ChevronLeft, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { FolderKanban, Plus, Settings, Sparkle } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjectSettings, useProjectTemplates, useTeam } from '../../api';
-import { ICON, ICON_SM } from '../../components/icons';
+import type { MenuEntry } from '../../components/controls';
+import { ICON_SM } from '../../components/icons';
+import { PhoneHeader } from '../../components/shell/PhoneHeader';
 import { ErrorBox, Segmented, Skeleton } from '../../components/ui';
 import { useLeaveGuard } from '../../lib/dirty';
 import { NARROW, useMediaQuery } from '../../lib/media';
@@ -12,7 +14,7 @@ import { TeamActivityView } from './Activity';
 import { AddMemberDialog } from './AddMember';
 import { FlowEditor } from './Flow';
 import { MemberPage } from './Member';
-import { MemberCells, MemberGrid, ProposeButton, TeamEmpty } from './Members';
+import { MemberCells, MemberGrid, ProposeButton, TeamEmpty, useProposeTeam } from './Members';
 import { proposedFlow, savedFlow, teamActivity, teamSearch, teamSection, workingCount, type TeamSection } from './model';
 import { FlowSummary, TeamActivity } from './parts';
 
@@ -25,29 +27,15 @@ function summaryHref(params: URLSearchParams): string {
   return text ? `/?${text}` : '/';
 }
 
-/** A phone's Team screen heads itself: the tab's name, the project and what it holds, and the way back. */
-function PhoneHead({ title, detail, backHref }: { title: string; detail: string; backHref: string }) {
-  const { t } = useTranslation('team');
-  return (
-    <header className="page-header project-head project-head-phone">
-      <Link to={backHref} className="icon-btn" aria-label={t('back')}>
-        <ChevronLeft {...ICON} />
-      </Link>
-      <div className="page-header-text project-head-text">
-        <h1>{title}</h1>
-        <span className="mono small muted ellipsis">{detail}</span>
-      </div>
-    </header>
-  );
-}
-
 /**
- * The Team tab of a project: its members (`?view=team`), the flow by column (`&section=flow`) and one
- * member (`&member=<agent>`). With nobody on the team it offers the template's team. A phone draws
- * the same, headed by its own title line.
+ * The Team tab of a project: its members (`?view=team`), the flow by column (`&section=flow`), the
+ * team's activity (`&section=activity`) and one member (`&member=<agent>`), the three views behind
+ * one segmented control. With nobody on the team it offers the assistant's proposal and the
+ * template's team. A phone draws the same under its own header (`PhoneHeader`): "Equipo", the
+ * project and what it holds, the way back and "⋯".
  */
 export function ProjectTeam({ project }: { project: Project }) {
-  const { t } = useTranslation(['team', 'home', 'projects']);
+  const { t } = useTranslation(['team', 'home', 'projects', 'assistant']);
   const phone = useMediaQuery(NARROW);
   const navigate = useNavigate();
   const guard = useLeaveGuard();
@@ -55,12 +43,15 @@ export function ProjectTeam({ project }: { project: Project }) {
   const team = useTeam(project.id);
   const settings = useProjectSettings(project.id);
   const templates = useProjectTemplates();
+  const propose = useProposeTeam(project.id);
   const [adding, setAdding] = useState<{ agent?: string } | null>(null);
   const [flowChanges, setFlowChanges] = useState(0);
 
   const section: TeamSection = teamSection(params.get('section'));
   const memberId = params.get('member');
-  const go = (next: { section?: TeamSection; member?: string | null }) => void guard().then((ok) => ok && navigate({ search: teamSearch(params, next) }));
+  // The views are one screen: switching them replaces the entry, so "back" leaves Team, not the last view
+  const go = (next: { section?: TeamSection; member?: string | null }) =>
+    void guard().then((ok) => ok && navigate({ search: teamSearch(params, next) }, { replace: true }));
   const memberHref = (agent: string) => teamSearch(params, { member: agent });
   const back = summaryHref(params);
 
@@ -78,22 +69,25 @@ export function ProjectTeam({ project }: { project: Project }) {
   if (member) return <MemberPage key={member.agent} project={project} member={member} backHref={teamSearch(params, { member: null })} />;
 
   const count = members.length;
-  if (section === 'activity' && count > 0) {
-    const membersHref = teamSearch(params, { section: 'members' });
-    return (
-      <>
-        {phone && <PhoneHead title={t('activity.title')} detail={project.name} backHref={membersHref} />}
-        <TeamActivityView projectId={project.id} team={data} backHref={membersHref} phone={phone} />
-      </>
-    );
-  }
+  const more: MenuEntry[] = [
+    { id: 'add', label: t('add.title'), icon: Plus, onSelect: () => setAdding({}) },
+    { id: 'propose', label: t('assistant:teamEmpty.propose'), icon: Sparkle, disabled: propose.isPending, onSelect: () => propose.mutate() },
+    { id: 'board', label: t('phone.board'), icon: FolderKanban, onSelect: () => navigate(`/tasks?project=${encodeURIComponent(project.id)}`) },
+    { id: 'settings', label: t('phone.settings'), icon: Settings, onSelect: () => navigate(`/?project=${encodeURIComponent(project.id)}&view=settings`) },
+  ];
   const phoneDetail =
-    section === 'members' && count > 0
-      ? `${project.name} · ${t('members.count', { count })}`
-      : section === 'flow' && flowChanges > 0
-        ? `${project.name} · ${t('flow.changes', { count: flowChanges })}`
-        : project.name;
-  const head = phone && <PhoneHead title={t('home:tabs.team')} detail={phoneDetail} backHref={back} />;
+    section === 'flow' && flowChanges > 0 ? `${project.name} · ${t('flow.changes', { count: flowChanges })}` : count > 0 ? `${project.name} · ${t('members.count', { count })}` : project.name;
+  // The activity's header carries its member filter where the others carry "⋯"
+  const header = (action?: ReactNode) =>
+    phone && (
+      <PhoneHeader
+        title={t('home:tabs.team')}
+        subtitle={phoneDetail}
+        back={{ label: t('back'), fallback: back }}
+        actions={action}
+        {...(action ? {} : { more, moreLabel: t('phone.more') })}
+      />
+    );
   const addDialog = adding && (
     <AddMemberDialog
       projectId={project.id}
@@ -113,7 +107,7 @@ export function ProjectTeam({ project }: { project: Project }) {
     const templateName = own && own.team.length > 0 ? t(`projects:templates.${own.id}.name`) : null;
     return (
       <div className="team-page is-empty">
-        {head}
+        {header()}
         <TeamEmpty projectId={project.id} roles={roles} templateName={templateName} phone={phone} onAdd={() => setAdding({})} />
         {addDialog}
       </div>
@@ -137,16 +131,39 @@ export function ProjectTeam({ project }: { project: Project }) {
             ),
           },
           { value: 'flow', label: t('flow.title') },
+          { value: 'activity', label: t('log.title') },
         ]}
       />
     </div>
   );
 
+  if (section === 'activity')
+    return (
+      <TeamActivityView
+        projectId={project.id}
+        team={data}
+        flow={flow}
+        switcher={switcher}
+        flowHref={teamSearch(params, { section: 'flow' })}
+        phone={phone}
+        head={(action) => header(action)}
+      />
+    );
+
   if (section === 'flow')
     return (
       <div className="team-page">
-        {head}
-        <FlowEditor key={project.id} project={project} team={data} flow={flow} proposal={proposal} switcher={switcher} onChanges={setFlowChanges} />
+        {header()}
+        <FlowEditor
+          key={project.id}
+          project={project}
+          team={data}
+          flow={flow}
+          proposal={proposal}
+          switcher={switcher}
+          activityHref={teamSearch(params, { section: 'activity' })}
+          onChanges={setFlowChanges}
+        />
       </div>
     );
 
@@ -161,7 +178,7 @@ export function ProjectTeam({ project }: { project: Project }) {
     const working = workingCount(members);
     return (
       <div className="team-page is-phone">
-        {head}
+        {header()}
         {switcher}
         <div className="team-section-head">
           <span className="section-label">{t('members.title')}</span>

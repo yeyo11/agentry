@@ -19,7 +19,7 @@
     },
     "work": {
       "name": "implementa",
-      "doing": "Trabajando",
+      "doing": "Implementando",
       "done": "trabajada",
       "onEnter": "abre un chat en el worktree de la tarea",
       "onEnd": "la mueve a En revisión"
@@ -162,7 +162,7 @@
   "empty": {
     "title": "Este proyecto aún no tiene equipo",
     "body": "Cada miembro es un agente del CLI en <code>.claude/agents/</code>, con su rol, su modelo y lo que puede escribir, así que también trabaja desde la terminal. Empieza con el equipo de la plantilla y edita cada miembro después.",
-    "bodyShort": "Cada miembro es un agente del CLI en <code>.claude/agents/</code>, con su rol y su modelo. Empieza con el equipo de la plantilla.",
+    "bodyShort": "Cada miembro es un agente del CLI en <code>.claude/agents/</code>, con su rol y su modelo. El asistente lee el proyecto y te propone uno; tú lo aceptas miembro a miembro.",
     "useTemplate": "Usar el de la plantilla",
     "templateBrings": "La plantilla {{name}} trae",
     "templateBringsShort": "La plantilla trae",
@@ -215,18 +215,16 @@
       },
       "done": {
         "does": "Apruebas el paso a Hecho. Ningún agente mueve una tarea a Hecho.",
-        "then": "→ fijo: no depende del flujo"
+        "then": "→ fijo: no depende del flujo",
+        "phone": "ningún agente mueve a Hecho"
       }
     },
     "bouncesTitle": "Rebotes",
-    "bouncesBody": "Cuántas veces puede QA devolver una tarea antes de que te espere a ti.",
     "bouncesBodyShort": "después, la tarea te espera",
     "bouncesMax": "Rebotes como máximo",
-    "atMost": "como máximo",
-    "bounceOf": "{{n}} de {{max}}",
     "modelsTitle": "Modelo de cada rol",
     "modelFor": "Modelo de {{role}}",
-    "modelsHint": "Opus para Product Owner y Arquitecto, Sonnet para el resto, como trae la plantilla.",
+    "modelsHint": "Opus para Product Owner y Arquitecto, Sonnet para el resto, como trae la plantilla. El alias se guarda en el archivo del agente; al lado, el modelo al que apunta hoy.",
     "save": "Guardar el flujo",
     "saved": "Flujo guardado",
     "saveFailed": "No se ha podido guardar el flujo",
@@ -234,13 +232,18 @@
     "changes_other": "{{count}} cambios sin guardar",
     "limitsTitle": "Límites",
     "parallel": "Ejecuciones a la vez",
-    "parallelHint_one": "{{count}} si no eliges otra cifra",
-    "parallelHint_other": "{{count}} si no eliges otra cifra",
-    "cost": "Gasto por ejecución",
-    "costLabel": "Gasto por ejecución, en US$",
-    "costHint": "El CLI detiene la ejecución que lo alcance. Vacío: sin límite.",
+    "parallelHint": "el resto espera en cola, por orden",
+    "cost": "Coste por ejecución",
+    "costLabel": "Coste por ejecución, en US$",
+    "costHint": "vacío, sin límite (lo predeterminado)",
     "noLimit": "Sin límite",
-    "usd": "US$"
+    "usd": "US$",
+    "parallelShort": "A la vez",
+    "costPhone": "Coste máximo por ejecución",
+    "costHintPhone": "Vacío, sin límite. Con un límite, la ejecución que lo alcanza falla y lo comenta en su tarea.",
+    "bouncesHint": "los que QA devuelve antes de que te espere",
+    "seeRuns": "Ver ejecuciones",
+    "limitsFoot": "Con un límite de coste, la ejecución que lo alcanza se detiene, falla y lo comenta en su tarea. Las tareas devueltas están en Actividad, con el filtro Devueltas."
   },
   "activity": {
     "title": "Actividad del equipo",
@@ -271,6 +274,192 @@
     "noMatch": "Ninguna ejecución del equipo coincide con estos filtros.",
     "more": "Cargar más · quedan {{n}}",
     "openChat": "Abrir el chat de {{key}}"
+  },
+  "step": {
+    "refine": {
+      "name": "refinado",
+      "doing": "Refinando",
+      "failed": "Falló al refinarla"
+    },
+    "check": {
+      "name": "comprobación",
+      "doing": "Comprobando",
+      "failed": "Falló al comprobarla"
+    },
+    "work": {
+      "name": "implementación",
+      "doing": "Implementando",
+      "failed": "Falló al implementarla"
+    },
+    "verify": {
+      "name": "verificación",
+      "doing": "Verificando",
+      "failed": "Falló al verificarla"
+    }
+  },
+  "run": {
+    "badge": {
+      "running": "en marcha",
+      "queued": "en cola",
+      "passed": "pasó",
+      "rejected": "devuelta",
+      "failed": "fallida",
+      "cancelled": "cancelada"
+    },
+    "label": "{{role}}, {{step}} de {{key}}",
+    "labelGone": "{{role}}, {{step}} de una tarea eliminada",
+    "failed": "Falló",
+    "openChat": "Ver el chat",
+    "retry": "Reintentar",
+    "retryFailed": "No se ha podido reintentar la ejecución",
+    "retryQueued": "Ejecución en cola de nuevo",
+    "retriedBy": {
+      "running": "Reintentada: en marcha",
+      "queued": "Reintentada: en cola",
+      "passed": "Reintentada: pasó {{when}}",
+      "rejected": "Reintentada: la devolvió {{when}}",
+      "failed": "Reintentada: volvió a fallar {{when}}",
+      "cancelled": "Reintentada: se canceló {{when}}"
+    },
+    "waitsPlace": "Espera sitio: hay {{running}} de {{max}} ejecuciones en marcha",
+    "waitsTurn": "Espera su turno en la cola",
+    "resumes": "Retomará su chat cuando quede sitio",
+    "passedToReview": "pasó a En revisión",
+    "waitsForYou": "te espera para pasar a Hecho",
+    "itemGone": "Tarea eliminada"
+  },
+  "cause": {
+    "budget": {
+      "title": "Llegó al límite de coste.",
+      "body": "Alcanzó el coste máximo por ejecución del flujo y se detuvo. La tarea sigue en {{column}}, sin cambios.",
+      "short": "llegó al límite de coste"
+    },
+    "no-account": {
+      "title": "Ninguna cuenta tenía cupo.",
+      "body": "Las cuentas llegaron a su límite y no quedaba otra a la que pasar. La tarea sigue en {{column}}, sin cambios.",
+      "short": "ninguna cuenta tenía cupo"
+    },
+    "rate-limit": {
+      "title": "La cuenta llegó a su límite.",
+      "body": "La rotación de cuentas está desactivada, así que no pasó a otra. La tarea sigue en {{column}}, sin cambios.",
+      "short": "la cuenta llegó a su límite"
+    },
+    "stopped": {
+      "title": "Se detuvo su chat.",
+      "body": "El chat se detuvo antes de terminar. La tarea sigue en {{column}}, sin cambios.",
+      "short": "se detuvo su chat"
+    },
+    "restarts": {
+      "title_one": "Se cortó {{count}} vez.",
+      "title_other": "Se cortó {{count}} veces.",
+      "body": "Agentry se reinició mientras {{role}} trabajaba. Siguió en su chat las veces que se permiten; a la siguiente, la ejecución se dio por fallida.",
+      "short": "se cortó al reiniciarse Agentry"
+    },
+    "unreadable": {
+      "title": "No dejó un resultado legible.",
+      "body": "El chat terminó sin el resultado que el flujo lee para mover la tarea. La tarea sigue en {{column}}, sin cambios.",
+      "short": "sin un resultado legible"
+    },
+    "no-verdict": {
+      "title": "Terminó sin veredicto.",
+      "body": "La verificación acabó sin decir si la tarea pasa. La tarea sigue en {{column}}, sin cambios.",
+      "short": "terminó sin veredicto"
+    },
+    "not-started": {
+      "title": "Su chat no llegó a empezar.",
+      "body": "El CLI no pudo abrir el chat de la ejecución. La tarea sigue en {{column}}, sin cambios.",
+      "short": "su chat no llegó a empezar"
+    },
+    "not-continued": {
+      "title": "No se ha podido retomar su chat.",
+      "body": "Agentry se reinició y el chat no pudo continuar. La tarea sigue en {{column}}, sin cambios.",
+      "short": "no se ha podido retomar su chat"
+    },
+    "chat-ended": {
+      "title": "Su chat terminó sin resultado.",
+      "body": "El chat acabó, o se borró, sin dejar el resultado de la ejecución. La tarea sigue en {{column}}, sin cambios.",
+      "short": "su chat terminó sin resultado"
+    },
+    "chat-failed": {
+      "title": "El CLI dio un error.",
+      "body": "El chat terminó con un error del CLI, que se ve debajo tal cual. La tarea sigue en {{column}}, sin cambios.",
+      "short": "el CLI dio un error"
+    },
+    "unknown": {
+      "title": "Falló.",
+      "body": "La tarea sigue en {{column}}, sin cambios.",
+      "short": "falló"
+    },
+    "item-moved": {
+      "note": "No llegó a empezar: la tarea salió de la columna"
+    },
+    "item-removed": {
+      "note": "No llegó a empezar: se eliminó la tarea mientras esperaba"
+    },
+    "item-done": {
+      "note": "No llegó a empezar: la tarea pasó a Hecho"
+    },
+    "replaced": {
+      "note": "La sustituyó otra: la tarea volvió a entrar en la columna"
+    },
+    "flow-off": {
+      "note": "No llegó a empezar: se desactivó el flujo"
+    },
+    "no-member": {
+      "note": "No llegó a empezar: nadie del equipo responde ya de la columna"
+    },
+    "refined": {
+      "note": "No hacía falta: ya se refinó y la tarea no ha cambiado"
+    },
+    "chat-busy": {
+      "note": "No llegó a empezar: un chat tuyo ya trabajaba en la tarea"
+    },
+    "cancelledUnknown": "No llegó a empezar"
+  },
+  "log": {
+    "title": "Actividad",
+    "views": "Estado",
+    "all": "Todas",
+    "running": "En marcha",
+    "failed": "Fallidas",
+    "rejected": "Devueltas",
+    "member": "Miembro",
+    "allMembers": "Todos",
+    "filterMember": "Filtrar por miembro",
+    "now": "Ahora",
+    "nowCount": "{{running}} en marcha · {{queued}} en cola",
+    "today": "Hoy",
+    "yesterday": "Ayer · {{date}}",
+    "runs": "Ejecuciones",
+    "summary": {
+      "today_one": "Hoy <b>{{n}}</b> ejecución",
+      "today_other": "Hoy <b>{{n}}</b> ejecuciones",
+      "running": "<b>{{n}}</b> en marcha",
+      "queued": "<b>{{n}}</b> en cola",
+      "failed_one": "<b>{{n}}</b> fallida",
+      "failed_other": "<b>{{n}}</b> fallidas"
+    },
+    "more": "Mostrar {{count}} más",
+    "left": "quedan {{n}}",
+    "byMember": "Por miembro",
+    "todayWord": "hoy",
+    "memberRuns": "{{n}} ejec.",
+    "memberFailed_one": "{{count}} fallida",
+    "memberFailed_other": "{{count}} fallidas",
+    "consulted_one": "No responde de ninguna columna: {{names}}. El flujo no lo ejecuta; se le consulta desde un chat.",
+    "consulted_other": "No responden de ninguna columna: {{names}}. El flujo no los ejecuta; se les consulta desde un chat.",
+    "limits": "Límites del flujo",
+    "atOnce": "A la vez",
+    "inUse": "{{running}} en uso · {{queued}} en cola",
+    "costPerRun": "Coste por ejecución",
+    "bounces": "Rebotes",
+    "atMost": "como máximo",
+    "phoneFoot": "Una ejecución fallida no mueve la tarea: deja un comentario en ella y su chat dice por qué. Tócala para reintentarla desde su chat."
+  },
+  "phone": {
+    "more": "Más acciones del equipo",
+    "board": "Abrir el tablero",
+    "settings": "Ajustes del proyecto"
   },
   "board": {
     "columnRole": "{{role}} responde de esta columna"
