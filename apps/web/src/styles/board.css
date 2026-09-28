@@ -617,13 +617,25 @@ button.workitem-mrow-more-link {
 }
 
 .workitem-card-live.has-ticker .ticker-verb {
-  flex: 1 1 auto;
+  /* From no width up: however narrow the column, the verb gives way (in an ellipsis) and the time
+     stays on its line, as DesktopTableroEquipo draws it */
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--live);
+}
+
+.workitem-card-live.has-ticker .ticker-spinner {
+  flex: none;
 }
 
 .workitem-card-live.has-ticker .ticker-elapsed {
   order: 1;
+  flex: none;
   margin-left: auto;
+  white-space: nowrap;
 }
 
 .workitem-card-live.has-ticker .ticker-target {
