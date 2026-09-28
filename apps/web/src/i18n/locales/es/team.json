@@ -174,7 +174,7 @@
     "title": "Flujo",
     "summaryTitle": "Flujo por columna",
     "on": "automático",
-    "off": "apagado",
+    "off": "desactivado",
     "notSet": "sin configurar",
     "edit": "Editar",
     "setUp": "Configurar",
