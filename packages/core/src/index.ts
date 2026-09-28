@@ -954,6 +954,9 @@ export class Core {
    */
   async projects(): Promise<Project[]> {
     const places = await this.chatPlaces();
+    // Counted from the chat list the project's page shows, so the figure agrees with it: a chat this
+    // process runs (a "Work on it", a flow or an assistant chat) counts before the CLI writes its transcript
+    const listed = await this.chats.list();
     const worktrees = new Map<string, Map<string, ProjectWorktree>>();
     const stats = new Map<string, { chatCount: number; lastActivity: string | null }>();
     const addWorktree = (path: string, creator: ProjectWorktree['createdBy'] = null) => {
@@ -967,12 +970,14 @@ export class Core {
 
     for (const place of places) {
       const attached = this.attach(place.cwd);
-      if (!attached) continue;
-      const stat = stats.get(attached.project.id) ?? { chatCount: 0, lastActivity: null };
+      if (attached?.worktree) addWorktree(attached.worktree.path);
+    }
+    for (const chat of listed) {
+      if (!chat.project) continue;
+      const stat = stats.get(chat.project.id) ?? { chatCount: 0, lastActivity: null };
       stat.chatCount += 1;
-      if (place.updatedAt && (!stat.lastActivity || place.updatedAt > stat.lastActivity)) stat.lastActivity = place.updatedAt;
-      stats.set(attached.project.id, stat);
-      if (attached.worktree) addWorktree(attached.worktree.path);
+      if (chat.updatedAt && (!stat.lastActivity || chat.updatedAt > stat.lastActivity)) stat.lastActivity = chat.updatedAt;
+      stats.set(chat.project.id, stat);
     }
 
     // The orchestration task that created a worktree says more about it than its name does, and a

@@ -153,6 +153,12 @@ test('working on an item starts a chat in its own worktree, and the item follows
   assert.equal(whole.statusCode, 200, whole.body);
   assert.equal(whole.json<{ full: boolean }>().full, true);
 
+  // The project counts the chat as its page lists it, before any transcript is on disk
+  const counted = (await app.inject('/api/projects')).json<Project[]>().find((p) => p.id === project.id);
+  const listed = (await app.inject(`/api/chats?project=${project.id}`)).json<ChatSummary[]>();
+  assert.ok(listed.some((c) => c.id === started.chat.id));
+  assert.equal(counted?.chatCount, listed.length);
+
   // The chat's header can name the item it works on
   assert.deepEqual((await app.inject(`/api/chats/${started.chat.id}/work-items`)).json<WorkItem[]>().map((i) => i.id), [bug.id]);
 
