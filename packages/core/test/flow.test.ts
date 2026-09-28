@@ -135,7 +135,7 @@ test('a card a person puts on the board starts the role of its column, with the 
   );
 });
 
-test('refining in backlog completes the item, comments, and moves it to todo, where the Product Owner checks it and leaves it', async () => {
+test('refining in backlog completes the item, comments, and moves it to todo, where it costs no second run', async () => {
   const s = setup();
   const it = await item(s, 'backlog');
   await s.answer(it.id, ok('Refined', { description: 'The cart keeps its lines', acceptanceCriteria: ['Lines survive a reload', 'Lines survive a reload'] }));
@@ -149,13 +149,106 @@ test('refining in backlog completes the item, comments, and moves it to todo, wh
   const move = s.items.history(it.id).find((e) => e.change === 'status');
   assert.equal(move?.actor.kind, 'agent');
   assert.equal(move?.cause?.event, 'flow.refined');
-  // The move into todo is the flow's own, so it starts the todo check, which moves nothing
+  // The Product Owner has just refined it, and nothing changed since: the todo check would repeat it
+  assert.equal(s.launches.length, 1);
+  assert.equal(s.items.find(it.id)?.status, 'todo');
+  assert.equal(running(s).length + queued(s).length, 0);
+  assert.deepEqual(flowRuns(s).map((r) => [r.column, r.outcome]), [['backlog', 'passed']]);
+});
+
+/** Refining in backlog and todo only, so a card can be moved around without starting other roles */
+function refineOnly(): ProjectSettings {
+  const settings = settingsWith();
+  return { ...settings, flow: { ...settings.flow!, columns: { backlog: 'product-owner', todo: 'product-owner' } } };
+}
+
+async function refined(s: Setup, title = 'Fix the cart') {
+  const it = await item(s, 'backlog', title);
+  await s.answer(it.id, ok('Refined', { description: 'Complete now' }));
+  assert.equal(s.items.find(it.id)?.status, 'todo');
+  assert.equal(s.launches.length, 1, 'the flow refined it once');
+  return it;
+}
+
+/** A person takes the card out of todo and puts it back, which asks for the todo check */
+async function backToTodo(s: Setup, itemId: string) {
+  s.items.move(itemId, { status: 'in_progress' }, person);
+  s.items.move(itemId, { status: 'todo' }, person);
+  await s.flow.settled();
+}
+
+test('a refined card put back in todo with nothing changed starts no run; one changed since starts the check', async () => {
+  const s = setup({ settings: refineOnly() });
+  const it = await refined(s);
+  await backToTodo(s, it.id);
+  assert.equal(s.launches.length, 1, 'nothing changed, yet the check ran again');
+
+  // A person's comment is something to check again
+  s.items.comment(it.id, { body: 'It must also keep the coupon' }, person);
+  await backToTodo(s, it.id);
   assert.equal(s.launches.length, 2);
   assert.equal(s.launches[1]?.run.column, 'todo');
   await s.answer(it.id, ok('Ready'));
+
+  // That check passed: back in todo again, it has spoken for the item until something changes
+  await backToTodo(s, it.id);
+  assert.equal(s.launches.length, 2);
+  s.items.update(it.id, { title: 'Fix the cart and the coupon' }, person);
+  await backToTodo(s, it.id);
+  assert.equal(s.launches.length, 3);
+});
+
+test("an edit a person makes while the Product Owner refines, or another member's comment, is something to check again", async () => {
+  const s = setup({ settings: refineOnly() });
+  const it = await item(s, 'backlog');
+  s.items.update(it.id, { description: 'Mine, while it refines' }, person);
+  await s.answer(it.id, ok('Refined', { description: 'Theirs' }));
   assert.equal(s.items.find(it.id)?.status, 'todo');
-  assert.equal(running(s).length + queued(s).length, 0);
-  assert.equal(flowRuns(s).filter((r) => r.outcome === 'passed').length, 2);
+  assert.equal(s.launches.length, 2, 'the edit made while it refined was not checked');
+  await s.answer(it.id, ok('Ready'));
+
+  s.items.comment(it.id, { body: 'Blocked by the payment API' }, { actor: { kind: 'agent', role: 'developer' } });
+  await backToTodo(s, it.id);
+  assert.equal(s.launches.length, 3);
+});
+
+test('a card that goes to todo without a refine that passed is checked there', async () => {
+  // Put straight into todo: nothing refined it
+  const s = setup({ settings: refineOnly() });
+  await item(s, 'todo');
+  assert.equal(s.launches.length, 1);
+
+  // A refine that failed spoke for nothing
+  const failed = await item(s, 'backlog', 'Failed');
+  await s.answer(failed.id, {}, true);
+  s.items.move(failed.id, { status: 'todo' }, person);
+  await s.flow.settled();
+  assert.equal(s.launches.at(-1)?.run.column, 'todo');
+  assert.equal(s.launches.at(-1)?.run.itemId, failed.id);
+
+  // Another role checking todo is a second opinion the project asked for
+  const settings = refineOnly();
+  const other = setup({ settings: { ...settings, flow: { ...settings.flow!, columns: { backlog: 'product-owner', todo: 'qa' } } } });
+  const it = await item(other, 'backlog');
+  await other.answer(it.id, ok('Refined'));
+  assert.deepEqual(other.launches.map((l) => [l.run.column, l.member.agent]), [
+    ['backlog', 'product-owner'],
+    ['todo', 'qa'],
+  ]);
+});
+
+test('a todo check queued while the refine it would repeat was running is cancelled once that refine passes', async () => {
+  const s = setup({ settings: refineOnly() });
+  const it = await item(s, 'backlog');
+  // A person drags it to todo mid-refine: the check waits for the refine, one run at a time
+  s.items.move(it.id, { status: 'todo' }, person);
+  await s.flow.settled();
+  assert.equal(queued(s)[0]?.column, 'todo');
+  await s.answer(it.id, ok('Refined', { acceptanceCriteria: ['Lines survive a reload'] }));
+  assert.equal(s.launches.length, 1);
+  assert.equal(queued(s).length + running(s).length, 0);
+  const check = flowRuns(s).find((r) => r.column === 'todo');
+  assert.deepEqual([check?.outcome, check?.error], ['cancelled', 'it was refined and has not changed since']);
 });
 
 test('a developer run that ends well moves the item to review, and QA passing leaves it waiting for approval', async () => {

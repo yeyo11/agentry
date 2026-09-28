@@ -34,6 +34,7 @@ import {
   type WorkItem,
   type WorkItemActor,
   type WorkItemCause,
+  type WorkItemChange,
   type WorkItemRef,
   type WorkItemSource,
   type WorkItemStatus,
@@ -257,6 +258,9 @@ interface ParsedResult {
 }
 
 const TARGET_KINDS: readonly MemoryProposalTargetKind[] = ['instructions', 'memory', 'journal'];
+
+/** History entries that say where an item is or what worked on it, not what it asks: they give a refine nothing new to check */
+const UNCHANGING: ReadonlySet<WorkItemChange> = new Set<WorkItemChange>(['status', 'link', 'waiting']);
 
 /** The JSON Schema a run's result is held to (`--json-schema`); refining may also rewrite the item. */
 export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
@@ -644,6 +648,12 @@ export class FlowService {
       this.cancelQueued(itemId, 'the item moved');
       return;
     }
+    // The Product Owner refined it already and nothing has changed since: checking it again in todo
+    // would be a second paid run to say the same
+    if (this.refinedAlready(item, column, member.role)) {
+      this.cancelQueued(itemId, 'it was refined and has not changed since');
+      return;
+    }
     const now = new Date().toISOString();
     const id = randomUUID();
     let replaced: RunRow | undefined;
@@ -746,6 +756,11 @@ export class FlowService {
     const member = memberOf(project.settings, row.role);
     if (!member || project.settings.flow?.columns[item.status] !== row.role) {
       this.end(row.id, 'cancelled', null, 'nobody on the team answers for the column now');
+      return null;
+    }
+    // Queued while the refine it would repeat was still running: that one has spoken for it
+    if (!row.chat_id && this.refinedAlready(item, item.status, row.role)) {
+      this.end(row.id, 'cancelled', null, 'it was refined and has not changed since');
       return null;
     }
     // The count and the claim in one transaction: two processes on one database could otherwise
@@ -981,6 +996,29 @@ export class FlowService {
         // removed meanwhile: the others still go
       }
     }
+  }
+
+  /**
+   * Whether the todo check of an item would repeat a refine: the role's latest refine of the item
+   * passed, and nothing has changed on the item since it started but what that run wrote itself (its
+   * description, criteria, comment, documents and its move to todo). An edit, a comment or a relation
+   * from anyone else is something to check again; so is a refine that failed or was cancelled. Moves
+   * and links are not: they say where the item is, not what it asks. Only todo: a card a person puts
+   * back in backlog asks for a new refine.
+   */
+  private refinedAlready(item: WorkItem, column: WorkItemStatus, role: string): boolean {
+    if (column !== 'todo') return false;
+    const last = this.sql
+      .prepare("SELECT * FROM flow_runs WHERE item_id = ? AND stage = 'refine' AND role = ? AND state = 'ended' ORDER BY seq DESC LIMIT 1")
+      .get(item.id, role) as RunRow | undefined;
+    if (!last || last.outcome !== 'passed') return false;
+    const since = last.started_at ?? last.queued_at;
+    const own = (actor: WorkItemActor, chatId: string | null | undefined): boolean => actor.kind === 'agent' && actor.role === last.role && !!last.chat_id && chatId === last.chat_id;
+    const changed = this.deps.items
+      .history(item.id)
+      .some((e) => e.createdAt >= since && !UNCHANGING.has(e.change) && !own(e.actor, e.cause?.chatId));
+    if (changed) return false;
+    return !this.deps.items.comments(item.id).some((c) => c.createdAt >= since && !own(c.author, c.source?.chatId));
   }
 
   private personMovedSince(itemId: string, since: string): boolean {
