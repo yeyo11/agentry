@@ -57,20 +57,21 @@ test('"Create with AI" shows the file as the chat writes it, and where it will b
   const content = '---\nname: glossary-reviewer\ndescription: Reads each new sentence\n';
   const html = wrap(<LiveWriting run={writing({ draft: { kind: 'agents', name: 'glossary-reviewer', content } })} scope="project" phone={false} />);
   const words = text(html);
-  assert.match(words, /Escribiendo \.claude\/agents\/glossary-reviewer\.md/);
+  assert.match(words, /Escribiendo glossary-reviewer\.md/);
+  assert.match(html, /title="\.claude\/agents\/glossary-reviewer\.md"/);
   assert.doesNotMatch(words, /El archivo aparece aquí/);
   // Still live: the energy border and the running clock, from the first second in minutes
   assert.match(html, /class="suggestion-run is-live live-energy create-ai-live"/);
   assert.match(words, /0:1[89]/);
-  // In the user's scope the path has no .claude/ in front
-  assert.match(text(wrap(<LiveWriting run={writing({ draft: { kind: 'agents', name: 'glossary-reviewer', content } })} scope="user" phone={false} />)), /Escribiendo agents\/glossary-reviewer\.md/);
+  // In the user's scope the path it goes to has no .claude/ in front
+  assert.match(wrap(<LiveWriting run={writing({ draft: { kind: 'agents', name: 'glossary-reviewer', content } })} scope="user" phone={false} />), /title="agents\/glossary-reviewer\.md"/);
 });
 
 test('before the first part of the file, the still slot says it will fill in', () => {
   for (const draft of [undefined, null, { kind: 'agents' as const, name: null, content: '' }]) {
     const words = text(wrap(<LiveWriting run={writing({ draft })} scope="project" phone={false} />));
     assert.match(words, /El archivo aparece aquí en cuanto empiece a escribirlo/);
-    assert.doesNotMatch(words, /Escribiendo \./);
+    assert.doesNotMatch(words, /Escribiendo /);
   }
 });
 

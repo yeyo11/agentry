@@ -69,6 +69,11 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
 - `json: <JSON on one line>` — the turn's `structured_output`, what `--json-schema` makes the CLI
   return beside its text: an assistant run's answer. A turn with a `json:` line and no `say:` ends
   with an empty `result` text.
+- `stream: <JSON on one line>` — the same `structured_output`, streamed first as the CLI hands a
+  `--json-schema` result over: a `StructuredOutput` tool call whose input arrives as
+  `stream_event` / `input_json_delta` events. The first half goes out at once, the rest before the
+  next step (so a `hold:` right after it keeps the file half-written).
+- `hold: <path>` — waits until `<path>` (against the working directory) exists before the next step.
 - `elapsed: <seconds>` — sets the heartbeat offset for this process from now on: a command then
   reports it has run that long, which is how a spec makes `hung-command` fire at once.
 - A turn with `run:` lines and no `say:` line starts with the text `Running N commands.` and ends

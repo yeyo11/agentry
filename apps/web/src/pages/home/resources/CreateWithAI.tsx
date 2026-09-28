@@ -249,7 +249,8 @@ export function CreateWithAI({
 }
 
 /**
- * The run writing the resource: the live verb, the file it writes and the time, its facts, and the
+ * The run writing the resource: the live verb, the file it writes (its name, as the reference writes
+ * it; the path, which "Where" decides, on hover) and the time, its facts, and the
  * file itself as the chat writes it (`draft`, refreshed by each `assistant.run` read event), read-only:
  * nothing of it is saved, and "Open in the editor" waits for the whole file. Until the first part
  * arrives, the still slot the file will fill.
@@ -266,7 +267,11 @@ export function LiveWriting({ run, scope, phone }: { run: AssistantRunDetail; sc
           <span className="create-ai-writing">
             <Spinner />
             <span className="create-ai-verb">{t('resourcesAi.writingVerb')}</span>
-            {draft.name && <span className="mono ellipsis create-ai-file">{savePath(draft.kind, draft.name, scope)}</span>}
+            {draft.name && (
+              <span className="mono ellipsis create-ai-file" title={savePath(draft.kind, draft.name, scope)}>
+                {draft.kind === 'skills' ? `${draft.name}/` : `${draft.name}.md`}
+              </span>
+            )}
           </span>
         ) : (
           <ActivityTicker activity={activity} showElapsed={false} />
