@@ -1051,6 +1051,8 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .fp > i { display: block; height: 100%; border-radius: 2px; min-width: 4px; opacity: 0.5; background: linear-gradient(90deg, var(--diff-add) var(--a, 50%), var(--diff-del) var(--a, 50%)); }
 .fp > i.sel { opacity: 1; box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 2.5px var(--fg-2); }
 .fp > i.seen { opacity: 0.18; }
+/* Lo que no cabe a 4 px por archivo se pliega en un último segmento neutro que abre el primero de ellos */
+.fp > i.rest { opacity: 0.35; background: var(--fg-3); }
 /* Mapa de archivos */
 .fmap { display: flex; flex-direction: column; }
 .fdir { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 12px; font-family: var(--mono); font-size: 11px; color: var(--fg-3); white-space: nowrap; overflow: hidden; }

@@ -144,6 +144,11 @@
   opacity: 0.18;
 }
 
+.changes-review .changes-head .changes-print-rest::before {
+  opacity: 0.35;
+  background: var(--fg-3);
+}
+
 .changes-review .changes-scope {
   max-width: 260px;
 }
@@ -155,11 +160,6 @@
 }
 
 /* The lens switch: a segmented control whose disabled half still says why */
-.changes-review .changes-lens .segment[aria-disabled='true'] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 /* ---- body: the map beside the file ---- */
 .changes-review .changes-body {
   display: flex;

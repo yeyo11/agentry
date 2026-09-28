@@ -256,26 +256,31 @@ export function Segmented<T extends string>({
   onChange,
   label,
   disabled = false,
+  className,
 }: {
   value: T;
-  options: ReadonlyArray<{ value: T; label: ReactNode; title?: string }>;
+  /** An option with `disabled` stays in the group, dimmed, and its `title` says why */
+  options: ReadonlyArray<{ value: T; label: ReactNode; title?: string; disabled?: boolean }>;
   onChange: (value: T) => void;
   label: string;
   disabled?: boolean;
+  className?: string;
 }) {
   const indicator = useIndicatorId('segment');
   return (
-    <div className={`segmented ${disabled ? 'is-disabled' : ''}`.trim()} role="radiogroup" aria-label={label} aria-disabled={disabled || undefined}>
+    <div className={['segmented', disabled ? 'is-disabled' : '', className].filter(Boolean).join(' ')} role="radiogroup" aria-label={label} aria-disabled={disabled || undefined}>
       {options.map((option) => (
         <Tooltip key={option.value} content={option.title}>
           <button
             type="button"
             role="radio"
             aria-checked={option.value === value}
+            // A disabled option keeps its turn in the arrow order, so its reason can be reached
+            aria-disabled={option.disabled || undefined}
             tabIndex={option.value === value ? 0 : -1}
             disabled={disabled}
             className={`segment ${option.value === value ? 'segment-on' : ''}`}
-            onClick={() => option.value !== value && onChange(option.value)}
+            onClick={() => !option.disabled && option.value !== value && onChange(option.value)}
             onKeyDown={(event) => {
               const target = arrowTarget(event, '[role=radio]');
               if (!target) return;
@@ -286,6 +291,7 @@ export function Segmented<T extends string>({
           >
             {option.value === value && <SlidingIndicator layoutId={indicator} className="segment-thumb" />}
             <span className="segment-label">{option.label}</span>
+            {option.disabled && option.title && <span className="sr-only">. {option.title}</span>}
           </button>
         </Tooltip>
       ))}

@@ -80,7 +80,9 @@
 .obs-files {
   display: flex;
   flex-direction: column;
-  margin: 0 -8px;
+  /* The rows bleed into the panel's left padding so their letters line up with the heading; the
+     right edge stays put, since past it the panel scrolls sideways */
+  margin: 0 0 0 -8px;
   padding: 0;
   list-style: none;
 }

@@ -495,6 +495,7 @@
     "noChanges": "No ha cambiado ninguna línea.",
     "fingerprint": "Huella del cambio: cada archivo ocupa lo que cambió",
     "fingerprintFile": "{{path}}: {{additions}} añadidas, {{deletions}} quitadas",
-    "fingerprintFileSeen": "{{path}}: {{additions}} añadidas, {{deletions}} quitadas, visto"
+    "fingerprintFileSeen": "{{path}}: {{additions}} añadidas, {{deletions}} quitadas, visto",
+    "fingerprintMore": "{{count}} archivos más, demasiado pequeños para un segmento propio: abrir el primero"
   }
 }
