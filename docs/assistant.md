@@ -373,9 +373,9 @@ None of its own. Orchestration 6 (`ecosystem-gaps`, 2026-09-28) closed every gap
 each described above where it now lives: `CLAUDE.md` shown once (gap 11), "Crear con IA" streaming
 (12), the focus as its own field (9), a way to the assistant from every tab and the palette (8), the
 `0:41` clock, the two-letter monogram, the empty Team title's size and the Projects highlight (23 and
-22). The run's facts line names the model as the CLI does ("Sonnet 5") only when the CLI's model list
-labels it, which it does not for the aliases; see
-[team-and-flow.md](team-and-flow.md#known-gaps).
+22). The run's facts line names the model ("Sonnet 5") from the model id each chat reports in
+`system/init`, remembered per alias (decision 41 of [the plan](plans/project-ecosystem.md)); until a
+chat has run on an alias, it shows the alias.
 
 ## Related
 
