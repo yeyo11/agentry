@@ -78,6 +78,16 @@ export default async ({ page, api, check, dirs }) => {
 
     // Every new route renders, under its crumb
     await page.goto(`/?project=${projectId}`, 900);
+    // A project's page lives at `/`, yet it is one of the projects: Projects is the current section (gap 22)
+    await page.waitFor(`return document.querySelector('#sidebar a.nav-link[href="/projects"]')?.classList.contains('is-active')`, { label: "Projects is current on a project's page" });
+    check(!(await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/"]').classList.contains('is-active')`)), "Home is not current on a project's page");
+    check((await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/projects"]').getAttribute('aria-current')`)) === 'page', 'and a screen reader hears it as the current page');
+    check((await page.eval(`return document.querySelectorAll('#sidebar .nav-link[aria-current=page]').length`)) === 1, 'one current section');
+    await page.goto(`/?project=${projectId}&view=board`, 900);
+    check(await page.eval(`return document.querySelector('#sidebar a.nav-link[href="/projects"]').classList.contains('is-active')`), "and on the project's tabs");
+    await page.goto('/?project=all', 900);
+    await page.waitFor(`return document.querySelector('#sidebar a.nav-link[href="/"]')?.classList.contains('is-active')`, { label: 'Home is current on the Home of every project' });
+    await page.goto(`/?project=${projectId}`, 900);
     await page.click('#sidebar a.nav-link[href="/tasks"]', undefined, 900);
     check((await page.eval(`return location.pathname`)) === '/tasks', 'Tasks opens /tasks');
     await page.waitFor(`return ${pageHeading} === 'Tasks'`, { label: 'the Tasks page' });
@@ -180,6 +190,11 @@ export default async ({ page, api, check, dirs }) => {
     const tasksFab = await fab('/tasks');
     expectFab(tasksFab, '/tasks', 'New task');
     check((await page.eval(`return document.querySelector('.tabbar-more')?.classList.contains('is-active')`)) === true, '[390px /tasks] More is the current tab, where Tasks lives');
+    // A project's page is behind More too, where Projects lives (MobileProyecto), not under Home
+    await page.goto(`/?project=${projectId}`, 900);
+    await page.waitFor(`return document.querySelector('.tabbar-more')?.classList.contains('is-active') === true`, { label: "[390px a project's page] More is the current tab" });
+    check(!(await page.eval(`return document.querySelector('.tabbar a[href="/"]').classList.contains('is-active')`)), "[390px a project's page] Home is not");
+    await page.goto('/tasks', 900);
     if (tasksFab.shown) {
       await page.click('.fab', undefined, 900);
       check((await page.eval(`return location.pathname + location.search`)) === '/tasks?new=1', 'the Tasks FAB opens the New task form');

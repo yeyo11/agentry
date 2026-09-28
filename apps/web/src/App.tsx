@@ -235,7 +235,9 @@ function Shell() {
   ];
   const items = groups.flatMap((group) => group.items);
 
-  const current = items.find((item) => isActive(item, pathname));
+  // A project's page lives at `/`: the sidebar and the tab bar mark Projects there, not Home
+  const projectPage = pathname === '/' && Boolean(project);
+  const current = items.find((item) => isActive(item, pathname, projectPage));
 
   const newChat = () => navigate(project?.exists ? `/chats/new?cwd=${encodeURIComponent(project.path)}` : '/chats/new');
   const newOrchestration = () => navigate(NEW_ORCHESTRATION_PATH);
@@ -312,14 +314,14 @@ function Shell() {
                 {group.label}
               </span>
               {group.items.map((item) => {
-                const active = isActive(item, pathname);
+                const active = isActive(item, pathname, projectPage);
                 const Icon = item.icon;
                 const badge = item.count?.value;
                 return (
                   <Tooltip key={item.to} content={railTip(item.label)} side="right">
-                    <NavLink
+                    <Link
                       to={navTarget(item)}
-                      end={item.to === '/'}
+                      aria-current={active ? 'page' : undefined}
                       className={`nav-link ${active ? 'is-active' : ''}`}
                       {...(item.to === '/chats' && !active ? { onPointerEnter: warmChats, onFocus: warmChats } : {})}
                     >
@@ -335,7 +337,7 @@ function Shell() {
                         </span>
                       ) : null}
                       <NavDot label={item.dot} />
-                    </NavLink>
+                    </Link>
                   </Tooltip>
                 );
               })}
@@ -466,6 +468,7 @@ function Shell() {
           <Fab pathname={pathname} search={search} scroller={mainRef} onNewChat={newChat} onNewOrchestration={newOrchestration} onNewTask={newTask} />
           <TabBar
             pathname={pathname}
+            projectPage={projectPage}
             tabs={[home, chats, orchestrations]}
             more={[tasks, projects, accounts, schedules, usage, connectors, settings]}
             start={startEntries}
