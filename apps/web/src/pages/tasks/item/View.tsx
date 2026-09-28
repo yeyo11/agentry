@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronLeft, CircleAlert, ExternalLink, Link2, MessageSquare, Play, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useWorkItemChanges } from '../../../api';
 import { MoreActions } from '../../../components/controls';
 import { Tooltip } from '../../../components/controls/Tooltip';
@@ -12,7 +12,7 @@ import { EpicLabel, ICON, ICON_SM, PriorityMark, WorkItemKey, WorkItemStatusIcon
 import { useToast } from '../../../components/Toast';
 import { Segmented } from '../../../components/ui';
 import { NARROW, useMediaQuery } from '../../../lib/media';
-import { TASKS_PATH, columnMeta, priorityMeta, taskPath } from '../../../lib/work-items';
+import { columnMeta, priorityMeta, returnPath, returnState, taskPath } from '../../../lib/work-items';
 import { Activity, CommentBox } from './Activity';
 import { Changes } from './Changes';
 import { Criteria } from './Criteria';
@@ -31,14 +31,15 @@ import {
   useStatusOptions,
   useTypeOptions,
 } from './fields';
-import { useItemActions, usePersonName, type ItemActions } from './hooks';
+import { useItemActions, useMoveItem, usePersonName, type ItemActions } from './hooks';
 import { Links } from './Links';
-import { workOnBlocker } from './model';
+import { deleteWarning, workOnBlocker } from './model';
 import { Picker } from './Picker';
 import { LabelsEditor, Properties } from './Properties';
 import { Relations } from './Relations';
 import { WaitingState } from './Waiting';
 import { WorkOnDialog } from './WorkOn';
+import { ITEM_PANEL_PARAM } from './Panel';
 
 /** Where a work item is shown: its own page, or the panel the board opens beside itself. */
 export type ItemVariant = 'page' | 'panel';
@@ -65,9 +66,10 @@ function useItemButtons(item: WorkItemDetail, actions: ItemActions) {
   const [starting, setStarting] = useState(false);
   const blocker = workOnBlocker(item);
   const activeChat = item.activeLink?.chatId;
+  const move = useMoveItem(item, actions);
   const done =
     item.status === 'done' ? null : (
-      <button type="button" className="btn workitem-done" onClick={() => actions.move.mutate('done')} disabled={actions.move.isPending}>
+      <button type="button" className="btn workitem-done" onClick={() => move('done')} disabled={actions.move.isPending}>
         <Check {...ICON_SM} />
         {t('actions.moveToDone')}
       </button>
@@ -105,12 +107,24 @@ function ItemMenu({ item, variant, withCopy }: { item: WorkItemDetail; variant: 
   const confirm = useConfirm();
   const toast = useToast();
   const navigate = useNavigate();
+  const here = useLocation();
+  const [, setParams] = useSearchParams();
   const qc = useQueryClient();
   const remove = useMutation({
     mutationFn: () => api.deleteWorkItem(item.id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: keys.workItems });
-      navigate(TASKS_PATH);
+      // Back where it was opened from, with its view, filters and project tab: the panel just closes
+      if (variant === 'panel')
+        setParams(
+          (previous) => {
+            const next = new URLSearchParams(previous);
+            next.delete(ITEM_PANEL_PARAM);
+            return next;
+          },
+          { replace: true },
+        );
+      else navigate(returnPath(here.state), { replace: true });
     },
     onError: (error) => toast.error(t('errors.delete'), error),
   });
@@ -120,20 +134,38 @@ function ItemMenu({ item, variant, withCopy }: { item: WorkItemDetail; variant: 
       label={t('actions.more')}
       entries={[
         ...(withCopy ? [{ id: 'copy', label: t('actions.copyLink'), icon: Link2, onSelect: copy }] : []),
-        ...(variant === 'panel' ? [{ id: 'page', label: t('actions.openPage'), icon: ExternalLink, onSelect: () => navigate(taskPath(item.key)) }] : []),
+        ...(variant === 'panel' ? [{ id: 'page', label: t('actions.openPage'), icon: ExternalLink, onSelect: () => navigate(taskPath(item.key), { state: returnState(boardAddress(here)) }) }] : []),
         {
           id: 'delete',
           label: t('actions.delete'),
           icon: Trash2,
           destructive: true,
           onSelect: () =>
-            void confirm({ title: t('delete.title', { key: item.key }), body: t('delete.body'), confirmLabel: t('actions.delete'), danger: true }).then(
+            void confirm({
+              title: t('delete.title', { key: item.key }),
+              body: deleteWarning(item) === 'working' ? `${t('delete.body')} ${t('delete.working')}` : t('delete.body'),
+              confirmLabel: t('actions.delete'),
+              danger: true,
+            }).then(
               (ok) => ok && remove.mutate(),
             ),
         },
       ]}
     />
   );
+}
+
+/** The address the panel was opened on, without the panel: what its page goes back to. */
+function boardAddress(location: { pathname: string; search: string }): string {
+  const query = new URLSearchParams(location.search);
+  query.delete(ITEM_PANEL_PARAM);
+  const rest = query.toString();
+  return `${location.pathname}${rest ? `?${rest}` : ''}`;
+}
+
+/** Where the page goes back to: the board or list it was opened from with its filters, or a project's tab. */
+function useBackPath(): string {
+  return returnPath(useLocation().state);
 }
 
 function CopyLink({ item }: { item: WorkItemDetail }) {
@@ -158,11 +190,12 @@ function CopyLink({ item }: { item: WorkItemDetail }) {
 function Wide({ item, actions, person, variant }: { item: WorkItemDetail; actions: ItemActions; person: string; variant: ItemVariant }) {
   const { t } = useTranslation('workItem');
   const buttons = useItemButtons(item, actions);
+  const back = useBackPath();
   const head = (
     <div className="workitem-head">
       {variant === 'page' && (
         <Tooltip content={t('actions.back')}>
-          <Link to={TASKS_PATH} className="icon-btn workitem-back" aria-label={t('actions.back')}>
+          <Link to={back} className="icon-btn workitem-back" aria-label={t('actions.back')}>
             <ChevronLeft {...ICON} />
           </Link>
         </Tooltip>
@@ -238,6 +271,8 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
   const { t: tt } = useTranslation('tasks');
   const [section, setSection] = useState<Section>('detail');
   const buttons = useItemButtons(item, actions);
+  const move = useMoveItem(item, actions);
+  const back = useBackPath();
   const statuses = useStatusOptions();
   const priorities = usePriorityOptions();
   const types = useTypeOptions(undefined, item.type);
@@ -253,7 +288,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
   return (
     <div className="workitem-layout is-phone">
       <header className="workitem-mhead">
-        <Link to={TASKS_PATH} className="icon-btn workitem-back" aria-label={t('actions.back')}>
+        <Link to={back} className="icon-btn workitem-back" aria-label={t('actions.back')}>
           <ChevronLeft {...ICON} />
         </Link>
         <Picker
@@ -278,7 +313,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
             label={t('fields.status')}
             value={item.status}
             options={statuses}
-            onPick={(status) => actions.move.mutate(status)}
+            onPick={move}
             trigger={
               <button type="button" className="chip workitem-chip" aria-label={t('fields.statusIs', { status: tt(columnMeta(item.status).label) })}>
                 <WorkItemStatusIcon status={item.status} decorative />

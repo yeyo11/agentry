@@ -5,7 +5,7 @@ import { useProjectSettings } from '../../../api';
 import { ICON_SM } from '../../../components/icons';
 import { formatNumber } from '../../../lib/format';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
-import type { ItemActions } from './hooks';
+import { useMoveItem, type ItemActions } from './hooks';
 
 /** The flow's default when a project never set one (`ProjectFlowSettings.maxBounces`). */
 const DEFAULT_MAX_BOUNCES = 3;
@@ -46,6 +46,7 @@ export function WaitingState({ item, actions }: { item: WorkItemDetail; actions:
   const roleName = useRoleName();
   const settings = useProjectSettings(item.projectId);
   const max = settings.data?.flow?.maxBounces ?? DEFAULT_MAX_BOUNCES;
+  const move = useMoveItem(item, actions);
   const bounces = item.bounces ?? 0;
   const waiting = item.waiting ?? null;
   if (!waiting && bounces === 0) return null;
@@ -61,7 +62,7 @@ export function WaitingState({ item, actions }: { item: WorkItemDetail; actions:
   const who = role ? roleName(role) : t('waiting.verification');
   const moving = actions.move.isPending;
   const approve = (
-    <button type="button" className="btn btn-small item-wait-approve" disabled={moving || item.status === 'done'} onClick={() => actions.move.mutate('done')}>
+    <button type="button" className="btn btn-small item-wait-approve" disabled={moving || item.status === 'done'} onClick={() => move('done')}>
       <Check {...ICON_SM} />
       {t('waiting.approve')}
     </button>

@@ -67,6 +67,15 @@ export function DirtyProvider({ children }: { children: ReactNode }) {
   return <DirtyContext.Provider value={value}>{children}</DirtyContext.Provider>;
 }
 
+/**
+ * A DirtyProvider where there is none above: Tasks is a page of its own and also the project page's
+ * Board tab, which Home already wraps, and a router takes one blocker at a time.
+ */
+export function DirtyScope({ children }: { children: ReactNode }) {
+  const outer = useContext(DirtyContext);
+  return outer ? <>{children}</> : <DirtyProvider>{children}</DirtyProvider>;
+}
+
 function useDirtyApi(): DirtyApi {
   const api = useContext(DirtyContext);
   if (!api) throw new Error('DirtyProvider is missing');
