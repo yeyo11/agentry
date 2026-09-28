@@ -193,6 +193,30 @@ test('a proposal writes nothing anywhere until a person approves it', () => {
   );
 });
 
+test('the same entry proposed again, waiting or decided, is the proposal already there', async () => {
+  const { proposals, events } = setup();
+  const origin = { proposedBy: QA };
+  const target = { kind: 'memory' as const, file: 'tests.md', section: null };
+  const first = proposals.propose('p1', proposal(target, 'Run the tests with --test-concurrency=1'), origin);
+  // The same words with other case and spacing, from another run
+  const again = proposals.propose('p1', proposal(target, '  run the tests   with --test-concurrency=1 '), { proposedBy: QA, flowRunId: 'run-2' });
+  assert.equal(again.id, first.id);
+  // Another target, or other words, is another proposal
+  const journal = proposals.propose('p1', proposal({ kind: 'journal', file: null, section: null }, 'Run the tests with --test-concurrency=1'), origin);
+  assert.notEqual(journal.id, first.id);
+  assert.notEqual(proposals.propose('p1', proposal(target, 'Run the tests serially'), origin).id, first.id);
+
+  // Decided: approved with the person's edit, or rejected, it does not come back either
+  await proposals.approve(first.id, { text: 'Run the tests one file at a time' });
+  assert.equal(proposals.propose('p1', proposal(target, 'Run the tests with --test-concurrency=1'), origin).id, first.id);
+  assert.equal(proposals.propose('p1', proposal(target, 'run the tests one file at a time'), origin).id, first.id);
+  proposals.reject(journal.id);
+  assert.equal(proposals.propose('p1', proposal({ kind: 'journal', file: null, section: null }, 'Run the tests with --test-concurrency=1'), origin).id, journal.id);
+
+  assert.equal(proposals.list('p1').length, 3);
+  assert.equal(events.filter((e) => e.type === 'memory.proposal' && e.action === 'created').length, 3);
+});
+
 test('a proposal whose target could never be written is refused when it is made', () => {
   const { proposals } = setup();
   const origin = { proposedBy: QA };
