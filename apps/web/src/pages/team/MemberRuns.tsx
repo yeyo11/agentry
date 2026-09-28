@@ -9,7 +9,7 @@ import { Spinner } from '../../components/Spinner';
 import { formatNumber, timeAgo } from '../../lib/format';
 import { taskPath } from '../../lib/work-items';
 import { memberRuns, runNote } from './model';
-import { RunOutcome, RunTicker, runTime } from './parts';
+import { RunElapsed, RunOutcome, RunTicker, runTime } from './parts';
 
 /** Lines "now and before" lists: the member's latest; every run is on the team's activity. */
 const SHOWN = 5;
@@ -25,7 +25,7 @@ export function RunRow({ run }: { run: FlowRun }) {
       <span className="member-run-text">
         <span className="member-run-title">
           {run.item && <WorkItemKey value={run.item.key} />}
-          <span className="ellipsis">{run.item?.title ?? t('member.itemGone')}</span>
+          <span className="member-run-name">{run.item?.title ?? t('member.itemGone')}</span>
         </span>
         <span className="member-run-state">
           {live ? <RunTicker run={run} showTime={false} /> : run.state === 'queued' ? t('outcome.queued') : <RunOutcome run={run} />}
@@ -36,7 +36,7 @@ export function RunRow({ run }: { run: FlowRun }) {
           </span>
         )}
       </span>
-      {!live && <time className="member-run-time">{timeAgo(runTime(run))}</time>}
+      {live ? run.startedAt && <RunElapsed since={run.startedAt} /> : <time className="member-run-time">{timeAgo(runTime(run))}</time>}
     </>
   );
   const className = `member-run ${live ? 'live-rail' : ''}`.trim();

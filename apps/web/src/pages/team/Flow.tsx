@@ -288,7 +288,6 @@ export function FlowEditor({
     <section className="card flow-limits" aria-labelledby="flow-limits-title">
       <div className="flow-auto-text">
         <h2 id="flow-limits-title">{t('flow.limitsTitle')}</h2>
-        {!phone && <p>{t('flow.limitsBody')}</p>}
       </div>
       <div className="flow-limit-row">
         <span className="flow-limit-text">

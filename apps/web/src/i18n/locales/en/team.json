@@ -233,7 +233,6 @@
     "changes_one": "{{count}} unsaved change",
     "changes_other": "{{count}} unsaved changes",
     "limitsTitle": "Limits",
-    "limitsBody": "How many runs of the project go at once, and what one run may spend. The rest wait their turn, in order.",
     "parallel": "Runs at once",
     "parallelHint_one": "{{count}} unless you choose",
     "parallelHint_other": "{{count}} unless you choose",

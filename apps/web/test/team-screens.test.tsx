@@ -13,6 +13,7 @@ import { ConfirmProvider } from '../src/components/Dialog';
 import { ToastProvider } from '../src/components/Toast';
 import { DirtyProvider } from '../src/lib/dirty';
 import i18n from '../src/i18n';
+import { LiveLine } from '../src/pages/tasks/board/LiveLine';
 import { TeamActivityView } from '../src/pages/team/Activity';
 import { FlowEditor } from '../src/pages/team/Flow';
 import { MemberPage } from '../src/pages/team/Member';
@@ -153,6 +154,36 @@ test("a responsibility still the template's reads in the person's language, and 
   assert.match(words, /Implementa las tareas en su propio worktree/);
   assert.doesNotMatch(words, /Implements work items/);
   assert.match(words, /Checks the cart by hand/);
+});
+
+test("a member at work says its verb and how long it has gone, the time kept on the verb's line", () => {
+  // The live line had no time before the chat reported an activity, and wrapped it on a narrow card
+  const started = new Date(Date.now() - 252_000).toISOString();
+  const working = member('developer', { running: [run('9', { state: 'running', outcome: null, startedAt: started, endedAt: null })] });
+  const html = wrap(<MemberGrid team={team([working])} memberHref={(agent) => `?member=${agent}`} onAdd={() => {}} />);
+  assert.match(html, /class="team-live-verb">Working<\/span><span class="team-live-time">4:1[23]</);
+  assert.equal((html.match(/live-rail/g) ?? []).length, 1);
+});
+
+test('a card a Product Owner refines or QA verifies is live, and says which with the stage verb', () => {
+  // Core only counted `work` links as live; now `refine` and `verify` ones are, and the card said "Working"
+  const link = (role: 'refine' | 'verify' | 'work') => ({
+    id: `l-${role}`,
+    itemId: 'i',
+    kind: 'chat' as const,
+    role,
+    chatId: 'c1',
+    orchestrationId: null,
+    taskId: null,
+    teamRole: role === 'verify' ? 'qa' : 'product-owner',
+    chatState: 'working' as const,
+    createdAt: '2026-09-28T10:00:00.000Z',
+  });
+  const sources = { chats: [], orchestrations: [] };
+  const words = (role: 'refine' | 'verify' | 'work') => text(wrap(<LiveLine item={{ id: 'i', activeLink: link(role) }} sources={sources} />));
+  assert.match(words('refine'), /PO Refining/);
+  assert.match(words('verify'), /QA Verifying/);
+  assert.match(words('work'), /Working/);
 });
 
 test("a member's model reads as the alias and the CLI's name for it, as the reference writes it", () => {

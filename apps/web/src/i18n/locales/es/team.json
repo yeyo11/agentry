@@ -233,7 +233,6 @@
     "changes_one": "{{count}} cambio sin guardar",
     "changes_other": "{{count}} cambios sin guardar",
     "limitsTitle": "Límites",
-    "limitsBody": "Cuántas ejecuciones del proyecto van a la vez y cuánto puede gastar cada una. Las demás esperan su turno, en orden.",
     "parallel": "Ejecuciones a la vez",
     "parallelHint_one": "{{count}} si no eliges otra cifra",
     "parallelHint_other": "{{count}} si no eliges otra cifra",

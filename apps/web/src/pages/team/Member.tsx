@@ -361,8 +361,10 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
         {fileNotice}
         <div className="member-form">
           {responsibilityField}
-          {writesField}
-          {commandsField}
+          <div className="member-form-col">
+            {writesField}
+            {commandsField}
+          </div>
         </div>
         {member.file.state !== 'missing' && (
           <section className="member-file-section">

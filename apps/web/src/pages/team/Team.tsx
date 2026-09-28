@@ -12,7 +12,7 @@ import { TeamActivityView } from './Activity';
 import { AddMemberDialog } from './AddMember';
 import { FlowEditor } from './Flow';
 import { MemberPage } from './Member';
-import { MemberCells, MemberGrid, TeamEmpty } from './Members';
+import { MemberCells, MemberGrid, ProposeButton, TeamEmpty } from './Members';
 import { proposedFlow, savedFlow, teamActivity, teamSearch, teamSection, workingCount, type TeamSection } from './model';
 import { FlowSummary, TeamActivity } from './parts';
 
@@ -168,7 +168,10 @@ export function ProjectTeam({ project }: { project: Project }) {
           {working > 0 && <span className="team-working">{t('members.working', { count: working })}</span>}
         </div>
         <MemberCells team={data} memberHref={memberHref} />
-        <div className="team-phone-actions">{addButton}</div>
+        <div className="team-phone-actions">
+          {addButton}
+          <ProposeButton projectId={project.id} />
+        </div>
         {addDialog}
       </div>
     );
@@ -179,6 +182,7 @@ export function ProjectTeam({ project }: { project: Project }) {
       <div className="team-toolbar">
         {switcher}
         <span className="grow" />
+        <ProposeButton projectId={project.id} />
         {addButton}
       </div>
       <div className="team-layout">
