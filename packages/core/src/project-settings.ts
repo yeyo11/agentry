@@ -462,10 +462,49 @@ export class ProjectSettingsStore {
   }
 
   /**
+   * Changes part of the document: `change` is handed what is stored now, read under the lock, so two
+   * changes made together (a module switched while a member joins) both land. Only the parts it
+   * changed are written; every other part goes back to disk as the file held it, so a part a hand
+   * edit broke, or a field this version does not know, is not replaced by what a read made of it.
+   */
+  async update(
+    project: ProjectRecord,
+    change: (current: ProjectSettings) => ProjectSettings,
+    active: readonly ProjectRecord[],
+  ): Promise<{ before: ProjectSettings; after: ProjectSettings }> {
+    // Writes the document of a project that has none, or a prefix repaired, as any read would
+    await this.read(project, active);
+    return this.serialized(async () => {
+      // Read again under the lock: `before` may be stale by the time this runs
+      const current = this.resolve(project, active, (id) => this.readDoc(id), () => this.allDocs()).settings;
+      const after = change(current);
+      if (after.keyPrefix !== current.keyPrefix && this.clashes(project.id, after.keyPrefix, active, (id) => this.readDoc(id))) {
+        throw new Error(`key ${after.keyPrefix} is already used by another project`);
+      }
+      if (!settingsChanges(current, after).length) return { before: current, after: current };
+      const raw = this.readDoc(project.id)?.settings;
+      // A file that does not parse has no part worth keeping: the whole document is written
+      if (!isObject(raw)) {
+        await this.writeDoc(project, after);
+        return { before: current, after };
+      }
+      const doc: Record<string, unknown> = { ...raw };
+      const keys = new Set([...Object.keys(current), ...Object.keys(after)] as Array<keyof ProjectSettings>);
+      for (const key of keys) {
+        if (JSON.stringify(current[key]) === JSON.stringify(after[key])) continue;
+        if (after[key] === undefined) delete doc[key];
+        else doc[key] = after[key];
+      }
+      await this.writeDoc(project, doc);
+      return { before: current, after };
+    });
+  }
+
+  /**
    * A new project's document, derived from its template. A project imported again with a document
-   * already on disk keeps it: the request only switches on the modules it names and records the
-   * template it names. What the document holds beyond that is written back as it was, so a part a
-   * hand edit broke is still there for the person to fix.
+   * already on disk keeps it, with its modules replaced by those the request names (or its template
+   * offers) and the template it names recorded. What the document holds beyond that is written back
+   * as it was, so a part a hand edit broke is still there for the person to fix.
    */
   async create(project: ProjectRecord, setup: ReturnType<typeof parseProjectSetup>, active: readonly ProjectRecord[]): Promise<CreatedSettings> {
     return this.serialized(async () => {

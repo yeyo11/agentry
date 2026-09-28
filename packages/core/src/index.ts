@@ -1052,10 +1052,8 @@ export class Core {
     const modules = body.modules === undefined ? undefined : parseModules(body.modules);
 
     const active = this.projectStore.list();
-    const before = await this.projectSettingsStore.read(record, active);
-    const after: ProjectSettings = { ...before, ...(key ? { keyPrefix: key } : {}), ...(modules ? { modules } : {}) };
+    const { before, after } = await this.projectSettingsStore.update(record, (current) => ({ ...current, ...(key ? { keyPrefix: key } : {}), ...(modules ? { modules } : {}) }), active);
     const changes: ProjectChange[] = settingsChanges(before, after);
-    if (changes.length) await this.projectSettingsStore.write(record, after, active);
     let current = record;
     if (typeof body.name === 'string' && body.name.trim() !== record.name) {
       current = await this.projectStore.rename(id, body.name);
