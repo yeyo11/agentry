@@ -1,15 +1,15 @@
 import type { ChatSummary, WorkItemDetail, WorkItemLink, WorkItemStatus } from '@agentry/shared';
-import { FileText, MessageSquare, Workflow } from 'lucide-react';
+import { FileText, MessageSquare, TriangleAlert, Workflow } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { useChats } from '../../../api';
+import { useChats, useTeam } from '../../../api';
 import { OutcomeBadge, StateBadge } from '../../../components/ChatBadges';
 import { ICON_SM } from '../../../components/icons';
 import { StatusBadge } from '../../../components/ui';
 import { displayTitle, lastEnded } from '../../../lib/chat-model';
 import { formatCost } from '../../../lib/format';
 import { columnMeta } from '../../../lib/work-items';
-import { linkEffect, shortId, sortLinks } from './model';
+import { failedRunReason, linkEffect, linkRun, shortId, sortLinks } from './model';
 
 const LINK_ICON = { chat: MessageSquare, orchestration: Workflow, document: FileText } as const;
 
@@ -34,7 +34,7 @@ function LinkState({ link, chat }: { link: WorkItemLink; chat: ChatSummary | und
   return state ? <StateBadge state={state} /> : null;
 }
 
-function LinkRow({ link, item, chat }: { link: WorkItemLink; item: WorkItemDetail; chat: ChatSummary | undefined }) {
+function LinkRow({ link, item, chat, failed }: { link: WorkItemLink; item: WorkItemDetail; chat: ChatSummary | undefined; failed: string | null }) {
   const { t } = useTranslation('workItem');
   const { t: tt } = useTranslation('tasks');
   const Icon = LINK_ICON[link.kind];
@@ -60,12 +60,22 @@ function LinkRow({ link, item, chat }: { link: WorkItemLink; item: WorkItemDetai
           <span className="work-link-name">{name}</span>
         )}
         <span className="work-link-state">
-          <LinkState link={link} chat={chat} />
+          {failed === null ? (
+            <LinkState link={link} chat={chat} />
+          ) : (
+            // The chat ended well enough to read "completed"; the run it was for did not
+            <span className="badge badge-bad">
+              <TriangleAlert size={12} strokeWidth={2} aria-hidden />
+              {t('link.runFailed')}
+            </span>
+          )}
           {cost !== undefined && <span className="mono small muted tnum">{cost === null ? t('link.noCost') : formatCost(cost)}</span>}
         </span>
         <span className="work-link-meta">
-          {where} · {said}
+          {where} · {failed === null ? said : t('link.failedNoMove')}
         </span>
+        {/* The core's reason, as it wrote it: messages from the API are not translated */}
+        {failed ? <span className="work-link-why">{failed}</span> : null}
       </span>
     </div>
   );
@@ -80,6 +90,10 @@ export function Links({ item }: { item: WorkItemDetail }) {
   // A chat's badge and cost come from the project's chat list, which the Chats page reads too
   const chats = useChats({ project: item.projectId, enabled: item.links.some((link) => link.kind === 'chat') });
   const byId = new Map((chats.data ?? []).map((chat) => [chat.id, chat]));
+  // A flow run's outcome is the team's to tell (a failed one leaves its chat "completed")
+  const flowMade = item.links.some((link) => link.kind === 'chat' && Boolean(link.teamRole));
+  const team = useTeam(flowMade ? item.projectId : null);
+  const members = team.data?.members ?? [];
   // Documents have their own section (Documents.tsx): this one is what acted on the item
   const links = sortLinks(item.links.filter((link) => link.kind !== 'document'));
   return (
@@ -95,7 +109,13 @@ export function Links({ item }: { item: WorkItemDetail }) {
       ) : (
         <div className="work-links">
           {links.map((link) => (
-            <LinkRow key={link.id} link={link} item={item} chat={link.chatId ? byId.get(link.chatId) : undefined} />
+            <LinkRow
+              key={link.id}
+              link={link}
+              item={item}
+              chat={link.chatId ? byId.get(link.chatId) : undefined}
+              failed={link.teamRole ? failedRunReason(linkRun(link, members)) : null}
+            />
           ))}
         </div>
       )}

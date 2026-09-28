@@ -55,7 +55,9 @@ export default async ({ page, api, check, dirs }) => {
     await page.click('.member-card[data-agent="developer"] .member-head-link', undefined, 1200);
     await page.waitFor(`return new URLSearchParams(location.search).get('member') === 'developer' && !!document.querySelector('.member-page')`, { label: 'the member page' });
     await page.waitFor(`return document.querySelector('.member-editor .cm-content')?.textContent.includes('name: developer')`, { label: 'the agent file in the editor' });
+    check((await page.eval(`return document.querySelector('.member-field [role=radio][aria-checked=true]')?.textContent`)) === 'Anywhere', 'a member with no writes may write anywhere');
     await page.fill('.member-textarea', 'Implements each task until its criteria hold.');
+    await page.click('.member-field [role=radio]', 'These paths', 300);
     await page.fill('.member-writes .list-editor-add input', 'packages/**');
     await page.click('.member-writes .list-editor-add button', undefined, 300);
     await page.waitFor(`return document.querySelector('.member-page-head .badge-warn')?.textContent.includes('unsaved changes')`, { label: 'unsaved changes are said' });
@@ -67,6 +69,19 @@ export default async ({ page, api, check, dirs }) => {
     await page.click('.member-page-head a.icon-btn', undefined, 1000);
     await page.waitFor(`return !location.search.includes('member=') && !!document.querySelector('.member-grid')`, { label: 'back to the team' });
     check((await page.text('.member-card[data-agent="developer"]')).includes('packages/**'), 'the card shows where it may write');
+    // Only the documents folder and anywhere read two ways, on the card as on the member's page
+    await api.request('PUT', `/projects/${project.id}/team/qa`, { role: 'qa', model: 'sonnet', responsibility: 'Verifies each criterion', writes: [] });
+    await page.waitFor(`return document.querySelector('.member-card[data-agent="qa"]')?.textContent.includes('Only the documents folder')`, { label: 'writes: [] is only the documents folder' });
+    check((await page.text('.member-card[data-agent="architect"]')).includes('Anywhere in the project'), 'no writes is anywhere');
+
+    // ---- a member's page follows what is saved elsewhere while nothing is typed in it ----
+    await page.click('.member-card[data-agent="architect"] .member-head-link', undefined, 1200);
+    await page.waitFor(`return new URLSearchParams(location.search).get('member') === 'architect' && !!document.querySelector('.member-model input')`, { label: "the architect's page" });
+    await api.request('PUT', `/projects/${project.id}/team/architect`, { role: 'architect', model: 'haiku', responsibility: 'Decides the shape of the code' });
+    await page.waitFor(`return document.querySelector('.member-textarea')?.value === 'Decides the shape of the code'`, { label: 'a save made elsewhere shows on the open page' });
+    check(!(await page.eval(`return !!document.querySelector('.member-page-head .badge-warn')`)), 'and is not taken for an unsaved change');
+    await page.click('.member-page-head a.icon-btn', undefined, 1000);
+    await page.waitFor(`return !location.search.includes('member=') && !!document.querySelector('.member-grid')`, { label: 'back to the team again' });
 
     // ---- the flow, edited as a draft and saved whole ----
     const item = async (title, status, over = {}) => {
@@ -122,6 +137,44 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return new URLSearchParams(location.search).get('member') === 'qa' && !!document.querySelector('.member-page.is-phone')`, { label: 'the phone member' });
     const target = await page.eval(`const b = document.querySelector('.member-phone-foot .btn-primary').getBoundingClientRect(); return b.height`);
     check(target >= 44, `the phone's Save is a 44 px target (${target})`);
+
+    // ---- a team whose flow was never saved: nothing is drawn as if it were in force ----
+    await page.viewport(1440, 900);
+    const bareDir = join(dirs.workspaceDir, 'e2e-team-bare');
+    mkdirSync(bareDir, { recursive: true });
+    const bare = (await api.post('/projects/import', { path: bareDir, name: 'e2e-team-bare', template: 'custom', modules: ['board', 'team'] })).body;
+    made.push(bare.id);
+    await api.request('PUT', `/projects/${bare.id}/team/developer`, { role: 'developer', model: 'sonnet', responsibility: 'Implements', createFile: true });
+    check((await api.get(`/projects/${bare.id}/settings`)).body.flow == null, 'a member added by hand saves no flow');
+    await page.goto(`/?project=${bare.id}&view=team`, 1500);
+    await page.waitFor(`return document.querySelectorAll('.member-card[data-agent]').length === 1`, { label: 'the bare team' });
+    // innerText carries the badge's text-transform: uppercase
+    const bareSummary = await page.text('.team-side-card');
+    check(bareSummary.toLowerCase().includes('not set up') && !bareSummary.includes('Developer'), `the summary says there is no flow, and gives no column a role (${bareSummary})`);
+    await page.click('.team-side-card .team-link', 'Set up', 1000);
+    await page.waitFor(`return !!document.querySelector('.flow-proposal')`, { label: "the template's proposal, said to be unsaved" });
+    const proposedRole = await page.eval(`return document.querySelector('.flow-row[data-status="in_progress"] .flow-role')?.textContent`);
+    check(proposedRole?.includes('Developer'), `the proposal gives the developer its column (${proposedRole})`);
+    check(!(await page.eval(`return document.querySelector('.team-toolbar .btn-primary').disabled`)), 'the proposal can be saved as it is');
+    await page.click('.team-toolbar .btn-primary', 'Save the flow', 1500);
+    await page.waitFor(`return !document.querySelector('.flow-proposal')`, { label: 'the proposal saved' });
+    const bareFlow = (await api.get(`/projects/${bare.id}/settings`)).body.flow;
+    check(bareFlow?.enabled === false && bareFlow.columns.in_progress === 'developer', `saved off, with the developer's column (${JSON.stringify(bareFlow)})`);
+
+    // ---- a failed run says why on the Team screen ----
+    const failDb = new DatabaseSync(join(dirs.dataDir, 'wrapper.db'));
+    failDb.exec('PRAGMA busy_timeout = 15000');
+    const failItem = (await api.post(`/projects/${bare.id}/work-items`, { title: 'Failed once' })).body;
+    const now = new Date().toISOString();
+    failDb
+      .prepare(
+        "INSERT INTO flow_runs (id, project_id, item_id, role, agent, model, stage, column_name, state, outcome, error, queued_at, started_at, ended_at) VALUES (?, ?, ?, 'developer', 'developer', 'sonnet', 'work', 'in_progress', 'ended', 'failed', ?, ?, ?, ?)",
+      )
+      .run('e2e-failed-run', bare.id, failItem.id, 'the account hit its rate limit', now, now, now);
+    failDb.close();
+    await page.goto(`/?project=${bare.id}&view=team`, 1500);
+    await page.waitFor(`return document.querySelector('.team-activity')?.textContent.includes('the account hit its rate limit')`, { label: 'the reason a run failed' });
+    check(await page.eval(`return !!document.querySelector('.team-activity .text-err')`), 'a failed run says so in the bad colour, beside its word');
   } finally {
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem('agentry:project'); return true`).catch(() => {});

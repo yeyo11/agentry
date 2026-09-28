@@ -4,7 +4,7 @@ import { AlertTriangle, Check, Plus, RefreshCw, Search, Sparkle, Undo2, X } from
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { api, keys, useAssistantRun, useAssistantRuns } from '../../../api';
+import { api, keys, useAssistantRun, useAssistantRuns, useProjectSettings } from '../../../api';
 import { AssistantMark, LiveRunHead, ProposedWorkItemMeta, RunFacts, RunSources, SuggestionWait } from '../../../components/assistant/run';
 import { Checkbox } from '../../../components/controls';
 import { Dialog } from '../../../components/Dialog';
@@ -14,6 +14,8 @@ import { ErrorBox, Skeleton } from '../../../components/ui';
 import { NARROW, useMediaQuery } from '../../../lib/media';
 import { localized } from '../../../lib/server-strings';
 import { taskPath } from '../../../lib/work-items';
+import { backlogRunsFor } from '../../team/model';
+import { useRoleName } from '../../team/RoleAvatar';
 import { FullScreen } from '../FullScreen';
 import { initialSelection, isRunning, readPhrases, selectedPending, workItemProposals, type SourcePhrase } from './model';
 
@@ -29,6 +31,8 @@ export function SuggestTasks({ project, onClose }: { project: Pick<Project, 'id'
   const phone = useMediaQuery(NARROW);
   const toast = useToast();
   const queryClient = useQueryClient();
+  const settings = useProjectSettings(project.id);
+  const roleName = useRoleName();
 
   const runs = useAssistantRuns(project.id, 'work-items');
   const latest = runs.data?.[0] ?? null;
@@ -120,6 +124,8 @@ export function SuggestTasks({ project, onClose }: { project: Pick<Project, 'id'
   const pending = proposals.filter((p) => p.status === 'pending');
   const busy = start.isPending || running;
   const canCreate = !busy && chosen.length > 0 && !create.isPending;
+  // Each card created in Backlog sets the flow off on it: say so before the person queues eight runs
+  const backlogRuns = busy ? null : backlogRunsFor(settings.data, chosen.map((p) => p.workItem.type));
 
   // ---- the parts both sizes share ----
   const focusField = (
@@ -197,6 +203,12 @@ export function SuggestTasks({ project, onClose }: { project: Pick<Project, 'id'
       ? t('suggest.likeHint')
       : null;
 
+  const flowNote = backlogRuns && (
+    <p className="form-hint suggest-flow-note">
+      {t('suggest.flowRuns', { count: backlogRuns.count, role: roleName(backlogRuns.role), parallel: backlogRuns.parallel })}
+    </p>
+  );
+
   const count = running || !run ? (
     <span className="suggest-count muted">{t('suggest.noneYet')}</span>
   ) : (
@@ -233,6 +245,7 @@ export function SuggestTasks({ project, onClose }: { project: Pick<Project, 'id'
           {focusField}
           {body}
           {hint && <p className="form-hint">{hint}</p>}
+          {flowNote}
         </div>
       </FullScreen>
     );
@@ -267,6 +280,7 @@ export function SuggestTasks({ project, onClose }: { project: Pick<Project, 'id'
         {focusField}
         {body}
         {hint && <p className="form-hint">{hint}</p>}
+        {flowNote}
       </div>
     </Dialog>
   );

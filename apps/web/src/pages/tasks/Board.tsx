@@ -3,17 +3,30 @@ import { WORK_ITEM_STATUSES } from '@agentry/shared';
 import { Info, Plus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useWorkItemBoard } from '../../api';
 import { ICON_SM } from '../../components/icons';
 import { FabStandIn } from '../../components/shell/Fab';
 import { Card, Empty, ErrorBox, Skeleton } from '../../components/ui';
 import { NARROW, useMediaQuery } from '../../lib/media';
-import { boardColumns, filtersToSearch, firstKey, NEW_TASK_PARAM, openCount, taskPath, TASKS_PATH, VIEW_PARAM, viewFromSearch } from '../../lib/work-items';
+import { DirtyScope } from '../../lib/dirty';
+import {
+  boardColumns,
+  filtersToSearch,
+  firstKey,
+  NEW_TASK_PARAM,
+  openCount,
+  returnState,
+  staleFilters,
+  taskPath,
+  TASKS_PATH,
+  VIEW_PARAM,
+  viewFromSearch,
+} from '../../lib/work-items';
 import { BoardColumns, type BoardSelection } from './board/BoardColumns';
 import { useLiveSources } from './board/LiveLine';
 import { BoardTeamProvider, FlowButton, useBoardTeamData } from './board/team';
-import { boardItems, epicProgress, notSelectable } from './board/model';
+import { boardItems, epicProgress, NO_MILESTONE, notSelectable } from './board/model';
 import { PhoneBoard } from './board/PhoneBoard';
 import { PhoneSelectionFoot, SelectionBar, SelectionNote } from './board/SelectionBar';
 import { List } from './List';
@@ -38,9 +51,19 @@ const TYPING = 'input, textarea, select, [contenteditable="true"], [role="dialog
  * sections of one list.
  */
 export function Board() {
+  // The item panel edits a description in place; closing the panel or leaving asks before losing it
+  return (
+    <DirtyScope>
+      <TasksBoard />
+    </DirtyScope>
+  );
+}
+
+function TasksBoard() {
   const { t } = useTranslation('tasks');
   const phone = useMediaQuery(NARROW);
   const navigate = useNavigate();
+  const location = useLocation();
   const [params, setParams] = useSearchParams();
   const view = viewFromSearch(params);
   const scope = useTasksScope();
@@ -65,6 +88,19 @@ export function Board() {
   // A project worked by a team: its columns' roles, the runs on its cards, and the way to its flow
   const team = useBoardTeamData(scope.allProjects || scope.boardOff ? null : scope.project);
   const facets = useFacets({ allProjects: scope.allProjects, projects: scope.boardProjects, items: allItems, milestones: milestones.milestones });
+
+  // An epic or a milestone the scope does not have (another project's, or deleted) has no chip to
+  // take it off and leaves "0 of N": once the scope's own are known, it goes from the address. It
+  // is judged only on fresh lists: one just created may not be in a cached answer yet
+  const epicsKnown = full.isSuccess && !full.isPlaceholderData && !full.isFetching;
+  const knownEpics = useMemo(() => (epicsKnown ? new Set(allItems.filter((item) => item.type === 'epic').map((item) => item.id)) : null), [epicsKnown, allItems]);
+  const milestonesKnown = !milestones.loading && !milestones.fetching;
+  const knownMilestones = useMemo(() => (milestonesKnown ? new Set(milestones.milestones.map((m) => m.id)) : null), [milestonesKnown, milestones.milestones]);
+  const stray = staleFilters(filters.filters, { allProjects: scope.allProjects, epics: knownEpics, milestones: knownMilestones, noMilestone: NO_MILESTONE }).join(',');
+  const { set: setFilters } = filters;
+  useEffect(() => {
+    if (stray) setFilters(Object.fromEntries(stray.split(',').map((field) => [field, undefined])));
+  }, [stray, setFilters]);
 
   // ---- selection, for "Orchestrate" ----
   const [selecting, setSelecting] = useState(false);
@@ -104,6 +140,24 @@ export function Board() {
       );
   };
 
+  // Once the form closes, focus goes to the new card or row rather than back to the button: the
+  // next thing to do with a new task is usually to open or move it
+  const [created, setCreated] = useState<string | null>(null);
+  const formOpen = creating !== null;
+  useEffect(() => {
+    if (!created || formOpen) return;
+    const target = document.querySelector<HTMLElement>(`.tasks-page [data-item-id="${CSS.escape(created)}"]`);
+    if (target) {
+      const focusable = target.matches('[tabindex], a, button') ? target : target.querySelector<HTMLElement>('a, button');
+      focusable?.focus();
+      focusable?.scrollIntoView({ block: 'nearest' });
+      setCreated(null);
+    } else if (allItems.some((item) => item.id === created)) {
+      // On the board but not in view (a filter hides it, or Done shows only its first few)
+      setCreated(null);
+    }
+  }, [created, formOpen, shownItems, allItems]);
+
   // ---- Suggest tasks: `?suggest=1`, so the palette and a link reach it and a reload keeps it open ----
   const suggesting = params.get(SUGGEST_PARAM) === '1' && Boolean(scope.project) && !scope.boardOff;
   const setSuggesting = (on: boolean) =>
@@ -131,7 +185,8 @@ export function Board() {
 
   // A desktop reads a card in the panel beside the board, so the board stays where it was; a phone has
   // no room beside it and opens the item's page
-  const onOpen = (item: WorkItem) => (phone ? navigate(taskPath(item.key)) : setParams(itemPanelSearch(item.key, params)));
+  const here = `${location.pathname}${location.search}`;
+  const onOpen = (item: WorkItem) => (phone ? navigate(taskPath(item.key), { state: returnState(here) }) : setParams(itemPanelSearch(item.key, params)));
   const moreTo = `${TASKS_PATH}?${filtersToSearch({ ...filters.filters, status: ['done'] }, new URLSearchParams({ [VIEW_PARAM]: 'list' })).toString()}`;
 
   // ---- what the header says ----
@@ -350,12 +405,13 @@ export function Board() {
 
       {/* The form is open: a button to open it again would float over it */}
       {creating && <FabStandIn />}
+      {/* The form closes itself, or stays open for the next one with "Create another" */}
       {creating && (
         <NewTask
           projectId={creating.projectId}
           {...(creating.status ? { status: creating.status } : {})}
           onClose={closeNew}
-          onCreated={() => closeNew()}
+          onCreated={(item) => setCreated(item.id)}
         />
       )}
     </div>

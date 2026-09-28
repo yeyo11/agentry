@@ -81,6 +81,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return /already used/.test(document.querySelector('main .project-prefix .field-error')?.textContent ?? '')`, { label: 'the clash in the field' });
     check(await page.eval(`return [...document.querySelectorAll('main .project-general-actions .btn-primary')].every((b) => b.disabled)`), 'a clashing prefix cannot be saved');
     await page.fill('main .project-prefix input', 'WZD');
+    check((await page.eval(`return document.querySelectorAll('main .limit-field').length`)) === 4, 'every column but Done takes a limit');
     await page.fill('main .limit-field input[aria-label="Limit of In review"]', '4');
     await page.click('main .module-card[data-module=board] [role=switch]', undefined, 300);
     check((await page.text('main .module-card[data-module=board] .module-note')).includes('hidden'), 'a module switched off says it is hidden and kept');
@@ -103,6 +104,22 @@ export default async ({ page, api, check, dirs }) => {
     const card = `[...document.querySelectorAll('main .project-card')].find((c) => c.textContent.includes('e2e-wizard'))`;
     check((await page.eval(`return ${card}?.querySelector('.workitem-key')?.textContent`)) === 'WZD', 'the card shows the key');
     check((await page.eval(`return ${card}?.querySelectorAll('.module-mark.is-on').length`)) === 2, 'the card marks the modules that are on');
+
+    // ---- a new directory: the name is said as it is typed, and the folder takes what it can of it
+    await page.goto('/projects/new', 1200);
+    await page.waitFor(`return !!document.querySelector('main .wizard-name input')`, { label: 'the wizard again' });
+    await page.fill('main .wizard-name input', '¡¡');
+    await page.waitFor(`return !!document.querySelector('main .wizard-name .field-error')`, { label: 'a name that makes no folder is said at once' });
+    check(await page.eval(`return document.querySelector('main .wizard-create').disabled`), 'and it cannot be created');
+    await page.fill('main .wizard-name input', 'E2E Página nueva');
+    await page.waitFor(`return document.querySelector('main .wizard-name .form-hint')?.textContent.includes('E2E-Pagina-nueva')`, { label: 'the folder the name makes' });
+    await page.click('main .template-card[data-template=simple]', undefined, 400);
+    if ((await page.eval(`return ${propose}`)) === 'true') await page.click('main .wizard-propose [role=switch]', undefined, 300);
+    await page.click('main .wizard-create', undefined, 1500);
+    await page.waitFor(`return location.pathname === '/' && document.querySelector('main h1')?.textContent === 'E2E Página nueva'`, { label: 'a project with spaces and accents in its name' });
+    const spaced = (await api.get('/projects')).body.find((p) => p.name === 'E2E Página nueva');
+    check(spaced?.path.endsWith('/E2E-Pagina-nueva'), `its folder is the name as a folder can hold it (${spaced?.path})`);
+    if (spaced) made.push(spaced.id);
 
     // ---- the phone: one step per screen, no tab bar under it
     await page.viewport(390, 844);

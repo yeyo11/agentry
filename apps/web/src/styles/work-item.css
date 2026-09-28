@@ -557,6 +557,19 @@ a.work-link-name:hover {
   color: var(--fg-3);
 }
 
+/* Why a flow run failed, as the core wrote it: it may run long, so three lines at most */
+.work-link-why {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+
 /* ---- what changed in its worktree (.diff-file) ----
    Under .workitem-card: the review screen has a .changes-head of its own (components/changes). */
 
@@ -1034,6 +1047,31 @@ input.workitem-label-input {
   width: 24px;
   height: 24px;
   min-height: 0;
+}
+
+/* A finger needs 44 px, and iOS zooms into any input under 16 px */
+@media (max-width: 900px) {
+  input.workitem-label-input {
+    width: 160px;
+    height: 44px;
+    font-size: 16px;
+  }
+
+  .workitem-label-add {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* A label keeps its pill, and the finger gets a 44 px tall target around it */
+  .workitem-label-remove {
+    position: relative;
+  }
+
+  .workitem-label-remove::after {
+    content: '';
+    position: absolute;
+    inset: -13px 0;
+  }
 }
 
 /* A picker's sheet on a phone: the chosen option has the selected-row look */
@@ -1527,4 +1565,34 @@ input.newtask-criterion:focus {
 /* A section's name keeps its line beside its count and its buttons */
 .workitem-section-head > h2 {
   flex-shrink: 0;
+}
+
+/* A document tied to the item, with the button that unties it at the end of its row: the border
+   between rows goes on the item, so the button's corner of the row has it too */
+.workitem-doc-item {
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--line);
+}
+
+.workitem-doc-item:first-child {
+  border-top: 0;
+}
+
+.doc-rows > .workitem-doc-item > .doc-row {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-top: 0;
+}
+
+.workitem-doc-untie {
+  margin-right: 8px;
+}
+
+@media (max-width: 900px) {
+  .workitem-doc-untie {
+    width: 44px;
+    height: 44px;
+    margin-right: 4px;
+  }
 }

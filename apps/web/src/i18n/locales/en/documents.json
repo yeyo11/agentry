@@ -41,7 +41,6 @@
     "mode": "Mode",
     "edited": "edited {{when}}",
     "markdown": "Markdown",
-    "saveKey": "⌘S",
     "preview": "Preview"
   },
   "origin": {
@@ -119,6 +118,9 @@
     "search": "Search the documents folder",
     "noFiles": "Every document is tied already, or the folder is empty",
     "files": "Documents",
-    "none": "No documents yet. A specification or a decision a team member writes for it shows here."
+    "none": "No documents yet. A specification or a decision a team member writes for it shows here.",
+    "untie": "Untie {{path}} from the task",
+    "untied": "{{path}} is no longer tied to the task. The file stays in the folder.",
+    "untieFailed": "Could not untie the document"
   }
 }

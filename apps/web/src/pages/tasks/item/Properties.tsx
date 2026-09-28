@@ -19,7 +19,7 @@ import {
   useStatusOptions,
   useTypeOptions,
 } from './fields';
-import type { ItemActions } from './hooks';
+import { useMoveItem, type ItemActions } from './hooks';
 import { addLabel } from './model';
 import { Picker } from './Picker';
 
@@ -115,6 +115,7 @@ export function Properties({ item, actions, person }: { item: WorkItemDetail; ac
   const { t } = useTranslation('workItem');
   const { t: tt } = useTranslation('tasks');
   const statuses = useStatusOptions();
+  const move = useMoveItem(item, actions);
   const priorities = usePriorityOptions();
   const types = useTypeOptions(undefined, item.type);
   const assignees = useAssigneeOptions(person, item.assignee, item.projectId);
@@ -132,7 +133,7 @@ export function Properties({ item, actions, person }: { item: WorkItemDetail; ac
           label={t('fields.status')}
           value={item.status}
           options={statuses}
-          onPick={(status) => actions.move.mutate(status)}
+          onPick={move}
           trigger={
             <Value label={t('fields.statusIs', { status: tt(columnMeta(item.status).label) })} chevron>
               <WorkItemStatusIcon status={item.status} decorative />

@@ -106,7 +106,9 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'workitem.moved': true,
   'workitem.removed': true,
   'milestone.changed': true,
+  'project.created': true,
   'project.updated': true,
+  'project.removed': true,
   'team.changed': true,
   'journal.changed': true,
   'memory.proposal': true,
@@ -118,7 +120,23 @@ const EVENT_TYPES: Record<AgentryEventType, true> = {
   'tunnel.changed': true,
 };
 
-type Target = readonly [QueryKey, number];
+/**
+ * A cached read an event makes stale: its key prefix, how soon to refetch it, and optionally
+ * `'no-diffs'`, which leaves out a work item's changes under the prefix. Those are a `git diff` of
+ * its branch, which a run starting, a node moving or a flow run queued does not change: only a turn
+ * that ended (`run.ended`) or the item itself does.
+ */
+export type Target = readonly [QueryKey, number, 'no-diffs'?];
+
+/** A work item's changes and diffs: `['work-item', id, 'changes', …]`. */
+const isItemDiff = (key: QueryKey): boolean => key[0] === 'work-item' && key[2] === 'changes';
+
+/** Whether a target reaches a cached key: by prefix, less the diffs a `'no-diffs'` target leaves alone. */
+export function targetMatches(target: Target, key: QueryKey): boolean {
+  const [prefix, , except] = target;
+  if (!prefix.every((part, i) => JSON.stringify(part) === JSON.stringify(key[i]))) return false;
+  return except !== 'no-diffs' || !isItemDiff(key);
+}
 
 // Open panels read from these; a query nobody has mounted is only marked stale, not refetched
 const detail = (delay: number): Target[] => [
@@ -166,10 +184,10 @@ const REF_CHANGES: ReadonlySet<WorkItemChange> = new Set(['title', 'type', 'epic
 
 // A card is live while the chat or node on it runs, which the item's own events do not announce when
 // a turn fails or stops: the boards and an open item read again when a run changes state. Only the
-// mounted ones are fetched, and at the pace of the lists
-const liveCards: Target[] = [
+// mounted ones are fetched, and at the pace of the lists. Their diffs only move when a turn ends
+const liveCards = (diffs: boolean): Target[] => [
   [keys.workItems, LISTS],
-  [keys.workItemDetails, LISTS],
+  diffs ? [keys.workItemDetails, LISTS] : [keys.workItemDetails, LISTS, 'no-diffs'],
 ];
 
 // What the team's pages show of the flow: who works on what now (the members, the Flow screen)
@@ -205,17 +223,17 @@ export function targetsFor(event: AgentryEvent): Target[] {
   switch (event.type) {
     // A run is an execution of a chat, and its id is the chat's: what it changes is that chat
     case 'run.created':
-      return [[keys.chats, LISTS], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW], ...liveCards];
+      return [[keys.chats, LISTS], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW], ...liveCards(false)];
     case 'run.updated':
       // Only a status change moves counts elsewhere. The rest is a chat's own numbers, which
       // `patchRun` writes into the rows: the lists are read again only when that moved the state
       return event.previousStatus === null
         ? transcriptOf(event.runId)
-        : [[keys.chats, LISTS], [keys.chatScope(event.runId), NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW], ...liveCards];
+        : [[keys.chats, LISTS], [keys.chatScope(event.runId), NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW], ...liveCards(false)];
     case 'run.ended':
       return [
         [keys.chats, LISTS], [['chat', event.runId], NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['usage'], OVERVIEW],
-        [['environments'], NOW], ...activity(OVERVIEW), ...liveCards,
+        [['environments'], NOW], ...activity(OVERVIEW), ...liveCards(true),
       ];
     case 'run.removed':
       return [[keys.chats, LISTS], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['usage'], OVERVIEW]];
@@ -247,7 +265,7 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'orchestration.removed':
       return [[keys.orchestrations, NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW]];
     case 'orchestration.task':
-      return [[keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW], [keys.chats, LISTS], ...liveCards];
+      return [[keys.orchestrations, NOW], [keys.orchestration(event.orchestrationId), NOW], [keys.chats, LISTS], ...liveCards(true)];
     case 'changes.updated':
       // Whatever the board reads about this graph's branches sits under its key, changes included
       return [[keys.orchestration(event.orchestrationId), NOW]];
@@ -275,6 +293,10 @@ export function targetsFor(event: AgentryEvent): Target[] {
     case 'system.release':
       // Reading it back costs nothing: the server answers from release.json, not from GitHub
       return [[keys.release, NOW]];
+    case 'project.created':
+    case 'project.removed':
+      // The projects' lists, and the All projects views, which take a project's items in or leave them out
+      return [[keys.projects, NOW], [keys.overview, OVERVIEW], [keys.workItemBoards(null), NOW], [keys.workItemLists(null), NOW], [keys.chatWorkItemsAll, NOW]];
     case 'project.updated':
       return [
         [keys.projects, NOW], [keys.overview, OVERVIEW], [keys.projectSettings(event.projectId), NOW],
@@ -318,7 +340,7 @@ export function targetsFor(event: AgentryEvent): Target[] {
         [keys.documentTree(event.projectId), NOW],
         [keys.documentFile(event.projectId, event.path), NOW],
         // A tie is a `document` link of the item, which its page lists
-        ...(event.itemId ? ([[keys.workItem(event.itemId), NOW]] as Target[]) : []),
+        ...(event.itemId ? ([[keys.workItem(event.itemId), NOW, 'no-diffs']] as Target[]) : []),
       ];
     case 'flow.run':
       // What the run does to its item (a comment, a move, the waiting state) comes as `workitem.*`;
@@ -327,7 +349,7 @@ export function targetsFor(event: AgentryEvent): Target[] {
         ...flowViews(event.projectId),
         [keys.workItemBoards(event.projectId), NOW],
         [keys.workItemLists(event.projectId), NOW],
-        [keys.workItem(event.itemId), NOW],
+        [keys.workItem(event.itemId), NOW, 'no-diffs'],
       ];
     case 'assistant.run':
       return [
@@ -451,15 +473,16 @@ class Invalidations {
   constructor(private readonly client: QueryClient) {}
 
   schedule(targets: readonly Target[]): void {
-    for (const [key, delay] of targets) {
-      const id = JSON.stringify(key);
+    for (const target of targets) {
+      const [key, delay] = target;
+      const id = JSON.stringify(target);
       const due = Date.now() + delay;
       const waiting = this.pending.get(id);
       if (waiting && waiting.due <= due) continue;
       if (waiting) clearTimeout(waiting.timer);
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        void this.client.invalidateQueries({ queryKey: key });
+        void this.client.invalidateQueries(target[2] ? { queryKey: key, predicate: (query) => targetMatches(target, query.queryKey) } : { queryKey: key });
       }, delay);
       this.pending.set(id, { timer, due });
     }

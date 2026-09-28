@@ -45,8 +45,8 @@
     "label": "Token",
     "placeholder": "Pega el token",
     "submit": "Entrar",
-    "rejected": "No se aceptó esa credencial. Comprueba que no ha caducado y que es la que conoce este wrapper.",
-    "failed": "No se pudo contactar con el wrapper para comprobar la credencial.",
+    "rejected": "No se ha aceptado esa credencial. Comprueba que no ha caducado y que es la que conoce este wrapper.",
+    "failed": "No se ha podido contactar con el wrapper para comprobar la credencial.",
     "hint": "Un token se muestra una sola vez, al crearlo. ¿Lo has perdido? Rótalo desde la máquina donde corre Agentry."
   }
 }

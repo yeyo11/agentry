@@ -46,7 +46,7 @@
   },
   "security": {
     "footnote": "Agentry comprueba una credencial; no inicia sesión a nadie. Termina TLS en un proxy inverso delante de él, para que un token nunca viaje por la red en claro.",
-    "saveFailed": "No se pudo guardar la configuración de seguridad",
+    "saveFailed": "No se ha podido guardar la configuración de seguridad",
     "readOnly": {
       "title": "Modo solo lectura",
       "on": "solo lectura",
@@ -123,9 +123,9 @@
       "ownHint": "Al menos {{min}} caracteres. No se vuelve a mostrar.",
       "ownSave": "Fijar el token",
       "saved": "Token fijado",
-      "saveFailed": "No se pudo fijar el token",
+      "saveFailed": "No se ha podido fijar el token",
       "removed": "Token eliminado",
-      "removeFailed": "No se pudo eliminar el token",
+      "removeFailed": "No se ha podido eliminar el token",
       "rotateConfirm": {
         "title": "¿Rotar el token?",
         "body": "El token actual deja de funcionar al instante, para todos los que lo tengan. Este navegador pasa al nuevo."
@@ -194,7 +194,7 @@
     "check": "Buscar actualizaciones",
     "checking": "Comprobando…",
     "updateHow": "Agentry no actualiza el CLI dentro de un contenedor en marcha, así que un reinicio siempre da la misma versión. Reconstruye la imagen con CLAUDE_CODE_VERSION={{latest}} (Docker Compose: defínela en .env y ejecuta docker compose build) o descarga una imagen más reciente de Agentry. En una instalación normal, ejecuta claude update.",
-    "checkFailed": "No se pudo buscar actualizaciones",
+    "checkFailed": "No se ha podido buscar actualizaciones",
     "note": "Se comprueba cuando lo pides y una vez al día, nunca al cargar una página. Consulta el registro de npm, no claude.ai."
   },
   "updates": {
@@ -207,7 +207,7 @@
     "checked": "Última comprobación {{when}}",
     "check": "Buscar actualizaciones",
     "checking": "Comprobando…",
-    "checkFailed": "No se pudo buscar actualizaciones",
+    "checkFailed": "No se ha podido buscar actualizaciones",
     "note": "Se comprueba cuando lo pides y una vez al día, nunca al cargar una página. Consulta la última versión de Agentry en GitHub.",
     "copyCommand": "Copiar el comando",
     "remote": "Esta página está conectada al Agentry de {{host}}, que funciona en otra máquina. Quien lo gestione puede actualizarlo:",
@@ -228,7 +228,7 @@
     "downloadProgress": "Descargando Agentry {{version}}",
     "restart": "Reiniciar para actualizar a {{version}}",
     "scheduled": "Agentry {{version}} se instalará la próxima vez que salgas.",
-    "desktopFailed": "La actualización no se completó",
+    "desktopFailed": "La actualización no se ha completado",
     "busyTitle": "¿Reiniciar para actualizar a {{version}}?",
     "busyBody": "{{live}}, y un reinicio los detiene. ¿Reiniciar ahora o actualizar al salir?",
     "cancel": "Cancelar",
@@ -373,7 +373,7 @@
     "retentionHint": "cleanupPeriodDays: se eliminan las transcripciones locales más antiguas que esto.",
     "coAuthored": "Co-authored-by en los commits",
     "coAuthoredLabel": "Incluir co-authored-by",
-    "apiKeyHelper": "Helper de clave de API",
+    "apiKeyHelper": "Script de clave de API",
     "apiKeyHelperHint": "apiKeyHelper: script que escribe una clave de API en stdout.",
     "statusLine": "Comando de la línea de estado",
     "statusLineHint": "statusLine: comando cuya salida se muestra como línea de estado.",
@@ -425,7 +425,7 @@
     "transports": {
       "stdio": "Proceso local que arranca Claude Code",
       "http": "Servidor remoto por HTTP con streaming",
-      "sse": "Servidor remoto por Server-Sent Events (heredado)"
+      "sse": "Servidor remoto por Server-Sent Events (obsoleto)"
     },
     "scopeHints": {
       "user": "Disponible en todos los proyectos de esta cuenta",
@@ -505,9 +505,9 @@
     "noRules": "Sin reglas",
     "save": "Guardar preset",
     "saved": "{{name}} guardado",
-    "saveFailed": "No se pudo guardar el preset",
+    "saveFailed": "No se ha podido guardar el preset",
     "removed": "{{name}} eliminado",
-    "removeFailed": "No se pudo eliminar el preset",
+    "removeFailed": "No se ha podido eliminar el preset",
     "shipped": "Incluido",
     "editNamed": "Editar {{name}}",
     "removeNamed": "Eliminar {{name}}",
@@ -520,12 +520,12 @@
     "defaultHint": "Con lo que arranca un chat nuevo que no elige preset. Al reanudar, un chat conserva el que tenía, y un fork el de su origen.",
     "noDefault": "Ninguno: las herramientas del propio CLI",
     "isDefault": "Predeterminado",
-    "defaultFailed": "No se pudo cambiar el preset predeterminado",
+    "defaultFailed": "No se ha podido cambiar el preset predeterminado",
     "restore": "Restaurar los presets incluidos",
     "restoreTitle": "¿Restaurar los presets incluidos?",
     "restoreBody": "Read-only, No network y Everything vuelven a estar como vienen, y los que eliminaste vuelven. Tus propios presets y el preset predeterminado se quedan como están.",
     "restored": "Presets incluidos restaurados",
-    "restoreFailed": "No se pudieron restaurar los presets incluidos"
+    "restoreFailed": "No se han podido restaurar los presets incluidos"
   },
   "resources": {
     "kinds": {
@@ -634,6 +634,13 @@
     },
     "exists": "Ya existe",
     "nameRule": "Solo letras, dígitos, guiones y guiones bajos",
+    "frontmatter": {
+      "missing": "El archivo necesita una cabecera entre dos líneas ---, que es lo que lee el CLI.",
+      "unclosed": "La cabecera no está cerrada: añade una línea --- después de su último campo.",
+      "line": "Una línea de la cabecera no es un campo «clave: valor», así que el CLI no leería el bloque.",
+      "name": "La cabecera necesita un name: el CLI elige el agente por él.",
+      "description": "La cabecera necesita una description: es lo que le dice a Claude cuándo usarlo."
+    },
     "newUnsaved": "nuevo · sin guardar",
     "noDescription": "Sin descripción",
     "pick": "Elige uno de la lista para verlo y editarlo.",
@@ -915,17 +922,12 @@
     "launching": "Lanzando…",
     "launch_one": "Lanzar {{count}} tarea",
     "launch_other": "Lanzar {{count}} tareas",
-    "title": "Orquestación",
     "subtitle": "Divide un objetivo en tareas y ejecútalas como agentes en paralelo con dependencias",
-    "list_one": "Orquestaciones ({{count}})",
-    "list_other": "Orquestaciones ({{count}})",
     "none": "Aún no hay orquestaciones",
-    "completed": "{{done}}/{{total}} completadas",
     "notRun_one": "{{count}} sin ejecutar",
     "notRun_other": "{{count}} sin ejecutar",
     "failed_one": "{{count}} fallida",
     "failed_other": "{{count}} fallidas",
-    "resumable": "se puede reanudar",
     "concurrencyValue": "concurrencia {{n}}"
   },
   "detail": {
@@ -984,7 +986,6 @@
     "defaultModel": "modelo predeterminado",
     "workflowEngine": "motor de workflow",
     "worktreePerTask": "un worktree por tarea",
-    "total": "total {{cost}}",
     "created": "creada el {{date}}",
     "stop": "Detener la orquestación",
     "deleteBody": "Se eliminan su registro y sus worktrees. Las ramas se conservan, así que lo que tenga commit en ellas sobrevive.",
@@ -1024,12 +1025,12 @@
       "testNamed": "Probar {{name}} con una notificación",
       "testSent": "Notificación de prueba enviada",
       "testGone": "Ese dispositivo ya no existe en su servicio push, así que se ha quitado de la lista",
-      "testFailed": "No se pudo enviar la notificación de prueba",
+      "testFailed": "No se ha podido enviar la notificación de prueba",
       "remove": "Quitar",
       "removeNamed": "Quitar {{name}}",
       "removeTitle": "¿Quitar este dispositivo?",
       "removeBody": "{{name}} dejará de recibir notificaciones. Puede volver a registrarse desde sus propios ajustes.",
-      "removeFailed": "No se pudo quitar ese dispositivo"
+      "removeFailed": "No se ha podido quitar ese dispositivo"
     }
   },
   "appearance": {
@@ -1047,6 +1048,7 @@
     "new": "Nuevo",
     "suggest": "Sugerir",
     "suggestAgain": "Volver a sugerir",
+    "suggesting": "Sugiriendo…",
     "createAi": "Crear con IA",
     "kind": {
       "agents": "Agente",
@@ -1071,11 +1073,11 @@
     "discardName": "Descartar {{name}}",
     "review": "Revisar",
     "reviewName": "Revisar {{name}}",
-    "saved": "guardada",
+    "saved": "archivo guardado",
     "undo": "Deshacer",
     "reading": "Leyendo el proyecto",
-    "stopped": "Se detuvo antes de proponer nada.",
-    "failed": "Terminó sin una respuesta legible.",
+    "stopped": "Se ha detenido antes de proponer nada.",
+    "failed": "Ha terminado sin una respuesta legible.",
     "nothing": "Ha leído el proyecto y no ha encontrado nada nuevo que proponer.",
     "hint": "Cada propuesta se abre en el editor con su contenido. Nada se guarda hasta que pulses Crear, y va al proyecto salvo que elijas Usuario.",
     "more_one": "{{count}} más",
@@ -1088,7 +1090,7 @@
     "proposedBy": "Propuesto por el asistente",
     "nothingWritten": "Nada se escribe hasta que lo crees.",
     "alreadySaved": "Esta propuesta ya está guardada.",
-    "alreadyDiscarded": "Esta propuesta se descartó: restáurala desde las propuestas para crearla.",
+    "alreadyDiscarded": "Esta propuesta se ha descartado: restáurala desde las propuestas para crearla.",
     "proposalGone": "Esta propuesta ya no está.",
     "resourceGone": "Este recurso ya no está en el proyecto.",
     "nameFirst": "Ponle nombre a la izquierda para abrirlo en el editor.",
@@ -1101,7 +1103,7 @@
       "commands": "Un comando que pase las comprobaciones y resuma qué ha fallado"
     },
     "create": "Crear",
-    "again": "Volver a intentar",
+    "again": "Reintentar",
     "stop": "Detener",
     "cancel": "Cancelar",
     "openInEditor": "Abrir en el editor",
@@ -1159,7 +1161,7 @@
     "startWith": {
       "title": "Al arrancar",
       "label": "Abrir el túnel al arrancar Agentry",
-      "hint": "Desactivado por defecto. Sigue necesitando la autenticación activada y ssh instalado."
+      "hint": "Desactivado de forma predeterminada. Sigue necesitando la autenticación activada y ssh instalado."
     },
     "stopConfirm": {
       "title": "¿Cerrar el túnel que usa esta página?",
@@ -1190,11 +1192,11 @@
     "runs": {
       "title": "Ejecuciones",
       "intro": "Lo que recibe una ejecución nueva si no pide otra cosa. Un cambio se aplica a la siguiente ejecución, sin reiniciar.",
-      "mode": "Modo de permisos por defecto",
+      "mode": "Modo de permisos predeterminado",
       "modeHint": "El --permission-mode de un chat, programación u orquestación que no elige ninguno.",
       "concurrent": "Ejecuciones a la vez",
       "concurrentHint": "De {{min}} a {{max}}. Un chat nuevo por encima del límite se rechaza hasta que termine otro, y una orquestación no ejecuta más workers que estos a la vez.",
-      "saved": "Valores por defecto de las ejecuciones guardados"
+      "saved": "Valores predeterminados de las ejecuciones guardados"
     }
   }
 }

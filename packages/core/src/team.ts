@@ -38,9 +38,9 @@ import { projectTemplate } from './project-templates.ts';
 
 /** The agent file names the CLI and the settings accept. */
 const AGENT_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
-const MAX_SHORT = 100;
-const MAX_TEXT = 500;
-const MAX_WRITES = 50;
+export const MAX_SHORT = 100;
+export const MAX_TEXT = 500;
+export const MAX_WRITES = 50;
 /** What a flow the template creates starts with; the person changes it on the Flow screen. */
 const DEFAULT_MAX_BOUNCES = 3;
 const ID = /^[A-Za-z0-9-]+$/;
@@ -156,21 +156,53 @@ export function readFrontmatter(content: string): Record<string, string> {
 }
 
 /**
+ * A list field of an agent file's frontmatter, in any of the forms the CLI reads: `tools: Read, Grep`,
+ * a flow list `tools: [Read, Grep]`, or a block list of `- Read` lines under `tools:`. Null when the
+ * field is absent.
+ */
+export function readFrontmatterList(content: string, field: string): string[] | null {
+  const block = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content)?.[1];
+  if (!block) return null;
+  const lines = block.split(/\r?\n/);
+  const at = lines.findIndex((l) => new RegExp(`^${field}:`).test(l));
+  if (at < 0) return null;
+  const unquote = (v: string) => v.trim().replace(/^(["'])(.*)\1$/, '$2').trim();
+  const inline = (lines[at] ?? '').slice(field.length + 1).trim();
+  if (inline) return inline.replace(/^\[|\]$/g, '').split(',').map(unquote).filter(Boolean);
+  const items: string[] = [];
+  for (const line of lines.slice(at + 1)) {
+    const item = /^\s+-\s*(.*)$/.exec(line);
+    if (!item) break;
+    const value = unquote(item[1] ?? '');
+    if (value) items.push(value);
+  }
+  return items;
+}
+
+/**
  * The starting agent file of a member: frontmatter the CLI reads (`name`, `description`, `model`),
  * then a body stating the role, its responsibility, what it may write and how a flow run ends.
  */
 export function agentFileContent(member: ProjectTeamMember): string {
   const title = roleTitle(member.role);
   const guidance = ROLE_GUIDANCE[member.role];
-  const writes = member.writes?.length
-    ? [
-        'You may write only these paths, relative to the project:',
-        '',
-        ...member.writes.map((w) => `- \`${w}\``),
-        '',
-        "Agentry enforces this on the chats it starts for you; from a terminal, keep to it yourself. Read anything you need.",
-      ]
-    : ['Agentry sets no limit of its own on what you write; keep to what your responsibility needs.'];
+  // `writes: []` is "nothing of the project", not "no limit": the flow allows no edit outside the
+  // documents folder then, and the file has to say the same
+  const writes = !member.writes
+    ? ['Agentry sets no limit of its own on what you write; keep to what your responsibility needs.']
+    : member.writes.length
+      ? [
+          'You may write only these paths, relative to the project, and the documents folder:',
+          '',
+          ...member.writes.map((w) => `- \`${w}\``),
+          '',
+          "Agentry enforces this on the chats it starts for you; from a terminal, keep to it yourself. Read anything you need.",
+        ]
+      : [
+          "You write none of the project's files: only documents in the documents folder. Read anything you need.",
+          '',
+          'Agentry enforces this on the chats it starts for you; from a terminal, keep to it yourself.',
+        ];
   return [
     '---',
     `name: ${yamlScalar(member.agent)}`,
@@ -193,6 +225,7 @@ export function agentFileContent(member: ProjectTeamMember): string {
     '',
     '- `summary`: what you did, which becomes your comment on the item;',
     '- `verdict`: `pass` or `fail`, only when you verify the item;',
+    '- `criteria`: when you verify the item, each acceptance criterion by its id, `met` or not, with a note. The item passes only when every one is met;',
     '- `memoryProposals`: what the team should remember, each with its target, its text and why. Nothing is written until a person approves it;',
     '- `documents`: every document you wrote in the documents folder, with its kind (`spec`, `adr`, `report` or `doc`).',
     '',
@@ -490,12 +523,6 @@ export class TeamService {
       await this.deps.saveSettings(project.id, { ...project.settings, team: { members: members.filter((m) => m !== member) } });
       this.emit(project, 'removed', [agent], `${project.name}: ${roleTitle(member.role)} left the team`);
     });
-  }
-
-  /** The member the flow runs for a role, with its model and write rules; null when nobody plays it. */
-  async memberForRole(projectId: string, role: string): Promise<ProjectTeamMember | null> {
-    const project = await this.deps.project(projectId);
-    return project.settings.team?.members.find((m) => m.role === role) ?? null;
   }
 
   private serialized<T>(fn: () => Promise<T>): Promise<T> {

@@ -85,6 +85,8 @@
     "origin": "created it",
     "moved": "took it to {{to}}",
     "noMove": "did not move it",
+    "runFailed": "Run failed",
+    "failedNoMove": "its run failed, so the item stayed where it was",
     "noCost": "no cost"
   },
   "changes": {
@@ -173,7 +175,8 @@
   },
   "delete": {
     "title": "Delete {{key}}?",
-    "body": "Its history, comments and links go with it. Its number is never given to another task."
+    "body": "Its history, comments and links go with it. Its number is never given to another task.",
+    "working": "A chat or an orchestration is working on it now: that work goes on, without its task."
   },
   "workOn": {
     "title": "Work on {{key}}",
@@ -211,5 +214,10 @@
     "created": "{{key}} created",
     "open": "Open",
     "noBoard": "No project has its Board module on. Switch it on in a project's settings to create tasks."
+  },
+  "done": {
+    "title": "Move {{key}} to Done?",
+    "body_one": "{{count}} of its {{total}} acceptance criteria is still unchecked. Done means every one is met.",
+    "body_other": "{{count}} of its {{total}} acceptance criteria are still unchecked. Done means every one is met."
   }
 }

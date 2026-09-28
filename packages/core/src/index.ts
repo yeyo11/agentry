@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import type {
   AccountsOverview,
   AuthVerification,
@@ -32,6 +32,7 @@ import type {
   UpdateProjectRequest,
   Board,
   CreateWorkItemFromMessageRequest,
+  CreateWorkItemLinkRequest,
   Milestone,
   OrchestrateWorkItemsRequest,
   Orchestration,
@@ -60,7 +61,7 @@ import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsP
 import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { TunnelManager } from './tunnel.ts';
 import { ChatService, type Placement } from './chat-service.ts';
-import { ChatManager, type ChatRuntime, type RunResult } from './chats.ts';
+import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
@@ -97,9 +98,10 @@ import { attachProject, projectCandidates, ProjectStore, type ChatPlace, type Pr
 import { AuthStore } from './security/auth.ts';
 import { Scheduler } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
-import { readFrontmatter, TeamService } from './team.ts';
+import { readFrontmatter, readFrontmatterList, TeamService } from './team.ts';
 import { FlowService, type FlowLaunch } from './flow.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
+import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo } from './git.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
@@ -152,8 +154,8 @@ export {
   type AssistantLaunch,
   type AssistantProject,
 } from './assistant.ts';
-export { assistantPrompt, assistantSchema, parseAnswer, type AssistantAnswer, type AssistantBrief } from './assistant-answer.ts';
-export { FLOW_CAUSE, flowPrompt, flowResultSchema, FlowService, parseResult, writeRules, type FlowChatResult, type FlowDeps, type FlowLaunch, type FlowProject } from './flow.ts';
+export { assistantLanguage, assistantPrompt, assistantSchema, assistantTitle, parseAnswer, type AssistantAnswer, type AssistantBrief, type AssistantGit, type AssistantLanguage } from './assistant-answer.ts';
+export { FLOW_CAUSE, flowPrompt, flowResultSchema, FlowService, parseResult, stageRules, testCommandRules, type FlowChatResult, type FlowDeps, type FlowLaunch, type FlowProject, type FlowRules } from './flow.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
 export {
@@ -166,7 +168,7 @@ export {
   type WorkItemProject,
   type WorkItemServiceDeps,
 } from './work-items.ts';
-export { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentServiceDeps, type DocumentsPlace, type TieOptions } from './documents.ts';
+export { DEFAULT_DOCUMENTS_PATH, DOCUMENT_CONTENT_MAX, DocumentError, DocumentService, type DocumentServiceDeps, type DocumentsPlace, type TieOptions } from './documents.ts';
 export { DocumentPathError } from './document-paths.ts';
 export { orchestrationDraft, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt, type WorkItemAutomationDeps } from './work-links.ts';
 export { AuthStore } from './security/auth.ts';
@@ -323,7 +325,7 @@ export class Core {
         const record = this.requireProject(id);
         return { ...record, settings: await this.projectSettings(id) };
       },
-      saveSettings: (id, settings) => this.saveProjectSettings(id, settings),
+      saveSettings: (id, settings) => this.saveTeamSettings(id, settings),
       emit: (event) => this.events.emit(event),
     });
     this.uploads = new UploadStore(config.dataDir);
@@ -403,8 +405,20 @@ export class Core {
       place: (dir, recorded) => this.place(dir, recorded),
       environmentOf: (dir) => this.runtime.environments.get(dir),
       windowOf: (model) => this.db.modelWindow(model),
+      memberChat: (chatId) => this.memberChat(chatId),
     });
-    this.changes = new Changes({ orchestrator: this.orchestrator, chats: this.chats, sessions: this.sessions, runtime: this.runtime });
+    this.changes = new Changes({
+      orchestrator: this.orchestrator,
+      chats: this.chats,
+      sessions: this.sessions,
+      runtime: this.runtime,
+      // A chat on a work item works in the item's worktree, cut from the project's checkout
+      forkedFrom: (chatId) => {
+        const itemId = this.workItems.linksOfChat(chatId).find((l) => l.kind === 'chat' && l.role !== 'origin')?.itemId;
+        const item = itemId ? this.workItems.find(itemId) : null;
+        return item ? (this.projectStore.get(item.projectId)?.path ?? null) : null;
+      },
+    });
     // The CLI's list of sessions is kept a while; a process of ours that started or ended changes
     // what it says about that chat, and a stale one would read it as held by someone else
     this.events.observe((event) => {
@@ -624,9 +638,10 @@ export class Core {
       if (pinned) this.runtime.unpin(run.id);
       this.forgetSystem();
       const target = result.to ?? 'another account';
-      // An orchestration worker already handed its result to the orchestrator: rotating helps the
-      // tasks that come after it, but replaying this turn would fight whoever is awaiting it.
-      if (run.orchestrationId) {
+      // An orchestration worker already handed its result to the orchestrator, and a turn held to a
+      // schema (a flow run, the assistant) to the run that started it, which has ended on it:
+      // rotating helps what comes after, but replaying the turn would spend again for nobody.
+      if (run.orchestrationId || this.runtime.heldToSchema(run.id)) {
         this.runtime.notice(run.id, `Rate limit reached — switched to ${target}; the next tasks use it.`);
         this.announceRotation(run, result, false);
         return;
@@ -942,6 +957,9 @@ export class Core {
    */
   async projects(): Promise<Project[]> {
     const places = await this.chatPlaces();
+    // Counted from the chat list the project's page shows, so the figure agrees with it: a chat this
+    // process runs (a "Work on it", a flow or an assistant chat) counts before the CLI writes its transcript
+    const listed = await this.chats.list();
     const worktrees = new Map<string, Map<string, ProjectWorktree>>();
     const stats = new Map<string, { chatCount: number; lastActivity: string | null }>();
     const addWorktree = (path: string, creator: ProjectWorktree['createdBy'] = null) => {
@@ -955,12 +973,14 @@ export class Core {
 
     for (const place of places) {
       const attached = this.attach(place.cwd);
-      if (!attached) continue;
-      const stat = stats.get(attached.project.id) ?? { chatCount: 0, lastActivity: null };
+      if (attached?.worktree) addWorktree(attached.worktree.path);
+    }
+    for (const chat of listed) {
+      if (!chat.project) continue;
+      const stat = stats.get(chat.project.id) ?? { chatCount: 0, lastActivity: null };
       stat.chatCount += 1;
-      if (place.updatedAt && (!stat.lastActivity || place.updatedAt > stat.lastActivity)) stat.lastActivity = place.updatedAt;
-      stats.set(attached.project.id, stat);
-      if (attached.worktree) addWorktree(attached.worktree.path);
+      if (chat.updatedAt && (!stat.lastActivity || chat.updatedAt > stat.lastActivity)) stat.lastActivity = chat.updatedAt;
+      stats.set(chat.project.id, stat);
     }
 
     // The orchestration task that created a worktree says more about it than its name does, and a
@@ -1015,6 +1035,7 @@ export class Core {
   async importProject(req: ImportProjectRequest): Promise<Project> {
     const setup = parseProjectSetup(req);
     const active = () => new Set(this.projectStore.list().map((p) => p.id));
+    const imported = active();
     const record = await this.projectStore.add(
       { path: req.path, ...(req.name ? { name: req.name } : {}) },
       (d) => this.locator.worktreeOf(d),
@@ -1023,12 +1044,17 @@ export class Core {
     const { settings, previous } = await this.projectSettingsStore.create(record, setup, this.projectStore.list());
     // A directory imported again can come back with other modules: whoever shows its tabs has to know
     if (previous) this.projectUpdated(record, settingsChanges(previous, settings), settings.modules);
+    // Other tabs list projects too, and the All projects board takes the new one in
+    if (!imported.has(record.id)) this.events.emit({ type: 'project.created', title: `${record.name} added`, projectId: record.id, projectName: record.name });
     return this.projectView(record.id);
   }
 
   /** A new directory in the workspace, imported straight away. The template is checked before the directory exists. */
   async createProject(req: CreateProjectRequest): Promise<Project> {
     const setup = parseProjectSetup(req);
+    const { name, gitUrl } = req as { name?: unknown; gitUrl?: unknown };
+    if (typeof name !== 'string') throw new Error('name is required: the name of the new directory');
+    if (gitUrl !== undefined && gitUrl !== null && typeof gitUrl !== 'string') throw new Error('gitUrl must be a URL to clone');
     const path = await this.workspace.create(req.name ?? '', req.gitUrl || undefined);
     return this.importProject({ path, ...(setup.template ? { template: setup.template } : {}), ...(setup.modules ? { modules: setup.modules } : {}) });
   }
@@ -1052,10 +1078,8 @@ export class Core {
     const modules = body.modules === undefined ? undefined : parseModules(body.modules);
 
     const active = this.projectStore.list();
-    const before = await this.projectSettingsStore.read(record, active);
-    const after: ProjectSettings = { ...before, ...(key ? { keyPrefix: key } : {}), ...(modules ? { modules } : {}) };
+    const { before, after } = await this.projectSettingsStore.update(record, (current) => ({ ...current, ...(key ? { keyPrefix: key } : {}), ...(modules ? { modules } : {}) }), active);
     const changes: ProjectChange[] = settingsChanges(before, after);
-    if (changes.length) await this.projectSettingsStore.write(record, after, active);
     let current = record;
     if (typeof body.name === 'string' && body.name.trim() !== record.name) {
       current = await this.projectStore.rename(id, body.name);
@@ -1081,6 +1105,25 @@ export class Core {
     return settings;
   }
 
+  /**
+   * What the team writes: only its team and its flow. The team hands back the whole document it
+   * read, and writing all of it would put back a module switched since that read, and replace a part
+   * a hand edit broke with the default the read answered for it.
+   */
+  private async saveTeamSettings(id: string, settings: ProjectSettings): Promise<ProjectSettings> {
+    const record = this.requireProject(id);
+    const { before, after } = await this.projectSettingsStore.update(
+      record,
+      (current) => {
+        const { team: _team, flow: _flow, ...rest } = current;
+        return parseProjectSettings({ ...rest, ...(settings.team ? { team: settings.team } : {}), ...(settings.flow ? { flow: settings.flow } : {}) });
+      },
+      this.projectStore.list(),
+    );
+    this.projectUpdated(record, settingsChanges(before, after), after.modules);
+    return after;
+  }
+
   private requireProject(id: string): ProjectRecord {
     const record = this.projectStore.get(id);
     if (!record) throw new Error('project not found');
@@ -1096,8 +1139,10 @@ export class Core {
    * Forgets a project in Agentry. What Claude Code keeps about it is `purgeProject`, and is not
    * touched; neither are its settings document and work items, which importing it again brings back.
    */
-  removeProject(id: string): Promise<void> {
-    return this.projectStore.remove(id);
+  async removeProject(id: string): Promise<void> {
+    const record = this.projectStore.get(id);
+    await this.projectStore.remove(id);
+    if (record) this.events.emit({ type: 'project.removed', title: `${record.name} removed`, projectId: record.id, projectName: record.name });
   }
 
   // ---------- journal and memory proposals ----------
@@ -1166,6 +1211,10 @@ export class Core {
     const milestones = await quiet(() => this.workItems.milestones(project.id).filter((m) => m.state === 'open').map((m) => m.name), [] as string[]);
     const commits = !isGitRepo(project.path) ? null : await quiet(() => Number(git(project.path, ['rev-list', '--count', 'HEAD'], 10_000)) || 0, 0);
     const chats = [...sessions].sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
+    const instructions = await quiet(async () => {
+      const file = join(project.path, 'CLAUDE.md');
+      return existsSync(file) ? await readFile(file, 'utf8') : null;
+    }, null);
     return {
       facts: {
         memoryFiles: memory.length,
@@ -1180,13 +1229,16 @@ export class Core {
       journal: journal.text,
       chats: chats.map((c) => (c.firstPrompt ?? c.title).replace(/\s+/g, ' ').trim().slice(0, 140)).filter(Boolean),
       resources: { agents, skills, commands },
+      instructions,
+      git: await quiet(() => assistantGit(project.path), null),
     };
   }
 
   /**
-   * Starts an assistant run's chat in the project's directory: read-only tools in `dontAsk`, no MCP
-   * server and no preset, the journal appended, the result held to the run's schema, and one turn.
-   * A run a restart cut off continues in its own chat.
+   * Starts an assistant run's chat in the project's directory: confined to the read tools (the only
+   * ones it has, kept to the directory) in `dontAsk`, with no settings source, MCP server, preset or
+   * uploads directory, the journal and CLAUDE.md appended but never recorded, the result held to the
+   * run's schema, and one turn. A run a restart cut off continues in its own chat, confined again.
    */
   private async launchAssistantRun(launch: AssistantLaunch, onStart: (chatId: string) => void): Promise<void> {
     const options = {
@@ -1199,12 +1251,16 @@ export class Core {
       mcp: { servers: [] },
       permissionPrompts: 'none' as const,
     };
+    const confine: ChatConfinement = { tools: launch.tools, settingSources: [] };
+    // Not recorded, as for a member's run: the CLI would otherwise send the run's prompt, rendered
+    // for a confined session, to a person who continues the chat after the run
+    const extras = { jsonSchema: launch.jsonSchema, keepAlive: false, confine, systemPromptSnapshot: 'off' as const };
     if (launch.resumeChatId) {
       onStart(launch.resumeChatId);
-      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, { jsonSchema: launch.jsonSchema, keepAlive: false });
+      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, extras);
       return;
     }
-    await this.chats.create({ ...options, prompt: launch.prompt, cwd: launch.cwd, jsonSchema: launch.jsonSchema, keepAlive: false }, (started) => onStart(started.id));
+    await this.chats.create({ ...options, ...extras, prompt: launch.prompt, cwd: launch.cwd }, (started) => onStart(started.id));
   }
 
   /**
@@ -1234,17 +1290,30 @@ export class Core {
   }
 
   /**
-   * Starts a flow run's chat: in the item's own worktree, as the member's agent with its model, the
-   * journal appended to the system prompt and the result held to the run's schema. A Developer's run
-   * continues the item's work chat; if that chat cannot be continued (gone, or held elsewhere) the
-   * run starts a chat of its own rather than fail.
+   * A chat Agentry started for a run of its own, the flow's or the assistant's: a person who
+   * continues it gets it back without the run's rules (`ChatService.resume`).
+   */
+  private memberChat(chatId: string): boolean {
+    try {
+      return this.flow.ranChat(chatId) || !!this.db.connection.prepare('SELECT 1 FROM assistant_runs WHERE chat_id = ? LIMIT 1').get(chatId);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Starts a flow run's chat, as the member's agent with its model, the journal appended to the
+   * system prompt, the stage's rules and budget, and the result held to the run's schema. Working
+   * and verifying happen in the item's own worktree; refining in the project's checkout. A
+   * Developer's run continues its own chat from an earlier round, or starts one if that chat cannot
+   * be continued; a run a restart cut off continues in its chat or fails.
    */
   private async launchFlowRun(launch: FlowLaunch, onStart: (chatId: string) => void): Promise<void> {
     const { item, member, run } = launch;
     const record = this.requireProject(item.projectId);
     if (!existsSync(record.path)) throw new Error(`the project's directory ${record.path} is missing`);
-    const agentsFile = await this.flowAgentsFile(record.path, member.agent);
-    const place = itemWorktree(record.path, item);
+    const agentsFile = await this.flowAgentsFile(record.path, member);
+    const place = launch.inWorktree ? itemWorktree(record.path, item) : null;
     if (place && (place.worktree !== item.worktree || place.branch !== item.branch)) {
       this.workItems.setWorktree(item.id, { worktree: place.worktree, branch: place.branch });
     }
@@ -1253,11 +1322,12 @@ export class Core {
       appendSystemPrompt: launch.appendSystemPrompt || undefined,
       permissionMode: launch.permissionMode,
       allowedTools: launch.allowedTools,
-      disallowedTools: [],
+      disallowedTools: launch.disallowedTools,
+      ...(launch.maxBudgetUsd !== null ? { maxBudgetUsd: launch.maxBudgetUsd } : {}),
       toolPreset: null,
       permissionPrompts: 'none' as const,
     };
-    const extras = { agent: member.agent, agentsFile, jsonSchema: launch.jsonSchema, keepAlive: false };
+    const extras = { agent: member.agent, agentsFile, jsonSchema: launch.jsonSchema, systemPromptSnapshot: 'off' as const, uploads: false as const, keepAlive: false };
     const link = (chatId: string): void => {
       try {
         this.workItems.link(item.id, { kind: 'chat', role: run.stage, chatId, teamRole: member.role }, { actor: { kind: 'agent', role: member.role } });
@@ -1273,8 +1343,10 @@ export class Core {
         await this.chats.resume(chatId, { ...options, prompt: launch.prompt }, extras);
         link(chatId);
         return;
-      } catch {
-        // falls through to a chat of its own
+      } catch (err) {
+        // A new chat would know nothing of the run it is meant to carry on
+        if (launch.continuing) throw err;
+        // otherwise falls through to a chat of its own
       }
     }
     await this.chats.create({ ...options, ...extras, prompt: launch.prompt, cwd: place?.cwd ?? record.path }, (started) => {
@@ -1286,9 +1358,13 @@ export class Core {
   /**
    * The member's definition for `--agents`, from the agent file in the project's checkout: the item's
    * worktree only has the agent files that were committed, and the file a person edits in Agentry is
-   * the one that should run. Named by its content, so the same definition is one file.
+   * the one that should run. It carries what the file says of the agent (its tools, the tools it is
+   * denied, as a list in either YAML form) and the member's model, which is Agentry's to set, so a
+   * file's `model` never runs a role on a model its screen does not show. Named by its content, so
+   * the same definition is one file.
    */
-  private async flowAgentsFile(projectPath: string, agent: string): Promise<string> {
+  private async flowAgentsFile(projectPath: string, member: ProjectTeamMember): Promise<string> {
+    const { agent } = member;
     const source = join(projectPath, '.claude', 'agents', `${agent}.md`);
     let content: string;
     try {
@@ -1298,8 +1374,17 @@ export class Core {
     }
     const fields = readFrontmatter(content);
     const prompt = content.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').trim();
-    const tools = fields.tools?.split(',').map((t) => t.trim()).filter(Boolean);
-    const definition = { [agent]: { description: fields.description || agent, prompt: prompt || fields.description || agent, ...(tools?.length ? { tools } : {}) } };
+    const tools = readFrontmatterList(content, 'tools');
+    const disallowedTools = readFrontmatterList(content, 'disallowedTools');
+    const definition = {
+      [agent]: {
+        description: fields.description || agent,
+        prompt: prompt || fields.description || agent,
+        model: member.model,
+        ...(tools?.length ? { tools } : {}),
+        ...(disallowedTools?.length ? { disallowedTools } : {}),
+      },
+    };
     const body = `${JSON.stringify(definition, null, 2)}\n`;
     const dir = join(this.config.dataDir, 'flow-agents');
     await mkdir(dir, { recursive: true, mode: 0o700 });
@@ -1373,7 +1458,8 @@ export class Core {
     const shown = await this.boardProjects();
     const board = this.workItems.board(null, filter);
     const counts = new Map(WORK_ITEM_STATUSES.map((status) => [status, 0]));
-    for (const item of this.workItems.list()) if (shown.has(item.projectId)) counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
+    // Epics group work rather than being work, and the project board leaves them out of its counts too
+    for (const item of this.workItems.list()) if (item.type !== 'epic' && shown.has(item.projectId)) counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
     return {
       projectId: null,
       columns: board.columns.map((column) => ({
@@ -1438,13 +1524,9 @@ export class Core {
   async workOnItem(itemId: string, request?: WorkOnWorkItemRequest): Promise<WorkOnWorkItemResult> {
     const item = await this.workItemAccess(itemId, 'write');
     const record = this.requireProject(item.projectId);
-    if (item.type === 'epic') throw new WorkItemError('an epic groups work items: work on one of them instead', 400);
-    // As "Orchestrate" refuses it: nothing an agent does may take an item out of done
-    if (item.status === 'done') throw new WorkItemError(`${item.key} is already done: move it back first to work on it again`, 409);
+    this.checkWorkable(item);
     const options = startOptions(request);
     if (!existsSync(record.path)) throw new WorkItemError(`the project's directory ${record.path} is missing`, 409);
-    const busy = this.workItems.links(itemId).find((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
-    if (busy) throw new WorkItemError(`${item.key} is already being worked on${busy.name ? ` by ${busy.name}` : ''}`, 409);
     const place = itemWorktree(record.path, item);
     if (place && (place.worktree !== item.worktree || place.branch !== item.branch)) {
       this.workItems.setWorktree(itemId, { worktree: place.worktree, branch: place.branch });
@@ -1465,6 +1547,18 @@ export class Core {
   }
 
   /**
+   * What "Work on it", a draft and a launch all refuse, the same way: an epic, which groups work
+   * rather than being it; an item in done, which nothing an agent does may take out of it; and an
+   * item a chat or a node is working on now, which a second one would pull two ways.
+   */
+  private checkWorkable(item: WorkItem, label = ''): void {
+    if (item.type === 'epic') throw new WorkItemError(`${label}${item.key} is an epic, which groups work items: work on one of them instead`, 400);
+    if (item.status === 'done') throw new WorkItemError(`${label}${item.key} is already done: move it back first to work on it again`, 409);
+    const busy = this.workItems.links(item.id).find((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
+    if (busy) throw new WorkItemError(`${label}${item.key} is already being worked on${busy.name ? ` by ${busy.name}` : ''}`, 409);
+  }
+
+  /**
    * The graph a selection of one project's items becomes, for the person to review: nothing is
    * launched. The existing launch route takes it as it is and links each node to its item.
    */
@@ -1479,8 +1573,7 @@ export class Core {
     const items = (ids as string[]).map((id) => {
       const item = this.workItems.find(id);
       if (!item || item.projectId !== projectId) throw new WorkItemError(`${id} is not a work item of this project`, 400);
-      if (item.type === 'epic') throw new WorkItemError(`${item.key} is an epic, which groups work: select its items instead`, 400);
-      if (item.status === 'done') throw new WorkItemError(`${item.key} is already done`, 400);
+      this.checkWorkable(item);
       return item;
     });
     return orchestrationDraft(record, items, canBranch(record.path));
@@ -1491,20 +1584,21 @@ export class Core {
    * node per item: the item follows its node, and two nodes would pull it two ways.
    */
   async launchOrchestration(spec: OrchestrationSpec): Promise<Orchestration> {
-    await this.checkWorkItemNodes(spec?.tasks);
+    await this.checkWorkItemNodes(spec?.tasks, spec?.cwd);
     return this.orchestrator.create(spec);
   }
 
   /** A relaunch names its items as the first launch did, and is held to the same checks. */
   async relaunchOrchestration(id: string, changes: RelaunchOrchestrationRequest = {}): Promise<Orchestration> {
     const spec = this.orchestrator.relaunchSpec(id, changes);
-    await this.checkWorkItemNodes(spec.tasks);
+    await this.checkWorkItemNodes(spec.tasks, spec.cwd);
     return this.orchestrator.create(spec, { relaunchedFrom: id });
   }
 
-  private async checkWorkItemNodes(tasks: unknown): Promise<void> {
+  private async checkWorkItemNodes(tasks: unknown, cwd: unknown): Promise<void> {
     const seen = new Set<string>();
     for (const task of Array.isArray(tasks) ? (tasks as Array<Partial<OrchestrationSpec['tasks'][number]> | null>) : []) {
+      if (!task || typeof task !== 'object' || Array.isArray(task)) throw new WorkItemError('every task must be an object with an id and a prompt', 400);
       const itemId: unknown = task?.workItemId;
       if (itemId === undefined) continue;
       const label = `task '${String(task?.id)}'`;
@@ -1514,7 +1608,39 @@ export class Core {
       const item = this.workItems.find(itemId);
       if (!item) throw new WorkItemError(`${label}: work item ${itemId} not found`, 400);
       await this.ownerAccess(item.projectId, 'write');
+      // A node moves its item as it works, so it must work in the item's project: a link made by
+      // hand is held to the same
+      const dir = typeof task.cwd === 'string' && task.cwd ? task.cwd : typeof cwd === 'string' && cwd ? cwd : this.config.workspaceDir;
+      if (this.projectOf(resolve(dir)).project?.id !== item.projectId) {
+        throw new WorkItemError(`${label}: ${item.key} is a work item of another project, and the graph does not run in its project`, 400);
+      }
+      // As "Work on it" is held to: a launch is the other way to put an agent on the item
+      this.checkWorkable(item, `${label}: `);
     }
+  }
+
+  /**
+   * A chat or a task linked to an item by hand. It must exist and belong to the item's project:
+   * a link to nothing reads as work that is not there, and one to another project's chat would move
+   * the item with work done elsewhere.
+   */
+  async linkWorkItem(itemId: string, request: CreateWorkItemLinkRequest): Promise<WorkItemLink> {
+    const item = await this.workItemAccess(itemId, 'write');
+    const input: Partial<Record<keyof CreateWorkItemLinkRequest, unknown>> = request && typeof request === 'object' && !Array.isArray(request) ? request : {};
+    if (input.kind === 'chat' && typeof input.chatId === 'string' && input.chatId) {
+      const chat = await this.chats.summaryOf(input.chatId);
+      if (!chat) throw new WorkItemError(`chat ${input.chatId} not found`, 400);
+      if (chat.project?.id !== item.projectId) throw new WorkItemError(`chat ${input.chatId} is not a chat of this item's project`, 400);
+    }
+    if (input.kind === 'orchestration' && typeof input.orchestrationId === 'string' && input.orchestrationId) {
+      const orch = this.orchestrator.get(input.orchestrationId);
+      if (!orch) throw new WorkItemError(`orchestration ${input.orchestrationId} not found`, 400);
+      if (typeof input.taskId === 'string' && !orch.tasks.some((t) => t.id === input.taskId)) {
+        throw new WorkItemError(`orchestration ${orch.name} has no task ${input.taskId}`, 400);
+      }
+      if (this.projectOf(orch.cwd).project?.id !== item.projectId) throw new WorkItemError(`orchestration ${orch.name} does not run in this item's project`, 400);
+    }
+    return this.workItems.link(itemId, request);
   }
 
   /** "Create a task from this message": an item in `backlog` of the chat's project, linked to the chat it came from. */

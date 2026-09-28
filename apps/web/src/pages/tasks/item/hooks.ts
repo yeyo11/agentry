@@ -2,8 +2,9 @@ import type { CreateWorkItemRelationRequest, UpdateWorkItemRequest, WorkItem, Wo
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useOverview } from '../../../api';
+import { useConfirm } from '../../../components/Dialog';
 import { useToast } from '../../../components/Toast';
-import { personName } from './model';
+import { personName, uncheckedCriteria } from './model';
 
 /**
  * Every edit a work item's page makes, as mutations. What an answer returns goes straight into the
@@ -70,6 +71,24 @@ export function useItemActions(itemId: string) {
 }
 
 export type ItemActions = ReturnType<typeof useItemActions>;
+
+/**
+ * A move of the item as the person makes it: to Done with criteria still unchecked, it asks first
+ * (the person's approval means every criterion is met, decision 29); any other move goes at once.
+ */
+export function useMoveItem(item: Pick<WorkItem, 'key' | 'acceptanceCriteria'>, actions: Pick<ItemActions, 'move'>): (status: WorkItemStatus) => void {
+  const { t } = useTranslation('workItem');
+  const confirm = useConfirm();
+  return (status) => {
+    const { unchecked, total } = uncheckedCriteria(item);
+    if (status !== 'done' || unchecked === 0) return actions.move.mutate(status);
+    void confirm({
+      title: t('done.title', { key: item.key }),
+      body: t('done.body', { count: unchecked, total }),
+      confirmLabel: t('actions.moveToDone'),
+    }).then((ok) => ok && actions.move.mutate(status));
+  };
+}
 
 /** The person as comments and history name them: their account's name, or "you". */
 export function usePersonName(): string {

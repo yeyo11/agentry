@@ -230,7 +230,8 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
   try {
     res = await fetch(`${BASE}${path}`, {
       method: init.method ?? 'GET',
-      headers: { ...(hasBody ? { 'content-type': 'application/json' } : {}), ...authHeaders() },
+      // The language the person reads Agentry in, for what the server writes in it (a chat's title)
+      headers: { ...(hasBody ? { 'content-type': 'application/json' } : {}), 'accept-language': i18n.resolvedLanguage ?? i18n.language, ...authHeaders() },
       body: hasBody ? JSON.stringify(init.body) : undefined,
       signal: init.signal ? either(init.signal, timeout) : timeout,
     });

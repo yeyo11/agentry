@@ -12,7 +12,18 @@ const INDEX = 'MEMORY.md';
 function frontmatterField(content: string, field: string): string | null {
   const frontmatter = /^---\n([\s\S]*?)\n---/.exec(content)?.[1];
   const match = frontmatter ? new RegExp(`^\\s*${field}:\\s*(.+)$`, 'm').exec(frontmatter) : null;
-  return match?.[1]?.trim().replace(/^["']|["']$/g, '') ?? null;
+  const value = match?.[1]?.trim();
+  if (value === undefined) return null;
+  // A double-quoted scalar is JSON's string syntax, which is how `append` writes one
+  if (value.startsWith('"')) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (typeof parsed === 'string') return parsed;
+    } catch {
+      // not one we wrote: read it as the text it is
+    }
+  }
+  return value.replace(/^["']|["']$/g, '');
 }
 
 /** A description as frontmatter and the index hold it: the first line, short enough to scan. */
@@ -92,7 +103,9 @@ export class MemoryStore {
     }
     const slug = name.replace(/\.md$/, '');
     const line = oneLine(description) || oneLine(body) || slug;
-    const file = await this.save(projectId, name, `---\nname: ${slug}\ndescription: ${line}\nmetadata:\n  type: project\n---\n\n${body}\n`);
+    // Quoted: a description is free text, and one with `: `, a leading `-`, `[` or `#` is not a plain
+    // YAML scalar, which would break the frontmatter for whoever parses it. A JSON string is valid YAML
+    const file = await this.save(projectId, name, `---\nname: ${slug}\ndescription: ${JSON.stringify(line)}\nmetadata:\n  type: project\n---\n\n${body}\n`);
     const index = await this.get(projectId, INDEX);
     const entry = `- [${slug}](${name}) — ${line}`;
     await this.save(projectId, INDEX, index ? `${index.content.trimEnd()}\n${entry}\n` : `${entry}\n`);

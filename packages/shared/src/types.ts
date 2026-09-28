@@ -1058,6 +1058,11 @@ export interface ProjectFlowSettings {
    * quota on its own. Absent reads as 2 (`DEFAULT_FLOW_MAX_PARALLEL`).
    */
   maxParallel?: number;
+  /**
+   * What one run may spend, in USD, passed to the CLI as `--max-budget-usd`: the CLI stops the run
+   * once it is reached. Absent (the default) means no limit of Agentry's own.
+   */
+  maxCostUsd?: number;
 }
 
 /** The Documents module: the repository's documents folder, and documents tied to work items. */
@@ -1740,6 +1745,10 @@ export interface FlowRun {
   outcome: FlowRunOutcome | null;
   /** The result's summary, once it ended with one */
   summary: string | null;
+  /** Why it failed or was cancelled, in English; null otherwise */
+  error: string | null;
+  /** Times a restart cut it off and it went on in its chat; past `MAX_FLOW_RESTARTS` it fails */
+  restarts: number;
   queuedAt: string;
   startedAt: string | null;
   endedAt: string | null;
@@ -1759,6 +1768,18 @@ export interface ProjectFlow {
 
 /** QA's verdict: `pass` leaves the item waiting for the person's approval, `fail` sends it back to `in_progress`. */
 export type FlowVerdict = 'pass' | 'fail';
+
+/**
+ * QA's judgement of one acceptance criterion. A met criterion is checked on the item as the agent;
+ * the run passes only when every criterion of the item is met.
+ */
+export interface FlowCriterionResult {
+  /** The criterion's id, as the run's prompt lists it */
+  id: string;
+  met: boolean;
+  /** What was checked, or what is missing */
+  note: string;
+}
 
 /** A memory entry a flow run proposes, as its result carries it. */
 export interface FlowMemoryProposal {
@@ -1782,6 +1803,8 @@ export interface FlowRunDocument {
 export interface FlowRunResult {
   summary: string;
   verdict?: FlowVerdict;
+  /** Verification only: every acceptance criterion of the item, each judged on its own */
+  criteria?: FlowCriterionResult[];
   memoryProposals: FlowMemoryProposal[];
   documents: FlowRunDocument[];
 }
@@ -4114,6 +4137,23 @@ export interface MilestoneChangedEvent extends AgentryEventBase {
   action: MilestoneChangeAction;
 }
 
+/**
+ * A directory was imported as a project, or a new one created in the workspace. A directory imported
+ * again after it was removed takes its old id back, and is announced as created all the same.
+ */
+export interface ProjectCreatedEvent extends AgentryEventBase {
+  type: 'project.created';
+  projectId: string;
+  projectName: string;
+}
+
+/** A project was removed from Agentry. Its directory, settings and work items are left where they are. */
+export interface ProjectRemovedEvent extends AgentryEventBase {
+  type: 'project.removed';
+  projectId: string;
+  projectName: string;
+}
+
 /** What `project.updated` says changed; `settings` is anything else in the settings document. */
 export type ProjectChange = 'name' | 'key' | 'modules' | 'settings';
 
@@ -4298,7 +4338,9 @@ export type AgentryEvent =
   | WorkItemMovedEvent
   | WorkItemRemovedEvent
   | MilestoneChangedEvent
+  | ProjectCreatedEvent
   | ProjectUpdatedEvent
+  | ProjectRemovedEvent
   | TeamChangedEvent
   | JournalChangedEvent
   | MemoryProposalEvent

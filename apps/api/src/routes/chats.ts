@@ -19,7 +19,7 @@ import type {
   UsageBucket,
 } from '@agentry/shared';
 import { openStream } from '../sse.ts';
-import { diffOptions, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
+import { diffOptions, pathOf, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
 
 const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'];
 const ORIGINS: readonly ChatOrigin[] = ['agentry', 'external', 'orchestration', 'internal'];
@@ -58,6 +58,24 @@ function rangeOf(query: { from?: string; to?: string }): { from?: string; to?: s
   return { ...(from ? { from } : {}), ...(to ? { to } : {}) };
 }
 
+/**
+ * A new chat's body, checked for the fields that reach a path or the CLI's arguments as text: a
+ * number or a list there crashed deep in the spawn, and the caller's mistake came back as a 500.
+ */
+function newChatBody(body: unknown): NewChatRequest {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('the body must be a JSON object with a prompt');
+  const fields = body as Record<string, unknown>;
+  // Core says when neither a prompt nor an attachment was sent: a chat may open with a file alone
+  for (const key of ['prompt', 'cwd', 'worktree', 'name'] as const) {
+    if (fields[key] !== undefined && fields[key] !== null && typeof fields[key] !== 'string') throw new Error(`${key} must be text`);
+  }
+  const { attachments } = fields;
+  if (attachments !== undefined && attachments !== null && (!Array.isArray(attachments) || attachments.some((a) => typeof a !== 'string'))) {
+    throw new Error('attachments must be a list of upload ids');
+  }
+  return body as NewChatRequest;
+}
+
 export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   const { chats } = core;
 
@@ -94,7 +112,7 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     return reply.type('text/markdown; charset=utf-8').send(chatToMarkdown(exported.chat, exported.entries));
   });
 
-  app.post<{ Body: NewChatRequest }>('/chats', async (req, reply) => reply.status(201).send(await chats.create(req.body ?? ({} as NewChatRequest))));
+  app.post<{ Body: NewChatRequest }>('/chats', async (req, reply) => reply.status(201).send(await chats.create(newChatBody(req.body))));
 
   app.get<{ Params: { id: string }; Querystring: { sidechains?: string; limit?: string; before?: string } }>('/chats/:id', (req) =>
     chats.detail(req.params.id, {
@@ -107,10 +125,9 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
   // What the chat changed on disk: a worktree's git changes, and the files its own tool calls wrote
   app.get<{ Params: { id: string }; Querystring: ScopeQuery }>('/chats/:id/changes', (req) => core.changes.chatChanges(req.params.id, parseChangeScope(req.query)));
 
-  app.get<{ Params: { id: string }; Querystring: DiffQuery }>('/chats/:id/changes/diff', (req) => {
-    if (!req.query.path) throw new Error('path is required');
-    return core.changes.chatDiff(req.params.id, req.query.path, diffOptions(req.query));
-  });
+  app.get<{ Params: { id: string }; Querystring: DiffQuery }>('/chats/:id/changes/diff', (req) =>
+    core.changes.chatDiff(req.params.id, pathOf(req.query.path), diffOptions(req.query)),
+  );
 
   // Every edit of the transcript, each with its patch and the sentence written before it
   app.get<{ Params: { id: string } }>('/chats/:id/changes/steps', (req) => core.changes.chatSteps(req.params.id));

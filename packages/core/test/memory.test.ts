@@ -26,3 +26,14 @@ test('memory files CRUD with parsed frontmatter', async () => {
   await assert.rejects(memory.save('-work-demo', 'notes.txt', 'x'), /invalid memory file name/);
   await assert.rejects(memory.list('../etc'), /invalid project id/);
 });
+
+test('an approved entry names its file with a quoted description, whatever the text holds', async () => {
+  const memory = new MemoryStore(tempConfig());
+  const description = 'Ports: tests share 8799 # not a comment, "quoted" and - [a list] too';
+  const { file } = await memory.append('-work-demo', 'ports.md', 'Use E2E_PORT.', description);
+  // A plain scalar with `: ` or ` #` in it is not the text it looks like to a YAML reader
+  assert.match(file.content, /^---\nname: ports\ndescription: "Ports: tests share 8799 # not a comment, \\"quoted\\" and - \[a list\] too"\n/);
+  assert.equal(file.description, description);
+  const index = await memory.get('-work-demo', 'MEMORY.md');
+  assert.equal(index?.content, `- [ports](ports.md) — ${description}\n`);
+});

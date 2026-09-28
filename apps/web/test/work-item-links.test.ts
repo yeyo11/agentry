@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { AcceptanceCriterion, WorkItemLink, WorkItemLinkRole } from '@agentry/shared';
-import { byChatRole, chatItemRole, criteriaProgress, withoutKey } from '../src/lib/work-item-links';
+import { byChatRole, chatItemRole, criteriaProgress, movesToReviewOnEnd, withoutKey } from '../src/lib/work-item-links';
 
 const link = (chatId: string | null, role: WorkItemLinkRole, kind: WorkItemLink['kind'] = 'chat'): WorkItemLink => ({
   id: `${chatId}-${role}`,
@@ -28,6 +28,16 @@ test("a node's worker chat works on the node's item; another chat's links and a 
   assert.equal(chatItemRole({ links: [link('c2', 'work')] }, 'c1'), null);
   assert.equal(chatItemRole({ links: [link('c1', 'reference', 'document')] }, 'c1'), null);
   assert.equal(chatItemRole({ links: [] }, 'c1'), null);
+});
+
+test('only a chat that works on the item says its turn takes it to In review; a flow run that refines or verifies it does not', () => {
+  // A Product Owner refining a Backlog card read "On end: moves to In review if the turn ends well"
+  assert.equal(movesToReviewOnEnd({ links: [link('c1', 'refine')], status: 'backlog' }, 'c1'), false);
+  assert.equal(movesToReviewOnEnd({ links: [link('c1', 'verify')], status: 'in_review' }, 'c1'), false);
+  for (const status of ['backlog', 'todo', 'in_progress'] as const) assert.equal(movesToReviewOnEnd({ links: [link('c1', 'work')], status }, 'c1'), true, status);
+  assert.equal(movesToReviewOnEnd({ links: [link('c1', 'work')], status: 'in_review' }, 'c1'), false);
+  assert.equal(movesToReviewOnEnd({ links: [link('c1', 'work')], status: 'done' }, 'c1'), false);
+  assert.equal(movesToReviewOnEnd({ links: [link('c2', 'work'), link('c1', 'origin')], status: 'todo' }, 'c1'), false);
 });
 
 test('the items a chat works on come before the ones made from it', () => {

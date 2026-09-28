@@ -105,6 +105,11 @@ export interface ChatServiceDeps {
   /** The context window the CLI reported for this exact model id; null when it never has */
   windowOf: (model: string) => number | null;
   health: HealthService;
+  /**
+   * A chat Agentry started for one of its own runs (a flow member's, the assistant's), now or
+   * before: a person who continues it gets it back without the run's rules.
+   */
+  memberChat?: (chatId: string) => boolean;
 }
 
 export interface ChatFilter {
@@ -445,12 +450,14 @@ export class ChatService {
    * Starts a new chat. `onStart` hears of it in the same tick the process is spawned, before any of
    * its output can arrive: for a caller that has to tie the chat to something before it answers.
    */
-  async create(request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'keepAlive'>, onStart?: (chat: ChatRuntime) => void): Promise<ChatSummary> {
+  async create(request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine'>, onStart?: (chat: ChatRuntime) => void): Promise<ChatSummary> {
     // `--agents` reads the file it is given: only the definitions the flow writes, never a path a
     // request body names, since the API hands its body here as it came
     if (request.agentsFile !== undefined && dirname(resolve(request.agentsFile)) !== resolve(this.deps.config.dataDir, 'flow-agents')) {
       throw new Error('agentsFile is not a file Agentry wrote');
     }
+    // For the same reason, each value of a confinement becomes a flag's argument only in its known shape
+    if (request.confine !== undefined && !confinementShape(request.confine)) throw new Error('confine is not a set of tool names and setting sources');
     // `toolPreset: null` is how a request says it wants no preset, the default included
     const fallback = request.toolPreset === undefined && request.allowedTools === undefined ? this.deps.tools.presets.defaultPreset() : null;
     const picked = fallback ? { ...request, toolPreset: fallback.id } : request;
@@ -514,9 +521,28 @@ export class ChatService {
     if (chat.control.mode === 'readOnly') throw new ChatConflictError(chat.control.reason, chat.control.action);
     if (chat.control.mode === 'interactive') throw new ChatConflictError('This chat already has a live execution: send it a message instead.', null);
     const adoption = await this.adoptionOf(chat);
-    const chosen = await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null);
-    // A person continuing a chat the flow ran gets a chat again, not the member's structured result
-    this.deps.runtime.resume(id, { ...request, ...chosen, agent: extras.agent ?? null, agentsFile: extras.agentsFile ?? null, jsonSchema: extras.jsonSchema ?? null, ...(extras.keepAlive !== undefined ? { keepAlive: extras.keepAlive } : {}) }, adoption);
+    // A person continuing a chat a member ran gets a chat again: none of the run's rules, and the
+    // tools a new chat would get, since the member's allow list is not theirs to inherit
+    const handBack = !extras.agent && (this.deps.memberChat?.(id) ?? false);
+    const fallback = handBack && request.toolPreset === undefined && request.allowedTools === undefined ? this.deps.tools.presets.defaultPreset() : null;
+    const picked = fallback ? { ...request, toolPreset: fallback.id } : request;
+    const chosen = await this.deps.tools.resolve(picked, adoption.cwd, handBack ? null : (this.deps.runtime.get(id)?.tools ?? null));
+    this.deps.runtime.resume(
+      id,
+      {
+        ...request,
+        ...chosen,
+        agent: extras.agent ?? null,
+        agentsFile: extras.agentsFile ?? null,
+        jsonSchema: extras.jsonSchema ?? null,
+        systemPromptSnapshot: extras.systemPromptSnapshot ?? null,
+        uploads: extras.uploads ?? null,
+        confine: extras.confine ?? null,
+        ...(extras.keepAlive !== undefined ? { keepAlive: extras.keepAlive } : {}),
+        ...(handBack ? { handBack } : {}),
+      },
+      adoption,
+    );
     return this.require(id);
   }
 
@@ -524,14 +550,21 @@ export class ChatService {
    * Continues a chat in a copy, which is a new chat that records where it came from. The copy runs
    * with the source's tools and servers unless the request picks others: it carries on the same
    * work, and a fork that quietly gained tools the source was denied would be a way around them.
+   * The rules of a flow or assistant run were never the person's, though: a copy of such a chat is
+   * handed back as `resume` hands it back, with the mode and tools a new chat gets.
    */
   async fork(id: string, request: ForkChatRequest): Promise<ChatSummary> {
     const chat = await this.summaryOf(id);
     if (!chat) throw new Error('chat not found');
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to fork.', null);
     const adoption = await this.adoptionOf(chat);
-    const chosen = await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null, { fresh: true });
-    const forked = this.deps.runtime.fork(id, { ...request, ...chosen }, adoption);
+    const handBack = this.deps.memberChat?.(id) ?? false;
+    const fallback = handBack && request.toolPreset === undefined && request.allowedTools === undefined ? this.deps.tools.presets.defaultPreset() : null;
+    const picked = fallback ? { ...request, toolPreset: fallback.id } : request;
+    const chosen = handBack
+      ? await this.deps.tools.resolve(picked, adoption.cwd, null)
+      : await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null, { fresh: true });
+    const forked = this.deps.runtime.fork(id, { ...request, ...chosen, ...(handBack ? { handBack } : {}) }, adoption);
     return this.require(forked.id);
   }
 
@@ -754,4 +787,15 @@ export class ChatService {
       live: await this.liveIn(id),
     });
   }
+}
+
+function confinementShape(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const { tools, settingSources } = value as Record<string, unknown>;
+  return (
+    Array.isArray(tools) &&
+    tools.every((t) => typeof t === 'string' && /^[A-Za-z]+$/.test(t)) &&
+    Array.isArray(settingSources) &&
+    settingSources.every((x) => x === 'user' || x === 'project' || x === 'local')
+  );
 }

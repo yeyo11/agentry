@@ -59,7 +59,18 @@
     "consulted": "Ninguna columna · se le consulta",
     "writes": "Puede escribir en",
     "writesAnywhere": "En todo el proyecto",
-    "writesHint": "Fuera de estas rutas, los chats que Agentry le abre no pueden editar. Desde la terminal solo cuenta lo que dice su archivo de agente.",
+    "writesDocuments": "Solo la carpeta de documentos",
+    "writesNone": "Ninguna ruta: solo la carpeta de documentos",
+    "scope": {
+      "anywhere": "En todo",
+      "documents": "Solo documentos",
+      "paths": "Estas rutas"
+    },
+    "scopeHint": {
+      "anywhere": "Agentry no pone ningún límite propio a los chats que le abre. Desde la terminal solo cuenta lo que dice su archivo de agente.",
+      "documents": "Ningún archivo del proyecto: solo documentos en la carpeta de documentos, donde van las especificaciones y los informes. Desde la terminal solo cuenta lo que dice su archivo de agente.",
+      "paths": "Fuera de estas rutas y de la carpeta de documentos, los chats que Agentry le abre no pueden editar. Desde la terminal solo cuenta lo que dice su archivo de agente."
+    },
     "addPath": "Añadir una ruta…",
     "responsibility": "Responsabilidad",
     "responsibilityHint": "Va al principio de cada prompt que recibe el rol.",
@@ -133,7 +144,6 @@
     "useTemplate": "Usar el de la plantilla",
     "templateBrings": "La plantilla {{name}} trae",
     "templateBringsShort": "La plantilla trae",
-    "foot": "Un archivo de agente que ya existe se queda como está",
     "applied_one": "{{count}} miembro se ha unido al equipo",
     "applied_other": "{{count}} miembros se han unido al equipo",
     "failed": "No se ha podido añadir el equipo de la plantilla"
@@ -143,16 +153,20 @@
     "summaryTitle": "Flujo por columna",
     "on": "automático",
     "off": "apagado",
+    "notSet": "sin configurar",
     "edit": "Editar",
+    "setUp": "Configurar",
     "nobody": "Nadie",
     "you": "Tú",
     "youApprove": "Tú apruebas el paso a Hecho",
     "youApproveShort": "Tú lo apruebas",
     "bouncesLine_one": "Hasta {{count}} rebote; luego te espera",
     "bouncesLine_other": "Hasta {{count}} rebotes; luego te espera",
+    "notSetLine": "Aún no hay ningún flujo guardado: ningún rol actúa en el tablero.",
     "auto": "Flujo automático",
     "autoBody": "Cuando una tarea entra en una columna, actúa el rol que responde de ella. Los agentes mueven las tarjetas; tú apruebas el paso a Hecho.",
     "autoBodyShort": "Cuando una tarea entra en una columna, actúa el rol que responde de ella. Tú apruebas el paso a Hecho.",
+    "proposalNote": "Aún no hay ningún flujo guardado. Esto es lo que propone la plantilla para el equipo que tienes: guárdalo para que cada columna tenga su rol.",
     "enabled": "Activado",
     "disabled": "Desactivado",
     "stripLabel": "Las columnas y el rol que actúa en cada una",
@@ -193,7 +207,9 @@
     "modelsHint": "Opus para Product Owner y Arquitecto, Sonnet para el resto, como trae la plantilla.",
     "save": "Guardar el flujo",
     "saved": "Flujo guardado",
-    "saveFailed": "No se ha podido guardar el flujo"
+    "saveFailed": "No se ha podido guardar el flujo",
+    "changes_one": "{{count}} cambio sin guardar",
+    "changes_other": "{{count}} cambios sin guardar"
   },
   "activity": {
     "title": "Actividad del equipo",

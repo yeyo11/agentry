@@ -1,5 +1,5 @@
 {
-  "loadFailed": "No se pudo leer la carpeta de documentos",
+  "loadFailed": "No se ha podido leer la carpeta de documentos",
   "empty": {
     "title": "Aún no hay documentos en {{root}}/",
     "missing": "La carpeta {{root}}/ aún no existe",
@@ -15,20 +15,20 @@
   "pane": {
     "none": "Elige un documento",
     "noneHint": "Ábrelo desde la carpeta o desde las tareas a las que está ligado.",
-    "saved": "Guardado {{path}}",
-    "saveFailed": "No se pudo guardar el documento",
-    "deleted": "Eliminado {{path}}",
-    "deleteFailed": "No se pudo eliminar el documento",
-    "readFailed": "No se pudo leer el documento",
+    "saved": "Se ha guardado {{path}}",
+    "saveFailed": "No se ha podido guardar el documento",
+    "deleted": "Se ha eliminado {{path}}",
+    "deleteFailed": "No se ha podido eliminar el documento",
+    "readFailed": "No se ha podido leer el documento",
     "gone": "Este documento ya no está",
     "more": "Acciones del documento",
-    "copyPath": "Copiar ruta",
-    "delete": "Eliminar documento",
+    "copyPath": "Copiar la ruta",
+    "delete": "Eliminar el documento",
     "deleteTitle": "¿Eliminar {{path}}?",
     "deleteBody": "El archivo se elimina de la carpeta de documentos.",
     "deleteTiedBody_one": "El archivo se elimina de la carpeta de documentos, y la tarea a la que está ligado pierde su enlace.",
     "deleteTiedBody_other": "El archivo se elimina de la carpeta de documentos, y las {{count}} tareas a las que está ligado pierden su enlace.",
-    "conflict": "El archivo cambió desde que lo abriste",
+    "conflict": "El archivo ha cambiado desde que lo abriste",
     "conflictHint": "Lo escribió un agente u otra ventana. Recárgalo para ver esa versión; tus cambios de aquí se sustituyen.",
     "reload": "Recargar",
     "contents": "Contenido de {{path}}",
@@ -41,7 +41,6 @@
     "mode": "Modo",
     "edited": "editado {{when}}",
     "markdown": "Markdown",
-    "saveKey": "⌘S",
     "preview": "Vista previa"
   },
   "origin": {
@@ -69,7 +68,7 @@
     "untitled": "Sin título",
     "badPath": "Un archivo Markdown dentro de la carpeta de documentos, sin «..»",
     "exists": "{{path}} ya existe",
-    "failed": "No se pudo crear el documento",
+    "failed": "No se ha podido crear el documento",
     "fromItemTitle": "Nuevo documento desde una tarea",
     "blankTitle": "Nuevo documento",
     "creating": "Creando…",
@@ -115,10 +114,13 @@
     "title": "Documentos",
     "tie": "Ligar",
     "tieTitle": "Ligar un documento a {{key}}",
-    "tieFailed": "No se pudo ligar el documento",
+    "tieFailed": "No se ha podido ligar el documento",
     "search": "Buscar en la carpeta de documentos",
     "noFiles": "Todos los documentos ya están ligados, o la carpeta está vacía",
     "files": "Documentos",
-    "none": "Aún no hay documentos. Aquí aparece la especificación o la decisión que un miembro del equipo escriba para ella."
+    "none": "Aún no hay documentos. Aquí aparece la especificación o la decisión que un miembro del equipo escriba para ella.",
+    "untie": "Desligar {{path}} de la tarea",
+    "untied": "{{path}} ya no está ligado a la tarea. El archivo sigue en la carpeta.",
+    "untieFailed": "No se ha podido desligar el documento"
   }
 }

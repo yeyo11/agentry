@@ -428,6 +428,12 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      created_at       TEXT NOT NULL
    );
    CREATE INDEX assistant_proposals_run ON assistant_proposals (run_id, kind, position);`,
+  // How many times a restart cut a flow run off: a run goes on in its chat at most twice, so a
+  // run that keeps dying with the wrapper does not keep spending
+  `ALTER TABLE flow_runs ADD COLUMN restarts INTEGER NOT NULL DEFAULT 0;`,
+  // A label filter folds case and accents in JS, so no query ever used this index: it only cost
+  // every write of an item's labels
+  `DROP INDEX IF EXISTS work_item_labels_label;`,
 ];
 
 /**
@@ -436,9 +442,9 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
  */
 export const WORK_ITEMS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE work_item_counters')) + 1;
 
-/** The schema version document links arrive in, found the same way. */
 /** The version that added the flow's runs, for the test that upgrades a database from the one before */
 export const FLOW_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE flow_runs')) + 1;
+/** The schema version document links arrive in, found the same way. */
 export const DOCUMENT_LINKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN document_path')) + 1;
 /** The version that added the assistant's runs and proposals, found the same way */
 export const ASSISTANT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE assistant_runs')) + 1;
@@ -448,16 +454,22 @@ export const ASSISTANT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m ===
  * default). Exported so a test can build a database as an older release left it.
  */
 export function migrate(db: DatabaseSync, until = MIGRATIONS.length): void {
-  const row = db.prepare('PRAGMA user_version').get() as { user_version: number } | undefined;
-  const applied = row?.user_version ?? 0;
-  for (let version = applied; version < Math.min(until, MIGRATIONS.length); version++) {
-    const statement = MIGRATIONS[version];
-    if (statement === undefined) continue;
-    // One transaction per migration: a failure leaves user_version behind, never half a schema
-    db.exec('BEGIN');
+  const target = Math.min(until, MIGRATIONS.length);
+  for (;;) {
+    // One transaction per migration: a failure leaves user_version behind, never half a schema.
+    // IMMEDIATE, and the version read inside it: two processes opening an old database at once
+    // would otherwise both read the same version and the second would run a migration again
+    db.exec('BEGIN IMMEDIATE');
     try {
+      const row = db.prepare('PRAGMA user_version').get() as { user_version: number } | undefined;
+      const version = row?.user_version ?? 0;
+      if (version >= target) {
+        db.exec('COMMIT');
+        return;
+      }
+      const statement = MIGRATIONS[version];
       if (typeof statement === 'string') db.exec(statement);
-      else statement(db);
+      else if (statement) statement(db);
       db.exec(`PRAGMA user_version = ${String(version + 1)}`);
       db.exec('COMMIT');
     } catch (err) {

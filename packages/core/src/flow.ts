@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import {
   DEFAULT_FLOW_MAX_PARALLEL,
   DOCUMENT_KINDS,
   FLOW_STAGE_OF_COLUMN,
-  WORK_ITEM_STATUSES,
+  MAX_FLOW_RESTARTS,
   type AgentryEvent,
   type ChatActivity,
   type DocumentKind,
+  type FlowCriterionResult,
   type FlowMemoryProposal,
   type FlowRun,
   type FlowRunAction,
@@ -28,6 +31,7 @@ import {
   type WorkItemSource,
   type WorkItemStatus,
 } from '@agentry/shared';
+import type { RunResult } from './chats.ts';
 import type { Db } from './db.ts';
 import type { AgentryEventInput } from './events.ts';
 import { roleTitle } from './team.ts';
@@ -52,7 +56,12 @@ import type { WorkItemService } from './work-items.ts';
  *   and backwards only on QA's failing verdict, at most `maxBounces` times in a round. Past that the
  *   item waits for the person, so no pair of roles can bounce an item between them for ever.
  * - Switching the flow, the Team module or the Board module off cancels what is queued and stops
- *   what is running.
+ *   what is running, and so does removing the item.
+ * - Each stage gets only the tools it needs (`stageRules`), and `git push` is always denied. A
+ *   project that sets `flow.maxCostUsd` has every run held to it by the CLI (`--max-budget-usd`).
+ * - A member works in chats of its own. It never takes over a person's chat, and a run cut off by
+ *   a restart goes on only in its own chat, at most `MAX_FLOW_RESTARTS` times; otherwise it fails,
+ *   and says so on the item, as every failed run does.
  *
  * Driven by the event feed and the runtime's results, never by polling. Runs are rows, so a queue
  * and the runs a restart cut off are picked up again once the runtime is back (`recover`).
@@ -65,6 +74,7 @@ export const FLOW_CAUSE = {
   rejected: 'flow.rejected',
   passed: 'flow.passed',
   exhausted: 'flow.bounces',
+  failed: 'flow.failed',
 } as const;
 
 /** Runs of a project listed with its team, ended ones included, newest last. */
@@ -76,9 +86,17 @@ const CRITERIA_MAX = 30;
 const CRITERION_MAX = 500;
 const DESCRIPTION_MAX = 50_000;
 
-/** Tools every member may use; writing is added on top, by `writes` */
-const READ_TOOLS = ['Read', 'Glob', 'Grep', 'Bash', 'WebFetch', 'WebSearch'];
+/** Tools every stage may use; the rest is added per stage (`stageRules`) */
+const READ_TOOLS = ['Read', 'Glob', 'Grep'];
 const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit'];
+/** Only the work stage reaches the network: refining and verifying read the project */
+const WEB_TOOLS = ['WebFetch', 'WebSearch'];
+/** Denied to every run, whatever its stage allows: a member's work stays on the item's branch until a person takes it further */
+const DENIED_TOOLS = ['Bash(git push)', 'Bash(git push *)'];
+/** What verifying may ask git: reading the changes, never writing */
+const GIT_READS = ['status', 'diff', 'log', 'show'].flatMap((c) => [`Bash(git ${c})`, `Bash(git ${c} *)`]);
+/** `--output` makes those same commands write a file anywhere, so it is denied beside them */
+const GIT_OUTPUT_DENIED = ['diff', 'log', 'show'].map((c) => `Bash(git ${c} *--output*)`);
 
 /** What the flow knows of a project, read without waiting: its directory and its settings. */
 export interface FlowProject {
@@ -96,8 +114,22 @@ export interface FlowLaunch {
   jsonSchema: Record<string, unknown>;
   permissionMode: PermissionMode;
   allowedTools: string[];
-  /** The chat to continue: the item's work chat, or this run's own chat cut off by a restart */
+  disallowedTools: string[];
+  /** `--max-budget-usd`: `flow.maxCostUsd`, or null when the project sets none */
+  maxBudgetUsd: number | null;
+  /** The chat to continue: the Developer's own chat from an earlier run, or this run's own chat cut off by a restart */
   resumeChatId: string | null;
+  /**
+   * This run's own chat, cut off by a restart: it goes on there or not at all. A new chat would
+   * start with none of the item's context, so a chat that cannot be continued fails the run.
+   */
+  continuing: boolean;
+  /**
+   * Whether the run works in the item's worktree. Refining changes no code, and its specification
+   * belongs where the Documents module reads, so it works in the project's own checkout and makes
+   * no worktree for every card it refines.
+   */
+  inWorktree: boolean;
 }
 
 export interface FlowDeps {
@@ -122,11 +154,7 @@ export interface FlowDeps {
 }
 
 /** What a run's chat ended with, as the runtime reports it. */
-export interface FlowChatResult {
-  isError: boolean;
-  result: string;
-  structuredOutput: unknown;
-}
+export type FlowChatResult = Pick<RunResult, 'isError' | 'result' | 'structuredOutput' | 'cause'>;
 
 interface RunRow {
   seq: number;
@@ -146,12 +174,15 @@ interface RunRow {
   queued_at: string;
   started_at: string | null;
   ended_at: string | null;
+  restarts: number;
 }
 
 /** The structured result, read defensively: the CLI checks it against the schema, but a result can still be anything. */
 interface ParsedResult {
   summary: string;
   verdict: FlowVerdict | null;
+  /** Verifying only: each criterion judged on its own */
+  criteria: FlowCriterionResult[];
   memoryProposals: FlowMemoryProposal[];
   documents: FlowRunDocument[];
   /** Refining only: the item's new description */
@@ -200,7 +231,20 @@ export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
   const required = ['summary', 'memoryProposals', 'documents'];
   if (stage === 'verify') {
     properties.verdict = { type: 'string', enum: ['pass', 'fail'], description: 'pass only when every acceptance criterion is met' };
-    required.push('verdict');
+    properties.criteria = {
+      type: 'array',
+      description: 'Every acceptance criterion listed in the prompt, by its id, each judged on its own',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          met: { type: 'boolean' },
+          note: { type: 'string', description: 'What you checked, or what is missing' },
+        },
+        required: ['id', 'met', 'note'],
+      },
+    };
+    required.push('verdict', 'criteria');
   }
   if (stage === 'refine') {
     properties.description = { type: 'string', description: "The item's complete new description in Markdown; leave it out to keep the current one" };
@@ -209,25 +253,106 @@ export function flowResultSchema(stage: FlowStage): Record<string, unknown> {
   return { type: 'object', properties, required };
 }
 
+/** What a run may do: its permission mode and its rules, as the CLI's flags take them. */
+export interface FlowRules {
+  permissionMode: PermissionMode;
+  allowedTools: string[];
+  disallowedTools: string[];
+}
+
 /**
- * The permission rules a member's `writes` becomes. With no `writes`, edits are accepted anywhere in
- * the place it works. With them, the session runs in `dontAsk`, which denies whatever is not allowed
- * outright, and only edits under those paths are allowed: the CLI's rules cannot say "every path but
- * these", so the paths are allowed rather than the rest denied. A shell command can still write
- * files; `writes` bounds the edit tools, as the member's screen says.
+ * The edit rules for paths relative to the project. A comma splits the flag's list and a
+ * parenthesis closes the rule, so a path either cannot carry is left out, as is one that climbs out
+ * of the project: leaving it out allows less, never more.
  */
-export function writeRules(writes: readonly string[] | undefined): { permissionMode: PermissionMode; allowedTools: string[] } {
-  if (!writes) return { permissionMode: 'acceptEdits', allowedTools: [...READ_TOOLS, ...WRITE_TOOLS] };
+function editRules(paths: readonly string[]): string[] {
   const rules: string[] = [];
-  for (const raw of writes) {
+  for (const raw of paths) {
     const path = raw.trim().replace(/^\.\//, '').replace(/\/+$/, '');
-    // A comma splits the flag's list and a parenthesis closes the rule: such a path cannot be said
-    // safely, and leaving it out allows less, never more
     if (!path || /[,()\s]/.test(path) || path.startsWith('/') || path.split('/').includes('..')) continue;
     const patterns = /[*?[]/.test(path) ? [path] : [path, `${path}/**`];
     for (const p of patterns) for (const tool of WRITE_TOOLS) rules.push(`${tool}(${p})`);
   }
-  return { permissionMode: 'dontAsk', allowedTools: [...READ_TOOLS, ...new Set(rules)] };
+  return [...new Set(rules)];
+}
+
+/**
+ * What each stage may do (orchestration 5 of docs/plans/project-ecosystem.md):
+ *
+ * - **refine** reads, and writes only under the documents folder, where its specification goes;
+ * - **work** has the shell and the web, and writes the member's `writes` plus the documents folder.
+ *   With no `writes`, edits are accepted anywhere in the place it works. With them the session runs
+ *   in `dontAsk`, which denies whatever is not allowed outright: the CLI's rules cannot say "every
+ *   path but these", so the paths are allowed rather than the rest denied. A shell command can
+ *   still write files; `writes` bounds the edit tools, as the member's screen says;
+ * - **verify** reads, asks git what changed, runs the test commands the project declares
+ *   (`testCommandRules`), and writes only under the documents folder, where its report goes.
+ *
+ * Refining and verifying run in `dontAsk` whatever `writes` says, and `git push` is denied to all.
+ */
+export function stageRules(stage: FlowStage, writes: readonly string[] | undefined, extra: { documentsPath: string; testCommands: readonly string[] }): FlowRules {
+  const documents = editRules([extra.documentsPath]);
+  if (stage === 'refine') return { permissionMode: 'dontAsk', allowedTools: [...READ_TOOLS, ...documents], disallowedTools: [...DENIED_TOOLS] };
+  if (stage === 'verify') {
+    return {
+      permissionMode: 'dontAsk',
+      allowedTools: [...READ_TOOLS, ...GIT_READS, ...extra.testCommands, ...documents],
+      disallowedTools: [...DENIED_TOOLS, ...GIT_OUTPUT_DENIED],
+    };
+  }
+  const tools = [...READ_TOOLS, 'Bash', ...WEB_TOOLS];
+  if (!writes) return { permissionMode: 'acceptEdits', allowedTools: [...tools, ...WRITE_TOOLS], disallowedTools: [...DENIED_TOOLS] };
+  return { permissionMode: 'dontAsk', allowedTools: [...tools, ...editRules([...writes, extra.documentsPath])], disallowedTools: [...DENIED_TOOLS] };
+}
+
+const SCRIPT_NAME = /^[A-Za-z0-9][\w:.-]{0,63}$/;
+/** Scripts that check rather than build, deploy or publish: what verifying may run */
+const CHECK_SCRIPT = /^(test|tests|typecheck|type-check|lint|check)(:[\w.-]+)?$/;
+
+/**
+ * The test commands a project declares, as rules verifying may run: the check scripts of its
+ * `package.json` (with the package manager its lockfile names), `make test` when its Makefile has
+ * that target, and the test runner of a Cargo, Go or Python project. Nothing else, so QA cannot run
+ * a deploy or a publish script by calling it a test.
+ */
+export function testCommandRules(dir: string): string[] {
+  const rules: string[] = [];
+  const read = (name: string): string | null => {
+    try {
+      return readFileSync(join(dir, name), 'utf8');
+    } catch {
+      return null;
+    }
+  };
+  const pkg = read('package.json');
+  if (pkg !== null) {
+    let scripts: Record<string, unknown> = {};
+    try {
+      const parsed = JSON.parse(pkg) as { scripts?: unknown };
+      if (parsed.scripts && typeof parsed.scripts === 'object' && !Array.isArray(parsed.scripts)) scripts = parsed.scripts as Record<string, unknown>;
+    } catch {
+      // not JSON: it declares nothing
+    }
+    const manager = existsSync(join(dir, 'pnpm-lock.yaml'))
+      ? 'pnpm'
+      : existsSync(join(dir, 'yarn.lock'))
+        ? 'yarn'
+        : existsSync(join(dir, 'bun.lockb')) || existsSync(join(dir, 'bun.lock'))
+          ? 'bun'
+          : 'npm';
+    for (const name of Object.keys(scripts)) {
+      if (!SCRIPT_NAME.test(name) || !CHECK_SCRIPT.test(name)) continue;
+      rules.push(`Bash(${manager} run ${name})`, `Bash(${manager} run ${name} *)`);
+      if (name === 'test') rules.push(`Bash(${manager} test)`, `Bash(${manager} test *)`);
+    }
+  }
+  if (/^test\s*:/m.test(read('Makefile') ?? '')) rules.push('Bash(make test)');
+  if (existsSync(join(dir, 'Cargo.toml'))) rules.push('Bash(cargo test)', 'Bash(cargo test *)');
+  if (existsSync(join(dir, 'go.mod'))) rules.push('Bash(go test *)');
+  if (['pyproject.toml', 'pytest.ini', 'setup.cfg', 'tox.ini'].some((f) => existsSync(join(dir, f)))) {
+    rules.push('Bash(pytest)', 'Bash(pytest *)', 'Bash(python -m pytest *)');
+  }
+  return [...new Set(rules)];
 }
 
 /** The stage's instructions, then the item as "Work on it" gives it. */
@@ -256,7 +381,16 @@ export function flowPrompt(stage: FlowStage, column: WorkItemStatus, item: WorkI
     );
   } else {
     lines.push(
-      'Verify it against each acceptance criterion, on this worktree and its branch: read the changes, run the tests.',
+      'Verify it against each acceptance criterion, on this worktree and its branch: read the changes (`git diff`, `git log`), run the tests the project declares.',
+    );
+    if (item.acceptanceCriteria.length) {
+      lines.push('', 'Judge each of these criteria on its own, and return every one in `criteria` by its id, with `met` and a `note`:', '');
+      for (const c of item.acceptanceCriteria) lines.push(`- \`${c.id}\`: ${c.text}`);
+      lines.push('');
+    } else {
+      lines.push('The item has no acceptance criteria: return `criteria` empty, and judge it by its description.');
+    }
+    lines.push(
       'Give `verdict: pass` only when every criterion is met; otherwise `fail`, and say in `summary` what is missing so the developer can fix it.',
       `A verification report, when useful, goes under \`${extra.documentsPath}/\` with kind \`report\`. Do not change the code.`,
     );
@@ -331,7 +465,9 @@ export class FlowService {
           this.trigger(event.itemId, event.status);
           break;
         case 'workitem.removed':
+          // A run on an item nobody can see any more would spend for nothing
           this.cancelQueued(event.itemId, 'the item was removed');
+          this.stopRunning(event.itemId, 'the item was removed');
           break;
         case 'project.updated':
           if (event.changes.includes('modules') || event.changes.includes('settings')) this.settingsChanged(event.projectId);
@@ -394,6 +530,19 @@ export class FlowService {
   private cancelQueued(itemId: string, why: string): void {
     const rows = this.sql.prepare("SELECT id FROM flow_runs WHERE item_id = ? AND state = 'queued'").all(itemId) as Array<{ id: string }>;
     for (const { id } of rows) this.end(id, 'cancelled', null, why);
+  }
+
+  private stopRunning(itemId: string, why: string): void {
+    const rows = this.sql.prepare("SELECT id, chat_id FROM flow_runs WHERE item_id = ? AND state = 'running'").all(itemId) as Array<{ id: string; chat_id: string | null }>;
+    for (const row of rows) {
+      this.end(row.id, 'cancelled', null, why);
+      if (!row.chat_id) continue;
+      try {
+        this.deps.stop(row.chat_id);
+      } catch {
+        // already gone
+      }
+    }
   }
 
   /**
@@ -464,16 +613,23 @@ export class FlowService {
       this.end(row.id, 'cancelled', null, 'nobody on the team answers for the column now');
       return null;
     }
-    const running = this.sql.prepare("SELECT item_id FROM flow_runs WHERE project_id = ? AND state = 'running'").all(row.project_id) as Array<{ item_id: string }>;
-    if (running.length >= maxParallel(project.settings)) return null;
-    // One run at a time on an item: the next waits for the one working on it
-    if (running.some((r) => r.item_id === row.item_id)) return null;
+    // The count and the claim in one transaction: two processes on one database could otherwise
+    // both see the last free place and both take it
     const now = new Date().toISOString();
-    const claimed = this.sql
-      .prepare("UPDATE flow_runs SET state = 'running', started_at = ?, agent = ?, model = ? WHERE id = ? AND state = 'queued'")
-      .run(now, member.agent, member.model, row.id);
-    if (claimed.changes !== 1) return null;
-    return { row: { ...row, state: 'running', started_at: now, agent: member.agent, model: member.model }, item, member, project };
+    let claimed = false;
+    this.write(() => {
+      const running = this.sql.prepare("SELECT item_id FROM flow_runs WHERE project_id = ? AND state = 'running'").all(row.project_id) as Array<{ item_id: string }>;
+      if (running.length >= maxParallel(project.settings)) return;
+      // One run at a time on an item: the next waits for the one working on it
+      if (running.some((r) => r.item_id === row.item_id)) return;
+      // A run a restart cut off keeps when it first started: a person's move since then still counts
+      claimed =
+        this.sql
+          .prepare("UPDATE flow_runs SET state = 'running', started_at = COALESCE(started_at, ?), agent = ?, model = ? WHERE id = ? AND state = 'queued'")
+          .run(now, member.agent, member.model, row.id).changes === 1;
+    });
+    if (!claimed) return null;
+    return { row: { ...row, state: 'running', started_at: row.started_at ?? now, agent: member.agent, model: member.model }, item, member, project };
   }
 
   private async start(row: RunRow, item: WorkItem, member: ProjectTeamMember, project: FlowProject): Promise<void> {
@@ -486,23 +642,31 @@ export class FlowService {
       this.end(row.id, 'cancelled', null, 'a chat is already working on the item');
       return;
     }
+    // Only a run's own chat is continued: this run's, cut off by a restart, or the Developer's from
+    // an earlier round. A person's chat on the item is theirs, and a member never takes it over
+    const continuing = row.chat_id !== null;
     const resumeChatId = row.chat_id ?? (stage === 'work' ? this.workChat(item.id) : null);
-    const rules = writeRules(member.writes);
+    const documentsPath = project.settings.documents?.path ?? 'docs';
+    const rules = stageRules(stage, member.writes, { documentsPath, testCommands: stage === 'verify' ? testCommandRules(project.path) : [] });
     const launch: FlowLaunch = {
       run: this.runOf(row),
       item,
       member,
-      prompt: row.chat_id
+      prompt: continuing
         ? 'Agentry restarted while you were on this run. Carry on from where you were, and end with the structured result.'
         : flowPrompt(stage, row.column_name as WorkItemStatus, item, member, {
-            documentsPath: project.settings.documents?.path ?? 'docs',
+            documentsPath,
             rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,
           }),
       appendSystemPrompt: this.deps.handoff(item.projectId),
       jsonSchema: flowResultSchema(stage),
       permissionMode: rules.permissionMode,
       allowedTools: rules.allowedTools,
+      disallowedTools: rules.disallowedTools,
+      maxBudgetUsd: maxCostUsd(project.settings),
       resumeChatId,
+      continuing,
+      inWorktree: stage !== 'refine',
     };
     let started = false;
     try {
@@ -514,19 +678,32 @@ export class FlowService {
       if (!started) throw new Error('the chat did not start');
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (!started && /concurrent run limit/i.test(message)) {
-        // The runtime is full: back in the queue, in its place, until a chat ends
-        this.sql.prepare("UPDATE flow_runs SET state = 'queued', started_at = NULL WHERE id = ? AND state = 'running'").run(row.id);
+      if (/concurrent run limit/i.test(message)) {
+        // The runtime is full: back in the queue, in its place, until a chat ends. A chat it was
+        // about to continue told it of itself first, so the row gets back the chat it had
+        this.sql
+          .prepare("UPDATE flow_runs SET state = 'queued', chat_id = ?, started_at = CASE WHEN ? IS NULL THEN NULL ELSE started_at END WHERE id = ? AND state = 'running'")
+          .run(row.chat_id, row.chat_id, row.id);
         return;
       }
-      this.end(row.id, 'failed', null, message);
+      this.end(row.id, 'failed', null, continuing ? `its chat could not be continued after a restart: ${message}` : message);
     }
   }
 
-  /** The item's latest work chat, which a Developer's run continues. */
+  /**
+   * The chat of the item's latest work run, which the Developer continues after a bounce: the
+   * flow's own, never a chat a person started with "Work on it", which the item links the same way.
+   */
   private workChat(itemId: string): string | null {
-    const links = this.deps.items.links(itemId).filter((l) => l.kind === 'chat' && l.role === 'work' && l.chatId);
-    return links[links.length - 1]?.chatId ?? null;
+    const row = this.sql
+      .prepare("SELECT chat_id FROM flow_runs WHERE item_id = ? AND stage = 'work' AND chat_id IS NOT NULL ORDER BY seq DESC LIMIT 1")
+      .get(itemId) as { chat_id: string } | undefined;
+    return row?.chat_id ?? null;
+  }
+
+  /** A chat a run of the flow worked in, now or before. */
+  ranChat(chatId: string): boolean {
+    return !!this.sql.prepare('SELECT 1 FROM flow_runs WHERE chat_id = ? LIMIT 1').get(chatId);
   }
 
   /** The newest comment of the role that verifies: what sent the item back. */
@@ -560,9 +737,12 @@ export class FlowService {
 
   private async finish(row: RunRow, result: FlowChatResult): Promise<void> {
     const parsed = result.isError ? null : parseResult(result.structuredOutput, row.stage as FlowStage);
-    const failure = result.isError ? result.result || 'the chat failed' : parsed ? null : 'the run ended without a readable structured result';
+    const failure = result.isError ? chatFailure(result, this.deps.project(row.project_id)?.settings) : parsed ? null : 'the run ended without a readable structured result';
     const verdictMissing = !!parsed && row.stage === 'verify' && !parsed.verdict;
-    const outcome: FlowRunOutcome = failure || verdictMissing ? 'failed' : parsed?.verdict === 'fail' ? 'rejected' : 'passed';
+    const item = this.deps.items.find(row.item_id);
+    // QA passes an item only when every one of its criteria is met, whatever its verdict says
+    const unmet = parsed && item && row.stage === 'verify' ? item.acceptanceCriteria.filter((c) => !parsed.criteria.some((r) => r.id === c.id && r.met)) : [];
+    const outcome: FlowRunOutcome = failure || verdictMissing ? 'failed' : parsed?.verdict === 'fail' || unmet.length ? 'rejected' : 'passed';
     // Ended first, so the move below finds no run on the item and the next role can start
     if (!this.end(row.id, outcome, parsed?.summary ?? null, failure ?? (verdictMissing ? 'verification ended without a verdict' : null))) return;
     try {
@@ -584,7 +764,23 @@ export class FlowService {
     const cause = (event: string): WorkItemCause => ({ ...source, event });
     const personSince = this.personMovedSince(item.id, row.started_at ?? row.queued_at);
 
-    if (board && result.summary) this.deps.items.comment(item.id, { body: result.summary }, { actor, source, cause: cause(`flow.${row.stage}`) });
+    // Tied before the comment, so a document the run reported but that cannot be tied is named there
+    // rather than dropped without a word
+    const untied: string[] = [];
+    if (board && settings.modules.includes('documents')) {
+      const roots = [project.path, item.worktree ?? ''].filter(Boolean);
+      for (const document of result.documents) {
+        const path = documentPathOf(document.path, roots);
+        await this.deps
+          .tie(item.id, { ...document, path }, { role: row.stage as FlowStage, teamRole: row.role, chatId: row.chat_id, actor, cause: cause(`flow.${row.stage}`) })
+          .catch((err: unknown) => untied.push(`\`${document.path}\`: ${err instanceof Error ? err.message : String(err)}`));
+      }
+    }
+    if (board && (result.summary || untied.length)) {
+      const body = untied.length ? [commentOf(item, result), '', 'Documents not tied to the item:', ...untied.map((u) => `- ${u}`)].join('\n').trim() : commentOf(item, result);
+      this.deps.items.comment(item.id, { body }, { actor, source, cause: cause(`flow.${row.stage}`) });
+    }
+    if (board && row.stage === 'verify') this.checkCriteria(item, result.criteria, actor, cause(`flow.${row.stage}`));
     if (board && row.stage === 'refine') this.refineItem(item, result, actor, cause(FLOW_CAUSE.refined), row.started_at ?? row.queued_at);
     if (settings.modules.includes('memory')) {
       for (const proposal of result.memoryProposals) {
@@ -593,11 +789,6 @@ export class FlowService {
         } catch {
           // a target that could never be written: the others still go
         }
-      }
-    }
-    if (board && settings.modules.includes('documents')) {
-      for (const document of result.documents) {
-        await this.deps.tie(item.id, document, { role: row.stage as FlowStage, teamRole: row.role, chatId: row.chat_id, actor, cause: cause(`flow.${row.stage}`) }).catch(() => undefined);
       }
     }
 
@@ -645,6 +836,18 @@ export class FlowService {
     }
   }
 
+  /** Every criterion QA found met is checked on the item, as QA; one it found unmet is left as it is. */
+  private checkCriteria(item: WorkItem, criteria: readonly FlowCriterionResult[], actor: WorkItemActor, cause: WorkItemCause): void {
+    for (const criterion of item.acceptanceCriteria) {
+      if (criterion.checked || !criteria.some((c) => c.id === criterion.id && c.met)) continue;
+      try {
+        this.deps.items.checkCriterion(item.id, criterion.id, { checked: true }, { actor, cause });
+      } catch {
+        // removed meanwhile: the others still go
+      }
+    }
+  }
+
   private personMovedSince(itemId: string, since: string): boolean {
     return this.deps.items.history(itemId).some((e) => e.change === 'status' && e.actor.kind === 'person' && e.createdAt >= since);
   }
@@ -654,17 +857,26 @@ export class FlowService {
   /**
    * Once the runtime has restored its chats: a run cut off by the restart goes back to the queue,
    * keeping its chat so it continues there, and the queue starts moving. Before this nothing
-   * starts, since a chat still being restored would look like one that ended.
+   * starts, since a chat still being restored would look like one that ended. A run cut off more
+   * than `MAX_FLOW_RESTARTS` times fails instead: whatever keeps taking the wrapper down with it
+   * would keep spending.
    */
   recover(): void {
     const running = this.sql.prepare("SELECT * FROM flow_runs WHERE state = 'running' ORDER BY seq").all() as unknown as RunRow[];
     for (const row of running) {
       if (row.chat_id && this.deps.chatBusy(row.chat_id)) continue;
+      if (row.restarts >= MAX_FLOW_RESTARTS) {
+        this.end(row.id, 'failed', null, `Agentry restarted ${row.restarts + 1} times while this run worked; move the item again to start it over`);
+        continue;
+      }
       let requeued = false;
       this.write(() => {
         const queued = this.sql.prepare("SELECT 1 FROM flow_runs WHERE item_id = ? AND state = 'queued'").get(row.item_id);
         if (queued) return;
-        this.sql.prepare("UPDATE flow_runs SET state = 'queued', started_at = NULL WHERE id = ?").run(row.id);
+        // It keeps when it started, and the chat it continues in: a run with no chat yet starts afresh
+        this.sql
+          .prepare("UPDATE flow_runs SET state = 'queued', restarts = restarts + 1, started_at = CASE WHEN chat_id IS NULL THEN NULL ELSE started_at END WHERE id = ?")
+          .run(row.id);
         requeued = true;
       });
       // A newer trigger for the item already waits, and replaces the run that was cut off
@@ -679,8 +891,31 @@ export class FlowService {
   /** Ends a run that has not ended yet; false when it already had, so a late result changes nothing. */
   private end(runId: string, outcome: FlowRunOutcome, summary: string | null, error: string | null): boolean {
     const ended = this.endRow(runId, outcome, summary, error, new Date().toISOString());
-    if (ended) this.announce(runId, 'ended');
-    return ended;
+    if (!ended) return false;
+    this.announce(runId, 'ended');
+    if (outcome === 'failed') this.reportFailure(runId);
+    return true;
+  }
+
+  /**
+   * A failed run says so on its item, as its member: without it the item only showed a chat that
+   * ended and moved nothing, and the reason was on the Team screen alone.
+   */
+  private reportFailure(runId: string): void {
+    try {
+      const row = this.row(runId);
+      const item = row ? this.deps.items.find(row.item_id) : null;
+      const project = row ? this.deps.project(row.project_id) : null;
+      if (!row || !item || !project?.settings.modules.includes('board')) return;
+      const source: WorkItemSource | null = row.chat_id ? { kind: 'chat', chatId: row.chat_id, orchestrationId: null, taskId: null } : null;
+      this.deps.items.comment(
+        item.id,
+        { body: `This ${stageNoun(row.stage as FlowStage)} run failed and moved nothing: ${row.error ?? 'no reason was given'}.` },
+        { actor: { kind: 'agent', role: row.role }, source, cause: source ? { ...source, event: FLOW_CAUSE.failed } : null },
+      );
+    } catch {
+      // the run has ended; a comment that cannot be written must not undo that
+    }
   }
 
   private endRow(runId: string, outcome: FlowRunOutcome, summary: string | null, error: string | null, at: string): boolean {
@@ -728,6 +963,8 @@ export class FlowService {
       ...(state === 'running' && row.chat_id && this.deps.activity ? { activity: this.deps.activity(row.chat_id) } : {}),
       outcome: (row.outcome as FlowRunOutcome | null) ?? null,
       summary: row.summary,
+      error: row.error,
+      restarts: row.restarts ?? 0,
       queuedAt: row.queued_at,
       startedAt: row.started_at,
       endedAt: row.ended_at,
@@ -774,6 +1011,58 @@ function maxParallel(settings: ProjectSettings): number {
   return settings.flow?.maxParallel ?? DEFAULT_FLOW_MAX_PARALLEL;
 }
 
+/** None unless the person sets one: the owner decided on 2026-09-28 that runs have no default cap */
+function maxCostUsd(settings: ProjectSettings): number | null {
+  return settings.flow?.maxCostUsd ?? null;
+}
+
+function stageNoun(stage: FlowStage): string {
+  return stage === 'refine' ? 'refining' : stage === 'work' ? 'work' : 'verification';
+}
+
+/** Why a chat that ended in error failed its run, in words a person reading the item can act on. */
+function chatFailure(result: FlowChatResult, settings: ProjectSettings | undefined): string {
+  if (result.cause === 'budget') {
+    const budget = settings ? maxCostUsd(settings) : null;
+    return budget === null ? 'it reached its budget' : `it reached its budget of ${budget} USD (flow.maxCostUsd)`;
+  }
+  if (result.cause === 'rate-limit') return 'the account hit its rate limit';
+  if (result.cause === 'stopped') return 'its chat was stopped';
+  return result.result || 'the chat failed';
+}
+
+/** A run's comment: its summary, and for a verification, each criterion as QA found it. */
+function commentOf(item: WorkItem, result: ParsedResult): string {
+  if (!result.criteria.length || !item.acceptanceCriteria.length) return result.summary;
+  const lines = [result.summary, ''];
+  for (const criterion of item.acceptanceCriteria) {
+    const judged = result.criteria.find((c) => c.id === criterion.id);
+    const mark = judged?.met ? 'x' : ' ';
+    const note = judged?.note ? ` — ${judged.note}` : judged ? '' : ' — not judged';
+    lines.push(`- [${mark}] ${criterion.text}${note}`);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * A document's path as a run reported it, relative to the project. Agents write `./docs/x.md`, or
+ * the absolute path of the checkout or worktree they work in, and the documents service refuses a
+ * path that needs cleaning rather than guess at it; the flow knows where its run worked, so it can.
+ */
+function documentPathOf(path: string, roots: readonly string[]): string {
+  let rel = path.trim();
+  // The longest first: an item's worktree lives inside the project's checkout
+  for (const root of [...roots].sort((a, b) => b.length - a.length)) {
+    const prefix = `${root.replace(/\/+$/, '')}/`;
+    if (rel.startsWith(prefix)) {
+      rel = rel.slice(prefix.length);
+      break;
+    }
+  }
+  while (rel.startsWith('./')) rel = rel.slice(2);
+  return rel;
+}
+
 function memberOf(settings: ProjectSettings, role: string): ProjectTeamMember | null {
   return settings.team?.members.find((m) => m.role === role) ?? null;
 }
@@ -787,7 +1076,12 @@ export function parseResult(raw: unknown, stage: FlowStage): ParsedResult | null
   if (!isObject(value)) return null;
   const summary = typeof value.summary === 'string' ? value.summary.trim().slice(0, SUMMARY_MAX) : null;
   if (summary === null) return null;
-  const verdict = value.verdict === 'pass' || value.verdict === 'fail' ? value.verdict : null;
+  const verdict = stage === 'verify' && (value.verdict === 'pass' || value.verdict === 'fail') ? value.verdict : null;
+  const criteria: FlowCriterionResult[] = [];
+  for (const c of stage === 'verify' && Array.isArray(value.criteria) ? value.criteria.slice(0, CRITERIA_MAX) : []) {
+    if (!isObject(c) || typeof c.id !== 'string' || typeof c.met !== 'boolean') continue;
+    criteria.push({ id: c.id, met: c.met, note: typeof c.note === 'string' ? c.note.trim().slice(0, CRITERION_MAX) : '' });
+  }
   const memoryProposals: FlowMemoryProposal[] = [];
   for (const p of Array.isArray(value.memoryProposals) ? value.memoryProposals.slice(0, PROPOSALS_MAX) : []) {
     if (!isObject(p) || !isObject(p.target)) continue;
@@ -812,7 +1106,7 @@ export function parseResult(raw: unknown, stage: FlowStage): ParsedResult | null
         .map((t) => t.slice(0, CRITERION_MAX))
         .slice(0, CRITERIA_MAX)
     : [];
-  return { summary, verdict, memoryProposals, documents, description, acceptanceCriteria };
+  return { summary, verdict, criteria, memoryProposals, documents, description, acceptanceCriteria };
 }
 
 function safeJson(text: string): unknown {
@@ -822,6 +1116,3 @@ function safeJson(text: string): unknown {
     return null;
   }
 }
-
-/** Columns in board order, for a client or a test that walks them. */
-export const FLOW_COLUMNS: readonly WorkItemStatus[] = WORK_ITEM_STATUSES.filter((s) => FLOW_STAGE_OF_COLUMN[s] !== null);

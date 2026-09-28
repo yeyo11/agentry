@@ -437,6 +437,61 @@ test('a project imported again keeps on disk what a hand edit broke, for the per
   });
 });
 
+test('switching a module or the key rewrites only that part, and keeps what a hand edit broke', async () => {
+  await withCore(async (core, config) => {
+    const project = await core.importProject({ path: dir(), name: 'Agentry', template: 'software' });
+    const file = join(config.dataDir, 'project-settings', `${project.id}.json`);
+    const doc = JSON.parse(readFileSync(file, 'utf8'));
+    doc.settings.board.columnLimits.todo = -1;
+    doc.settings.laterField = { kept: true };
+    writeFileSync(file, JSON.stringify(doc));
+
+    await core.updateProject(project.id, { modules: ['board'], key: 'agn' });
+    const written = JSON.parse(readFileSync(file, 'utf8'));
+    assert.deepEqual([written.settings.modules, written.settings.keyPrefix], [['board'], 'AGN']);
+    // The board the read fell back to for the typo was not written over the person's
+    assert.deepEqual(written.settings.board.columnLimits, { in_progress: 3, in_review: 2, todo: -1 });
+    assert.deepEqual(written.settings.laterField, { kept: true });
+  });
+});
+
+test('a team change rewrites only the team and the flow, keeping what a hand edit broke and a module switched meanwhile', async () => {
+  await withCore(async (core, config) => {
+    const project = await core.importProject({ path: dir(), name: 'Agentry', template: 'software' });
+    const file = join(config.dataDir, 'project-settings', `${project.id}.json`);
+    const doc = JSON.parse(readFileSync(file, 'utf8'));
+    doc.settings.board.columnLimits.todo = -1;
+    doc.settings.laterField = { kept: true };
+    writeFileSync(file, JSON.stringify(doc));
+
+    await Promise.all([
+      core.team.putMember(project.id, 'developer', { role: 'developer', model: 'opus', responsibility: 'Builds it' }),
+      core.updateProject(project.id, { modules: ['board', 'team', 'memory'] }),
+    ]);
+    const written = JSON.parse(readFileSync(file, 'utf8'));
+    assert.deepEqual(written.settings.team.members.map((m: { agent: string }) => m.agent), ['developer']);
+    assert.deepEqual(written.settings.modules, ['board', 'team', 'memory']);
+    assert.equal(written.settings.board.columnLimits.todo, -1);
+    assert.deepEqual(written.settings.laterField, { kept: true });
+  });
+});
+
+test('two changes made to one document at once both land', async () => {
+  const config = tempConfig();
+  const store = new ProjectSettingsStore(config);
+  const project = { id: 'p1', name: 'Agentry', path: dir() };
+  await store.create(project, { template: 'software', modules: null }, [project]);
+  const [first, second] = await Promise.all([
+    store.update(project, (s) => ({ ...s, modules: s.modules.filter((m) => m !== 'documents') }), [project]),
+    store.update(project, (s) => ({ ...s, board: { ...s.board, columnLimits: { ...s.board.columnLimits, todo: 7 } } }), [project]),
+  ]);
+  assert.equal(first.after.modules.includes('documents'), false);
+  assert.equal(second.after.board.columnLimits.todo, 7);
+  const stored = store.stored('p1');
+  assert.equal(stored?.modules.includes('documents'), false);
+  assert.equal(stored?.board.columnLimits.todo, 7);
+});
+
 test('listing the projects reads each settings document once', async () => {
   const config = tempConfig();
   let reads = 0;

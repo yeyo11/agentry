@@ -57,6 +57,55 @@ export function normalizeKey(key: string): string | null {
   return parsed ? `${parsed.prefix}-${parsed.number}` : null;
 }
 
+/**
+ * The key an open item goes by now, when it is no longer the one in the address: its project's
+ * prefix changed while it was open. Null while the address still names it.
+ */
+export function renamedKey(wanted: string, current: string | null | undefined): string | null {
+  if (!current) return null;
+  return (normalizeKey(wanted) ?? wanted.toUpperCase()) === current.toUpperCase() ? null : current;
+}
+
+/**
+ * The item an address goes on showing when its key changes: the same one, when the new key is the
+ * one it goes by now (the address followed a new prefix), so its page is not dropped to a skeleton
+ * and back, taking an edit in progress with it. Any other key starts over.
+ */
+export function followedItem(found: { key: string; id: string } | null, itemKey: string, shownKey: string | null | undefined): { key: string; id: string } | null {
+  if (!found) return null;
+  if (found.key === itemKey) return found;
+  return shownKey && renamedKey(itemKey, shownKey) === null ? { key: itemKey, id: found.id } : null;
+}
+
+/**
+ * Where an item's page goes back to, and where it lands after a delete: the board or list it was
+ * opened from (with its view, filters and project tab, as `location.state.from` carries them), or
+ * Tasks. Only a path of this app is taken, never an address from elsewhere.
+ */
+export const RETURN_STATE = 'from';
+
+export function returnPath(state: unknown): string {
+  const from = typeof state === 'object' && state !== null ? (state as Record<string, unknown>)[RETURN_STATE] : undefined;
+  return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : TASKS_PATH;
+}
+
+/** The router state that brings an item's page back to `from` (a path with its query). */
+export function returnState(from: string): Record<string, string> {
+  return { [RETURN_STATE]: from };
+}
+
+/**
+ * The project New task files into without asking: the one given, as long as it has a board. The
+ * palette and the FAB open the form on the top bar's project; when its Board is off the form asks
+ * for one that has a board instead of standing there with nothing to pick and Create disabled.
+ * Undefined while the projects are not known yet.
+ */
+export function newTaskProject(projectId: string | null, boards: ReadonlyArray<Pick<Project, 'id'>>, loaded: boolean): string | null | undefined {
+  if (projectId === null) return null;
+  if (boards.some((p) => p.id === projectId)) return projectId;
+  return loaded ? null : undefined;
+}
+
 // ---------- columns, types and priorities ----------
 
 export interface ColumnMeta {
@@ -223,6 +272,23 @@ export function filterKey(filters: Omit<WorkItemFilter, 'projectId'>): string {
   return parts.join('&');
 }
 
+/**
+ * The filters in the address that cannot apply to the scope, by field: `projects` outside All
+ * projects, where no chip shows it, and an epic or a milestone the scope does not have (one of the
+ * project left, or deleted since). Kept, they narrow the view to "0 of N" with nothing to take off.
+ * `epics` and `milestones` are the ids the scope has, or null while they are loading.
+ */
+export function staleFilters(
+  filters: TaskFilters,
+  scope: { allProjects: boolean; epics: ReadonlySet<string> | null; milestones: ReadonlySet<string> | null; noMilestone: string },
+): Array<keyof TaskFilters> {
+  const stale: Array<keyof TaskFilters> = [];
+  if (!scope.allProjects && filters.projects?.length) stale.push('projects');
+  if (filters.epicId && scope.epics && !scope.epics.has(filters.epicId)) stale.push('epicId');
+  if (filters.milestoneId && filters.milestoneId !== scope.noMilestone && scope.milestones && !scope.milestones.has(filters.milestoneId)) stale.push('milestoneId');
+  return stale;
+}
+
 /** The All projects view narrowed to some projects; no list keeps every one. */
 export function inProjects<T extends Pick<WorkItem, 'projectId'>>(items: readonly T[], projects: readonly string[] | undefined): T[] {
   if (!projects?.length) return [...items];
@@ -238,6 +304,17 @@ export const VIEW_PARAM = 'view';
 
 export function viewFromSearch(params: URLSearchParams): TaskView {
   return params.get(VIEW_PARAM) === 'list' ? 'list' : 'board';
+}
+
+/**
+ * The row J (`delta` 1) or K (-1) moves to in a list of `count` rows, from the one at `at` (-1 for
+ * none in focus: J starts at the first, K at the last). Null at either end, where it stays put.
+ */
+export function listRowStep(count: number, at: number, delta: 1 | -1): number | null {
+  if (count === 0) return null;
+  if (at < 0) return delta === 1 ? 0 : count - 1;
+  const next = at + delta;
+  return next >= 0 && next < count ? next : null;
 }
 
 // ---------- a board ----------

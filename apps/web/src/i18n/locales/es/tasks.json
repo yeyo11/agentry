@@ -113,7 +113,7 @@
     "cancelled": "Movimiento cancelado; {{key}} sigue en {{column}}"
   },
   "move": {
-    "failed": "No se pudo mover {{key}} a {{column}}",
+    "failed": "No se ha podido mover {{key}} a {{column}}",
     "title": "Mover {{key}}",
     "to": "Mover a {{column}}",
     "up": "Subir",
@@ -129,7 +129,7 @@
     "blocks": "{{blocker}} bloquea {{blocked}}: irá antes en el grafo",
     "cancel": "Cancelar",
     "orchestrate": "Orquestar",
-    "failed": "No se pudo preparar la orquestación",
+    "failed": "No se ha podido preparar la orquestación",
     "bar": "Selección",
     "why": {
       "epic": "las épicas no se orquestan",
@@ -234,8 +234,8 @@
     "save": "Guardar",
     "create": "Crear hito",
     "cancel": "Cancelar",
-    "failed": "No se pudo guardar el hito",
-    "changeFailed": "No se pudo cambiar el hito",
+    "failed": "No se ha podido guardar el hito",
+    "changeFailed": "No se ha podido cambiar el hito",
     "pickProject": "Elige un proyecto para crear un hito en él"
   },
   "suggest": {
@@ -274,6 +274,8 @@
     "selectedOf": "de {{total}} seleccionadas",
     "create": "Crear las seleccionadas",
     "createCount": "Crear las seleccionadas ({{count}})",
+    "flowRuns_one": "El flujo pondrá en cola {{count}} ejecución: {{role}} refina la tarea en Backlog.",
+    "flowRuns_other": "El flujo pondrá en cola {{count}} ejecuciones, {{parallel}} a la vez: {{role}} refina cada tarea en Backlog.",
     "include": "Incluir",
     "included": "Incluida",
     "includeTitle": "Incluir {{title}}",
@@ -284,8 +286,8 @@
     "stop": "Detener",
     "cancel": "Cancelar",
     "failedTitle": "La sugerencia ha fallado.",
-    "failed": "Terminó sin una respuesta legible.",
-    "stopped": "Se detuvo antes de proponer nada.",
+    "failed": "Ha terminado sin una respuesta legible.",
+    "stopped": "Se ha detenido antes de proponer nada.",
     "nothing": "Ha leído el proyecto y no ha encontrado nada nuevo que proponer.",
     "emptyProject": "Aún no hay nada que leer en este proyecto: di para qué es en el campo de arriba y vuelve a sugerir.",
     "created_one": "{{count}} tarea creada en Backlog",

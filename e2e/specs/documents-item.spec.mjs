@@ -58,6 +58,8 @@ export default async ({ page, api, check, dirs }) => {
     check(approval.includes('Every criterion holds'), "QA's latest word is quoted");
     check(approval.includes('bounce 1 of 3'), 'its bounces show, neutral');
     await page.click('.item-wait .item-wait-approve', 'Approve and move to Done', 1000);
+    // Its criterion is unchecked in the seed: approving asks first, as "Move to Done" does
+    await page.click('[role=dialog] .btn-primary', 'Move to Done', 1000);
     await until(async () => {
       const now = await item(seeded.templates.id);
       return now.status === 'done' && !now.waiting;

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -7,7 +7,7 @@ import test from 'node:test';
 import type { DocumentNode, WorkItemLink } from '@agentry/shared';
 import { DOCUMENT_LINKS_SCHEMA_VERSION, Db, migrate } from '../src/db.ts';
 import { documentPath, DocumentPathError } from '../src/document-paths.ts';
-import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, titleOf } from '../src/documents.ts';
+import { DEFAULT_DOCUMENTS_PATH, DOCUMENT_CONTENT_MAX, DocumentError, DocumentService, titleOf } from '../src/documents.ts';
 import type { AgentryEventInput } from '../src/events.ts';
 import { isLive, linkOf } from '../src/work-item-rows.ts';
 import { WorkItemError, WorkItemService } from '../src/work-items.ts';
@@ -146,6 +146,29 @@ test('a documents folder that is itself missing is created inside the project, n
   assert.equal(readFileSync(join(s.project, 'wiki', 'deep', 'er', 'a.md'), 'utf8'), '# A');
 });
 
+test('a documents folder that is a link out of the project is refused for every read and write', async () => {
+  const s = setup();
+  // The folder itself, and a folder on the way to it, each a link that leads out of the project
+  for (const [root, link] of [['linked', 'linked'], ['via/pages', 'via']] as const) {
+    s.root.path = root;
+    symlinkSync(s.outside, join(s.project, link));
+    const inFolder = `${root}/secret.md`;
+    if (root === 'via/pages') {
+      mkdirSync(join(s.outside, 'pages'));
+      writeFileSync(join(s.outside, 'pages', 'secret.md'), '# Secret\n');
+    }
+    await assert.rejects(s.docs.read('p1', inFolder), refused(400, /outside the project/), root);
+    await assert.rejects(s.docs.write('p1', `${root}/new.md`, { content: 'x' }), refused(400, /outside/), root);
+    await assert.rejects(s.docs.remove('p1', inFolder), refused(400, /outside the project/), root);
+    await assert.rejects(s.docs.tree('p1'), refused(400, /outside the project/), root);
+    const item = s.items.create('p1', { title: 'Tie' });
+    await assert.rejects(s.docs.tie(item.id, { path: inFolder }), refused(400, /outside the project/), root);
+  }
+  assert.equal(existsSync(join(s.outside, 'new.md')), false);
+  assert.equal(existsSync(join(s.outside, 'pages', 'new.md')), false);
+  assert.ok(existsSync(join(s.outside, 'secret.md')));
+});
+
 // ---------- the tree ----------
 
 test('the tree lists Markdown files only, directories first, with titles, counts and ties', async () => {
@@ -226,12 +249,19 @@ test('writing creates the file and its folders, and a stale base is refused inst
 test('what a write is given is checked', async () => {
   const s = setup();
   await assert.rejects(s.docs.write('p1', 'docs/a.md', { content: 42 as unknown as string }), refused(400, /content/));
-  await assert.rejects(s.docs.write('p1', 'docs/a.md', { content: 'x'.repeat(2 * 1024 * 1024 + 1) }), refused(400, /larger/));
+  // The API's body limit: a larger document would open in the editor and never save
+  await assert.rejects(s.docs.write('p1', 'docs/a.md', { content: 'x'.repeat(1024 * 1024 + 1) }), refused(400, /larger/));
+  assert.equal(DOCUMENT_CONTENT_MAX, 1024 * 1024);
   await assert.rejects(s.docs.write('p1', 'docs/a.md', { content: 'x', baseUpdatedAt: 5 as unknown as string }), refused(400));
   mkdirSync(join(s.project, 'docs', 'dir.md'));
   await assert.rejects(s.docs.write('p1', 'docs/dir.md', { content: 'x' }), refused(409, /not a file/));
   await assert.rejects(s.docs.read('p1', 'docs/dir.md'), refused(404));
   await assert.rejects(s.docs.read('p1', 'docs/missing.md'), refused(404));
+  // A file where the path needs a folder: the caller's path meets the disk, it is not a server fault
+  writeFileSync(join(s.project, 'docs', 'a.md'), '# A');
+  await assert.rejects(s.docs.write('p1', 'docs/a.md/b.md', { content: 'x' }), refused(409, /is a file/));
+  await assert.rejects(s.docs.write('p1', 'docs/a.md/deeper/b.md', { content: 'x' }), refused(409, /docs\/a\.md is a file/));
+  await assert.rejects(s.docs.read('p1', 'docs/a.md/b.md'), refused(404));
 });
 
 test('with the Documents module off, reads go on and every change is refused', async () => {
@@ -273,6 +303,34 @@ test('deleting a file unties it from every item, each in its history', async () 
 });
 
 // ---------- ties ----------
+
+test('an accented name is one document whether it comes composed or decomposed', async () => {
+  const s = setup();
+  // On disk as a checkout made on macOS leaves it; typed, and reported by an agent, composed
+  const decomposed = 'docs/disen\u0303o.md';
+  const composed = 'docs/dise\u00f1o.md';
+  assert.notEqual(decomposed, composed);
+  writeFileSync(join(s.project, ...decomposed.split('/')), '# Diseño');
+  const item = s.items.create('p1', { title: 'Design' });
+
+  const byAgent = await s.docs.tie(item.id, { path: composed }, { requireFile: false, role: 'refine' });
+  const byHand = await s.docs.tie(item.id, { path: decomposed });
+  assert.equal(byHand.id, byAgent.id, 'one link for one file');
+  assert.equal(byAgent.documentPath, composed);
+
+  const [node] = (await s.docs.tree('p1')).tree;
+  assert.equal(node?.path, decomposed, 'the tree names the file as it is on disk');
+  assert.deepEqual(node?.ties.map((t) => t.linkId), [byAgent.id]);
+  assert.equal((await s.docs.read('p1', composed)).content, '# Diseño');
+  assert.deepEqual((await s.docs.read('p1', decomposed)).ties.map((t) => t.linkId), [byAgent.id]);
+
+  await s.docs.write('p1', composed, { content: '# Diseño 2' });
+  assert.deepEqual(readdirSync(join(s.project, 'docs')).filter((n) => n.endsWith('.md')), ['disen\u0303o.md'], 'rewritten, not a second file');
+  assert.equal(readFileSync(join(s.project, ...decomposed.split('/')), 'utf8'), '# Diseño 2');
+
+  await s.docs.remove('p1', composed);
+  assert.equal(s.items.links(item.id).length, 0, 'deleting the file unties it');
+});
 
 test('tying by hand is a reference to a file on disk, once per file whatever its role', async () => {
   const s = setup();

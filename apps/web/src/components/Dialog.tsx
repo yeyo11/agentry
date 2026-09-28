@@ -14,6 +14,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { hasOpenLayer } from './controls/layer';
 import { ICON } from './icons';
+import { modalStack } from './modal-stack';
 import { EASE_OUT, motion, useReducedMotion } from './motion';
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
@@ -42,6 +43,9 @@ export function Dialog({
   const reduced = useReducedMotion();
   const drawer = variant === 'drawer';
   const { t } = useTranslation(['components', 'common']);
+  // Read when a key arrives: a new `onClose` must not move the dialog in the stack or take focus again
+  const close = useRef(onClose);
+  close.current = onClose;
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -55,7 +59,7 @@ export function Dialog({
         // An open select menu or suggestion list inside the dialog takes Escape first
         if (hasOpenLayer()) return;
         event.stopPropagation();
-        onClose();
+        close.current();
         return;
       }
       if (event.key !== 'Tab' || !panel) return;
@@ -71,12 +75,13 @@ export function Dialog({
         first.focus();
       }
     };
-    document.addEventListener('keydown', onKeyDown, true);
+    // Only the dialog on top hears the keyboard, so Escape closes that one and not the panel it was opened from
+    const pop = modalStack().push(onKeyDown);
     return () => {
-      document.removeEventListener('keydown', onKeyDown, true);
+      pop();
       previous?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   return createPortal(
     <motion.div

@@ -20,9 +20,12 @@ export const journalRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   app.post<{ Params: { id: string }; Body: CreateJournalEntryRequest }>('/projects/:id/journal', async (req, reply) => {
     await core.memoryProject(req.params.id, 'write');
     const body = bodyOf(req.body);
-    if (body.itemId) {
-      const item = core.workItems.find(body.itemId);
-      if (!item || item.projectId !== req.params.id) throw new WorkItemError('work item not found in this project', 404);
+    const itemId: unknown = body.itemId;
+    if (itemId !== undefined && itemId !== null) {
+      if (typeof itemId !== 'string') throw new WorkItemError('itemId must be the id of a work item', 400);
+      // 400, as a relation to another project's item is: the journal is there, the body names the wrong item
+      const item = core.workItems.find(itemId);
+      if (!item || item.projectId !== req.params.id) throw new WorkItemError(`${itemId} is not a work item of this project`, 400);
     }
     return reply.status(201).send(core.journal.create(req.params.id, body));
   });

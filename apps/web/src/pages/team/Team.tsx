@@ -12,7 +12,7 @@ import { AddMemberDialog } from './AddMember';
 import { FlowEditor } from './Flow';
 import { MemberPage } from './Member';
 import { MemberCells, MemberGrid, TeamEmpty } from './Members';
-import { flowOf, teamActivity, teamSearch, workingCount, type TeamSection } from './model';
+import { proposedFlow, savedFlow, teamActivity, teamSearch, workingCount, type TeamSection } from './model';
 import { FlowSummary, TeamActivity } from './parts';
 
 /** Back from the Team tab on a phone: the project's page, with its selection kept. */
@@ -55,6 +55,7 @@ export function ProjectTeam({ project }: { project: Project }) {
   const settings = useProjectSettings(project.id);
   const templates = useProjectTemplates();
   const [adding, setAdding] = useState<{ agent?: string } | null>(null);
+  const [flowChanges, setFlowChanges] = useState(0);
 
   const section: TeamSection = params.get('section') === 'flow' ? 'flow' : 'members';
   const memberId = params.get('member');
@@ -66,13 +67,22 @@ export function ProjectTeam({ project }: { project: Project }) {
   if (!team.data || !settings.data) return <Skeleton rows={6} height={20} />;
   const data = team.data;
   const members = data.members;
-  const flow = flowOf(settings.data, members);
+  // A project that never saved a flow has none: the summary says so, and the editor offers the
+  // template's proposal as an unsaved draft instead of drawing it as if it were in force
+  const flow = savedFlow(settings.data);
+  const proposal = settings.data.flow ? null : proposedFlow(members);
 
   const member = memberId ? members.find((m) => m.agent === memberId) : undefined;
-  if (member) return <MemberPage project={project} member={member} backHref={teamSearch(params, { member: null })} />;
+  // Keyed by the agent: what is typed for one member is never carried to the next one opened
+  if (member) return <MemberPage key={member.agent} project={project} member={member} backHref={teamSearch(params, { member: null })} />;
 
   const count = members.length;
-  const phoneDetail = section === 'members' && count > 0 ? `${project.name} · ${t('members.count', { count })}` : project.name;
+  const phoneDetail =
+    section === 'members' && count > 0
+      ? `${project.name} · ${t('members.count', { count })}`
+      : section === 'flow' && flowChanges > 0
+        ? `${project.name} · ${t('flow.changes', { count: flowChanges })}`
+        : project.name;
   const head = phone && <PhoneHead title={t('home:tabs.team')} detail={phoneDetail} backHref={back} />;
   const addDialog = adding && (
     <AddMemberDialog
@@ -126,7 +136,7 @@ export function ProjectTeam({ project }: { project: Project }) {
     return (
       <div className="team-page">
         {head}
-        <FlowEditor key={project.id} project={project} team={data} flow={flow} switcher={switcher} />
+        <FlowEditor key={project.id} project={project} team={data} flow={flow} proposal={proposal} switcher={switcher} onChanges={setFlowChanges} />
       </div>
     );
 
@@ -166,7 +176,7 @@ export function ProjectTeam({ project }: { project: Project }) {
           <MemberGrid team={data} memberHref={memberHref} onAdd={() => setAdding(data.unassignedAgents[0] ? { agent: data.unassignedAgents[0] } : {})} />
         </div>
         <div className="team-side">
-          <FlowSummary columns={flow.columns} enabled={flow.enabled} maxBounces={flow.maxBounces} editHref={teamSearch(params, { section: 'flow' })} />
+          <FlowSummary columns={flow.columns} enabled={flow.enabled} saved={proposal === null} maxBounces={flow.maxBounces} editHref={teamSearch(params, { section: 'flow' })} />
           <TeamActivity runs={teamActivity(members)} />
         </div>
       </div>

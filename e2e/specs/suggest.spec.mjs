@@ -92,6 +92,21 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.click('.dialog .suggestion-row.is-discarded button', 'Undo', 800);
     await page.waitFor(`return document.querySelectorAll('.dialog .suggestion-row.is-discarded').length === 0`, { label: 'and restored' });
 
+    // With the flow on, creating them in Backlog queues a refine run each: the dialog says how many
+    // before anyone presses Create, and says nothing while the flow is off
+    check(!(await page.eval(`return !!document.querySelector('.dialog .suggest-flow-note')`)), 'with the flow off, no run is announced');
+    await api.request('PUT', `/projects/${projectId}/team/product-owner`, { role: 'product-owner', model: 'opus', responsibility: 'Refines the backlog' });
+    const settingsNow = (await api.get(`/projects/${projectId}/settings`)).body;
+    const modules = [...new Set([...settingsNow.modules, 'board', 'team'])];
+    const withFlow = { ...settingsNow, modules, flow: { enabled: true, columns: { backlog: 'product-owner' }, maxBounces: 3 } };
+    check((await api.request('PUT', `/projects/${projectId}/settings`, withFlow)).status === 200, 'the flow was switched on');
+    await page.waitFor(`return document.querySelector('.dialog .suggest-flow-note')?.textContent.includes('The flow will queue 2 runs, 2 at a time: Product Owner refines each task in Backlog')`, {
+      label: 'the dialog says how many flow runs creating them queues',
+    });
+    // Off again, so this spec creates cards without starting runs
+    await api.request('PUT', `/projects/${projectId}/settings`, { ...withFlow, flow: { ...withFlow.flow, enabled: false } });
+    await page.waitFor(`return !document.querySelector('.dialog .suggest-flow-note')`, { label: 'and nothing once the flow is off' });
+
     await page.click('.dialog .suggest-create', 'Create the selected', 1000);
     await until(async () => (await itemCount()) === before + 2, 'the two selected tasks were created');
     const created = (await api.get(`/projects/${projectId}/work-items`)).body.find((w) => w.title === 'Undo the last move of a card');
@@ -141,6 +156,33 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.waitFor(`return !location.search.includes('ai=1') && !!document.querySelector('.resource-proposal-editor')`, { label: 'it opens in the editor' });
     await page.click('.resource-proposal-actions .btn-primary', undefined, 1200);
     await until(() => existsSync(onePath), 'saving it writes the agent file');
+
+    // "Suggest" pressed with a file open leaves the editor, so the run and its proposals are in view
+    await page.waitFor(`return !!document.querySelector('.resources-editor')`, { label: 'a file open in the editor' });
+    await page.click('.resources-toolbar .resources-suggest', undefined, 600);
+    await page.waitFor(`return !document.querySelector('.resources-editor') && !!document.querySelector('.resources-proposals')`, { label: 'Suggest shows its run', timeout: 30_000 });
+    // Suggest leaves out what the project already has: migration-reviewer is a file now
+    await page.waitFor(
+      `const rows = [...document.querySelectorAll('.resources-proposals .suggestion-row')]; return rows.length === 1 && rows[0].textContent.includes('openapi')`,
+      { label: 'the new proposal', timeout: 30_000 },
+    );
+    // "Create with AI" builds what it is asked for, a taken name included: the editor offers a free one
+    await page.click('.resources-toolbar .resources-create-ai', 'Create with AI', 800);
+    await page.waitFor(`return !!document.querySelector('.dialog .create-ai-description')`, { label: 'the Create with AI dialog, again' });
+    await page.fill('.dialog .create-ai-description', 'An agent that reads every new Spanish string against GLOSSARY.md');
+    await page.click('.dialog .create-ai-start', 'Create', 600);
+    await page.waitFor(`return !!document.querySelector('.dialog .create-ai-open:not([disabled])')`, { label: 'the resource is written again', timeout: 30_000 });
+    check((await page.text('.dialog .create-ai-result')).includes('glossary-reviewer-2'), 'it shows the free name it will be saved under');
+    await page.click('.dialog .create-ai-open', 'Open in the editor', 1000);
+    await page.waitFor(`return document.querySelector('.resource-proposal-name-input')?.value === 'glossary-reviewer-2'`, { label: 'a taken name becomes the first free one' });
+    // On a phone the name is a 44 px target at 16 px, so iOS does not zoom into it
+    await page.viewport(390, 844);
+    await page.waitFor(`return !!document.querySelector('.resource-proposal-editor.is-phone .resource-proposal-name-input')`, { label: 'the proposal editor on a phone' });
+    const nameBox = await page.eval(
+      `const input = document.querySelector('.resource-proposal-name-input'); return { height: input.getBoundingClientRect().height, font: getComputedStyle(input).fontSize }`,
+    );
+    check(nameBox.height >= 44 && nameBox.font === '16px', `the phone's name field is a 44 px target at 16 px (${JSON.stringify(nameBox)})`);
+    await page.viewport(1440, 1000);
 
     // ---- On a phone: the same suggestion as Include buttons, no checkboxes ----
     // The desktop created the first two by title, which now makes them "similar" too: the new run

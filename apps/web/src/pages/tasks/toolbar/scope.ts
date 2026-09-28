@@ -40,7 +40,7 @@ export function useTasksScope(): TasksScope {
  * The milestones of every project in `projectIds`, each read with the project's own query key, so
  * the milestones page and the toolbar share them and `milestone.changed` refreshes them.
  */
-export function useScopeMilestones(projectIds: readonly string[]): { milestones: Milestone[]; loading: boolean; error: unknown } {
+export function useScopeMilestones(projectIds: readonly string[]): { milestones: Milestone[]; loading: boolean; fetching: boolean; error: unknown } {
   const fallback = useFallbackInterval();
   const results = useQueries({
     queries: projectIds.map((id) => ({
@@ -50,5 +50,10 @@ export function useScopeMilestones(projectIds: readonly string[]): { milestones:
     })),
   });
   const milestones = results.flatMap((result) => result.data ?? []);
-  return { milestones, loading: results.some((result) => result.isPending), error: results.find((result) => result.error)?.error ?? null };
+  return {
+    milestones,
+    loading: results.some((result) => result.isPending),
+    fetching: results.some((result) => result.isFetching),
+    error: results.find((result) => result.error)?.error ?? null,
+  };
 }

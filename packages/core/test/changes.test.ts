@@ -457,3 +457,22 @@ test('a binary file is marked, committed or not, and its diff is the line git pr
   assert.equal('binary' in (summary.files.find((f) => f.path === 'README.md') ?? {}), false);
   assert.match(changes.taskDiff('o1', 't1', 'logo.bin').diff, /^Binary files .* differ$/m);
 });
+
+test("a work item's changes in a project that is a linked worktree leave out the project's own commits", () => {
+  const { repo, base, git } = repoWithFiles();
+  const project = join(mkdtempSync(join(tmpdir(), 'agentry-linked-')), 'feature');
+  git('worktree', 'add', '-q', '-b', 'feature', project);
+  writeFileSync(join(project, 'feature.txt'), 'the project was already here\n');
+  commitAll(project, 'feature');
+  const item = join(repo, '.claude', 'worktrees', 'task-agn-1');
+  addWorktree(repo, item, 'task/agn-1', headCommit(project));
+  writeFileSync(join(item, 'item.txt'), "the item's work\n");
+  commitAll(item, 'item');
+
+  const { changes } = service(repo, base, item);
+  const live = changes.itemChanges(project, { worktree: item, branch: 'task/agn-1' });
+  assert.deepEqual(live?.files.map((f) => f.path), ['item.txt']);
+  removeWorktree(repo, item, true);
+  const byName = changes.itemChanges(project, { worktree: item, branch: 'task/agn-1' });
+  assert.deepEqual(byName?.files.map((f) => f.path), ['item.txt']);
+});

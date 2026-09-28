@@ -8,6 +8,8 @@
 import type {
   AcceptanceCriterion,
   ChangedFile,
+  FlowRun,
+  TeamMember,
   WorkItem,
   WorkItemAssignee,
   WorkItemCause,
@@ -222,6 +224,30 @@ export function linkEffect(
   return last && typeof last.to === 'string' ? { key: 'link.moved', values: { to: last.to } } : { key: 'link.noMove', values: {} };
 }
 
+/**
+ * The flow run a chat link was made for, as the team reads it: the one going in that chat, or the
+ * latest a member ended there. A failed run leaves its chat looking finished ("completed") and the
+ * item unmoved, so this is what says it failed. Null for a chat the flow did not run, and for an
+ * older run after which the member ended others (its failure is still the item's comment).
+ */
+export function linkRun(
+  link: Pick<WorkItemLink, 'kind' | 'chatId'>,
+  members: ReadonlyArray<Pick<TeamMember, 'running' | 'lastRun'>>,
+): Pick<FlowRun, 'state' | 'outcome' | 'error'> | null {
+  if (link.kind !== 'chat' || !link.chatId) return null;
+  for (const member of members) {
+    const going = member.running.find((run) => run.chatId === link.chatId);
+    if (going) return going;
+  }
+  return members.map((member) => member.lastRun).find((run) => run?.chatId === link.chatId) ?? null;
+}
+
+/** Why a link's flow run failed, when it did: the reason the core recorded, or '' when it gave none. */
+export function failedRunReason(run: Pick<FlowRun, 'state' | 'outcome' | 'error'> | null): string | null {
+  if (!run || run.state !== 'ended' || run.outcome !== 'failed') return null;
+  return run.error?.trim() ?? '';
+}
+
 /** Newest first: the chat working now, then the ones before it. */
 export function sortLinks<T extends Pick<WorkItemLink, 'createdAt'>>(links: readonly T[]): T[] {
   return [...links].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -239,6 +265,17 @@ export function workOnBlocker(item: Pick<WorkItem, 'type' | 'status' | 'activeLi
   if (item.status === 'done') return 'done';
   if (item.activeLink && (item.activeLink.chatState === 'working' || item.activeLink.chatState === 'waiting' || item.activeLink.taskStatus === 'running')) return 'busy';
   return null;
+}
+
+/** Criteria still unchecked: moving to Done with any asks first, since Done means every one is met. */
+export function uncheckedCriteria(item: Pick<WorkItem, 'acceptanceCriteria'>): { unchecked: number; total: number } {
+  const total = item.acceptanceCriteria.length;
+  return { unchecked: item.acceptanceCriteria.filter((c) => !c.checked).length, total };
+}
+
+/** Deleting an item a chat or a node is working on leaves that work without its task: the confirmation says so. */
+export function deleteWarning(item: Pick<WorkItem, 'activeLink'>): 'working' | null {
+  return item.activeLink && (item.activeLink.chatState === 'working' || item.activeLink.chatState === 'waiting' || item.activeLink.taskStatus === 'running') ? 'working' : null;
 }
 
 // ---------- the New task form ----------

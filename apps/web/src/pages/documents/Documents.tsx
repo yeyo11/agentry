@@ -9,6 +9,7 @@ import { Empty, ErrorBox, Skeleton } from '../../components/ui';
 import { useLeaveGuard } from '../../lib/dirty';
 import { formatNumber } from '../../lib/format';
 import { NARROW, useMediaQuery } from '../../lib/media';
+import { queryView } from '../../lib/query-view';
 import { ancestorsOf, baseName, filterTree, findFile, mainTie, tiedDocuments } from './model';
 import { DocumentPane, type PaneMode } from './Pane';
 import { NewDocumentDialog, NewDocumentCard, TiedList } from './Tied';
@@ -63,8 +64,10 @@ export function ProjectDocuments({ project }: { project: Project }) {
   const data = docs.data;
   const tied = useMemo(() => tiedDocuments(data?.tree ?? []), [data]);
 
-  if (docs.isLoading) return <Skeleton rows={6} height={18} />;
-  if (docs.error || !data) return <ErrorBox error={docs.error} title={t('loadFailed')} />;
+  // Only a tree that never arrived is an error: a failed refetch keeps the open document, and its edit
+  const view = queryView(docs);
+  if (view === 'loading') return <Skeleton rows={6} height={18} />;
+  if (view !== 'shown' || !data) return <ErrorBox error={docs.error} title={t('loadFailed')} />;
 
   const dialog = creating && (
     <NewDocumentDialog

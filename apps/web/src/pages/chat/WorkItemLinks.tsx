@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { api, keys, useChatWorkItems } from '../../api';
 import { ICON_SM, WorkItemKey, WorkItemStatusIcon } from '../../components/icons';
 import { ProgressBar } from '../../components/ProgressBar';
-import { byChatRole, chatItemRole, criteriaProgress, type ChatItemRole } from '../../lib/work-item-links';
+import { byChatRole, chatItemRole, criteriaProgress, movesToReviewOnEnd, type ChatItemRole } from '../../lib/work-item-links';
 import { columnMeta, taskPath } from '../../lib/work-items';
 import { Section } from './Side';
 
@@ -14,6 +14,8 @@ import { Section } from './Side';
 export interface ChatItemLink {
   item: WorkItemDetail;
   role: ChatItemRole;
+  /** Whether the end of the chat's turn takes the item to In review; a flow run that refines or verifies it does not */
+  movesOnEnd: boolean;
 }
 
 /**
@@ -33,7 +35,7 @@ export function useChatItemLinks(chatId: string): ChatItemLink[] {
   const links: ChatItemLink[] = [];
   for (const { data: item } of details) {
     const role = item ? chatItemRole(item, chatId) : null;
-    if (item && role) links.push({ item, role });
+    if (item && role) links.push({ item, role, movesOnEnd: movesToReviewOnEnd(item, chatId) });
   }
   return byChatRole(links);
 }
@@ -71,10 +73,8 @@ export function WorkItemPartOf({ link }: { link: ChatItemLink }) {
 /** The inspector's card for the item the chat works on: its key, where it stands, and what the end of the turn does to it. */
 export function WorkItemCard({ link }: { link: ChatItemLink }) {
   const { t } = useTranslation(['chat', 'tasks']);
-  const { item, role } = link;
+  const { item, movesOnEnd } = link;
   const criteria = criteriaProgress(item);
-  // Only a chat working on it moves it, and never out of Done or back from In review
-  const moves = role === 'work' && (item.status === 'backlog' || item.status === 'todo' || item.status === 'in_progress');
   return (
     <Section
       title={t('side.workItem.title')}
@@ -113,7 +113,7 @@ export function WorkItemCard({ link }: { link: ChatItemLink }) {
             <dd className="mono break">{item.branch}</dd>
           </>
         )}
-        {moves && (
+        {movesOnEnd && (
           <>
             <dt>{t('side.workItem.onEnd')}</dt>
             <dd className="small muted">{t('side.workItem.onEndHint')}</dd>

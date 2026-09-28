@@ -59,14 +59,28 @@ no work items without the Board module. A `work-items` run is refused (409) whil
 
 ### It can only read
 
-The chat runs in `dontAsk`, which denies whatever is not allowed outright. It is allowed:
+An allow list alone does not make a chat read-only: `--allowedTools` adds to the rules of the
+person's user, project and local settings, and no `Bash` rule can be told apart from a write
+(`git log --output=<file>` writes a file). So the chat is **confined** (`ChatConfinement` in
+`chats.ts`, checked against CLI 2.1.282):
 
-- `Read`, `Grep`, `Glob` and `LS`;
-- `Bash` for `git log`, `git status` and `ls`, and nothing else.
+| Flag | What it does |
+| --- | --- |
+| `--tools=Read,Grep,Glob` | the only tools the session has at all: no shell, no editor, no subagent, no web |
+| `--setting-sources=` | loads no user, project or local settings file, so none of their allow rules, hooks or servers apply |
+| `--restricted` | keeps the file tools to the working directory, the project |
+| no `--add-dir` | the uploads directory every other chat gets is left out |
+| no `--allow-dangerously-skip-permissions` | the chat can never be switched to `bypassPermissions` (`--restricted` refuses the flag) |
+| `--permission-mode dontAsk` | denies whatever is not allowed outright |
 
-`Edit`, `Write`, `MultiEdit`, `NotebookEdit`, `Task`, `Agent`, `WebFetch` and `WebSearch` are also
-denied outright, so a CLI whose mode let something through still cannot write, delegate or reach
-the network. It has no MCP server and no tool preset, and it runs one turn. The model is `sonnet`
+It is allowed `Read`, `Grep` and `Glob`, and denied outright `Bash`, `Edit`, `Write`,
+`MultiEdit`, `NotebookEdit`, `Task`, `Agent`, `WebFetch` and `WebSearch`, and every read of a
+secret inside the project (`DENIED_READS`): `.env` files, keys and certificates, SSH and AWS
+directories, `.npmrc`, `.netrc`, `.git-credentials`, `credentials*`, `secrets/`,
+`settings.local.json`, and `.git/` (a remote's URL may carry a token). A run a restart cut off is
+continued confined again; a person who continues the chat by hand gets an ordinary chat.
+
+It has no MCP server and no tool preset, and it runs one turn. The model is `sonnet`
 (`DEFAULT_ASSISTANT_MODEL`) unless the request names another: it reads and proposes, it does not
 build.
 
@@ -75,7 +89,10 @@ build.
 Besides the directory, Agentry hands the run what only Agentry knows, so it does not propose what
 the project already has:
 
-- the journal, as a flow run gets it, through `--append-system-prompt`;
+- the journal, as a flow run gets it, and the project's `CLAUDE.md` (cut at 40,000 characters),
+  through `--append-system-prompt`: with no setting source the CLI may not load `CLAUDE.md` itself;
+- what it would have asked git (`assistantGit`): the branch, the latest 30 commits and up to 40
+  uncommitted changes, since it has no shell. The history counts as read from the start;
 - the work items (the first 150, and how many more there are) and the open milestones;
 - the team and the project's own resources;
 - the titles of the latest CLI chats in the directory.
@@ -105,6 +122,9 @@ The schema asks for a summary, what it read, what it found (`stack` and `gap` ta
 When the answer is stored:
 
 - a member whose role or agent is already on the team is left out;
+- a member's role and model are cut at 100 characters and its responsibility at 500, the team's own
+  limits, so a proposal is one the team takes as it stands. An accept whose edits pass them is
+  refused (400) before its agent file is written;
 - a suggested resource the project already has is left out, but one built from a description is
   kept, since the person asked for it and can rename it;
 - a work item's epic and "similar to" are resolved by key, or by the same title, against the project's
@@ -124,13 +144,24 @@ template. The assistant's page then asks what the project is for. That descripti
 - **One running run per project and kind.** A partial unique index on `assistant_runs` holds it; a
   second start while one runs is refused with 409.
 - **A new run leaves the previous run's pending proposals as they are.** Only `supersede: true`
-  ("Volver a sugerir") marks them `superseded`. They are set aside, never deleted, and the two runs
-  name each other (`supersedes`, `supersededBy`).
+  ("Volver a sugerir") marks the pending proposals of the latest *completed* run `superseded`. They
+  are set aside, never deleted, and the two runs name each other (`supersedes`, `supersededBy`).
+- **A run that supersedes and then proposes nothing hands them back.** If it fails to start, fails,
+  answers nothing readable or is stopped, the proposals it set aside are `pending` again and the
+  previous run's `supersededBy` is cleared, in the same transaction that ends it. Its event names
+  the previous run (`supersedes`), so a client reads it again.
 - **Stopping a run** stops its chat. A stopped run proposes nothing, and a late result changes
   nothing.
 - **A run a restart cut off** continues once, in its own chat (or in a new one if it never got one).
   If the restart finds the chat still going, it leaves it. A run that cannot continue, or that was
   already continued once, ends `failed` with `assistant.error.restart`.
+
+A run's chat is listed by its first prompt, so the prompt's first line is a short title in the
+person's language (`assistantTitle`): "Asistente de pagos-api" or "Assistant for pagos-api",
+"Sugerir tareas · …", "Sugerir recursos · …", "Crear agente con IA · …". The language comes from
+the request's `Accept-Language`, which the web sets to the language the person reads Agentry in;
+the instructions below the title stay in English. A run a restart finds without a chat is asked
+again in English, as its language is not kept.
 
 A run's error is a `Localized`: a stable code (`assistant.error.start`, `.chat`, `.unreadable`,
 `.ended`, `.restart`) that the web translates, plus English text.
@@ -294,9 +325,6 @@ had left for the owner:
 
 ## Known gaps
 
-- **An assistant chat's title is its prompt.** The sidebar and the chat list read "You are Agentry's
-  project assi…", where the reference has "Asistente de pagos-api". The title comes from core's chat,
-  so fixing it is a change in core.
 - **`CLAUDE.md` can show twice** in "Lo que ha leído": once as what Agentry laid out, once as the
   chat's own read.
 - **"Crear con IA" does not stream** the file while it is written. The editor opens once the run

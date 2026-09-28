@@ -13,7 +13,7 @@ import type {
   ProjectSettings,
   ProjectTeamMember,
 } from '@agentry/shared';
-import { parseAnswer, assistantSchema, assistantPrompt, type AssistantBrief } from '../src/assistant-answer.ts';
+import { assistantLanguage, parseAnswer, assistantSchema, assistantPrompt, type AssistantBrief, type AssistantGit } from '../src/assistant-answer.ts';
 import { ASSISTANT_ERRORS, AssistantService, DENIED_TOOLS, memberFile, READ_ONLY_TOOLS, type AssistantKnown, type AssistantLaunch } from '../src/assistant.ts';
 import { ASSISTANT_SCHEMA_VERSION, Db, migrate } from '../src/db.ts';
 import { EventBus } from '../src/events.ts';
@@ -72,7 +72,12 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
   const events: AgentryEvent[] = [];
   bus.observe((e) => events.push(e));
   const dir = opts.dir ?? repo();
-  const state = { settings: opts.settings ?? settingsWith(), resources: { agents: [] as string[], skills: [] as string[], commands: [] as string[] } };
+  const state = {
+    settings: opts.settings ?? settingsWith(),
+    resources: { agents: [] as string[], skills: [] as string[], commands: [] as string[] },
+    instructions: null as string | null,
+    git: { branch: 'main', commits: ['a1b2c3d 2026-09-20 Add the webhook'], changes: [' M src/a.ts'], moreChanges: 0 } as AssistantGit | null,
+  };
   const items = new WorkItemService({ db, project: (id) => (id === 'p1' ? { keyPrefix: 'AGN', columnLimits: {} } : null), emit: (e) => bus.emit(e) });
   const launches: AssistantLaunch[] = [];
   const stopped: string[] = [];
@@ -96,6 +101,8 @@ function setup(opts: { dir?: string; settings?: ProjectSettings; db?: Db; commit
     journal: '# Project journal',
     chats: ['Add the Stripe webhook'],
     resources: state.resources,
+    instructions: state.instructions,
+    git: state.git,
   });
   const assistant = new AssistantService({
     db,
@@ -185,10 +192,10 @@ test('a project run is a read-only chat in the directory, with the schema, the j
   assert.ok(launch);
   assert.equal(launch.cwd, s.dir);
   assert.equal(launch.permissionMode, 'dontAsk');
+  assert.deepEqual(launch.tools, ['Read', 'Grep', 'Glob']);
   assert.deepEqual(launch.allowedTools, READ_ONLY_TOOLS);
   assert.deepEqual(launch.disallowedTools, DENIED_TOOLS);
-  for (const tool of ['Edit', 'Write', 'NotebookEdit']) assert.ok(!launch.allowedTools.includes(tool), `${tool} is not allowed`);
-  assert.ok(launch.allowedTools.every((t) => !t.startsWith('Bash') || /^Bash\((git log|git status|ls) \*\)$/.test(t)), 'Bash is limited to looking');
+  for (const tool of ['Edit', 'Write', 'NotebookEdit', 'Bash']) assert.ok(!launch.allowedTools.some((t) => t.startsWith(tool)), `${tool} is not allowed`);
   assert.equal(launch.appendSystemPrompt, '# Project journal');
   assert.equal(launch.resumeChatId, null);
   const schema = launch.jsonSchema as { properties: Record<string, unknown>; required: string[] };
@@ -205,7 +212,7 @@ test('a project run is a read-only chat in the directory, with the schema, the j
   assert.equal(byPath.get('docs/')?.unit, 'documents');
   assert.equal(byPath.get('CLAUDE.md')?.state, 'missing');
   assert.deepEqual([byPath.get('chats')?.state, byPath.get('chats')?.count], ['read', 3]);
-  assert.deepEqual([byPath.get('git')?.state, byPath.get('git')?.count], ['pending', 12]);
+  assert.deepEqual([byPath.get('git')?.state, byPath.get('git')?.count], ['read', 12]);
   assert.deepEqual(byPath.get('milestones')?.names, ['v0.20']);
   assert.deepEqual(runEvents(s), ['started', 'read']);
 });
@@ -225,13 +232,12 @@ test('what the chat reads fills in as it goes, and what it never read is dropped
     s.bus.emit({ type: 'chat.activity', title: '', runId: 'chat-1', runName: 'x', sessionId: 'chat-1', orchestrationId: null, internal: false, taskId: null, activity: { kind: 'tool', tool, target, since: new Date().toISOString() } });
   reads('Read', 'src/a.ts');
   reads('Read', join(s.dir, 'README.md'));
-  reads('Bash', 'git log -20');
   reads('Read', '/etc/passwd');
   const now = s.assistant.run(run.id);
   const byPath = new Map(now.sources.map((x) => [x.path ?? x.kind, x]));
   assert.deepEqual([byPath.get('src/')?.state, byPath.get('src/')?.count, byPath.get('src/')?.total], ['partial', 1, 2]);
   assert.equal(byPath.get('README.md')?.state, 'read');
-  assert.equal(byPath.get('git')?.state, 'read');
+  assert.equal(byPath.get('git')?.state, 'read', 'Agentry handed it the history');
   assert.ok(!now.sources.some((x) => x.path?.includes('passwd')), 'nothing outside the project');
   // Announced once at once, the rest held back by the throttle
   assert.equal(runEvents(s).filter((a) => a === 'read').length, 2);
@@ -582,6 +588,7 @@ test('a run a restart cut off continues once in its own chat; one that cannot en
   assert.equal(resumed.resumeChatId, 'chat-1');
   assert.match(resumed.prompt, /Agentry restarted/);
   assert.deepEqual(resumed.allowedTools, READ_ONLY_TOOLS);
+  assert.deepEqual([resumed.tools, resumed.disallowedTools], [READ_ONLY_TOOLS, DENIED_TOOLS], 'confined again');
   const fresh = second.launches.find((l) => l.run.id === unstarted.id);
   assert.equal(fresh?.resumeChatId, null);
   assert.equal(second.assistant.run(unstarted.id).chatId, 'after-chat-1');
@@ -679,6 +686,8 @@ test('the prompt and the schema say what a run is and is not', () => {
     moreWorkItems: 3,
     milestones: [],
     chats: [],
+    git: null,
+    language: 'en',
   };
   const prompt = assistantPrompt(brief);
   assert.match(prompt, /Do not try to create, edit or delete any file/);
@@ -689,4 +698,109 @@ test('the prompt and the schema say what a run is and is not', () => {
   assert.deepEqual(schema.required, ['summary', 'read', 'workItems']);
   assert.match(memberFile({ agent: 'dev', role: 'developer', model: 'sonnet', responsibility: 'Builds' }, 'Use pnpm.', 'When code changes'), /## In this project\n\nWhen to use it: When code changes\n\nUse pnpm\./);
   assert.equal(readFileSync.name, 'readFileSync');
+});
+
+test('a run is handed what it would have run git for and the project CLAUDE.md, and has no shell to ask', async () => {
+  const s = setup();
+  s.state.instructions = '# Pagos\n\nNever log a card.\n';
+  s.state.git = { branch: 'feat/refunds', commits: ['a1b2c3d 2026-09-20 Add the webhook', 'e4f5a6b 2026-09-19 First'], changes: [' M src/a.ts', '?? notes.md'], moreChanges: 3 };
+  await projectRun(s);
+  const launch = s.launches[0];
+  assert.ok(launch);
+  assert.ok(!launch.tools.includes('Bash') && !launch.allowedTools.some((t) => t.startsWith('Bash')), 'no shell');
+  assert.ok(DENIED_TOOLS.includes('Bash'));
+  for (const secret of ['Read(./**/.env)', 'Read(./**/.env.*)', 'Read(./**/*.key)', 'Read(./**/id_rsa*)', 'Read(./**/credentials*)', 'Read(./.git/**)']) {
+    assert.ok(launch.disallowedTools.includes(secret), `${secret} is denied`);
+  }
+  assert.match(launch.prompt, /### Git: on feat\/refunds/);
+  assert.match(launch.prompt, /- a1b2c3d 2026-09-20 Add the webhook/);
+  assert.match(launch.prompt, /- \?\? notes\.md\n- and 3 more/);
+  assert.doesNotMatch(launch.prompt, /Bash|`git log`/);
+  assert.match(launch.appendSystemPrompt, /^# Project journal\n\n# The project's CLAUDE\.md\n\n# Pagos\n\nNever log a card\./);
+
+  const bare = setup();
+  bare.state.git = null;
+  bare.state.instructions = 'x'.repeat(50_000);
+  await projectRun(bare);
+  assert.doesNotMatch(bare.launches[0]?.prompt ?? '', /### Git/);
+  assert.match(bare.launches[0]?.appendSystemPrompt ?? '', /\[cut at 40000 characters: read CLAUDE\.md for the rest\]$/);
+});
+
+test("a run's chat is titled in the person's language by the first line of its prompt", async () => {
+  const titles: string[] = [];
+  for (const [language, request] of [
+    ['es', { kind: 'project' }],
+    ['en', { kind: 'project' }],
+    ['es', { kind: 'work-items' }],
+    ['es', { kind: 'resources' }],
+    ['es', { kind: 'resources', resourceKind: 'agents', description: 'Reviews migrations' }],
+    ['en', { kind: 'resources', resourceKind: 'skills', description: 'Payments rules' }],
+  ] as const) {
+    const s = setup();
+    await s.assistant.start('p1', request, language);
+    await s.assistant.settled();
+    titles.push(s.launches[0]?.prompt.split('\n')[0] ?? '');
+  }
+  assert.deepEqual(titles, [
+    'Asistente de pagos-api',
+    'Assistant for pagos-api',
+    'Sugerir tareas · pagos-api',
+    'Sugerir recursos · pagos-api',
+    'Crear agente con IA · pagos-api',
+    'Create skill with AI · pagos-api',
+  ]);
+  assert.deepEqual(['es-ES,es;q=0.9', 'de, es', 'en-US', 'fr', undefined, ['es']].map(assistantLanguage), ['es', 'es', 'en', 'en', 'en', 'en']);
+});
+
+test('suggesting again that ends with nothing to propose hands back the proposals it set aside', async () => {
+  const s = setup();
+  const first = s.answer(await projectRun(s), RESULT);
+  const pending = first.proposals.filter((p) => p.status === 'pending').map((p) => p.id);
+  assert.ok(pending.length > 1);
+
+  // Its chat never starts
+  s.failNext.message = 'Concurrent run limit reached (4)';
+  const failed = await projectRun(s, { supersede: true });
+  assert.equal(s.assistant.run(failed.id).status, 'failed');
+  assert.equal(s.assistant.run(first.id).supersededBy, null);
+  assert.deepEqual(pending.map((id) => s.assistant.proposal(id).status), pending.map(() => 'pending'));
+  await s.assistant.accept(pending[0] ?? '');
+
+  // Stopped by the person, or answering nothing readable: the same
+  const stopped = await projectRun(s, { supersede: true });
+  assert.ok(s.assistant.run(first.id).proposals.some((p) => p.status === 'superseded'));
+  s.assistant.stop(stopped.id);
+  assert.equal(s.assistant.run(first.id).supersededBy, null);
+  assert.ok(!s.assistant.run(first.id).proposals.some((p) => p.status === 'superseded'));
+  const unreadable = s.answer(await projectRun(s, { supersede: true }), 'not an answer');
+  assert.equal(unreadable.status, 'failed');
+  assert.ok(!s.assistant.run(first.id).proposals.some((p) => p.status === 'superseded'));
+  const failedEvent = s.events.findLast((e) => e.type === 'assistant.run' && e.action === 'failed');
+  assert.equal(failedEvent?.type === 'assistant.run' ? failedEvent.supersedes : null, first.id, 'its event names the run to read again');
+
+  // One that completes replaces them, as asked
+  const replaced = s.answer(await projectRun(s, { supersede: true }), RESULT);
+  assert.equal(s.assistant.run(first.id).supersededBy, replaced.id);
+  assert.equal(s.assistant.proposal(pending[1] ?? '').status, 'superseded');
+});
+
+test("a proposed member is held to the team's limits, and an edit past them is refused before anything is written", async () => {
+  const brief = { kind: 'project' as const, proposes: ['team-member' as const], resourceKind: null, description: null, templateTeam: [] };
+  const answer = parseAnswer(
+    { summary: 's', read: [], findings: [], teamMembers: [{ role: 'r'.repeat(180), agent: 'x', model: 'm'.repeat(150), responsibility: 'y'.repeat(900), writes: ['src/'], description: 'd', instructions: '', reason: 'r' }] },
+    brief,
+  );
+  const [member] = answer?.members ?? [];
+  assert.ok(member);
+  assert.deepEqual([member.role.length, member.model.length, member.responsibility.length], [100, 100, 500]);
+
+  const s = setup();
+  const run = s.answer(await projectRun(s), RESULT);
+  const [proposed] = proposalsOf(run, 'team-member');
+  assert.ok(proposed);
+  for (const edit of [{ role: 'r'.repeat(101) }, { responsibility: 'y'.repeat(501) }, { instructions: 'i'.repeat(100_001) }, { writes: Array.from({ length: 51 }, (_, i) => `d${String(i)}/`) }]) {
+    await assert.rejects(s.assistant.accept(proposed.id, { member: edit }), (err: Error & { statusCode?: number }) => err.statusCode === 400);
+  }
+  assert.equal(s.added.length, 0);
+  assert.equal(s.assistant.proposal(proposed.id).status, 'pending');
 });

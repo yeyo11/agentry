@@ -22,6 +22,16 @@ export function chatItemRole(item: Pick<WorkItemDetail, 'links'>, chatId: string
   return null;
 }
 
+/**
+ * Whether the end of this chat's turn takes the item to In review, as the chat's inspector says: a
+ * chat that works on it does, from any column before In review. A flow run that refines or verifies
+ * it does not: its result moves the item (to To do, or back to In progress), never to In review.
+ */
+export function movesToReviewOnEnd(item: Pick<WorkItemDetail, 'links' | 'status'>, chatId: string): boolean {
+  const works = item.links.some((link) => link.kind !== 'document' && link.chatId === chatId && link.role === 'work');
+  return works && (item.status === 'backlog' || item.status === 'todo' || item.status === 'in_progress');
+}
+
 /** The items a chat works on first, then the ones made from it, each group in the order given. */
 export function byChatRole<T extends { role: ChatItemRole }>(links: readonly T[]): T[] {
   return [...links.filter((l) => l.role === 'work'), ...links.filter((l) => l.role === 'origin')];

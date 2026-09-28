@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T01:59:47.104538408Z
-updated_at: 2026-09-27T21:30:00Z
+updated_at: 2026-09-28T18:00:00Z
 tags:
     - plan
     - projects
@@ -1532,6 +1532,8 @@ area is documented:
 - **Orchestration 3** left the Flow screen's `maxParallel` control and the template's English
   responsibilities.
 - **Orchestration 4** left the gaps above.
+- **Orchestration 5** fixed the review of the whole feature, except what
+  [its section below](#orchestration-5-ecosystem-review-fixes-1) lists.
 - **The whole feature has not yet been verified end to end on `feat/project-ecosystem`.** Each
   orchestration's `pnpm e2e` runs in its own verification phase. After that, the owner tries the
   feature and opens its one pull request to `main`.
@@ -1555,6 +1557,102 @@ the changes review (#115). The merge keeps both sides; where they met, it settle
 - **The light `--live` stays `#0b6680`**: `main` still had `#0e7490`, which reads 4.2:1 on its tint.
 - **`agentry-ds.css`**: the comparator is §18, after §15 to §17, and its step list is
   `.edit-steps`/`.edit-step`, because the wizard's stepper already is `.steps`/`.step`.
+
+### Orchestration 5: `ecosystem-review-fixes`
+
+Orchestration 5 fixed the review of the whole feature on 2026-09-28, on the branch with `main`
+merged. Each finding's status, with the task that closed it and its test, is in
+[the audit](project-ecosystem-audit.md#review-of-the-whole-feature-before-the-pull-request). The
+merged branch's `pnpm build` and `pnpm e2e` run in the verification phase, after this was written.
+Only `review-5`'s report reached the documentation task, so the other tasks' parts below are written
+from their commits and the code.
+
+**`fix-flow`** — findings 1, 2, 7, 10, 13 and 14 in the core, and the flow's smaller items:
+
+- A cut run continues only in its own chat, at most twice (`flow_runs.restarts`), or fails with a
+  comment on the item.
+- Each stage has its own tools, `git push` is always denied, and `flow.maxCostUsd` is an optional
+  budget. The owner decided on no default.
+- A Developer never resumes a person's chat. Resuming a chat a run used hands it back (`handBack`)
+  with a new chat's tools.
+- QA judges each criterion by id.
+- A failed run carries its `error` and comments on its item.
+- Refining makes no worktree, and removing an item stops its run. The cap and the claim share one
+  transaction, a turn held to a schema is not replayed after a rate limit, and the agents file
+  carries tools in any YAML form.
+
+**`fix-assistant`** — findings 3, 9 and 25 in the core:
+
+- An assistant chat is confined (`ChatConfinement`: `--tools=Read,Grep,Glob`,
+  `--setting-sources=`, `--restricted`, no uploads).
+- Git facts and `CLAUDE.md` are handed in the prompt.
+- A failed "suggest again" hands the previous proposals back.
+- A run's first line is a title in the person's language, from `Accept-Language`.
+- A proposed member is held to the team's limits.
+- The unused `ownsChat` is gone.
+
+**`fix-core-data`** — findings 4, 8, 11, 12, 16 and 27 in the core:
+
+- The documents folder must be inside its project, and a document is at most 1 MiB.
+- Migrations read the version inside `BEGIN IMMEDIATE`.
+- Nested events are queued, and epics are left out of All projects' counts.
+- Bodies are checked for shape, and long texts are capped.
+- The settings are written only in the part that changed.
+- A memory description is quoted, and a repeated proposal is taken as the one already there.
+- Accented paths are kept in NFC.
+
+**`fix-links-api`** — findings 5, 6, 11, 16, 27 and 28 in the API and the links:
+
+- "Work on it" has its own worktree, cut from the project's HEAD. A submodule has its own
+  `mainCheckout`.
+- A launch shares the checks of "Work on it", and a link's target must exist in the item's project.
+- An item whose chat never starts its turn goes back where it was.
+- `project.created` and `project.removed` are announced.
+- The chat count comes from the chat list, and status codes agree across routes.
+- The docs drift in `work-items.md` and `projects.md` is fixed.
+
+**`fix-web-tasks`** — findings 17 to 19, 21 to 24, 29 and 30:
+
+- One modal stack answers Escape.
+- `queryView()` keeps what was shown through an API blip. The item's page has a dirty guard and
+  follows a key rename.
+- Delete and Back keep the board's context.
+- A tied document can be untied, and the save shortcut is named for the platform.
+- The List's keys and counts are fixed, and so are the phone targets.
+- "Move to Done" and delete warn first.
+- `tasks-review.spec.mjs` walks each finding in the browser.
+
+**`fix-web-team`** — findings 13, 14, 15, 20 and 26 in the web:
+
+- The three `writes` cases are named alike everywhere.
+- A failed run's reason shows on the Team screens.
+- No flow is drawn before one is saved.
+- The wizard makes a folder from any name.
+- "Sugerir" gives feedback.
+- Frontmatter is checked before saving, and a free name is offered.
+- The Done column has no limit control, and `changes` is not refetched on every run event.
+- The glossary is extended, the member editor no longer goes stale, and unread keys are dropped.
+
+**`review-5`** re-ran every reproduction on the merged branch and fixed what the six left:
+
+- A fork of an Agentry-run chat is handed back, and assistant runs no longer record their prompt.
+- The item's link says its flow run failed.
+- `POST /chats` answers 400 to a body of the wrong shape.
+- A team change writes only the team and the flow.
+- A graph node may not name another project's item.
+- `./docs/x.md` results are tied.
+- The settings' OpenAPI is complete, and the unused index and `memberForRole` are gone.
+- "Crear las seleccionadas" counts the runs it queues.
+- The Spanish copy was checked end to end.
+
+What stays open is listed in
+[the audit](project-ecosystem-audit.md#still-open-after-orchestration-5):
+
+- parts of findings 14 and 25;
+- `from-template`'s 200;
+- two runs per backlog card;
+- board payloads with descriptions;
+- the web files over 400 lines.
 
 ## Related
 

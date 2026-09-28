@@ -130,6 +130,56 @@ export class MemoryProposalService {
     const reason = typeof proposal.reason === 'string' ? proposal.reason.trim().slice(0, PROPOSAL_REASON_MAX) : '';
     const source = origin.source ?? null;
     const id = randomUUID();
+    // Checked and written under one lock, or two runs proposing the same entry at once would both pass
+    this.sql.exec('BEGIN IMMEDIATE');
+    try {
+      const same = this.sameProposal(projectId, target, text);
+      if (same) {
+        this.sql.exec('COMMIT');
+        return same;
+      }
+      this.insert(id, projectId, target, text, reason, source, origin);
+      this.sql.exec('COMMIT');
+    } catch (err) {
+      try {
+        this.sql.exec('ROLLBACK');
+      } catch {
+        // SQLite ended the transaction itself; the error that got here is the one to report
+      }
+      throw err;
+    }
+    const created = this.mustFind(id);
+    this.announce(created, 'created');
+    return created;
+  }
+
+  /**
+   * A proposal of the same text for the same target, already waiting or already decided. Members
+   * that meet the same fact on every run propose it every time: the person decides it once, and a
+   * rejected one stays rejected rather than coming back. Compared without case or spacing, and
+   * against the text the person approved as well as the one proposed.
+   */
+  private sameProposal(projectId: string, target: MemoryProposalTarget, text: string): MemoryProposal | null {
+    const wanted = sameText(text);
+    const rows = this.sql
+      .prepare(
+        `SELECT * FROM memory_proposals WHERE project_id = ? AND target_kind = ? AND target_file IS ? AND target_section IS ?
+         ORDER BY seq DESC`,
+      )
+      .all(projectId, target.kind, target.file, target.section) as unknown as ProposalRow[];
+    const row = rows.find((r) => sameText(r.text) === wanted || (r.approved_text !== null && sameText(r.approved_text) === wanted));
+    return row ? this.proposalOf(row) : null;
+  }
+
+  private insert(
+    id: string,
+    projectId: string,
+    target: MemoryProposalTarget,
+    text: string,
+    reason: string,
+    source: WorkItemSource | null,
+    origin: ProposalOrigin,
+  ): void {
     this.sql
       .prepare(
         `INSERT INTO memory_proposals (id, project_id, target_kind, target_file, target_section, text, reason, status,
@@ -155,9 +205,6 @@ export class MemoryProposalService {
         origin.itemId ?? null,
         new Date().toISOString(),
       );
-    const created = this.mustFind(id);
-    this.announce(created, 'created');
-    return created;
   }
 
   /** Writes the target, with `text` instead of the proposed text when the person edited it. */
@@ -312,6 +359,11 @@ function targetOf(value: unknown): MemoryProposalTarget {
     return { kind, file: null, section: section || null };
   }
   return { kind, file: null, section: null };
+}
+
+/** The text as two proposals are compared: the same words, whatever their case and spacing */
+function sameText(text: string): string {
+  return text.normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 function proposalText(value: unknown): string {

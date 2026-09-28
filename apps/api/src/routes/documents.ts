@@ -1,6 +1,13 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
+import { DOCUMENT_CONTENT_MAX, type Core } from '@agentry/core';
 import type { TieDocumentRequest, WriteDocumentRequest } from '@agentry/shared';
+
+/**
+ * What a document's largest content weighs once written as a JSON string: an escaped control
+ * character takes six bytes, so the core's own limit (answered with a clear 400) is always reached
+ * before this one (a bare 413)
+ */
+const WRITE_BODY_LIMIT = DOCUMENT_CONTENT_MAX * 6 + 64 * 1024;
 
 /**
  * The Documents module: a project's documents folder and the documents tied to its work items.
@@ -14,7 +21,7 @@ export const documentRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     core.documents.read(req.params.id, req.query.path),
   );
 
-  app.put<{ Params: { id: string }; Querystring: { path?: string }; Body: WriteDocumentRequest }>('/projects/:id/documents/file', (req) =>
+  app.put<{ Params: { id: string }; Querystring: { path?: string }; Body: WriteDocumentRequest }>('/projects/:id/documents/file', { bodyLimit: WRITE_BODY_LIMIT }, (req) =>
     core.documents.write(req.params.id, req.query.path, req.body ?? ({} as WriteDocumentRequest)),
   );
 
