@@ -688,3 +688,30 @@ test('the flow migration applies on top of the version before it, and an old ite
   assert.equal(items.find('i1')?.waiting, 'approval');
   db.close();
 });
+
+test('a card is live while a Product Owner refines it or QA verifies it, as while a chat works on it; an origin chat or a document is not', () => {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  const db = new Db(config);
+  const working = new Set(['po', 'qa', 'origin', 'spec']);
+  const items = new WorkItemService({
+    db,
+    project: () => ({ keyPrefix: 'AGN', columnLimits: {} }),
+    linkState: (link) => ({ name: link.chatId, chatState: link.chatId && working.has(link.chatId) ? 'working' : 'idle' }),
+  });
+  const refined = items.create('p1', { title: 'Refined' });
+  items.link(refined.id, { kind: 'chat', role: 'origin', chatId: 'origin' });
+  items.link(refined.id, { kind: 'document', role: 'refine', chatId: 'spec', documentPath: 'docs/spec.md' });
+  assert.equal(items.find(refined.id)?.activeLink, null, 'an origin chat or a document made the card live');
+  items.link(refined.id, { kind: 'chat', role: 'refine', chatId: 'po' }, { actor: { kind: 'agent', role: 'product-owner' } });
+  assert.equal(items.find(refined.id)?.activeLink?.chatId, 'po');
+  assert.equal(items.find(refined.id)?.activeLink?.role, 'refine');
+
+  const verified = items.create('p1', { title: 'Verified', status: 'in_review' });
+  items.link(verified.id, { kind: 'chat', role: 'verify', chatId: 'qa' });
+  assert.equal(items.find(verified.id)?.activeLink?.chatId, 'qa');
+  // Once QA's chat is idle the card is still again
+  working.delete('qa');
+  assert.equal(items.find(verified.id)?.activeLink, null);
+  db.close();
+});

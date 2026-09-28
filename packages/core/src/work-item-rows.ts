@@ -177,12 +177,17 @@ export function textMatches(row: ItemRow, q: string): boolean {
   return fold(row.title).includes(needle) || fold(row.description).includes(needle);
 }
 
+/** The roles of a link through which an agent works on the item: a chat or node on it, a Product Owner refining it, QA verifying it. */
+const LIVE_ROLES: ReadonlySet<WorkItemLinkRole> = new Set<WorkItemLinkRole>(['work', 'refine', 'verify']);
+
 /**
- * An agent is on the item now. A document never is, even one whose chat is still running: the chat
- * has its own link, and that one says so.
+ * An agent is on the item now: a chat or node working on it, or a flow run refining or verifying it,
+ * so the card is live whichever member holds it. A document never is, even one whose chat is still
+ * running: the chat has its own link, and that one says so. An `origin` or `reference` chat is only
+ * where the item came from or is mentioned, not work on it.
  */
 export function isLive(link: WorkItemLink): boolean {
-  return link.kind !== 'document' && link.role === 'work' && (link.chatState === 'working' || link.taskStatus === 'running');
+  return link.kind !== 'document' && LIVE_ROLES.has(link.role) && (link.chatState === 'working' || link.taskStatus === 'running');
 }
 
 const known = <T extends string>(value: string | null, allowed: readonly T[]): T | null => ((allowed as readonly string[]).includes(value ?? '') ? (value as T) : null);
