@@ -675,6 +675,7 @@ test('the prompt and the schema say what a run is and is not', () => {
     kind: 'work-items',
     projectName: 'claude-wrapper',
     description: null,
+    focus: null,
     resourceKind: null,
     empty: false,
     proposes: ['work-item'],
@@ -803,4 +804,60 @@ test("a proposed member is held to the team's limits, and an edit past them is r
   }
   assert.equal(s.added.length, 0);
   assert.equal(s.assistant.proposal(proposed.id).status, 'pending');
+});
+
+test("Suggest tasks' focus is its own field, worded as where to look and not as what the project is for", async () => {
+  const s = setup();
+  const run = await s.assistant.start('p1', { kind: 'work-items', focus: "the checkout's error handling" });
+  await s.assistant.settled();
+  assert.equal(run.focus, "the checkout's error handling");
+  assert.equal(run.description, null);
+  const prompt = s.launches[0]?.prompt ?? '';
+  assert.match(prompt, /## Where to look\n\nThe person asks for work items in this area[^\n]*\n\nthe checkout's error handling/);
+  assert.match(prompt, /`workItems`: the next work items in the area above/);
+  assert.doesNotMatch(prompt, /What the person says the project is for/);
+  // Kept on the run, so it reads back with it and a restart words it the same
+  assert.equal(s.assistant.runs('p1', 'work-items')[0]?.focus, "the checkout's error handling");
+  assert.equal(s.assistant.run(run.id).focus, "the checkout's error handling");
+
+  // A project run takes no focus; one without a focus reads as none
+  await assert.rejects(s.assistant.start('p1', { kind: 'project', focus: 'x' }), /focus goes with a work-items run only/);
+  await assert.rejects(s.assistant.start('p1', { kind: 'work-items', focus: 3 }), /focus must be a string/);
+  await assert.rejects(s.assistant.start('p1', { kind: 'work-items', focus: 'x'.repeat(4001) }), /focus is longer/);
+  const project = await projectRun(s);
+  assert.equal('focus' in project, false);
+
+  // On an empty project a focus is something to work from, as a description is
+  const empty = setup({ dir: mkdtempSync(join(tmpdir(), 'agentry-assistant-empty-')), commits: null, chats: 0 });
+  const focused = await empty.assistant.start('p1', { kind: 'work-items', focus: 'a payments API' });
+  await empty.assistant.settled();
+  assert.equal(focused.status, 'running');
+  assert.equal(empty.launches.length, 1);
+});
+
+test('a run keeps its language, so one started again after a restart is titled as it was', async () => {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  const db = new Db(config);
+  const dir = repo();
+  const first = setup({ db, dir });
+  const run = await first.assistant.start('p1', { kind: 'work-items', focus: 'webhooks' }, 'es');
+  await first.assistant.settled();
+  assert.equal(run.language, 'es');
+  assert.equal(first.launches[0]?.prompt.split('\n')[0], 'Sugerir tareas · pagos-api');
+  // As if the process died before its chat started: the run is asked again from its start
+  db.connection.prepare('UPDATE assistant_runs SET chat_id = NULL WHERE id = ?').run(run.id);
+
+  const second = setup({ db, dir });
+  await second.assistant.recover();
+  const again = second.launches[0];
+  assert.ok(again);
+  assert.equal(again.resumeChatId, null);
+  assert.equal(again.prompt.split('\n')[0], 'Sugerir tareas · pagos-api');
+  assert.match(again.prompt, /## Where to look[\s\S]*webhooks/, 'and with its focus');
+  assert.equal(second.assistant.run(run.id).language, 'es');
+
+  // A run stored before the language was kept reads as English
+  db.connection.prepare('UPDATE assistant_runs SET language = NULL WHERE id = ?').run(run.id);
+  assert.equal('language' in second.assistant.run(run.id), false);
 });

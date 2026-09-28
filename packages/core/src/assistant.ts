@@ -39,6 +39,7 @@ import {
   type WorkItemType,
 } from '@agentry/shared';
 import {
+  assistantLanguage,
   assistantPrompt,
   assistantSchema,
   CONTENT_MAX,
@@ -233,6 +234,8 @@ interface RunRow {
   status: string;
   model: string;
   description: string | null;
+  focus: string | null;
+  language: string | null;
   resource_kind: string | null;
   chat_id: string | null;
   empty: number;
@@ -357,7 +360,7 @@ export class AssistantService {
     const offered = templateOffered(project.settings);
     // With nothing to read and nothing described there is nothing to ask a model: the template's team
     // is offered as it is, and a description is asked for before anything else is proposed
-    const chatless = empty && !request.description;
+    const chatless = empty && !request.description && !request.focus;
     const id = randomUUID();
     const now = new Date().toISOString();
     let superseded: string | null = null;
@@ -379,8 +382,8 @@ export class AssistantService {
       }
       this.sql
         .prepare(
-          `INSERT INTO assistant_runs (id, project_id, kind, status, model, description, resource_kind, empty, template, proposes, base_sources, reads, supersedes, started_at)
-           VALUES (?, ?, ?, 'running', ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
+          `INSERT INTO assistant_runs (id, project_id, kind, status, model, description, focus, language, resource_kind, empty, template, proposes, base_sources, reads, supersedes, started_at)
+           VALUES (?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -388,6 +391,8 @@ export class AssistantService {
           request.kind,
           request.model,
           request.description,
+          request.focus,
+          language,
           request.resourceKind,
           empty ? 1 : 0,
           JSON.stringify(proposes),
@@ -416,7 +421,14 @@ export class AssistantService {
     return this.run(id);
   }
 
-  private parseStart(input: unknown): { kind: AssistantRunKind; model: string; description: string | null; resourceKind: AssistantResourceKind | null; supersede: boolean } {
+  private parseStart(input: unknown): {
+    kind: AssistantRunKind;
+    model: string;
+    description: string | null;
+    focus: string | null;
+    resourceKind: AssistantResourceKind | null;
+    supersede: boolean;
+  } {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new AssistantError('the request must be a JSON object', 400);
     const body = input as Partial<Record<keyof StartAssistantRunRequest, unknown>>;
     const kind = this.kindOf(body.kind);
@@ -431,6 +443,14 @@ export class AssistantService {
       if (body.description.length > DESCRIPTION_MAX) throw new AssistantError(`description is longer than ${String(DESCRIPTION_MAX)} characters`, 400);
       description = body.description.trim() || null;
     }
+    let focus: string | null = null;
+    if (body.focus !== undefined && body.focus !== null) {
+      if (typeof body.focus !== 'string') throw new AssistantError('focus must be a string', 400);
+      if (body.focus.length > DESCRIPTION_MAX) throw new AssistantError(`focus is longer than ${String(DESCRIPTION_MAX)} characters`, 400);
+      // A focus narrows what tasks are suggested; the other runs propose from the project as a whole
+      if (kind !== 'work-items') throw new AssistantError('focus goes with a work-items run only', 400);
+      focus = body.focus.trim() || null;
+    }
     let resourceKind: AssistantResourceKind | null = null;
     if (body.resourceKind !== undefined && body.resourceKind !== null) {
       const found = ASSISTANT_RESOURCE_KINDS.find((k) => k === body.resourceKind);
@@ -441,7 +461,7 @@ export class AssistantService {
     if (kind === 'resources' && description && !resourceKind) throw new AssistantError('a resource built from a description needs its resourceKind', 400);
     if (resourceKind && !description) throw new AssistantError('resourceKind needs the description of the resource to build', 400);
     if (body.supersede !== undefined && typeof body.supersede !== 'boolean') throw new AssistantError('supersede must be a boolean', 400);
-    return { kind, model, description, resourceKind, supersede: body.supersede === true };
+    return { kind, model, description, focus, resourceKind, supersede: body.supersede === true };
   }
 
   private kindOf(value: unknown): AssistantRunKind {
@@ -453,7 +473,7 @@ export class AssistantService {
   private brief(
     project: AssistantProject,
     known: AssistantKnown,
-    request: { kind: AssistantRunKind; description: string | null; resourceKind: AssistantResourceKind | null },
+    request: { kind: AssistantRunKind; description: string | null; focus: string | null; resourceKind: AssistantResourceKind | null },
     proposes: AssistantProposalKind[],
     empty: boolean,
     offered: { template: ProjectTemplateId; team: ProjectTemplateTeam },
@@ -465,6 +485,7 @@ export class AssistantService {
       kind: request.kind,
       projectName: project.name,
       description: request.description,
+      focus: request.focus,
       resourceKind: request.resourceKind,
       empty,
       proposes,
@@ -761,12 +782,12 @@ export class AssistantService {
         const brief = this.brief(
           project,
           known,
-          { kind: row.kind as AssistantRunKind, description: row.description, resourceKind: row.resource_kind as AssistantResourceKind | null },
+          { kind: row.kind as AssistantRunKind, description: row.description, focus: row.focus, resourceKind: row.resource_kind as AssistantResourceKind | null },
           proposes,
           row.empty === 1,
           templateOffered(project.settings),
-          // Only a run that never got a chat is asked again from its start; its language was not kept
-          'en',
+          // A run that never got a chat is asked again from its start, titled as it was the first time
+          assistantLanguage(row.language),
         );
         this.remember(row.id, project, known);
         await this.track(this.launch(this.mustRow(row.id), project, brief, known, row.chat_id));
@@ -1010,6 +1031,8 @@ export class AssistantService {
       status,
       model: row.model,
       description: row.description,
+      ...(row.kind === 'work-items' ? { focus: row.focus } : {}),
+      ...(row.language ? { language: assistantLanguage(row.language) } : {}),
       resourceKind: (row.resource_kind as AssistantResourceKind | null) ?? null,
       chatId: row.chat_id,
       ...(running && row.chat_id ? { activity } : {}),
