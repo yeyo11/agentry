@@ -2,9 +2,8 @@ import type { CSSProperties } from 'react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useOverview } from '../../api';
-import { nameHue } from '../../components/icons';
 import type { TeamMember } from '@agentry/shared';
-import { isKnownRole, roleFallbackName, roleInitials, templateResponsibilityRole } from './model';
+import { isKnownRole, roleFallbackName, roleHue, roleInitials, templateResponsibilityRole } from './model';
 
 /** A role's name in the interface language: the template's roles are translated, any other is shown as written. */
 export function useRoleName(): (role: string) => string {
@@ -37,7 +36,7 @@ export function RoleAvatar({ role, size = 'md', label }: { role: string; size?: 
   return (
     <span
       className={`role-avatar ${size === 'md' ? '' : `role-avatar-${size}`}`.trim()}
-      style={{ '--hue': nameHue(role) } as CSSProperties}
+      style={{ '--hue': roleHue(role) } as CSSProperties}
       role="img"
       aria-label={said}
       title={said}

@@ -37,6 +37,31 @@ export function roleInitials(role: string): string {
   return (words[0] ?? role).slice(0, 3).toUpperCase() || '?';
 }
 
+/**
+ * A role's own hue, the same on every screen (docs/design-system.md): the template's roles keep the ones
+ * the design gave them. Status hues mean one thing each, so a role never takes red (bad), green (ok)
+ * or cyan (live): a role someone named takes one of the free hues outside them, by its name.
+ */
+const ROLE_HUES: Record<KnownRole, number> = {
+  'product-owner': 300,
+  architect: 215,
+  developer: 90,
+  qa: 330,
+  writer: 45,
+  researcher: 250,
+  reviewer: 275,
+};
+
+/** Hues no template role takes and no status is told by */
+export const FREE_ROLE_HUES = [240, 262, 288, 315, 65, 105] as const;
+
+export function roleHue(role: string): number {
+  if (isKnownRole(role)) return ROLE_HUES[role];
+  let hash = 0;
+  for (const ch of role) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return FREE_ROLE_HUES[hash % FREE_ROLE_HUES.length] ?? FREE_ROLE_HUES[0];
+}
+
 /** A role nobody translated, readable: `tech-writer` reads "Tech writer", in sentence case as the glossary asks. */
 export function roleFallbackName(role: string): string {
   const text = role.split(/[-_\s]+/).filter(Boolean).join(' ');

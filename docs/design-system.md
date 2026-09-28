@@ -407,8 +407,10 @@ items; team, flow, memory and documents; assistant, suggestions and resources wi
 - **A role is always a `.role-av`, and its model a `.model-tag`**, wherever it appears: the team,
   the board, the flow, the memory proposals, and the team the assistant proposes. Proposals never
   borrow the project `.monogram`. A role keeps its hue on every screen (Product Owner 300,
-  Arquitecto 215, Desarrollador 90, QA 330, Redactor técnico 45); a role the assistant invents
-  takes one that is free.
+  Arquitecto 215, Desarrollador 90, QA 330, Redactor técnico 45; Investigador 250 and Revisor 275
+  in the app); a role the assistant invents takes one that is free, and never a status hue (red,
+  green or cyan, which say bad, ok and live): the prototype's "Seguridad de pagos" at 160 reads as
+  ok, so the app gives such a role one of 240, 262, 288, 315, 65 or 105.
 - **Models.** A role's model is the alias its agent file stores (`opus`, `sonnet`). Where a control
   picks it, it is a `.model-pick`: the tag, then the model it resolves to today ("[sonnet] Sonnet 5").
   A tag alone, with no resolved name, is for reading (a member card, a list). A run's `.ai-facts`

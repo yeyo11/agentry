@@ -15,7 +15,9 @@ import {
   groupRuns,
   memberBody,
   proposedFlow,
+  FREE_ROLE_HUES,
   roleFallbackName,
+  roleHue,
   roleInitials,
   runDay,
   runDuration,
@@ -87,6 +89,21 @@ test('a role says the template acronym, or the initials of a role someone named'
   assert.equal(roleInitials('tech-writer'), 'TW');
   assert.equal(roleInitials('i18n'), 'I18');
   assert.equal(roleFallbackName('tech-writer'), 'Tech writer');
+});
+
+test("a role keeps the design's hue, and a named one takes a hue no status is told by", () => {
+  assert.equal(roleHue('product-owner'), 300);
+  assert.equal(roleHue('architect'), 215);
+  assert.equal(roleHue('developer'), 90);
+  assert.equal(roleHue('qa'), 330);
+  assert.equal(roleHue('writer'), 45);
+  // Red (bad), green (ok) and cyan (live) are the statuses' own
+  const status = (hue: number) => hue < 25 || hue > 345 || (hue > 120 && hue < 200);
+  for (const role of ['payments-security', 'data', 'ops', 'x', 'release-manager', 'designer', 'researcher', 'reviewer']) {
+    assert.equal(status(roleHue(role)), false, role);
+  }
+  assert.ok(FREE_ROLE_HUES.every((hue) => !status(hue)));
+  assert.equal(roleHue('payments-security'), roleHue('payments-security'), 'the same on every screen');
 });
 
 test('each column but done has a stage', () => {

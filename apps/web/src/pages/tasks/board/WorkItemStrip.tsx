@@ -2,7 +2,7 @@ import type { FlowRunCause, WorkItem } from '@agentry/shared';
 import { Check, Clock, Workflow, X } from 'lucide-react';
 import { useMemo, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Monogram, nameHue } from '../../../components/icons';
+import { Monogram } from '../../../components/icons';
 import { ProgressBar } from '../../../components/ProgressBar';
 import { Spinner } from '../../../components/Spinner';
 import { activityTarget, activityVerb, elapsedSince, formatElapsed } from '../../../lib/live';
@@ -10,7 +10,7 @@ import { useClockTick } from '../../../lib/motion';
 import { chatActivity, orchestrationProgress } from '../../../lib/shell-live';
 import { stripTone, type StripActor, type WorkItemStripState } from '../../../lib/work-items';
 import { useRoleName } from '../../team/RoleAvatar';
-import { roleInitials } from '../../team/model';
+import { roleHue, roleInitials } from '../../team/model';
 import type { LiveSources } from './LiveLine';
 import { useBoardTeam } from './team';
 import { useMoveWorkItem } from './useMoveWorkItem';
@@ -35,7 +35,7 @@ export function StripActorMark({ actor }: { actor: StripActor }) {
   if (actor.kind === 'role') {
     const name = roleName(actor.role);
     return (
-      <span className="role-avatar workitem-strip-role" style={{ '--hue': nameHue(actor.role) } as CSSProperties} role="img" aria-label={name} title={name}>
+      <span className="role-avatar workitem-strip-role" style={{ '--hue': roleHue(actor.role) } as CSSProperties} role="img" aria-label={name} title={name}>
         {roleInitials(actor.role)}
       </span>
     );
