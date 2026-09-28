@@ -57,6 +57,20 @@ const SUBAGENT_TOOLS = new Set(['Task', 'Agent']);
 const IGNORED_SUBTYPES = new Set(['thinking_tokens', 'hook_started', 'hook_response', 'commands_changed']);
 /** Wording the CLI uses when the subscription window is spent (`result` text and stderr) */
 const RATE_LIMIT_RE = /usage limit|rate limit|session limit|out of (?:usage|quota)|quota exceeded/i;
+/**
+ * What starting or continuing a chat refuses on purpose (no prompt, the runtime full, the session
+ * held elsewhere, a bad upload): the caller's to fix, with its 4xx. Anything else that goes wrong
+ * while a chat starts is the server's (`ChatStartError`).
+ */
+export class ChatRefusal extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: 400 | 404 | 409 = 400,
+  ) {
+    super(message);
+  }
+}
+
 /** One rotate-and-resume per execution: a second failure is a real one, not a quota one */
 const MAX_ROTATION_RETRIES = 1;
 const MAX_ATTACHMENTS = 20;
@@ -936,7 +950,7 @@ export class ChatManager extends EventEmitter {
    * a conversation that exists is `resume` (the same chat) or `fork` (a new one), never this.
    */
   start(opts: NewChat, meta: RunMeta = {}): ChatRuntime {
-    if (!opts.prompt?.trim() && !opts.attachments?.length) throw new Error('prompt is required');
+    if (!opts.prompt?.trim() && !opts.attachments?.length) throw new ChatRefusal('prompt is required');
     this.admit(opts);
     const attachments = this.resolveAttachments(opts.attachments);
     return this.begin(new LiveChat(randomUUID(), opts, meta, opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : 'agentry', null, this.chatDefaults()), opts.prompt, attachments);
@@ -950,13 +964,13 @@ export class ChatManager extends EventEmitter {
    * saw a moment ago.
    */
   resume(id: string, request: ResumeChatRequest & ResolvedTools & ExecutionExtras, adopt?: AdoptedChat): ChatRuntime {
-    if (!request.prompt?.trim() && !request.attachments?.length) throw new Error('prompt is required');
+    if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
     let chat = this.chats.get(id);
-    if (chat?.alive) throw new Error('the chat already has a live execution; send it a message instead');
+    if (chat?.alive) throw new ChatRefusal('the chat already has a live execution; send it a message instead');
     this.admit(request);
     const attachments = this.resolveAttachments(request.attachments);
     if (!chat) {
-      if (!adopt) throw new Error('chat not found');
+      if (!adopt) throw new ChatRefusal('chat not found', 404);
       chat = new LiveChat(id, { prompt: request.prompt, cwd: adopt.cwd, name: adopt.name, ...(adopt.model ? { model: adopt.model } : {}) }, {}, 'external', null, this.chatDefaults(), true);
       chat.workingDir = adopt.cwd;
     }
@@ -983,7 +997,7 @@ export class ChatManager extends EventEmitter {
    * the chat exists under its final id from the first instant and no other row can stand for it.
    */
   fork(sourceId: string, request: ResumeChatRequest & ResolvedTools & Pick<ExecutionExtras, 'handBack'>, source: AdoptedChat): ChatRuntime {
-    if (!request.prompt?.trim() && !request.attachments?.length) throw new Error('prompt is required');
+    if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
     this.admit(request);
     const attachments = this.resolveAttachments(request.attachments);
     const known = this.chats.get(sourceId);
@@ -1005,11 +1019,11 @@ export class ChatManager extends EventEmitter {
   /** Refuses what cannot start, before anything is created. */
   private admit(opts: ChatStartOptions): void {
     if (opts.account && !this.accounts?.managed) {
-      throw new Error('no claude-swap account is registered: a chat cannot be pinned to one');
+      throw new ChatRefusal('no claude-swap account is registered: a chat cannot be pinned to one');
     }
     const limit = this.defaults.maxConcurrentRuns;
     if (this.activeCount() >= limit) {
-      throw new Error(`Concurrent run limit reached (${limit})`);
+      throw new ChatRefusal(`Concurrent run limit reached (${limit})`);
     }
   }
 
@@ -1128,10 +1142,16 @@ export class ChatManager extends EventEmitter {
   /** Looks the uploads up before anything starts, so a bad id fails the request, not the turn. */
   private resolveAttachments(ids: string[] = []): Attachment[] {
     if (ids.length === 0) return [];
-    if (!this.uploads) throw new Error('attachments are not available');
-    if (ids.length > MAX_ATTACHMENTS) throw new Error(`at most ${MAX_ATTACHMENTS} files can be attached to one message`);
+    if (!this.uploads) throw new ChatRefusal('attachments are not available');
+    if (ids.length > MAX_ATTACHMENTS) throw new ChatRefusal(`at most ${MAX_ATTACHMENTS} files can be attached to one message`);
     const uploads = this.uploads;
-    return ids.map((id) => uploads.get(String(id)));
+    return ids.map((id) => {
+      try {
+        return uploads.get(String(id));
+      } catch (err) {
+        throw new ChatRefusal(err instanceof Error ? err.message : String(err), 404);
+      }
+    });
   }
 
   stop(id: string): ChatRuntime {
@@ -1451,10 +1471,10 @@ export class ChatManager extends EventEmitter {
    * by the chat it works for, and a chat never has two.
    */
   private spawnProcess(chat: LiveChat, prompt: string, attachments: Attachment[] = []): void {
-    if (chat.alive) throw new Error('the chat already has a live process');
+    if (chat.alive) throw new ChatRefusal('the chat already has a live process');
     const holders = this.sessionHolders(chat);
     if (holders.length) {
-      throw new Error(
+      throw new ChatRefusal(
         `session ${chat.id} is still running in process ${holders.join(', ')}, which this chat does not track; ` +
           'a second process would carry on the same conversation beside it. Wait for it to finish, or stop it first.',
       );

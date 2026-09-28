@@ -120,7 +120,9 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
     const status = err.statusCode ?? (refusal ? (/not found/i.test(err.message) ? 404 : 400) : 500);
     // A bug here is ours to find: a 400 nobody logs is a server fault blamed on the caller
     if (!refusal || status >= 500) app.log.error({ err, url: req.url }, 'request failed');
-    void reply.status(status).send({ error: status >= 500 ? 'internal error' : err.message });
+    // A server fault's message stays inside unless it was written for the person (`expose`)
+    const exposed = (err as { expose?: unknown }).expose === true;
+    void reply.status(status).send({ error: status >= 500 && !exposed ? 'internal error' : err.message });
   });
 
   // Core has no logger of its own, and a push that cannot be delivered is a log line rather than

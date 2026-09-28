@@ -66,7 +66,7 @@ import { chatLinkName, WorkItemError, WorkItemService, type WorkItemLinkState } 
 import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsPlace } from './documents.ts';
 import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { TunnelManager } from './tunnel.ts';
-import { ChatService, type Placement } from './chat-service.ts';
+import { ChatService, ChatStartError, type Placement } from './chat-service.ts';
 import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
@@ -121,7 +121,8 @@ export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, type AuthEnv, type C
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
 export { LOCALHOST_RUN_KNOWN_HOSTS, TunnelManager, TunnelRefusedError, parseTunnelUrl, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
-export { ChatConflictError, DEFAULT_ORIGINS, type ChatFilter, type Placement } from './chat-service.ts';
+export { ChatRefusal } from './chats.ts';
+export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
 export { DEFAULT_AUTO_SWITCH } from './accounts.ts';
@@ -1653,7 +1654,7 @@ export class Core {
       }
       this.workLinks.chatStarted(started.id);
     });
-    if (!linked.link) throw new Error('the chat started without being linked to its work item');
+    if (!linked.link) throw new ChatStartError('the chat started without being linked to its work item');
     return { item: this.workItems.find(itemId) ?? item, chat, link: linked.link };
   }
 
