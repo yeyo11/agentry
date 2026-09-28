@@ -51,7 +51,9 @@
     "workItem": {
       "works": "Trabaja en",
       "origin": "Creada desde este chat",
-      "criteria": "criterios {{done}}/{{total}}"
+      "criteria": "criterios {{done}}/{{total}}",
+      "runFailed": "Ejecución fallida",
+      "runFailedFor": "La ejecución de {{role}} para {{key}} no terminó, y la tarea sigue donde estaba."
     }
   },
   "composer": {

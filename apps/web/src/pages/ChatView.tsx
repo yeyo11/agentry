@@ -291,7 +291,7 @@ export function ChatView() {
         )}
         {chat.orchestration && <PartOf link={chat.orchestration} />}
         {itemLinks.map((link) => (
-          <WorkItemPartOf key={link.item.id} link={link} />
+          <WorkItemPartOf key={link.item.id} link={link} chatId={chat.id} />
         ))}
         <FindBar find={find} />
 

@@ -85,17 +85,21 @@ test('moving to Done asks while a criterion is unchecked; deleting says when a c
   assert.equal(deleteWarning({ activeLink: null }), null);
 });
 
-test('a link says when the flow run it was made for failed, and why, though its chat reads completed', () => {
+test("a link says when the flow run it was made for failed, and why, from every run of the item", () => {
   const run = (over: Partial<FlowRun>) => ({ state: 'ended', outcome: 'passed', error: null, chatId: 'c1', ...over }) as FlowRun;
   const chat = { kind: 'chat', chatId: 'c1' } as const;
   const failed = run({ outcome: 'failed', error: 'the chat ended without a result' });
-  assert.equal(failedRunReason(linkRun(chat, [{ running: [], lastRun: failed }])), 'the chat ended without a result');
-  assert.equal(failedRunReason(linkRun(chat, [{ running: [], lastRun: run({ outcome: 'failed', error: null }) }])), '', 'failed, with no reason given');
-  assert.equal(failedRunReason(linkRun(chat, [{ running: [], lastRun: run({}) }])), null, 'a run that passed');
-  // A new run going in the same chat is what the link shows, not the one that failed before it
-  assert.equal(failedRunReason(linkRun(chat, [{ running: [run({ state: 'running', outcome: null })], lastRun: failed }])), null);
-  assert.equal(linkRun(chat, [{ running: [], lastRun: run({ chatId: 'c2', outcome: 'failed' }) }]), null, "another chat's run");
-  assert.equal(linkRun({ kind: 'orchestration', chatId: null }, [{ running: [], lastRun: failed }]), null);
+  assert.equal(failedRunReason(linkRun(chat, [failed])), 'the chat ended without a result');
+  assert.equal(failedRunReason(linkRun(chat, [run({ outcome: 'failed', error: null })])), '', 'failed, with no reason given');
+  assert.equal(failedRunReason(linkRun(chat, [run({})])), null, 'a run that passed');
+  // Newest first: a new run going in the same chat is what the link shows, not the one that failed before it
+  assert.equal(failedRunReason(linkRun(chat, [run({ state: 'running', outcome: null }), failed])), null);
+  // An older failed run stays failed on its own link after the member ended others elsewhere
+  const older = { kind: 'chat', chatId: 'c0' } as const;
+  const runs = [run({ chatId: 'c2' }), run({ chatId: 'c1' }), run({ chatId: 'c0', outcome: 'failed', error: 'no account left' })];
+  assert.equal(failedRunReason(linkRun(older, runs)), 'no account left');
+  assert.equal(linkRun(chat, [run({ chatId: 'c2', outcome: 'failed' })]), null, "another chat's run");
+  assert.equal(linkRun({ kind: 'orchestration', chatId: null }, [failed]), null);
 });
 
 test('an item whose address follows its new key stays on screen, with the edit in progress', () => {
