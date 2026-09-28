@@ -429,7 +429,7 @@ export function runDay(runs: readonly FlowRun[], now: number = Date.now()): RunD
 }
 
 /** The step of a run as the person reads it, by its column: a `refine` in Por hacer is a check. */
-export const runStep = (run: Pick<FlowRun, 'step' | 'stage' | 'column'>): FlowStep => run.step ?? flowStepOf(run.stage, run.column);
+export const runStep = (run: Pick<FlowRun, 'stage' | 'column'> & { step?: FlowStep | null }): FlowStep => run.step ?? flowStepOf(run.stage, run.column);
 
 /**
  * What a run's reason is told from: its cause, or `unknown` for a failed or cancelled run stored
