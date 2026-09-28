@@ -287,6 +287,8 @@ export class Core {
   /** The project assistant: read-only runs that propose a team, resources and work items, each accepted on its own */
   readonly assistant: AssistantService;
   private readonly startedAt = Date.now();
+  /** Chats whose account rotation after a rate limit is under way: a flow run on one waits for it */
+  private readonly rotations = new Set<string>();
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
   private systemCache: { at: number; gen: number; value: Omit<SystemInfo, 'uptimeSec' | 'models'> } | null = null;
@@ -521,6 +523,8 @@ export class Core {
       },
       stop: (chatId) => void this.runtime.stop(chatId),
       activity: (chatId) => this.runtime.get(chatId)?.activity ?? null,
+      rotating: (chatId) =>
+        this.rotations.has(chatId) || (this.accounts.autoSwitch.rotateOnLimit && this.accounts.managed && this.runtime.rotationComing(chatId)),
       emit: (event) => this.events.emit(event),
     });
     this.team.runs = (projectId) => this.flow.runs(projectId);
@@ -645,6 +649,9 @@ export class Core {
    */
   private async rotateAndResume(run: ChatRuntime): Promise<void> {
     if (!this.accounts.autoSwitch.rotateOnLimit || !this.accounts.managed) return;
+    // Held until the rotation says how it went: a flow run waits on it rather than fail
+    this.rotations.add(run.id);
+    const outcome: { resumed: boolean; reason: string | null } = { resumed: false, reason: null };
     try {
       // A pinned chat leaves its account; a project with a rotation policy moves within it; everything
       // else uses the global rotation
@@ -655,6 +662,7 @@ export class Core {
         : ((await this.accounts.rotateWithinPolicy({ account: null, cwd: run.cwd }, reason)) ?? (await this.accounts.rotate(reason)));
       if (!result.switched) {
         this.runtime.notice(run.id, `Rate limit reached and no account with quota left${result.reason ? ` (${result.reason})` : ''}.`);
+        outcome.reason = result.reason ? `no account with quota left: ${result.reason}` : 'no account with quota left';
         return;
       }
       // Kept, the pin would respawn the replay on the account that just ran out
@@ -662,9 +670,10 @@ export class Core {
       this.forgetSystem();
       const target = result.to ?? 'another account';
       // An orchestration worker already handed its result to the orchestrator, and a turn held to a
-      // schema (a flow run, the assistant) to the run that started it, which has ended on it:
-      // rotating helps what comes after, but replaying the turn would spend again for nobody.
-      if (run.orchestrationId || this.runtime.heldToSchema(run.id)) {
+      // schema (the assistant) to the run that started it, which has ended on it: rotating helps what
+      // comes after, but replaying the turn would spend again for nobody. A flow run that waits for
+      // the rotation has not ended: it goes on in its chat, as a person's chat does.
+      if (run.orchestrationId || (this.runtime.heldToSchema(run.id) && !this.flow.awaitsRotation(run.id))) {
         this.runtime.notice(run.id, `Rate limit reached — switched to ${target}; the next tasks use it.`);
         this.announceRotation(run, result, false);
         return;
@@ -672,9 +681,16 @@ export class Core {
       this.runtime.notice(run.id, `Rate limit reached — switched to ${target} and resuming.`);
       const replayed = await this.runtime.replayLastTurn(run.id);
       if (!replayed) this.runtime.notice(run.id, 'The turn could not be resumed automatically; send it again.');
+      outcome.resumed = replayed;
+      if (!replayed) outcome.reason = 'its turn could not be replayed';
       this.announceRotation(run, result, replayed);
     } catch (error) {
-      this.runtime.notice(run.id, `Account rotation failed: ${error instanceof Error ? error.message : String(error)}`);
+      const message = error instanceof Error ? error.message : String(error);
+      this.runtime.notice(run.id, `Account rotation failed: ${message}`);
+      outcome.reason = `the rotation failed: ${message}`;
+    } finally {
+      this.rotations.delete(run.id);
+      this.flow.rotated(run.id, outcome);
     }
   }
 

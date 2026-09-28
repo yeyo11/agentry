@@ -214,6 +214,12 @@ export interface FlowDeps {
   launch: (launch: FlowLaunch, onStart: (chatId: string) => void) => Promise<void>;
   /** A chat has a live execution now (a person may be working in it) */
   chatBusy: (chatId: string) => boolean;
+  /**
+   * The chat's turn hit its account's rate limit and the account rotation is on its way for it: the
+   * run waits to go on in the same chat on the next account (`rotated`) rather than fail. False when
+   * the rotation is off or has nothing left to try.
+   */
+  rotating?: (chatId: string) => boolean;
   stop: (chatId: string) => void;
   activity?: (chatId: string) => ChatActivity | null;
   emit: (event: AgentryEventInput) => void;
@@ -490,6 +496,11 @@ export class FlowService {
   /** One dispatch at a time: claiming reads the counts, and two at once could both see a free place */
   private dispatching: Promise<void> = Promise.resolve();
   private recovered = false;
+  /**
+   * Chats of running runs whose turn hit the rate limit, waiting for the rotation to say whether they
+   * go on. In memory: a restart meanwhile continues the run in its chat anyway (`recover`).
+   */
+  private readonly awaitingRotation = new Set<string>();
 
   constructor(private readonly deps: FlowDeps) {
     this.sql = deps.db.connection;
@@ -877,15 +888,48 @@ export class FlowService {
     }
   }
 
-  /** The chat's process ended; a run still going got no result, and failed. */
+  /** The chat's process ended; a run still going got no result, and failed, unless it waits for the rotation. */
   chatEnded(chatId: string, error: string | null): void {
     const row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as RunRow | undefined;
     if (!row) return;
+    // The process the limit took down: the run goes on in this chat once the rotation replays it
+    if (this.awaitingRotation.has(chatId)) return;
+    if (this.deps.rotating?.(chatId)) {
+      this.awaitingRotation.add(chatId);
+      return;
+    }
     this.end(row.id, 'failed', null, error ?? 'the chat ended without a result');
     this.dispatch();
   }
 
+  /** A run's chat is waiting for the account rotation, which may replay its turn: the core's to do. */
+  awaitsRotation(chatId: string): boolean {
+    return this.awaitingRotation.has(chatId);
+  }
+
+  /**
+   * What the rotation came to for a chat that hit the rate limit. Resumed, its turn was replayed on
+   * the next account in the same chat, and the run goes on there; otherwise no account was left to
+   * take it over, and the run fails and says so on its item.
+   */
+  rotated(chatId: string, outcome: { resumed: boolean; reason?: string | null }): void {
+    try {
+      if (!this.awaitingRotation.delete(chatId) || outcome.resumed) return;
+      const row = this.sql.prepare("SELECT * FROM flow_runs WHERE chat_id = ? AND state = 'running'").get(chatId) as RunRow | undefined;
+      if (!row) return;
+      this.end(row.id, 'failed', null, `the account hit its rate limit and no other account could take the run over${outcome.reason ? ` (${outcome.reason})` : ''}`);
+      this.dispatch();
+    } catch {
+      // heard from the core's rotation: a closed database (shutting down) must not become its error
+    }
+  }
+
   private async finish(row: RunRow, result: FlowChatResult): Promise<void> {
+    // A turn the rate limit cut goes on in the same chat on the next account, as a person's chat does
+    if (result.isError && result.cause === 'rate-limit' && row.chat_id && (this.awaitingRotation.has(row.chat_id) || this.deps.rotating?.(row.chat_id))) {
+      this.awaitingRotation.add(row.chat_id);
+      return;
+    }
     const parsed = result.isError ? null : parseResult(result.structuredOutput, row.stage as FlowStage);
     const failure = result.isError ? chatFailure(result, this.deps.project(row.project_id)?.settings) : parsed ? null : 'the run ended without a readable structured result';
     const verdictMissing = !!parsed && row.stage === 'verify' && !parsed.verdict;
@@ -1065,6 +1109,9 @@ export class FlowService {
   private end(runId: string, outcome: FlowRunOutcome, summary: string | null, error: string | null): boolean {
     const ended = this.endRow(runId, outcome, summary, error, new Date().toISOString());
     if (!ended) return false;
+    // A run stopped while it waited for the rotation is not replayed once the rotation comes back
+    const chatId = this.row(runId)?.chat_id;
+    if (chatId) this.awaitingRotation.delete(chatId);
     this.announce(runId, 'ended');
     if (outcome === 'failed') this.reportFailure(runId);
     return true;

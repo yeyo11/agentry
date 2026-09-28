@@ -57,7 +57,7 @@ const SUBAGENT_TOOLS = new Set(['Task', 'Agent']);
 const IGNORED_SUBTYPES = new Set(['thinking_tokens', 'hook_started', 'hook_response', 'commands_changed']);
 /** Wording the CLI uses when the subscription window is spent (`result` text and stderr) */
 const RATE_LIMIT_RE = /usage limit|rate limit|session limit|out of (?:usage|quota)|quota exceeded/i;
-/** One rotate-and-resume per run: a second failure is a real one, not a quota one */
+/** One rotate-and-resume per execution: a second failure is a real one, not a quota one */
 const MAX_ROTATION_RETRIES = 1;
 const MAX_ATTACHMENTS = 20;
 
@@ -961,6 +961,9 @@ export class ChatManager extends EventEmitter {
       chat.workingDir = adopt.cwd;
     }
     this.applyStartOptions(chat, request);
+    // A new execution is a new turn to see through: the rotation it may need is its own, not one an
+    // earlier execution of the chat already spent (a flow run continues its member's chat this way)
+    chat.rotationRetries = 0;
     const known = this.chats.has(id);
     if (!known) this.chats.set(id, chat);
     try {
@@ -1604,6 +1607,16 @@ export class ChatManager extends EventEmitter {
    */
   heldToSchema(id: string): boolean {
     return this.chats.get(id)?.opts.jsonSchema !== undefined;
+  }
+
+  /**
+   * The chat's turn died against the rate limit and a rotation will be asked for it: what a run
+   * held to a schema waits on rather than fail. True from the limit until the rotation is asked,
+   * so together with the rotation's own bookkeeping it covers the whole wait.
+   */
+  rotationComing(id: string): boolean {
+    const chat = this.chats.get(id);
+    return !!chat && chat.rateLimited && !chat.rotationRequested && !!chat.lastUserTurn && chat.rotationRetries < MAX_ROTATION_RETRIES;
   }
 
   /**
