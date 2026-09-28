@@ -4,7 +4,7 @@ import { ChevronRight, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { ApiRequestError, api, keys, useProjects, useProjectSettings, useWorkItemBoard } from '../../api';
+import { ApiRequestError, api, keys, useDocuments, useJournal, useProjects, useProjectSettings, useTeam, useWorkItemBoard } from '../../api';
 import { Sheet } from '../../components/controls';
 import { useConfirm } from '../../components/Dialog';
 import { ICON_SM, WorkItemStatusIcon } from '../../components/icons';
@@ -14,7 +14,7 @@ import { useDirty } from '../../lib/dirty';
 import { errorMessage, formatNumber } from '../../lib/format';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { columnMeta, openCount } from '../../lib/work-items';
-import { columnLimitsOf, LIMIT_STATUSES, normalizePrefix, prefixProblem, PROJECT_MODULES, sameModules, toggleModule } from '../projects/model';
+import { columnLimitsOf, LIMIT_STATUSES, moduleFigure, normalizePrefix, prefixProblem, PROJECT_MODULES, sameModules, toggleModule, type ModuleFigures } from '../projects/model';
 import { HiddenNote, ModuleCard, ModulesOffNote } from '../projects/parts';
 
 type Limits = Partial<Record<WorkItemStatus, number>>;
@@ -79,6 +79,12 @@ export function ProjectGeneral({ project }: { project: Project }) {
   const projects = useProjects(false).data;
   // Read with the module off too: it says how much a switched-off board still keeps
   const board = useWorkItemBoard(project.id, {}).data;
+  const has = (module: ProjectModule) => project.modules.includes(module);
+  const figures: ModuleFigures = {
+    members: useTeam(has('team') ? project.id : null).data?.members.length,
+    documents: useDocuments(has('documents') ? project.id : null).data?.fileCount,
+    journal: useJournal(has('memory') ? project.id : null, { limit: 1 }).data?.total,
+  };
   const saved = useMemo(
     () => ({ name: project.name, prefix: project.key, modules: project.modules, limits: settings.data?.board.columnLimits ?? {} }),
     [project.name, project.key, project.modules, settings.data],
@@ -179,8 +185,10 @@ export function ProjectGeneral({ project }: { project: Project }) {
       if (!on) return <HiddenNote empty={total === 0} />;
       return t('general.boardNote', { open: formatNumber(openCount(board) ?? 0), total: formatNumber(total) });
     }
-    // Only the board has a count worth a note; the other modules just say, when off, that they are hidden and kept
-    return on ? undefined : <HiddenNote empty={!saved.modules.includes(module)} />;
+    if (!on) return <HiddenNote empty={!saved.modules.includes(module)} />;
+    // What the module holds, read only while it is saved on: a module just switched on holds nothing yet
+    const figure = saved.modules.includes(module) ? moduleFigure(module, figures) : null;
+    return figure ? t(`general.moduleNote.${figure.key}`, { count: figure.count, n: formatNumber(figure.count) }) : undefined;
   };
   const onCount = modules.length;
   const prefixHint = (

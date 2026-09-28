@@ -7,8 +7,10 @@ import { Link } from 'react-router-dom';
 import { ApiRequestError, api, keys, useDocumentFile } from '../../api';
 import { CodeEditor } from '../../components/CodeEditor';
 import { MoreActions } from '../../components/controls';
+import type { MenuEntry } from '../../components/controls/Menu';
 import { useConfirm } from '../../components/Dialog';
 import { ICON_SM } from '../../components/icons';
+import { PhoneHeader } from '../../components/shell/PhoneHeader';
 import { useToast } from '../../components/Toast';
 import { Empty, ErrorBox, Segmented, Skeleton, Tag } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
@@ -96,6 +98,7 @@ export function DocumentPane({
   onClosed,
   onCancel,
   phone = false,
+  phoneHead,
 }: {
   project: Project;
   path: string;
@@ -106,6 +109,11 @@ export function DocumentPane({
   /** A phone's "Cancel": back to the document, leaving the edit */
   onCancel?: () => void;
   phone?: boolean;
+  /**
+   * A phone reading the document: the screen's own header (MobileDocumento), whose "⋯" holds what
+   * the desktop's pane bar menu does. Where the list is when there is no screen to go back to.
+   */
+  phoneHead?: { title: ReactNode; backLabel: string; fallback: string };
 }) {
   const { t } = useTranslation(['documents', 'common']);
   const file = useDocumentFile(project.id, path);
@@ -160,21 +168,48 @@ export function DocumentPane({
     });
   };
 
+  const entries: MenuEntry[] = [
+    { id: 'copy', label: t('pane.copyPath'), icon: Copy, onSelect: () => void navigator.clipboard?.writeText(path) },
+    {
+      id: 'delete',
+      label: t('pane.delete'),
+      icon: Trash2,
+      destructive: true,
+      onSelect: () =>
+        void confirm({
+          title: t('pane.deleteTitle', { path }),
+          body: (file.data?.ties.length ?? 0) > 0 ? t('pane.deleteTiedBody', { count: file.data?.ties.length ?? 0 }) : t('pane.deleteBody'),
+          confirmLabel: t('pane.delete'),
+          danger: true,
+        }).then((ok) => ok && remove.mutate()),
+    },
+  ];
+  const head =
+    phone && mode === 'view' && phoneHead ? (
+      <PhoneHeader className="doc-phone-head" title={phoneHead.title} subtitle={path} back={{ label: phoneHead.backLabel, fallback: phoneHead.fallback }} more={file.data ? entries : []} moreTitle={path} />
+    ) : null;
+
   const view = queryView(file);
   if (view === 'loading') {
     return (
-      <div className="doc-pane-body">
-        <Skeleton rows={6} height={16} />
-      </div>
+      <>
+        {head}
+        <div className="doc-pane-body">
+          <Skeleton rows={6} height={16} />
+        </div>
+      </>
     );
   }
   // A refetch that fails keeps the file drawn, and an edit in progress keeps its text
   if (view !== 'shown' || !data) {
     return (
-      <div className="doc-pane-body">
-        <ErrorBox error={file.error} title={t('pane.readFailed')} />
-        {!file.error && <Empty icon={FileText} title={t('pane.gone')} />}
-      </div>
+      <>
+        {head}
+        <div className="doc-pane-body">
+          <ErrorBox error={file.error} title={t('pane.readFailed')} />
+          {!file.error && <Empty icon={FileText} title={t('pane.gone')} />}
+        </div>
+      </>
     );
   }
 
@@ -182,27 +217,7 @@ export function DocumentPane({
   const trySave = () => draft && dirty && !save.isPending && save.mutate(draft);
   const discard = () => draft && setDraft({ ...draft, content: draft.saved });
 
-  const menu = (
-    <MoreActions
-      label={t('pane.more')}
-      entries={[
-        { id: 'copy', label: t('pane.copyPath'), icon: Copy, onSelect: () => void navigator.clipboard?.writeText(data.path) },
-        {
-          id: 'delete',
-          label: t('pane.delete'),
-          icon: Trash2,
-          destructive: true,
-          onSelect: () =>
-            void confirm({
-              title: t('pane.deleteTitle', { path: data.path }),
-              body: data.ties.length > 0 ? t('pane.deleteTiedBody', { count: data.ties.length }) : t('pane.deleteBody'),
-              confirmLabel: t('pane.delete'),
-              danger: true,
-            }).then((ok) => ok && remove.mutate()),
-        },
-      ]}
-    />
-  );
+  const menu = <MoreActions label={t('pane.more')} entries={entries} />;
 
   const conflictBox = conflict && (
     <div className="alert alert-warn" role="alert">
@@ -268,6 +283,7 @@ export function DocumentPane({
     }
     return (
       <div className="doc-phone-view">
+        {head}
         {tie && <DocumentOrigin tie={tie} />}
         <DocumentView content={data.content} />
         <div className="doc-phone-foot">

@@ -77,6 +77,8 @@ export default async ({ page, api, check, dirs }) => {
     // ---- settings: a clash is said in the field; switching the Board off hides its tab
     await page.goto(`/?project=${encodeURIComponent(project.id)}&view=settings`, 1500);
     await page.waitFor(`return !!document.querySelector('main .project-general')`, { label: 'the project settings' });
+    // A form with its own Save: the header carries no actions there (DesktopProyectoAjustes)
+    check(!(await page.eval(`return !!document.querySelector('main .project-head .page-actions')`)), 'the settings header has no actions');
     await page.fill('main .project-prefix input', otherKey);
     await page.waitFor(`return /already used/.test(document.querySelector('main .project-prefix .field-error')?.textContent ?? '')`, { label: 'the clash in the field' });
     check(await page.eval(`return [...document.querySelectorAll('main .project-general-actions .btn-primary')].every((b) => b.disabled)`), 'a clashing prefix cannot be saved');
@@ -145,6 +147,16 @@ export default async ({ page, api, check, dirs }) => {
     // Its tabs are cells, and without a Board there is none for it
     const cells = await page.eval(`return [...document.querySelectorAll('main .project-tab-cell .settings-cell-name')].map((c) => c.textContent).join(',')`);
     check(cells === 'Resources,Worktrees,Settings', `the phone's tab cells follow the modules (${cells})`);
+    // The page heads itself (MobileProyecto): back, the monogram, the key and path, a "⋯" sheet, and
+    // the assistant as a row above the sections
+    check(await page.eval(`return !!document.querySelector('main .phone-head.project-phone-head .phone-head-lead .monogram')`), 'the phone project header leads with the monogram');
+    check(await page.eval(`const bar = document.querySelector('.topbar'); return !bar || bar.getClientRects().length === 0`), 'no top bar over the phone project page');
+    const row = await page.eval(`const a = document.querySelector('main .project-assistant-row'); return a ? a.getAttribute('href') + '|' + a.textContent : ''`);
+    check(row.startsWith(`/projects/${encodeURIComponent(phoneProject.id)}/assistant|`) && row.includes('Project assistant'), `the assistant row leads to the assistant (${row})`);
+    check(
+      await page.eval(`const r = document.querySelector('main .project-assistant-row'), c = document.querySelector('main .project-tab-cells'); return !!(r && c && (r.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING))`),
+      'the assistant row sits above the sections',
+    );
     const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
     check(overflow <= 2, `the phone project page does not scroll sideways (${overflow}px)`);
   } finally {

@@ -6,6 +6,19 @@ import { useToast } from '../../../components/Toast';
 import { AI_KINDS, byDecision, proposalRuns, resourceProposals, sectionKinds, type ResourceSection } from './model';
 
 /**
+ * How many agents, skills and commands the project's `.claude/` holds: the Recursos tab's figure.
+ * The same queries as the tab's lists, so opening the tab reads them from the cache.
+ */
+export function useProjectResourceCount(project: Project): number | undefined {
+  const scope: Scope = { projectId: project.id };
+  const lists = useQueries({
+    queries: AI_KINDS.map((kind) => ({ queryKey: keys.resources(scope, kind), queryFn: () => api.resources(scope, kind) })),
+  });
+  if (lists.some((q) => !q.data)) return undefined;
+  return lists.reduce((sum, q) => sum + (q.data?.length ?? 0), 0);
+}
+
+/**
  * What the Resources tab reads and does: the project's agents, skills and commands, the assistant's
  * runs and their proposals, and the actions on them. The page keeps only the URL and the editor.
  */

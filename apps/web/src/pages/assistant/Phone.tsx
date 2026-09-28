@@ -1,11 +1,12 @@
 import type { AssistantRun, AssistantRunDetail, Project } from '@agentry/shared';
-import { ChevronLeft, ChevronRight, Clock, RefreshCw, X } from 'lucide-react';
+import { ChevronRight, Clock, RefreshCw, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { LiveRunHead, RunFacts, RunFindings, RunSources } from '../../components/assistant/run';
-import { MoreActions } from '../../components/controls';
+import type { MenuEntry } from '../../components/controls/Menu';
 import { ICON, ICON_SM } from '../../components/icons';
+import { PhoneHeader } from '../../components/shell/PhoneHeader';
 import { Segmented } from '../../components/ui';
 import { projectPath, proposalsOf, stageOf, tally } from './model';
 import { MemberProposalRow, SECTION_ICON, useDecide } from './proposals';
@@ -17,15 +18,13 @@ export function PhoneAssistant({ project, run, tasksRun, following, actions }: V
   const navigate = useNavigate();
   const stage = stageOf(run);
   const finished = stage === 'done' || stage === 'failed' || stage === 'stopped';
-  const more = finished && (
-    <MoreActions
-      label={t('more')}
-      entries={[
+  // What "⋯" offers once a run has ended: to ask again, or to leave for the project
+  const more: MenuEntry[] = finished
+    ? [
         { id: 'again', label: t('suggestAgain'), icon: RefreshCw, onSelect: () => actions.start.mutate({ kind: 'project', supersede: true }) },
         { id: 'project', label: t('goToProject'), icon: ChevronRight, onSelect: () => navigate(projectPath(project.id)) },
-      ]}
-    />
-  );
+      ]
+    : [];
   let body: ReactNode = null;
   let foot: ReactNode = null;
   if (stage === 'none') body = <NoRun project={project} actions={actions} />;
@@ -69,18 +68,8 @@ export function PhoneAssistant({ project, run, tasksRun, following, actions }: V
     );
   return (
     <div className="assistant-page is-phone">
-      <header className="page-header project-head project-head-phone assistant-head-phone">
-        <Link to={projectPath(project.id)} className="icon-btn" aria-label={t('back')}>
-          <ChevronLeft {...ICON} />
-        </Link>
-        <div className="page-header-text project-head-text">
-          <h1>{t('title')}</h1>
-          <span className="mono small muted ellipsis">
-            {project.name} · {project.key}
-          </span>
-        </div>
-        {more}
-      </header>
+      {/* MobileAsistente: the screen's own header, the shell's top bar hidden on this route */}
+      <PhoneHeader className="assistant-head-phone" title={t('title')} subtitle={`${project.name} · ${project.key}`} back={{ label: t('back'), fallback: projectPath(project.id) }} more={more} moreLabel={t('more')} />
       {body}
       {foot && <footer className="assistant-foot">{foot}</footer>}
     </div>
