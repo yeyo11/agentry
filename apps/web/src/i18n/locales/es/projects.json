@@ -218,5 +218,10 @@
     "saving": "Guardando…",
     "saved": "Ajustes del proyecto guardados",
     "saveFailed": "No se han podido guardar los ajustes del proyecto"
+  },
+  "illustration": {
+    "refine": "refinar",
+    "work": "implementar",
+    "verify": "verificar"
   }
 }
