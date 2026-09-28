@@ -570,6 +570,19 @@
   min-height: 44px;
 }
 
+/* A short document still has its bar at the bottom of the screen, not right under its text (the
+   reference's MobileDocumento): the bar is pinned to the bottom edge, which an open document keeps
+   free of the tab bar */
+.doc-phone-view > .doc-phone-foot {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+}
+
 /* ---------- Memory ---------- */
 
 .memory-tab {
