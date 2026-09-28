@@ -206,6 +206,24 @@
   color: inherit;
 }
 
+/* The phone's byline (MobileDocumento): one touch-sized link to the task, on one line */
+.doc-origin-phone {
+  flex-wrap: nowrap;
+  min-height: var(--touch);
+  color: var(--fg-2);
+  text-decoration: none;
+}
+
+.doc-origin-phone .doc-origin-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-origin-phone .doc-origin-chevron {
+  flex-shrink: 0;
+  color: var(--fg-3);
+}
+
 /* A document rendered from Markdown, at reading width: the transcript's .md, set as a page */
 .doc-view {
   max-width: 680px;

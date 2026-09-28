@@ -1,6 +1,6 @@
 import type { DocumentFile, DocumentTie, Project } from '@agentry/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, Copy, FileText, Pencil, Trash2 } from 'lucide-react';
+import { Check, ChevronRight, Copy, FileText, Pencil, Trash2 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -30,10 +30,32 @@ const shortId = (id: string | null) => (id ? id.slice(0, 6) : '');
 /**
  * Where a generated document came from: the role that wrote it, the item, the chat and when. A
  * document a person tied by hand says only which item it belongs to.
+ *
+ * On a phone (MobileDocumento) the byline is one touch-sized link to the task, with a chevron:
+ * the small key and chat links of the desktop row would be targets under 44 px, and the chat id
+ * and time are detail a phone leaves to the task.
  */
-export function DocumentOrigin({ tie }: { tie: DocumentTie }) {
+export function DocumentOrigin({ tie, phone = false }: { tie: DocumentTie; phone?: boolean }) {
   const { t } = useTranslation('documents');
   const roleName = useRoleName();
+  if (phone) {
+    return (
+      <Link to={taskPath(tie.item.key)} className="doc-origin doc-origin-phone" title={tie.item.title}>
+        {tie.teamRole && <RoleAvatar role={tie.teamRole} size="sm" />}
+        <span className="doc-origin-text">
+          {tie.teamRole ? (
+            <>
+              {t('origin.wroteBy')} <b>{roleName(tie.teamRole)}</b> {t('origin.from')}
+            </>
+          ) : (
+            t('origin.tiedTo')
+          )}{' '}
+          <span className="workitem-key boxed">{tie.item.key}</span>
+        </span>
+        <ChevronRight {...ICON_SM} className="doc-origin-chevron" />
+      </Link>
+    );
+  }
   return (
     <div className="doc-origin">
       {tie.teamRole ? (
@@ -284,7 +306,7 @@ export function DocumentPane({
     return (
       <div className="doc-phone-view">
         {head}
-        {tie && <DocumentOrigin tie={tie} />}
+        {tie && <DocumentOrigin tie={tie} phone />}
         <DocumentView content={data.content} />
         <div className="doc-phone-foot">
           <button type="button" className="btn btn-block" onClick={() => onMode('edit')}>
