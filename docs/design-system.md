@@ -909,6 +909,34 @@ Where §2 planned an app name and the app settled on another:
 - Time follows decision 10 with the owner's rule for past moments: a relative time everywhere, and
   the bare hour ("17:44") only inside a list grouped by day, such as Team activity.
 
+Variants the app drew where the reference had no class, mirrored in §19 of
+[agentry-ds.css](design-system/agentry-ds.css) under the app's names:
+
+- `.phone-head.is-modal`: a modal flow's header (new task, the wizard, editing a document), its
+  title centred at 17 px between "Cancelar" or "Cerrar" and what the flow creates.
+- `.model-pick-sheet` / `.model-pick-option`: `ModelPicker` on a phone opens a sheet of 48 px
+  options, the current model checked (`.model-pick-check`), instead of a popover.
+- `.flow-limit-cost`: the cost limit of a flow run in the Límites card, a field with its currency
+  inside; full width, 44 px and a 16 px input on a phone.
+- `.board-flow-row`: the phone board's flow state under the views, the whole row a link to the
+  flow, at 13 px so "2 a la vez, 1 en cola" is not cut on a 390 px phone.
+- `.project-assistant-row`: decision 3's "Asistente del proyecto" row, a card above the project's
+  sections on a phone.
+- `.workitem-msection-over`: a phone board section over its limit, one line of warn text at the
+  end of its head (decision 1 on a phone).
+- `.comment-run-chat`: a failed run's comment in the item's activity links to the run's chat; on a
+  phone it is a 44 px target of its own under the sentence.
+- `.flow-log-sheet` / `.flow-log-sheet-option`: Team activity's view picker as a sheet on a phone.
+- `.chat-run-failed-quiet`: the failed run banner's secondary action, a ghost button; a phone hides
+  it, since the item row above the banner already opens the item.
+- `.doc-origin-phone`: a phone document's byline (MobileDocumento), one touch-sized link to the task
+  with a chevron, no chat and no time; the desktop keeps the key and chat links.
+- `PhoneViewHead` (`.project-phone-head`, no rules of its own): a project tab opened as its own
+  screen on a phone is headed by the tab's name and the project, with the folder it reads when it
+  reads one (`docs/`, `.claude/`). Its "⋯" always leads to the assistant; on Ajustes and Recursos,
+  where the reference draws no "⋯", it holds "Asistente" alone, since Ajustes has its own Save and
+  Recursos its "+" in the toolbar.
+
 
 ## Related
 

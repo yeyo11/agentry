@@ -1195,3 +1195,49 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .dv-fold { white-space: nowrap; }
 .dv-wrap .dv-fold { padding-left: calc(var(--dv-num) + 10px); }
 .dv-wrap .dv-fold .fold-where { display: none; }
+
+/* ---------- 19. App-only variants of the ecosystem design pass (orchestration 7) ----------
+   Drawn by the app where the reference had no class of its own, under the app's names, so a
+   screen built from this sheet matches the app. design-system.md, "The ecosystem design review". */
+/* A modal flow's header (new task, the wizard, editing a document): the title centred and smaller */
+.phone-head.is-modal h1 { font-size: 17px; text-align: center; }
+/* ModelPicker on a phone: the models as a sheet of 48 px options, the current one checked */
+.model-pick-sheet { display: flex; flex-direction: column; }
+.model-pick-option { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 4px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--fg); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.model-pick-option:last-child { border-bottom: 0; }
+.model-pick-check { margin-left: auto; color: var(--fg); }
+/* The flow's cost limit: a field with its currency inside, in the Límites card */
+.flow-limit-cost { display: inline-flex; align-items: center; gap: 6px; width: 128px; flex-shrink: 0; height: var(--control-h); padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--bg-2); }
+.flow-limit-cost:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.flow-limit-cost input { flex: 1 1 auto; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--fg); font: 13px var(--sans); font-variant-numeric: tabular-nums; }
+.m-screen .flow-limit-cost { width: 100%; min-height: var(--touch); }
+.m-screen .flow-limit-cost input { font-size: 16px; }
+/* The phone board's flow row under the views, the whole row a link to the flow (MobileTableroEquipo) */
+.board-flow-row { display: flex; align-items: center; gap: 8px; min-height: var(--touch); padding: 0 12px; color: var(--fg); font-size: 13px; text-decoration: none; }
+.board-flow-row > .ico { flex: none; color: var(--fg-3); }
+.board-flow-row-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-flow-row-figures { color: var(--fg-2); }
+/* A phone's way to the project assistant, a card row above the project's sections (decision 3) */
+.project-assistant-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px 14px; color: inherit; text-align: start; text-decoration: none; }
+.project-assistant-row-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.project-assistant-row-title { font-weight: 500; }
+/* A phone board section over its limit says so in one line of warn text at the end of its head */
+.workitem-msection-over { display: inline-flex; align-items: center; gap: 5px; color: var(--warn); font-size: 12px; font-weight: 500; white-space: nowrap; }
+/* A failed run's comment on the item: its way to the run's chat, a target of its own on a phone */
+.comment-run-chat { color: var(--accent); font-weight: 500; }
+.m-screen .comment-run-chat { display: flex; align-items: center; width: fit-content; min-height: var(--touch); margin: 2px 0 -8px; }
+/* Team activity on a phone: the view picker as a sheet of options */
+.flow-log-sheet { display: flex; flex-direction: column; }
+.flow-log-sheet-option { display: flex; align-items: center; gap: 12px; min-height: var(--touch); padding: 0 4px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--fg); font: 15px var(--sans); text-align: left; cursor: pointer; }
+.flow-log-sheet-option:first-child { border-top: 0; }
+.flow-log-sheet-option[aria-selected="true"] { font-weight: 600; }
+/* The failed run's banner (.run-fail, the app's .chat-run-failed): its secondary action, quiet; a
+   phone drops it, since the row above the banner already opens the item */
+.btn.chat-run-failed-quiet { border-color: transparent; background: transparent; }
+.btn.chat-run-failed-quiet:hover { background: var(--bg-3); }
+.m-screen .btn.chat-run-failed-quiet { display: none; }
+/* A phone document's byline (MobileDocumento): one touch-sized link to the task, with a chevron */
+a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--fg-2); text-decoration: none; }
+.doc-origin-phone .doc-origin-text { flex: 1; min-width: 0; }
+.doc-origin-phone .doc-origin-chevron { flex-shrink: 0; color: var(--fg-3); }
+/* ---------- end of 19 ---------- */
