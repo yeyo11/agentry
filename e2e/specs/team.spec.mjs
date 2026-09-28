@@ -98,7 +98,8 @@ export default async ({ page, api, check, dirs }) => {
     check(JSON.stringify(rows) === JSON.stringify(['backlog', 'todo', 'in_progress', 'in_review', 'done']), `a row per column (${rows})`);
     check(await page.eval(`return !!document.querySelector('.flow-row[data-status="done"] .flow-role.is-fixed')`), "Done is the person's, fixed");
     await page.click('.flow-auto [role=switch]', undefined, 400);
-    await page.click('.flow-bounces button[aria-label]', undefined, 300);
+    // Bounces are the first row of the one Limits card, a stepper
+    await page.click('.flow-limits .number-step', undefined, 300);
     await page.waitFor(`return document.querySelector('.team-toolbar .badge-warn')?.textContent.includes('unsaved changes')`, { label: 'the flow has unsaved changes' });
     await page.click('.team-toolbar .btn-primary', 'Save the flow', 1500);
     await page.waitFor(`return !document.querySelector('.team-toolbar .badge-warn')`, { label: 'the flow saved' });
@@ -132,7 +133,8 @@ export default async ({ page, api, check, dirs }) => {
     await page.viewport(390, 844);
     await page.goto(`/?project=${project.id}&view=team`, 1500);
     await page.waitFor(`return document.querySelectorAll('.member-cell').length === 4`, { label: 'the phone members' });
-    check(await page.eval(`return !!document.querySelector('.team-page .project-head-phone h1')`), 'the phone Team screen heads itself');
+    check(await page.eval(`return document.querySelector('.team-page .phone-head h1')?.textContent === 'Team'`), 'the phone Team screen heads itself');
+    check(await page.eval(`return !!document.querySelector('.phone-head .phone-head-more')`), 'with its "⋯"');
     await page.click('.member-cell', 'QA', 1200);
     await page.waitFor(`return new URLSearchParams(location.search).get('member') === 'qa' && !!document.querySelector('.member-page.is-phone')`, { label: 'the phone member' });
     const target = await page.eval(`const b = document.querySelector('.member-phone-foot .btn-primary').getBoundingClientRect(); return b.height`);
