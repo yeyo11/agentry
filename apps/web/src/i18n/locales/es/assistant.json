@@ -87,7 +87,7 @@
     "theTemplate": "el de {{name}}",
     "outside": "fuera de la plantilla",
     "writes": "escribe:",
-    "writesNothing": "nada, solo tareas",
+    "writesNothing": "solo documentos",
     "added": "añadido",
     "addedWhere": "añadido · .claude/agents/"
   },

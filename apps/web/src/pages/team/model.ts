@@ -1,4 +1,4 @@
-import type { FlowRun, FlowStage, ProjectFlowSettings, ProjectSettings, TeamMember, WorkItemStatus } from '@agentry/shared';
+import type { FlowRun, FlowStage, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus } from '@agentry/shared';
 import { WORK_ITEM_STATUSES } from '@agentry/shared';
 
 /**
@@ -131,6 +131,11 @@ export function cleanWrites(paths: readonly string[]): string[] {
   return [...new Set(paths.map((path) => path.trim()).filter(Boolean))];
 }
 
+/** Two `writes` alike: absent (anywhere) is not the same as empty (only the documents folder). */
+export function sameWrites(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
+  return a === undefined || b === undefined ? a === b : sameList(a, b);
+}
+
 export function sameList(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
   const x = a ?? [];
   const y = b ?? [];
@@ -152,4 +157,39 @@ export function teamSearch(params: URLSearchParams, next: { section?: TeamSectio
     else query.delete('member');
   }
   return `?${query.toString()}`;
+}
+
+/**
+ * Where a member may write, as its `writes` says it and the flow enforces it (`stageRules` in
+ * packages/core/src/flow.ts): absent is no limit of Agentry's own, `[]` is nothing of the project
+ * but the documents folder, and a list is those paths plus the documents folder.
+ */
+export type WriteScope = 'anywhere' | 'documents' | 'paths';
+
+export function writeScope(writes: readonly string[] | undefined): WriteScope {
+  if (!writes) return 'anywhere';
+  return writes.length > 0 ? 'paths' : 'documents';
+}
+
+/** `writes` as the team route takes it for a scope: absent for anywhere, so the absence is what is saved. */
+export function writesFor(scope: WriteScope, paths: readonly string[]): string[] | undefined {
+  if (scope === 'anywhere') return undefined;
+  return scope === 'documents' ? [] : cleanWrites(paths);
+}
+
+/**
+ * The body that saves a member with only `patch` changed. `writes` stays absent when it was: sending
+ * `[]` in its place would take a member that may write anywhere down to the documents folder.
+ */
+export function memberBody(
+  member: Pick<TeamMember, 'role' | 'model' | 'responsibility' | 'writes'>,
+  patch: Partial<Pick<TeamMember, 'model' | 'responsibility'>> & { writes?: string[] | null } = {},
+): PutTeamMemberRequest {
+  const writes = patch.writes === undefined ? member.writes : (patch.writes ?? undefined);
+  return {
+    role: member.role,
+    model: patch.model ?? member.model,
+    responsibility: patch.responsibility ?? member.responsibility,
+    ...(writes ? { writes: [...writes] } : {}),
+  };
 }

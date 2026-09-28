@@ -59,7 +59,18 @@
     "consulted": "Ninguna columna · se le consulta",
     "writes": "Puede escribir en",
     "writesAnywhere": "En todo el proyecto",
-    "writesHint": "Fuera de estas rutas, los chats que Agentry le abre no pueden editar. Desde la terminal solo cuenta lo que dice su archivo de agente.",
+    "writesDocuments": "Solo la carpeta de documentos",
+    "writesNone": "Ninguna ruta: solo la carpeta de documentos",
+    "scope": {
+      "anywhere": "En todo",
+      "documents": "Solo documentos",
+      "paths": "Estas rutas"
+    },
+    "scopeHint": {
+      "anywhere": "Agentry no pone ningún límite propio a los chats que le abre. Desde la terminal solo cuenta lo que dice su archivo de agente.",
+      "documents": "Ningún archivo del proyecto: solo documentos en la carpeta de documentos, donde van las especificaciones y los informes. Desde la terminal solo cuenta lo que dice su archivo de agente.",
+      "paths": "Fuera de estas rutas y de la carpeta de documentos, los chats que Agentry le abre no pueden editar. Desde la terminal solo cuenta lo que dice su archivo de agente."
+    },
     "addPath": "Añadir una ruta…",
     "responsibility": "Responsabilidad",
     "responsibilityHint": "Va al principio de cada prompt que recibe el rol.",

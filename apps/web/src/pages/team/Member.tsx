@@ -1,7 +1,7 @@
 import type { FlowRun, Project, TeamMember } from '@agentry/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookText, Check, ChevronLeft, ChevronRight, FileWarning, MessageCircle, Pencil, Undo2, UserMinus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useMemoryProposals } from '../../api';
@@ -12,20 +12,22 @@ import { StringListEditor } from '../../components/editors';
 import { ICON, ICON_SM, WorkItemKey } from '../../components/icons';
 import { Spinner } from '../../components/Spinner';
 import { useToast } from '../../components/Toast';
-import { ErrorBox, ModelCombobox, Skeleton, Tag } from '../../components/ui';
+import { ErrorBox, ModelCombobox, Segmented, Skeleton, Tag } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 import { timeAgo } from '../../lib/format';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { taskPath } from '../../lib/work-items';
 import { AnswersFor, FileState } from './Members';
-import { cleanWrites, sameList, stageOf } from './model';
+import { frontmatterProblem } from '../config/frontmatter';
+import { memberBody, sameWrites, stageOf, writeScope, writesFor, type WriteScope } from './model';
 import { RunTicker, runTime, useRunDone } from './parts';
 import { RoleAvatar, useRoleName } from './RoleAvatar';
 
 interface Draft {
   responsibility: string;
   model: string;
-  writes: string[];
+  scope: WriteScope;
+  paths: string[];
   content: string;
 }
 
@@ -92,18 +94,24 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
   const mine = (proposals.data ?? []).filter((proposal) => proposal.proposedBy.role === member.role);
   const [editing, setEditing] = useState(false);
 
-  const saved: Draft = { responsibility: member.responsibility, model: member.model, writes: member.writes ?? [], content: file.data?.content ?? '' };
-  const [draft, setDraft] = useState<Draft | null>(null);
-  // The draft starts from the file once it is read; until then the form shows the metadata alone
-  useEffect(() => {
-    if (draft === null && (file.data || member.file.state === 'missing')) setDraft(saved);
-  }, [file.data, member.file.state]);
-  const now = draft ?? saved;
-  const metaChanged = now.responsibility.trim() !== saved.responsibility || now.model.trim() !== saved.model || !sameList(cleanWrites(now.writes), saved.writes);
-  const fileChanged = member.file.state !== 'missing' && draft !== null && now.content !== saved.content;
+  const saved: Draft = {
+    responsibility: member.responsibility,
+    model: member.model,
+    scope: writeScope(member.writes),
+    paths: member.writes ?? [],
+    content: file.data?.content ?? '',
+  };
+  // Only the fields the person touched: the rest follows what is saved, so a model changed on the
+  // Flow screen, a file Agentry rewrote or another tab's save shows here instead of being overwritten
+  const [draft, setDraft] = useState<Partial<Draft>>({});
+  const now: Draft = { ...saved, ...draft };
+  const writes = writesFor(now.scope, now.paths);
+  const metaChanged = now.responsibility.trim() !== saved.responsibility || now.model.trim() !== saved.model || !sameWrites(writes, member.writes);
+  const fileChanged = member.file.state !== 'missing' && draft.content !== undefined && draft.content !== saved.content;
   const dirty = metaChanged || fileChanged;
   useDirty(`member:${member.agent}`, dirty);
-  const set = (patch: Partial<Draft>) => setDraft({ ...now, ...patch });
+  const set = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }));
+  const frontmatter = fileChanged ? frontmatterProblem('agents', now.content) : null;
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: keys.team(project.id) });
@@ -116,12 +124,12 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
       // The metadata first: Agentry may rewrite a file it wrote itself to follow it, and the person's
       // own edit to the file must be the last word
       if (metaChanged)
-        await api.putTeamMember(project.id, member.agent, { role: member.role, model: now.model.trim(), responsibility: now.responsibility.trim(), writes: cleanWrites(now.writes) });
+        await api.putTeamMember(project.id, member.agent, memberBody(member, { model: now.model.trim(), responsibility: now.responsibility.trim(), writes: writes ?? null }));
       if (fileChanged) await api.putResource({ projectId: project.id }, AGENTS, member.agent, now.content);
     },
     onSuccess: async () => {
       await refresh();
-      setDraft(null);
+      setDraft({});
       setEditing(false);
       toast.success(t('member.saved', { name }));
     },
@@ -130,11 +138,8 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
 
   const writeFile = useMutation({
     mutationFn: () =>
-      api.putTeamMember(project.id, member.agent, { role: member.role, model: member.model, responsibility: member.responsibility, writes: member.writes ?? [], createFile: true }),
-    onSuccess: async () => {
-      await refresh();
-      setDraft(null);
-    },
+      api.putTeamMember(project.id, member.agent, { ...memberBody(member), createFile: true }),
+    onSuccess: () => refresh(),
     onError: (error) => toast.error(t('file.writeFailed'), error),
   });
 
@@ -161,11 +166,11 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
   );
   const actions = (
     <>
-      <button type="button" className="btn" disabled={!dirty || save.isPending} onClick={() => setDraft(saved)}>
+      <button type="button" className="btn" disabled={!dirty || save.isPending} onClick={() => setDraft({})}>
         <Undo2 {...ICON_SM} />
         {t('config:shared.discard')}
       </button>
-      <button type="button" className="btn btn-primary" disabled={!dirty || save.isPending || !now.model.trim()} onClick={() => save.mutate()}>
+      <button type="button" className="btn btn-primary" disabled={!dirty || save.isPending || !now.model.trim() || frontmatter !== null} onClick={() => save.mutate()}>
         <Check {...ICON_SM} />
         {t('config:shared.save')}
       </button>
@@ -197,7 +202,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
   const editor =
     member.file.state === 'missing' ? null : file.error ? (
       <ErrorBox error={file.error} />
-    ) : draft === null ? (
+    ) : file.isLoading ? (
       <Skeleton rows={8} height={16} />
     ) : phone && !editing ? (
       <pre className="member-file-preview" aria-label={t('member.filePreview', { path: member.file.path })}>
@@ -216,8 +221,13 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
           language="markdown"
           ariaLabel={t('member.fileContent')}
           minHeight={phone ? '280px' : '420px'}
-          onSave={() => dirty && save.mutate()}
+          onSave={() => dirty && frontmatter === null && save.mutate()}
         />
+        {frontmatter && (
+          <span className="field-error" role="alert">
+            {t(`config:resources.frontmatter.${frontmatter}`)}
+          </span>
+        )}
       </div>
     );
 
@@ -249,16 +259,28 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
       {!phone && <span className="field-hint">{t('member.responsibilityHint')}</span>}
     </label>
   );
-  const writes = (
+  const writesField = (
     <div className="member-field">
       <span className="member-field-head">
         <span className="section-label">{t('member.writes')}</span>
         {phone && unsaved}
       </span>
-      <div className="member-writes">
-        <StringListEditor values={now.writes} onChange={(values) => set({ writes: values })} placeholder={t('member.addPath')} label={t('member.addPath')} emptyText={t('member.writesAnywhere')} />
-      </div>
-      <span className="field-hint">{t('member.writesHint')}</span>
+      <Segmented<WriteScope>
+        label={t('member.writes')}
+        value={now.scope}
+        onChange={(scope) => set({ scope })}
+        options={[
+          { value: 'anywhere', label: t('member.scope.anywhere') },
+          { value: 'documents', label: t('member.scope.documents') },
+          { value: 'paths', label: t('member.scope.paths') },
+        ]}
+      />
+      {now.scope === 'paths' && (
+        <div className="member-writes">
+          <StringListEditor values={now.paths} onChange={(paths) => set({ paths })} placeholder={t('member.addPath')} label={t('member.addPath')} emptyText={t('member.writesNone')} />
+        </div>
+      )}
+      <span className="field-hint">{t(`member.scopeHint.${now.scope}`)}</span>
     </div>
   );
 
@@ -345,7 +367,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
         <div className="card member-phone-props">{props}</div>
         {fileNotice}
         {responsibility}
-        {writes}
+        {writesField}
         {member.file.state !== 'missing' && (
           <div className="member-field">
             <span className="member-field-head">
@@ -371,7 +393,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
         {fileNotice}
         <div className="member-form">
           {responsibility}
-          {writes}
+          {writesField}
         </div>
         {member.file.state !== 'missing' && (
           <section className="member-file-section">

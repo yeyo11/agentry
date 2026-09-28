@@ -12,7 +12,7 @@ import { ModelCombobox, Tag } from '../../components/ui';
 import { useDirty } from '../../lib/dirty';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { columnMeta, taskPath } from '../../lib/work-items';
-import { FLOW_COLUMNS, MAX_BOUNCES, sameFlow, setColumnRole } from './model';
+import { FLOW_COLUMNS, MAX_BOUNCES, memberBody, sameFlow, setColumnRole } from './model';
 import { PersonMark } from './parts';
 import { RoleAvatar, useRoleName } from './RoleAvatar';
 
@@ -69,7 +69,7 @@ export function FlowEditor({ project, team, flow: saved, switcher }: { project: 
         await api.putProjectSettings(project.id, { ...fresh, flow: draft });
       }
       for (const member of modelChanges)
-        await api.putTeamMember(project.id, member.agent, { role: member.role, model: (models[member.agent] ?? member.model).trim(), responsibility: member.responsibility, writes: member.writes ?? [] });
+        await api.putTeamMember(project.id, member.agent, memberBody(member, { model: (models[member.agent] ?? member.model).trim() }));
     },
     onSuccess: () => {
       discard();

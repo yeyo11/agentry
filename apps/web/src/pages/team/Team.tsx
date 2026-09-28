@@ -69,7 +69,8 @@ export function ProjectTeam({ project }: { project: Project }) {
   const flow = flowOf(settings.data, members);
 
   const member = memberId ? members.find((m) => m.agent === memberId) : undefined;
-  if (member) return <MemberPage project={project} member={member} backHref={teamSearch(params, { member: null })} />;
+  // Keyed by the agent: what is typed for one member is never carried to the next one opened
+  if (member) return <MemberPage key={member.agent} project={project} member={member} backHref={teamSearch(params, { member: null })} />;
 
   const count = members.length;
   const phoneDetail = section === 'members' && count > 0 ? `${project.name} · ${t('members.count', { count })}` : project.name;

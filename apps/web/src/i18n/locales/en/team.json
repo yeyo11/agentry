@@ -59,7 +59,18 @@
     "consulted": "No column · consulted",
     "writes": "May write in",
     "writesAnywhere": "Anywhere in the project",
-    "writesHint": "Outside these paths the chats Agentry starts for it may not edit. From a terminal it is only what its agent file says.",
+    "writesDocuments": "Only the documents folder",
+    "writesNone": "No path: only the documents folder",
+    "scope": {
+      "anywhere": "Anywhere",
+      "documents": "Only documents",
+      "paths": "These paths"
+    },
+    "scopeHint": {
+      "anywhere": "Agentry sets no limit of its own on the chats it starts for it. From a terminal it is only what its agent file says.",
+      "documents": "None of the project's files: only documents in the documents folder, where specifications and reports go. From a terminal it is only what its agent file says.",
+      "paths": "Outside these paths and the documents folder, the chats Agentry starts for it may not edit. From a terminal it is only what its agent file says."
+    },
     "addPath": "Add a path…",
     "responsibility": "Responsibility",
     "responsibilityHint": "Goes at the start of every prompt the role gets.",

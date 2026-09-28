@@ -6,14 +6,18 @@ import {
   cleanWrites,
   columnsOf,
   flowOf,
+  memberBody,
   roleFallbackName,
   roleInitials,
   sameFlow,
+  sameWrites,
   setColumnRole,
   stageOf,
   teamActivity,
   teamSearch,
   workingCount,
+  writeScope,
+  writesFor,
 } from '../src/pages/team/model.ts';
 
 const run = (id: string, over: Partial<FlowRun> = {}): FlowRun => ({
@@ -115,4 +119,27 @@ test("the Team tab's address keeps the project and names the section and the mem
   assert.equal(teamSearch(new URLSearchParams('project=p1&view=team&section=flow'), { section: 'members' }), '?project=p1&view=team');
   assert.equal(teamSearch(params, { member: 'qa' }), '?project=p1&view=team&member=qa');
   assert.equal(teamSearch(new URLSearchParams('view=team&member=qa'), { member: null }), '?view=team');
+});
+
+test("a member's writes read three ways: no writes is anywhere, an empty list is only the documents folder", () => {
+  assert.equal(writeScope(undefined), 'anywhere');
+  assert.equal(writeScope([]), 'documents');
+  assert.equal(writeScope(['src/']), 'paths');
+  assert.equal(writesFor('anywhere', ['src/']), undefined);
+  assert.deepEqual(writesFor('documents', ['src/']), []);
+  assert.deepEqual(writesFor('paths', [' src/ ', '', 'src/']), ['src/']);
+  assert.ok(sameWrites(undefined, undefined));
+  assert.ok(!sameWrites(undefined, []));
+  assert.ok(sameWrites(['a'], ['a']));
+});
+
+test("saving a member's model keeps a member that may write anywhere writing anywhere", () => {
+  // The Flow screen saved `writes: member.writes ?? []`, which turned "anywhere" into "only documents"
+  const anywhere = member('developer', { model: 'sonnet' });
+  const body = memberBody(anywhere, { model: 'opus' });
+  assert.equal(body.model, 'opus');
+  assert.ok(!('writes' in body));
+  assert.deepEqual(memberBody(member('qa', { writes: [] })).writes, []);
+  assert.deepEqual(memberBody(member('dev', { writes: ['src/'] }), { writes: null }), { role: 'dev', model: 'sonnet', responsibility: '' });
+  assert.deepEqual(memberBody(anywhere, { writes: ['docs/'] }).writes, ['docs/']);
 });
