@@ -17,7 +17,7 @@ import {
   type WorkItemRef,
   type WorkItemStatus,
 } from '@agentry/shared';
-import { addWorktree, git, headCommit, isGitRepo, isIgnored, lockWorktree, mainTopLevel, topLevel } from './git.ts';
+import { addWorktree, branchExists, git, headCommit, isGitRepo, isIgnored, lockWorktree, mainCheckout, topLevel, worktrees } from './git.ts';
 import { WorkItemError } from './work-item-validation.ts';
 import type { WorkItemService } from './work-items.ts';
 
@@ -36,6 +36,8 @@ import type { WorkItemService } from './work-items.ts';
 export const WORK_CAUSE = {
   chatStarted: 'chat.started',
   turnCompleted: 'chat.turn-completed',
+  /** The chat ended failed before its turn gave any result: the move its start made is undone */
+  chatFailed: 'chat.failed-to-start',
   message: 'chat.message',
   taskStarted: 'orchestration.task.started',
   taskCompleted: 'orchestration.task.completed',
@@ -143,43 +145,61 @@ export interface ItemPlace {
   branch: string;
 }
 
+/** Whether a recorded place is the item's own, rather than the worktree of a node that worked on it. */
+export function ownsPlace(item: Pick<WorkItem, 'branch'>): boolean {
+  return !!item.branch?.startsWith('task/');
+}
+
+const LOCK_REASON = 'agentry work item ';
+
 /**
  * The item's own worktree, on `task/<key>`, made the first time and found again after. It sits where
  * the CLI keeps the worktrees it makes, under the main checkout, so the chat that runs there is
  * attached to the project. Null when the project is not a git repository, or has no commit yet to
  * branch from: the work then happens in the project's directory.
+ *
+ * It is never a node's worktree, even when a node worked on the item last: retrying that node
+ * clean removes its worktree and branch, and whatever a person did there would go with them. The
+ * item's own branch starts from the node's instead, so the node's work carries over, or else from
+ * the project's HEAD, which in a linked worktree is not the main checkout's.
  */
-export function itemWorktree(projectPath: string, item: Pick<WorkItem, 'key' | 'worktree' | 'branch'>): ItemPlace | null {
+export function itemWorktree(projectPath: string, item: Pick<WorkItem, 'key' | 'worktree' | 'branch'> & { projectId?: string }): ItemPlace | null {
   if (!canBranch(projectPath)) return null;
   const root = topLevel(projectPath);
-  const home = mainTopLevel(projectPath);
+  const home = mainCheckout(projectPath);
   const sub = relative(root, realpathSync(projectPath));
   // An ignored directory is missing from a fresh worktree: work at its top instead, as a node does
   const subdir = sub && !isIgnored(root, sub) ? sub : '';
-  const worktree = item.worktree ?? join(home, '.claude', 'worktrees', `task-${item.key.toLowerCase()}`);
-  const branch = item.branch ?? workItemBranch(item.key);
-  const registered = isWorktreeOf(home, worktree);
+  const own = ownsPlace(item);
+  // A recorded place keeps the key it was made with, so a new prefix does not strand earlier work
+  const worktree = (own && item.worktree) || join(home, '.claude', 'worktrees', `task-${item.key.toLowerCase()}`);
+  const branch = own && item.branch ? item.branch : workItemBranch(item.key);
+  const known = worktrees(home);
+  const wanted = new Set([worktree, existsSync(worktree) ? realpathSync(worktree) : worktree]);
+  const entry = known.find((w) => wanted.has(w.path));
+  const reason = `${LOCK_REASON}${item.key}${item.projectId ? ` of project ${item.projectId}` : ''}`;
   if (existsSync(worktree)) {
     // Git commands in a plain directory under the checkout reach the checkout itself: the chat
     // would work on the project's own branch, not the item's
-    if (!registered) throw new WorkItemError(`${worktree} is there but is not a worktree of this project: move it away and try again`, 409);
+    if (!entry) throw new WorkItemError(`${worktree} is there but is not a worktree of this project: move it away and try again`, 409);
+    // Two projects in one repository (its main checkout and a linked worktree) can share a key
+    const holder = entry.locked?.startsWith(LOCK_REASON) ? / of project (\S+)$/.exec(entry.locked)?.[1] : undefined;
+    if (holder && item.projectId && holder !== item.projectId) {
+      throw new WorkItemError(`${worktree} is the worktree of ${item.key} in another project of this repository: give this project another key prefix`, 409);
+    }
   } else {
     // Deleted by hand: git still holds it, locked, and refuses to check its branch out anywhere else
-    if (registered) forgetWorktree(home, worktree);
-    addWorktree(home, worktree, branch, 'HEAD');
+    if (entry) forgetWorktree(home, worktree);
+    const elsewhere = known.find((w) => w.branch === branch && !wanted.has(w.path));
+    if (elsewhere) throw new WorkItemError(`${branch} is checked out at ${elsewhere.path}: switch that checkout to another branch, or remove it, and try again`, 409);
+    const node = !own && item.branch && branchExists(home, item.branch) ? item.branch : null;
+    addWorktree(home, worktree, branch, node ?? headCommit(projectPath));
   }
   // As the CLI does with the worktrees it runs in, so `git worktree prune` leaves it be
-  lockWorktree(home, worktree, `agentry work item ${item.key}`);
+  lockWorktree(home, worktree, reason);
   const cwd = subdir ? join(worktree, subdir) : worktree;
   mkdirSync(cwd, { recursive: true });
   return { cwd, worktree, branch };
-}
-
-function isWorktreeOf(repo: string, path: string): boolean {
-  const wanted = new Set([path, existsSync(path) ? realpathSync(path) : path]);
-  return git(repo, ['worktree', 'list', '--porcelain'], 10_000)
-    .split('\n')
-    .some((line) => line.startsWith('worktree ') && wanted.has(line.slice('worktree '.length)));
 }
 
 /**
@@ -270,6 +290,12 @@ export class WorkItemAutomation {
   private readonly turns = new Map<string, string>();
   /** When each node's current attempt began, by `<orchestration>/<task>` */
   private readonly attempts = new Map<string, string>();
+  /**
+   * The moves a chat's start made that no result has answered yet, with where each item was: a chat
+   * whose process fails before its turn gives a result (the CLI missing, a flag it refuses) never
+   * worked on the item, and leaving it in `in_progress` would say someone is on it
+   */
+  private readonly unanswered = new Map<string, Array<{ itemId: string; from: WorkItemStatus; at: string }>>();
 
   constructor(private readonly deps: WorkItemAutomationDeps) {}
 
@@ -293,8 +319,13 @@ export class WorkItemAutomation {
           }
           break;
         case 'run.ended':
+          this.turns.delete(event.runId);
+          if (event.status === 'failed') this.chatFailed(event.runId);
+          this.unanswered.delete(event.runId);
+          break;
         case 'run.removed':
           this.turns.delete(event.runId);
+          this.unanswered.delete(event.runId);
           break;
         case 'orchestration.updated':
           if (event.previousStatus === null) this.linkNodes(event.orchestrationId);
@@ -317,10 +348,29 @@ export class WorkItemAutomation {
   chatStarted(chatId: string): void {
     try {
       for (const link of this.chatLinks(chatId)) {
-        this.advance(link, 'in_progress', chatCause(chatId, WORK_CAUSE.chatStarted), this.turns.get(chatId) ?? link.createdAt);
+        const from = this.advance(link, 'in_progress', chatCause(chatId, WORK_CAUSE.chatStarted), this.turns.get(chatId) ?? link.createdAt);
+        if (from) this.unanswered.set(chatId, [...(this.unanswered.get(chatId) ?? []), { itemId: link.itemId, from, at: new Date().toISOString() }]);
       }
     } catch {
       // see the class comment: the chat is linked and running, and the next turn moves the item
+    }
+  }
+
+  /**
+   * A chat ended failed with no result for the turn that moved its items: each goes back where it
+   * was, unless a person moved it since or something else took it further. A turn that gave a
+   * result, even an error, did run, and leaves the item in progress as decision 21 says.
+   */
+  private chatFailed(chatId: string): void {
+    for (const { itemId, from, at } of this.unanswered.get(chatId) ?? []) {
+      try {
+        const item = this.deps.items.find(itemId);
+        if (!item || !this.deps.writable(item.projectId) || item.status !== 'in_progress') continue;
+        if (this.personMovedSince(item.id, at)) continue;
+        this.deps.items.move(item.id, { status: from }, { actor: SYSTEM, cause: chatCause(chatId, WORK_CAUSE.chatFailed) });
+      } catch {
+        // see the class comment
+      }
     }
   }
 
@@ -332,6 +382,7 @@ export class WorkItemAutomation {
     try {
       const since = this.turns.get(chatId);
       this.turns.delete(chatId);
+      this.unanswered.delete(chatId);
       if (result.isError || this.deps.flowOwns?.(chatId)) return;
       for (const link of this.chatLinks(chatId)) {
         this.advance(link, 'in_review', chatCause(chatId, WORK_CAUSE.turnCompleted), since ?? link.createdAt);
@@ -379,25 +430,28 @@ export class WorkItemAutomation {
   }
 
   /**
-   * Where a node works is where the item's changes are, as for "Work on it": the item reports the
-   * last place that worked on it, and "Work on it" afterwards continues there.
+   * Where a node works is where the item's changes are, until the item has a worktree of its own:
+   * then that one is where its changes are, and it is not traded for a node's. "Work on it" never
+   * works in the node's worktree; it branches from the node's branch into its own.
    */
   private recordPlace(itemId: string, worktree: string, branch: string): void {
     const item = this.deps.items.find(itemId);
-    if (!item || !this.deps.writable(item.projectId)) return;
+    if (!item || !this.deps.writable(item.projectId) || ownsPlace(item)) return;
     if (item.worktree !== worktree || item.branch !== branch) this.deps.items.setWorktree(item.id, { worktree, branch });
   }
 
   /**
-   * The one place an automatic move is made, and where its three rules are kept: forward only, never
-   * out of `done`, and never over a person who moved the item after the work that causes it began.
+   * The one place an automatic move forward is made, and where its three rules are kept: forward
+   * only, never out of `done`, and never over a person who moved the item after the work that causes
+   * it began. Returns where the item was when it moved it.
    */
-  private advance(link: WorkItemLink, target: WorkItemStatus, cause: WorkItemCause, since: string): void {
+  private advance(link: WorkItemLink, target: WorkItemStatus, cause: WorkItemCause, since: string): WorkItemStatus | null {
     const item = this.deps.items.find(link.itemId);
-    if (!item || !this.deps.writable(item.projectId)) return;
-    if (item.status === 'done' || column(item.status) >= column(target)) return;
-    if (this.personMovedSince(item.id, since)) return;
+    if (!item || !this.deps.writable(item.projectId)) return null;
+    if (item.status === 'done' || column(item.status) >= column(target)) return null;
+    if (this.personMovedSince(item.id, since)) return null;
     this.deps.items.move(item.id, { status: target }, { actor: SYSTEM, cause });
+    return item.status;
   }
 
   private personMovedSince(itemId: string, since: string): boolean {

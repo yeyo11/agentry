@@ -32,6 +32,7 @@ import type {
   UpdateProjectRequest,
   Board,
   CreateWorkItemFromMessageRequest,
+  CreateWorkItemLinkRequest,
   Milestone,
   OrchestrateWorkItemsRequest,
   Orchestration,
@@ -166,7 +167,7 @@ export {
   type WorkItemProject,
   type WorkItemServiceDeps,
 } from './work-items.ts';
-export { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentServiceDeps, type DocumentsPlace, type TieOptions } from './documents.ts';
+export { DEFAULT_DOCUMENTS_PATH, DOCUMENT_CONTENT_MAX, DocumentError, DocumentService, type DocumentServiceDeps, type DocumentsPlace, type TieOptions } from './documents.ts';
 export { DocumentPathError } from './document-paths.ts';
 export { orchestrationDraft, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt, type WorkItemAutomationDeps } from './work-links.ts';
 export { AuthStore } from './security/auth.ts';
@@ -405,7 +406,18 @@ export class Core {
       windowOf: (model) => this.db.modelWindow(model),
       memberChat: (chatId) => this.memberChat(chatId),
     });
-    this.changes = new Changes({ orchestrator: this.orchestrator, chats: this.chats, sessions: this.sessions, runtime: this.runtime });
+    this.changes = new Changes({
+      orchestrator: this.orchestrator,
+      chats: this.chats,
+      sessions: this.sessions,
+      runtime: this.runtime,
+      // A chat on a work item works in the item's worktree, cut from the project's checkout
+      forkedFrom: (chatId) => {
+        const itemId = this.workItems.linksOfChat(chatId).find((l) => l.kind === 'chat' && l.role !== 'origin')?.itemId;
+        const item = itemId ? this.workItems.find(itemId) : null;
+        return item ? (this.projectStore.get(item.projectId)?.path ?? null) : null;
+      },
+    });
     // The CLI's list of sessions is kept a while; a process of ours that started or ended changes
     // what it says about that chat, and a stale one would read it as held by someone else
     this.events.observe((event) => {
@@ -944,6 +956,9 @@ export class Core {
    */
   async projects(): Promise<Project[]> {
     const places = await this.chatPlaces();
+    // Counted from the chat list the project's page shows, so the figure agrees with it: a chat this
+    // process runs (a "Work on it", a flow or an assistant chat) counts before the CLI writes its transcript
+    const listed = await this.chats.list();
     const worktrees = new Map<string, Map<string, ProjectWorktree>>();
     const stats = new Map<string, { chatCount: number; lastActivity: string | null }>();
     const addWorktree = (path: string, creator: ProjectWorktree['createdBy'] = null) => {
@@ -957,12 +972,14 @@ export class Core {
 
     for (const place of places) {
       const attached = this.attach(place.cwd);
-      if (!attached) continue;
-      const stat = stats.get(attached.project.id) ?? { chatCount: 0, lastActivity: null };
+      if (attached?.worktree) addWorktree(attached.worktree.path);
+    }
+    for (const chat of listed) {
+      if (!chat.project) continue;
+      const stat = stats.get(chat.project.id) ?? { chatCount: 0, lastActivity: null };
       stat.chatCount += 1;
-      if (place.updatedAt && (!stat.lastActivity || place.updatedAt > stat.lastActivity)) stat.lastActivity = place.updatedAt;
-      stats.set(attached.project.id, stat);
-      if (attached.worktree) addWorktree(attached.worktree.path);
+      if (chat.updatedAt && (!stat.lastActivity || chat.updatedAt > stat.lastActivity)) stat.lastActivity = chat.updatedAt;
+      stats.set(chat.project.id, stat);
     }
 
     // The orchestration task that created a worktree says more about it than its name does, and a
@@ -1017,6 +1034,7 @@ export class Core {
   async importProject(req: ImportProjectRequest): Promise<Project> {
     const setup = parseProjectSetup(req);
     const active = () => new Set(this.projectStore.list().map((p) => p.id));
+    const imported = active();
     const record = await this.projectStore.add(
       { path: req.path, ...(req.name ? { name: req.name } : {}) },
       (d) => this.locator.worktreeOf(d),
@@ -1025,12 +1043,17 @@ export class Core {
     const { settings, previous } = await this.projectSettingsStore.create(record, setup, this.projectStore.list());
     // A directory imported again can come back with other modules: whoever shows its tabs has to know
     if (previous) this.projectUpdated(record, settingsChanges(previous, settings), settings.modules);
+    // Other tabs list projects too, and the All projects board takes the new one in
+    if (!imported.has(record.id)) this.events.emit({ type: 'project.created', title: `${record.name} added`, projectId: record.id, projectName: record.name });
     return this.projectView(record.id);
   }
 
   /** A new directory in the workspace, imported straight away. The template is checked before the directory exists. */
   async createProject(req: CreateProjectRequest): Promise<Project> {
     const setup = parseProjectSetup(req);
+    const { name, gitUrl } = req as { name?: unknown; gitUrl?: unknown };
+    if (typeof name !== 'string') throw new Error('name is required: the name of the new directory');
+    if (gitUrl !== undefined && gitUrl !== null && typeof gitUrl !== 'string') throw new Error('gitUrl must be a URL to clone');
     const path = await this.workspace.create(req.name ?? '', req.gitUrl || undefined);
     return this.importProject({ path, ...(setup.template ? { template: setup.template } : {}), ...(setup.modules ? { modules: setup.modules } : {}) });
   }
@@ -1096,8 +1119,10 @@ export class Core {
    * Forgets a project in Agentry. What Claude Code keeps about it is `purgeProject`, and is not
    * touched; neither are its settings document and work items, which importing it again brings back.
    */
-  removeProject(id: string): Promise<void> {
-    return this.projectStore.remove(id);
+  async removeProject(id: string): Promise<void> {
+    const record = this.projectStore.get(id);
+    await this.projectStore.remove(id);
+    if (record) this.events.emit({ type: 'project.removed', title: `${record.name} removed`, projectId: record.id, projectName: record.name });
   }
 
   // ---------- journal and memory proposals ----------
@@ -1402,7 +1427,8 @@ export class Core {
     const shown = await this.boardProjects();
     const board = this.workItems.board(null, filter);
     const counts = new Map(WORK_ITEM_STATUSES.map((status) => [status, 0]));
-    for (const item of this.workItems.list()) if (shown.has(item.projectId)) counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
+    // Epics group work rather than being work, and the project board leaves them out of its counts too
+    for (const item of this.workItems.list()) if (item.type !== 'epic' && shown.has(item.projectId)) counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
     return {
       projectId: null,
       columns: board.columns.map((column) => ({
@@ -1467,13 +1493,9 @@ export class Core {
   async workOnItem(itemId: string, request?: WorkOnWorkItemRequest): Promise<WorkOnWorkItemResult> {
     const item = await this.workItemAccess(itemId, 'write');
     const record = this.requireProject(item.projectId);
-    if (item.type === 'epic') throw new WorkItemError('an epic groups work items: work on one of them instead', 400);
-    // As "Orchestrate" refuses it: nothing an agent does may take an item out of done
-    if (item.status === 'done') throw new WorkItemError(`${item.key} is already done: move it back first to work on it again`, 409);
+    this.checkWorkable(item);
     const options = startOptions(request);
     if (!existsSync(record.path)) throw new WorkItemError(`the project's directory ${record.path} is missing`, 409);
-    const busy = this.workItems.links(itemId).find((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
-    if (busy) throw new WorkItemError(`${item.key} is already being worked on${busy.name ? ` by ${busy.name}` : ''}`, 409);
     const place = itemWorktree(record.path, item);
     if (place && (place.worktree !== item.worktree || place.branch !== item.branch)) {
       this.workItems.setWorktree(itemId, { worktree: place.worktree, branch: place.branch });
@@ -1494,6 +1516,18 @@ export class Core {
   }
 
   /**
+   * What "Work on it", a draft and a launch all refuse, the same way: an epic, which groups work
+   * rather than being it; an item in done, which nothing an agent does may take out of it; and an
+   * item a chat or a node is working on now, which a second one would pull two ways.
+   */
+  private checkWorkable(item: WorkItem, label = ''): void {
+    if (item.type === 'epic') throw new WorkItemError(`${label}${item.key} is an epic, which groups work items: work on one of them instead`, 400);
+    if (item.status === 'done') throw new WorkItemError(`${label}${item.key} is already done: move it back first to work on it again`, 409);
+    const busy = this.workItems.links(item.id).find((l) => l.role === 'work' && (l.chatState === 'working' || l.chatState === 'waiting' || l.taskStatus === 'running'));
+    if (busy) throw new WorkItemError(`${label}${item.key} is already being worked on${busy.name ? ` by ${busy.name}` : ''}`, 409);
+  }
+
+  /**
    * The graph a selection of one project's items becomes, for the person to review: nothing is
    * launched. The existing launch route takes it as it is and links each node to its item.
    */
@@ -1508,8 +1542,7 @@ export class Core {
     const items = (ids as string[]).map((id) => {
       const item = this.workItems.find(id);
       if (!item || item.projectId !== projectId) throw new WorkItemError(`${id} is not a work item of this project`, 400);
-      if (item.type === 'epic') throw new WorkItemError(`${item.key} is an epic, which groups work: select its items instead`, 400);
-      if (item.status === 'done') throw new WorkItemError(`${item.key} is already done`, 400);
+      this.checkWorkable(item);
       return item;
     });
     return orchestrationDraft(record, items, canBranch(record.path));
@@ -1534,6 +1567,7 @@ export class Core {
   private async checkWorkItemNodes(tasks: unknown): Promise<void> {
     const seen = new Set<string>();
     for (const task of Array.isArray(tasks) ? (tasks as Array<Partial<OrchestrationSpec['tasks'][number]> | null>) : []) {
+      if (!task || typeof task !== 'object' || Array.isArray(task)) throw new WorkItemError('every task must be an object with an id and a prompt', 400);
       const itemId: unknown = task?.workItemId;
       if (itemId === undefined) continue;
       const label = `task '${String(task?.id)}'`;
@@ -1543,7 +1577,33 @@ export class Core {
       const item = this.workItems.find(itemId);
       if (!item) throw new WorkItemError(`${label}: work item ${itemId} not found`, 400);
       await this.ownerAccess(item.projectId, 'write');
+      // As "Work on it" is held to: a launch is the other way to put an agent on the item
+      this.checkWorkable(item, `${label}: `);
     }
+  }
+
+  /**
+   * A chat or a task linked to an item by hand. It must exist and belong to the item's project:
+   * a link to nothing reads as work that is not there, and one to another project's chat would move
+   * the item with work done elsewhere.
+   */
+  async linkWorkItem(itemId: string, request: CreateWorkItemLinkRequest): Promise<WorkItemLink> {
+    const item = await this.workItemAccess(itemId, 'write');
+    const input: Partial<Record<keyof CreateWorkItemLinkRequest, unknown>> = request && typeof request === 'object' && !Array.isArray(request) ? request : {};
+    if (input.kind === 'chat' && typeof input.chatId === 'string' && input.chatId) {
+      const chat = await this.chats.summaryOf(input.chatId);
+      if (!chat) throw new WorkItemError(`chat ${input.chatId} not found`, 400);
+      if (chat.project?.id !== item.projectId) throw new WorkItemError(`chat ${input.chatId} is not a chat of this item's project`, 400);
+    }
+    if (input.kind === 'orchestration' && typeof input.orchestrationId === 'string' && input.orchestrationId) {
+      const orch = this.orchestrator.get(input.orchestrationId);
+      if (!orch) throw new WorkItemError(`orchestration ${input.orchestrationId} not found`, 400);
+      if (typeof input.taskId === 'string' && !orch.tasks.some((t) => t.id === input.taskId)) {
+        throw new WorkItemError(`orchestration ${orch.name} has no task ${input.taskId}`, 400);
+      }
+      if (this.projectOf(orch.cwd).project?.id !== item.projectId) throw new WorkItemError(`orchestration ${orch.name} does not run in this item's project`, 400);
+    }
+    return this.workItems.link(itemId, request);
   }
 
   /** "Create a task from this message": an item in `backlog` of the chat's project, linked to the chat it came from. */

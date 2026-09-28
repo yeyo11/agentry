@@ -76,7 +76,8 @@ test('the journal is read with the Memory module off and changed only with it on
     ['added:decision'],
   );
   assert.equal((await app.inject({ method: 'POST', url, ...json({ text: 'x', kind: 'closed' }) })).statusCode, 400);
-  assert.equal((await app.inject({ method: 'POST', url, ...json({ text: 'x', itemId: 'nope' }) })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'POST', url, ...json({ text: 'x', itemId: 'nope' }) })).statusCode, 400);
+  assert.equal((await app.inject({ method: 'POST', url, ...json({ text: 'x', itemId: true }) })).statusCode, 400);
 
   const page = (await app.inject(`${url}?limit=10`)).json<JournalPage>();
   assert.deepEqual(page.entries.map((e) => e.text), ['Columns stay fixed']);

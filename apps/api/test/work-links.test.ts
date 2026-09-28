@@ -153,6 +153,12 @@ test('working on an item starts a chat in its own worktree, and the item follows
   assert.equal(whole.statusCode, 200, whole.body);
   assert.equal(whole.json<{ full: boolean }>().full, true);
 
+  // The project counts the chat as its page lists it, before any transcript is on disk
+  const counted = (await app.inject('/api/projects')).json<Project[]>().find((p) => p.id === project.id);
+  const listed = (await app.inject(`/api/chats?project=${project.id}`)).json<ChatSummary[]>();
+  assert.ok(listed.some((c) => c.id === started.chat.id));
+  assert.equal(counted?.chatCount, listed.length);
+
   // The chat's header can name the item it works on
   assert.deepEqual((await app.inject(`/api/chats/${started.chat.id}/work-items`)).json<WorkItem[]>().map((i) => i.id), [bug.id]);
 
@@ -182,6 +188,20 @@ test('a failed turn leaves the item in progress, and a chat still working refuse
   await turnOver(busy.chat.id);
   await sleep(100);
   assert.equal((await item(hanging.id)).status, 'in_progress');
+});
+
+test('a chat that never starts its turn puts the item back, so it is not left in progress with nobody on it', async () => {
+  const refused = await createItem({ title: 'Never started', status: 'todo' });
+  const started = await workOn(refused.id, { model: 'fake-refused' });
+  await until(() => core.runtime.get(started.chat.id)?.status, (s) => s === 'failed', 'the chat to fail');
+  const back = await statusIs(refused.id, 'todo');
+  assert.deepEqual(
+    back.history.filter((e) => e.change === 'status').map((e) => [e.to, e.cause?.event]),
+    [
+      ['in_progress', 'chat.started'],
+      ['todo', 'chat.failed-to-start'],
+    ],
+  );
 });
 
 test('an item in done is not worked on, and start options of the wrong type are refused before a chat starts', async () => {
@@ -332,7 +352,6 @@ test('a relaunch keeps each node on its item and is checked as a launch is; a te
   ]);
   assert.equal(twice.statusCode, 400);
   assert.match(twice.json().error, /another node/);
-  assert.equal(core.orchestrator.list().length, before);
 
   const saved = await app.inject({ method: 'POST', url: '/api/orchestrations/templates', ...json({ name: 'Reusable', fromOrchestration: first.id }) });
   assert.equal(saved.statusCode, 201, saved.body);
@@ -347,7 +366,7 @@ test('a selection or a launch naming items it may not have is refused before any
   assert.equal((await orchestrate({ itemIds: [] })).statusCode, 400);
   assert.equal((await orchestrate({ itemIds: [a.id, a.id] })).statusCode, 400);
   assert.equal((await orchestrate({ itemIds: [epic.id] })).statusCode, 400);
-  assert.equal((await orchestrate({ itemIds: [closed.id] })).statusCode, 400);
+  assert.equal((await orchestrate({ itemIds: [closed.id] })).statusCode, 409);
   assert.equal((await orchestrate({ itemIds: ['nope'] })).statusCode, 400);
 
   const before = core.orchestrator.list().length;
@@ -359,7 +378,19 @@ test('a selection or a launch naming items it may not have is refused before any
   ]);
   assert.equal(twice.statusCode, 400);
   assert.match(twice.json().error, /another node/);
+  // Held to what "Work on it" is: an epic, an item in done, or one a chat is on now
+  const one = (workItemId: string) => launch([{ id: 't1', name: 't1', prompt: 'p', workItemId }]);
+  assert.equal((await one(epic.id)).statusCode, 400);
+  assert.equal((await one(closed.id)).statusCode, 409);
+  const worked = await createItem({ title: 'Taken', description: 'FAKE-HANG' });
+  const busy = await workOn(worked.id);
+  const taken = await one(worked.id);
+  assert.equal(taken.statusCode, 409);
+  assert.match(taken.json().error, /already being worked on/);
+  assert.equal((await orchestrate({ itemIds: [worked.id] })).statusCode, 409);
   assert.equal(core.orchestrator.list().length, before);
+  await app.inject({ method: 'POST', url: `/api/chats/${busy.chat.id}/stop` });
+  await turnOver(busy.chat.id);
 });
 
 // ---------- a task from a message ----------

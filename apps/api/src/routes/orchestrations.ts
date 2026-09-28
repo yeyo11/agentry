@@ -14,8 +14,10 @@ import type {
 } from '@agentry/shared';
 
 /** The file a diff is asked for: required, since a whole-branch diff is not what the panel opens. */
-const pathOf = (path: string | undefined): string => {
-  if (!path) throw new Error('path is required');
+/** The file a diff is asked for: one path, which a repeated parameter would make a list of. */
+export const pathOf = (path: unknown): string => {
+  if (Array.isArray(path)) throw new Error('path is given more than once');
+  if (typeof path !== 'string' || !path) throw new Error('path is required');
   return path;
 };
 

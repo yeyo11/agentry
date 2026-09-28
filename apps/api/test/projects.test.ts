@@ -132,11 +132,24 @@ test('PATCH renames a project, or changes its key and modules, keeping what a mo
 
 test('removing a project keeps its settings, and importing the directory again brings them back', async () => {
   const path = scratch();
+  const events: AgentryEvent[] = [];
+  const stop = core.events.subscribe((e) => events.push(e));
   const first = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path, name: 'Lib', template: 'library' }) })).json<Project>();
   await app.inject({ method: 'DELETE', url: `/api/projects/${first.id}` });
   const again = (await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path, name: 'Lib' }) })).json<Project>();
   assert.deepEqual([again.id, again.key, again.modules], [first.id, first.key, ['board', 'documents', 'memory']]);
   await app.inject({ method: 'DELETE', url: `/api/projects/${again.id}` });
+  stop();
+  // Every tab lists projects: each one added or removed is on the feed, a return included
+  assert.deepEqual(
+    events.filter((e) => e.type === 'project.created' || e.type === 'project.removed').map((e) => [e.type, 'projectId' in e ? e.projectId : null]),
+    [
+      ['project.created', first.id],
+      ['project.removed', first.id],
+      ['project.created', first.id],
+      ['project.removed', first.id],
+    ],
+  );
 });
 
 test('the Board switched off and on again keeps its work items, their keys, columns and order', async () => {

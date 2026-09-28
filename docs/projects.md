@@ -162,7 +162,9 @@ The project page (`/`, with a project selected) is a header over a strip of tabs
   - the key prefix, boxed;
   - the template;
   - the path;
-  - the number of chats and worktrees;
+  - the number of chats and worktrees. The chats are counted from the list the project's Chats
+    reads, so a "Work on it", flow or assistant chat this process runs counts before the CLI writes
+    its transcript;
   - New chat, plus New task while the Board is on.
 
   New task takes the gradient only on Resumen. A tab that has a primary action of its own gets a
@@ -224,7 +226,9 @@ Each project card shows its key and the modules that are on.
 - `GET /projects/:id/settings` and `PUT /projects/:id/settings` read and replace the document whole,
   validated.
 
-Every change emits `project.updated` on the event feed, naming what changed (`name`, `key`,
+Importing or creating a project emits `project.created`, and removing one `project.removed`, so
+another tab's lists and its All projects views follow; a directory imported again is announced as
+created. Every change emits `project.updated` on the event feed, naming what changed (`name`, `key`,
 `modules`, `settings`). That includes importing a known directory again with other modules: the
 import emits it, records the template the request named, and keeps whatever else the old document
 holds, a part a hand edit broke included. The README's [Projects](../README.md#projects) table has every route.
@@ -241,7 +245,9 @@ items still read and creating one answers 409; switched on again, the same keys,
 order come back, and the next item is numbered after the last one made before the switch.
 
 Changing the key prefix does not rewrite anything: only an item's number is stored, and its key is
-composed when read, so a new prefix renames every key at once, history included.
+composed when read, so a new prefix renames every key the store composes at once, history included.
+What was written with the old key keeps it: an item's recorded branch and worktree path, chat titles,
+a draft's node ids and `/tasks/<old key>` addresses (see [work-items.md](work-items.md#keys)).
 
 ## Related
 

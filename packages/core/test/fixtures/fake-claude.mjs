@@ -17,6 +17,9 @@
 //                                 differs by stage, so one item's description can script each role;
 //                                 ASSISTANT is an assistant run's, whose schema asks for `read`
 //
+//   --model fake-refused          exits 1 at once with an error on stderr, as the CLI does with an
+//                                 option it refuses: a chat that never starts its turn
+//
 //   FAKE_CLAUDE_SPAWNS=<file>     appends `<pid> <argv>` to <file> as it starts, so a test can count
 //                                 every process spawned, tracked or not
 //   FAKE_CLAUDE_LINGER_MS=<ms>    stays up that long after stdin closes, the way the CLI does while
@@ -49,6 +52,11 @@ if (args[0] === 'auth') {
   process.exit(0);
 }
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+// As the CLI does with an option it refuses: a line on stderr and out, before any turn
+if (flag('--model') === 'fake-refused') {
+  process.stderr.write("error: model 'fake-refused' not found\n");
+  process.exit(1);
+}
 const worktree = flag('--worktree');
 // Like the CLI, adopt the worktree of that name, which lives under the main checkout's top level
 // whichever subdirectory, or linked worktree, it is started in, and work at its root; unlike it,

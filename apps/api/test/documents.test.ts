@@ -97,6 +97,19 @@ test('write, read, list and delete a document, each announced on the feed', asyn
   assert.equal((await app.inject(`${base}/file${q('docs/specs/board.md')}`)).statusCode, 404);
 });
 
+test('a document of up to 1 MiB saves whatever it holds, and a larger one is refused with a clear 400', async () => {
+  const { project, dir } = await importProject('Big');
+  const url = `/api/projects/${project.id}/documents/file${q('docs/big.md')}`;
+  // Quotes, backslashes and newlines double in JSON: the body is well past 1 MiB while the content is not
+  const content = '"\\\n'.repeat(Math.floor((1024 * 1024) / 3));
+  const saved = await app.inject({ method: 'PUT', url, ...json({ content }) });
+  assert.equal(saved.statusCode, 200, saved.body.slice(0, 200));
+  assert.equal(readFileSync(join(dir, 'docs', 'big.md'), 'utf8'), content);
+  const over = await app.inject({ method: 'PUT', url, ...json({ content: `${content}xyz` }) });
+  assert.equal(over.statusCode, 400);
+  assert.match(over.json<{ error: string }>().error, /1 MiB/);
+});
+
 test('no request reaches a file outside the documents folder, however the path is spelt', async () => {
   const { project, dir } = await importProject('Traversal');
   const outside = scratch();

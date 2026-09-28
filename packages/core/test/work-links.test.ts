@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import type { AgentryEvent, Orchestration, OrchestrationTaskStatus, RunStatus, WorkItemHistoryEntry, WorkItemStatus } from '@agentry/shared';
 import { Db } from '../src/db.ts';
+import { mainCheckout } from '../src/git.ts';
 import { itemWorktree, orchestrationDraft, titleFromMessage, WorkItemAutomation, workItemPrompt } from '../src/work-links.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { tempConfig } from './helpers.ts';
@@ -108,6 +109,48 @@ test('a failed or stopped turn moves nothing', () => {
   s.automation.chatResult('chat-1', { isError: true });
   s.automation.observe(runUpdated('chat-1', 'stopped', 'busy'));
   assert.equal(statusOf(s, item.id), 'in_progress');
+});
+
+function runEnded(runId: string, status: 'completed' | 'failed' | 'stopped'): AgentryEvent {
+  return { id: ++seq, at: iso(), title: '', type: 'run.ended', runId, runName: runId, sessionId: runId, orchestrationId: null, internal: false, status, error: null, turns: 0, costUsd: 0 } as AgentryEvent;
+}
+
+test('a chat that fails before its turn gives any result puts the item back where it was', () => {
+  const s = setup();
+  const item = workedBy(s, 'chat-1');
+  s.automation.chatStarted('chat-1');
+  assert.equal(statusOf(s, item.id), 'in_progress');
+  // The CLI could not be spawned, or refused a flag: the process ends with no result at all
+  s.automation.observe(runEnded('chat-1', 'failed'));
+  assert.equal(statusOf(s, item.id), 'todo');
+  assert.deepEqual(
+    automatic(s.items.history(item.id)).map((e) => [e.to, e.cause?.event]),
+    [
+      ['in_progress', 'chat.started'],
+      ['todo', 'chat.failed-to-start'],
+    ],
+  );
+});
+
+test('a chat whose turn gave a result, or that a person moved past, is not put back when it fails', () => {
+  const s = setup();
+  const answered = workedBy(s, 'chat-1');
+  s.automation.chatStarted('chat-1');
+  s.automation.chatResult('chat-1', { isError: true });
+  s.automation.observe(runEnded('chat-1', 'failed'));
+  assert.equal(statusOf(s, answered.id), 'in_progress');
+
+  const moved = workedBy(s, 'chat-2');
+  s.automation.chatStarted('chat-2');
+  s.items.move(moved.id, { status: 'in_review' });
+  s.items.move(moved.id, { status: 'in_progress' });
+  s.automation.observe(runEnded('chat-2', 'failed'));
+  assert.equal(statusOf(s, moved.id), 'in_progress');
+
+  const stopped = workedBy(s, 'chat-3');
+  s.automation.chatStarted('chat-3');
+  s.automation.observe(runEnded('chat-3', 'stopped'));
+  assert.equal(statusOf(s, stopped.id), 'in_progress');
 });
 
 test('a person who moves the item while the turn runs wins over the move its end would make', () => {
@@ -303,6 +346,86 @@ test("a plain directory where the item's worktree should be is refused, not work
     () => itemWorktree(repo, { key: 'AGN-2', worktree: null, branch: null }),
     (err: Error & { statusCode?: number }) => err.statusCode === 409 && /not a worktree/.test(err.message),
   );
+});
+
+test('"Work on it" in a linked worktree branches from that worktree\'s HEAD, not the main checkout\'s', () => {
+  const repo = repoWithCommit();
+  const linked = join(mkdtempSync(join(tmpdir(), 'agentry-linked-')), 'feature');
+  gitIn(repo, 'worktree', 'add', '-q', '-b', 'feature', linked);
+  writeFileSync(join(linked, 'feature.txt'), 'only on the feature branch\n');
+  gitIn(linked, 'add', '-A');
+  gitIn(linked, 'commit', '-q', '-m', 'feature');
+  const place = itemWorktree(linked, { key: 'AGN-1', worktree: null, branch: null });
+  assert.ok(place);
+  assert.equal(gitIn(place.worktree, 'rev-parse', 'HEAD'), gitIn(linked, 'rev-parse', 'HEAD'));
+  assert.ok(place.worktree.startsWith(join(repo, '.claude', 'worktrees')), 'kept under the main checkout, where the CLI keeps its own');
+});
+
+test("a submodule's item worktree hangs off the submodule's checkout, not its git directory", () => {
+  const sub = repoWithCommit();
+  const sup = repoWithCommit();
+  gitIn(sup, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub, 'lib');
+  gitIn(sup, 'commit', '-q', '-m', 'add lib');
+  const project = join(sup, 'lib');
+  const place = itemWorktree(project, { key: 'AGN-1', worktree: null, branch: null });
+  assert.ok(place);
+  assert.equal(place.worktree, join(project, '.claude', 'worktrees', 'task-agn-1'));
+  assert.equal(mainCheckout(place.worktree), project, 'and its own linked worktrees find the submodule again');
+});
+
+test('"Work on it" after a node never works in the node\'s worktree, so retrying the node clean loses nothing of it', () => {
+  const repo = repoWithCommit();
+  const nodeTree = join(repo, '.claude', 'worktrees', 'o1-agn-1');
+  gitIn(repo, 'worktree', 'add', '-q', '-b', 'worktree-o1-agn-1', nodeTree);
+  writeFileSync(join(nodeTree, 'node.txt'), "the node's work\n");
+  gitIn(nodeTree, 'add', '-A');
+  gitIn(nodeTree, 'commit', '-q', '-m', 'node');
+
+  const place = itemWorktree(repo, { key: 'AGN-1', projectId: 'p1', worktree: nodeTree, branch: 'worktree-o1-agn-1' });
+  assert.ok(place);
+  assert.deepEqual([place.worktree, place.branch], [join(repo, '.claude', 'worktrees', 'task-agn-1'), 'task/agn-1']);
+  assert.ok(existsSync(join(place.worktree, 'node.txt')), "the item's branch starts from the node's work");
+  writeFileSync(join(place.worktree, 'mine.txt'), "a person's work\n");
+
+  // What "Retry clean" does to the node
+  gitIn(repo, 'worktree', 'remove', '--force', nodeTree);
+  gitIn(repo, 'branch', '-D', 'worktree-o1-agn-1');
+  assert.ok(existsSync(join(place.worktree, 'mine.txt')));
+  assert.deepEqual(itemWorktree(repo, { key: 'AGN-1', projectId: 'p1', worktree: place.worktree, branch: place.branch }), place);
+});
+
+test("a node that works on an item with a worktree of its own does not take the item's place over", () => {
+  const s = setup();
+  const a = s.items.create('p1', { title: 'API' });
+  s.items.setWorktree(a.id, { worktree: '/repo/.claude/worktrees/task-agn-1', branch: 'task/agn-1' });
+  s.orchestrations.set('o1', graph('o1', [{ id: 'agn-1', workItemId: a.id, worktree: '/repo/.claude/worktrees/o1-agn-1', branch: 'worktree-o1-agn-1' }]));
+  s.automation.observe(created('o1'));
+  s.automation.observe(taskEvent('o1', 'agn-1', 'running', 'worker-1'));
+  const item = s.items.get(a.id);
+  assert.deepEqual([item.worktree, item.branch], ['/repo/.claude/worktrees/task-agn-1', 'task/agn-1']);
+});
+
+test("an item's branch checked out in another checkout is a 409 that says where, not git's error", () => {
+  const repo = repoWithCommit();
+  const other = join(mkdtempSync(join(tmpdir(), 'agentry-other-')), 'elsewhere');
+  gitIn(repo, 'worktree', 'add', '-q', '-b', 'task/agn-3', other);
+  assert.throws(
+    () => itemWorktree(repo, { key: 'AGN-3', worktree: null, branch: null }),
+    (err: Error & { statusCode?: number }) => err.statusCode === 409 && err.message.includes(other),
+  );
+});
+
+test('two projects of one repository with the same key do not share an item worktree', () => {
+  const repo = repoWithCommit();
+  const linked = join(mkdtempSync(join(tmpdir(), 'agentry-linked-')), 'feature');
+  gitIn(repo, 'worktree', 'add', '-q', '-b', 'feature', linked);
+  const first = itemWorktree(repo, { key: 'AGN-1', projectId: 'p1', worktree: null, branch: null });
+  assert.ok(first);
+  assert.throws(
+    () => itemWorktree(linked, { key: 'AGN-1', projectId: 'p2', worktree: null, branch: null }),
+    (err: Error & { statusCode?: number }) => err.statusCode === 409 && /another project/.test(err.message),
+  );
+  assert.deepEqual(itemWorktree(repo, { key: 'AGN-1', projectId: 'p1', worktree: first.worktree, branch: first.branch }), first);
 });
 
 // ---------- prompts and drafts ----------

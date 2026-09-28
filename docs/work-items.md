@@ -76,7 +76,12 @@ without touching the counts (`countsInColumn` in `apps/web/src/lib/work-items.ts
 Only an item's **number** is stored. It comes from a per-project counter that is never decremented,
 so a number is never handed out twice inside a project, even after a delete. The key is composed on
 every read from the project's current prefix (`workItemKey`), so changing the prefix renames every
-key at once, history included. The id (a UUID) is what never changes.
+key the store composes at once, history included. The id (a UUID) is what never changes.
+
+What was written with a key before keeps the old one: an item's recorded branch (`task/<old key>`)
+and worktree path, which "Work on it" goes on using so earlier work is not stranded; a chat's title,
+which is its first prompt; the node ids of a draft; and a `/tasks/<old key>` address. Only the item's
+id follows it everywhere.
 
 ### Milestones
 
@@ -148,7 +153,13 @@ nothing changes them until the directory is imported again (which takes the same
 
 `GET /work-items` and `GET /work-items/board` are the **All projects** view: every item of the
 imported projects with the Board module on, each naming its project. That board carries no column
-limits, and its counts are recomputed over the projects it shows.
+limits, and its counts are recomputed over the projects it shows, leaving epics out as a project's
+board does, so the sidebar's figure does not change with the scope.
+
+A filter in a query string lists its values comma separated, or repeats its parameter
+(`status=todo&status=done`); `q`, `epicId` and `milestoneId` take one value, and repeating them is a
+400, as is any malformed body: none of these routes answers 500 to what a client sent.
+`PATCH /work-items/:itemId` refuses `status` and `afterId` with 400, since only `/move` moves an item.
 
 ## Working on an item
 
@@ -164,14 +175,29 @@ the first time, locked so `git worktree prune` leaves it alone, and found again 
 on the item. A project that is not a git repository, or has no commit to branch from yet, is worked
 on in its directory.
 
+- **Where it branches from**: the project's own HEAD, which for a project inside a linked worktree
+  is not the main checkout's; or, when an orchestration node worked on the item first, the node's
+  branch, so its work carries over. The main checkout of a submodule is the submodule's own
+  checkout, not its git directory under the superproject's `.git/modules/` (`mainCheckout`). An
+  orchestration's `--worktree` stays where `mainTopLevel` puts it, which is where the CLI looks.
+- **Never a node's worktree.** "Retry clean" on a failed node force-removes its worktree and branch,
+  so "Work on it" never works there: it makes the item's own `task/<key>` one instead, and nothing
+  removes a worktree an item holds.
 - **Deleted by hand**: git still holds the worktree, locked, and would refuse to check its branch out
-  again. Its record is unlocked and pruned, and the worktree is added again on the same branch, with
-  its commits.
+  again. That one record is removed (`git worktree remove --force --force`, which only drops the
+  record since the directory is gone) and the worktree is added again on the same branch, with its
+  commits.
 - **A plain directory** at that path, which git does not list as a worktree, is refused with 409:
   a chat running there would reach the main checkout with its git commands.
+- **The branch checked out elsewhere** (another worktree holds `task/<key>`) is a 409 that says
+  where, not git's own error as a 400.
+- **Two projects of one repository** (its main checkout and a folder of it, say) can have the same
+  key. The lock's reason names the project that made the worktree, and another project asking for
+  the same path gets a 409 asking for another key prefix.
 
-Refused: an epic (400); an item in `done` (409, as "Orchestrate" refuses it: nothing an agent does
-may take an item out of `done`); an item a chat or a node is already working on (409). The start
+Refused: an epic (400); an item in `done` (409: nothing an agent does may take an item out of
+`done`); an item a chat or a node is already working on (409). A draft and a launch that name the
+item are refused the same way (`checkWorkable`). The start
 options are checked for their type before any chat starts, and a wrong one is a 400 (before, a
 number for `model` reached the CLI's arguments and failed as a 500). Of `mcp`, only the server names
 are passed on, never a config path.
@@ -186,10 +212,11 @@ Once the worktree is gone the branch is still read by name. There is no automati
 Both take the scope (`?commit=`, `?uncommitted=1`) and the diff its `?context=`, as a chat's and a
 task's routes do since `main`'s changes review, so the review screen reads an item the same way.
 
-An item records the worktree and branch of **the last chat or node that worked on it**: "Work on it"
-records its own, and the automation records a node's when the node's status changes. So an item
-worked by an orchestration shows the node's changes, and "Work on it" afterwards continues there, on
-the node's branch.
+An item records the worktree and branch where its changes are. "Work on it" records its own; the
+automation records a node's when the node's status changes, but only while the item has no
+worktree of its own, which a node never takes over. So an item worked only by an orchestration shows
+the node's changes, and "Work on it" afterwards branches its own worktree from the node's branch.
+The changes are measured from where the branch left the project's checkout, not the main one's.
 
 ### "Orchestrate"
 
@@ -197,12 +224,13 @@ the node's branch.
 not a launched graph: one node per item in the order they were picked, each prompted with its item
 and naming it in `workItemId`, and `dependsOn` wherever one selected item blocks another. A blocker
 outside the selection that is not done comes back in `externalBlockers`, since the graph cannot wait
-for it. Every node gets its own worktree when the project is a git repository. Epics, items already
-done and items of another project are refused.
+for it. Every node gets its own worktree when the project is a git repository. Epics and items of
+another project are refused with 400; items already done, or being worked on, with 409.
 
 The existing `POST /orchestrations` launches the draft. It now goes through core, which checks each
-`workItemId` (an item of a project whose Board module is on, and at most one node per item, since two
-nodes would pull it two ways) and links each node to its item. A graph relaunched from a saved
+`workItemId` (an item of a project whose Board module is on, at most one node per item, since two
+nodes would pull it two ways, and neither an epic, nor an item in `done`, nor one being worked on, as
+"Work on it" refuses them) and links each node to its item. A graph relaunched from a saved
 template is left unlinked: it is new work, not the items' own, and a template saved from a graph
 drops every `workItemId` for the same reason.
 
@@ -223,7 +251,9 @@ header.
 ### Links
 
 A link ties an item to a chat, an orchestration task or a document, with the role it played. An
-item keeps **every** link, not only the last. Links are rows, so they survive a restart; the chat's
+item keeps **every** link, not only the last. A link made by hand (`POST /work-items/:itemId/links`)
+must name a chat that exists in the item's project, or a task of an orchestration that runs there
+(400 otherwise). `POST /work-items/:itemId/documents` is its shorthand for a document; both stay. Links are rows, so they survive a restart; the chat's
 title, its state or the task's status are filled in when read.
 
 The unions were settled in 1b for what orchestration 3 needs, so the web can switch over them
@@ -263,7 +293,10 @@ them work. It listens to events that already exist, never polls:
 | A linked node started running (`orchestration.task`) | `in_progress` | `orchestration.task.started` |
 | A linked node completed | `in_review` | `orchestration.task.completed` |
 
-A failed or stopped turn, and a failed node, move nothing. Every automatic move is made by the actor
+A failed or stopped turn, and a failed node, move nothing. One case is undone instead: a chat whose
+process ends failed before its turn gave any result (the CLI missing, a model or flag it refuses)
+never worked on the item, so the item goes back to where its start found it, with the cause
+`chat.failed-to-start`, unless a person moved it since. Every automatic move is made by the actor
 `system`, recorded in the history with its cause, and held to three rules, so a board never fights
 the person using it:
 

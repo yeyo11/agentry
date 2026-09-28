@@ -26,6 +26,7 @@ import {
   isGitRepo,
   isUntracked,
   lineCount,
+  mainCheckout,
   mainTopLevel,
   mergeBase,
   parentOf,
@@ -65,16 +66,18 @@ const MAX_CONTEXT = 500;
 const FULL_LIMIT = 20_000;
 
 /** `?context=` as a request sends it: a count of lines or `full`; anything else is the default. */
-export function parseDiffContext(raw: string | undefined): DiffContext {
+export function parseDiffContext(raw: unknown): DiffContext {
   if (raw === 'full') return 'full';
-  if (raw === undefined || !/^\d+$/.test(raw.trim())) return DEFAULT_CONTEXT;
+  // A repeated parameter arrives as a list: not a count either
+  if (typeof raw !== 'string' || !/^\d+$/.test(raw.trim())) return DEFAULT_CONTEXT;
   return Math.min(MAX_CONTEXT, Number(raw.trim()));
 }
 
 /** `?commit=` and `?uncommitted=` as a request sends them; asking for both at once is refused. */
-export function parseChangeScope(query: { commit?: string; uncommitted?: string }): ChangeScope {
+export function parseChangeScope(query: { commit?: unknown; uncommitted?: unknown }): ChangeScope {
+  if (Array.isArray(query.commit) || Array.isArray(query.uncommitted)) throw new Error('commit and uncommitted are given once each');
   const uncommitted = query.uncommitted === '1' || query.uncommitted === 'true';
-  const commit = query.commit?.trim() || undefined;
+  const commit = (typeof query.commit === 'string' ? query.commit.trim() : '') || undefined;
   if (commit && uncommitted) throw new Error('commit and uncommitted cannot be asked for together');
   return { ...(commit ? { commit } : {}), ...(uncommitted ? { uncommitted } : {}) };
 }
@@ -177,6 +180,16 @@ function diffOf(site: Site, path: string, opts: DiffOptions = {}): FileDiff {
   return { path: rel, diff, full };
 }
 
+/** The commit a checkout is on, or null when it is gone or not a repository any more. */
+function tipOf(dir: string | null): string | null {
+  if (!dir || !existsSync(dir) || !isGitRepo(dir)) return null;
+  try {
+    return headCommit(dir);
+  } catch {
+    return null;
+  }
+}
+
 const EMPTY_CHECKLIST: Checklist = { items: [], updatedAt: null };
 
 export interface ChangesDeps {
@@ -184,6 +197,11 @@ export interface ChangesDeps {
   chats: ChatService;
   sessions: SessionStore;
   runtime: ChatManager;
+  /**
+   * The directory a chat's worktree left from, when that is not the main checkout: the project of
+   * the work item the chat works on, which may itself be a linked worktree on another branch
+   */
+  forkedFrom?: (chatId: string) => string | null;
 }
 
 /**
@@ -259,23 +277,25 @@ export class Changes {
     const tree = chat.worktree;
     if (!tree || !existsSync(tree.path) || !isGitRepo(tree.path)) return null;
     const repo = mainTopLevel(tree.path);
-    // Where the worktree left the main checkout, whatever has landed there since
-    const base = mergeBase(tree.path, 'HEAD', headCommit(repo));
+    // Where the worktree left the checkout it was cut from, whatever has landed there since
+    const from = this.deps.forkedFrom?.(chat.id);
+    const base = mergeBase(tree.path, 'HEAD', tipOf(from ?? null) ?? headCommit(repo));
     return { repo, worktree: tree.path, branch: tree.branch, base };
   }
 
   /**
-   * The site of a work item's own worktree and branch, measured from where it left the main
-   * checkout, as a chat's is. Once the worktree is gone the branch is still read by name, from the
+   * The site of a work item's own worktree and branch, measured from where it left the project's
+   * checkout (a linked worktree's HEAD is not the main checkout's), as a chat's is. Once the worktree is gone the branch is still read by name, from the
    * project's repository; null when neither is left.
    */
   private itemSite(projectPath: string, place: { worktree: string | null; branch: string | null }): Site | null {
     const live = place.worktree && existsSync(place.worktree) && isGitRepo(place.worktree) ? place.worktree : null;
     const from = live ?? (existsSync(projectPath) && isGitRepo(projectPath) ? projectPath : null);
     if (!from) return null;
-    const repo = mainTopLevel(from);
+    const repo = mainCheckout(from);
     if (!live && !(place.branch && branchExists(repo, place.branch))) return null;
-    const base = live ? mergeBase(live, 'HEAD', headCommit(repo)) : mergeBase(repo, place.branch ?? 'HEAD', 'HEAD');
+    const tip = tipOf(projectPath) ?? headCommit(repo);
+    const base = live ? mergeBase(live, 'HEAD', tip) : mergeBase(repo, place.branch ?? 'HEAD', tip);
     return { repo, worktree: live, branch: place.branch, base };
   }
 

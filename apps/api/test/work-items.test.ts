@@ -246,6 +246,17 @@ test('criteria, comments, relations and links are changed through their own rout
   const unrelated = await app.inject({ method: 'DELETE', url: `/api/work-items/${other.id}/relations/${item.id}` });
   assert.deepEqual([unrelated.statusCode, unrelated.json<WorkItem>().relations], [200, []]);
 
+  // A link names a chat that exists, in the item's project: this core has no CLI, so the chat list is stood in for
+  const nowhere = await app.inject({ method: 'POST', url: `/api/work-items/${item.id}/links`, ...json({ kind: 'chat', role: 'work', chatId: 'chat-1' }) });
+  assert.equal(nowhere.statusCode, 400);
+  assert.match(nowhere.json().error, /chat chat-1 not found/);
+  const summaryOf = core.chats.summaryOf.bind(core.chats);
+  const chatIn = (projectId: string) => (async (id: string) => ({ id, project: { id: projectId, name: 'p' } })) as unknown as typeof core.chats.summaryOf;
+  core.chats.summaryOf = chatIn('another-project');
+  const elsewhere = await app.inject({ method: 'POST', url: `/api/work-items/${item.id}/links`, ...json({ kind: 'chat', role: 'work', chatId: 'chat-1' }) });
+  assert.equal(elsewhere.statusCode, 400);
+  assert.match(elsewhere.json().error, /not a chat of this item's project/);
+  core.chats.summaryOf = chatIn(project.id);
   const linked = await app.inject({ method: 'POST', url: `/api/work-items/${item.id}/links`, ...json({ kind: 'chat', role: 'work', chatId: 'chat-1' }) });
   assert.equal(linked.statusCode, 201);
   const link = linked.json<WorkItemLink>();
@@ -253,7 +264,11 @@ test('criteria, comments, relations and links are changed through their own rout
   assert.deepEqual([link.chatId, link.name, link.chatState], ['chat-1', null, null]);
   const again = await app.inject({ method: 'POST', url: `/api/work-items/${item.id}/links`, ...json({ kind: 'chat', role: 'work', chatId: 'chat-1' }) });
   assert.equal(again.json<WorkItemLink>().id, link.id);
+  core.chats.summaryOf = summaryOf;
   assert.equal((await app.inject({ method: 'POST', url: `/api/work-items/${item.id}/links`, ...json({ kind: 'orchestration', role: 'work' }) })).statusCode, 400);
+  const noGraph = await app.inject({ method: 'POST', url: `/api/work-items/${item.id}/links`, ...json({ kind: 'orchestration', role: 'work', orchestrationId: 'o-1', taskId: 't1' }) });
+  assert.equal(noGraph.statusCode, 400);
+  assert.match(noGraph.json().error, /orchestration o-1 not found/);
   assert.deepEqual((await app.inject(`/api/work-items/${item.id}/links`)).json<WorkItemLink[]>().map((l) => l.id), [link.id]);
   // A link is only unlinked under its own item
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/work-items/${other.id}/links/${link.id}` })).statusCode, 404);
@@ -319,6 +334,12 @@ test('the All projects view shows the boards that are on, and a removed project 
     assert.ok(board.columns.every((c) => c.limit === null));
     assert.equal(board.columns.flatMap((c) => c.items).some((i) => i.projectId === hidden.id), false);
     assert.equal(board.columns.reduce((n, c) => n + c.count, 0), board.columns.flatMap((c) => c.items).length);
+    // An epic is not counted, as on the project's own board, so the figure does not change with the scope
+    await createItem(two.id, { title: 'Grouping', type: 'epic', status: 'todo' });
+    const todo = (b: Board) => b.columns.find((c) => c.status === 'todo')?.count;
+    const withEpic = (await app.inject('/api/work-items/board')).json<Board>();
+    assert.equal(todo(withEpic), todo(board));
+    assert.equal(todo((await app.inject(`/api/projects/${two.id}/work-items/board`)).json<Board>()), 1);
     assert.equal((await app.inject('/api/work-items?status=todo')).json<WorkItem[]>().some((i) => i.id === a.id), false);
 
     // Removed: its items stay, readable by id but out of every list, and nothing changes them
@@ -331,6 +352,38 @@ test('the All projects view shows the boards that are on, and a removed project 
     assert.equal((await app.inject(`/api/projects/${one.id}/work-items`)).statusCode, 404);
   } finally {
     for (const p of [one, two, hidden]) await app.inject({ method: 'DELETE', url: `/api/projects/${p.id}` });
+  }
+});
+
+test('a repeated query parameter or a body of the wrong shape is a 400, never a 500', async () => {
+  const project = await importProject('Malformed', ['board', 'memory']);
+  const item = await createItem(project.id, { title: 'Probed' });
+  try {
+    // A list parameter takes its repeats as more members; a single one refuses them
+    const both = await app.inject(`/api/projects/${project.id}/work-items?status=backlog&status=todo`);
+    assert.equal(both.statusCode, 200, both.body);
+    assert.deepEqual(both.json<WorkItem[]>().map((i) => i.id), [item.id]);
+    for (const base of [`/api/projects/${project.id}/work-items`, `/api/projects/${project.id}/work-items/board`, '/api/work-items', '/api/work-items/board']) {
+      for (const query of ['type=task&type=bug', 'labels=a&labels=b', 'priority=low&priority=high']) {
+        assert.equal((await app.inject(`${base}?${query}`)).statusCode, 200, `${base}?${query}`);
+      }
+      for (const query of ['q=a&q=b', 'epicId=a&epicId=b', 'milestoneId=a&milestoneId=b', 'status=x&status=y']) {
+        assert.equal((await app.inject(`${base}?${query}`)).statusCode, 400, `${base}?${query}`);
+      }
+    }
+    assert.equal((await app.inject(`/api/work-items/${item.id}/changes?commit=a&commit=b`)).statusCode, 400);
+    assert.equal((await app.inject(`/api/work-items/${item.id}/changes/diff?path=a&path=b`)).statusCode, 400);
+    assert.equal((await app.inject(`/api/work-items/${item.id}/changes/diff?path=a&context=1&context=2`)).statusCode, 400);
+    assert.equal((await app.inject({ method: 'POST', url: `/api/projects/${project.id}/journal`, ...json({ text: 'x', itemId: { a: 1 } }) })).statusCode, 400);
+    assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...json({ name: 12 }) })).statusCode, 400);
+    // A move is not a field: PATCH says so instead of answering 200 with the status unchanged
+    const moved = await app.inject({ method: 'PATCH', url: `/api/work-items/${item.id}`, ...json({ status: 'done' }) });
+    assert.equal(moved.statusCode, 400);
+    assert.match(moved.json().error, /move/);
+    assert.equal((await app.inject(`/api/work-items/${item.id}`)).json<WorkItem>().status, 'backlog');
+    assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations', ...json({ name: 'g', objective: 'o', tasks: [null] }) })).statusCode, 400);
+  } finally {
+    await app.inject({ method: 'DELETE', url: `/api/projects/${project.id}` });
   }
 });
 

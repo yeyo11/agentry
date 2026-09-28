@@ -4258,7 +4258,13 @@
         "$ref": "#/components/schemas/MilestoneChangedEvent"
       },
       {
+        "$ref": "#/components/schemas/ProjectCreatedEvent"
+      },
+      {
         "$ref": "#/components/schemas/ProjectUpdatedEvent"
+      },
+      {
+        "$ref": "#/components/schemas/ProjectRemovedEvent"
       },
       {
         "$ref": "#/components/schemas/TeamChangedEvent"
@@ -6662,6 +6668,41 @@
       "deleted"
     ]
   },
+  "ProjectCreatedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "project.created"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "projectName": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "projectId",
+      "projectName",
+      "title",
+      "type"
+    ],
+    "description": "A directory was imported as a project, or a new one created in the workspace. A directory imported again after it was removed takes its old id back, and is announced as created all the same."
+  },
   "ProjectUpdatedEvent": {
     "type": "object",
     "properties": {
@@ -6721,6 +6762,41 @@
       "settings"
     ],
     "description": "What `project.updated` says changed; `settings` is anything else in the settings document."
+  },
+  "ProjectRemovedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "project.removed"
+      },
+      "projectId": {
+        "type": "string"
+      },
+      "projectName": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "projectId",
+      "projectName",
+      "title",
+      "type"
+    ],
+    "description": "A project was removed from Agentry. Its directory, settings and work items are left where they are."
   },
   "TeamChangedEvent": {
     "type": "object",
