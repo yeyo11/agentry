@@ -142,6 +142,12 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.click('.resource-proposal-actions .btn-primary', undefined, 1200);
     await until(() => existsSync(onePath), 'saving it writes the agent file');
 
+    // "Suggest" pressed with a file open leaves the editor, so the run and its proposals are in view
+    await page.waitFor(`return !!document.querySelector('.resources-editor')`, { label: 'a file open in the editor' });
+    await page.click('.resources-toolbar .resources-suggest', undefined, 600);
+    await page.waitFor(`return !document.querySelector('.resources-editor') && !!document.querySelector('.resources-proposals')`, { label: 'Suggest shows its run', timeout: 30_000 });
+    await page.waitFor(`return document.querySelectorAll('.resources-proposals .suggestion-row').length === 2`, { label: 'the new proposals', timeout: 30_000 });
+
     // ---- On a phone: the same suggestion as Include buttons, no checkboxes ----
     // The desktop created the first two by title, which now makes them "similar" too: the new run
     // proposes two new ones beside the one like an existing item

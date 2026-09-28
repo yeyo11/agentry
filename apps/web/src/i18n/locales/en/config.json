@@ -1054,6 +1054,7 @@
     "new": "New",
     "suggest": "Suggest",
     "suggestAgain": "Suggest again",
+    "suggesting": "Suggesting…",
     "createAi": "Create with AI",
     "kind": {
       "agents": "Agent",

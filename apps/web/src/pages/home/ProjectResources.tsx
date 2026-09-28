@@ -7,6 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api, keys, useAssistantRuns, useTeam } from '../../api';
 import { Menu } from '../../components/controls/Menu';
 import { ICON_SM } from '../../components/icons';
+import { Spinner } from '../../components/Spinner';
 import { useToast } from '../../components/Toast';
 import { ErrorBox, Segmented, Tag } from '../../components/ui';
 import { useLeaveGuard } from '../../lib/dirty';
@@ -201,12 +202,22 @@ export function ProjectResources({ project }: { project: Project }) {
       />
     );
   const suggesting = suggest?.status === 'running' || suggestRun.isPending;
+  // The proposals show on the overview, which an open file hides: "Suggest" leaves the editor (asking
+  // first if it holds unsaved text) so the run and what it proposes are in view
+  const startSuggest = () =>
+    void guard().then((ok) => {
+      if (!ok) return;
+      setDraft(null);
+      setNaming(null);
+      update(closeEditor);
+      suggestRun.mutate();
+    });
   const aiActions = (
     <div className="resources-ai-actions">
-      <button type="button" className="btn resources-suggest" disabled={suggesting} onClick={() => suggestRun.mutate()}>
-        <Sparkle {...ICON_SM} />
+      <button type="button" className="btn resources-suggest" disabled={suggesting} aria-busy={suggesting || undefined} onClick={startSuggest}>
+        {suggesting ? <Spinner className="resources-suggest-spin" /> : <Sparkle {...ICON_SM} />}
         {/* A phone's row holds two buttons and "+": the short label, as MobileRecursos draws it */}
-        {suggest && suggest.status !== 'running' && !phone ? t('resourcesAi.suggestAgain') : t('resourcesAi.suggest')}
+        {suggesting ? t('resourcesAi.suggesting') : suggest && !phone ? t('resourcesAi.suggestAgain') : t('resourcesAi.suggest')}
       </button>
       <button type="button" className="btn resources-create-ai" onClick={() => update({ ai: '1' })}>
         <Pencil {...ICON_SM} />

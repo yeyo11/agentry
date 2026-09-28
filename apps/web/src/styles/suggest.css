@@ -232,6 +232,11 @@
   gap: 8px;
 }
 
+/* "Suggesting…" is the assistant at work: the live colour beside its verb */
+.resources-suggest-spin {
+  color: var(--live);
+}
+
 .resources-toolbar-end {
   display: flex;
   align-items: center;
