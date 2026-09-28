@@ -23,6 +23,9 @@ export class EventBus {
   private readonly listeners = new Set<(event: AgentryEvent) => void>();
   private readonly observers = new Set<(event: AgentryEvent) => void>();
   private lastId = 0;
+  /** Events emitted while another is being delivered, held so every listener hears them in id order */
+  private readonly pending: AgentryEvent[] = [];
+  private delivering = false;
   /** Told when the first listener arrives and when the last one leaves, so idle watchers can sleep */
   onDemand: ((wanted: boolean) => void) | null = null;
 
@@ -40,14 +43,28 @@ export class EventBus {
     const event = { ...input, id: ++this.lastId, at: new Date().toISOString() } as AgentryEvent;
     this.buffer.push(event);
     if (this.buffer.length > this.capacity) this.buffer.splice(0, this.buffer.length - this.capacity);
-    for (const listener of [...this.observers, ...this.listeners]) {
-      try {
-        listener(event);
-      } catch {
-        // a broken consumer must not stop the others from hearing about it
-      }
-    }
+    // A listener that emits (core reacting to its own events) would otherwise have its event reach
+    // the later listeners first, and a client drops an id older than one it has already seen
+    this.pending.push(event);
+    if (!this.delivering) this.drain();
     return event;
+  }
+
+  private drain(): void {
+    this.delivering = true;
+    try {
+      for (let next = this.pending.shift(); next; next = this.pending.shift()) {
+        for (const listener of [...this.observers, ...this.listeners]) {
+          try {
+            listener(next);
+          } catch {
+            // a broken consumer must not stop the others from hearing about it
+          }
+        }
+      }
+    } finally {
+      this.delivering = false;
+    }
   }
 
   subscribe(listener: (event: AgentryEvent) => void): () => void {

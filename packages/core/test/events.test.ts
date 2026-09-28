@@ -57,6 +57,45 @@ test('a subscriber that throws does not stop the others from hearing the event',
   assert.deepEqual(heard, [1]);
 });
 
+test('an event emitted while another is delivered reaches every listener after it, in id order', () => {
+  const bus = new EventBus();
+  const order: string[] = [];
+  // Core reacting to its own event: the first observer emits, the second and the client come later
+  bus.observe((e) => {
+    order.push(`observer1:${e.id}`);
+    if (e.title === 'outer') {
+      const inner = bus.emit(ping('inner'));
+      bus.emit(ping('inner2'));
+      assert.equal(inner.id, 2, 'the id is stamped at once, only the delivery waits');
+    }
+  });
+  bus.observe((e) => order.push(`observer2:${e.id}`));
+  const client: number[] = [];
+  bus.subscribe((e) => client.push(e.id));
+
+  bus.emit(ping('outer'));
+
+  assert.deepEqual(client, [1, 2, 3]);
+  assert.deepEqual(order, ['observer1:1', 'observer2:1', 'observer1:2', 'observer2:2', 'observer1:3', 'observer2:3']);
+});
+
+test('events that are not nested are delivered at once, one after the other, even after a listener threw', () => {
+  const bus = new EventBus();
+  const heard: number[] = [];
+  let throwOnce = true;
+  bus.observe(() => {
+    if (throwOnce) {
+      throwOnce = false;
+      throw new Error('broken consumer');
+    }
+  });
+  bus.subscribe((e) => heard.push(e.id));
+  bus.emit(ping('a'));
+  assert.deepEqual(heard, [1], 'delivered before emit returns');
+  bus.emit(ping('b'));
+  assert.deepEqual(heard, [1, 2]);
+});
+
 test('a client that reconnects gets what it missed, and nothing when it is up to date', () => {
   const bus = new EventBus();
   for (const t of ['a', 'b', 'c', 'd']) bus.emit(ping(t));
