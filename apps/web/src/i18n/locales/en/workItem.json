@@ -86,7 +86,7 @@
     "moved": "took it to {{to}}",
     "noMove": "did not move it",
     "runFailed": "Run failed",
-    "failedNoMove": "its run failed and did not move it",
+    "failedNoMove": "its run failed, so the item stayed where it was",
     "noCost": "no cost"
   },
   "changes": {

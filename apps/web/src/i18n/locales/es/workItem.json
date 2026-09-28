@@ -86,7 +86,7 @@
     "moved": "la llevó a {{to}}",
     "noMove": "no movió la tarea",
     "runFailed": "Ejecución fallida",
-    "failedNoMove": "su ejecución falló y no movió la tarea",
+    "failedNoMove": "su ejecución ha fallado y la tarea sigue donde estaba",
     "noCost": "sin coste"
   },
   "changes": {
