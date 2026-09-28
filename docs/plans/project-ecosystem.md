@@ -938,8 +938,9 @@ of orchestrations 1 to 4 apply, the web ones included. The numbers below are the
 - **Flow runs are bounded**: per-stage tool sets (refine: read tools plus writes under
   `documents.path`; work: the member's `writes` plus `documents.path`; verify: read tools, the test
   commands the project declares, and writes under `documents.path`); `Bash(git push *)` and
-  `Bash(git push)` always denied; `WebFetch`/`WebSearch` only for the work stage; a per-run budget,
-  `flow.maxCostUsd` (default 2 USD), passed as `--max-budget-usd`; at most 2 restarts per run.
+  `Bash(git push)` always denied; `WebFetch`/`WebSearch` only for the work stage; no cost limit by default (the owner, 2026-09-28:
+  runs are always unlimited unless the person sets `flow.maxCostUsd`, which is then passed as
+  `--max-budget-usd`); at most 2 restarts per run.
 - **A restarted run with no chat to resume fails** with a comment on the item, rather than starting
   a fresh chat without context.
 - **A member never takes over a person's chat.** The Developer works in its own chat on the item's
