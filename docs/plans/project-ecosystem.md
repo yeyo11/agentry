@@ -1073,6 +1073,61 @@ Decisions taken by the planner where a gap needed one; the owner can reopen them
 | `gaps-review` | any file, cross-task fixes only, after all | every gap re-checked on the integrated result, in both themes and both sizes |
 | `gaps-docs` | `docs/**` except `docs/design-system/reference/**`, `README.md`, `ROADMAP.md` | the "Known gaps" sections emptied or reduced to what is truly out of reach, with the reason; the audit and the plan's Outcome |
 
+## Orchestration 7: `ecosystem-design`
+
+The designer reviewed the 66 draft screens and delivered the official reference of the ecosystem
+(2026-09-28, `agentry-ecosistema.zip`): a patch over `e0c24a7` that touches only `docs/` (161 files),
+`docs/design-system/ecosystem-review.md` with the change of every screen and what development needs,
+and "Decisions of the ecosystem design review" in `docs/design-system.md` answering the ten open
+questions. This orchestration brings the app to that reference. It starts once orchestration 6 is
+merged into `feat/project-ecosystem` and the designer's patch is applied on top (`git am --3way`),
+and is merged back into the same branch.
+
+### The owner's decisions for the questions the design left
+
+1. **Phone headers: the ecosystem now, the rest of the app as a separate job.** The rule is not new:
+   Night Shift already drew every phone detail screen with a back arrow, a title and a "⋯"; the app
+   still shows the global top bar on all of them. The ecosystem inherits that incoherence; it does
+   not create it.
+   - **In this orchestration:** the screens the ecosystem creates: tasks, the board and the list
+     (reached from Más), the project, a member, the flow, documents, memory, the assistant and
+     resources.
+   - **Not in it:** a task's chat and a flow run's chat. They are the chat page, shared by every
+     chat: they keep the chat's current header, with what the ecosystem adds under it (the
+     "Verificación de AGN-26" row and the failure banner). They move to the new format in the
+     separate job, with the other chats.
+   - **So the separate job is cheap:** the shell decides by route, with a mark such as
+     `phoneHeader: 'page'` that hides `.topbar` on a phone and lets the page draw its own header
+     (back, title, and "⋯" as a sheet through `MoreActions`). The separate job then only switches
+     the mark on for more routes.
+2. **Time, in the whole app.**
+   - A running clock: `formatElapsed` (`apps/web/src/lib/live.ts`) shows "0:41" instead of "41s"
+     under a minute, so the clock does not change width from "59s" to "1:00"; above a minute it
+     already reads `m:ss` and `h:mm:ss`.
+   - A finished duration: in words, which `formatDuration` already does ("3 min 40 s").
+   - A past moment: `timeAgo` stays. The bare hour ("17:44") is used only inside lists grouped by
+     day, such as the team's activity, where the "Ayer" header says which day it is.
+   - Search the e2e specs for one that expects "NNs" before closing.
+3. **Order:** wait for orchestration 6, merge it, apply the designer's patch, then launch this one.
+
+### What it builds
+
+Everything in `docs/design-system/ecosystem-review.md`, screen by screen, and its "For development"
+list: the card's new anatomy and the strip (`WorkItemStrip`), the quiet over-limit column, paging
+with "Mostrar N más" and skeleton cards, the role avatar sizes, failed runs everywhere (card strip,
+item links, item activity, Team, Team activity, and the failed run's chat banner with "Reintentar"),
+the Team activity view, the Flow "Límites" card, the model picker (`.model-pick`), the monogram
+rule, the stage names by column (refinado, comprobación), failure reasons in Spanish from the run's
+cause with the raw error under them, and the routes `GET /projects/:id/flow/runs?role=&outcome=&before=&limit=50`
+and `POST /flow-runs/:runId/retry` (409 once the item left the run's column; counts as a person's
+move). What orchestration 6 already built is aligned to the reference, not rebuilt.
+
+### Separate job, recorded here so it is not lost
+
+**Phone headers for the rest of the app**: switch `phoneHeader: 'page'` on for every phone detail
+screen Night Shift drew with a back arrow (chat, a task's chat, a flow run's chat, orchestration,
+accounts, changes…), each page drawing its back, title and "⋯" sheet. Not part of this feature.
+
 ## Parked: a knowledge base and integrations
 
 Raised by the owner on 2026-09-27 after the four orchestrations, and parked the same day: the
