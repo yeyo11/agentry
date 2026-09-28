@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Core } from '@agentry/core';
+import { assistantLanguage, type Core } from '@agentry/core';
 import type { AcceptAssistantProposalRequest, StartAssistantRunRequest } from '@agentry/shared';
 
 /**
@@ -9,7 +9,8 @@ import type { AcceptAssistantProposalRequest, StartAssistantRunRequest } from '@
  */
 export const assistantRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   app.post<{ Params: { id: string }; Body: StartAssistantRunRequest }>('/projects/:id/assistant/runs', async (req, reply) => {
-    const run = await core.assistant.start(req.params.id, req.body ?? {});
+    // The chat's title is written in the language the person reads Agentry in, which the web sends
+    const run = await core.assistant.start(req.params.id, req.body ?? {}, assistantLanguage(req.headers['accept-language']));
     return reply.code(201).send(run);
   });
 

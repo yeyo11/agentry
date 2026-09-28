@@ -105,6 +105,19 @@ export interface NewChat extends NewChatRequest {
   /** Housekeeping: no transcript is written (`--no-session-persistence`), so it cannot be resumed */
   internal?: boolean;
   toolConfig?: ChatToolConfig | null;
+  /** Held to a closed set of tools and no settings file: the project assistant's read-only runs */
+  confine?: ChatConfinement;
+}
+
+/**
+ * A chat that may only do what Agentry names. The allow and deny lists only rule on the tools a
+ * session has, and add to whatever the person's settings files allow; this takes the rest away.
+ */
+export interface ChatConfinement {
+  /** `--tools`: the only built-in tools the session has */
+  tools: string[];
+  /** `--setting-sources`: the settings files it loads; empty loads none, so no rule, hook or server of theirs applies */
+  settingSources: Array<'user' | 'project' | 'local'>;
 }
 
 /**
@@ -125,6 +138,7 @@ export interface ExecutionExtras {
   agentsFile?: string | null;
   jsonSchema?: unknown;
   keepAlive?: boolean;
+  confine?: ChatConfinement | null;
 }
 
 export interface RunMeta {
@@ -997,6 +1011,10 @@ export class ChatManager extends EventEmitter {
       else opts.jsonSchema = options.jsonSchema;
     }
     if (options.keepAlive !== undefined) opts.keepAlive = options.keepAlive;
+    if (options.confine !== undefined) {
+      if (options.confine === null) delete opts.confine;
+      else opts.confine = options.confine;
+    }
     chat.setSettings({ ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}), ...(options.model ? { model: options.model } : {}) });
     for (const key of ['model', 'effort', 'permissionMode', 'appendSystemPrompt', 'allowedTools', 'disallowedTools', 'maxBudgetUsd', 'permissionPrompts'] as const) {
       if (options[key] !== undefined) Object.assign(opts, { [key]: options[key] });
@@ -1320,10 +1338,11 @@ export class ChatManager extends EventEmitter {
       '--verbose',
       '--include-partial-messages',
       '--permission-mode', chat.permissionMode,
-      // Makes bypassPermissions a mode the chat can be switched to later, without starting in it: the
-      // CLI refuses the switch otherwise. Starting a chat in that mode is already open to the same caller.
-      '--allow-dangerously-skip-permissions',
     ];
+    // Makes bypassPermissions a mode the chat can be switched to later, without starting in it: the
+    // CLI refuses the switch otherwise. Starting a chat in that mode is already open to the same caller.
+    // A confined chat is never to be switched there, and `--restricted` refuses the flag outright.
+    if (!opts.confine) args.push('--allow-dangerously-skip-permissions');
     if (chat.forkFrom) {
       // The copy is created under the id Agentry chose; until the CLI confirms it, a respawn forks again
       args.push('--resume', chat.forkFrom, '--fork-session', '--session-id', chat.id, '--name', chat.name);
@@ -1342,8 +1361,13 @@ export class ChatManager extends EventEmitter {
     // Strict, because the point of choosing servers is that no other one loads. The `=` form keeps
     // the variadic flag from taking whatever follows it as another file.
     if (opts.mcp?.config) args.push(`--mcp-config=${opts.mcp.config}`, '--strict-mcp-config');
+    if (opts.confine) {
+      // `--restricted` confines the file tools to the working directory, which is why no other
+      // directory is added. The `=` forms keep an empty list a value of its flag.
+      args.push('--restricted', `--tools=${opts.confine.tools.join(',')}`, `--setting-sources=${opts.confine.settingSources.join(',')}`);
+    }
     // Attached files live outside every project; this is what lets Claude open them by path
-    if (this.uploads) args.push('--add-dir', this.uploads.dir);
+    else if (this.uploads) args.push('--add-dir', this.uploads.dir);
     // The CLI creates, names and locks the worktree itself, and works in it for the session
     if (opts.worktree) args.push('--worktree', opts.worktree);
     // The CLI stops the chat itself once the ceiling is reached, which no amount of watching from

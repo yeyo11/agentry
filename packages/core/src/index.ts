@@ -60,7 +60,7 @@ import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsP
 import { canBranch, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { TunnelManager } from './tunnel.ts';
 import { ChatService, type Placement } from './chat-service.ts';
-import { ChatManager, type ChatRuntime, type RunResult } from './chats.ts';
+import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus } from './cli.ts';
@@ -100,6 +100,7 @@ import { SessionStore } from './sessions.ts';
 import { readFrontmatter, TeamService } from './team.ts';
 import { FlowService, type FlowLaunch } from './flow.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
+import { assistantGit } from './assistant-sources.ts';
 import { git, isGitRepo } from './git.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
@@ -152,7 +153,7 @@ export {
   type AssistantLaunch,
   type AssistantProject,
 } from './assistant.ts';
-export { assistantPrompt, assistantSchema, parseAnswer, type AssistantAnswer, type AssistantBrief } from './assistant-answer.ts';
+export { assistantLanguage, assistantPrompt, assistantSchema, assistantTitle, parseAnswer, type AssistantAnswer, type AssistantBrief, type AssistantGit, type AssistantLanguage } from './assistant-answer.ts';
 export { FLOW_CAUSE, flowPrompt, flowResultSchema, FlowService, parseResult, writeRules, type FlowChatResult, type FlowDeps, type FlowLaunch, type FlowProject } from './flow.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
@@ -1166,6 +1167,10 @@ export class Core {
     const milestones = await quiet(() => this.workItems.milestones(project.id).filter((m) => m.state === 'open').map((m) => m.name), [] as string[]);
     const commits = !isGitRepo(project.path) ? null : await quiet(() => Number(git(project.path, ['rev-list', '--count', 'HEAD'], 10_000)) || 0, 0);
     const chats = [...sessions].sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
+    const instructions = await quiet(async () => {
+      const file = join(project.path, 'CLAUDE.md');
+      return existsSync(file) ? await readFile(file, 'utf8') : null;
+    }, null);
     return {
       facts: {
         memoryFiles: memory.length,
@@ -1180,13 +1185,16 @@ export class Core {
       journal: journal.text,
       chats: chats.map((c) => (c.firstPrompt ?? c.title).replace(/\s+/g, ' ').trim().slice(0, 140)).filter(Boolean),
       resources: { agents, skills, commands },
+      instructions,
+      git: await quiet(() => assistantGit(project.path), null),
     };
   }
 
   /**
-   * Starts an assistant run's chat in the project's directory: read-only tools in `dontAsk`, no MCP
-   * server and no preset, the journal appended, the result held to the run's schema, and one turn.
-   * A run a restart cut off continues in its own chat.
+   * Starts an assistant run's chat in the project's directory: confined to the read tools (the only
+   * ones it has, kept to the directory) in `dontAsk`, with no settings source, MCP server, preset or
+   * uploads directory, the journal and CLAUDE.md appended, the result held to the run's schema, and
+   * one turn. A run a restart cut off continues in its own chat, confined again.
    */
   private async launchAssistantRun(launch: AssistantLaunch, onStart: (chatId: string) => void): Promise<void> {
     const options = {
@@ -1199,12 +1207,13 @@ export class Core {
       mcp: { servers: [] },
       permissionPrompts: 'none' as const,
     };
+    const confine: ChatConfinement = { tools: launch.tools, settingSources: [] };
     if (launch.resumeChatId) {
       onStart(launch.resumeChatId);
-      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, { jsonSchema: launch.jsonSchema, keepAlive: false });
+      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, { jsonSchema: launch.jsonSchema, keepAlive: false, confine });
       return;
     }
-    await this.chats.create({ ...options, prompt: launch.prompt, cwd: launch.cwd, jsonSchema: launch.jsonSchema, keepAlive: false }, (started) => onStart(started.id));
+    await this.chats.create({ ...options, prompt: launch.prompt, cwd: launch.cwd, jsonSchema: launch.jsonSchema, keepAlive: false, confine }, (started) => onStart(started.id));
   }
 
   /**

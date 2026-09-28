@@ -13,7 +13,7 @@ import {
   type WorkItemPriority,
   type WorkItemType,
 } from '@agentry/shared';
-import { roleTitle } from './team.ts';
+import { MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, roleTitle } from './team.ts';
 
 /**
  * What an assistant run is asked and how its answer is read: the prompt, the JSON Schema its result
@@ -23,9 +23,11 @@ import { roleTitle } from './team.ts';
 
 /** A run's proposals per kind at most; more are cut, not refused */
 export const PROPOSALS_MAX = 12;
-const CONTENT_MAX = 100_000;
+export const CONTENT_MAX = 100_000;
 const TEXT_MAX = 20_000;
 const SHORT_MAX = 200;
+/** A member's description, which its agent file carries */
+export const DESCRIPTION_MAX = 2000;
 const LABELS_MAX = 10;
 const CRITERIA_MAX = 30;
 const CRITERION_MAX = 500;
@@ -56,6 +58,24 @@ export interface AssistantBrief {
   moreWorkItems: number;
   milestones: string[];
   chats: string[];
+  /** What git says of the repository, handed since the run has no shell; null outside one */
+  git: AssistantGit | null;
+  /** The person's language, for the title line a chat is listed by */
+  language: AssistantLanguage;
+}
+
+/** The languages Agentry speaks; a chat's title is written in the person's. */
+export type AssistantLanguage = 'en' | 'es';
+
+/** The history and state of a project's repository, as a run is handed them instead of a shell. */
+export interface AssistantGit {
+  branch: string | null;
+  /** `git log --oneline`, latest first */
+  commits: string[];
+  /** `git status --short` */
+  changes: string[];
+  /** Changes beyond the ones listed */
+  moreChanges: number;
 }
 
 /** One entry of the answer's `read`: what the run says it looked at. */
@@ -197,19 +217,48 @@ export function assistantSchema(brief: Pick<AssistantBrief, 'kind' | 'proposes' 
 
 const list = (values: readonly string[], none = 'none') => (values.length ? values.join(', ') : none);
 
+/**
+ * The first line of a run's prompt, which is what its chat is listed by (a chat's title is its first
+ * prompt): short, and in the person's language, where the instructions below it stay in English.
+ */
+export function assistantTitle(brief: Pick<AssistantBrief, 'kind' | 'projectName' | 'description' | 'resourceKind' | 'language'>): string {
+  const es = brief.language === 'es';
+  const name = brief.projectName;
+  if (brief.kind === 'project') return es ? `Asistente de ${name}` : `Assistant for ${name}`;
+  if (brief.kind === 'work-items') return es ? `Sugerir tareas · ${name}` : `Suggest tasks · ${name}`;
+  if (brief.description && brief.resourceKind) {
+    const what = es ? { agents: 'agente', skills: 'skill', commands: 'comando' }[brief.resourceKind] : singular(brief.resourceKind);
+    return es ? `Crear ${what} con IA · ${name}` : `Create ${what} with AI · ${name}`;
+  }
+  return es ? `Sugerir recursos · ${name}` : `Suggest resources · ${name}`;
+}
+
+/** The language of an `Accept-Language` header or a stored choice: Spanish when it comes first, English otherwise. */
+export function assistantLanguage(value: unknown): AssistantLanguage {
+  if (typeof value !== 'string') return 'en';
+  for (const tag of value.split(',')) {
+    const code = tag.trim().toLowerCase().split(/[-_;.@]/)[0];
+    if (code === 'es') return 'es';
+    if (code === 'en') return 'en';
+  }
+  return 'en';
+}
+
 /** The prompt of a run: who it is, that it writes nothing, what Agentry already knows, what to propose. */
 export function assistantPrompt(brief: AssistantBrief): string {
   const lines: string[] = [
+    assistantTitle(brief),
+    '',
     `You are Agentry's project assistant for the project "${brief.projectName}", in this directory.`,
     '',
-    'You are read-only. Read with Read, Grep and Glob, and use Bash only for `git log`, `git status` and `ls`. Do not try to create, edit or delete any file: nothing is written until the person accepts each of your proposals, one by one, and Agentry writes it then.',
+    'You are read-only. You have Read, Grep and Glob, confined to this directory, and no shell. Do not try to create, edit or delete any file: nothing is written until the person accepts each of your proposals, one by one, and Agentry writes it then. Secrets (.env files, keys, credentials) and the .git directory are closed to you; do not ask for them.',
     '',
   ];
   if (brief.empty) {
     lines.push('The directory has nothing to read yet: no files, no chats, no git history. Work from what the person described.', '');
   } else {
     lines.push(
-      'Read the project first: its README and manifests, its CLAUDE.md if there is one, its documents, the layout of its source, and its recent history with `git log`. Read enough to be specific; you do not need to read every file.',
+      "Read the project first: its README and manifests, its documents and the layout of its source. Its CLAUDE.md, if it has one, is in your system prompt, and its recent history is below. Read enough to be specific; you do not need to read every file.",
       '',
     );
   }
@@ -228,6 +277,18 @@ export function assistantPrompt(brief: AssistantBrief): string {
   if (brief.chats.length) {
     lines.push('', '### What recent Claude Code chats in this directory were about');
     for (const c of brief.chats) lines.push(`- ${c}`);
+  }
+  if (brief.git) {
+    lines.push('', `### Git${brief.git.branch ? `: on ${brief.git.branch}` : ''}`);
+    if (brief.git.commits.length) {
+      lines.push('Recent commits, latest first:');
+      for (const c of brief.git.commits) lines.push(`- ${c}`);
+    } else lines.push('- no commits yet');
+    if (brief.git.changes.length) {
+      lines.push('Uncommitted changes:');
+      for (const c of brief.git.changes) lines.push(`- ${c}`);
+      if (brief.git.moreChanges) lines.push(`- and ${String(brief.git.moreChanges)} more`);
+    }
   }
   lines.push('', "The project's journal, if it has entries, is in your system prompt.", '');
 
@@ -313,6 +374,7 @@ function roleId(v: unknown): string | null {
   const id = s
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
+    .slice(0, MEMBER_SHORT_MAX)
     .replace(/^-+|-+$/g, '');
   return id || null;
 }
@@ -359,8 +421,9 @@ export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | '
     const agents = new Set<string>();
     for (const m of arrayOf(value.teamMembers, PROPOSALS_MAX * 2)) {
       if (!isObject(m)) continue;
+      // Held to the team's own limits, so a proposal is one the team can take as it stands
       const role = roleId(m.role);
-      const responsibility = str(m.responsibility, 2000);
+      const responsibility = str(m.responsibility, MEMBER_TEXT_MAX);
       if (!role || !responsibility || roles.has(role)) continue;
       const named = str(m.agent, 64);
       const agent = named && RESOURCE_NAME.test(named) && !agents.has(named) ? named : role;
@@ -370,11 +433,11 @@ export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | '
       members.push({
         role,
         agent,
-        model: str(m.model, 100) ?? 'sonnet',
+        model: str(m.model, MEMBER_SHORT_MAX) ?? 'sonnet',
         responsibility,
-        writes: stringList(m.writes, WRITES_MAX, 500).filter((w) => relPath(w) !== null),
+        writes: stringList(m.writes, WRITES_MAX, MEMBER_TEXT_MAX).filter((w) => relPath(w) !== null),
         fromTemplate: templateRoles.has(role),
-        description: str(m.description, 2000) ?? responsibility,
+        description: str(m.description, DESCRIPTION_MAX) ?? responsibility,
         instructions: body(m.instructions, CONTENT_MAX),
         reason: body(m.reason, 2000),
       });
