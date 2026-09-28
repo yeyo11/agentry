@@ -104,7 +104,7 @@ test('comments and history interleave oldest first, and each filter keeps only i
     updatedAt: at(minute),
   });
   const comments = [comment('c1', 3), comment('c2', 5)];
-  const ids = (list: ReturnType<typeof activityOf>) => list.map((e) => (e.kind === 'history' ? e.entry.id : e.comment.id));
+  const ids = (list: ReturnType<typeof activityOf>) => list.map((e) => (e.kind === 'history' ? e.entry.id : e.kind === 'comment' ? e.comment.id : e.run.id));
   // At the same instant the change comes first: the comment usually explains it
   assert.deepEqual(ids(activityOf(history, comments)), ['h1', 'c1', 'h2', 'c2']);
   assert.deepEqual(ids(activityOf(history, comments, 'comments')), ['c1', 'c2']);

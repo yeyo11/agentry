@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Checkbox } from '../../../components/controls';
 import { ICON_SM, Monogram } from '../../../components/icons';
 import { formatDateTime, timeAgo } from '../../../lib/format';
+import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import type { ItemActions } from './hooks';
 import { criteriaProgress, shortId } from './model';
 
@@ -30,13 +31,16 @@ export function AgentMark({ size = 18, label }: { size?: number; label?: string 
 
 function CheckedBy({ criterion, entry, person, compact }: { criterion: AcceptanceCriterion; entry: WorkItemHistoryEntry | null; person: string; compact: boolean }) {
   const { t } = useTranslation('workItem');
+  const roleName = useRoleName();
   const by = criterion.checkedBy;
   if (!criterion.checked || !by) return null;
   const chat = entry?.cause?.chatId;
-  const who = by.kind === 'person' ? person : chat ? t('criteria.byChat', { chat: shortId(chat) }) : t(`actor.${by.kind}`);
+  // A team member that checked it is named by its role, as QA checks a criterion while it verifies
+  const role = by.kind === 'agent' ? (by.role ?? null) : null;
+  const who = by.kind === 'person' ? person : role ? roleName(role) : chat ? t('criteria.byChat', { chat: shortId(chat) }) : t(`actor.${by.kind}`);
   return (
     <span className="criterion-by" title={entry ? formatDateTime(entry.createdAt) : undefined}>
-      {by.kind === 'person' ? <Monogram name={person} size={18} /> : <AgentMark label={t('actor.agent')} />}
+      {by.kind === 'person' ? <Monogram name={person} size={18} /> : role ? <RoleAvatar role={role} size="sm" /> : <AgentMark label={t('actor.agent')} />}
       <span className={compact ? 'sr-only' : ''}>{who}</span>
       {entry && (
         <>

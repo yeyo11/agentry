@@ -37,7 +37,6 @@
   },
   "actor": {
     "agent": "Agente",
-    "agentBadge": "agente",
     "system": "automático",
     "person": "la persona"
   },
@@ -219,5 +218,70 @@
     "title": "¿Mover {{key}} a Hecho?",
     "body_one": "Queda {{count}} de sus {{total}} criterios de aceptación sin marcar. Hecho quiere decir que se cumplen todos.",
     "body_other": "Quedan {{count}} de sus {{total}} criterios de aceptación sin marcar. Hecho quiere decir que se cumplen todos."
+  },
+  "waiting": {
+    "badge": "te espera"
+  },
+  "run": {
+    "title": {
+      "refine": "{{role}} refina {{key}}",
+      "check": "{{role}} comprueba {{key}}",
+      "work": "{{role}} implementa {{key}}",
+      "verify": "{{role}} verifica {{key}}"
+    },
+    "status": {
+      "running": "en marcha",
+      "queued": "en cola",
+      "passed": "pasó",
+      "rejected": "devuelta",
+      "failed": "fallida",
+      "cancelled": "cancelada"
+    },
+    "flowRun": "ejecución del flujo",
+    "noMove": "no movió la tarea",
+    "waitsApproval": "te espera para pasar a Hecho",
+    "failedHead": {
+      "refine": "Este refinado falló y no movió la tarea.",
+      "check": "Esta comprobación falló y no movió la tarea.",
+      "work": "Esta implementación falló y no movió la tarea.",
+      "verify": "Esta verificación falló y no movió la tarea."
+    },
+    "stays": "La tarea sigue en {{column}}.",
+    "commented": "{{role}} lo comentó en {{key}}.",
+    "cause": {
+      "budget": "Llegó al límite de gasto de una ejecución del flujo.",
+      "no-account": "Ninguna cuenta tenía cupo: todas llegaron a su límite y no quedaba otra a la que pasar.",
+      "rate-limit": "La cuenta llegó a su límite y la rotación de cuentas está desactivada.",
+      "stopped": "Se paró su chat antes de que terminara.",
+      "restarts_one": "Se cortó: Agentry se reinició mientras {{doing}}.",
+      "restarts_other": "Se cortó {{count}} veces: Agentry se reinició mientras {{doing}}.",
+      "unreadable": "Terminó sin un resultado que Agentry pudiera leer.",
+      "no-verdict": "Terminó sin dar su veredicto.",
+      "not-started": "Su chat no llegó a empezar.",
+      "not-continued": "Su chat no se pudo retomar después de un reinicio.",
+      "chat-ended": "Su chat terminó, o se borró, sin dejar un resultado.",
+      "chat-failed": "Su chat terminó con un error de Claude Code.",
+      "unknown": "No dio ningún motivo."
+    },
+    "doing": {
+      "refine": "refinaba",
+      "check": "comprobaba",
+      "work": "implementaba",
+      "verify": "verificaba"
+    },
+    "retried": {
+      "refine": "Refinado reintentado",
+      "check": "Comprobación reintentada",
+      "work": "Implementación reintentada",
+      "verify": "Verificación reintentada"
+    },
+    "retriedChat": "{{role}} empezó el chat {{chat}}",
+    "retriedQueued": "en cola para {{role}}",
+    "retriedLead": "Reintentada:",
+    "retriedWhen": "{{when}}, en el chat {{chat}}.",
+    "retriedNoChat": "{{when}}.",
+    "seeChat": "Ver el chat",
+    "retry": "Reintentar",
+    "retryFailed": "No se ha podido reintentar la ejecución"
   }
 }
