@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T20:00:00Z
-updated_at: 2026-09-27T21:30:00Z
+updated_at: 2026-09-28T18:00:00Z
 tags:
     - team
     - flow
@@ -95,6 +95,7 @@ settings, `flow`:
 | `columns` | The role that answers for each column |
 | `maxBounces` | How many times verification may send an item back in one round, 0 to 20 |
 | `maxParallel` | Runs of the project at once, 1 to 10. Absent reads as 2 (`DEFAULT_FLOW_MAX_PARALLEL`) |
+| `maxCostUsd` | What one run may spend, in USD, above 0 and up to 100. Optional: absent means no limit of Agentry's own |
 
 The flow runs only while it is on **and** the Team and Board modules are on.
 
@@ -124,38 +125,81 @@ The flow **starts paid runs on its own**, so what it will not do is part of the 
 - **A run is moot when a person is working in the item's chat**: it is cancelled rather than started
   beside them.
 - **Switching the flow, the Team module or the Board module off** cancels the queue and stops what is
-  running. That is how a person stops it spending.
+  running. That is how a person stops it spending. **Removing an item** stops its run too.
 - **A runtime at its concurrent run limit** puts the run back in its place in the queue until a chat
   ends.
+- **Each stage has only the tools it needs**, and `git push` is denied to every run (see
+  [What a run may do](#what-a-run-may-do)).
+- **A budget per run, when the person sets one.** `flow.maxCostUsd` goes to the CLI as
+  `--max-budget-usd`, and the CLI stops the run once it is spent. There is **no default**: the owner
+  decided on 2026-09-28 that runs are not capped unless the person asks, so a project that leaves the
+  field out passes no budget at all.
+- **A member never takes over a person's chat**, and a run a restart cut off goes on at most twice
+  (see [Runs are rows, and a restart picks them up](#runs-are-rows-and-a-restart-picks-them-up)).
 
 ### How a run starts
 
 Each run is a chat, started by `launchFlowRun` in `packages/core/src/index.ts`:
 
-- in the item's own worktree, on `task/<key>`, as "Work on it" places it;
+- working and verifying run in the item's own worktree, on `task/<key>`, as "Work on it" places it.
+  **Refining runs in the project's checkout** and makes no worktree: it changes no code, a worktree
+  per refined card was only clutter, and its specification belongs in the documents folder the
+  Documents module reads;
 - `--agent <agent>`, with `--agents` pointing at a definition read from the agent file **in the
   project's checkout**. The worktree only has the agent files that were committed, and the file the
-  person edits in Agentry is the one that should run. The definition is written under
-  `data/flow-agents/`, named by its content;
+  person edits in Agentry is the one that should run. The definition carries the file's `tools` and
+  `disallowedTools` (as a comma list, a `[a, b]` list or a block list of `- a` lines,
+  `readFrontmatterList` in `team.ts`) and the **member's** model, so a `model` in the file never runs
+  a role on a model its screen does not show. It is written under `data/flow-agents/`, named by its
+  content;
 - `--model` from the member;
 - `--append-system-prompt` with the journal (see [The journal](#the-journal));
+- `--system-prompt-snapshot off`. By default the CLI records a conversation's system prompt on its
+  first request and sends that record on every later resume, so a Developer's chat continued after a
+  bounce would keep an old journal, and a person continuing a member's chat would keep the agent's
+  prompt. Off, nothing is recorded;
 - `--json-schema` with the stage's result schema (`flowResultSchema`);
+- the stage's rules (below), and `--max-budget-usd` when the project sets `flow.maxCostUsd`;
+- no `--add-dir` for the uploads directory: a run carries no attachment, and the people's uploads are
+  not its to read;
 - a prompt with the item, as "Work on it" gives it, then the stage's instructions (`flowPrompt`).
 
-A Developer's run **continues the item's work chat** when there is one, and starts its own if that
-chat cannot be resumed. After a bounce, its prompt carries QA's newest comment. The chat is linked to
+**A member never takes over a person's chat.** A Developer's run continues **its own chat from an
+earlier round** (the item's latest `work` run in `flow_runs`), and starts its own if that chat cannot
+be resumed. It never continues a chat a person started with "Work on it", although the item links
+both the same way: resuming it gave the person's chat the member's agent, rules and schema, and they
+stayed after the run. After a bounce, its prompt carries QA's newest comment. The chat is linked to
 the item as it starts, with the stage as the link's role (`refine`, `work`, `verify`) and the member's
 role as `teamRole`.
 
-**What a member may write.** With no `writes`, the run's chat is in `acceptEdits`. With `writes`, it
-runs in `dontAsk`: whatever is not allowed outright is denied, and only `Edit`, `Write` and
-`NotebookEdit` under those paths are allowed (`writeRules`).
+### What a run may do
 
-The plan said `--disallowedTools`. The CLI's rules cannot say "every path but these", so the paths
-are allowed rather than the rest denied. A path the flag's syntax cannot carry (a comma, a
-parenthesis, a space, `..`, an absolute path) is left out, which allows less, never more. `writes`
-bounds the edit tools, not a shell command, and from a terminal it is only the agent file's
-instructions. The member's screen says so.
+`stageRules` in `flow.ts` gives each stage its permission mode and rules:
+
+| Stage | Mode | Allowed | Denied |
+| --- | --- | --- | --- |
+| refine | `dontAsk` | `Read`, `Glob`, `Grep`; edits under the documents folder | `git push` |
+| work, no `writes` | `acceptEdits` | the read tools, `Bash`, `WebFetch`, `WebSearch`, edits anywhere | `git push` |
+| work, with `writes` | `dontAsk` | the read tools, `Bash`, `WebFetch`, `WebSearch`; edits under `writes` and the documents folder | `git push` |
+| verify | `dontAsk` | the read tools; `git status`, `diff`, `log`, `show`; the project's test commands; edits under the documents folder | `git push`; `--output` on those git commands, which writes a file |
+
+- **`git push` is denied** as `Bash(git push)` and `Bash(git push *)`: a member's work stays on the
+  item's branch until a person takes it further.
+- **Only working reaches the network.** Refining and verifying read the project.
+- **The documents folder is writable in every stage**, since each stage's prompt asks for its
+  document there (a specification, an architecture decision, a report). A member with `writes: []`
+  writes nothing of the project but that. Its agent file says so ("You write none of the project's
+  files"); before, it said "no limit", the opposite of what the flow did.
+- **The test commands a project declares** (`testCommandRules`) are what verifying may run: the
+  `test`, `test:*`, `typecheck`, `lint` and `check` scripts of its `package.json`, run with the package
+  manager its lockfile names; `make test` when the Makefile has that target; `cargo test`, `go test`
+  or `pytest` for such a project. A `build`, `deploy` or `publish` script is never one of them.
+- **`dontAsk` denies whatever is not allowed outright.** The CLI's rules cannot say "every path but
+  these", so the paths are allowed rather than the rest denied (the plan said `--disallowedTools`). A
+  path the flag's syntax cannot carry (a comma, a parenthesis, a space, `..`, an absolute path) is
+  left out, which allows less, never more.
+- **`writes` bounds the edit tools, not a shell command**, and from a terminal it is only the agent
+  file's instructions. The member's screen says so.
 
 ### The structured result
 
@@ -165,6 +209,7 @@ Every run ends with a result held to its stage's schema:
 | --- | --- | --- |
 | `summary` | all | The member's comment on the item |
 | `verdict` | verify, required | `pass` or `fail` |
+| `criteria` | verify, required | Each acceptance criterion by its id, `met` or not, with a `note` |
 | `memoryProposals` | all | Proposals waiting for the person, while Shared memory is on |
 | `documents` | all | Document ties on the item (`spec`, `adr`, `report` or `doc`), while Documents is on |
 | `description`, `acceptanceCriteria` | refine | The item's new description, and criteria to add |
@@ -173,6 +218,14 @@ The result is read defensively (`parseResult`). The lists are cut at 20 proposal
 30 criteria, and an unknown document kind reads as `doc`. A Product Owner's description or criteria
 are not applied when a person edited them while the run worked. A run that ends without a readable
 result, or a verification without a verdict, is `failed` and moves nothing.
+
+**QA checks each criterion** (decision 18). Its prompt lists the item's criteria with their ids, and
+its result judges every one. A criterion found met is **checked on the item as QA** (`checkedBy` is
+the agent with its role). One found unmet is left as it is, so a person's own check stays. **The run
+passes only when every criterion of the item is met**, whatever its `verdict` says: a `pass` with a
+criterion unmet or left out is a rejection. QA's comment is its summary followed by each criterion as
+`- [x]` or `- [ ]`, with QA's note, so the Developer who gets it back reads what is missing. An item
+with no criteria is judged by its verdict.
 
 ### What a run's end moves
 
@@ -187,13 +240,20 @@ move since the run started**. Otherwise the run leaves its comment and moves not
 | Verify | `pass` | Stays in `in_review`, **waiting for approval** (`waiting: 'approval'`) |
 | Verify | `fail`, with bounces left | Back to `in_progress`, `bounces` + 1, and the Developer's chat resumes with QA's comment |
 | Verify | `fail`, no bounces left | Stays, **waiting for the person** (`waiting: 'bounces'`) |
-| any | failed or stopped | Nothing |
+| any | failed or stopped | Nothing; a failed run says why in a comment |
 
 **Only a person moves an item to `done`** (decision 29). The flow never does and never moves an item
 out of it. A person's move answers whatever the item waited for and starts a new round: `waiting`
 clears and `bounces` goes back to 0. Every move the flow makes has the actor `agent` with the role,
 and a cause the history translates: `flow.refined`, `flow.worked`, `flow.rejected`, `flow.passed`,
 `flow.bounces`.
+
+**A failed run says so on its item.** It leaves a comment as its member, "This work run failed and
+moved nothing: <reason>", with the run's chat as its source. The run carries the same reason in
+`error`, in English. Before, the item only showed a chat that ended and moved nothing, and the reason
+was on the Team screen alone. A run that ends on the CLI's budget says "it reached its budget of
+<n> USD (flow.maxCostUsd)", and one cut by the account's rate limit says so. A cancelled run is a
+person's doing, or the flow going off, and writes nothing.
 
 ### Runs are rows, and a restart picks them up
 
@@ -202,17 +262,44 @@ and `waiting` as columns of `work_items`. Each row is `queued`, `running` or `en
 outcome: `passed`, `rejected`, `failed` or `cancelled`.
 
 Starting a run claims its row with a guarded update, so neither two dispatches nor two processes on
-one database start the same run.
+one database start the same run. **The count of running runs and the claim share one `BEGIN
+IMMEDIATE` transaction**: two processes could otherwise both see the last free place under
+`maxParallel` and both take it.
 
 The flow is driven by the event feed and the runtime's results, never by polling. Nothing starts
 until the runtime has restored its chats, since a chat still being restored looks like one that
-ended. Then `recover()` puts a run that the restart cut off back in the queue, **keeping its chat**,
-so it continues there with "Agentry restarted while you were on this run". If a newer trigger for the
-item already waits, the cut run is cancelled instead.
+ended. Then `recover()` puts a run that the restart cut off back in the queue:
+
+- It **keeps its chat**, and continues there with "Agentry restarted while you were on this run".
+- It **keeps when it started** (`started_at`), so a person's move made before the restart still stops
+  the run from moving the item.
+- **Only its own chat.** If that chat cannot be continued (its record is gone, or something else
+  holds it), the run **fails**, with its comment on the item. Before, it started a fresh chat whose
+  only prompt was "Agentry restarted…", with none of the item's context, and that chat's result
+  still moved the card.
+- **At most twice** (`MAX_FLOW_RESTARTS`, counted in `flow_runs.restarts`). A run cut off a third
+  time fails, since whatever keeps taking the wrapper down would keep spending.
+- If a newer trigger for the item already waits, the cut run is cancelled instead.
 
 While a run goes on, its chat is the flow's: the work-links automation leaves it alone, so the two
-never move the same card twice. A chat that a person resumes afterwards drops the run's agent, schema
-and `keepAlive` again.
+never move the same card twice.
+
+**A person who continues a chat a member ran gets a chat back.** `ChatService.resume` asks the core
+whether a flow or assistant run ever used the chat (`memberChat`). If one did, the runtime drops
+everything the run set before the person's own options apply (`handBack` in `chats.ts`): the agent,
+the agents file, the schema, the recorded-prompt switch, the appended journal, the allow and deny
+lists, the budget, the permission-prompt setting and the servers. It also restores `keepAlive`, the
+default permission mode and the uploads directory. The tools are what a new chat gets: the default
+preset unless the person picks one. The model stays, because it is the chat's, shown on it and
+switchable. Before, a person continuing the Developer's chat was still in `dontAsk` with the member's
+allow list, and every edit outside `writes` was denied silently.
+
+**A rate limit does not replay a run's turn.** When an account hits its limit, the core rotates to
+another and replays the turn that died. A turn held to a schema (`ChatManager.heldToSchema`: a flow
+run's, or the assistant's) was already heard by the run that started it, which ended on the error.
+Replaying it would spend a second time on a result nobody reads, so the rotation happens and the
+replay does not. The run fails with "the account hit its rate limit", and moving the item again
+starts it over.
 
 ## The journal
 
@@ -429,7 +516,12 @@ page with full-width actions.
   tab shows that member at work. [The audit](plans/project-ecosystem-audit.md) left this for
   orchestration 3, and it is still open. Counting `refine` and `verify` chat links there is the likely
   fix.
-- **`maxParallel` has no control** on the Flow screen.
+- **`maxParallel` and `maxCostUsd` have no control** on the Flow screen: both are set through the
+  settings document (`PUT /projects/:id/settings`).
+- **A run that hits a rate limit fails** rather than waiting for the rotation to replay it. Moving
+  the item again starts it over.
+- **`writes` does not bound the shell** in the work stage: `Bash` is allowed whole there, as a
+  Developer builds and tests with it.
 - **The `file` team action** is in the contract (`TeamChangeAction`), but nothing emits it: an agent
   file saved through the resources route does not emit `team.changed`.
 - **The template's responsibilities are English**, written by core into the metadata and the agent
