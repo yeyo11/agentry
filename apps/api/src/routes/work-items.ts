@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { parseChangeScope, type Core } from '@agentry/core';
+import { parseChangeScope, WorkItemError, type Core } from '@agentry/core';
 import { WORK_ITEM_PRIORITIES, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@agentry/shared';
 import type {
   CheckAcceptanceCriterionRequest,
@@ -133,7 +133,12 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
 
   app.patch<{ Params: { itemId: string }; Body: UpdateWorkItemRequest }>('/work-items/:itemId', async (req) => {
     await core.workItemAccess(req.params.itemId, 'write');
-    return core.workItems.update(req.params.itemId, bodyOf(req.body));
+    const body = bodyOf(req.body);
+    // Answered 200 with the status unchanged, it read as a move that worked
+    for (const field of ['status', 'afterId'] as const) {
+      if (body && typeof body === 'object' && field in body) throw new WorkItemError(`${field} is changed with POST /work-items/{itemId}/move, not PATCH`, 400);
+    }
+    return core.workItems.update(req.params.itemId, body);
   });
 
   app.delete<{ Params: { itemId: string } }>('/work-items/:itemId', async (req) => {

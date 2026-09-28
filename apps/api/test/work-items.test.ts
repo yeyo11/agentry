@@ -376,6 +376,11 @@ test('a repeated query parameter or a body of the wrong shape is a 400, never a 
     assert.equal((await app.inject(`/api/work-items/${item.id}/changes/diff?path=a&context=1&context=2`)).statusCode, 400);
     assert.equal((await app.inject({ method: 'POST', url: `/api/projects/${project.id}/journal`, ...json({ text: 'x', itemId: { a: 1 } }) })).statusCode, 400);
     assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...json({ name: 12 }) })).statusCode, 400);
+    // A move is not a field: PATCH says so instead of answering 200 with the status unchanged
+    const moved = await app.inject({ method: 'PATCH', url: `/api/work-items/${item.id}`, ...json({ status: 'done' }) });
+    assert.equal(moved.statusCode, 400);
+    assert.match(moved.json().error, /move/);
+    assert.equal((await app.inject(`/api/work-items/${item.id}`)).json<WorkItem>().status, 'backlog');
     assert.equal((await app.inject({ method: 'POST', url: '/api/orchestrations', ...json({ name: 'g', objective: 'o', tasks: [null] }) })).statusCode, 400);
   } finally {
     await app.inject({ method: 'DELETE', url: `/api/projects/${project.id}` });
