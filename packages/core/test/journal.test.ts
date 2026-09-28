@@ -234,7 +234,7 @@ test('approving to a memory file creates it with frontmatter and indexes it, the
   const first = proposals.propose('p1', proposal({ kind: 'memory', file: 'tests.md', section: null }), { proposedBy: QA });
   await proposals.approve(first.id);
   const file = readFileSync(join(memoryDir, 'tests.md'), 'utf8');
-  assert.match(file, /^---\nname: tests\ndescription: Parallel runs share the port\nmetadata:\n {2}type: project\n---\n\nRun the tests with --test-concurrency=1\n$/);
+  assert.match(file, /^---\nname: tests\ndescription: "Parallel runs share the port"\nmetadata:\n {2}type: project\n---\n\nRun the tests with --test-concurrency=1\n$/);
   assert.equal(readFileSync(join(memoryDir, 'MEMORY.md'), 'utf8'), '- [tests](tests.md) — Parallel runs share the port\n');
 
   const second = proposals.propose('p1', proposal({ kind: 'memory', file: 'tests.md', section: null }, 'Seed with the fake CLI'), { proposedBy: QA });
