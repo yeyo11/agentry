@@ -105,6 +105,11 @@ export interface ChatServiceDeps {
   /** The context window the CLI reported for this exact model id; null when it never has */
   windowOf: (model: string) => number | null;
   health: HealthService;
+  /**
+   * A chat Agentry started for one of its own runs (a flow member's, the assistant's), now or
+   * before: a person who continues it gets it back without the run's rules.
+   */
+  memberChat?: (chatId: string) => boolean;
 }
 
 export interface ChatFilter {
@@ -445,7 +450,7 @@ export class ChatService {
    * Starts a new chat. `onStart` hears of it in the same tick the process is spawned, before any of
    * its output can arrive: for a caller that has to tie the chat to something before it answers.
    */
-  async create(request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'keepAlive'>, onStart?: (chat: ChatRuntime) => void): Promise<ChatSummary> {
+  async create(request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive'>, onStart?: (chat: ChatRuntime) => void): Promise<ChatSummary> {
     // `--agents` reads the file it is given: only the definitions the flow writes, never a path a
     // request body names, since the API hands its body here as it came
     if (request.agentsFile !== undefined && dirname(resolve(request.agentsFile)) !== resolve(this.deps.config.dataDir, 'flow-agents')) {
@@ -514,9 +519,27 @@ export class ChatService {
     if (chat.control.mode === 'readOnly') throw new ChatConflictError(chat.control.reason, chat.control.action);
     if (chat.control.mode === 'interactive') throw new ChatConflictError('This chat already has a live execution: send it a message instead.', null);
     const adoption = await this.adoptionOf(chat);
-    const chosen = await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null);
-    // A person continuing a chat the flow ran gets a chat again, not the member's structured result
-    this.deps.runtime.resume(id, { ...request, ...chosen, agent: extras.agent ?? null, agentsFile: extras.agentsFile ?? null, jsonSchema: extras.jsonSchema ?? null, ...(extras.keepAlive !== undefined ? { keepAlive: extras.keepAlive } : {}) }, adoption);
+    // A person continuing a chat a member ran gets a chat again: none of the run's rules, and the
+    // tools a new chat would get, since the member's allow list is not theirs to inherit
+    const handBack = !extras.agent && (this.deps.memberChat?.(id) ?? false);
+    const fallback = handBack && request.toolPreset === undefined && request.allowedTools === undefined ? this.deps.tools.presets.defaultPreset() : null;
+    const picked = fallback ? { ...request, toolPreset: fallback.id } : request;
+    const chosen = await this.deps.tools.resolve(picked, adoption.cwd, handBack ? null : (this.deps.runtime.get(id)?.tools ?? null));
+    this.deps.runtime.resume(
+      id,
+      {
+        ...request,
+        ...chosen,
+        agent: extras.agent ?? null,
+        agentsFile: extras.agentsFile ?? null,
+        jsonSchema: extras.jsonSchema ?? null,
+        systemPromptSnapshot: extras.systemPromptSnapshot ?? null,
+        uploads: extras.uploads ?? null,
+        ...(extras.keepAlive !== undefined ? { keepAlive: extras.keepAlive } : {}),
+        ...(handBack ? { handBack } : {}),
+      },
+      adoption,
+    );
     return this.require(id);
   }
 
