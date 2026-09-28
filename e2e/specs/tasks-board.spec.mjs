@@ -133,6 +133,12 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.eval(`return document.activeElement?.closest('.workitem-search') !== null`)) === true, '/ focuses the search');
     await page.type('Third');
     await page.waitFor(`return location.search.includes('q=Third') && document.querySelectorAll('[data-item-id]').length === 1`, { label: 'the search narrows the board and is kept in the address' });
+    // Kept until it is reset, as every list's filters are: a bare visit finds the search again
+    await page.goto(`/tasks?project=${project.id}`, 1200);
+    await page.waitFor(`return location.search.includes('q=Third') && document.querySelectorAll('[data-item-id]').length === 1`, { label: 'the search comes back on a later visit' });
+    await page.eval(`const i = document.querySelector('.workitem-search input'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, ''); i.dispatchEvent(new Event('input', { bubbles: true })); return true`);
+    await page.waitFor(`return !location.search.includes('q=') && document.querySelectorAll('[data-item-id]').length > 1`, { label: 'emptying the search takes it out of the address' });
+    check((await page.eval(`return Object.keys(localStorage).filter((k) => k.startsWith('agentry:filters:tasks:')).length`)) === 0, 'and out of what the list keeps');
 
     // ---- selection and "Orchestrate" ----
     await page.goto(`/tasks?project=${project.id}`, 1200);

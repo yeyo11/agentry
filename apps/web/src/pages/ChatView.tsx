@@ -75,7 +75,7 @@ export function ChatView() {
   const stream = useChatStream(id, Boolean(chat?.execution));
   const connected = useStreamSnapshot(stream, (snapshot) => snapshot.connected);
   const writing = useStreamSnapshot(stream, (snapshot) => snapshot.partial?.block === 'text');
-  const { follow, setFollow, jumpToLatest } = useStickToBottom(scroller, Boolean(chat));
+  const { follow, setFollow, jumpToLatest, hold } = useStickToBottom(scroller, Boolean(chat));
   const { queued, add: queueMessage, drop: dropQueued, pending: isPending } = useQueuedMessages(chat, transcript.items);
   // Words handed back to the composer: a message the chat ended without ever reading
   const [restore, setRestore] = useState<{ text: string; at: number } | null>(null);
@@ -128,9 +128,11 @@ export function ChatView() {
   const focus = useFindFocus(find.target ?? jump, transcript.items, transcript.from, transcript.reach);
   useFindHighlight(scroller, find);
   // Jumping to a hit is the reader moving: the bottom must not pull them back
+  const steered = Boolean(find.target || jump);
   useEffect(() => {
-    if (find.target || jump) setFollow(false);
-  }, [find.target, jump, setFollow]);
+    hold(steered);
+    if (steered) setFollow(false);
+  }, [find.target, jump, steered, hold, setFollow]);
   // The entry stays marked for a moment once it is on screen, then reads like any other
   const jumpShown = Boolean(jump && focus);
   useEffect(() => {
