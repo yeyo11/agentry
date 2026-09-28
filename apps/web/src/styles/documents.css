@@ -503,6 +503,16 @@
   min-width: 0;
 }
 
+/* The way back is the phone screen's only way out without a top bar: a full touch target */
+.doc-phone-head > .icon-btn {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin-left: -10px;
+  justify-content: center;
+  align-items: center;
+}
+
 .doc-phone-head-text {
   display: flex;
   flex-direction: column;

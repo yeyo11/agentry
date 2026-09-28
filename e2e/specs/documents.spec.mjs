@@ -116,6 +116,8 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return !!document.querySelector('.doc-phone-head h1') && !!document.querySelector('.doc-view')`, { label: 'the document screen' });
     check(await page.eval(`return !document.querySelector('.project-head-phone')`), "the document heads its own screen, without the tab's bar");
     check(!(await page.eval(`return document.querySelector('.topbar').getClientRects().length > 0`)), 'and without the top bar (MobileDocumento)');
+    const docBack = await page.eval(`const r = document.querySelector('.doc-phone-head > .icon-btn').getBoundingClientRect(); return { w: r.width, h: r.height }`);
+    check(docBack.w >= 44 && docBack.h >= 44, `its way back is a 44 px target (${JSON.stringify(docBack)})`);
     // "Edit" is the screen's bar at the bottom edge, however short the document (MobileDocumento)
     const foot = await page.eval(`const r = document.querySelector('.doc-phone-view > .doc-phone-foot').getBoundingClientRect(); return { bottom: r.bottom, width: r.width }`);
     check(Math.abs(foot.bottom - 844) <= 1 && foot.width >= 389, `the Edit bar spans the bottom of the screen (${JSON.stringify(foot)})`);

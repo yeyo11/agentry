@@ -1158,6 +1158,16 @@ a.member-run:hover {
   flex-wrap: nowrap;
 }
 
+/* The way back is the phone screen's only way out without a top bar: a full touch target */
+.member-page.is-phone .member-page-head > .icon-btn {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin-left: -10px;
+  justify-content: center;
+  align-items: center;
+}
+
 .member-page.is-phone .member-page-title h1 {
   font-size: 24px;
 }
