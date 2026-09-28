@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T20:00:00Z
-updated_at: 2026-09-27T20:00:00Z
+updated_at: 2026-09-28T12:00:00Z
 tags:
     - plan
     - ui
@@ -513,9 +513,71 @@ Runs alone, so it may run `pnpm e2e`.
 - **`pnpm typecheck`, `pnpm test`, `pnpm build` and `pnpm e2e` are green**, apart from the
   baseline failures if they still reproduce.
 
+## Outcome
+
+Built on 2026-09-28 by the eight tasks of the orchestration, each on its own branch, merged in
+dependency order. What the app settled differently from §5 of the design system is in its
+[Landed](../design-system.md#the-diff-comparator-5) notes; the consistency pass's before/after
+pairs are in [media/changes-review/](../media/changes-review/README.md). The e2e suite, with the
+new `changes-review.spec.mjs`, `changes-steps.spec.mjs` and `changes-large.spec.mjs`, runs once in
+the orchestration's verification.
+
+- **`api`.** Everything decision 7 lists, and nothing a current client has to send: `?context=`
+  (0–500 or `full`, `full: true` only when honoured, never past 20 000 lines), `?commit=` checked by
+  ancestry both ways and a root commit against the empty tree, `?uncommitted=1`, `working`,
+  `binary`, and the two `steps` routes over a `JsonlCache` of their own that numbers entries as
+  `GET /chats/:id` pages them. One fix past the plan: `gitRaw` keeps `ENOBUFS` on the error it
+  throws, so the "diff too large to show" marker can actually be reached.
+- **`diff-lib`.** `lib/diff.ts` and `lib/word-diff.ts` as planned, tested on the reference's sample
+  diffs; `DiffView`, `BlockRail`, `Fingerprint`, `styles/diff.css` and the `--diff-*`/`--sx-*`
+  tokens. `highlightRoles` and `languageOfPath` in `highlight.ts`; operators stay in the
+  foreground. The comparator's strings went into `components:diff`, leaving `changes` to the
+  screen.
+- **`review`.** The three routes build one `ReviewSource` and draw one page: header, lens switch,
+  scope menu, fingerprint, file map, file header, why line, diff with its block rail, keyboard,
+  live refresh that never reorders the files under the pointer, every state of `DSComparador`, and
+  the phone's cells and file screen. `?scope=` joined the deep links. Its styles are scoped under
+  `.changes-review`, since the summary reuses `.changes-file`.
+- **`summary`.** `ChangesSummary` replaced the inspector's tab, the task panel's section and the
+  integration card, with no drawer or dialog, which also fixed the diff that opened behind the
+  phone's inspector sheet. `Transcript` draws the edit chips when `ChatView` passes the chat id and
+  its steps; `DetailPanel` passes nothing and draws none.
+- **`steps`.** The lens as `DesktopCambiosPasos` and `MobilePasos` draw it, its rules in
+  `steps-model.ts`, and `?at=` on the chat page, which turns subagent messages off, reads back to
+  the entry's page and marks it in the accent. `ReviewSource` gained `conversation`, the chat whose
+  transcript holds the steps.
+- **`remove-editor`.** Decision 1 in full: `GET`/`PUT /settings/editor` answer 404, Settings'
+  Agentry group has three tabs, `?tab=editor` falls back like any unknown tab, and the grep of the
+  plan ends empty. `observability.spec.mjs` checks the branch, base, commits and diff on the review
+  screen, and `record-media.mjs` opens the review where it opened the dialog.
+- **`consistency`.** Compared every screen with the reference in both themes and `motion=subtle`,
+  and fixed six things: a 20 000-line diff drew no rows at all (the virtualiser looked for its
+  scroller before the ref was attached) and then took 150–300 ms a frame (5 000 rail ticks
+  re-rendered on every scroll), now 17–33 ms; the edit chips sat on a line of their own; the task
+  panel and the integration card made three or four gradient surfaces on an orchestration's page;
+  the why line printed backticks raw; a step's patch opened with an "N unchanged lines" row; and
+  the file map's legend animated its spinner with nothing live.
+- **`docs`.** The Landed notes in the design system, this Outcome, [status.md](../status.md), and
+  the README: the feature, a Changes row in the UI table, the new query parameters and the two
+  `steps` routes in the REST tables, and a still of the review screen (`docs/media/changes.png`),
+  which `pnpm media` now records. The stills were re-recorded with it, so the inspector in
+  `chat.png` shows the compact summary.
+
+**Past the plan, on purpose**
+
+- Side by side is not offered for an added file either, not only for a deleted one.
+- The diff's dimmed context and line numbers sit under 4.5:1 by design, so the review's axe scans
+  keep `color-contrast` for the header, the map and the file header and drop it for the diff.
+
+**Left for later**, as "Not in this orchestration" already said: comments on lines, staging or
+reverting from the UI, the edits of subagents in Step by step, and seen shared across browsers.
+
 ## Related
 
 - [Design system](../design-system.md), §5
 - [The Night Shift redesign](redesign-night-shift.md): the look this screen follows.
 - [Agent observability](agent-observability.md): where the Changes panel and the editor links came
   from; this plan replaces its "open in the editor" part.
+
+[[design-system.md]] · [[plans/redesign-night-shift.md]] · [[plans/agent-observability.md]] ·
+[[status.md]]
