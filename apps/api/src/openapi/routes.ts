@@ -15,6 +15,27 @@ const scopeQuery = (extra: Json = {}): Json => obj({ project: PROJECT, ...extra 
 const KIND = str('Resource kind', { enum: ['agents', 'skills', 'commands', 'output-styles', 'rules', 'workflows'] });
 const ROOT = str("`user` or a project id (see `GET /config/files/roots`)");
 
+// What the change routes share: a scope (one commit, or the uncommitted work), and a diff's context
+const SCOPE_PARAMS: Json = {
+  commit: str('Only this commit (`<sha>^..<sha>`; a root commit against the empty tree). Refused with 400 unless it is on the branch since its base'),
+  uncommitted: str('`1` for the working tree against `HEAD` only, untracked files included'),
+};
+const SCOPE_QUERY = obj(SCOPE_PARAMS);
+const DIFF_QUERY = obj(
+  {
+    path: str('File to diff, relative to the checkout (required)'),
+    context: str('Unchanged lines around each change, 0–500, or `full` for the whole file. Anything else is the default of 3'),
+    ...SCOPE_PARAMS,
+  },
+  ['path'],
+);
+const SCOPE_NOTE =
+  '`?commit=` narrows `files` to what that commit changed, `?uncommitted=1` to the working tree against `HEAD`; either way the rest of the summary still describes the branch, and `working` is left out. Asking for both is refused. `binary` marks a file git counts no lines for.';
+const DIFF_NOTE =
+  '`?commit=` and `?uncommitted=1` scope it as the summary does. `full` is true only when `context=full` was honoured: a file over 20 000 lines keeps the default context. A binary file is git\'s one line; a long diff ends in `… diff truncated`, and one too large answers `… diff too large to show`.';
+const STEPS_NOTE =
+  "Every successful `Edit`, `MultiEdit`, `Write` or `NotebookEdit` of the chat's main transcript (not its subagents'), oldest first, each with the patch the CLI stored for it as a unified diff (`''` when it kept none) and `intent`, the last thing the assistant wrote before the call. `path` is relative to the git top level of where the chat works, or to its directory outside git. `entryIndex` is the entry's index in `GET /chats/:id` with sidechains off. A call still waiting for its result is the last step, `pending`, only while the chat has an execution. A chat with no transcript yet is read from what its process streamed, without patches. Read once, then only what the transcript appended.";
+
 export const TAGS = [
   { name: 'System', description: 'CLI detection, health and the dashboard overview.' },
   { name: 'Account', description: 'Credential used by every `claude` process. The secret is never returned.' },
@@ -173,13 +194,18 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   }),
   'GET /chats/:id/search': d('Chats', 'Search the whole transcript', { description: 'Case-insensitive plain-text match over what the transcript view shows of each entry: text, thinking, tool names and inputs, tool results. Any run of whitespace in `q` matches any run in the text. One hit per matching entry, `index` in the same space as a page\'s `from` and `total`, so a hit on a page not loaded yet is reached by reading back to it. At most 500 hits, the newest; `truncated` says older ones were left out.', querystring: obj({ q: str('Text to find (required, up to 200 characters)'), sidechains: str('`1` includes subagent messages, as the page read with it does') }, ['q']), ok: ref('TranscriptSearchResult') }),
   'GET /chats/:id/changes': d('Chats', 'What a chat changed on disk', {
-    description: 'For a chat in a git worktree, the branch, its base, the commits and the files it changed against that base, and what it has not committed yet. Any chat also gets the files its `Write`/`Edit`/`NotebookEdit` calls touched, read from the transcript, so a chat outside git still answers. A worker of an orchestration is measured from where its own branch was cut.',
+    description: `For a chat in a git worktree, the branch, its base, the commits and the files it changed against that base, what it has not committed yet, and \`working\`: every file that differs from the base in the working tree, with the counts its default diff shows. Any chat also gets the files its \`Write\`/\`Edit\`/\`NotebookEdit\` calls touched, read from the transcript, so a chat outside git still answers. A worker of an orchestration is measured from where its own branch was cut. ${SCOPE_NOTE}`,
+    querystring: SCOPE_QUERY,
     ok: ref('ChatChanges'),
   }),
   'GET /chats/:id/changes/diff': d('Chats', 'The diff of one file of a chat in a worktree', {
-    description: "Everything the branch did to the file since its base, committed or not. A file created and not yet added shows as all new. Refused for a chat with no worktree of its own.",
-    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    description: `Everything the branch did to the file since its base, committed or not. A file created and not yet added shows as all new. Refused for a chat with no worktree of its own. ${DIFF_NOTE}`,
+    querystring: DIFF_QUERY,
     ok: ref('FileDiff'),
+  }),
+  'GET /chats/:id/changes/steps': d('Chats', 'Every edit a chat made, step by step', {
+    description: STEPS_NOTE,
+    ok: list('EditStep'),
   }),
   'GET /chats/:id/checklist': d('Chats', "The chat's own checklist", {
     description: 'The plan the agent kept with its `TaskCreate`/`TaskUpdate` or `TodoWrite` calls, as of its last update. Empty for one that never planned.',
@@ -245,24 +271,31 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /orchestrations/:id/tasks/:taskId/supervisor/:proposalId/send': d('Orchestration', "Send the supervisor's proposal to a worker", { description: "The same as the chat route, from the board: the hint goes through the task hint route, so a task that is no longer running refuses it. What the supervisor cost is already on the graph's `costUsd`.", params: obj({ id: str(), taskId: str(), proposalId: str() }), ok: ref('SupervisorProposal') }),
   'POST /orchestrations/:id/tasks/:taskId/supervisor/:proposalId/dismiss': d('Orchestration', "Dismiss the supervisor's proposal for a worker", { description: 'Marks it `dismissed`; nothing reaches the worker.', params: obj({ id: str(), taskId: str(), proposalId: str() }), ok: ref('SupervisorProposal') }),
   'GET /orchestrations/:id/tasks/:taskId/changes': d('Orchestration', 'What a task changed on disk', {
-    description: "The task's branch, the commit it started from (its dependencies' work is not counted as its own), the commits and the files it changed since, and what it has not committed yet. Refused for a graph without worktrees. A task that has not started has an empty summary. Announced by a `changes.updated` event while the worker runs.",
+    description: `The task's branch, the commit it started from (its dependencies' work is not counted as its own), the commits and the files it changed since, what it has not committed yet, and \`working\`: every file that differs from that commit in the working tree. Refused for a graph without worktrees. A task that has not started has an empty summary. Announced by a \`changes.updated\` event while the worker runs. ${SCOPE_NOTE}`,
+    querystring: SCOPE_QUERY,
     ok: ref('ChangeSummary'),
   }),
   'GET /orchestrations/:id/tasks/:taskId/changes/diff': d('Orchestration', 'The diff of one file of a task', {
-    description: 'Everything the task did to the file since it started, committed or not. A file created and not yet added shows as all new.',
-    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    description: `Everything the task did to the file since it started, committed or not. A file created and not yet added shows as all new. ${DIFF_NOTE}`,
+    querystring: DIFF_QUERY,
     ok: ref('FileDiff'),
+  }),
+  'GET /orchestrations/:id/tasks/:taskId/changes/steps': d('Orchestration', 'Every edit a task made, step by step', {
+    description: `Read through the task's chat. ${STEPS_NOTE} A task that has not started has none.`,
+    ok: list('EditStep'),
   }),
   'GET /orchestrations/:id/tasks/:taskId/checklist': d('Orchestration', "A task's own checklist", {
     description: "The plan the worker kept with its `TaskCreate`/`TaskUpdate` or `TodoWrite` calls, read from its chat's transcript, as of its last update. Empty for a worker that never planned or one that has not started.",
     ok: ref('Checklist'),
   }),
   'GET /orchestrations/:id/integration/changes': d('Orchestration', 'What the integration branch changed', {
-    description: "The same summary for the branch that merges every task's work, against the graph's base commit. Empty until the graph starts integrating.",
+    description: `The same summary for the branch that merges every task's work, against the graph's base commit. Empty until the graph starts integrating. ${SCOPE_NOTE}`,
+    querystring: SCOPE_QUERY,
     ok: ref('ChangeSummary'),
   }),
   'GET /orchestrations/:id/integration/changes/diff': d('Orchestration', 'The diff of one file of the integration branch', {
-    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    description: DIFF_NOTE,
+    querystring: DIFF_QUERY,
     ok: ref('FileDiff'),
   }),
   'DELETE /orchestrations/:id': d('Orchestration', 'Delete an orchestration', { description: 'Refused while it runs. Removes its worktrees and keeps their branches; refused if one holds uncommitted work, so a deletion never takes it.', ok: OK }),

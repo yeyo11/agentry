@@ -991,6 +991,8 @@ export interface ChangedFile {
   deletions: number;
   /** Where a rename came from */
   previousPath?: string;
+  /** Git printed `-` for both counts: there are no lines to count, and no diff to draw */
+  binary?: boolean;
 }
 
 /** What a branch has done: the work it committed, and what it has not committed yet. */
@@ -1007,12 +1009,60 @@ export interface ChangeSummary {
   files: ChangedFile[];
   /** Working-tree changes that are in no commit, staged or not */
   uncommitted: ChangedFile[];
+  /**
+   * Every file that differs between `base` and the working tree, committed or not, untracked
+   * included, with those counts: what the default diff of a file shows. Left out of a summary
+   * scoped to one commit or to the uncommitted work.
+   */
+  working?: ChangedFile[];
 }
 
-/** One file's diff, unified, exactly as git prints it: the panel highlights it, nobody parses it. */
+/**
+ * How many unchanged lines a diff keeps around each change: a number (0–500), or `full` for the
+ * whole file.
+ */
+export type DiffContext = number | 'full';
+
+/** One file's diff, unified, exactly as git prints it. */
 export interface FileDiff {
   path: string;
   diff: string;
+  /** True when the diff carries the whole file: `context=full` was asked for and honoured */
+  full: boolean;
+}
+
+/** The tools whose calls become the steps of the Step by step lens. */
+export type EditStepTool = 'Edit' | 'MultiEdit' | 'Write' | 'NotebookEdit';
+
+/** One successful edit of a chat's main transcript, with the patch the CLI stored for it. */
+export interface EditStep {
+  /** The `tool_use` id */
+  id: string;
+  /** 1-based, in the order the calls were made */
+  index: number;
+  /** When the call was made (ISO 8601); null when the entry carries no timestamp */
+  at: string | null;
+  tool: EditStepTool;
+  /**
+   * Relative to the git top level when the chat works in a checkout, to the chat's directory
+   * otherwise; absolute when the file is outside it
+   */
+  path: string;
+  additions: number;
+  deletions: number;
+  /** Unified diff (`@@` hunks only); `''` when the transcript kept no patch */
+  diff: string;
+  /** A `Write` that created the file */
+  created: boolean;
+  /** The last thing the assistant wrote before the call, clipped to 280 characters; null when none */
+  intent: string | null;
+  /**
+   * 0-based index, in the space `GET /chats/:id` pages with sidechains off, of the entry that holds
+   * the `tool_use`; null when unknown
+   */
+  entryIndex: number | null;
+  /** The call has no result yet: the chat is still working on it */
+  pending: boolean;
 }
 
 /** A file a chat wrote where git cannot answer, read from the chat's own transcript. */

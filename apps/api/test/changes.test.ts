@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@agentry/core';
-import type { AgentryEvent, ChangeSummary, ChatChanges, Checklist, FileDiff, Orchestration } from '@agentry/shared';
+import type { AgentryEvent, ChangeSummary, ChatChanges, Checklist, EditStep, FileDiff, Orchestration } from '@agentry/shared';
 import { buildApp } from '../src/app.ts';
 
 // What a worker did on disk, over HTTP: real git worktrees made by real orchestrations, driven by
@@ -262,9 +262,76 @@ test('every changes route is documented with a summary and a tag', async () => {
     '/api/orchestrations/{id}/integration/changes/diff',
     '/api/chats/{id}/changes',
     '/api/chats/{id}/changes/diff',
+    '/api/chats/{id}/changes/steps',
+    '/api/orchestrations/{id}/tasks/{taskId}/changes/steps',
     '/api/chats/{id}/checklist',
   ]) {
     const op = spec.paths[path]?.get;
     assert.ok(op?.summary && op.tags?.length, `${path} is not documented`);
   }
+});
+
+test('a diff takes its context, and a summary or a diff one commit or the uncommitted work alone', async () => {
+  const base = `/api/orchestrations/${graph.id}/tasks/api/changes`;
+  const worktree = graph.tasks.find((t) => t.id === 'api')?.worktree as string;
+  writeFileSync(join(worktree, 'scoped.txt'), 'loose\n');
+
+  const plain = (await get<FileDiff>(`${base}/diff?path=api.txt`)).body;
+  assert.equal(plain.full, false);
+  assert.equal((await get<FileDiff>(`${base}/diff?path=api.txt&context=full`)).body.full, true);
+  // Unparseable is the default, not a refusal
+  const odd = await get<FileDiff>(`${base}/diff?path=api.txt&context=lots`);
+  assert.equal(odd.status, 200);
+  assert.equal(odd.body.diff, plain.diff);
+
+  const all = (await get<ChangeSummary>(base)).body;
+  assert.ok(all.working?.some((f) => f.path === 'scoped.txt'));
+  const commit = all.commits.at(-1)?.hash as string;
+  const one = (await get<ChangeSummary>(`${base}?commit=${commit}`)).body;
+  assert.deepEqual(one.files.map((f) => f.path), ['api.txt']);
+  assert.equal(one.working, undefined);
+  assert.match((await get<FileDiff>(`${base}/diff?path=api.txt&commit=${commit}`)).body.diff, /^\+server$/m);
+
+  const loose = (await get<ChangeSummary>(`${base}?uncommitted=1`)).body;
+  assert.ok(loose.files.some((f) => f.path === 'scoped.txt'));
+  assert.ok(!loose.files.some((f) => f.status === 'added' && f.path === 'api.txt'));
+  assert.match((await get<FileDiff>(`${base}/diff?path=scoped.txt&uncommitted=1`)).body.diff, /^\+loose$/m);
+
+  // Someone else's commit, the base itself, and both scopes at once
+  const shell = (await get<ChangeSummary>(`/api/orchestrations/${graph.id}/tasks/shell/changes`)).body.commits[0]?.hash as string;
+  for (const url of [`${base}?commit=${shell}`, `${base}?commit=${graph.baseCommit}`, `${base}/diff?path=api.txt&commit=${shell}`, `${base}?commit=${commit}&uncommitted=1`]) {
+    const res = await app.inject(url);
+    assert.equal(res.statusCode, 400, url);
+  }
+  const chat = graph.tasks.find((t) => t.id === 'api')?.sessionId as string;
+  assert.equal((await app.inject(`/api/chats/${chat}/changes?commit=${shell}`)).statusCode, 400);
+  assert.equal((await get<ChatChanges>(`/api/chats/${chat}/changes?commit=${commit}`)).body.summary?.files.length, 1);
+});
+
+test('the steps of a chat and of a task are read from the transcript', async () => {
+  const dir = join(projectsDir, '-work-steps');
+  mkdirSync(dir, { recursive: true });
+  const line = (o: unknown) => JSON.stringify(o);
+  writeFileSync(
+    join(dir, 'steps-chat.jsonl'),
+    [
+      line({ type: 'user', uuid: 'u1', timestamp: '2026-01-01T09:00:00Z', cwd: '/work/steps', message: { role: 'user', content: 'fix it' } }),
+      line({ type: 'assistant', uuid: 'a1', timestamp: '2026-01-01T09:00:01Z', message: { role: 'assistant', content: [{ type: 'text', text: 'Renaming the flag.' }, { type: 'tool_use', id: 'e1', name: 'Edit', input: { file_path: '/work/steps/src/flag.ts' } }] } }),
+      line({
+        type: 'user', uuid: 'r1', timestamp: '2026-01-01T09:00:02Z',
+        message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'e1', content: 'ok' }] },
+        toolUseResult: { filePath: '/work/steps/src/flag.ts', originalFile: 'old\n', structuredPatch: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-old', '+new'] }] },
+      }),
+    ].join('\n'),
+  );
+  const steps = (await get<EditStep[]>('/api/chats/steps-chat/changes/steps')).body;
+  assert.deepEqual(steps, [
+    { id: 'e1', index: 1, at: '2026-01-01T09:00:01Z', tool: 'Edit', path: 'src/flag.ts', additions: 1, deletions: 1, diff: '@@ -1,1 +1,1 @@\n-old\n+new\n', created: false, intent: 'Renaming the flag.', entryIndex: 1, pending: false },
+  ]);
+  assert.equal((await get('/api/chats/no-such-chat/changes/steps')).status, 404);
+
+  const task = await get<EditStep[]>(`/api/orchestrations/${graph.id}/tasks/shell/changes/steps`);
+  assert.equal(task.status, 200);
+  assert.ok(Array.isArray(task.body));
+  assert.equal((await get(`/api/orchestrations/${graph.id}/tasks/nope/changes/steps`)).status, 404);
 });
