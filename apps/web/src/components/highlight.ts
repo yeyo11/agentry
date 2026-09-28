@@ -28,10 +28,10 @@
 //                         colours inside, and a class's bases (`class A(Base, metaclass=M)`).
 //   diff                  formats other than unified: SVN's `====` separators and normal diffs
 //                         (`3c3`, `<`, `>`). Over this repository's last 40 commits, 99.98%.
-import { PALETTE, type Painter, type Role } from './highlight/paint';
+import { PALETTE, type Painter, type Piece, type Role } from './highlight/paint';
 import type { HighlightToken, LanguageDefinition } from '@tanstack/highlight/core';
 
-export { PALETTE };
+export { PALETTE, type Role };
 
 /** Past this, tokenizing costs more than colour is worth: the block stays plain */
 const MAX_CHARS = 60_000;
@@ -350,16 +350,116 @@ async function tanstackTokens(code: string, name: string): Promise<HighlightToke
 }
 
 async function highlightTanstack(code: string, name: string): Promise<Highlighted | 'shiki' | null> {
+  const pieces = await tanstackPieces(code, name);
+  if (pieces === null || pieces === 'shiki') return pieces;
+  const runs = new Runs(STYLES.fg);
+  for (const [text, role] of pieces) runs.push(text, role ? STYLES[role] : null);
+  return { lines: runs.lines, base: STYLES.fg };
+}
+
+/** The block cut into pieces with their roles; 'shiki' when TanStack read it wrongly */
+async function tanstackPieces(code: string, name: string): Promise<Piece[] | 'shiki' | null> {
   const [tokens, paint] = await Promise.all([tanstackTokens(code, name), PAINTERS[TANSTACK[name]!.family]()]);
   if (!tokens) return null;
   if (TANSTACK[name]!.misread?.(tokens)) return 'shiki';
-  const runs = new Runs(STYLES.fg);
+  const out: Piece[] = [];
   for (const part of name === 'markdown' ? fences(tokens) : [{ tokens, lang: name }]) {
     // A fenced block is painted like a block of its own language, fetching that painter if need be
     const painter = part.lang === name ? paint : await PAINTERS[TANSTACK[part.lang]!.family]();
-    for (const [text, role] of painter(part.tokens, part.lang)) runs.push(text, role ? STYLES[role] : null);
+    for (const piece of painter(part.tokens, part.lang)) out.push(piece);
   }
-  return { lines: runs.lines, base: STYLES.fg };
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Roles: the diff comparator's muted syntax (design system §5)
+
+/** A line as runs of text, each with the role it plays, or null for the plain foreground */
+export type RoleLine = Piece[];
+
+/**
+ * `code` as lines of role runs, for the TanStack languages only: the comparator paints roles with
+ * its own muted `--sx-*` tokens, and a language only shiki knows has no roles to give, so it stays
+ * plain inside a diff (null). Null too past the budgets `highlight` keeps.
+ */
+export async function highlightRoles(code: string, lang: string): Promise<RoleLine[] | null> {
+  if (code.length > MAX_CHARS) return null;
+  const source = code.replace(/\r/g, '');
+  const name = TANSTACK_IDS[lang.toLowerCase()];
+  if (!name || lineCost(source) > TANSTACK_BUDGET || TANSTACK[name]!.unfit?.(source) || runaway(source, TANSTACK[name]!.family)) return null;
+  const pieces = await tanstackPieces(source, name);
+  if (pieces === null || pieces === 'shiki') return null;
+  const lines: RoleLine[] = [[]];
+  for (const [text, role] of pieces) {
+    text.split('\n').forEach((part, i) => {
+      if (i > 0) lines.push([]);
+      if (!part) return;
+      const line = lines[lines.length - 1]!;
+      const prev = line[line.length - 1];
+      if (prev && prev[1] === role) prev[0] += part;
+      else line.push([part, role]);
+    });
+  }
+  return lines;
+}
+
+/** The `--sx-*` class a role is painted with; `tag` and `deleted` are green and red, so plain */
+export const SYNTAX_CLASS: Record<Role, string | null> = {
+  fg: null,
+  keyword: 'sx-kw',
+  string: 'sx-str',
+  constant: 'sx-num',
+  entity: 'sx-type',
+  function: 'sx-fn',
+  comment: 'sx-com',
+  tag: null,
+  deleted: null,
+};
+
+/** File name → the language `highlight` takes; basenames first, then the extension */
+const FILE_LANGS: Record<string, string> = {
+  dockerfile: 'dockerfile',
+  makefile: 'makefile',
+  gnumakefile: 'makefile',
+  '.bashrc': 'bash',
+  '.zshrc': 'zsh',
+  '.profile': 'bash',
+};
+const EXT_LANGS: Record<string, string> = {
+  h: 'c',
+  hh: 'cpp',
+  hpp: 'cpp',
+  cc: 'cpp',
+  cxx: 'cpp',
+  cs: 'csharp',
+  rs: 'rust',
+  rb: 'ruby',
+  kt: 'kotlin',
+  kts: 'kotlin',
+  pl: 'perl',
+  ps1: 'powershell',
+  mdx: 'mdx',
+  svg: 'xml',
+  plist: 'xml',
+  lock: 'yaml',
+  jsonl: 'json',
+  json5: 'json5',
+  map: 'json',
+  webmanifest: 'json',
+  gql: 'graphql',
+  tf: 'hcl',
+  txt: 'text',
+};
+
+/** The language to highlight a file in, from its name; null when the name says nothing */
+export function languageOfPath(path: string): string | null {
+  const base = path.slice(path.lastIndexOf('/') + 1).toLowerCase();
+  if (FILE_LANGS[base]) return FILE_LANGS[base];
+  const dot = base.lastIndexOf('.');
+  if (dot <= 0 && !base.startsWith('.')) return null;
+  const ext = base.slice(dot + 1);
+  if (!ext) return null;
+  return EXT_LANGS[ext] ?? ext;
 }
 
 /**
