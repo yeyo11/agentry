@@ -1,54 +1,12 @@
 import type { ChangedFile, ChecklistItem, Health, HealthSignal, TranscriptEntry } from '@agentry/shared';
 
 /*
- * What the panels that show an agent's real work read from the data: where in a file a diff
- * changed, what a chat is running this second, and how a health verdict is named. Pure, so the
+ * What the panels that show an agent's real work read from the data: how big a change is,
+ * what a chat is running this second, and how a health verdict is named. Pure, so the
  * rules are tested without a browser.
  */
 
 // ---------- the diff ----------
-
-/** One hunk of a unified diff, as far as a link to an editor needs it. */
-export interface Hunk {
-  /** The hunk header as git printed it, `@@ -1,3 +1,4 @@ context` */
-  header: string;
-  /** First line of the new file that the hunk changed: the line an editor should open at */
-  line: number;
-}
-
-const HUNK = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
-
-/**
- * The hunks of a file's diff, each with the first line it actually changed rather than the first
- * line of its context. A hunk that only deletes points at the line the deletion left behind. A file
- * that no longer exists has no new lines, so it has no hunks to open.
- */
-export function hunksOf(diff: string): Hunk[] {
-  const hunks: Hunk[] = [];
-  let open: { hunk: Hunk; next: number; found: boolean } | null = null;
-  for (const text of diff.split('\n')) {
-    const start = HUNK.exec(text);
-    if (start) {
-      const first = Number(start[1]);
-      // `@@ -1,2 +0,0 @@` is a file emptied: there is no line zero to open
-      open = { hunk: { header: text, line: Math.max(1, first) }, next: first, found: false };
-      hunks.push(open.hunk);
-      continue;
-    }
-    if (!open) continue;
-    if (text.startsWith('+') && !text.startsWith('+++')) {
-      if (!open.found) open.hunk.line = Math.max(1, open.next);
-      open.found = true;
-      open.next++;
-    } else if (text.startsWith('-') && !text.startsWith('---')) {
-      if (!open.found) open.hunk.line = Math.max(1, open.next);
-      open.found = true;
-    } else if (text.startsWith(' ')) {
-      open.next++;
-    }
-  }
-  return hunks;
-}
 
 /** Added and removed lines over a list of files, for the line that says how big the work is. */
 export function totalsOf(files: ChangedFile[]): { additions: number; deletions: number } {

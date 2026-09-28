@@ -1,17 +1,19 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, GitFork, Hourglass, Lock, MessageSquare, TriangleAlert, Undo2, X } from 'lucide-react';
-import type { Chat } from '@agentry/shared';
+import type { Chat, EditStep } from '@agentry/shared';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ActivityTicker } from '../components/ActivityTicker';
 import { Tooltip } from '../components/controls/Tooltip';
 import { useDeleteChat } from '../components/ChatDelete';
 import { PermissionPrompts } from '../components/PermissionPrompts';
 import { ICON, ICON_SM } from '../components/icons';
 import { AnimatePresence, motion } from '../components/motion';
-import { endsWithAssistant, StreamingEntry, Transcript, type SubagentLink, type WorkflowLaunches } from '../components/Transcript';
-import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind } from '../components/TranscriptSearch';
+import { endsWithAssistant, StreamingEntry, Transcript, type SubagentLink, type TranscriptEdits, type WorkflowLaunches } from '../components/Transcript';
+import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '../components/TranscriptSearch';
+import { entryParam } from '../components/changes/steps/steps-model';
+import '../components/changes/steps/at-jump.css';
 import { Empty, ErrorBox, Loading, PageHeader, Skeleton, usePageTitle } from '../components/ui';
 import { api, ApiRequestError, keys } from '../api';
 import { tickerActivity } from '../lib/chat-live';
@@ -26,6 +28,9 @@ import { Inspector, useInspector } from './chat/Inspector';
 import { PartOf } from './chat/PartOf';
 import { useQueuedMessages } from './chat/queued';
 import { useStickToBottom } from './chat/stick-to-bottom';
+
+/** How long the entry a link opened the chat at stays marked */
+const AT_MARK_MS = 2400;
 
 /**
  * The end of the conversation that moves while Claude writes: the block being streamed and the
@@ -93,12 +98,43 @@ export function ChatView() {
     scope: ['chat', id, sidechains],
     search: useCallback((q: string) => api.searchChat(id, sidechains, q), [id, sidechains]),
   });
-  const focus = useFindFocus(find.target, transcript.items, transcript.from, transcript.reach);
+  // `?at=` (a step's "See it in the conversation"): the entry to open the chat at. It is read once
+  // the chat is here, then dropped from the address, so a reload opens the chat at its end
+  const [search, setSearch] = useSearchParams();
+  const atParam = search.get('at');
+  const [jump, setJump] = useState<FindTarget | null>(null);
+  const loaded = Boolean(chat);
+  useEffect(() => {
+    if (!loaded || atParam === null) return;
+    const at = entryParam(atParam);
+    setSearch(
+      (held) => {
+        const next = new URLSearchParams(held);
+        next.delete('at');
+        return next;
+      },
+      { replace: true },
+    );
+    if (at === null) return;
+    // A step's entry counts the main view: with the subagents' turns shown it would land elsewhere
+    setSidechains(false);
+    setJump({ index: at });
+  }, [loaded, atParam, setSearch]);
+
+  // Reached the way a search hit is, reading back to its page when needed; a hit wins over the link
+  const focus = useFindFocus(find.target ?? jump, transcript.items, transcript.from, transcript.reach);
   useFindHighlight(scroller, find);
   // Jumping to a hit is the reader moving: the bottom must not pull them back
   useEffect(() => {
-    if (find.target) setFollow(false);
-  }, [find.target, setFollow]);
+    if (find.target || jump) setFollow(false);
+  }, [find.target, jump, setFollow]);
+  // The entry stays marked for a moment once it is on screen, then reads like any other
+  const jumpShown = Boolean(jump && focus);
+  useEffect(() => {
+    if (!jumpShown) return;
+    const timer = setTimeout(() => setJump(null), AT_MARK_MS);
+    return () => clearTimeout(timer);
+  }, [jumpShown]);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: keys.chatScope(id) });
@@ -133,6 +169,24 @@ export function ChatView() {
   const workflows = useMemo<WorkflowLaunches | undefined>(
     () => (workflowList && workflowList.length > 0 ? { list: workflowList, open: () => showInspector('environment') } : undefined),
     [workflowList, showInspector],
+  );
+
+  // The steps give the edit chips their counts. They are read once the conversation has painted,
+  // never in its way, and again whenever a call comes back: an edit's result is what makes a step
+  const [painted, setPainted] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setPainted(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  const steps = useQuery({ queryKey: keys.chatSteps(id), queryFn: () => api.chatSteps(id), enabled: painted && Boolean(chat) });
+  const answered = Boolean(last && last.role === 'user' && last.blocks.length > 0 && last.blocks.every((b) => b.type === 'tool_result'));
+  useEffect(() => {
+    if (answered) void queryClient.invalidateQueries({ queryKey: keys.chatSteps(id), exact: true });
+  }, [answered, lastKey, id, queryClient]);
+  const stepList = steps.data;
+  const edits = useMemo<TranscriptEdits>(
+    () => ({ chatId: id, steps: stepList ? new Map<string, EditStep>(stepList.map((step) => [step.id, step])) : null }),
+    [id, stepList],
   );
 
   const { open: findOpen, show: findShow, close: findClose } = find;
@@ -209,7 +263,7 @@ export function ChatView() {
         <div className="run-stage">
           {/* Focusable so the keyboard can scroll a transcript that holds nothing else to focus */}
           <div
-            className="run-scroll"
+            className={`run-scroll${jump && !find.target ? ' is-at-jump' : ''}`}
             role="region"
             aria-label={t('view.transcript')}
             tabIndex={0}
@@ -242,6 +296,7 @@ export function ChatView() {
                 working={stepCurrent}
                 subagents={subagents}
                 workflows={workflows}
+                edits={edits}
               />
             )}
             {/* Pinned under the transcript: a chat waiting on a decision is stuck until it gets one */}

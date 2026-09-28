@@ -563,13 +563,24 @@ async function chatScene(chatId, { record, navigate, stillName }) {
   if (stillName) await still(stillName);
   if (!record) return;
   await hold(2200);
-  // The diff of one file
-  await page.click('aside.chat-inspector button', 'src/middleware/rate-limit.js', 900);
+  // The diff of one file, on the review screen the summary opens
+  await page.click('aside.chat-inspector a.obs-file-row', 'rate-limit.js', 900);
+  await visible('.changes-review .diff-row');
+  await settle();
   await hold(2600);
-  await page.key('Escape');
-  await sleep(400);
+  await page.goto(`/chats/${chatId}`, 1500);
+  await visible('aside.chat-inspector');
   // Back to the Summary tab, so the stills taken after the tour start from the inspector's default
   await page.click('aside.chat-inspector [role=tab]', 'Summary', 300);
+}
+
+/** The review screen of the same chat, on the one file it modified, so Reading has a pill to show. */
+async function changesScene(chatId, { stillName }) {
+  await page.goto(`/chats/${chatId}/changes?file=${encodeURIComponent('src/server.js')}&mode=reading`, 1500);
+  await visible('.changes-review .changes-map', 'rate-limit.js');
+  await visible('.changes-review .diff-fold-pill');
+  await settle();
+  await still(stillName);
 }
 
 /** The same chat on a phone: one-line header, the transcript, the pill composer and its status line. */
@@ -675,6 +686,7 @@ async function main() {
     await paletteScene(true);
   }
   await chatScene(chat.id, { record, navigate: !record, stillName: stills && 'chat.png' });
+  if (stills) await changesScene(chat.id, { stillName: 'changes.png' });
   if (stills) await phoneChatScene(chat.id, { stillName: 'chat-mobile.png' });
   await graphScene(harbor, { record, stillName: stills && 'orchestration.png' });
   // The dashboard's still once the graph has run, so its Orchestrations widget has one to follow

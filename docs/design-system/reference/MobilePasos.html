@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Agentry · Paso a paso (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app m-screen" data-theme="dark">
+<header class="m-head" style="padding-left: 4px; gap: 2px"><a href="MobileCambios.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver a los cambios"><svg class="ico ico-lg" viewBox="0 0 24 24" style="stroke-width: 2"><path d="m15 6-6 6 6 6"></path></svg></a><span class="col grow" style="gap: 1px; min-width: 0"><h1 class="t-h1" style="font-size: 22px">Paso a paso</h1><span class="t-xs fg-3 ellipsis">9 ediciones de Claude, en orden</span></span><span class="row t-xs c-live" style="gap: 6px; padding-right: 12px"><span class="spin-braille"></span>en vivo</span></header>
+<div class="col" style="flex-shrink: 0; gap: 10px; padding: 2px 16px 14px">
+<div class="scrub" role="img" aria-label="Paso 3 de 9" style="justify-content: space-between"><i class="done"></i><i class="done"></i><i class="sel" style="width: 34px"></i><i></i><i></i><i></i><i></i><i></i><i class="live"></i></div>
+</div>
+<div class="col" style="flex: 1 1 auto; min-height: 0; overflow: hidden; gap: 14px; padding: 0 16px">
+<div class="row t-xs" style="gap: 8px"><span class="t-label">Paso 3 de 9</span><span class="mono fg-3">14:03</span><span class="badge" style="height: 18px">Edit</span><span class="grow"></span><span class="cnt"><span class="a">+5</span> <span class="d">−3</span></span></div>
+<div class="path" style="font-size: 14px"><span class="dir">packages/core/src/</span><span class="name">git.ts</span></div>
+<div class="why" style="font-size: 15.5px; line-height: 1.55; color: var(--fg); gap: 10px"><svg class="spark" viewBox="0 0 24 24" fill="currentColor" style="width: 16px; height: 16px; margin-top: 4px"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"></path></svg><q><code>fileDiff</code> acepta el contexto: un número de líneas o <code>'full'</code>, que es el archivo entero en un solo bloque.</q></div>
+<div class="card" style="overflow: hidden; border-radius: 12px; flex-shrink: 0">
+
+
+<div class="app dv dv-uni dv-wrap" data-theme="dark" style="display: flex; width: 356px; height: 392px; overflow: hidden">
+<div style="flex: 1 1 auto; min-width: 0; overflow: hidden; padding: 6px 0">
+
+
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">31</span><span class="dv-num">34</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">32</span><span class="dv-num">35</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class="sx-com">/**</span></span></span></div>
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">33</span><span class="dv-num">36</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class="sx-com"> * One file's diff against `base`, exactly as git prints it. Without `ref` the working tree is the</span></span></span></div>
+
+
+
+
+<div class="dv-row del"><span class="dv-num">34</span><span class="dv-num"></span><span class="dv-rail"></span><span class="dv-sign">−</span><span class="dv-code"><span class=""><span class="sx-com"> * other side, so what the worker has not committed yet is part of it.</span></span></span></div>
+
+
+
+
+<div class="dv-row add"><span class="dv-num"></span><span class="dv-num">37</span><span class="dv-rail"></span><span class="dv-sign">+</span><span class="dv-code"><span class=""><span class="sx-com"> * other side, so what the worker has not committed yet is part of it. </span></span><span class="wd"><span class="sx-com">`context` is the number of</span></span></span></div>
+
+
+
+
+<div class="dv-row add"><span class="dv-num"></span><span class="dv-num">38</span><span class="dv-rail"></span><span class="dv-sign">+</span><span class="dv-code"><span class=""><span class="sx-com"> * unchanged lines around each change, or `'full'` for the whole file in one hunk.</span></span></span></div>
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">35</span><span class="dv-num">39</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class="sx-com"> */</span></span></span></div>
+
+
+
+
+<div class="dv-row del"><span class="dv-num">36</span><span class="dv-num"></span><span class="dv-rail"></span><span class="dv-sign">−</span><span class="dv-code"><span class=""><span class="sx-kw">export</span><span class=""> </span><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">fileDiff</span><span class="">(dir: string, base: string, ref: string | </span><span class="sx-kw">undefined</span><span class="">, paths: string[]): string {</span></span></span></div>
+
+
+
+
+<div class="dv-row del"><span class="dv-num">37</span><span class="dv-num"></span><span class="dv-rail"></span><span class="dv-sign">−</span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">const</span><span class=""> args = [</span><span class="sx-str">'diff'</span><span class="">, </span><span class="sx-str">'--no-color'</span><span class="">, </span><span class="sx-str">'--find-renames'</span><span class="">, base];</span></span></span></div>
+
+
+
+
+<div class="dv-row add"><span class="dv-num"></span><span class="dv-num">40</span><span class="dv-rail"></span><span class="dv-sign">+</span><span class="dv-code"><span class=""><span class="sx-kw">export</span><span class=""> </span><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">fileDiff</span><span class="">(dir: string, base: string, ref: string | </span><span class="sx-kw">undefined</span><span class="">, paths: string[]</span></span><span class="wd"><span class="">, context: </span><span class="sx-type">DiffContext</span><span class=""> = </span><span class="sx-num">3</span></span><span class=""><span class="">): string {</span></span></span></div>
+
+
+
+
+<div class="dv-row add"><span class="dv-num"></span><span class="dv-num">41</span><span class="dv-rail"></span><span class="dv-sign">+</span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">const</span><span class=""> unified = context === </span><span class="sx-str">'full'</span><span class=""> ? </span><span class="sx-type">WHOLE_FILE</span><span class=""> : </span><span class="sx-type">Math</span><span class="">.</span><span class="sx-fn">max</span><span class="">(</span><span class="sx-num">0</span><span class="">, </span><span class="sx-type">Math</span><span class="">.</span><span class="sx-fn">min</span><span class="">(context, </span><span class="sx-num">500</span><span class="">));</span></span></span></div>
+
+
+
+
+<div class="dv-row add"><span class="dv-num"></span><span class="dv-num">42</span><span class="dv-rail"></span><span class="dv-sign">+</span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">const</span><span class=""> args = [</span><span class="sx-str">'diff'</span><span class="">, </span><span class="sx-str">'--no-color'</span><span class="">, </span><span class="sx-str">'--find-renames'</span><span class="">, </span></span><span class="wd"><span class="sx-str">`--unified=${unified}`</span><span class="">,</span></span><span class=""><span class=""> base];</span></span></span></div>
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">38</span><span class="dv-num">43</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">if</span><span class=""> (ref) args.</span><span class="sx-fn">push</span><span class="">(ref);</span></span></span></div>
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">39</span><span class="dv-num">44</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class="">  args.</span><span class="sx-fn">push</span><span class="">(</span><span class="sx-str">'--'</span><span class="">, ...paths);</span></span></span></div>
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">40</span><span class="dv-num">45</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">return</span><span class=""> </span><span class="sx-fn">git</span><span class="">(dir, args);</span></span></span></div>
+
+
+
+
+
+
+</div>
+
+</div>
+
+</div>
+</div>
+<nav class="row" aria-label="Pasos" style="flex-shrink: 0; height: 100px; padding: 10px 16px 34px; gap: 10px; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--bg-1) 90%, transparent)">
+<a href="#" class="btn btn-lg grow" style="justify-content: center"><svg class="ico" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"></path></svg>Anterior</a>
+<a href="#" class="btn btn-lg grow" style="justify-content: center">Siguiente<svg class="ico" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></a>
+</nav>
+</div>
+</body></html>

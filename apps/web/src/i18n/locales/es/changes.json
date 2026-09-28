@@ -1,0 +1,146 @@
+{
+  "title": "Cambios",
+  "pageTitle": "Cambios · {{name}}",
+  "back": {
+    "chat": "Volver al chat",
+    "task": "Volver a la tarea",
+    "orchestration": "Volver a la orquestación"
+  },
+  "meta": {
+    "from": "desde {{base}}",
+    "detached": "HEAD separado",
+    "commits_one": "{{count}} commit",
+    "commits_other": "{{count}} commits",
+    "files_one": "{{count}} archivo",
+    "files_other": "{{count}} archivos",
+    "counts": "{{additions}} líneas añadidas, {{deletions}} quitadas"
+  },
+  "live": "se actualiza solo",
+  "lens": {
+    "label": "Qué ver",
+    "result": "Resultado",
+    "steps": "Paso a paso",
+    "noWorktree": "Este chat trabaja fuera de un worktree de git, así que no hay rama con la que comparar: sus ediciones se leen paso a paso."
+  },
+  "scope": {
+    "label": "Qué trabajo",
+    "all": "Todo el trabajo",
+    "commits": "Commits",
+    "uncommitted": "Sin commit todavía",
+    "none": "No hay nada sin commit"
+  },
+  "copyPatch": "Copiar el parche",
+  "copied": "Copiado",
+  "copyFailed": "No se ha podido copiar",
+  "map": {
+    "label": "Archivos cambiados",
+    "title": "Archivos",
+    "seenOf": "{{seen}} de {{total}} vistos",
+    "filter": "Filtrar archivos",
+    "fold": "Ocultar la lista de archivos",
+    "unfold": "Mostrar la lista de archivos",
+    "noMatch": "Ningún archivo coincide con el filtro.",
+    "legendUncommitted": "sin commit",
+    "legendLive": "Claude lo está editando",
+    "blocks": "bloques",
+    "files": "archivos"
+  },
+  "status": {
+    "modified": "modificado",
+    "added": "añadido",
+    "deleted": "eliminado",
+    "renamed": "renombrado",
+    "binary": "binario"
+  },
+  "row": {
+    "uncommitted": "Sin commit todavía",
+    "seen": "visto",
+    "live": "Claude lo está editando ahora",
+    "renamedFrom": "renombrado desde {{path}}"
+  },
+  "mode": {
+    "label": "Cómo comparar",
+    "reading": "Lectura",
+    "unified": "Unificado",
+    "split": "Lado a lado",
+    "readingHint": "Lectura: el archivo como queda; lo quitado, plegado",
+    "unifiedHint": "Unificado: antes y después intercalados",
+    "splitHint": "Lado a lado: antes y después frente a frente"
+  },
+  "block": {
+    "prev": "Bloque anterior",
+    "next": "Bloque siguiente",
+    "counter": "Bloque {{n}} de {{total}}",
+    "none": "Sin bloques de cambios"
+  },
+  "seen": "Visto",
+  "more": {
+    "label": "Más acciones del archivo",
+    "copyPath": "Copiar la ruta",
+    "copyDiff": "Copiar el diff de este archivo",
+    "keys": "Teclado"
+  },
+  "keys": {
+    "nextBlock": "Bloque siguiente",
+    "prevBlock": "Bloque anterior",
+    "nextFile": "Archivo siguiente",
+    "prevFile": "Archivo anterior",
+    "seenNext": "Marcar como visto y pasar al siguiente",
+    "mode": "Cambiar de modo",
+    "fold": "Abrir o plegar lo quitado del bloque",
+    "map": "Mostrar u ocultar los archivos",
+    "filter": "Filtrar archivos"
+  },
+  "why": {
+    "label": "Por qué cambió este archivo",
+    "latest_one": "el único paso",
+    "latest_other": "último de {{count}} pasos",
+    "seeSteps": "Ver los pasos"
+  },
+  "empty": {
+    "nothing": "Aún no ha cambiado nada",
+    "nothingBody": "Ni commits ni archivos editados. Se irá llenando mientras el agente trabaja.",
+    "scope": "No hay nada en esta parte",
+    "scopeBody": "Elige otra parte del trabajo en el menú de arriba.",
+    "noSteps": "Aún no hay ediciones",
+    "noStepsBody": "Cada llamada a Edit y Write del chat aparece aquí con su parche."
+  },
+  "blocksOnly": "Más de 5.000 líneas: se muestra solo por bloques y no se pide el resto del archivo.",
+  "phone": {
+    "backToFiles": "Volver a los archivos",
+    "tapPill": "toca <pill>−1</pill> para ver lo quitado",
+    "prevFile": "Archivo anterior: {{name}}",
+    "nextFile": "Archivo siguiente: {{name}}"
+  },
+  "steps": {
+    "label": "Ediciones, de la más antigua a la más reciente",
+    "title": "Pasos",
+    "pending": "en curso",
+    "now": "ahora",
+    "stepOf": "Paso {{n}} de {{total}}",
+    "stepN": "paso {{n}}",
+    "noPatch": "La transcripción no guardó parche para esta edición.",
+    "pendingPatch": "Claude está haciendo esta edición ahora: su parche aparece cuando termine.",
+    "count_one": "{{count}} edición de Claude",
+    "count_other": "{{count}} ediciones de Claude, en el orden en que las hizo",
+    "countShort_one": "{{count}} edición de Claude",
+    "countShort_other": "{{count}} ediciones de Claude, en orden",
+    "keys": "pasos",
+    "live": "en vivo",
+    "back": "Volver a los cambios",
+    "allFiles": "Todos los archivos",
+    "filter": "Ver los pasos de",
+    "prev": "Anterior",
+    "next": "Siguiente",
+    "quoteOpen": "«",
+    "quoteClose": "»",
+    "intentLabel": "Lo que escribió Claude justo antes de esta edición",
+    "noIntent": "Claude no escribió nada antes de esta edición.",
+    "seeInChat": "Ver en la conversación",
+    "lines": "líneas {{from}}–{{to}}",
+    "asThen": "tal como quedó en ese momento",
+    "sameFile": "Este archivo, paso a paso",
+    "seeResult": "Ver cómo quedó",
+    "thisOne": "este"
+  }
+}

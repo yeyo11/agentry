@@ -122,6 +122,12 @@ test('the tab bar steps aside on a chat and on an orchestration, not on their li
   for (const path of ['/', '/chats', '/orchestration', '/settings', '/projects']) assert.equal(hidesTabBar(path), false, path);
 });
 
+test('the review of changes hides the tab bar, for a chat, a task and the integration branch', () => {
+  for (const path of ['/chats/abc/changes', '/chats/abc/changes/', '/orchestration/o1/changes', '/orchestration/o1/tasks/t1/changes']) assert.equal(hidesTabBar(path), true, path);
+  for (const path of ['/chats/abc/other', '/orchestration/o1/tasks/t1', '/orchestration/o1/tasks']) assert.equal(hidesTabBar(path), false, path);
+  assert.equal(fabFor('/chats/abc/changes'), null);
+});
+
 test('the phone FAB follows the page: words on Home, an icon on the lists, none where the tab bar steps aside', () => {
   for (const path of ['/', '/chats', '/chats/', '/projects']) assert.deepEqual(fabFor(path), { action: 'chat' }, path);
   assert.deepEqual(fabFor('/orchestration'), { action: 'orchestration' });

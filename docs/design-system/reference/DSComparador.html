@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Design system · Comparador de diffs</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../agentry-ds.css"><style>body{margin:0;background:#09090b}</style><style>body{margin:0}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)});document.body.style.background=m==="light"?"#fafaf9":"#09090b"}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body>
+
+<div class="app col" data-theme="dark" style="width: 1440px; height: 2000px; padding: 56px 64px; gap: 40px; overflow: hidden">
+<header class="col" style="gap: 8px"><span class="t-label">Agentry design system · v2 · comparador</span><h1 class="t-display" style="margin: 0">Comparador de diffs</h1><p class="fg-2" style="margin: 0; max-width: 860px; line-height: 1.55">Cambios se revisa dentro de Agentry: sin enlaces a un editor, sin comandos que copiar. El diff es el que ya sirve la API, dibujado con cuatro reglas para que se lea sin ruido.</p></header>
+
+<section style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px">
+<div class="card col" style="padding: 18px; gap: 8px"><span class="mono t-xs fg-3">01</span><h2 class="t-h2">Solo lo que cambió lleva color</h2><p class="t-sm fg-2" style="margin: 0; line-height: 1.5">La sintaxis es tenue y nunca usa verde, rojo ni cian. El contexto se atenúa. Lo cambiado dentro de una línea va en una sola marca.</p></div>
+<div class="card col" style="padding: 18px; gap: 8px"><span class="mono t-xs fg-3">02</span><h2 class="t-h2">Lo quitado se pliega</h2><p class="t-sm fg-2" style="margin: 0; line-height: 1.5">En Lectura se lee el archivo como queda. Una píldora <span class="dv-ghost" style="position: static; transform: none; display: inline-flex; vertical-align: 1px">−2</span> en el raíl abre lo que había, en su sitio.</p></div>
+<div class="card col" style="padding: 18px; gap: 8px"><span class="mono t-xs fg-3">03</span><h2 class="t-h2">Una línea, un raíl</h2><p class="t-sm fg-2" style="margin: 0; line-height: 1.5">Un raíl de 3 px marca lo añadido o lo quitado. Las filas enteras solo se tiñen, muy poco, en Unificado y Lado a lado.</p></div>
+<div class="card col" style="padding: 18px; gap: 8px"><span class="mono t-xs fg-3">04</span><h2 class="t-h2">Cada cambio, con su porqué</h2><p class="t-sm fg-2" style="margin: 0; line-height: 1.5">El paso de Claude que tocó el archivo, con lo que escribió justo antes. Del diff a la conversación hay un clic.</p></div>
+</section>
+
+<section class="col" style="gap: 14px">
+<div class="row" style="gap: 10px"><span class="t-label">Tres modos</span><span class="t-xs fg-3">el mismo bloque de packages/core/src/git.ts</span></div>
+<div style="display: grid; grid-template-columns: 0.9fr 0.9fr 1.3fr; gap: 14px">
+<div class="card col" style="overflow: hidden; gap: 0"><div class="card-head"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"></path></svg><span class="t-h2 grow">Lectura</span><span class="badge b-accent">por defecto</span></div>
+
+<div class="app dv dv-read" data-theme="dark" style="display: flex; width: 100%; height: 300px; overflow: hidden">
+<div style="flex: 1 1 auto; min-width: 0; overflow: hidden; padding: 6px 0">
+
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">1</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">import</span><span class=""> { execFileSync } </span><span class="sx-kw">from</span><span class=""> </span><span class="sx-str">'node:child_process'</span><span class="">;</span></span></span></div>
+
+
+
+
+
+<div class="dv-row mod"><span class="dv-num">2</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">import</span><span class=""> </span><span class="sx-kw">type</span><span class=""> { </span><span class="sx-type">ChangedFile</span><span class="">, </span><span class="sx-type">Commit</span></span><span class="wd"><span class="">, </span><span class="sx-type">DiffContext</span></span><span class=""><span class=""> } </span><span class="sx-kw">from</span><span class=""> </span><span class="sx-str">'@agentry/shared'</span><span class="">;</span></span></span><button type="button" class="dv-ghost" aria-label="Mostrar lo quitado">−1</button></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">3</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">4</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com">/** Lines of context that stand for "the whole file": git has no flag of its own for it. */</span></span></span></div>
+
+
+
+
+
+<div class="dv-row add"><span class="dv-num">5</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">const</span><span class=""> </span><span class="sx-type">WHOLE_FILE</span><span class=""> = </span><span class="sx-num">1_000_000</span><span class="">;</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">6</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">7</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-com">/** Runs git in `dir` and returns what it printed, without the last newline. */</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">8</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">git</span><span class="">(dir: string, args: string[]): string {</span></span></span></div>
+
+
+
+
+
+<div class="dv-row del"><span class="dv-num">6</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">return</span><span class=""> </span><span class="sx-fn">execFileSync</span><span class="">(</span><span class="sx-str">'git'</span><span class="">, args, { cwd: dir, encoding: </span><span class="sx-str">'utf8'</span><span class="">, maxBuffer: </span></span><span class="wd"><span class="sx-num">32</span></span><span class=""><span class=""> * </span><span class="sx-num">1024</span><span class=""> * </span><span class="sx-num">1024</span><span class=""> }).</span><span class="sx-fn">replace</span><span class="">(/\n$/, </span><span class="sx-str">''</span><span class="">);</span></span></span><button type="button" class="dv-ghost open" aria-label="Plegar lo quitado">−1</button></div>
+
+
+
+
+
+<div class="dv-row mod"><span class="dv-num">9</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">return</span><span class=""> </span><span class="sx-fn">execFileSync</span><span class="">(</span><span class="sx-str">'git'</span><span class="">, args, { cwd: dir, encoding: </span><span class="sx-str">'utf8'</span><span class="">, maxBuffer: </span></span><span class="wd"><span class="sx-num">64</span></span><span class=""><span class=""> * </span><span class="sx-num">1024</span><span class=""> * </span><span class="sx-num">1024</span><span class=""> }).</span><span class="sx-fn">replace</span><span class="">(/\n$/, </span><span class="sx-str">''</span><span class="">);</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">10</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="">}</span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">11</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">12</span><span class="dv-rail"></span><span class="dv-code"><span class=""><span class="sx-kw">export</span><span class=""> </span><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">isGitRepo</span><span class="">(dir: string): boolean {</span></span></span></div>
+
+
+
+
+
+
+
+
+</div>
+
+</div>
+<p class="t-xs fg-2" style="margin: 0; padding: 12px 16px 14px; border-top: 1px solid var(--line); line-height: 1.5">El archivo como queda. Para leer el trabajo de un agente de arriba abajo. La segunda píldora está abierta.</p></div>
+<div class="card col" style="overflow: hidden; gap: 0"><div class="card-head"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></svg><span class="t-h2 grow">Unificado</span></div>
+
+<div class="app dv dv-uni" data-theme="dark" style="display: flex; width: 100%; height: 300px; overflow: hidden">
+<div style="flex: 1 1 auto; min-width: 0; overflow: hidden; padding: 6px 0">
+
+
+
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">1</span><span class="dv-num">1</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class="sx-kw">import</span><span class=""> { execFileSync } </span><span class="sx-kw">from</span><span class=""> </span><span class="sx-str">'node:child_process'</span><span class="">;</span></span></span></div>
+
+
+
+
+<div class="dv-row del"><span class="dv-num">2</span><span class="dv-num"></span><span class="dv-rail"></span><span class="dv-sign">−</span><span class="dv-code"><span class=""><span class="sx-kw">import</span><span class=""> </span><span class="sx-kw">type</span><span class=""> { </span><span class="sx-type">ChangedFile</span><span class="">, </span><span class="sx-type">Commit</span><span class=""> } </span><span class="sx-kw">from</span><span class=""> </span><span class="sx-str">'@agentry/shared'</span><span class="">;</span></span></span></div>
+
+
+
+
+<div class="dv-row add"><span class="dv-num"></span><span class="dv-num">2</span><span class="dv-rail"></span><span class="dv-sign">+</span><span class="dv-code"><span class=""><span class="sx-kw">import</span><span class=""> </span><span class="sx-kw">type</span><span class=""> { </span><span class="sx-type">ChangedFile</span><span class="">, </span><span class="sx-type">Commit</span></span><span class="wd"><span class="">, </span><span class="sx-type">DiffContext</span></span><span class=""><span class=""> } </span><span class="sx-kw">from</span><span class=""> </span><span class="sx-str">'@agentry/shared'</span><span class="">;</span></span></span></div>
+
+
+
+
+<div class="dv-row add"><span class="dv-num"></span><span class="dv-num">3</span><span class="dv-rail"></span><span class="dv-sign">+</span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+<div class="dv-row add"><span class="dv-num"></span><span class="dv-num">4</span><span class="dv-rail"></span><span class="dv-sign">+</span><span class="dv-code"><span class=""><span class="sx-com">/** Lines of context that stand for "the whole file": git has no flag of its own for it. */</span></span></span></div>
+
+
+
+
+<div class="dv-row add"><span class="dv-num"></span><span class="dv-num">5</span><span class="dv-rail"></span><span class="dv-sign">+</span><span class="dv-code"><span class=""><span class="sx-kw">const</span><span class=""> </span><span class="sx-type">WHOLE_FILE</span><span class=""> = </span><span class="sx-num">1_000_000</span><span class="">;</span></span></span></div>
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">3</span><span class="dv-num">6</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">4</span><span class="dv-num">7</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class="sx-com">/** Runs git in `dir` and returns what it printed, without the last newline. */</span></span></span></div>
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">5</span><span class="dv-num">8</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">git</span><span class="">(dir: string, args: string[]): string {</span></span></span></div>
+
+
+
+
+<div class="dv-row del"><span class="dv-num">6</span><span class="dv-num"></span><span class="dv-rail"></span><span class="dv-sign">−</span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">return</span><span class=""> </span><span class="sx-fn">execFileSync</span><span class="">(</span><span class="sx-str">'git'</span><span class="">, args, { cwd: dir, encoding: </span><span class="sx-str">'utf8'</span><span class="">, maxBuffer: </span></span><span class="wd"><span class="sx-num">32</span></span><span class=""><span class=""> * </span><span class="sx-num">1024</span><span class=""> * </span><span class="sx-num">1024</span><span class=""> }).</span><span class="sx-fn">replace</span><span class="">(/\n$/, </span><span class="sx-str">''</span><span class="">);</span></span></span></div>
+
+
+
+
+<div class="dv-row add"><span class="dv-num"></span><span class="dv-num">9</span><span class="dv-rail"></span><span class="dv-sign">+</span><span class="dv-code"><span class=""><span class="">  </span><span class="sx-kw">return</span><span class=""> </span><span class="sx-fn">execFileSync</span><span class="">(</span><span class="sx-str">'git'</span><span class="">, args, { cwd: dir, encoding: </span><span class="sx-str">'utf8'</span><span class="">, maxBuffer: </span></span><span class="wd"><span class="sx-num">64</span></span><span class=""><span class=""> * </span><span class="sx-num">1024</span><span class=""> * </span><span class="sx-num">1024</span><span class=""> }).</span><span class="sx-fn">replace</span><span class="">(/\n$/, </span><span class="sx-str">''</span><span class="">);</span></span></span></div>
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">7</span><span class="dv-num">10</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class="">}</span></span></span></div>
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">8</span><span class="dv-num">11</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+<div class="dv-row ctx"><span class="dv-num">9</span><span class="dv-num">12</span><span class="dv-rail"></span><span class="dv-sign"> </span><span class="dv-code"><span class=""><span class="sx-kw">export</span><span class=""> </span><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">isGitRepo</span><span class="">(dir: string): boolean {</span></span></span></div>
+
+
+
+
+
+
+</div>
+
+</div>
+<p class="t-xs fg-2" style="margin: 0; padding: 12px 16px 14px; border-top: 1px solid var(--line); line-height: 1.5">Antes y después intercalados, con los dos números. El de siempre, y el del paso a paso.</p></div>
+<div class="card col" style="overflow: hidden; gap: 0"><div class="card-head"><svg class="ico ico-sm" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M12 4v16"></path></svg><span class="t-h2 grow">Lado a lado</span><span class="t-xs fg-3">desde 1100 px</span></div>
+
+<div class="app dv dv-split" data-theme="dark" style="display: flex; width: 100%; height: 300px; overflow: hidden">
+<div style="flex: 1 1 auto; min-width: 0; overflow: hidden; padding: 6px 0">
+
+
+
+
+
+
+<div class="dv-row" style="height: 28px; align-items: center; font-family: var(--sans); font-size: 11.5px; color: var(--fg-3); border-bottom: 1px solid var(--line); margin-bottom: 6px"><span></span><span></span><span></span><span class="row" style="gap: 6px"><span class="t-label">Antes</span><span class="mono">8923191</span></span><span class="seam"></span><span></span><span></span><span></span><span class="row" style="gap: 6px"><span class="t-label">Ahora</span><span class="mono">worktree</span></span></div>
+
+
+
+<div class="dv-row"><span class="dv-num ctx">1</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class="sx-kw">import</span><span class=""> { execFileSync } </span><span class="sx-kw">from</span><span class=""> </span><span class="sx-str">'node:child_process'</span><span class="">;</span></span></span><span class="seam"></span><span class="dv-num ctx">1</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class="sx-kw">import</span><span class=""> { execFileSync } </span><span class="sx-kw">from</span><span class=""> </span><span class="sx-str">'node:child_process'</span><span class="">;</span></span></span></div>
+
+
+
+
+<div class="dv-row"><span class="dv-num del">2</span><span class="dv-rail del"></span><span class="dv-sign dv-cell del">−</span><span class="dv-code dv-cell del"><span class=""><span class="sx-kw">import</span><span class=""> </span><span class="sx-kw">type</span><span class=""> { </span><span class="sx-type">ChangedFile</span><span class="">, </span><span class="sx-type">Commit</span><span class=""> } </span><span class="sx-kw">from</span><span class=""> </span><span class="sx-str">'@agentry/shared'</span><span class="">;</span></span></span><span class="seam"></span><span class="dv-num add">2</span><span class="dv-rail add"></span><span class="dv-sign dv-cell add">+</span><span class="dv-code dv-cell add"><span class=""><span class="sx-kw">import</span><span class=""> </span><span class="sx-kw">type</span><span class=""> { </span><span class="sx-type">ChangedFile</span><span class="">, </span><span class="sx-type">Commit</span></span><span class="wd"><span class="">, </span><span class="sx-type">DiffContext</span></span><span class=""><span class=""> } </span><span class="sx-kw">from</span><span class=""> </span><span class="sx-str">'@agentry/shared'</span><span class="">;</span></span></span></div>
+
+
+
+
+<div class="dv-row"><span class="dv-num pad"></span><span class="dv-rail pad"></span><span class="dv-sign dv-cell pad"></span><span class="dv-code dv-cell pad"><span class=""><span class=""> </span></span></span><span class="seam"></span><span class="dv-num add">3</span><span class="dv-rail add"></span><span class="dv-sign dv-cell add">+</span><span class="dv-code dv-cell add"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+<div class="dv-row"><span class="dv-num pad"></span><span class="dv-rail pad"></span><span class="dv-sign dv-cell pad"></span><span class="dv-code dv-cell pad"><span class=""><span class=""> </span></span></span><span class="seam"></span><span class="dv-num add">4</span><span class="dv-rail add"></span><span class="dv-sign dv-cell add">+</span><span class="dv-code dv-cell add"><span class=""><span class="sx-com">/** Lines of context that stand for "the whole file": git has no flag of its own for it. */</span></span></span></div>
+
+
+
+
+<div class="dv-row"><span class="dv-num pad"></span><span class="dv-rail pad"></span><span class="dv-sign dv-cell pad"></span><span class="dv-code dv-cell pad"><span class=""><span class=""> </span></span></span><span class="seam"></span><span class="dv-num add">5</span><span class="dv-rail add"></span><span class="dv-sign dv-cell add">+</span><span class="dv-code dv-cell add"><span class=""><span class="sx-kw">const</span><span class=""> </span><span class="sx-type">WHOLE_FILE</span><span class=""> = </span><span class="sx-num">1_000_000</span><span class="">;</span></span></span></div>
+
+
+
+
+<div class="dv-row"><span class="dv-num ctx">3</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class=""> </span></span></span><span class="seam"></span><span class="dv-num ctx">6</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+<div class="dv-row"><span class="dv-num ctx">4</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class="sx-com">/** Runs git in `dir` and returns what it printed, without the last newline. */</span></span></span><span class="seam"></span><span class="dv-num ctx">7</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class="sx-com">/** Runs git in `dir` and returns what it printed, without the last newline. */</span></span></span></div>
+
+
+
+
+<div class="dv-row"><span class="dv-num ctx">5</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">git</span><span class="">(dir: string, args: string[]): string {</span></span></span><span class="seam"></span><span class="dv-num ctx">8</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">git</span><span class="">(dir: string, args: string[]): string {</span></span></span></div>
+
+
+
+
+<div class="dv-row"><span class="dv-num del">6</span><span class="dv-rail del"></span><span class="dv-sign dv-cell del">−</span><span class="dv-code dv-cell del"><span class=""><span class="">  </span><span class="sx-kw">return</span><span class=""> </span><span class="sx-fn">execFileSync</span><span class="">(</span><span class="sx-str">'git'</span><span class="">, args, { cwd: dir, encoding: </span><span class="sx-str">'utf8'</span><span class="">, maxBuffer: </span></span><span class="wd"><span class="sx-num">32</span></span><span class=""><span class=""> * </span><span class="sx-num">1024</span><span class=""> * </span><span class="sx-num">1024</span><span class=""> }).</span><span class="sx-fn">replace</span><span class="">(/\n$/, </span><span class="sx-str">''</span><span class="">);</span></span></span><span class="seam"></span><span class="dv-num add">9</span><span class="dv-rail add"></span><span class="dv-sign dv-cell add">+</span><span class="dv-code dv-cell add"><span class=""><span class="">  </span><span class="sx-kw">return</span><span class=""> </span><span class="sx-fn">execFileSync</span><span class="">(</span><span class="sx-str">'git'</span><span class="">, args, { cwd: dir, encoding: </span><span class="sx-str">'utf8'</span><span class="">, maxBuffer: </span></span><span class="wd"><span class="sx-num">64</span></span><span class=""><span class=""> * </span><span class="sx-num">1024</span><span class=""> * </span><span class="sx-num">1024</span><span class=""> }).</span><span class="sx-fn">replace</span><span class="">(/\n$/, </span><span class="sx-str">''</span><span class="">);</span></span></span></div>
+
+
+
+
+<div class="dv-row"><span class="dv-num ctx">7</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class="">}</span></span></span><span class="seam"></span><span class="dv-num ctx">10</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class="">}</span></span></span></div>
+
+
+
+
+<div class="dv-row"><span class="dv-num ctx">8</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class=""> </span></span></span><span class="seam"></span><span class="dv-num ctx">11</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class=""> </span></span></span></div>
+
+
+
+
+<div class="dv-row"><span class="dv-num ctx">9</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class="sx-kw">export</span><span class=""> </span><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">isGitRepo</span><span class="">(dir: string): boolean {</span></span></span><span class="seam"></span><span class="dv-num ctx">12</span><span class="dv-rail ctx"></span><span class="dv-sign dv-cell ctx"></span><span class="dv-code dv-cell ctx"><span class=""><span class="sx-kw">export</span><span class=""> </span><span class="sx-kw">function</span><span class=""> </span><span class="sx-fn">isGitRepo</span><span class="">(dir: string): boolean {</span></span></span></div>
+
+
+
+
+</div>
+
+</div>
+<p class="t-xs fg-2" style="margin: 0; padding: 12px 16px 14px; border-top: 1px solid var(--line); line-height: 1.5">Las líneas emparejadas se miran; el hueco del lado corto va rayado. Pliega la lista de archivos para ganar ancho.</p></div>
+</div>
+</section>
+
+<section style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px">
+<div class="card col" style="padding: 18px; gap: 14px">
+<span class="t-label">Tokens</span>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+<div class="row" style="gap: 10px"><span style="width: 34px; height: 34px; border-radius: 8px; background: var(--diff-add); box-shadow: inset 0 0 0 1px var(--line-2); flex-shrink: 0"></span><span class="col" style="gap: 1px; min-width: 0"><span class="mono t-xs">--diff-add</span><span class="t-xs fg-3">raíl, número, signo</span></span></div><div class="row" style="gap: 10px"><span style="width: 34px; height: 34px; border-radius: 8px; background: var(--diff-add-bg); box-shadow: inset 0 0 0 1px var(--line-2); flex-shrink: 0"></span><span class="col" style="gap: 1px; min-width: 0"><span class="mono t-xs">--diff-add-bg</span><span class="t-xs fg-3">fila, solo en Unificado</span></span></div><div class="row" style="gap: 10px"><span style="width: 34px; height: 34px; border-radius: 8px; background: var(--diff-add-word); box-shadow: inset 0 0 0 1px var(--line-2); flex-shrink: 0"></span><span class="col" style="gap: 1px; min-width: 0"><span class="mono t-xs">--diff-add-word</span><span class="t-xs fg-3">palabras añadidas</span></span></div><div class="row" style="gap: 10px"><span style="width: 34px; height: 34px; border-radius: 8px; background: var(--diff-del); box-shadow: inset 0 0 0 1px var(--line-2); flex-shrink: 0"></span><span class="col" style="gap: 1px; min-width: 0"><span class="mono t-xs">--diff-del</span><span class="t-xs fg-3">raíl, píldora, número</span></span></div><div class="row" style="gap: 10px"><span style="width: 34px; height: 34px; border-radius: 8px; background: var(--diff-del-bg); box-shadow: inset 0 0 0 1px var(--line-2); flex-shrink: 0"></span><span class="col" style="gap: 1px; min-width: 0"><span class="mono t-xs">--diff-del-bg</span><span class="t-xs fg-3">fila quitada</span></span></div><div class="row" style="gap: 10px"><span style="width: 34px; height: 34px; border-radius: 8px; background: var(--diff-del-word); box-shadow: inset 0 0 0 1px var(--line-2); flex-shrink: 0"></span><span class="col" style="gap: 1px; min-width: 0"><span class="mono t-xs">--diff-del-word</span><span class="t-xs fg-3">palabras quitadas</span></span></div>
+</div>
+<div class="divider"></div>
+<div class="row" style="gap: 18px; flex-wrap: wrap"><span class="t-xs fg-3">Sintaxis tenue</span><span class="mono t-sm sx-kw">export const</span><span class="mono t-sm sx-str">'full'</span><span class="mono t-sm sx-num">1_000_000</span><span class="mono t-sm sx-type">DiffContext</span><span class="mono t-sm sx-fn">fileDiff</span><span class="mono t-sm sx-com">// un comentario</span></div>
+</div>
+<div class="card col" style="padding: 18px; gap: 14px">
+<span class="t-label">Piezas</span>
+<div style="display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px 16px; align-items: center">
+<span class="t-xs fg-3">Píldora de lo quitado</span><span class="row" style="gap: 14px"><span class="dv-ghost" style="position: static; transform: none">−2</span><span class="dv-ghost open" style="position: static; transform: none">−2</span><span class="t-xs fg-3">cerrada · abierta. Sobre el raíl de la primera línea nueva.</span></span>
+<span class="t-xs fg-3">Costura</span><span class="dv" style="background: transparent; --dv-num: 30px"><span class="dv-seam" style="display: block; margin-left: 33px; width: 240px"><span class="dv-ghost">−3</span></span></span>
+<span class="t-xs fg-3">Pliegue</span><span class="dv" style="background: transparent; --dv-num: 0px"><span class="dv-fold" style="margin: 0; padding-left: 12px; border-radius: 8px; border: 1px solid var(--line)"><svg class="ico ico-sm" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"></path></svg>21 líneas sin cambios · en <span class="where">aheadCount()</span><button type="button" class="btn btn-ghost">Mostrar</button></span></span>
+<span class="t-xs fg-3">Huella del cambio</span><span class="col" style="gap: 6px"><span class="fp"><i style="flex: 14 1 0; --a: 79%"></i><i style="flex: 13 1 0; --a: 46%"></i><i class="seen" style="flex: 42 1 0; --a: 100%"></i><i style="flex: 10 1 0; --a: 0%"></i><i style="flex: 13 1 0; --a: 100%"></i><i class="sel" style="flex: 16 1 0; --a: 69%"></i><i style="flex: 7 1 0; --a: 86%"></i></span><span class="t-xs fg-3">Cada archivo ocupa lo que cambió. El actual, con anillo; los vistos, apagados. Se pulsa para ir al archivo.</span></span>
+<span class="t-xs fg-3">Riel de bloques</span><span class="row" style="gap: 14px"><span class="dv-map" style="height: 70px; border-radius: 4px"><span class="view" style="top: 0; height: 46%"></span><i class="tick mod" style="top: 2%; height: 6%"></i><i class="tick mod cur" style="top: 12%; height: 3%"></i><i class="tick mod" style="top: 51%; height: 4%"></i><i class="tick mod" style="top: 56%; height: 5%"></i><i class="tick" style="top: 95%; height: 3%"></i></span><span class="t-xs fg-3" style="line-height: 1.5">El archivo entero a escala. Cada bloque, una marca; la vista, un rectángulo. Con <span class="kbd">j</span> <span class="kbd">k</span> se salta de bloque.</span></span>
+<span class="t-xs fg-3">Por qué</span><span class="why"><svg class="spark" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9z"></path></svg><span><q>El endpoint lee ?context= y lo valida.</q> <span class="mono t-xs fg-3">paso 5 · 14:06</span></span></span>
+</div>
+</div>
+</section>
+
+<section style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px">
+<div class="card col" style="padding: 14px 8px 14px; gap: 2px">
+<span class="t-label" style="padding: 0 12px 8px">Filas de archivo</span>
+<a class="frow"><span class="st st-m">M</span><span class="fname">changes.ts</span><span class="cnt"><span class="a">+11</span> <span class="d">−3</span></span></a>
+<a class="frow sel"><span class="st st-m">M</span><span class="fname">git.ts</span><span class="cnt"><span class="a">+11</span> <span class="d">−5</span></span></a>
+<a class="frow seen"><span class="st st-m">M</span><span class="fname">types.ts</span><span class="row" style="gap: 6px"><svg class="ico ico-sm fg-3" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="m5 12 5 5 9-10"></path></svg><span class="cnt"><span class="a">+6</span> <span class="d">−1</span></span></span></a>
+<a class="frow live"><span class="st st-m">M</span><span class="row" style="gap: 6px; min-width: 0"><span class="fname">Changes.tsx</span><span style="width: 6px; height: 6px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--fg-3)"></span></span><span class="row" style="gap: 6px"><span class="spin-braille"></span><span class="cnt"><span class="a">+6</span> <span class="d">−7</span></span></span></a>
+<a class="frow"><span class="st st-a">A</span><span class="fname">diff.ts</span><span class="cnt"><span class="a">+42</span></span></a>
+<a class="frow"><span class="st st-d">D</span><span class="fname">editor.ts</span><span class="cnt"><span class="d">−10</span></span></a>
+<a class="frow"><span class="st st-r">R</span><span class="fname">diff-view.css <span class="fg-3">← observe.css</span></span><span class="cnt"><span class="a">+2</span> <span class="d">−2</span></span></a>
+<a class="frow"><span class="st">B</span><span class="fname">logo.png</span><span class="mono t-xs fg-3">binario</span></a>
+<p class="t-xs fg-3" style="margin: 8px 12px 0; line-height: 1.5">La letra dice el estado y el color lo acompaña. ○ sin commit todavía; ⠋ Claude lo está editando ahora.</p>
+</div>
+<div class="card col" style="padding: 14px 8px; gap: 2px">
+<span class="t-label" style="padding: 0 12px 8px">Pasos</span>
+<div class="steps">
+<a class="step"><span class="dotcol"><span class="sdot"></span></span><span class="col" style="gap: 3px; min-width: 0"><span class="row t-xs" style="gap: 7px"><span class="mono fg-3">14:02</span><span class="badge" style="height: 18px">Edit</span><span class="mono grow" style="font-size: 12px">git.ts</span><span class="cnt"><span class="a">+5</span> <span class="d">−2</span></span></span><span class="intent">Importo DiffContext y dejo una constante para «el archivo entero».</span></span></a>
+<a class="step sel"><span class="dotcol"><span class="sdot"></span></span><span class="col" style="gap: 3px; min-width: 0"><span class="row t-xs" style="gap: 7px"><span class="mono fg-3">14:03</span><span class="badge" style="height: 18px">Edit</span><span class="mono grow" style="font-size: 12px">git.ts</span><span class="cnt"><span class="a">+5</span> <span class="d">−3</span></span></span><span class="intent">fileDiff acepta el contexto: un número de líneas o 'full'.</span></span></a>
+<a class="step live"><span class="dotcol"><span class="sdot"></span></span><span class="col" style="gap: 3px; min-width: 0"><span class="row t-xs" style="gap: 7px"><span class="mono fg-3">ahora</span><span class="badge" style="height: 18px">Edit</span><span class="mono grow" style="font-size: 12px">Changes.tsx</span><span class="spin-braille"></span></span><span class="intent">Ahora quito los enlaces al editor de la lista de archivos.</span></span></a>
+</div>
+<div class="row" style="gap: 10px; padding: 14px 12px 0"><span class="scrub grow"><i class="done"></i><i class="done"></i><i class="sel"></i><i></i><i></i><i></i><i class="live"></i></span><span class="t-xs fg-3">el recorrido</span></div>
+<p class="t-xs fg-3" style="margin: 10px 12px 0; line-height: 1.5">Un paso es una llamada Edit, Write o NotebookEdit que terminó bien, con su parche tal como lo guardó la transcripción y la frase de Claude justo antes.</p>
+</div>
+<div class="card col" style="padding: 18px; gap: 12px">
+<span class="t-label">Teclado</span>
+<div style="display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 10px 12px; align-items: center" class="t-sm">
+<span class="row" style="gap: 4px"><span class="kbd">j</span><span class="kbd">k</span></span><span class="fg-2">bloque siguiente · anterior</span>
+<span class="row" style="gap: 4px"><span class="kbd">n</span><span class="kbd">p</span></span><span class="fg-2">archivo siguiente · anterior</span>
+<span class="row" style="gap: 4px"><span class="kbd">v</span></span><span class="fg-2">marcar como visto y pasar al siguiente</span>
+<span class="row" style="gap: 4px"><span class="kbd">m</span></span><span class="fg-2">cambiar de modo</span>
+<span class="row" style="gap: 4px"><span class="kbd">o</span></span><span class="fg-2">abrir o plegar lo quitado del bloque</span>
+<span class="row" style="gap: 4px"><span class="kbd">[</span></span><span class="fg-2">mostrar u ocultar los archivos</span>
+<span class="row" style="gap: 4px"><span class="kbd">←</span><span class="kbd">→</span></span><span class="fg-2">paso anterior · siguiente</span>
+<span class="row" style="gap: 4px"><span class="kbd">/</span></span><span class="fg-2">filtrar archivos</span>
+</div>
+<div class="divider"></div>
+<p class="t-xs fg-3" style="margin: 0; line-height: 1.5">Ninguno salta si el foco está en un campo de texto. En el móvil, los bloques y los archivos se recorren con la barra de abajo, y los pasos, deslizando.</p>
+</div>
+</section>
+
+<section class="col" style="gap: 14px">
+<span class="t-label">Estados</span>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px">
+<div class="card col" style="padding: 18px; gap: 8px"><span class="mono t-xs fg-3">chat sin worktree</span><h2 class="t-h2">Solo Paso a paso</h2><p class="t-sm fg-2" style="margin: 0; line-height: 1.5">Sin rama con la que comparar, Resultado se desactiva con un motivo y los cambios se leen de sus ediciones, cada una con su parche.</p><div class="seg" style="align-self: flex-start; margin-top: 4px"><button type="button" disabled="" style="opacity: 0.45">Resultado</button><button type="button" class="on">Paso a paso</button></div></div>
+<div class="card col" style="padding: 18px; gap: 8px"><span class="mono t-xs fg-3">nada todavía</span><h2 class="t-h2">Aún no ha cambiado nada</h2><p class="t-sm fg-2" style="margin: 0; line-height: 1.5">Ni commits ni archivos editados. Versión compacta, sin ilustración: está junto a la conversación.</p></div>
+<div class="card col" style="padding: 18px; gap: 8px"><span class="mono t-xs fg-3">binario o enorme</span><h2 class="t-h2">No hay texto que comparar</h2><p class="t-sm fg-2" style="margin: 0; line-height: 1.5">Un binario lo dice y no se intenta dibujar. Un diff de más de 5.000 líneas se dibuja por bloques y no pide el archivo entero.</p></div>
+<div class="card col" style="padding: 18px; gap: 8px"><span class="mono t-xs fg-3">añadido o eliminado</span><h2 class="t-h2">Un solo lado</h2><p class="t-sm fg-2" style="margin: 0; line-height: 1.5">Un archivo nuevo se lee entero con su raíl. Uno eliminado queda plegado en una píldora con sus líneas; Lado a lado no aplica.</p></div>
+</div>
+</section>
+</div>
+</body></html>

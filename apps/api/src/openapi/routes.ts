@@ -15,6 +15,27 @@ const scopeQuery = (extra: Json = {}): Json => obj({ project: PROJECT, ...extra 
 const KIND = str('Resource kind', { enum: ['agents', 'skills', 'commands', 'output-styles', 'rules', 'workflows'] });
 const ROOT = str("`user` or a project id (see `GET /config/files/roots`)");
 
+// What the change routes share: a scope (one commit, or the uncommitted work), and a diff's context
+const SCOPE_PARAMS: Json = {
+  commit: str('Only this commit (`<sha>^..<sha>`; a root commit against the empty tree). Refused with 400 unless it is on the branch since its base'),
+  uncommitted: str('`1` for the working tree against `HEAD` only, untracked files included'),
+};
+const SCOPE_QUERY = obj(SCOPE_PARAMS);
+const DIFF_QUERY = obj(
+  {
+    path: str('File to diff, relative to the checkout (required)'),
+    context: str('Unchanged lines around each change, 0–500, or `full` for the whole file. Anything else is the default of 3'),
+    ...SCOPE_PARAMS,
+  },
+  ['path'],
+);
+const SCOPE_NOTE =
+  '`?commit=` narrows `files` to what that commit changed, `?uncommitted=1` to the working tree against `HEAD`; either way the rest of the summary still describes the branch, and `working` is left out. Asking for both is refused. `binary` marks a file git counts no lines for.';
+const DIFF_NOTE =
+  '`?commit=` and `?uncommitted=1` scope it as the summary does. `full` is true only when `context=full` was honoured: a file over 20 000 lines keeps the default context. A binary file is git\'s one line; a long diff ends in `… diff truncated`, and one too large answers `… diff too large to show`.';
+const STEPS_NOTE =
+  "Every successful `Edit`, `MultiEdit`, `Write` or `NotebookEdit` of the chat's main transcript (not its subagents'), oldest first, each with the patch the CLI stored for it as a unified diff (`''` when it kept none) and `intent`, the last thing the assistant wrote before the call. `path` is relative to the git top level of where the chat works, or to its directory outside git. `entryIndex` is the entry's index in `GET /chats/:id` with sidechains off. A call still waiting for its result is the last step, `pending`, only while the chat has an execution. A chat with no transcript yet is read from what its process streamed, without patches. Read once, then only what the transcript appended.";
+
 export const TAGS = [
   { name: 'System', description: 'CLI detection, health and the dashboard overview.' },
   { name: 'Account', description: 'Credential used by every `claude` process. The secret is never returned.' },
@@ -173,13 +194,18 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   }),
   'GET /chats/:id/search': d('Chats', 'Search the whole transcript', { description: 'Case-insensitive plain-text match over what the transcript view shows of each entry: text, thinking, tool names and inputs, tool results. Any run of whitespace in `q` matches any run in the text. One hit per matching entry, `index` in the same space as a page\'s `from` and `total`, so a hit on a page not loaded yet is reached by reading back to it. At most 500 hits, the newest; `truncated` says older ones were left out.', querystring: obj({ q: str('Text to find (required, up to 200 characters)'), sidechains: str('`1` includes subagent messages, as the page read with it does') }, ['q']), ok: ref('TranscriptSearchResult') }),
   'GET /chats/:id/changes': d('Chats', 'What a chat changed on disk', {
-    description: 'For a chat in a git worktree, the branch, its base, the commits and the files it changed against that base, and what it has not committed yet. Any chat also gets the files its `Write`/`Edit`/`NotebookEdit` calls touched, read from the transcript, so a chat outside git still answers. A worker of an orchestration is measured from where its own branch was cut.',
+    description: `For a chat in a git worktree, the branch, its base, the commits and the files it changed against that base, what it has not committed yet, and \`working\`: every file that differs from the base in the working tree, with the counts its default diff shows. Any chat also gets the files its \`Write\`/\`Edit\`/\`NotebookEdit\` calls touched, read from the transcript, so a chat outside git still answers. A worker of an orchestration is measured from where its own branch was cut. ${SCOPE_NOTE}`,
+    querystring: SCOPE_QUERY,
     ok: ref('ChatChanges'),
   }),
   'GET /chats/:id/changes/diff': d('Chats', 'The diff of one file of a chat in a worktree', {
-    description: "Everything the branch did to the file since its base, committed or not. A file created and not yet added shows as all new. Refused for a chat with no worktree of its own.",
-    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    description: `Everything the branch did to the file since its base, committed or not. A file created and not yet added shows as all new. Refused for a chat with no worktree of its own. ${DIFF_NOTE}`,
+    querystring: DIFF_QUERY,
     ok: ref('FileDiff'),
+  }),
+  'GET /chats/:id/changes/steps': d('Chats', 'Every edit a chat made, step by step', {
+    description: STEPS_NOTE,
+    ok: list('EditStep'),
   }),
   'GET /chats/:id/checklist': d('Chats', "The chat's own checklist", {
     description: 'The plan the agent kept with its `TaskCreate`/`TaskUpdate` or `TodoWrite` calls, as of its last update. Empty for one that never planned.',
@@ -245,24 +271,31 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /orchestrations/:id/tasks/:taskId/supervisor/:proposalId/send': d('Orchestration', "Send the supervisor's proposal to a worker", { description: "The same as the chat route, from the board: the hint goes through the task hint route, so a task that is no longer running refuses it. What the supervisor cost is already on the graph's `costUsd`.", params: obj({ id: str(), taskId: str(), proposalId: str() }), ok: ref('SupervisorProposal') }),
   'POST /orchestrations/:id/tasks/:taskId/supervisor/:proposalId/dismiss': d('Orchestration', "Dismiss the supervisor's proposal for a worker", { description: 'Marks it `dismissed`; nothing reaches the worker.', params: obj({ id: str(), taskId: str(), proposalId: str() }), ok: ref('SupervisorProposal') }),
   'GET /orchestrations/:id/tasks/:taskId/changes': d('Orchestration', 'What a task changed on disk', {
-    description: "The task's branch, the commit it started from (its dependencies' work is not counted as its own), the commits and the files it changed since, and what it has not committed yet. Refused for a graph without worktrees. A task that has not started has an empty summary. Announced by a `changes.updated` event while the worker runs.",
+    description: `The task's branch, the commit it started from (its dependencies' work is not counted as its own), the commits and the files it changed since, what it has not committed yet, and \`working\`: every file that differs from that commit in the working tree. Refused for a graph without worktrees. A task that has not started has an empty summary. Announced by a \`changes.updated\` event while the worker runs. ${SCOPE_NOTE}`,
+    querystring: SCOPE_QUERY,
     ok: ref('ChangeSummary'),
   }),
   'GET /orchestrations/:id/tasks/:taskId/changes/diff': d('Orchestration', 'The diff of one file of a task', {
-    description: 'Everything the task did to the file since it started, committed or not. A file created and not yet added shows as all new.',
-    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    description: `Everything the task did to the file since it started, committed or not. A file created and not yet added shows as all new. ${DIFF_NOTE}`,
+    querystring: DIFF_QUERY,
     ok: ref('FileDiff'),
+  }),
+  'GET /orchestrations/:id/tasks/:taskId/changes/steps': d('Orchestration', 'Every edit a task made, step by step', {
+    description: `Read through the task's chat. ${STEPS_NOTE} A task that has not started has none.`,
+    ok: list('EditStep'),
   }),
   'GET /orchestrations/:id/tasks/:taskId/checklist': d('Orchestration', "A task's own checklist", {
     description: "The plan the worker kept with its `TaskCreate`/`TaskUpdate` or `TodoWrite` calls, read from its chat's transcript, as of its last update. Empty for a worker that never planned or one that has not started.",
     ok: ref('Checklist'),
   }),
   'GET /orchestrations/:id/integration/changes': d('Orchestration', 'What the integration branch changed', {
-    description: "The same summary for the branch that merges every task's work, against the graph's base commit. Empty until the graph starts integrating.",
+    description: `The same summary for the branch that merges every task's work, against the graph's base commit. Empty until the graph starts integrating. ${SCOPE_NOTE}`,
+    querystring: SCOPE_QUERY,
     ok: ref('ChangeSummary'),
   }),
   'GET /orchestrations/:id/integration/changes/diff': d('Orchestration', 'The diff of one file of the integration branch', {
-    querystring: obj({ path: str('File to diff, relative to the checkout (required)') }, ['path']),
+    description: DIFF_NOTE,
+    querystring: DIFF_QUERY,
     ok: ref('FileDiff'),
   }),
   'DELETE /orchestrations/:id': d('Orchestration', 'Delete an orchestration', { description: 'Refused while it runs. Removes its worktrees and keeps their branches; refused if one holds uncommitted work, so a deletion never takes it.', ok: OK }),
@@ -288,8 +321,6 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /config/tool-presets/restore': d('Configuration', 'Restore the shipped tool presets', { description: 'Rewrites `read-only`, `no-network` and `everything` as they ship, whether they were edited or deleted. Every other preset, and the default, are left alone.', ok: ref('ToolPresetsOverview') }),
   'PUT /config/tool-presets/:id': d('Configuration', 'Create or replace a tool preset', { params: obj({ id: str('Lowercase letters, digits and `-`') }), body: obj({ name: str(), description: str(), allowedTools: { type: 'array', items: str() }, disallowedTools: { type: 'array', items: str() } }, ['name']), ok: ref('ToolPreset') }),
   'DELETE /config/tool-presets/:id': d('Configuration', 'Delete a tool preset', { description: 'A chat already running with it keeps the tools it was given.', params: obj({ id: str() }), ok: OK }),
-  'GET /settings/editor': d('Configuration', 'Editor links', { description: 'How a file path and line become a link that opens the person\'s editor, and the side-by-side diff command to copy. `stored` is false until the first `PUT`; `settings` is then the default (`vscode://file/{path}:{line}`).', ok: ref('EditorSettingsDoc') }),
-  'PUT /settings/editor': d('Configuration', 'Replace the editor links', { description: 'The whole document. A template must start with a URL scheme and contain `{path}`; `javascript:`, `data:`, `vbscript:`, `file:` and `blob:` are refused. Nothing here reaches the CLI.', body: ref('UpdateEditorSettingsRequest'), ok: ref('EditorSettingsDoc') }),
   'GET /settings/app': d('Configuration', 'Runtime settings', { description: 'The settings that change without a restart (`allowedHosts`, `maxConcurrentRuns`, `defaultPermissionMode`), and in `sources` where each value comes from: `env` (the environment set it, so it is read-only here), `file` (`app-settings.json`) or `default`. `allowedHosts` is the configured part only: the exact host of a running tunnel is not listed.', ok: ref('AppSettings') }),
   'PUT /settings/app': d('Configuration', 'Change runtime settings', { description: 'Only the settings the body names. A setting the environment set is refused with `400`, and so is an unknown key; `allowedHosts` follows the rule of `AGENTRY_ALLOWED_HOSTS` (a `*.domain` pattern needs two labels below the wildcard) and takes no ports. `maxConcurrentRuns` and `defaultPermissionMode` apply to the next run. Emits `settings.changed`.', body: ref('UpdateAppSettingsRequest'), ok: ref('AppSettings') }),
   'GET /config/resources/:kind': d('Configuration', 'List resources', { description: 'Saved workflows of the scope only: `GET /workflows/saved` also merges in the user\'s.', params: obj({ kind: KIND }), querystring: scopeQuery(), ok: list('ConfigResource') }),

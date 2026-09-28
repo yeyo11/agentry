@@ -11,8 +11,8 @@
  *    - `projects`: Projects and the project tabs (memory, worktrees, settings, resources)
  *    - `orchestration`: the Orchestrations list and the task board
  *    - `orchestrationDetail`: one orchestration's page
- *    - `observe`: what an agent is really doing: its changes, checklist, health actions and the
- *      editor links (components/observe/*, the Editor tab of Settings)
+ *    - `observe`: what an agent is really doing: its changes, checklist and health actions
+ *      (components/observe/*)
  *    - `orchestrationV2`: relaunch, re-run, templates, per-task limits and the verification card
  *    - `accountsConfig`: an account's config directory, the rotation policies and the usage history
  *    - `connectors`: the Connectors page

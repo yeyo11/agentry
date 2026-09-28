@@ -25,8 +25,10 @@ const ROOT_TYPES = [
   'Chat', 'ChatSummary', 'ChatDetail', 'ChatBackgroundTaskEntry', 'ChatSubagentEntry', 'ChatWorkflowEntry', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatSettingsUpdate',
   'UsageReport',
   'TaskHintRequest', 'Project', 'ProjectCandidate', 'ImportProjectRequest', 'UpdateProjectRequest',
-  // What a chat or a task changed on disk, and how to open it in an editor
-  'ChangeSummary', 'FileDiff', 'ChatChanges', 'Checklist', 'EditorSettings', 'UpdateEditorSettingsRequest', 'EditorSettingsDoc',
+  // What a chat or a task changed on disk
+  'ChangeSummary', 'FileDiff', 'ChatChanges', 'Checklist',
+  // Reviewing the changes: the context of a diff, and the edits a transcript made step by step
+  'DiffContext', 'EditStep',
   // Stepping in on a worker that is stuck
   'Health', 'TaskLimits', 'HintRequest', 'CancelCommandRequest', 'CancelCommandResult',
   // Orchestration v2 and the verification phase

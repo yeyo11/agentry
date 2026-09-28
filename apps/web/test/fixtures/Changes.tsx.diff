@@ -1,0 +1,20 @@
+diff --git a/apps/web/src/components/observe/Changes.tsx b/apps/web/src/components/observe/Changes.tsx
+index 9a223f6..e8994e1 100644
+--- a/apps/web/src/components/observe/Changes.tsx
++++ b/apps/web/src/components/observe/Changes.tsx
+@@ -1,9 +1,8 @@
+-import { changesOf, totalsOf } from '../../lib/observe';
+-import { joinPath } from '../../lib/paths';
+-import { CodeBlock } from '../CodeBlock';
+-import { CopyButton, FileLink, OpenFolder } from './Links';
++import { totalsOf } from '../../lib/observe';
++import { parseDiff } from '../../lib/diff';
++import { DiffView } from './DiffView';
+ 
+-export function DiffBody({ data }: { data: { diff: string } }) {
+-  const hunks = changesOf(data.diff);
+-  return <CodeBlock code={data.diff} lang="diff" />;
++export function DiffBody({ data }: { data: { diff: string; full: boolean } }) {
++  const hunks = parseDiff(data.diff);
++  return <DiffView hunks={hunks} full={data.full} />;
+ }

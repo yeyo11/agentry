@@ -7986,6 +7986,13 @@
           "$ref": "#/components/schemas/ChangedFile"
         },
         "description": "Working-tree changes that are in no commit, staged or not"
+      },
+      "working": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChangedFile"
+        },
+        "description": "Every file that differs between `base` and the working tree, committed or not, untracked included, with those counts: what the default diff of a file shows. Left out of a summary scoped to one commit or to the uncommitted work."
       }
     },
     "required": [
@@ -8016,6 +8023,10 @@
       "previousPath": {
         "type": "string",
         "description": "Where a rename came from"
+      },
+      "binary": {
+        "type": "boolean",
+        "description": "Git printed `-` for both counts: there are no lines to count, and no diff to draw"
       }
     },
     "required": [
@@ -8042,13 +8053,18 @@
       },
       "diff": {
         "type": "string"
+      },
+      "full": {
+        "type": "boolean",
+        "description": "True when the diff carries the whole file: `context=full` was asked for and honoured"
       }
     },
     "required": [
       "path",
-      "diff"
+      "diff",
+      "full"
     ],
-    "description": "One file's diff, unified, exactly as git prints it: the panel highlights it, nobody parses it."
+    "description": "One file's diff, unified, exactly as git prints it."
   },
   "ChatChanges": {
     "type": "object",
@@ -8144,62 +8160,101 @@
     ],
     "description": "One item of a worker's own checklist, from its `TaskCreate`/`TaskUpdate`/`TodoWrite` calls."
   },
-  "EditorSettings": {
-    "type": "object",
-    "properties": {
-      "template": {
-        "type": "string",
-        "description": "URL template; `{path}`, `{line}` and `{column}` are substituted"
+  "DiffContext": {
+    "anyOf": [
+      {
+        "type": "number"
       },
-      "diffCommand": {
+      {
         "type": "string",
-        "description": "Command for a side-by-side diff, e.g. `code --diff {left} {right}`; no button when absent"
-      },
-      "pathMap": {
-        "type": "array",
-        "items": {
-          "type": "object",
-          "properties": {
-            "from": {
-              "type": "string"
-            },
-            "to": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "from",
-            "to"
-          ]
-        },
-        "description": "Container paths rewritten to host paths before the template is filled; first match wins"
+        "const": "full"
       }
-    },
-    "required": [
-      "template"
     ],
-    "description": "How the panel turns a path and a line into something that opens the person's editor. It is a setting because the wrapper often runs in a container while the editor does not, and because nobody agrees on an editor: `vscode://file/{path}:{line}` is only the default."
+    "description": "How many unchanged lines a diff keeps around each change: a number (0–500), or `full` for the whole file."
   },
-  "UpdateEditorSettingsRequest": {
-    "$ref": "#/components/schemas/EditorSettings",
-    "description": "Replaces the whole document (`PUT /settings/editor`): it is small and the form always holds all of it."
-  },
-  "EditorSettingsDoc": {
+  "EditStep": {
     "type": "object",
     "properties": {
-      "stored": {
+      "id": {
+        "type": "string",
+        "description": "The `tool_use` id"
+      },
+      "index": {
+        "type": "number",
+        "description": "1-based, in the order the calls were made"
+      },
+      "at": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the call was made (ISO 8601); null when the entry carries no timestamp"
+      },
+      "tool": {
+        "$ref": "#/components/schemas/EditStepTool"
+      },
+      "path": {
+        "type": "string",
+        "description": "Relative to the git top level when the chat works in a checkout, to the chat's directory otherwise; absolute when the file is outside it"
+      },
+      "additions": {
+        "type": "number"
+      },
+      "deletions": {
+        "type": "number"
+      },
+      "diff": {
+        "type": "string",
+        "description": "Unified diff (`@@` hunks only); `''` when the transcript kept no patch"
+      },
+      "created": {
         "type": "boolean",
-        "description": "False until the first `PUT`: `settings` is then the shipped default, and a browser may migrate its own"
+        "description": "A `Write` that created the file"
       },
-      "settings": {
-        "$ref": "#/components/schemas/EditorSettings"
+      "intent": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The last thing the assistant wrote before the call, clipped to 280 characters; null when none"
+      },
+      "entryIndex": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "0-based index, in the space `GET /chats/:id` pages with sidechains off, of the entry that holds the `tool_use`; null when unknown"
+      },
+      "pending": {
+        "type": "boolean",
+        "description": "The call has no result yet: the chat is still working on it"
       }
     },
     "required": [
-      "stored",
-      "settings"
+      "id",
+      "index",
+      "at",
+      "tool",
+      "path",
+      "additions",
+      "deletions",
+      "diff",
+      "created",
+      "intent",
+      "entryIndex",
+      "pending"
     ],
-    "description": "`GET /settings/editor` and the answer to a `PUT`: the settings, and whether any were ever saved."
+    "description": "One successful edit of a chat's main transcript, with the patch the CLI stored for it."
+  },
+  "EditStepTool": {
+    "type": "string",
+    "enum": [
+      "Edit",
+      "MultiEdit",
+      "Write",
+      "NotebookEdit"
+    ],
+    "description": "The tools whose calls become the steps of the Step by step lens."
   },
   "CancelCommandRequest": {
     "type": "object",

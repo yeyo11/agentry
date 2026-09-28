@@ -1,5 +1,6 @@
 // Every namespace of both languages, bundled: the UI never waits on a request to show its text.
 import enAccountsConfig from './locales/en/accountsConfig.json';
+import enChanges from './locales/en/changes.json';
 import enChat from './locales/en/chat.json';
 import enChats from './locales/en/chats.json';
 import enCommon from './locales/en/common.json';
@@ -19,6 +20,7 @@ import enShell from './locales/en/shell.json';
 import enUsage from './locales/en/usage.json';
 import enWork from './locales/en/work.json';
 import esAccountsConfig from './locales/es/accountsConfig.json';
+import esChanges from './locales/es/changes.json';
 import esChat from './locales/es/chat.json';
 import esChats from './locales/es/chats.json';
 import esCommon from './locales/es/common.json';
@@ -53,6 +55,7 @@ export const en = {
   orchestration: enOrchestration,
   orchestrationDetail: enOrchestrationDetail,
   observe: enObserve,
+  changes: enChanges,
   schedules: enSchedules,
   usage: enUsage,
   orchestrationV2: enOrchestrationV2,
@@ -80,6 +83,7 @@ export const es = {
   orchestration: esOrchestration,
   orchestrationDetail: esOrchestrationDetail,
   observe: esObserve,
+  changes: esChanges,
   schedules: esSchedules,
   usage: esUsage,
   orchestrationV2: esOrchestrationV2,

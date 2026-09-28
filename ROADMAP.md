@@ -43,8 +43,8 @@
   An optional supervisor (Haiku, off by default) wakes once per signal per chat, reads the worker's
   last steps through a read-only housekeeping chat and proposes the hint, to send, edit, dismiss or
   have sent on its own; what it costs lands on the graph. Every reason and hint carries a stable code
-  and the figures behind it, so a client says them in its own language. Links open a worktree, a file
-  or a changed line in your editor, from settings kept on the server.
+  and the figures behind it, so a client says them in its own language. The changes are reviewed inside
+  Agentry, on one screen with a diff comparator of its own.
 - **A suite that cannot hang** — the browser suite has a time limit per spec and per run, and closes
   Chrome and the wrapper on every way out by the pid it started, never by a name match.
 - **Configuration, user and project scope** — settings (guided + raw), instructions, MCP servers

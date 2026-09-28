@@ -50,7 +50,6 @@ import { modelOptions } from './models.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService } from './push.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
-import { EditorSettingsStore } from './editor-settings.ts';
 import { McpConfig } from './config/mcp.ts';
 import { ConfigResources } from './config/resources.ts';
 import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
@@ -70,7 +69,6 @@ import { encodeProjectId, Workspace } from './workspace.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
 export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
-export { DEFAULT_EDITOR, parseEditorSettings, sanitizeEditor, templateProblem, type EditorTemplateProblem } from './editor-settings.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, type AuthEnv, type CoreConfig } from './paths.ts';
@@ -97,6 +95,7 @@ export {
 export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
 export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
+export { parseChangeScope, parseDiffContext, type ChangeScope, type DiffOptions } from './changes.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
 export { Db, type PushSubscriptionRecord } from './db.ts';
@@ -155,8 +154,6 @@ export class Core {
   readonly memory: MemoryStore;
   readonly mcp: McpConfig;
   readonly toolPresets: ToolPresetStore;
-  /** Where file links open: `editor.json`, one document for every browser */
-  readonly editor: EditorSettingsStore;
   readonly connectors: Connectors;
   readonly resources: ConfigResources;
   readonly credentials: CredentialStore;
@@ -258,7 +255,6 @@ export class Core {
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
     this.mcp = new McpConfig(config);
     this.toolPresets = new ToolPresetStore(config);
-    this.editor = new EditorSettingsStore(config);
     this.health = new HealthService(this.runtime, this.db);
     this.orchestrator.health = (task) => {
       const chat = task.runId ? this.runtime.get(task.runId) : null;
