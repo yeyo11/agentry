@@ -92,6 +92,7 @@ test('a run row keeps who and the step together, so a narrow phone moves the bad
     error: 'Rate limited',
     cause: 'no-account',
     retryOf: null,
+    queuedBy: null,
     retriedBy: null,
     retryable: false,
     restarts: 0,

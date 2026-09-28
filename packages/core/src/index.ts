@@ -15,6 +15,8 @@ import type {
   CreateProjectRequest,
   FlowRun,
   FlowRunPage,
+  FlowStartWaitingResult,
+  FlowWaiting,
   FlowRunQuery,
   ImportProjectRequest,
   MemoryFile,
@@ -1221,6 +1223,21 @@ export class Core {
   projectFlow(projectId: string) {
     this.requireProject(projectId);
     return this.flow.projectFlow(projectId);
+  }
+
+  /** `GET /projects/:id/flow/waiting`: the cards switching the flow on left waiting; none while it is off. */
+  projectFlowWaiting(projectId: string): FlowWaiting {
+    this.requireProject(projectId);
+    return this.flow.waiting(projectId);
+  }
+
+  /**
+   * `POST /projects/:id/flow/start-waiting`: a person starts the waiting cards, one run each, as if
+   * each had entered its column. 409 while the flow is off.
+   */
+  startWaitingFlowRuns(projectId: string): FlowStartWaitingResult {
+    this.requireProject(projectId);
+    return this.flow.startWaiting(projectId);
   }
 
   /**

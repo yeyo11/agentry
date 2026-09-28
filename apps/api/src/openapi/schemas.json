@@ -7160,6 +7160,17 @@
           "null"
         ],
         "description": "The failed run this one retries, when a person retried it"
+      },
+      "queuedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunQueuedBy"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "`person` when a person queued it from the waiting cards; null otherwise"
       }
     },
     "required": [
@@ -7173,6 +7184,7 @@
       "key",
       "outcome",
       "projectId",
+      "queuedBy",
       "retryOf",
       "role",
       "runId",
@@ -7244,6 +7256,11 @@
       "chat-busy"
     ],
     "description": "Why a run failed or was cancelled, as a stable code a client words in the person's language; the run's `error` keeps the raw text beside it. A run stored before causes were kept gets the one its error reads as, or none.\n\nFailed:\n- `budget`: it reached `flow.maxCostUsd` (`--max-budget-usd`);\n- `no-account`: the account hit its rate limit and no other account could take the run over;\n- `rate-limit`: the account hit its rate limit and the rotation was off;\n- `stopped`: its chat was stopped;\n- `restarts`: Agentry restarted past `MAX_FLOW_RESTARTS` times while it worked;\n- `unreadable`: it ended without a readable structured result;\n- `no-verdict`: a verification ended without a verdict;\n- `not-started`: its chat did not start;\n- `not-continued`: its chat could not be continued after a restart;\n- `chat-ended`: its chat ended, or was removed, without a result;\n- `chat-failed`: its chat ended in an error the CLI reported (the error is the CLI's text).\n\nCancelled:\n- `item-moved`: the item left the column before the run started, or while a restart cut it off;\n- `item-removed` and `item-done`: the item was removed, or moved to `done`;\n- `replaced`: the item entered a column again before the run started, and the newer run took its place;\n- `flow-off`: the flow, the Team module or the Board module was switched off;\n- `no-member`: nobody on the team answers for the column any more;\n- `refined`: a todo check would repeat a refine that passed, on an item unchanged since;\n- `chat-busy`: a chat of the person's was already working on the item."
+  },
+  "FlowRunQueuedBy": {
+    "type": "string",
+    "const": "person",
+    "description": "Who queued a flow run by hand, when a card entering its column did not."
   },
   "AssistantRunEvent": {
     "type": "object",
@@ -13177,6 +13194,17 @@
         ],
         "description": "The failed run a person retried with this one (`POST /flow-runs/:runId/retry`); null for a run a card entering its column started"
       },
+      "queuedBy": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/FlowRunQueuedBy"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who queued it when it was not a card entering its column: `person` for a run a person started from the Flow screen's \"start the waiting cards\" (`POST /projects/:id/flow/start-waiting`). Null for a run a card's entry queued, and for a retry, which `retryOf` names."
+      },
       "retriedBy": {
         "anyOf": [
           {
@@ -13234,6 +13262,7 @@
       "error",
       "cause",
       "retryOf",
+      "queuedBy",
       "retriedBy",
       "retryable",
       "restarts",

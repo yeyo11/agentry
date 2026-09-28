@@ -720,6 +720,8 @@ is none, and never overwrites one a person wrote or edited: that member is repor
 | DELETE | `/projects/:id/team/:agent` | Take a member off the team; its agent file stays |
 | GET | `/projects/:id/flow` | The flow by column's runs going and queued, each with its item, role, stage and chat; `enabled` and the per-project cap `maxParallel` |
 | GET | `/projects/:id/flow/runs` | The team's activity: every flow run, newest first, paged (`limit`, `cursor`), filtered by `agent`, `role`, `status` (or `outcome`), `itemId` and `before`; each failed or cancelled run carries its `cause` |
+| GET | `/projects/:id/flow/waiting` | The cards waiting for the flow: not epics nor done, in a column with a responsible member, with no run queued or running (`{ total, columns }`; 0 while the flow is off) |
+| POST | `/projects/:id/flow/start-waiting` | Queue one run per waiting card in board order, as a person (`queuedBy: "person"`); answers `{ queued, startingNow, waiting }`, 409 while the flow is off |
 | GET | `/work-items/:itemId/runs` | Every flow run of a work item, newest first, whatever its state |
 | POST | `/flow-runs/:runId/retry` | Queue a failed run's step again while its item is still in the run's column (409 otherwise); counts as a person's move |
 

@@ -304,6 +304,7 @@ test("a member's flow runs come from the flow: running, queued and the last one 
       error: null,
       cause: null,
       retryOf: null,
+      queuedBy: null,
       retriedBy: null,
       retryable: false,
       restarts: 0,
