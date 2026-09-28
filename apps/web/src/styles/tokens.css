@@ -72,8 +72,8 @@
   --diff-rail-w: 3px;
   --diff-rail-radius: 2px;
   --diff-mark-radius: 3px;
-  /* Muted syntax, for code inside the comparator only: never green, red or cyan, which mean
-     added, removed and live there */
+  /* Muted syntax, for code inside the comparator and the editor: never green, red or cyan, which
+     mean added, removed and live there, and a status everywhere */
   --sx-kw: #b7a4d9;
   --sx-str: #d4bd8f;
   --sx-num: #93b4db;

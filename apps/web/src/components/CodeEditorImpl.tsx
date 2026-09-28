@@ -2,6 +2,8 @@ import { javascript } from '@codemirror/lang-javascript';
 import { json } from '@codemirror/lang-json';
 import { markdown } from '@codemirror/lang-markdown';
 import { yaml, yamlFrontmatter } from '@codemirror/lang-yaml';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
 import CodeMirror, { EditorView, keymap, Prec, type Extension } from '@uiw/react-codemirror';
 import { useMemo, useRef } from 'react';
 import { useEffectiveTheme } from '../lib/theme';
@@ -25,8 +27,28 @@ function languageExtension(language: EditorLanguage): Extension[] {
   }
 }
 
-// Surfaces come from our CSS tokens, so the editor follows the app theme; only the syntax
-// palette is switched between CodeMirror's light and dark presets.
+// Surfaces and syntax both come from our CSS tokens, so the editor follows the app theme with no
+// preset of CodeMirror's: those paint keys red and headings green, colours the design system keeps
+// for a status. Syntax is muted, as the reference's editor draws it: keys in the muted grey,
+// punctuation and comments faint, headings in weight rather than colour, and the rest from `--sx-*`.
+const syntax = HighlightStyle.define([
+  { tag: [tags.propertyName, tags.attributeName, tags.definition(tags.propertyName)], color: 'var(--fg-2)' },
+  { tag: tags.heading, color: 'var(--fg)', fontWeight: '600' },
+  { tag: [tags.punctuation, tags.separator, tags.bracket, tags.processingInstruction, tags.meta, tags.contentSeparator], color: 'var(--fg-3)' },
+  { tag: [tags.comment, tags.quote], color: 'var(--sx-com)' },
+  { tag: [tags.keyword, tags.bool, tags.null, tags.atom, tags.modifier, tags.operatorKeyword], color: 'var(--sx-kw)' },
+  { tag: [tags.string, tags.special(tags.string), tags.regexp], color: 'var(--sx-str)' },
+  { tag: [tags.number, tags.integer, tags.float], color: 'var(--sx-num)' },
+  { tag: [tags.typeName, tags.className, tags.namespace], color: 'var(--sx-type)' },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: 'var(--sx-fn)' },
+  { tag: [tags.link, tags.url], color: 'var(--fg-2)', textDecoration: 'underline' },
+  { tag: tags.strong, fontWeight: '600' },
+  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.strikethrough, textDecoration: 'line-through' },
+  { tag: tags.monospace, color: 'var(--fg-2)' },
+  { tag: tags.invalid, textDecoration: 'underline wavy', textDecorationColor: 'var(--fg-3)' },
+]);
+
 const chrome = EditorView.theme({
   '&': { backgroundColor: 'transparent', color: 'var(--text)', fontSize: '12.5px' },
   '&.cm-focused': { outline: 'none' },
@@ -44,6 +66,9 @@ const chrome = EditorView.theme({
   '.cm-panels': { backgroundColor: 'var(--bg-elev)', color: 'var(--text)' },
   '.cm-foldPlaceholder': { backgroundColor: 'var(--bg-hover)', border: 'none', color: 'var(--text-muted)' },
 });
+
+// No preset, only CodeMirror's own dark flag, so its base styles (a panel, a tooltip) read as dark
+const darkBase = EditorView.theme({}, { dark: true });
 
 export default function CodeEditorImpl({
   value,
@@ -66,6 +91,7 @@ export default function CodeEditorImpl({
   const extensions = useMemo(() => {
     const list: Extension[] = [
       chrome,
+      syntaxHighlighting(syntax),
       ...languageExtension(language),
       Prec.highest(
         keymap.of([
@@ -92,7 +118,7 @@ export default function CodeEditorImpl({
     <div className={`code-editor ${invalid ? 'is-invalid' : ''} ${readOnly ? 'is-readonly' : ''}`}>
       <CodeMirror
         value={value}
-        theme={dark ? 'dark' : 'light'}
+        theme={dark ? darkBase : 'none'}
         extensions={extensions}
         minHeight={minHeight}
         maxHeight={maxHeight}

@@ -648,7 +648,7 @@ px rows instead of scrolling sideways.
 | `--diff-add`, `--diff-del` | rails, line numbers, signs, pills (they are `--ok` and `--bad`) |
 | `--diff-add-bg`, `--diff-del-bg` | row tints in Unified and Side by side; removed lines opened in Reading |
 | `--diff-add-word`, `--diff-del-word` | the mark on changed words |
-| `--sx-kw`, `--sx-str`, `--sx-num`, `--sx-type`, `--sx-fn`, `--sx-com` | muted syntax, for code inside the comparator only |
+| `--sx-kw`, `--sx-str`, `--sx-num`, `--sx-type`, `--sx-fn`, `--sx-com` | muted syntax, for code inside the comparator and the editor (`CodeEditor`, whose keys, punctuation and headings are the greys of `.code-ed .tk-*`) |
 
 **States.** No worktree: Result is disabled with its reason and the screen opens on Step by step.
 Nothing changed yet: compact `Empty`, no illustration (it sits next to the conversation). Binary:
