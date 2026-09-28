@@ -301,6 +301,17 @@ this table gives the default, not a hard rule.
 | error | error |
 | blocked | bloqueada |
 
+Two exceptions for the project ecosystem:
+
+- **running, of an agent or a run working now: *en marcha*** — "3 en marcha · 1 en cola",
+  "Reintentada: en marcha", "Agentes en marcha". The table's *en curso* stays for everything else,
+  but on the board and the team screens it would read as the "En curso" column (in progress), so a
+  run that is working says *en marcha*, as the design reference does.
+- **stopped, as the cause of a flow run that ended early: *se detuvo su chat*** — the verb of
+  "Detener", in the preterite the causes next to it use ("Llegó al límite…", "Se cortó…"). Sentence
+  case by position: "Se detuvo su chat antes de que terminara." on its own, "se detuvo su chat"
+  after a dash or a colon. Never "se paró".
+
 ## The chat model
 
 Terms of the chats redesign. Like the CLI's, most stay in English.

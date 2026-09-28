@@ -252,7 +252,7 @@
       "budget": "Llegó al límite de gasto de una ejecución del flujo.",
       "no-account": "Ninguna cuenta tenía cupo: todas llegaron a su límite y no quedaba otra a la que pasar.",
       "rate-limit": "La cuenta llegó a su límite y la rotación de cuentas está desactivada.",
-      "stopped": "Se paró su chat antes de que terminara.",
+      "stopped": "Se detuvo su chat antes de que terminara.",
       "restarts_one": "Se cortó: Agentry se reinició mientras {{doing}}.",
       "restarts_other": "Se cortó {{count}} veces: Agentry se reinició mientras {{doing}}.",
       "unreadable": "Terminó sin un resultado que Agentry pudiera leer.",
