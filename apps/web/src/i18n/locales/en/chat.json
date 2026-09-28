@@ -52,8 +52,13 @@
       "works": "Works on",
       "origin": "Created from this chat",
       "criteria": "criteria {{done}}/{{total}}",
-      "runFailed": "Run failed",
-      "runFailedFor": "The {{role}} run for {{key}} did not finish, and the item stayed where it was."
+      "step": {
+        "refine": "Refinement of",
+        "check": "Check of",
+        "verify": "Verification of"
+      },
+      "openChat": "Open chat {{chat}}",
+      "openItem": "Open {{key}}"
     }
   },
   "composer": {

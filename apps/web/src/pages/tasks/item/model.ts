@@ -158,20 +158,31 @@ export function causeLine(cause: Pick<WorkItemCause, 'event' | 'chatId'> | null)
 
 export type ActivityFilter = 'all' | 'comments' | 'history';
 
-export type ActivityEntry = { kind: 'history'; at: string; entry: WorkItemHistoryEntry } | { kind: 'comment'; at: string; comment: WorkItemComment };
+export type ActivityEntry =
+  | { kind: 'history'; at: string; entry: WorkItemHistoryEntry }
+  | { kind: 'comment'; at: string; comment: WorkItemComment }
+  | { kind: 'retry'; at: string; run: FlowRun };
 
 /**
  * Oldest first, as the page reads top to bottom. The history's `created` entry opens it; a comment
  * and a change at the same instant keep the change first, since the comment usually explains it.
+ * A person's retries of a flow run (`retries`) are history the core does not write: they read as
+ * entries of it, at the moment each was queued.
  */
-export function activityOf(history: readonly WorkItemHistoryEntry[], comments: readonly WorkItemComment[], filter: ActivityFilter = 'all'): ActivityEntry[] {
+export function activityOf(
+  history: readonly WorkItemHistoryEntry[],
+  comments: readonly WorkItemComment[],
+  filter: ActivityFilter = 'all',
+  retries: readonly FlowRun[] = [],
+): ActivityEntry[] {
   const entries: ActivityEntry[] = [
     ...(filter === 'comments' ? [] : history.map((entry) => ({ kind: 'history' as const, at: entry.createdAt, entry }))),
+    ...(filter === 'comments' ? [] : retries.map((run) => ({ kind: 'retry' as const, at: run.queuedAt, run }))),
     ...(filter === 'history' ? [] : comments.map((comment) => ({ kind: 'comment' as const, at: comment.createdAt, comment }))),
   ];
   return entries
     .map((entry, index) => ({ entry, index }))
-    .sort((a, b) => a.entry.at.localeCompare(b.entry.at) || (a.entry.kind === b.entry.kind ? a.index - b.index : a.entry.kind === 'history' ? -1 : 1))
+    .sort((a, b) => a.entry.at.localeCompare(b.entry.at) || (a.entry.kind === b.entry.kind ? a.index - b.index : a.entry.kind === 'comment' ? 1 : b.entry.kind === 'comment' ? -1 : a.index - b.index))
     .map(({ entry }) => entry);
 }
 
@@ -233,12 +244,6 @@ export function linkEffect(
 export function linkRun<R extends Pick<FlowRun, 'chatId' | 'state' | 'outcome' | 'error'>>(link: Pick<WorkItemLink, 'kind' | 'chatId'>, runs: readonly R[]): R | null {
   if (link.kind !== 'chat' || !link.chatId) return null;
   return runs.find((run) => run.chatId === link.chatId) ?? null;
-}
-
-/** Why a link's flow run failed, when it did: the reason the core recorded, or '' when it gave none. */
-export function failedRunReason(run: Pick<FlowRun, 'state' | 'outcome' | 'error'> | null): string | null {
-  if (!run || run.state !== 'ended' || run.outcome !== 'failed') return null;
-  return run.error?.trim() ?? '';
 }
 
 /** Newest first: the chat working now, then the ones before it. */

@@ -52,8 +52,13 @@
       "works": "Trabaja en",
       "origin": "Creada desde este chat",
       "criteria": "criterios {{done}}/{{total}}",
-      "runFailed": "Ejecución fallida",
-      "runFailedFor": "La ejecución de {{role}} para {{key}} no terminó, y la tarea sigue donde estaba."
+      "step": {
+        "refine": "Refinado de",
+        "check": "Comprobación de",
+        "verify": "Verificación de"
+      },
+      "openChat": "Abrir el chat {{chat}}",
+      "openItem": "Abrir {{key}}"
     }
   },
   "composer": {

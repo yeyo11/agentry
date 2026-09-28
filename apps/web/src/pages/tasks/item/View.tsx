@@ -9,7 +9,7 @@ import { EpicLabel, ICON, PriorityMark, WorkItemKey, WorkItemStatusIcon, WorkIte
 import { Segmented } from '../../../components/ui';
 import { NARROW, useMediaQuery } from '../../../lib/media';
 import { columnMeta, priorityMeta } from '../../../lib/work-items';
-import { Activity, CommentBox } from './Activity';
+import { Activity, CommentBox, useItemRuns } from './Activity';
 import { Changes } from './Changes';
 import { Criteria } from './Criteria';
 import { Description, Title } from './Description';
@@ -32,7 +32,7 @@ import { Links } from './Links';
 import { Picker } from './Picker';
 import { LabelsEditor, Properties } from './Properties';
 import { Relations } from './Relations';
-import { WaitingState } from './Waiting';
+import { WaitingBadge, WaitingState } from './Waiting';
 import { CopyLink, ItemMenu, StatusBadge, useBackPath, useItemButtons, type ItemVariant } from './ViewHead';
 
 export type { ItemVariant } from './ViewHead';
@@ -56,6 +56,7 @@ function Wide({ item, actions, person, variant }: { item: WorkItemDetail; action
       {/* The panel names the key in its own title already */}
       {variant === 'page' && <WorkItemKey value={item.key} boxed />}
       <StatusBadge item={item} />
+      <WaitingBadge item={item} />
       <span className="grow" />
       <CopyLink item={item} />
       <ItemMenu item={item} variant={variant} withCopy={false} />
@@ -136,6 +137,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
   const summary = changes.data?.summary;
   const changed = summary ? new Set([...summary.files, ...summary.uncommitted].map((f) => f.path)).size : 0;
   const assigneeName = useAssigneeName(person)(item.assignee);
+  const { retries } = useItemRuns(item);
 
   return (
     <div className="workitem-layout is-phone">
@@ -155,6 +157,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
           }
         />
         <WorkItemKey value={item.key} boxed />
+        <WaitingBadge item={item} />
         <span className="grow" />
         <ItemMenu item={item} variant="page" withCopy />
       </header>
@@ -235,7 +238,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
               value: 'activity',
               label: (
                 <>
-                  {t('sections.activity')} <span className="segment-count">{item.history.length + item.comments.length}</span>
+                  {t('sections.activity')} <span className="segment-count">{item.history.length + retries.length + item.comments.length}</span>
                 </>
               ),
             },

@@ -215,12 +215,17 @@ export default async ({ page, api, check, dirs }) => {
       ).run(project.id, second.id, later, later, later);
       db.close();
       await page.goto(`/tasks/REV-${second.key.split('-')[1]}`, 1500);
-      const row = await page.waitFor(`return [...document.querySelectorAll('.work-link-row')].find((r) => r.textContent.includes('Run failed'))?.textContent`, { label: 'the failed run on its link' });
-      check(row.includes('the chat ended without a result'), `the link gives the reason (${row})`);
-      check(!row.includes('did not move it'), 'and does not read as a run that simply moved nothing');
-      check(await page.eval(`return !!document.querySelector('.work-link-row .badge-bad')`), 'in the bad colour, beside its word');
-      const failedRows = await page.eval(`return [...document.querySelectorAll('.work-link-row')].filter((r) => r.textContent.includes('Run failed')).length`);
+      // Each run's link is named by its role and stage and carries the run's outcome (decision 8)
+      const row = await page.waitFor(`return [...document.querySelectorAll('.work-link-row.is-run')].find((r) => r.querySelector('.badge-bad'))?.textContent`, { label: 'the failed run on its link' });
+      check(row.includes('Developer implements') && row.includes('failed'), `the link names the run and says it failed, in words (${row})`);
+      // Stored before causes were kept, the core reads its cause from its error and the link words it
+      check(row.includes('Its chat ended, or was deleted, without leaving a result.'), `the link gives the reason in words (${row})`);
+      check(row.includes('did not move the task'), 'and says the item stayed where it was');
+      check(await page.eval(`return !!document.querySelector('.work-link-row.is-run .role-avatar')`), "a run's link leads with its role's squircle");
+      const failedRows = await page.eval(`return [...document.querySelectorAll('.work-link-row')].filter((r) => r.querySelector('.badge-bad')).length`);
       check(failedRows === 1, `only the failed run's link reads failed, the later passed one does not (${failedRows})`);
+      const passedRow = await page.eval(`return [...document.querySelectorAll('.work-link-row.is-run')].find((r) => r.querySelector('.badge-ok'))?.textContent ?? ''`);
+      check(passedRow.includes('passed'), `the later run reads passed (${passedRow})`);
     });
 
     await part('New task on a project whose Board is off asks for one that has it (22)', async () => {

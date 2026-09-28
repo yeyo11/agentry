@@ -36,10 +36,19 @@ export function BounceMark({ bounces, max }: { bounces: number; max: number }) {
 }
 
 /**
+ * "Waits for you" beside the column, in idle, while the flow left the next move to the person: QA
+ * passed it and only the person moves it to Done, or it came back from QA too many times.
+ */
+export function WaitingBadge({ item }: { item: Pick<WorkItemDetail, 'waiting'> }) {
+  const { t } = useTranslation('workItem');
+  if (!item.waiting) return null;
+  return <span className="badge badge-idle workitem-waiting-badge">{t('waiting.badge')}</span>;
+}
+
+/**
  * What the item waits for from the person under the flow by column (decisions 29 and 30), with the
- * action that ends it: QA passed it and only the person moves it to Done, or QA sent it back as many
- * times as the project allows. Any move the person makes clears the wait; an item that waits for
- * nothing but came back from QA shows its bounces, still.
+ * action that ends it, when QA sent it back as many times as the project allows. Any move the
+ * person makes clears the wait; an item that came back from QA shows its bounces, still.
  */
 export function WaitingState({ item, actions }: { item: WorkItemDetail; actions: ItemActions }) {
   const { t } = useTranslation('documents');
@@ -50,7 +59,10 @@ export function WaitingState({ item, actions }: { item: WorkItemDetail; actions:
   const bounces = item.bounces ?? 0;
   const waiting = item.waiting ?? null;
   if (!waiting && bounces === 0) return null;
-  if (!waiting) {
+  // QA passing it asks nothing the head does not already offer: "waits for you" beside the column,
+  // QA's own comment in the activity, and "Move to Done" as the approval (DesktopTarea)
+  if (waiting === 'approval' && bounces === 0) return null;
+  if (!waiting || waiting === 'approval') {
     return (
       <div className="item-wait is-quiet">
         <BounceMark bounces={bounces} max={max} />
@@ -61,29 +73,14 @@ export function WaitingState({ item, actions }: { item: WorkItemDetail; actions:
   const { role, comment } = verifierOf(item);
   const who = role ? roleName(role) : t('waiting.verification');
   const moving = actions.move.isPending;
-  const approve = (
-    <button type="button" className="btn btn-small item-wait-approve" disabled={moving || item.status === 'done'} onClick={() => move('done')}>
-      <Check {...ICON_SM} />
-      {t('waiting.approve')}
-    </button>
-  );
-  const back = (
-    <button type="button" className="btn doc-quiet btn-small workitem-send-back" disabled={moving} onClick={() => actions.move.mutate('in_progress')}>
-      <Undo2 {...ICON_SM} />
-      {t('waiting.sendBack')}
-    </button>
-  );
-
   return (
-    <section className="item-wait" role="status" aria-label={waiting === 'approval' ? t('waiting.approvalLabel') : t('waiting.bouncesLabel')}>
+    <section className="item-wait" role="status" aria-label={t('waiting.bouncesLabel')}>
       <div className="item-wait-head">
         <span className="badge badge-idle">
           <Hourglass size={11} strokeWidth={2} aria-hidden />
-          {waiting === 'approval' ? t('waiting.approvalBadge') : t('waiting.bouncesBadge')}
+          {t('waiting.bouncesBadge')}
         </span>
-        <span className="item-wait-why">
-          {waiting === 'approval' ? t('waiting.approvalWhy', { who }) : t('waiting.bouncesWhy', { who, count: bounces, n: formatNumber(bounces) })}
-        </span>
+        <span className="item-wait-why">{t('waiting.bouncesWhy', { who, count: bounces, n: formatNumber(bounces) })}</span>
         {bounces > 0 && <BounceMark bounces={bounces} max={max} />}
       </div>
       {comment && (
@@ -92,19 +89,16 @@ export function WaitingState({ item, actions }: { item: WorkItemDetail; actions:
           <span>{comment.body}</span>
         </blockquote>
       )}
-      <p className="small muted item-wait-hint">{waiting === 'approval' ? t('waiting.approvalHint') : t('waiting.bouncesHint')}</p>
+      <p className="small muted item-wait-hint">{t('waiting.bouncesHint')}</p>
       <div className="item-wait-actions">
-        {waiting === 'approval' ? (
-          <>
-            {approve}
-            {back}
-          </>
-        ) : (
-          <>
-            {back}
-            {approve}
-          </>
-        )}
+        <button type="button" className="btn doc-quiet btn-small workitem-send-back" disabled={moving} onClick={() => actions.move.mutate('in_progress')}>
+          <Undo2 {...ICON_SM} />
+          {t('waiting.sendBack')}
+        </button>
+        <button type="button" className="btn btn-small item-wait-approve" disabled={moving || item.status === 'done'} onClick={() => move('done')}>
+          <Check {...ICON_SM} />
+          {t('waiting.approve')}
+        </button>
       </div>
     </section>
   );

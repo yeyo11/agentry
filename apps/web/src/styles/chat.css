@@ -160,18 +160,20 @@
   flex: none;
 }
 
-/* A flow run that failed in this chat: the item it was for and the core's reason, under the row */
+/* A flow run that failed in this chat (.run-fail, ChatFlujo): why in the person's words, the raw
+   error in mono, what the retry did, and the ways on. A bad rail on its left, never a red box */
 .chat-run-failed {
   display: flex;
   flex: none;
   align-items: flex-start;
-  gap: 10px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-elev);
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bad-soft) 55%, transparent);
+  box-shadow: inset 3px 0 0 var(--bad);
   font-size: 13px;
-  color: var(--text-muted);
+  line-height: 1.5;
+  color: var(--fg-2);
 }
 
 .chat-run-failed-icon {
@@ -180,15 +182,55 @@
   color: var(--bad);
 }
 
-.chat-run-failed-text {
+.chat-run-failed-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   min-width: 0;
 }
 
+.chat-run-failed-text b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
 .chat-run-failed-why {
-  display: block;
-  margin-top: 4px;
   font-size: 12px;
+  color: var(--fg-3);
   overflow-wrap: anywhere;
+}
+
+.chat-run-failed-next {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.chat-run-failed-next b {
+  font-weight: 600;
+}
+
+.chat-run-failed-ok {
+  flex: none;
+  align-self: center;
+  color: var(--ok);
+}
+
+.chat-run-failed-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn.chat-run-failed-quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.btn.chat-run-failed-quiet:hover {
+  background: var(--bg-hover);
 }
 
 /* A worker's way back to its orchestration: one quiet line, the graph's progress at its end */
@@ -309,10 +351,40 @@
     min-height: 52px;
   }
 
-  .chat-part-of-item .chat-part-of-icon {
+  .chat-part-of-item:not(.is-flow) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .chat-part-of-item > .role-avatar {
     grid-row: 1 / span 2;
     align-self: start;
     margin-top: 2px;
+  }
+
+  .chat-part-of-item:not(.is-flow) .chat-part-of-lead {
+    grid-column: 1;
+  }
+
+  .chat-part-of-item:not(.is-flow) .chat-part-of-name {
+    grid-column: 1 / span 2;
+  }
+
+  .chat-part-of-item:not(.is-flow) .chat-part-of-state {
+    grid-column: 2;
+  }
+
+  /* The row above already opens the item; the banner keeps the way to the retry's chat, full width */
+  .btn.chat-run-failed-quiet {
+    display: none;
+  }
+
+  .chat-run-failed-acts {
+    flex-direction: column;
+  }
+
+  .chat-run-failed-acts .btn {
+    justify-content: center;
+    min-height: 44px;
   }
 
   .chat-part-of-item .chat-part-of-text {
