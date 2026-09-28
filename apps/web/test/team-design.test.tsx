@@ -12,7 +12,7 @@ import { TooltipProvider } from '../src/components/controls/Tooltip';
 import { ConfirmProvider } from '../src/components/Dialog';
 import { ToastProvider } from '../src/components/Toast';
 import { DirtyProvider } from '../src/lib/dirty';
-import i18n from '../src/i18n';
+import i18n, { setLanguage } from '../src/i18n';
 import { TeamActivityView } from '../src/pages/team/Activity';
 import { FlowEditor } from '../src/pages/team/Flow';
 import { MemberPage } from '../src/pages/team/Member';
@@ -115,6 +115,8 @@ function activityClient(runs: FlowRun[], { total = runs.length, nextCursor = nul
 }
 
 test.beforeEach(async () => {
+  // setLanguage, not changeLanguage alone: Intl formats ("12m ago") follow the stored language, not i18next's
+  setLanguage('en');
   await i18n.changeLanguage('en');
 });
 
@@ -210,6 +212,7 @@ test('Team activity lists every run by day, "Now" first, with its step by column
 });
 
 test("a failed run says why in the person's language, keeps the raw error, and offers the retry until one ran", async () => {
+  setLanguage('es');
   await i18n.changeLanguage('es');
   const failed = run('7', {
     outcome: 'failed',
