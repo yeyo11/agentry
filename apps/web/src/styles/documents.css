@@ -253,6 +253,11 @@
   color: var(--fg-2);
 }
 
+/* A document's bullets are the text's grey, as the reference draws them; the chat keeps its coral */
+.doc-view.md li::marker {
+  color: var(--fg-2);
+}
+
 .doc-view.md strong {
   color: var(--fg);
   font-weight: 600;
