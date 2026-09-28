@@ -269,5 +269,10 @@
     "agents": "{{done}}/{{total}} agents",
     "open": "Open",
     "openHint": "Open {{name}} in the details"
+  },
+  "edits": {
+    "label": "Files this step edited",
+    "chip": "{{file}}: see this step",
+    "chipCounts": "{{file}}, {{additions}} lines added and {{deletions}} removed: see this step"
   }
 }

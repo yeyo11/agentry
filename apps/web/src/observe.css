@@ -29,18 +29,16 @@
 
 /* Added and removed lines: the sign carries the meaning, the colour only reinforces it */
 .obs-add {
-  color: var(--ok);
+  color: var(--diff-add);
 }
 .obs-del {
-  color: var(--bad);
+  color: var(--diff-del);
 }
 .obs-counts {
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Files and commits */
-.obs-files,
-.obs-commits,
 .obs-checklist,
 .obs-signals,
 .obs-hunks {
@@ -51,54 +49,235 @@
   padding: 0;
   list-style: none;
 }
+
+/* ---------- the compact summary of a change (DesktopChatCambios) ---------- */
+
+.obs-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.obs-changes-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.obs-changes-head .section-label {
+  margin: 0;
+}
+.obs-changes-meta {
+  margin: 0;
+  color: var(--fg-3);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+.obs-changes .changes-print {
+  margin-bottom: 4px;
+}
+
+/* One line per file: status letter, name, uncommitted dot, then the spinner and the counts */
+.obs-files {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -8px;
+  padding: 0;
+  list-style: none;
+}
 .obs-file {
   min-width: 0;
 }
 .obs-file-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.obs-file-row:hover {
+  background: var(--bg-3);
+  color: var(--fg);
+}
+.obs-file-row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+/* The live rail sits inside the row's padding instead of pushing its letter aside */
+.obs-file-row.live-rail {
+  padding-left: 8px;
+}
+.obs-file-row.live-rail::before {
+  inset: 8px auto 8px 0;
+}
+.obs-status {
+  color: var(--fg-3);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+.obs-status.is-A {
+  color: var(--diff-add);
+}
+.obs-status.is-D {
+  color: var(--diff-del);
+}
+.obs-status.is-R {
+  color: var(--info);
+}
+.obs-file-what {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 .obs-file-name {
-  flex: 1 1 200px;
   min-width: 0;
-  padding: 2px 0;
-  border: 0;
-  background: none;
-  color: var(--text);
-  font-size: 12px;
-  text-align: left;
-  overflow-wrap: anywhere;
-  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-span.obs-file-name {
-  cursor: default;
+.obs-uncommitted {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1.5px var(--fg-3);
 }
-button.obs-file-name:hover {
-  color: var(--accent);
-  text-decoration: underline;
+.obs-file-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
 }
-.obs-commits li {
+.obs-file-end .obs-counts {
+  font-size: inherit;
+}
+.obs-file-end .spinner-glyph {
+  color: var(--live);
+}
+.obs-files-more {
+  padding: 4px 8px 0 32px;
+}
+
+/* The latest step: when, which tool, which file, and what Claude said it was doing */
+.obs-changes-part {
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
+  margin-top: 8px;
 }
-.obs-commit-subject {
-  flex: 1 1 200px;
+.obs-changes-part .section-label {
+  margin: 0;
+}
+.obs-step-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  color: var(--fg);
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.obs-step-card:hover {
+  border-color: var(--line-2);
+  color: var(--fg);
+}
+.obs-step-card:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.obs-step-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
-  overflow-wrap: anywhere;
+  font-size: 12px;
 }
-.obs-diff {
-  margin: 6px 0 4px;
+.obs-step-line .spinner-glyph {
+  color: var(--live);
+}
+.obs-step-file {
+  flex: 1 1 auto;
   min-width: 0;
 }
-.obs-diff .code-block {
-  max-height: 60vh;
-  overflow: auto;
+.obs-step-time {
+  white-space: nowrap;
 }
+/* The quotes are in the copy: «» in Spanish, “” in English */
+.obs-step-intent {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: var(--fg-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.obs-changes-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.obs-changes-steps {
+  border-color: transparent;
+  background: transparent;
+  color: var(--fg-2);
+}
+.obs-changes-steps:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--fg);
+}
+
+/* ---------- edit chips under a tool group of the transcript ---------- */
+
+.edit-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.edit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--bg-2);
+  color: var(--fg-2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.edit-chip:hover {
+  border-color: var(--line-2);
+  color: var(--fg);
+}
+.edit-chip:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.edit-chip .obs-counts {
+  font-size: inherit;
+}
+@media (pointer: coarse) {
+  .edit-chip {
+    height: 32px;
+    padding: 0 12px;
+  }
+}
+
 .obs-hunks {
   flex-direction: row;
   flex-wrap: wrap;
@@ -213,4 +392,10 @@ button.obs-file-name:hover {
 .obs-map-row input {
   flex: 1 1 0;
   min-width: 0;
+}
+
+@media (pointer: coarse) {
+  .obs-file-row {
+    min-height: 44px;
+  }
 }

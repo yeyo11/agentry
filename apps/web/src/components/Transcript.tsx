@@ -1,7 +1,9 @@
-import type { ChatWorkflow, ChatWorkflowAgent, ContentBlock, TranscriptEntry } from '@agentry/shared';
+import type { ChatWorkflow, ChatWorkflowAgent, ContentBlock, EditStep, TranscriptEntry } from '@agentry/shared';
 import { Brain, CircleAlert, CircleStop, Check, ChevronRight, Info, PanelRightOpen, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
 import { lazy, memo, Suspense, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+import { editChips, reviewLink, reviewPath } from '../lib/changes-summary';
 import { readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
 import { justStreamed } from '../lib/chat-stream';
 import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, transcriptRows, type StepCall, type StepPart, type TranscriptRow } from '../lib/chat-steps';
@@ -276,6 +278,46 @@ function PartView({ part, settled, subagents }: { part: StepPart; settled: boole
   return part.kind === 'thinking' ? <ThinkingFold text={part.text} /> : <CallRow call={part} settled={settled} subagents={subagents} />;
 }
 
+/** Where a chat's edits lead: its review screen, on the step of each file. */
+export interface TranscriptEdits {
+  chatId: string;
+  /** The chat's steps by id, once read: until then a chip has its name and no counts */
+  steps: ReadonlyMap<string, EditStep> | null;
+}
+
+/** One chip per file a tool group edited, each opening its step in the review. */
+function EditChips({ parts, edits }: { parts: StepPart[]; edits: TranscriptEdits }) {
+  const { t } = useTranslation('chat');
+  const chips = useMemo(() => editChips(parts, edits.steps), [parts, edits.steps]);
+  if (chips.length === 0) return null;
+  const base = reviewPath.chat(edits.chatId);
+  return (
+    <div className="edit-chips" role="group" aria-label={t('edits.label')}>
+      {chips.map((chip) => {
+        const counted = chip.additions !== null && chip.deletions !== null;
+        return (
+          <Link
+            key={chip.file}
+            to={reviewLink(base, { lens: 'steps', step: chip.stepId })}
+            className="edit-chip"
+            title={chip.file}
+            aria-label={counted ? t('edits.chipCounts', { file: chip.name, additions: chip.additions, deletions: chip.deletions }) : t('edits.chip', { file: chip.name })}
+          >
+            <span>{chip.name}</span>
+            {counted && (
+              <span className="obs-counts" aria-hidden>
+                {chip.additions ? <span className="obs-add">+{chip.additions}</span> : null}
+                {chip.additions && chip.deletions ? ' ' : null}
+                {chip.deletions ? <span className="obs-del">−{chip.deletions}</span> : null}
+              </span>
+            )}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * A turn's tool calls, folded into one block that says how many and how long. The step being worked
  * on right now is open and carries the live rail; once it is done it folds away, unless the reader
@@ -288,11 +330,14 @@ const StepView = memo(function StepView({
   fresh = false,
   launches,
   onOpenLaunch,
+  edits,
 }: {
   row: Extract<TranscriptRow, { kind: 'step' }>;
   current: boolean;
   subagents?: SubagentLink;
   fresh?: boolean;
+  /** The chat's edits, so the files this step edited show as chips; none where the transcript is not a chat's page */
+  edits?: TranscriptEdits;
   /** The workflows its `Workflow` calls started, each shown as a card under the step */
   launches?: ChatWorkflow[];
   onOpenLaunch?: () => void;
@@ -338,6 +383,7 @@ const StepView = memo(function StepView({
             ))}
           </div>
         </Collapsible>
+        {edits && <EditChips parts={row.parts} edits={edits} />}
         {launches?.map((workflow) => <LaunchCard key={workflow.id} workflow={workflow} onOpen={onOpenLaunch} />)}
       </div>
     </article>
@@ -477,6 +523,7 @@ export function Transcript({
   working = false,
   subagents,
   workflows,
+  edits,
 }: {
   entries: TranscriptEntry[];
   /** The rows of `entries`, when the caller has already worked them out */
@@ -489,6 +536,8 @@ export function Transcript({
   subagents?: SubagentLink;
   /** Workflows the chat started: each shows as a card under the step that started it */
   workflows?: WorkflowLaunches;
+  /** The chat's edits: each step that edited files shows a chip per file, into the review */
+  edits?: TranscriptEdits;
 }) {
   const own = useMemo(() => rows ?? transcriptRows(entries), [rows, entries]);
   const target = focus ? rowOf(own, focus.item) : undefined;
@@ -518,6 +567,7 @@ export function Transcript({
             fresh={justStreamed(row.entries[row.entries.length - 1] ?? row.entries[0]!)}
             launches={launches?.get(row.key)}
             onOpenLaunch={workflows?.open}
+            edits={edits}
           />
         )
       }
