@@ -155,6 +155,9 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- Move to Done is the person's; "Work on it" then says why it is not offered ----
     await page.click('main .workitem-head .workitem-done', 'Move to Done', 600);
+    // One criterion is still unchecked: Done asks first, since it means every one is met
+    await page.waitFor(`return [...document.querySelectorAll('[role=dialog] h2')].some((h) => h.textContent.includes('to Done?'))`, { label: 'Done asks about the unchecked criterion' });
+    await page.click('[role=dialog] .btn-primary', 'Move to Done', 600);
     await until(async () => (await item(main.id)).status === 'done', 'the item is done');
     await page.waitFor(`return !document.querySelector('main .workitem-head .workitem-work') && !!document.querySelector('main .workitem-refusal')`, {
       label: 'Done refuses Work on it, in words',

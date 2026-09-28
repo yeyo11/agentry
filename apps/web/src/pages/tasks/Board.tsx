@@ -90,9 +90,12 @@ function TasksBoard() {
   const facets = useFacets({ allProjects: scope.allProjects, projects: scope.boardProjects, items: allItems, milestones: milestones.milestones });
 
   // An epic or a milestone the scope does not have (another project's, or deleted) has no chip to
-  // take it off and leaves "0 of N": once the scope's own are known, it goes from the address
-  const knownEpics = useMemo(() => (full.isSuccess && !full.isPlaceholderData ? new Set(allItems.filter((item) => item.type === 'epic').map((item) => item.id)) : null), [full.isSuccess, full.isPlaceholderData, allItems]);
-  const knownMilestones = useMemo(() => (milestones.loading ? null : new Set(milestones.milestones.map((m) => m.id))), [milestones.loading, milestones.milestones]);
+  // take it off and leaves "0 of N": once the scope's own are known, it goes from the address. It
+  // is judged only on fresh lists: one just created may not be in a cached answer yet
+  const epicsKnown = full.isSuccess && !full.isPlaceholderData && !full.isFetching;
+  const knownEpics = useMemo(() => (epicsKnown ? new Set(allItems.filter((item) => item.type === 'epic').map((item) => item.id)) : null), [epicsKnown, allItems]);
+  const milestonesKnown = !milestones.loading && !milestones.fetching;
+  const knownMilestones = useMemo(() => (milestonesKnown ? new Set(milestones.milestones.map((m) => m.id)) : null), [milestonesKnown, milestones.milestones]);
   const stray = staleFilters(filters.filters, { allProjects: scope.allProjects, epics: knownEpics, milestones: knownMilestones, noMilestone: NO_MILESTONE }).join(',');
   const { set: setFilters } = filters;
   useEffect(() => {
