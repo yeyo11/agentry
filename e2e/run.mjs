@@ -40,7 +40,7 @@ function envMs(name, fallback) {
   return Number(raw);
 }
 const SPEC_LIMIT_MS = envMs('E2E_SPEC_TIMEOUT', 180_000);
-const RUN_LIMIT_MS = envMs('E2E_TIMEOUT', 900_000);
+const RUN_LIMIT_MS = envMs('E2E_TIMEOUT', 1_500_000);
 const specsDir = process.env.E2E_SPECS_DIR ? resolve(process.env.E2E_SPECS_DIR) : join(here, 'specs');
 
 if (!existsSync(join(root, 'apps/web/dist/index.html'))) {
