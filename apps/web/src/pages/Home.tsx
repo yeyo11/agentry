@@ -1,20 +1,25 @@
 import type { Project } from '@agentry/shared';
-import { BookText, ChevronLeft, ChevronRight, FileText, FolderX, GitFork, LayoutDashboard, Package, SlidersHorizontal, SquareKanban, Users, type LucideIcon } from 'lucide-react';
+import { BookText, ChevronRight, FileText, FolderX, GitFork, LayoutDashboard, MessageCircle, Package, Plus, SlidersHorizontal, Sparkle, SquareKanban, Users, type LucideIcon } from 'lucide-react';
 import { lazy, Suspense, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDocuments, useOpenTaskCount, useTeam } from '../api';
+import type { MenuEntry } from '../components/controls/Menu';
 import { ICON, ICON_SM } from '../components/icons';
+import { PhoneHeader } from '../components/shell/PhoneHeader';
 import { Skeleton, TabPanel, Tabs, usePageTitle, useTabGroup } from '../components/ui';
 import { DirtyProvider, useDirtyKeys, useLeaveGuard } from '../lib/dirty';
 import { formatNumber } from '../lib/format';
 import { NARROW, useMediaQuery } from '../lib/media';
+import { NEW_TASK_PATH } from '../lib/work-items';
 import { useProjectScope } from '../lib/project-scope';
 import { Dashboard } from './dashboard/Dashboard';
 import { HomeHero } from './dashboard/Hero';
 import { defaultLayout } from './dashboard/registry';
 import { usePendingProposalCount } from './home/memory/Proposals';
-import { PhoneHead, ProjectHead } from './home/ProjectHead';
+import { PhoneAssistantRow, PhoneHead, ProjectHead } from './home/ProjectHead';
+import { useProjectResourceCount } from './home/resources/data';
+import { assistantPath, projectPath } from './assistant/model';
 import { asProjectView, legacyTabRedirect, projectViews, type ProjectViewId } from './dashboard/views';
 
 // The dashboard is what most visits are for; the project's other tabs load when opened
@@ -63,14 +68,19 @@ function useTabCounts(project: Project): Partial<Record<TabId, number>> {
   const team = useTeam(project.modules.includes('team') ? project.id : null).data;
   const documents = useDocuments(project.modules.includes('documents') ? project.id : null).data?.fileCount;
   const proposals = usePendingProposalCount(project.id, project.modules.includes('memory'));
+  const resources = useProjectResourceCount(project);
   return {
     board: open,
     team: team?.members.length || undefined,
     documents,
     memory: proposals || undefined,
+    resources: resources || undefined,
     worktrees: project.worktrees.length || undefined,
   };
 }
+
+/** Tabs that are a form with their own primary (Save, Create): the header leaves its actions out there. */
+const FORM_TABS: ReadonlySet<TabId> = new Set(['settings', 'resources']);
 
 /** Tabs whose figure waits for the person: drawn in idle, and said in words to a screen reader. */
 const IDLE_COUNT: ReadonlySet<TabId> = new Set(['memory']);
@@ -86,19 +96,33 @@ function TabCount({ id, count }: { id: TabId; count: number }) {
   );
 }
 
-/** On a phone a tab opens as its own screen, headed by its name and the project it belongs to. */
-function PhoneViewHead({ project, view, onBack }: { project: Project; view: ProjectViewId; onBack: () => void }) {
-  const { t } = useTranslation('home');
+/**
+ * On a phone a tab opens as its own screen (MobileMemoria, MobileDocumentos, MobileProyectoAjustes…),
+ * headed by its name and the project it belongs to, with where it reads from when it reads a folder.
+ * Its "⋯" starts work in the project, as the project's own head does; Ajustes is a form with its
+ * own Save, and Recursos has its "+" and its assistant in its toolbar, so neither has one.
+ */
+function PhoneViewHead({ project, view }: { project: Project; view: ProjectViewId }) {
+  const { t } = useTranslation(['home', 'projects']);
+  const navigate = useNavigate();
+  const root = useDocuments(view === 'documents' ? project.id : null).data?.root;
+  const where = view === 'documents' && root ? `${root.replace(/\/?$/, '/')}` : view === 'resources' ? '.claude/' : null;
+  const more: MenuEntry[] =
+    view === 'settings' || view === 'resources'
+      ? []
+      : [
+          { id: 'assistant', label: t('projects:head.assistant'), icon: Sparkle, onSelect: () => navigate(assistantPath(project.id)) },
+          { id: 'chat', label: t('projects:worktrees.newChatHere'), icon: MessageCircle, disabled: !project.exists, onSelect: () => navigate(`/chats/new?cwd=${encodeURIComponent(project.path)}`) },
+          ...(project.modules.includes('board') ? [{ id: 'task', label: t('projects:head.newTask'), icon: Plus, onSelect: () => navigate(NEW_TASK_PATH) }] : []),
+        ];
   return (
-    <header className="page-header project-head project-head-phone">
-      <button type="button" className="icon-btn" aria-label={t('dashboard.back')} onClick={onBack}>
-        <ChevronLeft {...ICON} />
-      </button>
-      <div className="page-header-text project-head-text">
-        <h1>{t(`tabs.${view}`)}</h1>
-        <span className="mono small muted ellipsis">{project.name}</span>
-      </div>
-    </header>
+    <PhoneHeader
+      className="project-phone-head"
+      title={t(`tabs.${view}`)}
+      subtitle={where ? `${project.name} · ${where}` : project.name}
+      back={{ label: t('dashboard.back'), fallback: projectPath(project.id) }}
+      more={more}
+    />
   );
 }
 
@@ -203,7 +227,7 @@ function ProjectPage({ project }: { project: Project }) {
       <>
         {/* Team heads its own screens, and so does a document open on a phone, with its way back */}
         {view !== 'team' && !(view === 'documents' && params.has('doc')) && (
-          <PhoneViewHead project={project} view={view} onBack={() => open('summary')} />
+          <PhoneViewHead project={project} view={view} />
         )}
         <MissingAlert project={project} />
         <div className="tab-panel">
@@ -216,6 +240,7 @@ function ProjectPage({ project }: { project: Project }) {
         <MissingAlert project={project} />
         {/* The cells are how a phone reaches the board and the settings: under the whole dashboard
             they sat a dozen widgets down, where the reference has them near the top */}
+        <PhoneAssistantRow project={project} />
         <PhoneTabCells views={views} counts={counts} />
         <ProjectDashboard project={project} />
       </>
@@ -238,7 +263,7 @@ function ProjectPage({ project }: { project: Project }) {
   const tabs: TabId[] = ['summary', ...views];
   return (
     <>
-      <ProjectHead project={project} primaryTask={tab === 'summary'} />
+      <ProjectHead project={project} primaryTask={tab === 'summary'} actions={!FORM_TABS.has(tab)} />
       <MissingAlert project={project} />
       <div className="project-tabs">
         <Tabs

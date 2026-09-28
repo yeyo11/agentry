@@ -89,7 +89,11 @@
     "assistantOf": "Asistente de {{name}}",
     "open_one": "{{n}} abierta",
     "open_other": "{{n}} abiertas",
-    "backToProjects": "Volver a proyectos"
+    "backToProjects": "Volver a proyectos",
+    "assistantRow": "Asistente del proyecto",
+    "assistantPending_one": "{{n}} propuesta por revisar",
+    "assistantPending_other": "{{n}} propuestas por revisar",
+    "assistantIdle": "Lee el proyecto y te propone equipo, recursos y tareas"
   },
   "modules": {
     "board": {

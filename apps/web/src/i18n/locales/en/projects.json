@@ -89,7 +89,11 @@
     "assistantOf": "Assistant of {{name}}",
     "open_one": "{{n}} open",
     "open_other": "{{n}} open",
-    "backToProjects": "Back to projects"
+    "backToProjects": "Back to projects",
+    "assistantRow": "Project assistant",
+    "assistantPending_one": "{{n}} proposal to review",
+    "assistantPending_other": "{{n}} proposals to review",
+    "assistantIdle": "Reads the project and proposes a team, resources and tasks"
   },
   "modules": {
     "board": {
