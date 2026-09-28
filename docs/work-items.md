@@ -554,6 +554,15 @@ first prompt, and the empty board's illustration draws the project's own first k
 - **No route by key.** `/tasks/:key` resolves through a search. A `GET` by key would save a request
   and the exact-match filter.
 
+Left open by orchestration 5 (see
+[the review](plans/project-ecosystem-audit.md#still-open-after-orchestration-5)):
+
+- **The "Work on it" prompt is English, headed `KEY: title`.** The plan asks for a first line in the
+  person's language, `KEY · title`, since a chat is listed by its first prompt; the assistant's
+  runs do this, "Work on it" (`workItemPrompt`) and the orchestration draft's prompts do not.
+- **Board and list payloads carry each item's description**, capped at 100,000 characters, and
+  neither the Done column nor the lists are paged.
+
 ## Related
 
 [[projects.md]] · [[team-and-flow.md]] · [[assistant.md]] · [[plans/project-ecosystem.md]] · [[plans/project-ecosystem-audit.md]] · [[design-system.md]] · [[status.md]]

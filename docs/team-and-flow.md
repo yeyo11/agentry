@@ -251,7 +251,8 @@ and a cause the history translates: `flow.refined`, `flow.worked`, `flow.rejecte
 **A failed run says so on its item.** It leaves a comment as its member, "This work run failed and
 moved nothing: <reason>", with the run's chat as its source. The run carries the same reason in
 `error`, in English. Before, the item only showed a chat that ended and moved nothing, and the reason
-was on the Team screen alone. A run that ends on the CLI's budget says "it reached its budget of
+was on the Team screen alone. The Team screens show the reason beside the outcome, in the bad
+colour, and the item's chat link reads "Ejecución fallida" with the reason. A run that ends on the CLI's budget says "it reached its budget of
 <n> USD (flow.maxCostUsd)", and one cut by the account's rate limit says so. A cancelled run is a
 person's doing, or the flow going off, and writes nothing.
 
@@ -518,6 +519,13 @@ page with full-width actions.
   fix.
 - **`maxParallel` and `maxCostUsd` have no control** on the Flow screen: both are set through the
   settings document (`PUT /projects/:id/settings`).
+- **Only a member's latest failed run shows on the item's link.** The web reads the runs from the
+  team data, which holds each member's latest run, so an older failed run's chat link reads as a
+  normal one again; its comment stays. A failed run's own chat page says nothing of the failure.
+  Serving an item's runs from the core would close both (finding 14 of
+  [the review](plans/project-ecosystem-audit.md#review-of-the-whole-feature-before-the-pull-request)).
+- **`POST /projects/:id/team/from-template` answers 200**, where other creating routes answer 201.
+  It answers the whole team, and sending it twice changes nothing, so it stays.
 - **A run that hits a rate limit fails** rather than waiting for the rotation to replay it. Moving
   the item again starts it over.
 - **`writes` does not bound the shell** in the work stage: `Bash` is allowed whole there, as a
