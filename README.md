@@ -719,8 +719,9 @@ is none, and never overwrites one a person wrote or edited: that member is repor
 | PUT | `/projects/:id/team/:agent` | `{ role, model, responsibility, writes?, commands?, createFile? }` — create or replace a member's metadata. Two members may not share a role. `commands` bounds the shell of its work runs (`[]` is none, absent is unrestricted). The file itself goes through `/config/resources/agents/:name?project=` |
 | DELETE | `/projects/:id/team/:agent` | Take a member off the team; its agent file stays |
 | GET | `/projects/:id/flow` | The flow by column's runs going and queued, each with its item, role, stage and chat; `enabled` and the per-project cap `maxParallel` |
-| GET | `/projects/:id/flow/runs` | The team's activity: every flow run, newest first, paged (`limit`, `cursor`), filtered by `agent`, `status` and `itemId` |
+| GET | `/projects/:id/flow/runs` | The team's activity: every flow run, newest first, paged (`limit`, `cursor`), filtered by `agent`, `role`, `status` (or `outcome`), `itemId` and `before`; each failed or cancelled run carries its `cause` |
 | GET | `/work-items/:itemId/runs` | Every flow run of a work item, newest first, whatever its state |
+| POST | `/flow-runs/:runId/retry` | Queue a failed run's step again while its item is still in the run's column (409 otherwise); counts as a person's move |
 
 ### Assistant
 

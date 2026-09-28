@@ -344,7 +344,15 @@ const workItemPageQuery = (query: WorkItemPageQuery) => {
 
 /** A page of a project's flow runs, every list comma separated. */
 const flowRunQuery = (query: FlowRunQuery) =>
-  qs({ agent: query.agent?.join(','), status: query.status?.join(','), itemId: query.itemId, limit: num(query.limit), cursor: query.cursor });
+  qs({
+    agent: query.agent?.join(','),
+    role: query.role?.join(','),
+    status: query.status?.join(','),
+    itemId: query.itemId,
+    before: query.before,
+    limit: num(query.limit),
+    cursor: query.cursor,
+  });
 
 /** Which part of a branch's work a change summary or diff is about; neither means all of it. */
 export interface ChangeScope {
@@ -711,6 +719,11 @@ export const api = {
   /** Every flow run of the project, newest first, a page at a time: the team's activity */
   flowRuns: (projectId: string, query: FlowRunQuery = {}, o?: ReadOptions) =>
     request<FlowRunPage>(`/projects/${enc(projectId)}/flow/runs${flowRunQuery(query)}`, o),
+  /**
+   * Queues a failed run's step again, as the person (409 once the item left the run's column, or the
+   * step ran again). The new run comes back; `flow.run` refreshes the lists that show either.
+   */
+  retryFlowRun: (runId: string) => request<FlowRun>(`/flow-runs/${enc(runId)}/retry`, { method: 'POST' }),
   journal: (projectId: string, page: JournalQuery = {}, o?: ReadOptions) =>
     request<JournalPage>(`/projects/${enc(projectId)}/journal${qs({ limit: num(page.limit), before: page.before })}`, o),
   addJournalEntry: (projectId: string, req: CreateJournalEntryRequest) =>
@@ -889,7 +902,16 @@ export const keys = {
    */
   flowRunsOf: (projectId: string) => ['flow-runs', projectId] as const,
   flowRuns: (projectId: string, query: Omit<FlowRunQuery, 'cursor'> = {}) =>
-    ['flow-runs', projectId, [...(query.agent ?? [])].sort().join(','), [...(query.status ?? [])].sort().join(','), query.itemId ?? '', query.limit ?? 0] as const,
+    [
+      'flow-runs',
+      projectId,
+      [...(query.agent ?? [])].sort().join(','),
+      [...(query.role ?? [])].sort().join(','),
+      [...(query.status ?? [])].sort().join(','),
+      query.itemId ?? '',
+      query.before ?? '',
+      query.limit ?? 0,
+    ] as const,
   /** Every page of a project's journal */
   journal: (projectId: string) => ['journal', projectId] as const,
   journalPage: (projectId: string, page: JournalQuery = {}) => ['journal', projectId, page.limit ?? 0, page.before ?? ''] as const,

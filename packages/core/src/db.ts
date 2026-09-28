@@ -438,6 +438,10 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // run's chat is titled in, so a run started again after a restart is worded as it was first
   `ALTER TABLE assistant_runs ADD COLUMN focus TEXT;
    ALTER TABLE assistant_runs ADD COLUMN language TEXT;`,
+  // Why a flow run failed or was cancelled, as a code the panel words in the person's language (the
+  // English error stays beside it), and the failed run a person's retry queued it for
+  `ALTER TABLE flow_runs ADD COLUMN cause TEXT;
+   ALTER TABLE flow_runs ADD COLUMN retry_of TEXT;`,
 ];
 
 /**
@@ -448,6 +452,8 @@ export const WORK_ITEMS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m ==
 
 /** The version that added the flow's runs, for the test that upgrades a database from the one before */
 export const FLOW_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE flow_runs')) + 1;
+/** The version flow runs got their cause and the run a retry was for, for the test that upgrades into it */
+export const FLOW_CAUSE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN retry_of')) + 1;
 /** The schema version document links arrive in, found the same way. */
 export const DOCUMENT_LINKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN document_path')) + 1;
 /** The version that added the assistant's runs and proposals, found the same way */
