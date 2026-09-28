@@ -190,7 +190,7 @@ test("a flow run or a chat moving reads its item again, but not the git diff of 
   const names = refetched(queued);
   assert.ok(names.includes('item1'));
   assert.ok(!names.includes('item1Changes') && !names.includes('item1Diff'), names.join());
-  const moving = { id: 5, at: base.at, type: 'run.updated', runId: 'c1', sessionId: 'c1', status: 'running', previousStatus: 'queued' } as AgentryEvent;
+  const moving = { id: 5, at: base.at, type: 'run.updated', runId: 'c1', sessionId: 'c1', status: 'running', previousStatus: 'queued' } as unknown as AgentryEvent;
   assert.ok(refetched(moving).includes('item1') && !refetched(moving).includes('item1Changes'));
   const ended = { id: 6, at: base.at, type: 'run.ended', runId: 'c1', sessionId: 'c1', status: 'completed' } as AgentryEvent;
   assert.ok(refetched(ended).includes('item1Changes'), 'a turn that ended may have changed files');
