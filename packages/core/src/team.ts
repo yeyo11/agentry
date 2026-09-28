@@ -18,7 +18,7 @@ import type {
   TeamMember,
   WorkItemStatus,
 } from '@agentry/shared';
-import { isTeamCommandPattern, MAX_TEAM_COMMANDS, WORK_ITEM_STATUSES } from '@agentry/shared';
+import { MAX_TEAM_COMMANDS, teamCommandProblem, WORK_ITEM_STATUSES } from '@agentry/shared';
 import { writeAtomic } from './config/files.ts';
 import type { AgentryEventInput } from './events.ts';
 import { projectTemplate } from './project-templates.ts';
@@ -303,9 +303,9 @@ export function parseMemberRequest(agent: string, input: unknown): { member: Pro
     if (!Array.isArray(body.commands)) throw new TeamError('commands must be an array of command patterns', 400);
     if (body.commands.length > MAX_TEAM_COMMANDS) throw new TeamError(`commands lists more than ${MAX_TEAM_COMMANDS} patterns`, 400);
     for (const command of body.commands as unknown[]) {
-      if (!isTeamCommandPattern(command)) throw new TeamError(`not a command pattern: ${JSON.stringify(command)} (one line, no parentheses, not only a wildcard)`, 400);
-      // The CLI's list of rules is comma separated, so a comma would cut the rule in two
-      if (command.includes(',')) throw new TeamError(`a command pattern cannot contain a comma: ${JSON.stringify(command)}`, 400);
+      const problem = teamCommandProblem(command);
+      if (problem === 'comma') throw new TeamError(`a command pattern cannot contain a comma: ${JSON.stringify(command)}`, 400);
+      if (problem) throw new TeamError(`not a command pattern: ${JSON.stringify(command)} (one line, no parentheses, not only a wildcard)`, 400);
     }
     member.commands = [...new Set(body.commands as string[])];
   }

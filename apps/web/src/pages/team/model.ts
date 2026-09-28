@@ -1,5 +1,5 @@
 import type { FlowRun, FlowStage, ProjectFlowSettings, ProjectSettings, PutTeamMemberRequest, TeamMember, WorkItemStatus, WorkItemType } from '@agentry/shared';
-import { DEFAULT_FLOW_MAX_PARALLEL, isTeamCommandPattern, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, WORK_ITEM_STATUSES } from '@agentry/shared';
+import { DEFAULT_FLOW_MAX_PARALLEL, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, teamCommandProblem, WORK_ITEM_STATUSES, type TeamCommandProblem } from '@agentry/shared';
 
 /**
  * The Team tab's pure model: role names and initials, the flow as the screens edit it, and what the
@@ -313,18 +313,13 @@ export function commandsFor(scope: CommandScope, patterns: readonly string[]): s
   return scope === 'none' ? [] : cleanWrites(patterns);
 }
 
-/**
- * Why a command pattern cannot be saved, or null. The route refuses the same: a pattern the CLI's
- * `Bash(<pattern>)` rule cannot hold (`isTeamCommandPattern`), and a comma, which would split the
- * rule list the CLI is handed in two.
- */
-export function commandProblem(pattern: string): 'invalid' | 'comma' | null {
-  if (pattern.includes(',')) return 'comma';
-  return isTeamCommandPattern(pattern) ? null : 'invalid';
+/** Why a command pattern cannot be saved, or null: the rule the route and the flow hold it to. */
+export function commandProblem(pattern: string): TeamCommandProblem | null {
+  return teamCommandProblem(pattern);
 }
 
 /** The first problem of a list of patterns, the count included: what keeps the member's Save off. */
-export function commandsProblem(patterns: readonly string[]): 'invalid' | 'comma' | 'tooMany' | null {
+export function commandsProblem(patterns: readonly string[]): TeamCommandProblem | 'tooMany' | null {
   if (patterns.length > MAX_TEAM_COMMANDS) return 'tooMany';
   for (const pattern of patterns) {
     const problem = commandProblem(pattern);

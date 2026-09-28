@@ -395,12 +395,12 @@ export function stageRules(
 }
 
 /**
- * A member's shell commands as the CLI's rules: `Bash(<pattern>)` each. A pattern the rule could not
- * carry (a comma splits the flag's list, a parenthesis closes the rule, a newline starts another) is
- * left out, which allows less, never more.
+ * A member's shell commands as the CLI's rules: `Bash(<pattern>)` each. The settings never hold a
+ * pattern the rule could not carry (`isTeamCommandPattern`), but one that got there anyway is left
+ * out, which allows less, never more.
  */
 function commandRules(commands: readonly string[]): string[] {
-  return [...new Set(commands.filter((c) => isTeamCommandPattern(c) && !c.includes(',')).map((c) => `Bash(${c})`))];
+  return [...new Set(commands.filter(isTeamCommandPattern).map((c) => `Bash(${c})`))];
 }
 
 const SCRIPT_NAME = /^[A-Za-z0-9][\w:.-]{0,63}$/;

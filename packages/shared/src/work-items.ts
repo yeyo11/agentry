@@ -136,19 +136,34 @@ export const MAX_TEAM_COMMANDS = 50;
 /** The longest shell command pattern */
 export const TEAM_COMMAND_MAX = 200;
 
+/** Why a shell command pattern cannot be a member's: `comma` apart, since it has a message of its own */
+export type TeamCommandProblem = 'invalid' | 'comma';
+
 /**
- * A shell command pattern a member may carry (`npm test`, `pnpm *`, `cargo test *`): one line of
- * printable text, no longer than {@link TEAM_COMMAND_MAX}, without the parentheses that would end
- * the `Bash(<pattern>)` rule it becomes, and not only a wildcard, which would mean any command and
- * is what leaving `commands` out already says.
+ * Why a shell command pattern cannot be a member's (`npm test`, `pnpm *`, `cargo test *`), or null
+ * when it can. The one rule for the team route, the settings document, the flow and the member's
+ * screen. A pattern becomes the rule `Bash(<pattern>)`, and the flow hands its rules to the CLI as
+ * one comma-joined `--allowedTools=` list (`chats.ts`), so:
+ *
+ * - a comma would cut the rule in two, and the CLI would read two rules neither of which was meant;
+ * - a parenthesis would end the rule early, and a control character (a newline) start another;
+ * - only a wildcard would mean any command, which is what leaving `commands` out already says.
+ *
+ * It must be one line of printable text, no longer than {@link TEAM_COMMAND_MAX}, with nothing
+ * around it to trim.
  */
-export function isTeamCommandPattern(value: unknown): value is string {
-  if (typeof value !== 'string') return false;
+export function teamCommandProblem(value: unknown): TeamCommandProblem | null {
+  if (typeof value !== 'string') return 'invalid';
+  if (value.includes(',')) return 'comma';
   const pattern = value.trim();
-  if (!pattern || pattern.length > TEAM_COMMAND_MAX || pattern !== value) return false;
-  // Control characters (a newline would start a second rule) and the rule's own delimiters
-  if (/[\u0000-\u001f\u007f()]/.test(pattern)) return false;
-  return !/^[*\s:]+$/.test(pattern);
+  if (!pattern || pattern.length > TEAM_COMMAND_MAX || pattern !== value) return 'invalid';
+  if (/[\u0000-\u001f\u007f()]/.test(pattern)) return 'invalid';
+  return /^[*\s:]+$/.test(pattern) ? 'invalid' : null;
+}
+
+/** A shell command pattern a member may carry: one {@link teamCommandProblem} finds nothing wrong with. */
+export function isTeamCommandPattern(value: unknown): value is string {
+  return teamCommandProblem(value) === null;
 }
 
 export const JOURNAL_ENTRY_KINDS = valuesOf<JournalEntryKind>()(['closed', 'decision', 'memory', 'note']);

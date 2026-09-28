@@ -139,7 +139,7 @@ test("a member's shell commands survive the settings document, and a pattern tha
   assert.equal(parseProjectSettings(withCommands(null)).team?.members[0]?.commands, undefined);
   assert.equal('commands' in (parseProjectSettings({ ...valid(), team: { members: [member] } }).team?.members[0] ?? {}), false);
 
-  for (const commands of ['pnpm *', ['npm test)'], ['npm test\nnpm publish'], ['*'], [12], Array.from({ length: 51 }, (_, i) => `make t${i}`)]) {
+  for (const commands of ['pnpm *', ['npm test)'], ['npm test\nnpm publish'], ['npm test, rm -rf /'], ['*'], [12], Array.from({ length: 51 }, (_, i) => `make t${i}`)]) {
     assert.throws(() => parseProjectSettings(withCommands(commands)), /commands/, JSON.stringify(commands));
   }
 });

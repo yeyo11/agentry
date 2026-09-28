@@ -222,9 +222,13 @@ role as `teamRole`.
 - **`writes` bounds the edit tools; `commands` bounds the shell** (orchestration 6, gap 7). A member
   without `commands` has the whole `Bash`, as before. With a list, each pattern (`npm test`,
   `pnpm *`…) becomes a `Bash(<pattern>)` rule in `dontAsk`, so nothing else runs, and an empty list
-  means no shell at all. `PUT /projects/:id/team/:agent` checks each pattern
-  (`isTeamCommandPattern`) and refuses one with a comma, since the CLI's rule list is comma separated;
-  `null` there drops the list. The agent file Agentry owns says what the member may run. The
+  means no shell at all. One rule in `packages/shared` (`teamCommandProblem`, and
+  `isTeamCommandPattern` over it) decides what a pattern may be, for `PUT /projects/:id/team/:agent`,
+  the settings document, the flow and the member's screen alike: one printable line, no parentheses,
+  not only a wildcard, and **no comma**, since the flow hands the CLI its rules as one comma-joined
+  `--allowedTools=` list and a comma would cut a rule in two. The route and the screen say a comma
+  is the problem; the flow leaves out a pattern that got into the settings anyway, which allows
+  less, never more. `null` in the route drops the list. The agent file Agentry owns says what the member may run. The
   template's Developer gets no list, so the default stays unlimited unless the owner chooses.
   Refining and verifying keep their own tool sets whatever `commands` says. From a terminal, both are
   only the agent file's instructions.

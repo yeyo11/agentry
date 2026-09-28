@@ -370,6 +370,7 @@ test("a member's shell commands are kept, checked and told to its agent file; nu
     for (const commands of ['pnpm test', ['*'], ['rm -rf (x)'], ['a\nb'], ['npm run a,b'], [1], Array.from({ length: 51 }, (_, i) => `cmd${i}`)]) {
       await rejects(core.team.putMember(p.id, 'developer', { ...base, commands }), 400, /command/);
     }
+    await rejects(core.team.putMember(p.id, 'developer', { ...base, commands: ['npm run a,b'] }), 400, /cannot contain a comma/);
   });
 });
 

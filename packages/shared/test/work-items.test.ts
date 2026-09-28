@@ -15,6 +15,7 @@ import {
   MAX_FLOW_PARALLEL,
   parseWorkItemKey,
   TEAM_COMMAND_MAX,
+  teamCommandProblem,
   WORK_ITEMS_PAGE,
   WORK_ITEMS_PAGE_MAX,
   valuesOf,
@@ -94,6 +95,20 @@ test('a member command pattern is one printable line that cannot break out of it
   const refused = ['', '   ', '*', ' * ', ':*', 'npm test\nnpm publish', 'npm test)', 'Bash(npm *)', ' npm test', 'x'.repeat(TEAM_COMMAND_MAX + 1), 12, null];
   for (const pattern of refused) assert.equal(isTeamCommandPattern(pattern), false, JSON.stringify(pattern));
   assert.ok(isTeamCommandPattern('x'.repeat(TEAM_COMMAND_MAX)));
+});
+
+test('a comma is refused in a member command pattern, with its own reason: the CLI gets the rules as one comma-joined list', () => {
+  // `Bash(npm test, rm -rf /)` joined into `--allowedTools=` would reach the CLI as two rules
+  for (const pattern of ['npm test, rm -rf /', 'a,b', ',', 'echo "1,2"']) {
+    assert.equal(teamCommandProblem(pattern), 'comma', pattern);
+    assert.equal(isTeamCommandPattern(pattern), false, pattern);
+  }
+  assert.equal(teamCommandProblem('pnpm *'), null);
+  assert.equal(teamCommandProblem('npm test)'), 'invalid');
+  assert.equal(teamCommandProblem('*'), 'invalid');
+  assert.equal(teamCommandProblem(12), 'invalid');
+  // A pattern that is wrong twice over names the comma, which says what to change
+  assert.equal(teamCommandProblem('a,(b)'), 'comma');
 });
 
 test('the language of a request is the first of ours it names, English otherwise', () => {
