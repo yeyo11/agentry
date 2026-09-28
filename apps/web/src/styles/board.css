@@ -1866,10 +1866,13 @@ a.workitem-mrow-title::after {
   gap: 6px;
 }
 
+/* Text and chevron on one row, as .workitem-col-more draws them */
 .workitem-mrow-more-link {
-  display: grid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 0;
-  place-items: center;
   min-height: 48px;
   color: var(--fg-2);
   font-size: 14px;
