@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
-import { existsSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { Execution } from '@agentry/shared';
 import type { LegacyRun, StoredChat } from '../src/chat-records.ts';
-import { Db } from '../src/db.ts';
+import { Db, migrate, WORK_ITEMS_SCHEMA_VERSION } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
 import { ChatManager } from '../src/chats.ts';
 import { SessionStore } from '../src/sessions.ts';
@@ -143,6 +146,37 @@ const legacyRun = (id: string, sessionId: string | null, createdAt: string, extr
   internal: false,
   account: null,
   ...extra,
+});
+
+test('two processes upgrading an old database at once never run a migration twice', async () => {
+  const config = tempConfig();
+  mkdirSync(config.dataDir, { recursive: true });
+  // A database as the release before the work items left it, so several migrations are pending
+  const raw = new DatabaseSync(join(config.dataDir, 'wrapper.db'));
+  raw.exec('PRAGMA busy_timeout = 5000');
+  raw.exec('PRAGMA journal_mode = WAL');
+  migrate(raw, WORK_ITEMS_SCHEMA_VERSION - 1);
+  // This process takes the write lock first, and keeps it until the other one is waiting on it
+  raw.exec('BEGIN IMMEDIATE');
+  const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'db-opener.ts');
+  const child = spawn(process.execPath, [...process.execArgv, fixture, dirname(config.dataDir)], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let stderr = '';
+  child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+  const exited = new Promise<number | null>((resolve, reject) => {
+    child.on('error', reject);
+    child.on('exit', resolve);
+  });
+  await new Promise<void>((resolve) => child.stdout.on('data', () => resolve()));
+  await new Promise((r) => setTimeout(r, 400));
+  raw.exec('COMMIT');
+  migrate(raw);
+
+  assert.equal(await exited, 0, stderr);
+  const version = raw.prepare('PRAGMA user_version').get() as { user_version: number };
+  const fresh = new Db({ ...config });
+  assert.equal(fresh.connection.prepare('PRAGMA user_version').get()?.user_version, version.user_version);
+  fresh.close();
+  raw.close();
 });
 
 test('chats round-trip with their executions, newest first, and the cap drops the oldest with theirs', () => {
