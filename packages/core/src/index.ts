@@ -1382,7 +1382,8 @@ export class Core {
     const shown = await this.boardProjects();
     const board = this.workItems.board(null, filter);
     const counts = new Map(WORK_ITEM_STATUSES.map((status) => [status, 0]));
-    for (const item of this.workItems.list()) if (shown.has(item.projectId)) counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
+    // Epics group work rather than being work, and the project board leaves them out of its counts too
+    for (const item of this.workItems.list()) if (item.type !== 'epic' && shown.has(item.projectId)) counts.set(item.status, (counts.get(item.status) ?? 0) + 1);
     return {
       projectId: null,
       columns: board.columns.map((column) => ({

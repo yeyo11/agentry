@@ -319,6 +319,12 @@ test('the All projects view shows the boards that are on, and a removed project 
     assert.ok(board.columns.every((c) => c.limit === null));
     assert.equal(board.columns.flatMap((c) => c.items).some((i) => i.projectId === hidden.id), false);
     assert.equal(board.columns.reduce((n, c) => n + c.count, 0), board.columns.flatMap((c) => c.items).length);
+    // An epic is not counted, as on the project's own board, so the figure does not change with the scope
+    await createItem(two.id, { title: 'Grouping', type: 'epic', status: 'todo' });
+    const todo = (b: Board) => b.columns.find((c) => c.status === 'todo')?.count;
+    const withEpic = (await app.inject('/api/work-items/board')).json<Board>();
+    assert.equal(todo(withEpic), todo(board));
+    assert.equal(todo((await app.inject(`/api/projects/${two.id}/work-items/board`)).json<Board>()), 1);
     assert.equal((await app.inject('/api/work-items?status=todo')).json<WorkItem[]>().some((i) => i.id === a.id), false);
 
     // Removed: its items stay, readable by id but out of every list, and nothing changes them
