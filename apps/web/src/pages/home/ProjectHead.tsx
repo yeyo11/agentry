@@ -7,6 +7,7 @@ import { ICON, ICON_SM, Monogram, WorkItemKey } from '../../components/icons';
 import { formatNumber } from '../../lib/format';
 import { NEW_TASK_PATH } from '../../lib/work-items';
 import { assistantPath } from '../assistant/model';
+import type { ProjectViewId } from '../dashboard/views';
 
 /**
  * The top of every tab: who the project is (its monogram, name, key and template), where it lives
@@ -92,5 +93,22 @@ export function PhoneAssistantLink({ project }: { project: Pick<Project, 'id' | 
     <Link to={assistantPath(project.id)} className="icon-btn project-head-assistant" aria-disabled={!project.exists || undefined} aria-label={t('head.assistantOf', { name: project.name })}>
       <Sparkle {...ICON} />
     </Link>
+  );
+}
+
+/** On a phone a tab opens as its own screen, headed by its name and the project it belongs to. */
+export function PhoneViewHead({ project, view, onBack }: { project: Project; view: ProjectViewId; onBack: () => void }) {
+  const { t } = useTranslation('home');
+  return (
+    <header className="page-header project-head project-head-phone">
+      <button type="button" className="icon-btn" aria-label={t('dashboard.back')} onClick={onBack}>
+        <ChevronLeft {...ICON} />
+      </button>
+      <div className="page-header-text project-head-text">
+        <h1>{t(`tabs.${view}`)}</h1>
+        <span className="mono small muted ellipsis">{project.name}</span>
+      </div>
+      <PhoneAssistantLink project={project} />
+    </header>
   );
 }

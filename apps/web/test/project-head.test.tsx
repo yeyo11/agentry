@@ -9,8 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { monogramLetters } from '../src/components/icons';
 import i18n from '../src/i18n';
-import { PhoneViewHead } from '../src/pages/Home';
-import { PhoneHead, ProjectHead } from '../src/pages/home/ProjectHead';
+import { PhoneHead, PhoneViewHead, ProjectHead } from '../src/pages/home/ProjectHead';
 import { PhoneHead as TeamPhoneHead } from '../src/pages/team/Team';
 
 // Gap 8 of orchestration 6: once a project had a team, nothing on its page led to its assistant.
